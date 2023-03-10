@@ -1,0 +1,11 @@
+name = "VortexFilamentEwald"
+uuid = "3d0f1e53-df37-477e-a492-0d33e6039c24"
+authors = ["Juan Ignacio Polanco<juan-ignacio.polanco@cnrs.fr>"]
+version = "0.1.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[compat]
+julia = "1.9"
