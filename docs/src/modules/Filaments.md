@@ -11,8 +11,10 @@ Filaments
 ## Types
 
 ```@docs
+AbstractFilament
 ClosedFilament
 PaddedVector
+Derivative
 Vec3
 ```
 
@@ -20,6 +22,10 @@ Vec3
 
 ```@docs
 nodes
+estimate_derivatives!
+derivatives
+derivative
+node_distances
 ```
 
 ## Derivative estimation
@@ -27,4 +33,12 @@ nodes
 ```@docs
 DerivativeEstimationMethod
 FiniteDiff
+```
+
+## Interpolations
+
+```@docs
+InterpolationMethod
+HermiteInterpolation
+interpolate
 ```

@@ -8,8 +8,12 @@ module Filaments
 export
     ClosedFilament,
     Vec3,
+    Derivative,
     nodes,
-    compute_derivatives!
+    node_distances,
+    estimate_derivatives!,
+    derivatives,
+    derivative
 
 using Base: @propagate_inbounds
 using LinearAlgebra: norm, ⋅, ×
@@ -24,23 +28,46 @@ Used to describe vectors and coordinates in 3D space.
 """
 const Vec3{T} = SVector{3, T}
 
-include("derivative_estimation.jl")
-include("padded_vector.jl")
+"""
+    Derivative{N}
+
+Represents the ``N``-th order derivative operator.
+
+Used in particular to interpolate derivatives along filaments.
+"""
+struct Derivative{N} end
+Derivative(N::Int) = Derivative{N}()
 
 @doc raw"""
-    ClosedFilament{T, M} <: AbstractVector{Vec3{T}}
+    AbstractFilament{T} <: AbstractVector{Vec3{T}}
 
-Describes a closed curve (a loop) in 3D space.
+Abstract type representing a curve in 3D space.
 
 The curve coordinates are parametrised as ``\bm{X}(t)`` with ``t ∈ ℝ``.
 
 The curve is discretised by a set of *nodes* (or discretisation points)
 ``\bm{X}(t_i) = \bm{X}_i`` for ``i ∈ \{1, 2, …, N\}``.
 
-A `ClosedFilament` is treated as an `AbstractVector` of length `N`, in which
+See [`ClosedFilament`](@ref) for a concrete implementation of `AbstractFilament`.
+
+An `AbstractFilament` is treated as an `AbstractVector` of length `N`, in which
 each element is a discretisation point `\bm{X}_i`. Therefore, one can use the
 usual indexing notation to retrieve and to modify discretisation points. See
-further below for examples.
+[`ClosedFilament`](@ref) for some examples.
+"""
+abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
+
+include("derivatives/derivatives.jl")
+include("interpolations/interpolations.jl")
+include("padded_vector.jl")
+
+@doc raw"""
+    ClosedFilament{T, M} <: AbstractFilament{T} <: AbstractVector{Vec3{T}}
+
+Describes a closed curve (a loop) in 3D space.
+
+The parameter `M` corresponds to the number of neighbouring data points needed
+on each side of a given discretisation point to estimate derivatives.
 
 ---
 
@@ -87,6 +114,27 @@ julia> fil[5] = (fil[4] + 2 * fil[6]) ./ 2
  -1.38581929876693
   0.0
 
+julia> estimate_derivatives!(fil);
+
+julia> derivative(fil, 1)
+16-element PaddedVector{2, StaticArraysCore.SVector{3, Float64}, Vector{StaticArraysCore.SVector{3, Float64}}}:
+ [-1.1102230246251565e-16, -1.0056712250866777, 0.0]
+ [0.38485371624697473, -0.9291190612931332, 0.0]
+ [0.7182731830606435, -0.6888706857208597, 0.0]
+ [0.9756878438837288, -0.7190396901563081, 0.0]
+ [0.5108238194008445, 0.34240719514000695, 0.0]
+ [0.6420265791563875, 0.7226786074475605, 0.0]
+ [0.7305563783649631, 0.6383040901696273, 0.0]
+ [0.3848537162469746, 0.9291190612931333, 0.0]
+ [1.1102230246251565e-16, 1.0056712250866777, 0.0]
+ [-0.38485371624697473, 0.9291190612931332, 0.0]
+ [-0.7111169429029729, 0.7111169429029729, 0.0]
+ [-0.9291190612931333, 0.3848537162469746, 0.0]
+ [-1.0056712250866777, 1.1102230246251565e-16, 0.0]
+ [-0.9291190612931332, -0.38485371624697473, 0.0]
+ [-0.7111169429029729, -0.7111169429029729, 0.0]
+ [-0.3848537162469746, -0.9291190612931333, 0.0]
+
 ```
 
 ---
@@ -115,7 +163,7 @@ struct ClosedFilament{
         DEM <: DerivativeEstimationMethod{M},
         Distances <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
-    } <: AbstractVector{Vec3{T}}
+    } <: AbstractFilament{T}
 
     # Derivative estimation method.
     method_derivatives :: DEM
@@ -149,9 +197,40 @@ end
 """
     nodes(f::ClosedFilament) -> PaddedVector
 
-Returns the discretisation points ``\\bm{X}_i`` of the filament.
+Return the discretisation points ``\\bm{X}_i`` of the filament.
 """
 nodes(f::ClosedFilament) = f.Xs
+
+"""
+    node_distances(f::ClosedFilament) -> PaddedVector
+
+Return precomputed node distances ``ℓ_i = |\\bm{X}_{i + 1} - \\bm{X}_i|``.
+
+This function should be generally called after [`estimate_derivatives!`](@ref).
+"""
+node_distances(f::ClosedFilament) = f.ℓs
+
+"""
+    derivatives(f::ClosedFilament) -> (Ẋs, Ẍs)
+
+Return a tuple with the first and second derivatives at the filament nodes.
+
+Each element is a vector with the derivatives estimated at the interpolation points.
+
+This function should be generally called after [`estimate_derivatives!`](@ref).
+"""
+derivatives(f::ClosedFilament) = (f.Xs_dot, f.Xs_ddot)
+
+"""
+    derivative(f::ClosedFilament, i::Int) -> AbstractVector
+
+Return ``i``-th derivative at filament nodes.
+
+Same as `derivatives(f)[i]`. The only allowed values are `i ∈ (1, 2)`.
+
+See [`derivatives`](@ref) for details.
+"""
+derivative(f::ClosedFilament, i::Int) = derivatives(f)[i]
 
 derivative_estimation_method(f::ClosedFilament) = f.method_derivatives
 
@@ -169,7 +248,23 @@ end
 @propagate_inbounds Base.getindex(f::ClosedFilament, i::Int) = nodes(f)[i]
 @propagate_inbounds Base.setindex!(f::ClosedFilament, v, i::Int) = nodes(f)[i] = v
 
-function compute_derivatives!(f::ClosedFilament)
+"""
+    estimate_derivatives!(f::ClosedFilament) -> (Ẋs, Ẍs)
+
+Estimate first and second derivatives at filament nodes based on the locations
+of the discretisation points.
+
+Note that derivatives are with respect to the (arbitrary) parametrisation
+``\\bm{X}(t)``, and *not* with respect to the arclength ``ξ = ξ(t)``. In other
+words, the returned derivatives do not directly correspond to the unit tangent
+and curvature vectors (but they are closely related).
+
+The estimated derivatives are returned by this function as a tuple of vectors.
+
+The derivatives are stored in the `ClosedFilament` object, and can also be
+retrieved later by calling [`derivatives`](@ref) or [`derivative`](@ref).
+"""
+function estimate_derivatives!(f::ClosedFilament)
     (; ℓs, Xs, Xs_dot, Xs_ddot,) = f
 
     # 1. Periodically pad Xs.
@@ -201,7 +296,36 @@ function compute_derivatives!(f::ClosedFilament)
     pad_periodic!(Xs_dot)
     pad_periodic!(Xs_ddot)
 
-    nothing
+    Xs_dot, Xs_ddot
+end
+
+@doc raw"""
+    interpolate(
+        method::HermiteInterpolation{M}, f::ClosedFilament, i::Int,
+        t::Number, [derivative = Derivative(0)],
+    )
+
+Interpolate filament coordinates or derivatives using Hermite interpolation.
+
+The filament is interpolated between nodes ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
+
+Here, the parameter ``t`` should be normalised to be in ``[0, 1]``.
+"""
+function interpolate(
+        method::HermiteInterpolation, f::ClosedFilament,
+        i::Int, t::Number, deriv::Derivative{N} = Derivative(0),
+    ) where {N}
+    (; ℓs, Xs, Xs_dot, Xs_ddot,) = f
+    checkbounds(eachindex(f), i)
+    @assert npad(Xs) ≥ 1
+    @assert npad(Xs_dot) ≥ 1
+    @assert npad(Xs_ddot) ≥ 1
+    @inbounds ℓ_i = ℓs[i]
+    @inbounds Xs_i = (Xs[i], Xs[i + 1])
+    @inbounds Xs′_i = (Xs_dot[i], Xs_dot[i + 1]) .* ℓ_i  # TODO only compute if needed (M ≥ 1)
+    @inbounds Xs″_i = (Xs_ddot[i], Xs_ddot[i + 1]) .* ℓ_i^2  # TODO only compute if needed (M ≥ 2)
+    α = 1 / (ℓ_i^N)
+    α * interpolate(method, deriv, t, Xs_i, Xs′_i, Xs″_i)
 end
 
 end
