@@ -2,7 +2,7 @@ export
     HermiteInterpolation
 
 """
-    HermiteInterpolation{M} <: InterpolationMethod
+    HermiteInterpolation{M} <: LocalInterpolationMethod
 
 Hermite interpolation of continuity ``C^M`` at interpolation points.
 
@@ -19,7 +19,7 @@ Hermite interpolations are obtained using curve derivatives up to order ``M``.
 - for ``M = 2`` this is a quintic Hermite interpolation requiring first and
   second derivatives at interpolation points.
 """
-struct HermiteInterpolation{M} <: InterpolationMethod end
+struct HermiteInterpolation{M} <: LocalInterpolationMethod end
 
 HermiteInterpolation(M::Int) = HermiteInterpolation{M}()
 

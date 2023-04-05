@@ -1,19 +1,14 @@
-export
-    interpolate
-
 """
-    InterpolationMethod
+    LocalInterpolationMethod
 
-Abstract type defining an interpolation method for estimating curve properties
-(coordinates, derivatives) in-between interpolation points.
+Abstract type defining a local interpolation method for estimating curve properties
+(coordinates, derivatives) in-between interpolation points using local information.
 """
-abstract type InterpolationMethod end
-
-include("hermite.jl")
+abstract type LocalInterpolationMethod end
 
 """
     interpolate(
-        method::InterpolationMethod, [derivative = Derivative(0)], t::Number,
+        method::LocalInterpolationMethod, [derivative = Derivative(0)], t::Number,
         values_at_interpolation_points...,
     )
 
@@ -32,5 +27,6 @@ The `values_at_interpolation_points` depend on the interpolation method:
 """
 function interpolate end
 
-interpolate(method::InterpolationMethod, t::Number, args...) =
+interpolate(method::LocalInterpolationMethod, t::Number, args...) =
     interpolate(method, Derivative(0), t, args...)
+

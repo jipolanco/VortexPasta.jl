@@ -12,6 +12,7 @@ export
     nodes,
     node_distances,
     estimate_derivatives!,
+    interpolate,
     derivatives,
     derivative
 
@@ -57,9 +58,11 @@ usual indexing notation to retrieve and to modify discretisation points. See
 """
 abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 
-include("discretisations/discretisations.jl")
-include("interpolations/interpolations.jl")
-include("tools/tools.jl")
+include("discretisations.jl")
+include("local/padded_vector.jl")
+include("local/finitediff.jl")
+include("local/interpolation.jl")
+include("local/interp_hermite.jl")
 
 @doc raw"""
     ClosedFilament{T, M} <: AbstractFilament{T} <: AbstractVector{Vec3{T}}
