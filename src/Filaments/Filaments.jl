@@ -59,7 +59,7 @@ abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 
 include("derivatives/derivatives.jl")
 include("interpolations/interpolations.jl")
-include("padded_vector.jl")
+include("tools/tools.jl")
 
 @doc raw"""
     ClosedFilament{T, M} <: AbstractFilament{T} <: AbstractVector{Vec3{T}}
@@ -305,27 +305,34 @@ end
         t::Number, [derivative = Derivative(0)],
     )
 
-Interpolate filament coordinates or derivatives using Hermite interpolation.
+Evaluate filament coordinate or derivative at arbitrary point using Hermite interpolation.
 
 The filament is interpolated between nodes ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
 
-Here, the parameter ``t`` should be normalised to be in ``[0, 1]``.
+The parameter ``t`` should be normalised to be in ``[0, 1]``.
 """
 function interpolate(
-        method::HermiteInterpolation, f::ClosedFilament,
+        method::HermiteInterpolation{M}, f::ClosedFilament,
         i::Int, t::Number, deriv::Derivative{N} = Derivative(0),
-    ) where {N}
+    ) where {M, N}
     (; ℓs, Xs, Xs_dot, Xs_ddot,) = f
     checkbounds(eachindex(f), i)
     @assert npad(Xs) ≥ 1
     @assert npad(Xs_dot) ≥ 1
     @assert npad(Xs_ddot) ≥ 1
     @inbounds ℓ_i = ℓs[i]
-    @inbounds Xs_i = (Xs[i], Xs[i + 1])
-    @inbounds Xs′_i = (Xs_dot[i], Xs_dot[i + 1]) .* ℓ_i  # TODO only compute if needed (M ≥ 1)
-    @inbounds Xs″_i = (Xs_ddot[i], Xs_ddot[i + 1]) .* ℓ_i^2  # TODO only compute if needed (M ≥ 2)
-    α = 1 / (ℓ_i^N)
-    α * interpolate(method, deriv, t, Xs_i, Xs′_i, Xs″_i)
+    @assert M ≤ 2
+    α = 1 / (ℓ_i^N)  # normalise returned derivative by ℓ^N
+    values_full = (Xs, Xs_dot, Xs_ddot)
+    ℓ_norm = Ref(one(ℓ_i))
+    values_i = ntuple(Val(M + 1)) do m
+        @inline
+        X = values_full[m]
+        @inbounds data = (X[i], X[i + 1]) .* ℓ_norm  # normalise m-th derivative by ℓ^m
+        ℓ_norm[] *= ℓ_i
+        data
+    end
+    α * interpolate(method, deriv, t, values_i...)
 end
 
 end

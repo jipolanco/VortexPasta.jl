@@ -45,47 +45,52 @@ function interpolate(
 end
 
 # Cubic Hermite interpolation
-function interpolate(
-        ::HermiteInterpolation{1}, ::Derivative{N},
+@inline function interpolate(
+        ::HermiteInterpolation{1}, ::Derivative{0},
         t::Number, Xs::NTuple{2}, Xs′::NTuple{2}, etc...,
-    ) where {N}
-    N::Int
-    if N === 0
-        t2 = t * t
-        t3 = t2 * t
-        (
-            (2 * t3 - 3 * t2 + 1) * Xs[1]
-            +
-            (-2 * t3 + 3 * t2) * Xs[2]
-            +
-            (t3 - 2 * t2 + t) * Xs′[1]
-            +
-            (t3 - t2) * Xs′[2]
-        )
-    elseif N === 1
-        t2 = t * t
-        (
-            (6 * t2 - 6 * t) * Xs[1]
-            +
-            (-6 * t2 + 6 * t) * Xs[2]
-            +
-            (3 * t2 - 4 * t + 1) * Xs′[1]
-            +
-            (3 * t2 - 2t) * Xs′[2]
-        )
-    elseif N === 2
-        (
-            (12 * t - 6) * Xs[1]
-            +
-            (-12 * t + 6) * Xs[2]
-            +
-            (6 * t - 4) * Xs′[1]
-            +
-            (6 * t - 2) * Xs′[2]
-        )
-    else
-        nothing
-    end
+    )
+    t2 = t * t
+    t3 = t2 * t
+    (
+        (2 * t3 - 3 * t2 + 1) * Xs[1]
+        +
+        (-2 * t3 + 3 * t2) * Xs[2]
+        +
+        (t3 - 2 * t2 + t) * Xs′[1]
+        +
+        (t3 - t2) * Xs′[2]
+    )
+end
+
+@inline function interpolate(
+        ::HermiteInterpolation{1}, ::Derivative{1},
+        t::Number, Xs::NTuple{2}, Xs′::NTuple{2}, etc...,
+    )
+    t2 = t * t
+    (
+        (6 * t2 - 6 * t) * Xs[1]
+        +
+        (-6 * t2 + 6 * t) * Xs[2]
+        +
+        (3 * t2 - 4 * t + 1) * Xs′[1]
+        +
+        (3 * t2 - 2t) * Xs′[2]
+    )
+end
+
+@inline function interpolate(
+        ::HermiteInterpolation{1}, ::Derivative{2},
+        t::Number, Xs::NTuple{2}, Xs′::NTuple{2}, etc...,
+    )
+    (
+        (12 * t - 6) * Xs[1]
+        +
+        (-12 * t + 6) * Xs[2]
+        +
+        (6 * t - 4) * Xs′[1]
+        +
+        (6 * t - 2) * Xs′[2]
+    )
 end
 
 # Quintic Hermite interpolation
