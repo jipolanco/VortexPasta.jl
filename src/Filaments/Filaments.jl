@@ -12,13 +12,16 @@ export
     nodes,
     node_distances,
     estimate_derivatives!,
+    normalise_derivatives,
+    normalise_derivatives!,
     interpolate,
     derivatives,
     derivative
 
 using Base: @propagate_inbounds
-using LinearAlgebra: norm, ⋅, ×
+using LinearAlgebra: norm, normalize, ⋅, ×
 using StaticArrays
+using StructArrays
 
 """
     Vec3{T}
@@ -299,6 +302,49 @@ function estimate_derivatives!(f::ClosedFilament)
 
     Xs_dot, Xs_ddot
 end
+
+"""
+    normalise_derivatives(Ẋ::Vec3, Ẍ::Vec3) -> (X′, X″)
+    normalise_derivatives((Ẋ, Ẍ)::NTuple)   -> (X′, X″)
+
+Return derivatives with respect to the arc length ``ξ``, from derivatives with
+respect to the parameter ``t``.
+
+The returned derivatives satisfy:
+
+- ``\\bm{X}' ≡ t̂`` is the **unit tangent** vector;
+
+- ``\\bm{X}'' ≡ ρ n̂`` is the **curvature** vector, where ``n̂`` is the normal unit
+  vector (with ``t̂ ⋅ n̂ = 0``) and ``ρ = R^{-1}`` is the curvature (and R the
+  curvature radius).
+"""
+function normalise_derivatives(Ẋ::Vec3, Ẍ::Vec3)
+    t̂ = normalize(Ẋ)  # unit tangent vector (= X′)
+    X″ = (Ẍ - (Ẍ ⋅ t̂) * t̂) ./ sum(abs2, Ẋ)  # curvature vector
+    t̂, X″
+end
+
+normalise_derivatives(derivs::NTuple{2, Vec3}) = normalise_derivatives(derivs...)
+
+"""
+    normalise_derivatives!(fil::AbstractFilament)
+    normalise_derivatives!(Ẋ::AbstractVector, Ẍ::AbstractVector)
+
+Normalise derivatives at filament nodes.
+
+Note that filament derivatives are modified, and thus Hermite interpolations
+may be incorrect after doing this. If possible, prefer using
+[`normalise_derivatives`](@ref), which works on a single filament location at a time.
+
+See [`normalise_derivatives`](@ref) for more details.
+"""
+function normalise_derivatives!(Ẋ::AbstractVector, Ẍ::AbstractVector)
+    derivs = StructArray((Ẋ, Ẍ))
+    map!(normalise_derivatives, derivs, derivs)
+    (Ẋ, Ẍ)
+end
+
+normalise_derivatives!(fil::AbstractFilament) = normalise_derivatives!(derivatives(fil)...)
 
 @doc raw"""
     interpolate(

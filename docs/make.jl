@@ -9,7 +9,9 @@ DocMeta.setdocmeta!(
 
 makedocs(
     sitename = "VortexFilamentEwald",
-    format = Documenter.HTML(),
+    format = Documenter.HTML(
+        prettyurls = get(ENV, "CI", nothing) == "true",
+    ),
     modules = [VortexFilamentEwald],
     pages = [
         "index.md",

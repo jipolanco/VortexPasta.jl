@@ -75,12 +75,15 @@ Base.IndexStyle(::Type{<:PaddedVector{M, T, V}}) where {M, T, V} = IndexStyle(V)
 
 Base.parent(v::PaddedVector) = v.data
 Base.size(v::PaddedVector) = (length(parent(v)) - 2 * npad(v),)
+Base.size(v::PaddedVector{0}) = size(parent(v))
 
 @propagate_inbounds Base.getindex(v::PaddedVector, i::Int) =
     parent(v)[i + npad(v)]
 
 @propagate_inbounds Base.setindex!(v::PaddedVector, val, i::Int) =
     parent(v)[i + npad(v)] = val
+
+pad_periodic!(v::PaddedVector{0}) = v
 
 # Apply periodic padding
 function pad_periodic!(v::PaddedVector)

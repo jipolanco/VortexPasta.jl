@@ -23,22 +23,36 @@ Vec3
 ```@docs
 nodes
 estimate_derivatives!
+normalise_derivatives
+normalise_derivatives!
 derivatives
 derivative
 node_distances
 ```
 
-## Derivative estimation
+## Discretisation methods
 
 ```@docs
-DerivativeEstimationMethod
+DiscretisationMethod
+```
+
+### Global methods
+
+```@docs
+GlobalDiscretisationMethod
+```
+
+### Local methods
+
+```@docs
+LocalDiscretisationMethod
 FiniteDiff
 ```
 
-## Interpolations
+## Local interpolations
 
 ```@docs
-InterpolationMethod
+LocalInterpolationMethod
 HermiteInterpolation
 interpolate
 ```
