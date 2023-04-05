@@ -11,6 +11,7 @@ Filaments
 ## Types
 
 ```@docs
+DiscretisationMethod
 AbstractFilament
 ClosedFilament
 PaddedVector
@@ -21,38 +22,34 @@ Vec3
 ## Functions
 
 ```@docs
+Filaments.init
 nodes
 estimate_derivatives!
 normalise_derivatives
 normalise_derivatives!
 derivatives
 derivative
-node_distances
 ```
 
-## Discretisation methods
-
-```@docs
-DiscretisationMethod
-```
-
-### Global methods
-
-```@docs
-GlobalDiscretisationMethod
-```
-
-### Local methods
+## Local discretisations
 
 ```@docs
 LocalDiscretisationMethod
 FiniteDiff
+ClosedLocalFilament
 ```
 
-## Local interpolations
+### Local interpolations
 
 ```@docs
 LocalInterpolationMethod
 HermiteInterpolation
 interpolate
+```
+
+## Global discretisations
+
+```@docs
+GlobalDiscretisationMethod
+ClosedSplineFilament
 ```
