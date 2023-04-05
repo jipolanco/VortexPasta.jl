@@ -2,7 +2,7 @@ export
     FiniteDiff
 
 @doc raw"""
-    FiniteDiff{M} <: DerivativeEstimationMethod{M}
+    FiniteDiff{M} <: LocalDiscretisationMethod{M}
 
 Estimation of curve derivatives at filament nodes using finite differences.
 
@@ -13,7 +13,7 @@ following the method used by Baggaley & Barenghi[^1] based on a paper by Gamet e
 
 [^2]: L. Gamet, F. Ducros, F. Nicoud & T. Poinsot, [Int. J. Numer. Meth. Fluids **29**, 2 (1999)](http://dx.doi.org/10.1002/(SICI)1097-0363(19990130)29:2<159::AID-FLD781>3.0.CO;2-9).
 """
-struct FiniteDiff{M} <: DerivativeEstimationMethod{M} end
+struct FiniteDiff{M} <: LocalDiscretisationMethod{M} end
 
 FiniteDiff(M::Int) = FiniteDiff{M}()
 

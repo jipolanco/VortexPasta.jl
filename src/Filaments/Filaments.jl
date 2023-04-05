@@ -57,7 +57,7 @@ usual indexing notation to retrieve and to modify discretisation points. See
 """
 abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 
-include("derivatives/derivatives.jl")
+include("discretisations/discretisations.jl")
 include("interpolations/interpolations.jl")
 include("tools/tools.jl")
 
@@ -71,7 +71,7 @@ on each side of a given discretisation point to estimate derivatives.
 
 ---
 
-    ClosedFilament(N::Integer, method::DerivativeEstimationMethod, [T = Float64])
+    ClosedFilament(N::Integer, method::DiscretisationMethod, [T = Float64])
 
 Allocate data for a closed filament with `N` discretisation points.
 
@@ -154,19 +154,17 @@ between two interpolation points:
 
 which is a zero-th order approximation (and a lower bound) for the actual
 arclength between points ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
-Note that this choice is known as *chordal* parametrisation in the context of
-[Catmull--Rom splines](https://en.wikipedia.org/wiki/Centripetal_Catmull%E2%80%93Rom_spline).
 """
 struct ClosedFilament{
         T <: AbstractFloat,
-        M,
-        DEM <: DerivativeEstimationMethod{M},
+        M,  # padding
+        Disc <: DiscretisationMethod,
         Distances <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
     } <: AbstractFilament{T}
 
     # Derivative estimation method.
-    method_derivatives :: DEM
+    discretisation :: Disc
 
     # Node distances ℓ_i = |X_{i + 1} - X_i|.
     ℓs      :: Distances
@@ -181,7 +179,7 @@ struct ClosedFilament{
     Xs_ddot :: Points
 
     function ClosedFilament(
-            N::Integer, method::DerivativeEstimationMethod, ::Type{T},
+            N::Integer, method::DiscretisationMethod, ::Type{T},
         ) where {T}
         M = npad(method)
         ℓs = PaddedVector{M}(Vector{T}(undef, N + 2M))
@@ -232,7 +230,7 @@ See [`derivatives`](@ref) for details.
 """
 derivative(f::ClosedFilament, i::Int) = derivatives(f)[i]
 
-derivative_estimation_method(f::ClosedFilament) = f.method_derivatives
+discretisation_method(f::ClosedFilament) = f.discretisation
 
 Base.eltype(::Type{<:ClosedFilament{T}}) where {T} = T
 Base.eltype(f::ClosedFilament) = eltype(typeof(f))
@@ -241,8 +239,8 @@ Base.size(f::ClosedFilament) = size(nodes(f))
 function Base.showarg(io::IO, f::ClosedFilament, toplevel)
     toplevel || print(io, "::")
     T = eltype(f)
-    DEM = typeof(derivative_estimation_method(f))
-    print(io, nameof(typeof(f)), '{', T, ',', ' ', DEM, '}')
+    disc = typeof(discretisation_method(f))
+    print(io, nameof(typeof(f)), '{', T, ',', ' ', disc, '}')
 end
 
 @propagate_inbounds Base.getindex(f::ClosedFilament, i::Int) = nodes(f)[i]
@@ -281,7 +279,7 @@ function estimate_derivatives!(f::ClosedFilament)
     pad_periodic!(ℓs)
 
     # 3. Estimate derivatives at nodes.
-    method = derivative_estimation_method(f)
+    method = discretisation_method(f)
     @inbounds for i ∈ eachindex(Xs_dot)
         ℓs_i = ntuple(j -> ℓs[i - M - 1 + j], Val(2M))      # = ℓs[(i - M):(i + M - 1)]
         Xs_i = ntuple(j -> Xs[i - M - 1 + j], Val(2M + 1))  # = Xs[(i - M):(i + M)]
