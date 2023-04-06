@@ -24,6 +24,9 @@
   #   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   #   - if: $CI_COMMIT_BRANCH == "development"
   script:
+    # This is needed for caching Julia files (compilation, ...), since caching
+    # can only be done if the files are in the project directory.
+    - export JULIA_DEPOT_PATH=.julia
     # Let's run the tests. Substitute `coverage = false` below, if you do not
     # want coverage results.
     - julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build(); Pkg.test(coverage = true)'
@@ -66,6 +69,7 @@ pages:
   image: julia:1.9-rc
   stage: deploy
   script:
+    - export JULIA_DEPOT_PATH=.julia
     - apt-get update -qq && apt-get install -y git  # needed by Documenter
     - julia --project=docs -e 'using Pkg; Pkg.develop(path = "."); Pkg.instantiate(); Pkg.build()'
     - julia --project=docs --color=yes docs/make.jl  # make documentation
