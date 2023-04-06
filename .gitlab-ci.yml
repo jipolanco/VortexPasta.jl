@@ -32,6 +32,13 @@
       import VortexFilamentEwald; cd(joinpath(dirname(pathof(VortexFilamentEwald)), ".."));
       using Coverage; cl, tl = get_summary(process_folder());
       println("(", cl/tl*100, "%) covered")'
+  cache:
+    key: julia-cache
+    paths:
+      - .julia/artifacts
+      - .julia/compiled
+      - .julia/packages
+      - .julia/registries
 
 # Name a test and select an appropriate image.
 # images comes from Docker hub
@@ -68,6 +75,13 @@ pages:
       - public
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  cache:
+    key: julia-cache
+    paths:
+      - .julia/artifacts
+      - .julia/compiled
+      - .julia/packages
+      - .julia/registries
 
 # WARNING: This template is using the `julia` images from [Docker
 # Hub][3]. One can use custom Julia images and/or the official ones found
