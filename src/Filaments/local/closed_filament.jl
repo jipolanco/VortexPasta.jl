@@ -12,17 +12,42 @@ on each side of a given discretisation point to estimate derivatives.
 
 ---
 
-    ClosedLocalFilament(N::Integer, method::LocalDiscretisationMethod, [T = Float64]) -> ClosedLocalFilament
-    Filaments.init(ClosedFilament{T}, N::Integer, method::LocalDiscretisationMethod)  -> ClosedLocalFilament
+    Filaments.init(ClosedFilament{T}, N::Integer, discret::LocalDiscretisationMethod, [interp = HermiteInterpolation(2)]) -> ClosedLocalFilament{T}
 
 Allocate data for a closed filament with `N` discretisation points.
 
+The element type `T` can be omitted, in which case the default `T = Float64` is used.
+
 See also [`Filaments.init`](@ref).
+
+# Optional arguments
+
+- `interpolation`: method used to evaluate curve coordinates or derivatives
+  in-between discretisation points. Must be a type of [`LocalInterpolationMethod`].
+  By default, quintic Hermite interpolation (`HermiteInterpolation(2)`) is used.
+  Note that Hermite interpolations use the derivatives estimated via the chosen
+  discretisation method.
+
+# Interpolating in-between discretisation points
+
+One can estimate filament coordinates and derivatives in-between discretisation
+points using the chosen interpolation method.
+The signature for doing this is as follows:
+
+    f = ClosedLocalFilament(...)
+    f(i::Int, t::Number, [derivative = Derivative(0)])
+
+This returns an interpolation between nodes ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
+Here, the ``t`` parameter should be in ``[0, 1]``.
+To obtain `N`-th order derivatives, pass `Derivative(N)` as the last argument.
+
+Note that, if using Hermite interpolations (which is the default), one must
+first estimate filament derivatives using [`estimate_derivatives!`](@ref).
 
 # Examples
 
 ```jldoctest
-julia> fil = Filaments.init(ClosedFilament, 16, FiniteDiffMethod(2));
+julia> fil = Filaments.init(ClosedFilament, 16, FiniteDiffMethod(2); interpolation_method = HermiteInterpolation(2));
 
 julia> θs = range(-1, 1; length = 17)[1:16]
 -1.0:0.125:0.875
@@ -79,6 +104,18 @@ julia> derivative(fil, 1)
  [-0.7111169429029729, -0.7111169429029729, 0.0]
  [-0.3848537162469746, -0.9291190612931333, 0.0]
 
+julia> fil(4, 0.32)
+3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
+ -0.1599562129900946
+ -1.1254976317779821
+  0.0
+
+julia> Ẋ, Ẍ = fil(4, 0.32, Derivative(1)), fil(4, 0.32, Derivative(2))
+([0.8866970267571704, -0.9868145656366478, 0.0], [-0.6552471551692444, -0.5406810630674178, 0.0])
+
+julia> X′, X″ = normalise_derivatives(Ẋ, Ẍ)
+([0.6683664614205477, -0.7438321539488432, 0.0], [-0.358708958397356, -0.3223160439235058, 0.0])
+
 ```
 
 ---
@@ -102,13 +139,14 @@ arclength between points ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
 struct ClosedLocalFilament{
         T <: AbstractFloat,
         M,  # padding
-        Disc <: LocalDiscretisationMethod,
+        Discretisation <: LocalDiscretisationMethod,
+        Interpolation <: LocalInterpolationMethod,
         Distances <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
     } <: ClosedFilament{T}
 
-    # Derivative estimation method.
-    discretisation :: Disc
+    discretisation :: Discretisation  # derivative estimation method
+    interpolation  :: Interpolation   # interpolation method
 
     # Node distances ℓ_i = |X_{i + 1} - X_i|.
     ℓs      :: Distances
@@ -123,18 +161,26 @@ struct ClosedLocalFilament{
     Xs_ddot :: Points
 
     function ClosedLocalFilament(
-            N::Integer, method::LocalDiscretisationMethod, ::Type{T},
+            N::Integer, discretisation::LocalDiscretisationMethod,
+            interpolation::LocalInterpolationMethod, ::Type{T},
         ) where {T}
-        M = npad(method)
+        M = npad(discretisation)
         ℓs = PaddedVector{M}(Vector{T}(undef, N + 2M))
         Xs = similar(ℓs, Vec3{T})
         Xs_dot = similar(Xs)
         Xs_ddot = similar(Xs)
-        new{T, M, typeof(method), typeof(ℓs), typeof(Xs)}(
-            method, ℓs, Xs, Xs_dot, Xs_ddot,
+        new{T, M, typeof(discretisation), typeof(interpolation), typeof(ℓs), typeof(Xs)}(
+            discretisation, interpolation, ℓs, Xs, Xs_dot, Xs_ddot,
         )
     end
 end
+
+# Use default interpolation method
+ClosedLocalFilament(N::Integer, disc::LocalDiscretisationMethod, ::Type{T}) where {T} =
+    ClosedLocalFilament(N, disc, HermiteInterpolation(2), T)
+
+init(::Type{ClosedFilament{T}}, N::Integer, disc::LocalDiscretisationMethod, args...) where {T} =
+    ClosedLocalFilament(N, disc, args..., T)
 
 """
     derivatives(f::ClosedLocalFilament) -> (Ẋs, Ẍs)
@@ -159,6 +205,7 @@ See [`derivatives`](@ref) for details.
 derivative(f::ClosedLocalFilament, i::Int) = derivatives(f)[i]
 
 discretisation_method(f::ClosedLocalFilament) = f.discretisation
+interpolation_method(f::ClosedLocalFilament) = f.interpolation
 
 function estimate_derivatives!(f::ClosedLocalFilament)
     (; ℓs, Xs, Xs_dot, Xs_ddot,) = f
@@ -195,21 +242,14 @@ function estimate_derivatives!(f::ClosedLocalFilament)
     Xs_dot, Xs_ddot
 end
 
-@doc raw"""
-    interpolate(
-        method::HermiteInterpolation{M}, f::ClosedLocalFilament, i::Int,
-        t::Number, [derivative = Derivative(0)],
-    )
+function (f::ClosedLocalFilament)(i::Int, t::Number, deriv::Derivative = Derivative(0))
+    m = interpolation_method(f)
+    _interpolate(m, f, i, t, deriv)
+end
 
-Evaluate filament coordinate or derivative at arbitrary point using Hermite interpolation.
-
-The filament is interpolated between nodes ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
-
-The parameter ``t`` should be normalised to be in ``[0, 1]``.
-"""
-function interpolate(
+function _interpolate(
         method::HermiteInterpolation{M}, f::ClosedLocalFilament,
-        i::Int, t::Number, deriv::Derivative{N} = Derivative(0),
+        i::Int, t::Number, deriv::Derivative{N},
     ) where {M, N}
     (; ℓs, Xs, Xs_dot, Xs_ddot,) = f
     checkbounds(eachindex(f), i)

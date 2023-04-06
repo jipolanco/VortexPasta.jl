@@ -117,7 +117,7 @@ include("spline/spline.jl")
 include("spline/closed_filament.jl")
 
 """
-    Filaments.init(ClosedFilament{T}, N::Integer, method::DiscretisationMethod) -> ClosedFilament{T}
+    Filaments.init(ClosedFilament{T}, N::Integer, method::DiscretisationMethod, [args...]) -> ClosedFilament{T}
 
 Allocate data for a closed filament with `N` discretisation points.
 
@@ -125,13 +125,11 @@ The element type `T` can be omitted, in which case the default `T = Float64` is 
 
 Depending on the type of `method`, the returned filament may be a
 [`ClosedLocalFilament`](@ref) or a [`ClosedSplineFilament`](@ref).
+See their respective documentations for possible optional arguments (`args...`).
 """
 function init end
 
 init(::Type{ClosedFilament}, args...) = init(ClosedFilament{Float64}, args...)
-
-init(::Type{ClosedFilament{T}}, N::Integer, method::LocalDiscretisationMethod) where {T} =
-    ClosedLocalFilament(N, method, T)
 
 """
     estimate_derivatives!(f::AbstractFilament) -> (Ẋs, Ẍs)

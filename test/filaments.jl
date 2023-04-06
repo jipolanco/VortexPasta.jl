@@ -17,8 +17,8 @@ using VortexFilamentEwald.Filaments
     N = 32
     α = 1 / 100N  # amplitude of random perturbation to obtain a non-uniform node distribution
 
-    @testset "FiniteDiff(2) / HermiteInterpolation(2)" begin
-        fil = @inferred Filaments.init(ClosedFilament, N, FiniteDiff(2))
+    @testset "FiniteDiffMethod(2) / HermiteInterpolation(2)" begin
+        fil = @inferred Filaments.init(ClosedFilament, N, FiniteDiffMethod(2), HermiteInterpolation(2))
         ts = collect(range(0, 1; length = N + 1)[1:N])
         rng = MersenneTwister(42)
         ts .+= rand(rng, N) .* α
@@ -32,10 +32,10 @@ using VortexFilamentEwald.Filaments
 
         let i = 5, s = 0.3
             local t = (1 - s) * ts[i] + s * ts[i + 1]
-            X = interpolate(HermiteInterpolation(2), fil, i, s)
-            Ẋ = interpolate(HermiteInterpolation(2), fil, i, s, Derivative(1))
-            Ẍ = interpolate(HermiteInterpolation(2), fil, i, s, Derivative(2))
-            X′, X″ = normalise_derivatives(Ẋ, Ẍ)
+            X = @inferred fil(i, s)
+            Ẋ = @inferred fil(i, s, Derivative(1))
+            Ẍ = @inferred fil(i, s, Derivative(2))
+            X′, X″ = @inferred normalise_derivatives(Ẋ, Ẍ)
             @test isapprox(X, S(t); rtol = 1e-4)
             @test isapprox(X′, S′(t); rtol = 1e-3)
             @test isapprox(X″, S″(t); rtol = 1e-2)
