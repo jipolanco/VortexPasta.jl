@@ -46,4 +46,14 @@ using VortexFilamentEwald.Filaments
         @test isapprox(derivative(fil, 1), S′.(ts); rtol = 1e-3)
         @test !isapprox(derivative(fil, 1), S′.(ts); rtol = 1e-4)
     end
+
+    @testset "CubicSplineMethod" begin
+        fil = @inferred Filaments.init(ClosedFilament, N, CubicSplineMethod())
+        ts = collect(range(0, 1; length = N + 1)[1:N])
+        rng = MersenneTwister(42)
+        ts .+= rand(rng, N) .* α
+        ts .-= ts[begin]
+        fil .= S.(ts)
+        update_coefficients!(fil)
+    end
 end

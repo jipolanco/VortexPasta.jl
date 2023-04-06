@@ -64,4 +64,27 @@ struct ClosedSplineFilament{
     end
 end
 
+init(::Type{ClosedFilament{T}}, N::Integer, ::CubicSplineMethod) where {T} =
+    ClosedSplineFilament(N, T)
+
 discretisation_method(::ClosedSplineFilament) = CubicSplineMethod()
+
+function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector)
+    @assert eachindex(ts) == eachindex(Xs)
+    ts[begin] = 0
+    inds = eachindex(ts)[begin:end - 1]
+    @assert npad(ts) == npad(Xs) ≥ 1
+    @inbounds for i ∈ inds
+        ts[i + 1] = ts[i] + norm(Xs[i + 1] - Xs[i])
+    end
+    ℓ_last = norm(Xs[begin] - Xs[end])
+    L = ts[end] + ℓ_last - ts[begin]  # knot period
+    pad_periodic!(ts, L)
+end
+
+function update_coefficients!(f::ClosedSplineFilament)
+    (; ts, Xs,) = f
+    pad_periodic!(Xs)
+    _update_knots_periodic!(ts, Xs)
+    f
+end

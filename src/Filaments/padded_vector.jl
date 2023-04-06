@@ -1,7 +1,5 @@
 export PaddedVector
 
-using Base: @propagate_inbounds
-
 """
     PaddedVector{M, T} <: AbstractVector{T}
 
@@ -82,21 +80,19 @@ function Base.similar(v::PaddedVector, ::Type{S}, dims::Dims{1}) where {S}
     PaddedVector{M}(similar(v.data, S, dims .+ 2M))
 end
 
-@propagate_inbounds Base.getindex(v::PaddedVector, i::Int) =
+Base.@propagate_inbounds Base.getindex(v::PaddedVector, i::Int) =
     parent(v)[i + npad(v)]
 
-@propagate_inbounds Base.setindex!(v::PaddedVector, val, i::Int) =
+Base.@propagate_inbounds Base.setindex!(v::PaddedVector, val, i::Int) =
     parent(v)[i + npad(v)] = val
 
-pad_periodic!(v::PaddedVector{0}) = v
-
-# Apply periodic padding
-function pad_periodic!(v::PaddedVector)
-    M = npad(v)
+# Apply periodic padding.
+# If L ≠ 0, it is interpreted as an unfolding period, such that v[N + 1 + i] - v[i] = L (where N = length(v)).
+function pad_periodic!(v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}
     if length(v) ≥ M
         @inbounds for i ∈ 1:M
-            v[begin - i] = v[end + 1 - i]
-            v[end + i] = v[begin - 1 + i]
+            v[begin - i] = v[end + 1 - i] - L
+            v[end + i] = v[begin - 1 + i] + L
         end
     else
         # TODO apply "partial" (or multiple?) periodic padding based on the

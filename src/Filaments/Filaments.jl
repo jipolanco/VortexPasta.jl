@@ -105,8 +105,8 @@ Abstract type representing a *closed* curve (a loop) in 3D space.
 abstract type ClosedFilament{T} <: AbstractFilament{T} end
 
 include("discretisations.jl")
+include("padded_vector.jl")
 
-include("local/padded_vector.jl")
 include("local/finitediff.jl")
 include("local/interpolation.jl")
 include("local/interp_hermite.jl")
@@ -133,10 +133,14 @@ init(::Type{ClosedFilament}, args...) = init(ClosedFilament{Float64}, args...)
 """
     update_coefficients!(f::AbstractFilament)
 
-Compute coefficients needed to perform inter-node interpolations and estimate derivatives.
+Compute coefficients needed to perform inter-node interpolations and estimate
+derivatives.
 
 Uses the current locations of the filament nodes. If nodes change, this
 function should be called to update the coefficients.
+
+In the case of local Hermite interpolations, the coefficients are just the
+derivatives at the discretisation points.
 
 Note that derivatives are with respect to the (arbitrary) parametrisation
 ``\\bm{X}(t)``, and *not* with respect to the arclength ``ξ = ξ(t)``. In other
