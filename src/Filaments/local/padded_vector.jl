@@ -77,6 +77,11 @@ Base.parent(v::PaddedVector) = v.data
 Base.size(v::PaddedVector) = (length(parent(v)) - 2 * npad(v),)
 Base.size(v::PaddedVector{0}) = size(parent(v))
 
+function Base.similar(v::PaddedVector, ::Type{S}, dims::Dims{1}) where {S}
+    M = npad(v)
+    PaddedVector{M}(similar(v.data, S, dims .+ 2M))
+end
+
 @propagate_inbounds Base.getindex(v::PaddedVector, i::Int) =
     parent(v)[i + npad(v)]
 

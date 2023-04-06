@@ -7,8 +7,6 @@ module Filaments
 
 export
     ClosedFilament,
-    ClosedLocalFilament,
-    # ClosedSplineFilament,
     Vec3,
     Derivative,
     nodes,
@@ -19,7 +17,6 @@ export
     derivatives,
     derivative
 
-using Base: @propagate_inbounds
 using LinearAlgebra: norm, normalize, ⋅, ×
 using StaticArrays
 using StructArrays
@@ -63,6 +60,45 @@ usual indexing notation to retrieve and to modify discretisation points. See
 abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 
 """
+    discretisation_method(f::AbstractFilament) -> DiscretisationMethod
+
+Return the method used to discretise the filament based on its node locations.
+"""
+function discretisation_method end
+
+"""
+    nodes(f::AbstractFilament{T}) -> AbstractVector{T}
+
+Return the discretisation points ``\\bm{X}_i`` of the filament.
+"""
+nodes(f::AbstractFilament) = f.Xs
+
+"""
+    Base.getindex(f::AbstractFilament{T}, i::Int) -> Vec3{T}
+
+Return coordinates of discretisation point ``\\bm{X}_i``.
+"""
+Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
+
+"""
+    Base.setindex!(f::AbstractFilament{T}, v, i::Int) -> Vec3{T}
+
+Set coordinates of discretisation point ``\\bm{X}_i``.
+"""
+Base.@propagate_inbounds Base.setindex!(f::AbstractFilament, v, i::Int) = nodes(f)[i] = v
+
+Base.eltype(::Type{<:AbstractFilament{T}}) where {T} = T
+Base.eltype(f::AbstractFilament) = eltype(typeof(f))
+Base.size(f::AbstractFilament) = size(nodes(f))
+
+function Base.showarg(io::IO, f::AbstractFilament, toplevel)
+    toplevel || print(io, "::")
+    T = eltype(f)
+    disc = typeof(discretisation_method(f))
+    print(io, nameof(typeof(f)), '{', T, ',', ' ', disc, '}')
+end
+
+"""
     ClosedFilament{T} <: AbstractFilament{T}
 
 Abstract type representing a *closed* curve (a loop) in 3D space.
@@ -76,6 +112,9 @@ include("local/finitediff.jl")
 include("local/interpolation.jl")
 include("local/interp_hermite.jl")
 include("local/closed_filament.jl")
+
+include("spline/spline.jl")
+include("spline/closed_filament.jl")
 
 """
     Filaments.init(ClosedFilament{T}, N::Integer, method::DiscretisationMethod) -> ClosedFilament{T}

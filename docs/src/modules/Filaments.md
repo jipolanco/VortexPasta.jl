@@ -23,7 +23,10 @@ Vec3
 
 ```@docs
 Filaments.init
+discretisation_method
 nodes
+Base.getindex
+Base.setindex!
 estimate_derivatives!
 normalise_derivatives
 normalise_derivatives!
@@ -35,7 +38,7 @@ derivative
 
 ```@docs
 LocalDiscretisationMethod
-FiniteDiff
+FiniteDiffMethod
 ClosedLocalFilament
 ```
 
@@ -51,5 +54,6 @@ interpolate
 
 ```@docs
 GlobalDiscretisationMethod
+CubicSplineMethod
 ClosedSplineFilament
 ```

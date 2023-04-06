@@ -1,8 +1,11 @@
+export
+    ClosedLocalFilament
+
 @doc raw"""
-    ClosedLocalFilament{T, M} <: AbstractFilament{T} <: AbstractVector{Vec3{T}}
+    ClosedLocalFilament{T, M} <: ClosedFilament{T} <: AbstractFilament{T} <: AbstractVector{Vec3{T}}
 
 Describes a closed curve (a loop) in 3D space using a local discretisation
-method such as [`FiniteDiff`](@ref).
+method such as [`FiniteDiffMethod`](@ref).
 
 The parameter `M` corresponds to the number of neighbouring data points needed
 on each side of a given discretisation point to estimate derivatives.
@@ -19,13 +22,13 @@ See also [`Filaments.init`](@ref).
 # Examples
 
 ```jldoctest
-julia> fil = Filaments.init(ClosedFilament, 16, FiniteDiff(2));
+julia> fil = Filaments.init(ClosedFilament, 16, FiniteDiffMethod(2));
 
 julia> θs = range(-1, 1; length = 17)[1:16]
 -1.0:0.125:0.875
 
 julia> @. fil = Vec3(cospi(θs), sinpi(θs), 0)
-16-element ClosedLocalFilament{Float64, FiniteDiff{2}}:
+16-element ClosedLocalFilament{Float64, FiniteDiffMethod{2}}:
  [-1.0, -0.0, 0.0]
  [-0.9238795325112867, -0.3826834323650898, 0.0]
  [-0.7071067811865476, -0.7071067811865476, 0.0]
@@ -102,7 +105,7 @@ struct ClosedLocalFilament{
         Disc <: LocalDiscretisationMethod,
         Distances <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
-    } <: AbstractFilament{T}
+    } <: ClosedFilament{T}
 
     # Derivative estimation method.
     discretisation :: Disc
@@ -124,21 +127,14 @@ struct ClosedLocalFilament{
         ) where {T}
         M = npad(method)
         ℓs = PaddedVector{M}(Vector{T}(undef, N + 2M))
-        Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))
-        Xs_dot = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))
-        Xs_ddot = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))
+        Xs = similar(ℓs, Vec3{T})
+        Xs_dot = similar(Xs)
+        Xs_ddot = similar(Xs)
         new{T, M, typeof(method), typeof(ℓs), typeof(Xs)}(
             method, ℓs, Xs, Xs_dot, Xs_ddot,
         )
     end
 end
-
-"""
-    nodes(f::ClosedLocalFilament) -> PaddedVector
-
-Return the discretisation points ``\\bm{X}_i`` of the filament.
-"""
-nodes(f::ClosedLocalFilament) = f.Xs
 
 """
     derivatives(f::ClosedLocalFilament) -> (Ẋs, Ẍs)
@@ -163,20 +159,6 @@ See [`derivatives`](@ref) for details.
 derivative(f::ClosedLocalFilament, i::Int) = derivatives(f)[i]
 
 discretisation_method(f::ClosedLocalFilament) = f.discretisation
-
-Base.eltype(::Type{<:ClosedLocalFilament{T}}) where {T} = T
-Base.eltype(f::ClosedLocalFilament) = eltype(typeof(f))
-Base.size(f::ClosedLocalFilament) = size(nodes(f))
-
-function Base.showarg(io::IO, f::ClosedLocalFilament, toplevel)
-    toplevel || print(io, "::")
-    T = eltype(f)
-    disc = typeof(discretisation_method(f))
-    print(io, nameof(typeof(f)), '{', T, ',', ' ', disc, '}')
-end
-
-@propagate_inbounds Base.getindex(f::ClosedLocalFilament, i::Int) = nodes(f)[i]
-@propagate_inbounds Base.setindex!(f::ClosedLocalFilament, v, i::Int) = nodes(f)[i] = v
 
 function estimate_derivatives!(f::ClosedLocalFilament)
     (; ℓs, Xs, Xs_dot, Xs_ddot,) = f

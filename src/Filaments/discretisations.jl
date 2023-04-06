@@ -10,10 +10,6 @@
     DiscretisationMethod
 
 Abstract type defining a filament discretisation method.
-
-The parameter `M` is the number of neighbouring nodes that are required on each
-side to estimate the derivative.
-For instance, `M = 2` for 5-point finite differences (see [`FiniteDiff`](@ref)).
 """
 abstract type DiscretisationMethod end
 
@@ -30,7 +26,7 @@ Finite difference discretisations are a good example of local discretisation.
 
 The parameter `M` is the number of neighbouring nodes that are required on each
 side to estimate the derivative.
-For instance, `M = 2` for 5-point finite differences (see [`FiniteDiff`](@ref)).
+For instance, `M = 2` for 5-point finite differences (see [`FiniteDiffMethod`](@ref)).
 """
 abstract type LocalDiscretisationMethod{M} <: DiscretisationMethod end
 npad(::Type{<:LocalDiscretisationMethod{M}}) where {M} = M
