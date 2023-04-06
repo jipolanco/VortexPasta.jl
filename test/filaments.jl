@@ -24,7 +24,7 @@ using VortexFilamentEwald.Filaments
         ts .+= rand(rng, N) .* α
         ts .-= ts[begin]
         fil .= S.(ts)
-        estimate_derivatives!(fil)
+        update_coefficients!(fil)
 
         # Note: the actual precision depends a lot on `N` and on the perturbation amplitude `α`...
         @test isapprox(derivative(fil, 1), S′.(ts); rtol = 1e-2)

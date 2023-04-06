@@ -42,7 +42,7 @@ Here, the ``t`` parameter should be in ``[0, 1]``.
 To obtain `N`-th order derivatives, pass `Derivative(N)` as the last argument.
 
 Note that, if using Hermite interpolations (which is the default), one must
-first estimate filament derivatives using [`estimate_derivatives!`](@ref).
+first estimate filament derivatives using [`update_coefficients!`](@ref).
 
 # Examples
 
@@ -83,7 +83,7 @@ julia> fil[5] = (fil[4] + 2 * fil[6]) ./ 2
  -1.38581929876693
   0.0
 
-julia> estimate_derivatives!(fil);
+julia> update_coefficients!(fil);
 
 julia> derivative(fil, 1)
 16-element PaddedVector{2, StaticArraysCore.SVector{3, Float64}, Vector{StaticArraysCore.SVector{3, Float64}}}:
@@ -189,7 +189,7 @@ Return a tuple with the first and second derivatives at the filament nodes.
 
 Each element is a vector with the derivatives estimated at the interpolation points.
 
-This function should be generally called after [`estimate_derivatives!`](@ref).
+This function should be generally called after [`update_coefficients!`](@ref).
 """
 derivatives(f::ClosedLocalFilament) = (f.Xs_dot, f.Xs_ddot)
 
@@ -207,7 +207,7 @@ derivative(f::ClosedLocalFilament, i::Int) = derivatives(f)[i]
 discretisation_method(f::ClosedLocalFilament) = f.discretisation
 interpolation_method(f::ClosedLocalFilament) = f.interpolation
 
-function estimate_derivatives!(f::ClosedLocalFilament)
+function update_coefficients!(f::ClosedLocalFilament)
     (; ℓs, Xs, Xs_dot, Xs_ddot,) = f
 
     # 1. Periodically pad Xs.
@@ -239,7 +239,7 @@ function estimate_derivatives!(f::ClosedLocalFilament)
     pad_periodic!(Xs_dot)
     pad_periodic!(Xs_ddot)
 
-    Xs_dot, Xs_ddot
+    f
 end
 
 function (f::ClosedLocalFilament)(i::Int, t::Number, deriv::Derivative = Derivative(0))

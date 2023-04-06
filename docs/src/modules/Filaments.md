@@ -27,7 +27,7 @@ discretisation_method
 nodes
 Base.getindex
 Base.setindex!
-estimate_derivatives!
+update_coefficients!
 normalise_derivatives
 normalise_derivatives!
 derivatives

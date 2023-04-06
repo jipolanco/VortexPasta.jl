@@ -10,10 +10,9 @@ export
     Vec3,
     Derivative,
     nodes,
-    estimate_derivatives!,
+    update_coefficients!,
     normalise_derivatives,
     normalise_derivatives!,
-    interpolate,
     derivatives,
     derivative
 
@@ -132,22 +131,19 @@ function init end
 init(::Type{ClosedFilament}, args...) = init(ClosedFilament{Float64}, args...)
 
 """
-    estimate_derivatives!(f::AbstractFilament) -> (Ẋs, Ẍs)
+    update_coefficients!(f::AbstractFilament)
 
-Estimate first and second derivatives at filament nodes based on the locations
-of the discretisation points.
+Compute coefficients needed to perform inter-node interpolations and estimate derivatives.
+
+Uses the current locations of the filament nodes. If nodes change, this
+function should be called to update the coefficients.
 
 Note that derivatives are with respect to the (arbitrary) parametrisation
 ``\\bm{X}(t)``, and *not* with respect to the arclength ``ξ = ξ(t)``. In other
 words, the returned derivatives do not directly correspond to the unit tangent
 and curvature vectors (but they are closely related).
-
-The estimated derivatives are returned by this function as a tuple of vectors.
-
-The derivatives are stored in the `AbstractFilament` object, and can also be
-retrieved later by calling [`derivatives`](@ref) or [`derivative`](@ref).
 """
-function estimate_derivatives! end
+function update_coefficients! end
 
 """
     normalise_derivatives(Ẋ::Vec3, Ẍ::Vec3) -> (X′, X″)
