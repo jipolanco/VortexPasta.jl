@@ -75,6 +75,24 @@ Base.parent(v::PaddedVector) = v.data
 Base.size(v::PaddedVector) = (length(parent(v)) - 2 * npad(v),)
 Base.size(v::PaddedVector{0}) = size(parent(v))
 
+Base.checkbounds(::Type{Bool}, v::PaddedVector, I...) = _checkbounds(v, I...)
+
+@inline function _checkbounds(v::PaddedVector, i::Integer)
+    M = npad(v)
+    firstindex(v) - M ≤ i ≤ lastindex(v) + M
+end
+
+@inline function _checkbounds(v::PaddedVector, I::AbstractUnitRange)
+    M = npad(v)
+    firstindex(v) - M ≤ first(I) && last(I) ≤ lastindex(v) + M
+end
+
+# For some reason, when printing `v`, Julia indexes it as a 2D array (with j = 1).
+# This is needed to avoid failure.
+@inline function _checkbounds(v::PaddedVector, i::Integer, Is::Vararg{Integer})
+    all(isone, Is) && _checkbounds(v, i)
+end
+
 function Base.similar(v::PaddedVector, ::Type{S}, dims::Dims{1}) where {S}
     M = npad(v)
     PaddedVector{M}(similar(v.data, S, dims .+ 2M))

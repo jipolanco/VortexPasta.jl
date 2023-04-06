@@ -52,7 +52,7 @@ struct ClosedSplineFilament{
     c̈s :: Points
 
     function ClosedSplineFilament(N::Integer, ::Type{T}) where {T}
-        M = 2  # padding (TODO is M = 2 the right value for cubic splines?)
+        M = 3  # padding needed for cubic splines
         ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
         Xs = similar(ts, Vec3{T})
         cs = similar(Xs)
@@ -82,9 +82,20 @@ function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector)
     pad_periodic!(ts, L)
 end
 
+# TODO optimise solving for coefficients
+# - pass "raw" data only? (instead of PaddedVector's)
+# - avoid allocations and use faster solution method
 function update_coefficients!(f::ClosedSplineFilament)
-    (; ts, Xs,) = f
+    (; ts, Xs, cs,) = f
     pad_periodic!(Xs)
     _update_knots_periodic!(ts, Xs)
+    solve_cubic_spline_coefficients_slow!(cs, ts, Xs)  # TODO optimise
+    pad_periodic!(cs)
     f
+end
+
+function (f::ClosedSplineFilament)(i::Int, t::Number, ::Derivative{0} = Derivative(0))
+    (; ts, cs,) = f
+    x = (1 - t) * ts[i] + t * ts[i + 1]  # convert t ∈ [0, 1] to spline parametrisation
+    spline_kernel(cs, ts, i, x, Val(4))
 end
