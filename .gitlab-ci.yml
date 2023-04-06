@@ -60,7 +60,7 @@ pages:
   stage: deploy
   script:
     - apt-get update -qq && apt-get install -y git  # needed by Documenter
-    - julia --project=docs -e 'using Pkg; Pkg.instantiate(); Pkg.build()'
+    - julia --project=docs -e 'using Pkg; Pkg.develop("."); Pkg.instantiate(); Pkg.build()'
     - julia --project=docs --color=yes docs/make.jl  # make documentation
     - mv docs/build public  # move to the directory picked up by Gitlab pages
   artifacts:
