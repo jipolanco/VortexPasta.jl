@@ -2,7 +2,6 @@ export
     CubicSplineMethod
 
 using Base.Cartesian: @ntuple, @nexprs
-using LinearAlgebra: ldiv!, lu!
 
 """
     CubicSplineMethod <: GlobalDiscretisationMethod
@@ -32,50 +31,75 @@ Base.@propagate_inbounds function eval_cubic_bsplines(ts::AbstractVector, i::Int
     Base.tail(bs)  # return only non-zero B-splines (b_{i + 1}, b_{i}, b_{i - 1})
 end
 
-# Construct and solve cyclic tridiagonal linear system `Ax = y`.
-# Uses the algorithm described in
-# [Wikipedia](https://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm#Variants)
-# based on the Sherman–Morrison formula.
+# Obtain coefficients `cs` of periodic cubic spline from positions `Xs` and knots `ts`.
 function solve_cubic_spline_coefficients!(
-        xs::AbstractVector, ts::PaddedVector{3}, ys::AbstractVector,
+        cs::PaddedVector, ts::PaddedVector{3}, Xs::PaddedVector;
+        buf::PaddedVector = similar(Xs),
     )
-    solve_cubic_spline_coefficients_slow!(xs, ts, ys)
+    GC.@preserve buf begin
+        bufs = _thomas_buffers(ts, buf, Val(true))
+        _solve_periodic_cubic_spline_coefficients_thomas!(ts, copyto!(cs, Xs), bufs)
+    end
+    pad_periodic!(cs)
+    cs
 end
 
-# Slow version for testing only
-function solve_cubic_spline_coefficients_slow!(xs, ts, ys)
+function _thomas_buffers(ts::AbstractVector, buf_in::PaddedVector, ::Val{unsafe} = Val(true)) where {unsafe}
+    n = length(ts)
+    T = eltype(ts)
+    bdata = parent(buf_in)  # this is usually a vector of Vec3{T} of length n + 2M, where M is the padding
+    Base.require_one_based_indexing(bdata)
+    @assert sizeof(bdata) ≥ 3 * n * sizeof(T)
+    if unsafe
+        # This creates two tiny allocations (96 bytes total) due to `unsafe_wrap`.
+        # Tested on Julia 1.9-rc2.
+        # But things are much faster than with the safe version!
+        ptr = pointer(bdata)
+        ptr_bc = convert(Ptr{SVector{2, T}}, ptr)
+        sizeof_bc = 2n * sizeof(T)
+        ptr_us = convert(Ptr{T}, ptr + sizeof_bc)
+        (;
+            bc = unsafe_wrap(Array, ptr_bc, n; own = false),
+            us = unsafe_wrap(Array, ptr_us, n; own = false),
+        )
+    else
+        data = reinterpret(T, bdata)
+        (;
+            bc = reinterpret(SVector{2, T}, view(data, 1:2n)),
+            us = reinterpret(T, view(data, (2n + 1):(3n))),
+        )
+    end
+end
+
+# Construct and solve cyclic tridiagonal linear system `Ax = y`.
+# Uses an optimised version of the algorithm described in
+# [Wikipedia](https://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm#Variants)
+# based on the Thomas algorithm and the Sherman–Morrison formula.
+function _solve_periodic_cubic_spline_coefficients_thomas!(ts, xs, bufs)
     T = eltype(ts)
     n = length(ts)
-
-    A = zeros(T, n, n)
+    (; bc, us,) = bufs
+    @assert eltype(bc) === SVector{2, T}
+    @assert eltype(us) === T
+    @assert length(bc) == length(us) == n
 
     βs₁ = eval_cubic_bsplines(ts, 1)
-    a₁ = βs₁[3]  # β₀(t₁) -- out of bands value
-
     βsₙ = eval_cubic_bsplines(ts, n)
-    cₙ = βsₙ[1]  # βₙ₊₁(tₙ)
 
+    a₁ = βs₁[3]  # β₀(t₁)
+    cₙ = βsₙ[1]  # βₙ₊₁(tₙ)
     ac = a₁ * cₙ
+
+    # The γ coefficient is kind of arbitrary.
+    # We choose the value such that the first and last elements of the main
+    # diagonal (`bs`) are perturbed equally.
     γ = sqrt(ac)
 
-    let bs = βs₁  # (β₂(t₁), β₁(t₁), β₀(t₁))
-        A[1, 1] = bs[2] - γ  # β₁(t₁)
-        A[1, 2] = bs[1]      # β₂(t₁)
-    end
+    c₁ = βs₁[1]
+    b₁ = βs₁[2] - γ
+    bₙ = βsₙ[2] - ac / γ
+    aₙ = βsₙ[3]
 
-    for i ∈ 2:(n - 1)
-        bs = eval_cubic_bsplines(ts, i)
-        A[i, i - 1] = bs[3]
-        A[i, i] = bs[2]
-        A[i, i + 1] = bs[1]
-    end
-
-    let bs = βsₙ
-        A[n, n - 1] = bs[3]
-        A[n, n] = bs[2] - ac / γ
-    end
-
-    us = similar(A, n)
     fill!(us, 0)
     us[1] = γ
     us[n] = cₙ
@@ -83,9 +107,10 @@ function solve_cubic_spline_coefficients_slow!(xs, ts, ys)
     v₁ = 1
     vₙ = a₁ / γ
 
-    F = lu!(A)
-    ldiv!(F, us)  # us <- A \ us
-    ldiv!(xs, F, ys)
+    solve_thomas!(bc, (xs, us), (b₁, c₁), (aₙ, bₙ)) do i
+        @inline
+        eval_cubic_bsplines(ts, i)  # generates i-th row of linear system
+    end
 
     vy = v₁ * xs[1] + vₙ * xs[n]  # note: this may be a Vec{3}...
     vq = v₁ * us[1] + vₙ * us[n]  # ...while this is always a scalar
@@ -94,44 +119,6 @@ function solve_cubic_spline_coefficients_slow!(xs, ts, ys)
     for i ∈ eachindex(xs)
         @inbounds xs[i] = xs[i] - us[i] * α
     end
-
-    xs
-end
-
-# TODO remove
-function solve_cubic_spline_coefficients_slower!(xs, ts, ys)
-    T = eltype(ts)
-    n = length(ts)
-
-    A = zeros(T, n, n)
-
-    βs₁ = eval_cubic_bsplines(ts, 1)
-    βsₙ = eval_cubic_bsplines(ts, n)
-
-    let bs = βs₁  # (β₂(t₁), β₁(t₁), β₀(t₁))
-        @assert sum(bs) ≈ 1
-        A[1, 1] = bs[2]  # β₁(t₁)
-        A[1, 2] = bs[1]  # β₂(t₁)
-        A[1, n] = bs[3]  # β₃(t₁)
-    end
-
-    for i ∈ 2:(n - 1)
-        bs = eval_cubic_bsplines(ts, i)
-        @assert sum(bs) ≈ 1
-        A[i, i - 1] = bs[3]
-        A[i, i] = bs[2]
-        A[i, i + 1] = bs[1]
-    end
-
-    let bs = βsₙ
-        @assert sum(bs) ≈ 1
-        A[n, n - 1] = bs[3]
-        A[n, n] = bs[2]
-        A[n, 1] = bs[1]
-    end
-
-    F = lu!(A)
-    ldiv!(xs, F, ys)
 
     xs
 end
@@ -233,4 +220,52 @@ end
     end
 end
 
+# Simultaneously solve M tridiagonal linear systems using Thomas algorithm.
+# Optimised version interleaving construction and solution of the linear
+# system, avoiding allocation of the subdiagonal `a`.
+@fastmath function solve_thomas!(
+        generate_row::F,                    # row generation function
+        bc::AbstractVector{<:SVector{2}},   # buffers for diagonal and superdiagonal
+        ds::Tuple{Vararg{AbstractVector}},  # right-hand sides, then solutions
+        (b₁, c₁),                           # first row
+        (aₙ, bₙ),                           # last row
+    ) where {F <: Function}
+    Base.require_one_based_indexing(bc)
+    foreach(Base.require_one_based_indexing, ds)
+    n = length(bc)
+    @assert all(x -> length(x) == n, ds)
+    bprev = b₁
+    cprev = c₁
+    bc[1] = (bprev, cprev)
+    @inbounds for i ∈ 2:(n - 1)
+        ci, bi, ai = generate_row(i)
+        w = ai / bprev
+        bprev = bi - w * cprev
+        cprev = ci
+        bc[i] = (bprev, cprev)
+        foreach(ds) do d
+            @inbounds d[i] = d[i] - w * d[i - 1]
+        end
+    end
+    @inbounds let i = n
+        bi, ai = bₙ, aₙ
+        w = ai / bprev
+        bc[i] = (bi - w * cprev, zero(cprev))
+        foreach(ds) do d
+            @inbounds d[i] = d[i] - w * d[i - 1]
+        end
+    end
+    let bn = bc[n][1]
+        foreach(ds) do d
+            @inbounds d[n] = d[n] / bn
+        end
+    end
+    for i ∈ (n - 1):-1:1
+        bi, ci = bc[i]
+        foreach(ds) do d
+            @inbounds d[i] = (d[i] - ci * d[i + 1]) / bi
+        end
+    end
+    ds
+end
 # ============================================================================ #

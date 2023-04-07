@@ -86,11 +86,11 @@ end
 # - pass "raw" data only? (instead of PaddedVector's)
 # - avoid allocations and use faster solution method
 function update_coefficients!(f::ClosedSplineFilament)
-    (; ts, Xs, cs,) = f
+    (; ts, Xs, cs, ċs,) = f
     pad_periodic!(Xs)
     _update_knots_periodic!(ts, Xs)
-    solve_cubic_spline_coefficients_slow!(cs, ts, Xs)  # TODO optimise
-    pad_periodic!(cs)
+    solve_cubic_spline_coefficients!(cs, ts, Xs; buf = ċs)
+    # pad_periodic!(cs)
     f
 end
 
