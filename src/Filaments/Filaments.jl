@@ -45,6 +45,8 @@ Base.broadcastable(d::Derivative) = Ref(d)  # disable broadcasting on Derivative
     AtNode
 
 Used to evaluate filament coordinates or derivatives on a given discretisation node.
+
+See [`AbstractFilament`](@ref) for some examples.
 """
 struct AtNode
     i :: Int

@@ -7,6 +7,8 @@ DocMeta.setdocmeta!(
     :(using VortexFilamentEwald.Filaments),
 )
 
+# doctest(VortexFilamentEwald; fix = true)
+
 makedocs(
     sitename = "VortexFilamentEwald",
     format = Documenter.HTML(

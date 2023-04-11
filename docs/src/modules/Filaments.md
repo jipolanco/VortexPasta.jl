@@ -59,3 +59,8 @@ GlobalDiscretisationMethod
 CubicSplineMethod
 ClosedSplineFilament
 ```
+
+## Index
+
+```@index
+```

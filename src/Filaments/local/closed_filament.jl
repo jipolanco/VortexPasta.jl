@@ -28,97 +28,69 @@ See also [`Filaments.init`](@ref).
   Note that Hermite interpolations use the derivatives estimated via the chosen
   discretisation method.
 
-# Interpolating in-between discretisation points
-
-One can estimate filament coordinates and derivatives in-between discretisation
-points using the chosen interpolation method.
-The signature for doing this is as follows:
-
-    f = ClosedLocalFilament(...)
-    f(i::Int, t::Number, [derivative = Derivative(0)])
-
-This returns an interpolation between nodes ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
-Here, the ``t`` parameter should be in ``[0, 1]``.
-To obtain `N`-th order derivatives, pass `Derivative(N)` as the last argument.
-
-Note that, if using Hermite interpolations (which is the default), one must
-first estimate filament derivatives using [`update_coefficients!`](@ref).
-
 # Examples
 
-```jldoctest
-julia> fil = Filaments.init(ClosedFilament, 16, FiniteDiffMethod(2); interpolation_method = HermiteInterpolation(2));
+Initialise filament with set of discretisation points:
+
+```jldoctest ClosedLocalFilament
+julia> f = Filaments.init(ClosedFilament, 16, FiniteDiffMethod(2), HermiteInterpolation(2));
 
 julia> θs = range(-1, 1; length = 17)[1:16]
 -1.0:0.125:0.875
 
-julia> @. fil = Vec3(cospi(θs), sinpi(θs), 0)
-16-element ClosedLocalFilament{Float64, FiniteDiffMethod{2}}:
- [-1.0, -0.0, 0.0]
- [-0.9238795325112867, -0.3826834323650898, 0.0]
- [-0.7071067811865476, -0.7071067811865476, 0.0]
- [-0.3826834323650898, -0.9238795325112867, 0.0]
- [0.0, -1.0, 0.0]
- [0.3826834323650898, -0.9238795325112867, 0.0]
- [0.7071067811865476, -0.7071067811865476, 0.0]
- [0.9238795325112867, -0.3826834323650898, 0.0]
- [1.0, 0.0, 0.0]
- [0.9238795325112867, 0.3826834323650898, 0.0]
- [0.7071067811865476, 0.7071067811865476, 0.0]
- [0.3826834323650898, 0.9238795325112867, 0.0]
- [0.0, 1.0, 0.0]
- [-0.3826834323650898, 0.9238795325112867, 0.0]
- [-0.7071067811865476, 0.7071067811865476, 0.0]
- [-0.9238795325112867, 0.3826834323650898, 0.0]
+julia> @. f = Vec3(cospi(θs), sinpi(θs), 0);
 
-julia> fil[4]
+julia> f[4]
 3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
  -0.3826834323650898
  -0.9238795325112867
   0.0
 
-julia> fil[5] = (fil[4] + 2 * fil[6]) ./ 2
+julia> f[5] = (f[4] + 2 * f[6]) ./ 2
 3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
   0.1913417161825449
  -1.38581929876693
   0.0
 
-julia> update_coefficients!(fil);
+julia> update_coefficients!(f);
+```
 
-julia> derivative(fil, 1)
-16-element PaddedVector{2, StaticArraysCore.SVector{3, Float64}, Vector{StaticArraysCore.SVector{3, Float64}}}:
- [-1.1102230246251565e-16, -1.0056712250866777, 0.0]
- [0.38485371624697473, -0.9291190612931332, 0.0]
- [0.7182731830606435, -0.6888706857208597, 0.0]
- [0.9756878438837288, -0.7190396901563081, 0.0]
- [0.5108238194008445, 0.34240719514000695, 0.0]
- [0.6420265791563875, 0.7226786074475605, 0.0]
- [0.7305563783649631, 0.6383040901696273, 0.0]
- [0.3848537162469746, 0.9291190612931333, 0.0]
- [1.1102230246251565e-16, 1.0056712250866777, 0.0]
- [-0.38485371624697473, 0.9291190612931332, 0.0]
- [-0.7111169429029729, 0.7111169429029729, 0.0]
- [-0.9291190612931333, 0.3848537162469746, 0.0]
- [-1.0056712250866777, 1.1102230246251565e-16, 0.0]
- [-0.9291190612931332, -0.38485371624697473, 0.0]
- [-0.7111169429029729, -0.7111169429029729, 0.0]
- [-0.3848537162469746, -0.9291190612931333, 0.0]
+Note that [`update_coefficients!`](@ref) should be called whenever filament
+coordinates are changed, before doing other operations such as estimating
+derivatives.
 
-julia> fil(4, 0.32)
+Estimate derivatives at discretisation points:
+
+```jldoctest ClosedLocalFilament
+julia> f(AtNode(4), Derivative(1))
 3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
- -0.1599562129900946
+  0.975687843883729
+ -0.7190396901563083
+  0.0
+
+julia> f(AtNode(4), Derivative(2))
+3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
+  0.037089367352557384
+ -0.5360868773346441
+  0.0
+```
+
+Estimate coordinates and derivatives in-between discretisation points:
+
+```jldoctest ClosedLocalFilament
+julia> f(4, 0.32)
+3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
+ -0.15995621299009463
  -1.1254976317779821
   0.0
 
-julia> Ẋ, Ẍ = fil(4, 0.32, Derivative(1)), fil(4, 0.32, Derivative(2))
-([0.8866970267571704, -0.9868145656366478, 0.0], [-0.6552471551692444, -0.5406810630674178, 0.0])
+julia> Ẋ, Ẍ = f(4, 0.32, Derivative(1)), f(4, 0.32, Derivative(2))
+([0.8866970267571707, -0.9868145656366478, 0.0], [-0.6552471551692449, -0.5406810630674177, 0.0])
 
 julia> X′, X″ = normalise_derivatives(Ẋ, Ẍ)
-([0.6683664614205477, -0.7438321539488432, 0.0], [-0.358708958397356, -0.3223160439235058, 0.0])
+([0.6683664614205478, -0.7438321539488431, 0.0], [-0.358708958397356, -0.32231604392350593, 0.0])
 
 ```
-
----
 
 # Extended help
 
