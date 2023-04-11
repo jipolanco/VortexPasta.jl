@@ -48,8 +48,7 @@ struct ClosedSplineFilament{
     cs :: Points
 
     # Spline coefficients associated to first/second derivatives
-    ċs :: Points
-    c̈s :: Points
+    cderivs :: NTuple{2, Points}
 
     function ClosedSplineFilament(N::Integer, ::Type{T}) where {T}
         M = 3  # padding needed for cubic splines
@@ -58,9 +57,8 @@ struct ClosedSplineFilament{
         cs = similar(Xs)
         ċs = similar(Xs)
         c̈s = similar(Xs)
-        new{T, M, typeof(ts), typeof(Xs)}(
-            ts, Xs, cs, ċs, c̈s,
-        )
+        cderivs = (ċs, c̈s)
+        new{T, M, typeof(ts), typeof(Xs)}(ts, Xs, cs, cderivs)
     end
 end
 
@@ -84,18 +82,34 @@ end
 
 # TODO optimise solving for coefficients
 # - pass "raw" data only? (instead of PaddedVector's)
-# - avoid allocations and use faster solution method
 function update_coefficients!(f::ClosedSplineFilament)
-    (; ts, Xs, cs, ċs,) = f
+    (; ts, Xs, cs, cderivs,) = f
     pad_periodic!(Xs)
     _update_knots_periodic!(ts, Xs)
-    solve_cubic_spline_coefficients!(cs, ts, Xs; buf = ċs)
-    # pad_periodic!(cs)
+    solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1])
+    spline_derivative!(cderivs[1], cs, ts, Val(4))
+    spline_derivative!(cderivs[2], cderivs[1], ts, Val(3))
     f
 end
 
-function (f::ClosedSplineFilament)(i::Int, t::Number, ::Derivative{0} = Derivative(0))
-    (; ts, cs,) = f
-    x = (1 - t) * ts[i] + t * ts[i + 1]  # convert t ∈ [0, 1] to spline parametrisation
-    spline_kernel(cs, ts, i, x, Val(4))
+function (f::ClosedSplineFilament)(i::Int, ζ::Number, der::Derivative = Derivative(0))
+    (; ts,) = f
+    x = (1 - ζ) * ts[i] + ζ * ts[i + 1]  # convert ζ ∈ [0, 1] to spline parametrisation
+    f(x, der; ileft = i)
+end
+
+# Here `t` is in the spline parametrisation.
+function (f::ClosedSplineFilament)(
+        t::Number, ::Derivative{n} = Derivative(0);
+        ileft::Union{Nothing, Int} = nothing,
+    ) where {n}
+    (; ts, cs, cderivs,) = f
+    i = if ileft === nothing
+        searchsortedlast(ts, t) :: Int
+    else
+        ileft
+    end
+    coefs = (cs, cderivs...)[n + 1]
+    ord = 4 - n
+    evaluate_spline(coefs, ts, i, t, Val(ord))
 end

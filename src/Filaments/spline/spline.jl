@@ -36,8 +36,10 @@ function solve_cubic_spline_coefficients!(
         cs::PaddedVector, ts::PaddedVector{3}, Xs::PaddedVector;
         buf::PaddedVector = similar(Xs),
     )
+    # TODO can we do something cleaner, like preallocating the right type of buffer and avoiding unsafe stuff?
     GC.@preserve buf begin
-        bufs = _thomas_buffers(ts, buf, Val(true))
+        unsafe = Val(true)
+        bufs = _thomas_buffers(ts, buf, unsafe)
         _solve_periodic_cubic_spline_coefficients_thomas!(ts, copyto!(cs, Xs), bufs)
     end
     pad_periodic!(cs)
@@ -183,15 +185,21 @@ end
     end
 end
 
+# Coefficient offset for periodic splines.
+# This offset is such that the non-zero region of the collocation matrix is
+# centred about the diagonal.
+periodic_coef_offset(::Val{k}) where {k} = k ÷ 2
+
 # Note: there's a small change of convention compared to BSplineKit.jl, as here
 # we assume that the coefficient cs[j] corresponds to the *largest* B-spline at x = ts[j].
 # In other words, there is a shift in the coefficient indices wrt the
 # BSplineKit implementation (see definition of `h` below).
-@generated function spline_kernel(
+@generated function evaluate_spline(
         cs::AbstractVector, ts, i, x, ::Val{k},
     ) where {k}
     # Algorithm adapted from https://en.wikipedia.org/wiki/De_Boor's_algorithm
-    h = k ÷ 2  # in BSplineKit.jl this would be just `k`
+    # h = k ÷ 2  # in BSplineKit.jl this would be just `k`
+    h = k - periodic_coef_offset(Val(k))
     ex = quote
         # We add zero to make sure that d_j doesn't change type later.
         # This is important when x is a ForwardDiff.Dual.
@@ -268,4 +276,28 @@ end
     end
     ds
 end
+
+spline_derivative!(dc::PaddedVector, cs::PaddedVector, ts::PaddedVector, ord::Val) =
+    spline_derivative!(copy!(dc, cs), ts, ord)
+
+function spline_derivative!(
+        cs::PaddedVector, ts::PaddedVector, ::Val{k},
+    ) where {k}
+    q = k - 1
+    δ = periodic_coef_offset(Val(q))
+    if iseven(k)
+        @inbounds for i ∈ eachindex(cs)
+            # We assume the denominator is non-zero, since knots should never
+            # overlap in our case (they're strictly increasing).
+            cs[i] = q * (cs[i + 1] - cs[i]) / (ts[i + q - δ] - ts[i - δ])
+        end
+    else
+        @inbounds for i in Iterators.Reverse(eachindex(cs))
+            cs[i] = q * (cs[i] - cs[i - 1]) / (ts[i + q - δ] - ts[i - δ])
+        end
+    end
+    pad_periodic!(cs)
+    cs
+end
+
 # ============================================================================ #

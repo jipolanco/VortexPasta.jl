@@ -77,6 +77,12 @@ Base.size(v::PaddedVector{0}) = size(parent(v))
 
 Base.checkbounds(::Type{Bool}, v::PaddedVector, I...) = _checkbounds(v, I...)
 
+# TODO define copyto! for different paddings M, M′?
+function Base.copyto!(w::PaddedVector{M}, v::PaddedVector{M}) where {M}
+    copyto!(w.data, v.data)
+    w
+end
+
 @inline function _checkbounds(v::PaddedVector, i::Integer)
     M = npad(v)
     firstindex(v) - M ≤ i ≤ lastindex(v) + M

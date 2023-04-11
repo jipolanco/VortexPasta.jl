@@ -38,6 +38,7 @@ Used in particular to interpolate derivatives along filaments.
 """
 struct Derivative{N} end
 Derivative(N::Int) = Derivative{N}()
+Base.broadcastable(d::Derivative) = Ref(d)  # disable broadcasting on Derivative objects
 
 @doc raw"""
     AbstractFilament{T} <: AbstractVector{Vec3{T}}
