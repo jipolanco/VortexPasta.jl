@@ -39,18 +39,18 @@ function test_filament_ring(f)
 
     @testset "Check interpolations" begin
         i = 1  # near the border, to check padding as well
-        @test f(i, 0.0) == f(ts[i]) ≈ f(AtNode(i)) == f[i]
-        @test f(i, 1.0) == f(ts[i + 1]) ≈ f(AtNode(i + 1)) == f[i + 1]
-        @test f(i + 1, 0.0) == f(ts[i + 1]) ≈ f(AtNode(i + 1)) == f[i + 1]
+        @test f(i, 0.0) == f(ts[i]) ≈ f[i, Derivative(0)] == f[i]
+        @test f(i, 1.0) == f(ts[i + 1]) ≈ f[i + 1, Derivative(0)] == f[i + 1]
+        @test f(i + 1, 0.0) == f(ts[i + 1]) ≈ f[i + 1, Derivative(0)] == f[i + 1]
     end
 
     @testset "Derivatives at nodes" begin
         i = 1
-        @test f(i, 0.0, Derivative(1)) ≈ f(AtNode(i), Derivative(1))
-        @test f(i, 1.0, Derivative(1)) ≈ f(AtNode(i + 1), Derivative(1))
+        @test f(i, 0.0, Derivative(1)) ≈ f[i, Derivative(1)]
+        @test f(i, 1.0, Derivative(1)) ≈ f[i + 1, Derivative(1)]
         if continuity ≥ 2  # not the case for HermiteInterpolation(1)
-            @test f(i, 0.0, Derivative(2)) ≈ f(AtNode(i), Derivative(2))
-            @test f(i, 1.0, Derivative(2)) ≈ f(AtNode(i + 1), Derivative(2))
+            @test f(i, 0.0, Derivative(2)) ≈ f[i, Derivative(2)]
+            @test f(i, 1.0, Derivative(2)) ≈ f[i + 1, Derivative(2)]
         end
     end
 

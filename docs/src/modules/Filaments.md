@@ -16,7 +16,6 @@ AbstractFilament
 ClosedFilament
 PaddedVector
 Derivative
-AtNode
 Vec3
 ```
 

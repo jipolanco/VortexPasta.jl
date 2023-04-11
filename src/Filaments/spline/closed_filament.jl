@@ -49,13 +49,13 @@ derivatives.
 Estimate derivatives at discretisation points:
 
 ```jldoctest ClosedSplineFilament
-julia> f(AtNode(4), Derivative(1))
+julia> f[4, Derivative(1)]
 3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
   0.9090457394297016
  -0.727333461100651
   0.0
 
-julia> f(AtNode(4), Derivative(2))
+julia> f[4, Derivative(2)]
 3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
   0.20911715113294102
  -2.09047051482799

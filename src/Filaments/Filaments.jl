@@ -9,7 +9,6 @@ export
     ClosedFilament,
     Vec3,
     Derivative,
-    AtNode,
     knots,
     update_coefficients!,
     normalise_derivatives,
@@ -41,13 +40,8 @@ struct Derivative{N} end
 Derivative(N::Int) = Derivative{N}()
 Base.broadcastable(d::Derivative) = Ref(d)  # disable broadcasting on Derivative objects
 
-"""
-    AtNode
-
-Used to evaluate filament coordinates or derivatives on a given discretisation node.
-
-See [`AbstractFilament`](@ref) for some examples.
-"""
+# Used internally to evaluate filament coordinates or derivatives on a given
+# discretisation node. This is used when calling f[i, Derivative(n)].
 struct AtNode
     i :: Int
 end
@@ -84,11 +78,10 @@ indexing the filament object:
 
     X = f[i]
 
-Derivatives at discretisation points can be efficiently obtained by using
-[`AtNode`](@ref):
+Derivatives at discretisation points can be similarly obtained by doing:
 
-    X′ = f(AtNode(i), Derivative(1))
-    X″ = f(AtNode(i), Derivative(2))
+    X′ = f[i, Derivative(1)]
+    X″ = f[i, Derivative(2)]
 
 (Note that this also works with `Derivative(0)`, in which case it's the same as `f[i]`.)
 
@@ -156,11 +149,17 @@ Return parametrisation knots ``t_i`` of the filament.
 knots(f::AbstractFilament) = f.ts
 
 """
-    Base.getindex(f::AbstractFilament{T}, i::Int) -> Vec3{T}
+    Base.getindex(f::AbstractFilament{T}, i::Int, [Derivative(n)]) -> Vec3{T}
 
 Return coordinates of discretisation point ``\\bm{X}_i``.
+
+One may also obtain derivatives at point ``\\bm{X}_i`` by passing an optional
+[`Derivative`](@ref).
 """
 Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = points(f)[i]
+
+Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int, d::Derivative) =
+    f(AtNode(i), d)
 
 """
     Base.setindex!(f::AbstractFilament{T}, v, i::Int) -> Vec3{T}
