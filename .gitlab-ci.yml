@@ -31,10 +31,24 @@
     # want coverage results.
     - julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build(); Pkg.test(coverage = true)'
     # Comment out below if you do not want coverage results.
-    - julia --project -e 'using Pkg; Pkg.add("Coverage");
-      import VortexFilamentEwald; cd(joinpath(dirname(pathof(VortexFilamentEwald)), ".."));
-      using Coverage; cl, tl = get_summary(process_folder());
-      println("(", cl/tl*100, "%) covered")'
+    - julia --project=coverage -e 'using Pkg;
+      Pkg.add("Coverage");
+      using Coverage;
+      coverage = process_folder();
+      cl, tl = get_summary(coverage);
+      println(cl/tl*100, "% coverage");
+      LCOV.writefile("coverage-lcov.info", coverage);
+      '
+    # Convert LCOV to cobertura format (used by gitlab)
+    - apt-get update -qq && apt-get install -y python3-pip
+    - pip install lcov_cobertura
+    - lcov_cobertura coverage-lcov.info -o coverage.xml
+  coverage: '/^\d+.\d+% coverage/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
   cache:
     key: julia-cache
     paths:
