@@ -12,6 +12,9 @@ In the case of closed curves, periodic cubic splines are used.
 """
 struct CubicSplineMethod <: GlobalDiscretisationMethod end
 
+# Cubic splines are C² at the knots.
+continuity(::Type{CubicSplineMethod}) = 2
+
 # Evaluate cubic B-splines at `x` based on the knot vector `ts`.
 # The `ileft` index must be such that ts[ileft] ≤ x < ts[ileft + 1].
 # Note that the returned B-splines are in reversed order: (b_{i + 2}, b_{i + 1}, b_{i}, b_{i - 1}),

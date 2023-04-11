@@ -66,19 +66,7 @@ init(::Type{ClosedFilament{T}}, N::Integer, ::CubicSplineMethod) where {T} =
     ClosedSplineFilament(N, T)
 
 discretisation_method(::ClosedSplineFilament) = CubicSplineMethod()
-
-function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector)
-    @assert eachindex(ts) == eachindex(Xs)
-    ts[begin] = 0
-    inds = eachindex(ts)[begin:end - 1]
-    @assert npad(ts) == npad(Xs) ≥ 1
-    @inbounds for i ∈ inds
-        ts[i + 1] = ts[i] + norm(Xs[i + 1] - Xs[i])
-    end
-    ℓ_last = norm(Xs[begin] - Xs[end])
-    L = ts[end] + ℓ_last - ts[begin]  # knot period
-    pad_periodic!(ts, L)
-end
+interpolation_method(::ClosedSplineFilament) = CubicSplineMethod()
 
 # TODO optimise solving for coefficients
 # - pass "raw" data only? (instead of PaddedVector's)
@@ -92,10 +80,14 @@ function update_coefficients!(f::ClosedSplineFilament)
     f
 end
 
+(f::ClosedSplineFilament)(node::AtNode, ::Derivative{0} = Derivative(0)) = f[node.i]
+# TODO can we optimise evaluation of derivatives on nodes? (second derivatives should be particularly easy with cubic splines!)
+(f::ClosedSplineFilament)(node::AtNode, der::Derivative) = f(node.i, 0.0, der)
+
 function (f::ClosedSplineFilament)(i::Int, ζ::Number, der::Derivative = Derivative(0))
     (; ts,) = f
-    x = (1 - ζ) * ts[i] + ζ * ts[i + 1]  # convert ζ ∈ [0, 1] to spline parametrisation
-    f(x, der; ileft = i)
+    t = (1 - ζ) * ts[i] + ζ * ts[i + 1]  # convert ζ ∈ [0, 1] to spline parametrisation
+    f(t, der; ileft = i)
 end
 
 # Here `t` is in the spline parametrisation.

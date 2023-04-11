@@ -9,7 +9,8 @@ export
     ClosedFilament,
     Vec3,
     Derivative,
-    nodes,
+    AtNode,
+    knots,
     update_coefficients!,
     normalise_derivatives,
     normalise_derivatives!,
@@ -40,6 +41,15 @@ struct Derivative{N} end
 Derivative(N::Int) = Derivative{N}()
 Base.broadcastable(d::Derivative) = Ref(d)  # disable broadcasting on Derivative objects
 
+"""
+    AtNode
+
+Used to evaluate filament coordinates or derivatives on a given discretisation node.
+"""
+struct AtNode
+    i :: Int
+end
+
 @doc raw"""
     AbstractFilament{T} <: AbstractVector{Vec3{T}}
 
@@ -56,6 +66,69 @@ An `AbstractFilament` is treated as an `AbstractVector` of length `N`, in which
 each element is a discretisation point `\bm{X}_i`. Therefore, one can use the
 usual indexing notation to retrieve and to modify discretisation points. See
 [`ClosedSplineFilament`](@ref) for some examples.
+
+# Extended help
+
+## Evaluating coordinates and derivatives
+
+Different ways are proposed of evaluating filament coordinates and derivatives
+along a filament `f`, depending on whether one wants values on discretisation
+points or in-between them.
+
+### Values on discretisation points
+
+Coordinates ``\bm{X}_i`` of discretisation points can be simply obtained by
+indexing the filament object:
+
+    X = f[i]
+
+Derivatives at discretisation points can be efficiently obtained by using
+[`AtNode`](@ref):
+
+    X′ = f(AtNode(i), Derivative(1))
+    X″ = f(AtNode(i), Derivative(2))
+
+(Note that this also works with `Derivative(0)`, in which case it's the same as `f[i]`.)
+
+### Values in-between discretisation points
+
+In this case, one wants to evaluate a value in-between two discretisation
+points, i.e. for ``t ∈ [t_i, t_{i + 1}]`` for some index `i`.
+Two options are proposed:
+
+- if one knows the parametrisation of the filament (see
+  [`knots`](@ref) to obtain the parametrisation knots), then one can evaluate
+  using a value of `t`:
+
+      X  = f(t)
+      X′ = f(t, Derivative(1))
+      X″ = f(t, Derivative(2))
+
+- alternatively, if one knows the index `i` associated to the segment of
+  interest, then one can do
+
+      X  = f(i, ζ)
+      X′ = f(i, ζ, Derivative(1))
+      X″ = f(i, ζ, Derivative(2))
+
+  where `ζ` must be in ``[0, 1]``, and the two limits correspond to knots ``t_i`` and ``t_{i + 1}``.
+  This is convenient if one wants to evaluate, say, right in the middle between
+  two discretisation points, in which case one would choose `ζ = 0.5`.
+
+!!! note "Derivatives"
+
+    In all cases, derivatives are computed with respect to the parametrisation ``t``.
+    In particular, in `f(i, ζ, Derivative(1))`, the derivative is *not* with respect to ``ζ``.
+
+!!! note "Derivative normalisation"
+
+    Since ``t`` is a rough approximation for the arclength ``ξ``, first
+    derivatives almost represent the **unit tangent vector** to the filament, and
+    second derivatives are a rough approximation of the local **curvature vector**.
+
+    One should use [`normalise_derivatives`](@ref) if one wants a
+    more accurate estimation, which takes into account the differences between
+    ``t`` and ``ξ``.
 """
 abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 
@@ -67,29 +140,36 @@ Return the method used to discretise the filament based on its node locations.
 function discretisation_method end
 
 """
-    nodes(f::AbstractFilament{T}) -> AbstractVector{T}
+    Filaments.points(f::AbstractFilament{T}) -> AbstractVector{T}
 
 Return the discretisation points ``\\bm{X}_i`` of the filament.
 """
-nodes(f::AbstractFilament) = f.Xs
+points(f::AbstractFilament) = f.Xs
+
+"""
+    knots(f::AbstractFilament{T}) -> AbstractVector{T}
+
+Return parametrisation knots ``t_i`` of the filament.
+"""
+knots(f::AbstractFilament) = f.ts
 
 """
     Base.getindex(f::AbstractFilament{T}, i::Int) -> Vec3{T}
 
 Return coordinates of discretisation point ``\\bm{X}_i``.
 """
-Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
+Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = points(f)[i]
 
 """
     Base.setindex!(f::AbstractFilament{T}, v, i::Int) -> Vec3{T}
 
 Set coordinates of discretisation point ``\\bm{X}_i``.
 """
-Base.@propagate_inbounds Base.setindex!(f::AbstractFilament, v, i::Int) = nodes(f)[i] = v
+Base.@propagate_inbounds Base.setindex!(f::AbstractFilament, v, i::Int) = points(f)[i] = v
 
 Base.eltype(::Type{<:AbstractFilament{T}}) where {T} = T
 Base.eltype(f::AbstractFilament) = eltype(typeof(f))
-Base.size(f::AbstractFilament) = size(nodes(f))
+Base.size(f::AbstractFilament) = size(points(f))
 
 function Base.showarg(io::IO, f::AbstractFilament, toplevel)
     toplevel || print(io, "::")
@@ -192,5 +272,19 @@ function normalise_derivatives!(Ẋ::AbstractVector, Ẍ::AbstractVector)
 end
 
 normalise_derivatives!(fil::AbstractFilament) = normalise_derivatives!(derivatives(fil)...)
+
+# Update filament parametrisation knots `ts` from node coordinates `Xs`.
+function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector)
+    @assert eachindex(ts) == eachindex(Xs)
+    ts[begin] = 0
+    inds = eachindex(ts)[begin:end - 1]
+    @assert npad(ts) == npad(Xs) ≥ 1
+    @inbounds for i ∈ inds
+        ts[i + 1] = ts[i] + norm(Xs[i + 1] - Xs[i])
+    end
+    ℓ_last = norm(Xs[begin] - Xs[end])
+    L = ts[end] + ℓ_last - ts[begin]  # knot period
+    pad_periodic!(ts, L)
+end
 
 end

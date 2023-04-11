@@ -16,6 +16,7 @@ AbstractFilament
 ClosedFilament
 PaddedVector
 Derivative
+AtNode
 Vec3
 ```
 
@@ -24,7 +25,8 @@ Vec3
 ```@docs
 Filaments.init
 discretisation_method
-nodes
+knots
+Filaments.points
 Base.getindex
 Base.setindex!
 update_coefficients!

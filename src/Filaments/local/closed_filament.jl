@@ -141,36 +141,32 @@ struct ClosedLocalFilament{
         M,  # padding
         Discretisation <: LocalDiscretisationMethod,
         Interpolation <: LocalInterpolationMethod,
-        Distances <: PaddedVector{M, T},
+        Knots <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
     } <: ClosedFilament{T}
 
     discretisation :: Discretisation  # derivative estimation method
     interpolation  :: Interpolation   # interpolation method
 
-    # Node distances ℓ_i = |X_{i + 1} - X_i|.
-    ℓs      :: Distances
+    # Parametrisation knots: t_i = ∑_{j = 1}^{i - 1} ℓ_i
+    ts      :: Knots
 
     # Discretisation points X_i.
     Xs      :: Points
 
-    # First derivatives (∂ₜX)_i at nodes with respect to the parametrisation `t`.
-    Xs_dot  :: Points
-
-    # Second derivatives (∂ₜₜX)_i at nodes with respect to the parametrisation `t`.
-    Xs_ddot :: Points
+    # Derivatives (∂ₜX)_i and (∂ₜₜX)_i at nodes with respect to the parametrisation `t`.
+    Xderivs :: NTuple{2, Points}
 
     function ClosedLocalFilament(
             N::Integer, discretisation::LocalDiscretisationMethod,
             interpolation::LocalInterpolationMethod, ::Type{T},
         ) where {T}
         M = npad(discretisation)
-        ℓs = PaddedVector{M}(Vector{T}(undef, N + 2M))
-        Xs = similar(ℓs, Vec3{T})
-        Xs_dot = similar(Xs)
-        Xs_ddot = similar(Xs)
-        new{T, M, typeof(discretisation), typeof(interpolation), typeof(ℓs), typeof(Xs)}(
-            discretisation, interpolation, ℓs, Xs, Xs_dot, Xs_ddot,
+        ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
+        Xs = similar(ts, Vec3{T})
+        Xderivs = (similar(Xs), similar(Xs))
+        new{T, M, typeof(discretisation), typeof(interpolation), typeof(ts), typeof(Xs)}(
+            discretisation, interpolation, ts, Xs, Xderivs,
         )
     end
 end
@@ -191,7 +187,7 @@ Each element is a vector with the derivatives estimated at the interpolation poi
 
 This function should be generally called after [`update_coefficients!`](@ref).
 """
-derivatives(f::ClosedLocalFilament) = (f.Xs_dot, f.Xs_ddot)
+derivatives(f::ClosedLocalFilament) = f.Xderivs
 
 """
     derivative(f::ClosedLocalFilament, i::Int) -> AbstractVector
@@ -208,58 +204,72 @@ discretisation_method(f::ClosedLocalFilament) = f.discretisation
 interpolation_method(f::ClosedLocalFilament) = f.interpolation
 
 function update_coefficients!(f::ClosedLocalFilament)
-    (; ℓs, Xs, Xs_dot, Xs_ddot,) = f
+    (; ts, Xs, Xderivs,) = f
 
     # 1. Periodically pad Xs.
     pad_periodic!(Xs)
 
-    # 2. Compute node distances ℓs.
+    # 2. Compute parametrisation knots `ts`.
     M = npad(Xs)
-    @assert M == npad(ℓs)
-    @assert M ≥ 1  # minimum padding required for computation of ℓs
-    @assert eachindex(Xs) == eachindex(ℓs)
-    @inbounds for i ∈ eachindex(ℓs)
-        ℓs[i] = norm(Xs[i + 1] - Xs[i])
-    end
-    pad_periodic!(ℓs)
+    @assert M == npad(ts)
+    @assert M ≥ 1  # minimum padding required for computation of ts
+    _update_knots_periodic!(ts, Xs)
 
     # 3. Estimate derivatives at nodes.
     method = discretisation_method(f)
-    @inbounds for i ∈ eachindex(Xs_dot)
-        ℓs_i = ntuple(j -> ℓs[i - M - 1 + j], Val(2M))      # = ℓs[(i - M):(i + M - 1)]
+    @inbounds for i ∈ eachindex(Xs)
+        ℓs_i = ntuple(j -> ts[i - M + j] - ts[i - M - 1 + j], Val(2M))  # = ℓs[(i - M):(i + M - 1)]
         Xs_i = ntuple(j -> Xs[i - M - 1 + j], Val(2M + 1))  # = Xs[(i - M):(i + M)]
         coefs_dot = coefs_first_derivative(method, ℓs_i)
         coefs_ddot = coefs_second_derivative(method, ℓs_i)
-        Xs_dot[i] = sum(splat(*), zip(coefs_dot, Xs_i))  # = ∑ⱼ c[j] * x⃗[j]
-        Xs_ddot[i] = sum(splat(*), zip(coefs_ddot, Xs_i))
+        Xderivs[1][i] = sum(splat(*), zip(coefs_dot, Xs_i))  # = ∑ⱼ c[j] * x⃗[j]
+        Xderivs[2][i] = sum(splat(*), zip(coefs_ddot, Xs_i))
     end
 
     # These paddings are needed for Hermite interpolations and stuff like that.
     # (In principle we just need M = 1 for two-point Hermite interpolations.)
-    pad_periodic!(Xs_dot)
-    pad_periodic!(Xs_ddot)
+    map(pad_periodic!, Xderivs)
 
     f
 end
 
-function (f::ClosedLocalFilament)(i::Int, t::Number, deriv::Derivative = Derivative(0))
+function (f::ClosedLocalFilament)(node::AtNode, ::Derivative{n} = Derivative(0)) where {n}
+    (; Xs, Xderivs,) = f
+    coefs = (Xs, Xderivs...)
+    coefs[n + 1][node.i]
+end
+
+function (f::ClosedLocalFilament)(i::Int, ζ::Number, deriv::Derivative = Derivative(0))
     m = interpolation_method(f)
-    _interpolate(m, f, i, t, deriv)
+    _interpolate(m, f, i, ζ, deriv)  # ζ should be in [0, 1]
+end
+
+function (f::ClosedLocalFilament)(
+        t::Number, deriv::Derivative = Derivative(0);
+        ileft::Union{Nothing, Int} = nothing,
+    )
+    (; ts,) = f
+    i = if ileft === nothing
+        searchsortedlast(ts, t) :: Int
+    else
+        ileft
+    end
+    ζ = (t - ts[i]) / (ts[i + 1] - ts[i])
+    f(i, ζ, deriv)
 end
 
 function _interpolate(
         method::HermiteInterpolation{M}, f::ClosedLocalFilament,
         i::Int, t::Number, deriv::Derivative{N},
     ) where {M, N}
-    (; ℓs, Xs, Xs_dot, Xs_ddot,) = f
+    (; ts, Xs, Xderivs,) = f
     checkbounds(eachindex(f), i)
     @assert npad(Xs) ≥ 1
-    @assert npad(Xs_dot) ≥ 1
-    @assert npad(Xs_ddot) ≥ 1
-    @inbounds ℓ_i = ℓs[i]
+    @assert all(X -> npad(X) ≥ 1, Xderivs)
+    @inbounds ℓ_i = ts[i + 1] - ts[i]
     @assert M ≤ 2
     α = 1 / (ℓ_i^N)  # normalise returned derivative by ℓ^N
-    values_full = (Xs, Xs_dot, Xs_ddot)
+    values_full = (Xs, Xderivs...)
     ℓ_norm = Ref(one(ℓ_i))
     values_i = ntuple(Val(M + 1)) do m
         @inline

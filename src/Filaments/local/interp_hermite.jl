@@ -23,6 +23,8 @@ struct HermiteInterpolation{M} <: LocalInterpolationMethod end
 
 HermiteInterpolation(M::Int) = HermiteInterpolation{M}()
 
+continuity(::Type{HermiteInterpolation{M}}) where {M} = M
+
 Base.show(io::IO, ::HermiteInterpolation{M}) where {M} =
     print(io, "HermiteInterpolation(", M, ")")
 
