@@ -43,16 +43,15 @@ default:
         LCOV.writefile("coverage.lcov", coverage)
       '
     # This is needed to convert LCOV coverage files to Cobertura format (used by gitlab)
-    - apt-get install -y python3-pip
+    - apt-get update -qq && apt-get install -y python3-pip
     - pip install lcov_cobertura
     - lcov_cobertura coverage.lcov -o coverage.xml
-    - cp -a coverage.xml coverage_for_gitlab.xml
   coverage: '/^\d+.\d+% coverage/'
   artifacts:
     reports:
       coverage_report:
         coverage_format: cobertura
-        path: coverage_for_gitlab.xml
+        path: coverage.xml
     paths:
       - coverage.lcov
       - coverage.xml
