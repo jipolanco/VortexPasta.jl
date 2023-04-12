@@ -31,7 +31,13 @@ default:
   #   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   #   - if: $CI_COMMIT_BRANCH == "development"
   script:
-    - julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.build(); Pkg.test(coverage = true)'
+    - |
+      julia --project -e '
+        using Pkg
+        Pkg.instantiate()
+        Pkg.build()
+        Pkg.test(coverage = true)
+      '
     - |
       julia --project=coverage -e '
         using Pkg
@@ -49,7 +55,7 @@ default:
     - lcov_cobertura coverage.lcov -o coverage.xml
 
     # Also write HTML report to lcov/ based on lcov files
-    - genhtml -o lcov_html coverage.lcov  # requires lcov package
+    - genhtml --no-function-coverage --legend -o lcov_html coverage.lcov  # requires lcov package
 
   coverage: '/^\d+.\d+% coverage/'
 
@@ -99,7 +105,13 @@ pages:
   stage: deploy
   script:
     - apt-get update -qq && apt-get install -y git  # needed by Documenter
-    - julia --project=docs -e 'using Pkg; Pkg.develop(path = "."); Pkg.instantiate(); Pkg.build()'
+    - |
+      julia --project=docs -e '
+        using Pkg
+        Pkg.develop(path = ".")
+        Pkg.instantiate()
+        Pkg.build()
+      '
     - julia --project=docs --color=yes docs/make.jl  # make documentation
     - mv docs/build public     # move to the directory picked up by Gitlab pages
     - mv lcov_html public/coverage  # artifact from test:1.9
