@@ -46,12 +46,13 @@ default:
     - apt-get install -y python3-pip
     - pip install lcov_cobertura
     - lcov_cobertura coverage.lcov -o coverage.xml
+    - cp -a coverage.xml coverage_for_gitlab.xml
   coverage: '/^\d+.\d+% coverage/'
   artifacts:
     reports:
       coverage_report:
         coverage_format: cobertura
-        path: coverage.xml
+        path: coverage_for_gitlab.xml
     paths:
       - coverage.lcov
       - coverage.xml
