@@ -42,11 +42,17 @@ default:
         println(cl/tl*100, "% coverage")
         LCOV.writefile("coverage.lcov", coverage)
       '
+    - apt-get update -qq && apt-get install -y python3-pip lcov
+
     # This is needed to convert LCOV coverage files to Cobertura format (used by gitlab)
-    - apt-get update -qq && apt-get install -y python3-pip
-    - pip install lcov_cobertura
+    - pip install lcov_cobertura  # requires python3-pip package
     - lcov_cobertura coverage.lcov -o coverage.xml
+
+    # Also write HTML report to lcov/ based on lcov files
+    - genhtml -o lcov_html coverage.lcov  # requires lcov package
+
   coverage: '/^\d+.\d+% coverage/'
+
   artifacts:
     reports:
       coverage_report:
@@ -55,6 +61,7 @@ default:
     paths:
       - coverage.lcov
       - coverage.xml
+      - lcov_html
   cache:
     key: julia-cache
     paths:
@@ -88,13 +95,14 @@ test:1.9:
 pages:
   image: julia:1.9-rc
   dependencies:
-    - test:1.9  # in the future we may use artifacts from test:1.9
+    - test:1.9  # use artifacts from test:1.9 (lcov_html)
   stage: deploy
   script:
     - apt-get update -qq && apt-get install -y git  # needed by Documenter
     - julia --project=docs -e 'using Pkg; Pkg.develop(path = "."); Pkg.instantiate(); Pkg.build()'
     - julia --project=docs --color=yes docs/make.jl  # make documentation
-    - mv docs/build public  # move to the directory picked up by Gitlab pages
+    - mv docs/build public     # move to the directory picked up by Gitlab pages
+    - mv lcov_html public/coverage  # artifact from test:1.9
   artifacts:
     paths:
       - public
