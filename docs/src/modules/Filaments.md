@@ -25,14 +25,13 @@ Vec3
 Filaments.init
 discretisation_method
 knots
+knotlims
 Filaments.points
 Base.getindex
 Base.setindex!
 update_coefficients!
 normalise_derivatives
 normalise_derivatives!
-derivatives
-derivative
 ```
 
 ## Local discretisations

@@ -150,33 +150,25 @@ ClosedLocalFilament(N::Integer, disc::LocalDiscretisationMethod, ::Type{T}) wher
 init(::Type{ClosedFilament{T}}, N::Integer, disc::LocalDiscretisationMethod, args...) where {T} =
     ClosedLocalFilament(N, disc, args..., T)
 
-"""
-    derivatives(f::ClosedLocalFilament) -> (Ẋs, Ẍs)
+function Base.similar(f::ClosedLocalFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
+    N, = dims
+    ClosedLocalFilament(N, discretisation_method(f), interpolation_method(f), T)
+end
 
-Return a tuple with the first and second derivatives at the filament nodes.
-
-Each element is a vector with the derivatives estimated at the interpolation points.
-
-This function should be generally called after [`update_coefficients!`](@ref).
-"""
-derivatives(f::ClosedLocalFilament) = f.Xderivs
-
-"""
-    derivative(f::ClosedLocalFilament, i::Int) -> AbstractVector
-
-Return ``i``-th derivative at filament nodes.
-
-Same as `derivatives(f)[i]`. The only allowed values are `i ∈ (1, 2)`.
-
-See [`derivatives`](@ref) for details.
-"""
-derivative(f::ClosedLocalFilament, i::Int) = derivatives(f)[i]
+function Base.copyto!(v::ClosedLocalFilament, u::ClosedLocalFilament)
+    discretisation_method(u) === discretisation_method(v) ||
+        error("discretisation methods of both filaments should be the same")
+    copyto!(v.ts, u.ts)
+    copyto!(v.Xs, u.Xs)
+    map(copyto!, v.Xderivs, u.Xderivs)
+    v
+end
 
 discretisation_method(f::ClosedLocalFilament) = f.discretisation
 interpolation_method(f::ClosedLocalFilament) = f.interpolation
 
 function update_coefficients!(f::ClosedLocalFilament)
-    (; ts, Xs, Xderivs,) = f
+    (; ts, Xs,) = f
 
     # 1. Periodically pad Xs.
     pad_periodic!(Xs)
@@ -188,6 +180,15 @@ function update_coefficients!(f::ClosedLocalFilament)
     _update_knots_periodic!(ts, Xs)
 
     # 3. Estimate derivatives at nodes.
+    _update_coefficients_only!(f)
+
+    f
+end
+
+function _update_coefficients_only!(f::ClosedLocalFilament)
+    (; ts, Xs, Xderivs,) = f
+    M = npad(ts)
+    @assert M ≥ 1  # minimum padding required for computation of ts
     method = discretisation_method(f)
     @inbounds for i ∈ eachindex(Xs)
         ℓs_i = ntuple(j -> ts[i - M + j] - ts[i - M - 1 + j], Val(2M))  # = ℓs[(i - M):(i + M - 1)]
@@ -197,11 +198,9 @@ function update_coefficients!(f::ClosedLocalFilament)
         Xderivs[1][i] = sum(splat(*), zip(coefs_dot, Xs_i))  # = ∑ⱼ c[j] * x⃗[j]
         Xderivs[2][i] = sum(splat(*), zip(coefs_ddot, Xs_i))
     end
-
     # These paddings are needed for Hermite interpolations and stuff like that.
     # (In principle we just need M = 1 for two-point Hermite interpolations.)
     map(pad_periodic!, Xderivs)
-
     f
 end
 

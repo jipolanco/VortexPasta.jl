@@ -25,6 +25,9 @@ function test_filament_ring(f)
     update_coefficients!(f)
     ts = knots(f)
 
+    @test eltype(f) === typeof(f[begin])
+    @test startswith(summary(f), "$N-element $(nameof(typeof(f)))")
+
     continuity = Filaments.continuity(Filaments.interpolation_method(f))
 
     @testset "Knot periodicity" begin
@@ -52,6 +55,14 @@ function test_filament_ring(f)
             @test f(i, 0.0, Derivative(2)) ≈ f[i, Derivative(2)]
             @test f(i, 1.0, Derivative(2)) ≈ f[i + 1, Derivative(2)]
         end
+
+        # Obtain derivatives at all nodes
+        Ẋs = getindex.(Ref(f), eachindex(f), Derivative(1))
+        Ẍs = getindex.(Ref(f), eachindex(f), Derivative(2))
+        @test length(Ẋs) == length(Ẍs) == length(f)
+        normalise_derivatives!(Ẋs, Ẍs)
+        @test all(x -> norm(x) ≈ 1, Ẋs)  # unit tangents
+        @test all(splat((u, v) -> 1 - u ⋅ v ≈ 1), zip(Ẋs, Ẍs))  # orthogonality with curvature vectors
     end
 
     @testset "Derivatives" begin
@@ -75,6 +86,25 @@ function test_filament_ring(f)
                 @test isapprox(norm(X″), 1 / R; rtol = 0.1)  # ring curvature (some methods are more accurate than others...)
             end
         end
+    end
+
+    @testset "copy" begin
+        fc = @inferred copy(f)
+        @test typeof(f) === typeof(fc)
+        Fil = typeof(f)
+        # Check that all numerical data has been copied
+        @test all(1:fieldcount(Fil)) do i
+            getfield(f, i) == getfield(fc, i)
+        end
+    end
+
+    @testset "Recompute parametrisation" begin
+        fc = copy(f)
+        Filaments.recompute_parametrisation!(fc)  # this function may be removed in the future...
+        L = -(-(knotlims(f)...))    # lower bound for filament length
+        Lc = -(-(knotlims(fc)...))  # better estimation of filament length
+        @assert L > 0 && Lc > 0
+        @test Lc ≥ L  # generally, Lc will be greater than L
     end
 end
 

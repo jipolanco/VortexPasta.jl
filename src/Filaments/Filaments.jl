@@ -6,16 +6,17 @@ Module for dealing with the discretisation of curves in 3D space.
 module Filaments
 
 export
+    AbstractFilament,
     ClosedFilament,
     Vec3,
     Derivative,
     knots,
+    knotlims,
     update_coefficients!,
     normalise_derivatives,
-    normalise_derivatives!,
-    derivatives,
-    derivative
+    normalise_derivatives!
 
+using FastGaussQuadrature: gausslegendre
 using LinearAlgebra: norm, normalize, ⋅, ×
 using StaticArrays
 using StructArrays
@@ -59,7 +60,7 @@ The curve is discretised by a set of *nodes* (or discretisation points)
 See [`ClosedSplineFilament`](@ref) for a concrete implementation of `AbstractFilament`.
 
 An `AbstractFilament` is treated as an `AbstractVector` of length `N`, in which
-each element is a discretisation point `\bm{X}_i`. Therefore, one can use the
+each element is a discretisation point ``\bm{X}_i``. Therefore, one can use the
 usual indexing notation to retrieve and to modify discretisation points. See
 [`ClosedSplineFilament`](@ref) for some examples.
 
@@ -127,6 +128,17 @@ Two options are proposed:
 """
 abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 
+# This is needed since eltype(f) == Vec3{T}
+Base.similar(f::AbstractFilament, ::Type{Vec3{T}}, dims::Dims{1}) where {T} =
+    similar(f, T, dims)
+
+"""
+    ClosedFilament{T} <: AbstractFilament{T}
+
+Abstract type representing a *closed* curve (a loop) in 3D space.
+"""
+abstract type ClosedFilament{T} <: AbstractFilament{T} end
+
 """
     discretisation_method(f::AbstractFilament) -> DiscretisationMethod
 
@@ -149,6 +161,18 @@ Return parametrisation knots ``t_i`` of the filament.
 knots(f::AbstractFilament) = f.ts
 
 """
+    knotlims(f::AbstractFilament) -> (t_begin, t_end)
+
+Return limits within which the filament can be evaluated.
+"""
+function knotlims end
+
+function knotlims(f::ClosedFilament)
+    ts = knots(f) :: PaddedVector
+    ts[begin], ts[end + 1]  # we can index at end+1 thanks to padding
+end
+
+"""
     Base.getindex(f::AbstractFilament{T}, i::Int, [Derivative(n)]) -> Vec3{T}
 
 Return coordinates of discretisation point ``\\bm{X}_i``.
@@ -168,7 +192,7 @@ Set coordinates of discretisation point ``\\bm{X}_i``.
 """
 Base.@propagate_inbounds Base.setindex!(f::AbstractFilament, v, i::Int) = points(f)[i] = v
 
-Base.eltype(::Type{<:AbstractFilament{T}}) where {T} = T
+Base.eltype(::Type{<:AbstractFilament{T}}) where {T} = Vec3{T}  # type returned when indexing into a filament
 Base.eltype(f::AbstractFilament) = eltype(typeof(f))
 Base.size(f::AbstractFilament) = size(points(f))
 
@@ -178,13 +202,6 @@ function Base.showarg(io::IO, f::AbstractFilament, toplevel)
     disc = typeof(discretisation_method(f))
     print(io, nameof(typeof(f)), '{', T, ',', ' ', disc, '}')
 end
-
-"""
-    ClosedFilament{T} <: AbstractFilament{T}
-
-Abstract type representing a *closed* curve (a loop) in 3D space.
-"""
-abstract type ClosedFilament{T} <: AbstractFilament{T} end
 
 include("discretisations.jl")
 include("padded_vector.jl")
@@ -255,14 +272,12 @@ end
 normalise_derivatives(derivs::NTuple{2, Vec3}) = normalise_derivatives(derivs...)
 
 """
-    normalise_derivatives!(fil::AbstractFilament)
     normalise_derivatives!(Ẋ::AbstractVector, Ẍ::AbstractVector)
 
-Normalise derivatives at filament nodes.
+Normalise vectors containing derivatives at filament locations.
 
-Note that filament derivatives are modified, and thus Hermite interpolations
-may be incorrect after doing this. If possible, prefer using
-[`normalise_derivatives`](@ref), which works on a single filament location at a time.
+If possible, prefer using [`normalise_derivatives`](@ref), which works on a
+single filament location at a time.
 
 See [`normalise_derivatives`](@ref) for more details.
 """
@@ -272,20 +287,46 @@ function normalise_derivatives!(Ẋ::AbstractVector, Ẍ::AbstractVector)
     (Ẋ, Ẍ)
 end
 
-normalise_derivatives!(fil::AbstractFilament) = normalise_derivatives!(derivatives(fil)...)
-
 # Update filament parametrisation knots `ts` from node coordinates `Xs`.
 function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector)
     @assert eachindex(ts) == eachindex(Xs)
     ts[begin] = 0
-    inds = eachindex(ts)[begin:end - 1]
+    inds = eachindex(ts)
     @assert npad(ts) == npad(Xs) ≥ 1
     @inbounds for i ∈ inds
         ts[i + 1] = ts[i] + norm(Xs[i + 1] - Xs[i])
     end
-    ℓ_last = norm(Xs[begin] - Xs[end])
-    L = ts[end] + ℓ_last - ts[begin]  # knot period
+    L = ts[end + 1] - ts[begin]  # knot period
     pad_periodic!(ts, L)
+end
+
+# TESTING / EXPERIMENTAL
+# This function may be removed in the future.
+# The idea is to update the parametrisation of `f` to follow more closely the
+# actual arclengths of the filament. Not sure if it's worth it...
+function recompute_parametrisation!(f::ClosedFilament)
+    (; ts,) = f
+    xs, ws = gausslegendre(4)  # TODO make it static?
+    @assert npad(ts) ≥ 1
+    tnext = ts[begin]
+    for i ∈ eachindex(ts)
+        # Estimate arclength from ts[i] to ts[i + 1]
+        a, b = ts[i], ts[i + 1]
+        h = (b - a) / 2
+        tmid = (a + b) / 2
+        ℓ = h * sum(eachindex(xs)) do j
+            t = tmid + h * xs[j]
+            X′ = f(t, Derivative(1); ileft = i)
+            ws[j] * norm(X′)
+        end
+        @assert ℓ ≥ ts[i + 1] - ts[i]
+        ts[i] = tnext
+        tnext += ℓ  # this will be the new value of ts[i + 1], but we can't update it yet...
+    end
+    L = tnext - ts[begin]  # full length of the filament
+    pad_periodic!(ts, L)
+    _update_coefficients_only!(f)
+    f
 end
 
 end
