@@ -128,15 +128,34 @@ end
 init(::Type{ClosedFilament{T}}, N::Integer, ::CubicSplineMethod) where {T} =
     ClosedSplineFilament(N, T)
 
+function Base.similar(::ClosedSplineFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
+    N, = dims
+    ClosedSplineFilament(N, T)
+end
+
+function Base.copyto!(v::ClosedSplineFilament, u::ClosedSplineFilament)
+    copyto!(v.ts, u.ts)
+    copyto!(v.Xs, u.Xs)
+    copyto!(v.cs, u.cs)
+    map(copyto!, v.cderivs, u.cderivs)
+    v
+end
+
 discretisation_method(::ClosedSplineFilament) = CubicSplineMethod()
 interpolation_method(::ClosedSplineFilament) = CubicSplineMethod()
 
 # TODO optimise solving for coefficients
 # - pass "raw" data only? (instead of PaddedVector's)
 function update_coefficients!(f::ClosedSplineFilament)
-    (; ts, Xs, cs, cderivs,) = f
+    (; ts, Xs,) = f
     pad_periodic!(Xs)
     _update_knots_periodic!(ts, Xs)
+    _update_coefficients_only!(f)
+    f
+end
+
+function _update_coefficients_only!(f::ClosedSplineFilament)
+    (; ts, Xs, cs, cderivs,) = f
     solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1])
     spline_derivative!(cderivs[1], cs, ts, Val(4))
     spline_derivative!(cderivs[2], cderivs[1], ts, Val(3))
@@ -144,8 +163,10 @@ function update_coefficients!(f::ClosedSplineFilament)
 end
 
 (f::ClosedSplineFilament)(node::AtNode, ::Derivative{0} = Derivative(0)) = f[node.i]
-# TODO can we optimise evaluation of derivatives on nodes? (second derivatives should be particularly easy with cubic splines!)
 (f::ClosedSplineFilament)(node::AtNode, der::Derivative) = f(node.i, 0.0, der)
+
+# The second derivative at a node is simply equal to the corresponding spline coefficient.
+(f::ClosedSplineFilament)(node::AtNode, ::Derivative{2}) = f.cderivs[2][node.i]
 
 function (f::ClosedSplineFilament)(i::Int, ζ::Number, der::Derivative = Derivative(0))
     (; ts,) = f
