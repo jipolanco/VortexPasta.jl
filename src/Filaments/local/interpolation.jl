@@ -10,7 +10,7 @@ continuity(m::Union{LocalInterpolationMethod, DiscretisationMethod}) = continuit
 
 """
     interpolate(
-        method::LocalInterpolationMethod, [derivative = Derivative(0)], t::Number,
+        method::LocalInterpolationMethod, derivative::Derivative, t::Number,
         values_at_interpolation_points...,
     )
 
@@ -28,7 +28,3 @@ The `values_at_interpolation_points` depend on the interpolation method:
   (``t = 0`` and ``1``).
 """
 function interpolate end
-
-interpolate(method::LocalInterpolationMethod, t::Number, args...) =
-    interpolate(method, Derivative(0), t, args...)
-

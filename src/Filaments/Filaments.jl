@@ -305,6 +305,15 @@ end
 # The idea is to update the parametrisation of `f` to follow more closely the
 # actual arclengths of the filament. Not sure if it's worth it...
 function recompute_parametrisation!(f::ClosedFilament)
+    m = interpolation_method(f)
+    _recompute_parametrisation!(m, f)
+end
+
+# In the case of straight segments (linear interpolation), the parametrisation
+# cannot be improved from its initial estimation.
+_recompute_parametrisation!(::HermiteInterpolation{0}, f::AbstractFilament) = f
+
+function _recompute_parametrisation!(::Any, f::AbstractFilament)
     (; ts,) = f
     xs, ws = gausslegendre(4)  # TODO make it static?
     @assert npad(ts) ≥ 1

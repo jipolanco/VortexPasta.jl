@@ -49,8 +49,10 @@ function test_filament_ring(f)
 
     @testset "Derivatives at nodes" begin
         i = 1
-        @test f(i, 0.0, Derivative(1)) ≈ f[i, Derivative(1)]
-        @test f(i, 1.0, Derivative(1)) ≈ f[i + 1, Derivative(1)]
+        if continuity ≥ 1
+            @test f(i, 0.0, Derivative(1)) ≈ f[i, Derivative(1)]
+            @test f(i, 1.0, Derivative(1)) ≈ f[i + 1, Derivative(1)]
+        end
         if continuity ≥ 2  # not the case for HermiteInterpolation(1)
             @test f(i, 0.0, Derivative(2)) ≈ f[i, Derivative(2)]
             @test f(i, 1.0, Derivative(2)) ≈ f[i + 1, Derivative(2)]
@@ -83,7 +85,9 @@ function test_filament_ring(f)
                 X′, X″ = @inferred normalise_derivatives(Ẋ, Ẍ)
                 @test norm(X′) ≈ 1
                 @test 1 - X′ ⋅ X″ ≈ 1   # orthogonality
-                @test isapprox(norm(X″), 1 / R; rtol = 0.1)  # ring curvature (some methods are more accurate than others...)
+                if continuity ≥ 1  # don't run test with HermiteInterpolation{0} (→ curvature = 0)
+                    @test isapprox(norm(X″), 1 / R; rtol = 0.1)  # ring curvature (some methods are more accurate than others...)
+                end
             end
         end
     end
@@ -113,6 +117,7 @@ end
     filaments = (
         "FiniteDiff(2) / Hermite(2)" => @inferred(Filaments.init(ClosedFilament, N, FiniteDiffMethod(2), HermiteInterpolation(2))),
         "FiniteDiff(2) / Hermite(1)" => @inferred(Filaments.init(ClosedFilament, N, FiniteDiffMethod(2), HermiteInterpolation(1))),
+        "FiniteDiff(2) / Hermite(0)" => @inferred(Filaments.init(ClosedFilament, N, FiniteDiffMethod(2), HermiteInterpolation(0))),
         "CubicSpline" => @inferred(Filaments.init(ClosedFilament, N, CubicSplineMethod())),
     )
     @testset "$s" for (s, f) ∈ filaments

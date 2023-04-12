@@ -25,9 +25,6 @@ HermiteInterpolation(M::Int) = HermiteInterpolation{M}()
 
 continuity(::Type{HermiteInterpolation{M}}) where {M} = M
 
-Base.show(io::IO, ::HermiteInterpolation{M}) where {M} =
-    print(io, "HermiteInterpolation(", M, ")")
-
 # Linear interpolation
 # Coordinates and derivatives are expected to be normalised so that t ∈ [0, 1]
 function interpolate(
@@ -41,8 +38,6 @@ function interpolate(
         Xs[2] - Xs[1]
     elseif N ≥ 2
         zero(Xs[1])
-    else
-        nothing
     end
 end
 
