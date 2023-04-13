@@ -19,6 +19,7 @@ makedocs(
         "index.md",
         "Modules" => [
             "modules/Filaments.md",
+            "modules/Quadratures.md",
         ]
     ]
 )
