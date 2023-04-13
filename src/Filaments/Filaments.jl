@@ -214,6 +214,8 @@ include("local/closed_filament.jl")
 include("spline/spline.jl")
 include("spline/closed_filament.jl")
 
+include("makie_recipes.jl")
+
 """
     Filaments.init(ClosedFilament{T}, N::Integer, method::DiscretisationMethod, [args...]) -> ClosedFilament{T}
 

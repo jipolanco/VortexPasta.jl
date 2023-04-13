@@ -58,6 +58,13 @@ CubicSplineMethod
 ClosedSplineFilament
 ```
 
+## Plotting
+
+```@docs
+filamentplot!
+filamentplot
+```
+
 ## Index
 
 ```@index
