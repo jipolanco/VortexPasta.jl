@@ -23,7 +23,7 @@ See also [`Filaments.init`](@ref).
 # Optional arguments
 
 - `interpolation`: method used to evaluate curve coordinates or derivatives
-  in-between discretisation points. Must be a type of [`LocalInterpolationMethod`].
+  in-between discretisation points. Must be a type of [`LocalInterpolationMethod`](@ref).
   By default, quintic Hermite interpolation (`HermiteInterpolation(2)`) is used.
   Note that Hermite interpolations use the derivatives estimated via the chosen
   discretisation method.

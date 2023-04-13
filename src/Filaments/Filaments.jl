@@ -16,7 +16,7 @@ export
     normalise_derivatives,
     normalise_derivatives!
 
-using FastGaussQuadrature: gausslegendre
+using ..Quadratures: GaussLegendreQuadrature, quadrature
 using LinearAlgebra: norm, normalize, ⋅, ×
 using StaticArrays
 using StructArrays
@@ -317,17 +317,15 @@ _recompute_parametrisation!(::HermiteInterpolation{0}, f::AbstractFilament) = f
 
 function _recompute_parametrisation!(::Any, f::AbstractFilament)
     (; ts,) = f
-    xs, ws = gausslegendre(4)  # TODO make it static?
+    xs, ws = quadrature(GaussLegendreQuadrature(4))  # valid in [0, 1] interval
     @assert npad(ts) ≥ 1
     tnext = ts[begin]
     for i ∈ eachindex(ts)
         # Estimate arclength from ts[i] to ts[i + 1]
-        a, b = ts[i], ts[i + 1]
-        h = (b - a) / 2
-        tmid = (a + b) / 2
+        h = ts[i + 1] - ts[i]
         ℓ = h * sum(eachindex(xs)) do j
-            t = tmid + h * xs[j]
-            X′ = f(t, Derivative(1); ileft = i)
+            ζ = xs[j]  # in [0, 1]
+            X′ = f(i, ζ, Derivative(1))  # = ∂X/∂t
             ws[j] * norm(X′)
         end
         @assert ℓ ≥ ts[i + 1] - ts[i]
