@@ -38,6 +38,7 @@ default:
         Pkg.build()
         Pkg.test(coverage = true)
       '
+
     - |
       julia --project=coverage -e '
         using Pkg
@@ -48,7 +49,8 @@ default:
         println(cl/tl*100, "% coverage")
         LCOV.writefile("coverage.lcov", coverage)
       '
-    - apt-get update -qq && apt-get install -y python3-pip lcov
+
+    - apt-get update -qq && apt-get install -qq python3-pip lcov
 
     # This is needed to convert LCOV coverage files to Cobertura format (used by gitlab)
     - pip install lcov_cobertura  # requires python3-pip package
@@ -104,7 +106,7 @@ pages:
     - test:1.9  # use artifacts from test:1.9 (lcov_html)
   stage: deploy
   script:
-    - apt-get update -qq && apt-get install -y git  # needed by Documenter
+    - apt-get update -qq && apt-get install -qq git  # needed by Documenter
     - |
       julia --project=docs -e '
         using Pkg

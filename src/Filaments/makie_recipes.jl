@@ -5,17 +5,37 @@ export filamentplot, filamentplot!
 
 """
     filamentplot(f::AbstractFilament; kws...)
+    MakieCore.plot(f::AbstractFilament; kws...)
 
 Plot a filament using Makie.jl.
 
-See [`filamentplot!`] for optional keyword arguments.
+Example usage:
+
+```julia
+using GLMakie
+plot(f; axis = (type = Axis3,), refinement = 4)  # f is a filament
+```
+
+See [`filamentplot!`](@ref) for details and for optional keyword arguments.
 """
 function filamentplot end
 
 """
-    filamentplot!(ax::Makie.Axis3, f::AbstractFilament; kws...)
+    filamentplot!(ax, f::AbstractFilament; kws...)
+    MakieCore.plot!(ax, f::AbstractFilament; kws...)
 
 Plot filament onto 3D axis.
+
+The first argument should ideally be an `Axis3`.
+
+Example usage:
+
+```julia
+using GLMakie
+fig = Figure()
+ax = Axis3(fig[1, 1])
+plot!(ax, f)  # f is a filament
+```
 
 ## Optional arguments and their defaults
 
@@ -51,6 +71,9 @@ them in-between nodes using the `vectorpos` argument.
 """
 function filamentplot! end
 
+MakieCore.plot(f::AbstractFilament; kws...) = filamentplot(f; kws...)
+MakieCore.plot!(ax, f::AbstractFilament; kws...) = filamentplot!(ax, f; kws...)
+
 # This macro defines the functions `filamentplot` and `filamentplot!` and the type FilamentPlot,
 # among other things.
 MakieCore.@recipe(FilamentPlot, filament) do scene
@@ -69,7 +92,6 @@ MakieCore.@recipe(FilamentPlot, filament) do scene
     )
 end
 
-# Note that most
 # We use the fact that `Makie.lift` (not included in MakieCore) is the same as `map`.
 function MakieCore.plot!(p::FilamentPlot)
     f = p.filament

@@ -21,8 +21,8 @@ end
         f = init_trefoil_filament(16)
         fig = Figure()
         ax = Axis3(fig[1, 1])
-        filamentplot!(
-            f;
+        plot!(  # same as `filamentplot!`
+            ax, f;
             refinement = 8,
             color = :Grey,
             tangents = true, tangentcolor = :Blue,
@@ -31,5 +31,10 @@ end
         )
         save("trefoil.png", fig)
         @test isfile("trefoil.png")
+        let
+            plt = plot(f; axis = (type = Axis3,))  # same as `filamentplot`
+            save("trefoil_basic.png", plt)
+            @test isfile("trefoil_basic.png")
+        end
     end
 end
