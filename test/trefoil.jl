@@ -65,6 +65,16 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     end
     @test max_rel_error_physical < tol  # note: the actual value depends a lot on the choice of α (and also on `tol`)
 
+    vs_exact = map(f -> similar(Filaments.points(f)), fs)
+    vs_default = map(f -> similar(Filaments.points(f)), fs)
+    BiotSavart.copy_interpolated_data!(vs_exact, cache_exact)
+    BiotSavart.copy_interpolated_data!(vs_default, cache_default)
+
+    # Compare velocities one filament at a time.
+    @test all(zip(vs_exact, vs_default)) do (u, v)
+        isapprox(u, v; rtol = tol)
+    end
+
     nothing
 end
 
