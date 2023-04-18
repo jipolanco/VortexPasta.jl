@@ -121,10 +121,11 @@ Includes arrays and data required for computation of Biot–Savart integrals.
 - `longrange` cache associated to long-range computations
 """
 struct BiotSavartCache{
-        # ShortRange <: ShortRangeCache,
+        ShortRange <: ShortRangeCache,
         LongRange <: LongRangeCache,
     }
-    longrange :: LongRange
+    shortrange :: ShortRange
+    longrange  :: LongRange
 end
 
 """
@@ -133,8 +134,9 @@ end
 Initialise caches for computing Biot–Savart integrals.
 """
 function init_cache(p::ParamsBiotSavart)
+    shortrange = init_cache_short(p.common, p.shortrange)
     longrange = init_cache_long(p.common, p.longrange)
-    BiotSavartCache(longrange)
+    BiotSavartCache(shortrange, longrange)
 end
 
 end
