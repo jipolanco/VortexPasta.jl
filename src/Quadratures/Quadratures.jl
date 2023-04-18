@@ -56,6 +56,14 @@ Quadrature nodes `xs` and and weights `ws` are returned as tuples.
 @generated quadrature(q::AbstractQuadrature) = _generate(q)
 
 """
+    Base.length(q::AbstractQuadrature{N}) -> N
+
+Return the number of points associated to the quadrature.
+"""
+Base.length(q::AbstractQuadrature) = length(typeof(q))
+Base.length(::Type{<:AbstractQuadrature{N}}) where {N} = N
+
+"""
     GaussLegendreQuadrature{N} <: AbstractQuadrature{N}
 
 ``N``-point Gauss–Legendre quadrature.

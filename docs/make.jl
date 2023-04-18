@@ -18,8 +18,10 @@ makedocs(
     pages = [
         "index.md",
         "Modules" => [
-            "modules/Filaments.md",
+            "modules/BasicTypes.md",
             "modules/Quadratures.md",
+            "modules/Filaments.md",
+            "modules/BiotSavart.md",
         ]
     ]
 )

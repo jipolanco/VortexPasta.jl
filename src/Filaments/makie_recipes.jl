@@ -13,7 +13,7 @@ Example usage:
 
 ```julia
 using GLMakie
-plot(f; axis = (type = Axis3,), refinement = 4)  # f is a filament
+plot(f; refinement = 4)  # f is a filament
 ```
 
 See [`filamentplot!`](@ref) for details and for optional keyword arguments.
@@ -21,12 +21,12 @@ See [`filamentplot!`](@ref) for details and for optional keyword arguments.
 function filamentplot end
 
 """
-    filamentplot!(ax, f::AbstractFilament; kws...)
+    filamentplot!([ax,] f::AbstractFilament; kws...)
     MakieCore.plot!(ax, f::AbstractFilament; kws...)
 
-Plot filament onto 3D axis.
+Plot filament onto existent 3D axis.
 
-The first argument should ideally be an `Axis3`.
+The first argument should typically be an `Axis3` or an `LScene`.
 
 Example usage:
 
