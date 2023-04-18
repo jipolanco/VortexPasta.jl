@@ -15,8 +15,6 @@ DiscretisationMethod
 AbstractFilament
 ClosedFilament
 PaddedVector
-Derivative
-Vec3
 ```
 
 ## Functions
@@ -56,6 +54,15 @@ interpolate
 GlobalDiscretisationMethod
 CubicSplineMethod
 ClosedSplineFilament
+```
+
+## Segments
+
+```@docs
+Segments
+segments
+length(::Segments)
+eachindex(::Segments)
 ```
 
 ## Plotting

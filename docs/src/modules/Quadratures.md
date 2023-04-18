@@ -21,6 +21,12 @@ AbstractQuadrature
 GaussLegendreQuadrature
 ```
 
+## Functions
+
+```@docs
+length
+```
+
 ## Index
 
 ```@index
