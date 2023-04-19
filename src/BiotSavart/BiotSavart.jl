@@ -70,7 +70,9 @@ Mandatory and optional keyword arguments are detailed in the following.
 - `quadrature_short::AbstractQuadrature = GaussLegendreQuadrature(4)`
   quadrature rule for short-range interactions
 
-- `rcut = 4√2 / α` cutoff distance for computation of short-range interactions
+- `rcut = 4√2 / α` cutoff distance for computation of short-range interactions.
+  For performance reasons, the cutoff distance must be less than half the cell
+  unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
 
 ### Long-range interactions
 
@@ -100,7 +102,7 @@ struct ParamsBiotSavart{
             rcut = 4√2 / α,
         ) where {T}
         common = ParamsCommon{T}(Γ, α, Ls)
-        sr = ParamsShortRange(backend_short, quadrature_short, rcut)
+        sr = ParamsShortRange(backend_short, quadrature_short, common, rcut)
         lr = ParamsLongRange(backend_long, quadrature_long, Ns)
         new{typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
     end

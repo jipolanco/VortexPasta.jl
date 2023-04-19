@@ -216,13 +216,13 @@ function long_range_velocity_fourier!(cache::LongRangeCache, fs::AbstractVector{
     @inbounds for f ∈ fs
         ts = knots(f)
         for i ∈ eachindex(segments(f))
-            dt = ts[i + 1] - ts[i]
+            Δt = ts[i + 1] - ts[i]
             for (ζ, w) ∈ zip(ζs, ws)
                 X = f(i, ζ)
                 Ẋ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
                 # Note: the vortex circulation Γ is included in the Ewald operator and
                 # doesn't need to be included here.
-                q = w * dt
+                q = w * Δt
                 add_pointcharge!(cache, X, q * Ẋ, n += 1)
             end
         end
