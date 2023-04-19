@@ -52,23 +52,23 @@ Mandatory and optional keyword arguments are detailed in the following.
 
 ## Mandatory keyword arguments
 
-- `Γ::Real` vortex circulation (assumed constant)
+- `Γ::Real` vortex circulation (assumed constant);
 
-- `α::Real` Ewald splitting parameter (inverse length scale)
+- `α::Real` Ewald splitting parameter (inverse length scale);
 
-- `Ls::NTuple{3, Real}` size of unit cell (i.e. period in each direction)
+- `Ls::NTuple{3, Real}` size of unit cell (i.e. period in each direction);
 
-- `Ns::Dims{3}` dimensions of physical grid used for long-range interactions
+- `Ns::Dims{3}` dimensions of physical grid used for long-range interactions.
 
 ## Optional keyword arguments (and their defaults)
 
 ### Short-range interactions
 
-- `backend_short::ShortRangeBackend = CellListMapBackend()` backend used to compute
-  short-range interactions
+- `backend_short::ShortRangeBackend = NaiveShortRangeBackend()` backend used to compute
+  short-range interactions;
 
 - `quadrature_short::AbstractQuadrature = GaussLegendreQuadrature(4)`
-  quadrature rule for short-range interactions
+  quadrature rule for short-range interactions;
 
 - `rcut = 4√2 / α` cutoff distance for computation of short-range interactions.
   For performance reasons, the cutoff distance must be less than half the cell
@@ -77,10 +77,10 @@ Mandatory and optional keyword arguments are detailed in the following.
 ### Long-range interactions
 
 - `backend_long::LongRangeBackend = FINUFFTBackend()` backend used to compute
-  long-range interactions
+  long-range interactions;
 
 - `quadrature_long::AbstractQuadrature = GaussLegendreQuadrature(2)`
-  quadrature rule for long-range interactions
+  quadrature rule for long-range interactions.
 
 """
 struct ParamsBiotSavart{
@@ -97,7 +97,7 @@ struct ParamsBiotSavart{
             Ns::Dims{3}, 
             quadrature_short::AbstractQuadrature = GaussLegendreQuadrature(4),
             quadrature_long::AbstractQuadrature = GaussLegendreQuadrature(2),
-            backend_short::ShortRangeBackend = CellListMapBackend(),
+            backend_short::ShortRangeBackend = NaiveShortRangeBackend(),
             backend_long::LongRangeBackend = FINUFFTBackend(),
             rcut = 4√2 / α,
         ) where {T}

@@ -64,6 +64,8 @@ struct ParamsShortRange{
     end
 end
 
+# Return the shortest separation r′ given the separation r = a - b between two points given a period L.
+# In the periodic line, the shortest separation satisfies |r′| ≤ L / 2.
 @inline function deperiodise_separation(r::Real, L::Real, Lhalf::Real = L / 2)
     while r > Lhalf
         r -= L
@@ -91,51 +93,6 @@ One may optionally choose to integrate over a subset of the segments of the fila
 This is useful for avoiding the Biot–Savart singularity when the point `x⃗`
 belongs to the filament.
 """
-function short_range_velocity(
-        cache::ShortRangeCache,
-        x⃗::Vec3,
-        f::AbstractFilament,
-        js::AbstractUnitRange = eachindex(segments(f)),
-    )
-    (; params,) = cache
-    (; common, quad, rcut,) = params
-    (; Ls, Γ, α,) = common
-    Lhs = map(L -> L / 2, Ls)  # half periods
-    v⃗ = zero(x⃗)
-    ts = knots(f)
-    g(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
-    r²_cut = rcut * rcut
-    Xs = Filaments.points(f)
-    t₊ = ts[first(js)]
-    is_outside_range⁺ = let
-        r⃗₊ = deperiodise_separation(x⃗ - Xs[first(js)], Ls, Lhs)
-        r²₊ = sum(abs2, r⃗₊)
-        r²₊ > r²_cut
-    end
-    ζs, ws = quadrature(quad)
-    # TODO move some stuff to the naive backend?
-    @inbounds for j ∈ js
-        # Integrate over segment [j, j + 1]
-        t₋, t₊ = t₊, ts[j + 1]
-        r⃗₊ = deperiodise_separation(x⃗ - Xs[j + 1], Ls, Lhs)
-        r²₊ = sum(abs2, r⃗₊)
-        is_outside_range⁻, is_outside_range⁺ = is_outside_range⁺, r²₊ > r²_cut
-        if is_outside_range⁻ && is_outside_range⁺
-            # Skip this segment if its two extremities are too far from x⃗.
-            continue
-        end
-        Δt = t₊ - t₋
-        for (ζ, w) ∈ zip(ζs, ws)
-            X = f(j, ζ)
-            Ẋ = f(j, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
-            r⃗ = deperiodise_separation(x⃗ - X, Ls, Lhs)
-            r² = sum(abs2, r⃗)
-            r = sqrt(r²)
-            v⃗ = v⃗ + (Δt * w * g(α * r) / r^3) * (Ẋ × r⃗)
-        end
-    end
-    (Γ / (4π)) * v⃗
-end
+function short_range_velocity end
 
 include("naive.jl")
-include("celllistmap.jl")
