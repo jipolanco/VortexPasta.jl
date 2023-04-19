@@ -22,12 +22,14 @@ using ..Filaments:
 # Common parameters to short- and long-range computations.
 struct ParamsCommon{T}
     Γ  :: T             # vortex circulation
+    a  :: T             # vortex core size
+    Δ  :: T             # LIA coefficient given by core vorticity profile
     α  :: T             # Ewald splitting parameter (inverse length scale)
     σ  :: T             # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
     Ls :: NTuple{3, T}  # size of unit cell (= period in each direction)
-    function ParamsCommon{T}(Γ, α, Ls) where {T}
+    function ParamsCommon{T}(Γ, a, Δ, α, Ls) where {T}
         σ = 1 / (α * sqrt(2))
-        new{T}(Γ, α, σ, Ls)
+        new{T}(Γ, a, Δ, α, σ, Ls)
     end
 end
 
@@ -53,6 +55,8 @@ Mandatory and optional keyword arguments are detailed in the following.
 ## Mandatory keyword arguments
 
 - `Γ::Real` vortex circulation (assumed constant);
+
+- `a::Real` vortex core size (assumed constant);
 
 - `α::Real` Ewald splitting parameter (inverse length scale);
 
@@ -82,6 +86,22 @@ Mandatory and optional keyword arguments are detailed in the following.
 - `quadrature_long::AbstractQuadrature = GaussLegendreQuadrature(2)`
   quadrature rule for long-range interactions.
 
+### Local self-induced velocity
+
+- `Δ = 0.25` coefficient appearing in the local self-induced velocity (LIA
+  term), which depends on the vorticity profile at the vortex core.
+
+  Some common values of `Δ` are:
+
+  * `Δ = 0.25` for a constant vorticity profile (default);
+
+  * `Δ = 0.5` for a hollow vortex;
+
+  * `Δ ≈ 0.905 ≈ 0.558 + ln(2) / 2` for a Gaussian vorticity profile;
+
+  * `Δ ≈ 0.615` for a Gross–Pitaevskii vortex with healing length `a`.
+
+
 """
 struct ParamsBiotSavart{
         Common <: ParamsCommon,
@@ -94,14 +114,18 @@ struct ParamsBiotSavart{
 
     function ParamsBiotSavart(
             ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
-            Ns::Dims{3}, 
+            a::Real, Ns::Dims{3}, 
             quadrature_short::AbstractQuadrature = GaussLegendreQuadrature(4),
             quadrature_long::AbstractQuadrature = GaussLegendreQuadrature(2),
             backend_short::ShortRangeBackend = NaiveShortRangeBackend(),
             backend_long::LongRangeBackend = FINUFFTBackend(),
+            Δ::Real = 0.25,
             rcut = 4√2 / α,
         ) where {T}
-        common = ParamsCommon{T}(Γ, α, Ls)
+        # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
+        # - define ParamsPhysical instead of ParamsCommon
+        # - include α in both ParamsShortRange and ParamsLongRange?
+        common = ParamsCommon{T}(Γ, a, Δ, α, Ls)
         sr = ParamsShortRange(backend_short, quadrature_short, common, rcut)
         lr = ParamsLongRange(backend_long, quadrature_long, Ns)
         new{typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)

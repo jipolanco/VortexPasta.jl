@@ -1,4 +1,4 @@
-using LinearAlgebra: ×
+using LinearAlgebra: ×, norm
 using SpecialFunctions: erfc
 
 """
@@ -94,5 +94,109 @@ This is useful for avoiding the Biot–Savart singularity when the point `x⃗`
 belongs to the filament.
 """
 function short_range_velocity end
+
+"""
+    short_range_velocity_self!(vs::AbstractVector{<:Vec3}, cache::ShortRangeCache, f::AbstractFilament)
+
+Compute short-range self-induced velocity of a filament on its own nodes.
+
+This includes:
+
+- the LIA term (*localised induction approximation*), i.e. the local self-induced
+  velocity based on the local filament curvature;
+
+- the non-local (and short-range in the Ewald sense) velocity induced by the filament.
+
+This does *not* include:
+
+- the short-range velocity induced by other filaments;
+
+- the long-range velocity induced by all filaments (see e.g.
+  [`long_range_velocity_physical!`](@ref) for that).
+
+The length of the output vector `vs` must be equal to the number of nodes of the filament `f`.
+"""
+function short_range_velocity_self!(
+        vs::AbstractVector{<:Vec3},
+        cache::ShortRangeCache,
+        f::AbstractFilament;
+        LIA::Bool = true,  # allows to disable LIA for testing
+    )
+    (; params,) = cache
+    (; common, quad,) = params
+    (; Γ, a, Δ) = common
+
+    prefactor = Γ / 4π
+
+    length(vs) == length(f) || throw(DimensionMismatch("wrong length of output `vs`"))
+    inds_all = UnitRange(eachindex(segments(f)))
+
+    # Case of the initial node (i = 1): we don't integrate over the first nor
+    # the last segment (assuming periodicity / closed filament...).
+    inds_left = inds_all[0:-1]
+    inds_right = inds_all[2:end - 1]
+
+    for (i, x⃗) ∈ pairs(Filaments.points(f))
+        v⃗ = zero(eltype(vs))
+        @assert length(inds_left) + length(inds_right) == length(inds_all) - 2
+        v⃗ = v⃗ + short_range_velocity(cache, x⃗, f, inds_left)  # this already includes the prefactor
+        if LIA
+            v⃗ = v⃗ + local_self_induced_velocity(f, i, prefactor; a, Δ)
+        end
+        v⃗ = v⃗ + short_range_velocity(cache, x⃗, f, inds_right)
+        vs[i] = v⃗
+        # For the next point (i + 1), skip integration over segments {i, i + 1}
+        # which include the point.
+        inds_left = inds_all[begin:(i - 1)]
+        inds_right = inds_all[(i + 2):end]
+    end
+
+    vs
+end
+
+"""
+    local_self_induced_velocity(f::AbstractFilament, i::Int; Γ::Real, a::Real, Δ = 0.25)
+    local_self_induced_velocity(f::AbstractFilament, i::Int, prefactor::Real; a::Real, Δ = 0.25)
+
+Compute local self-induced velocity of filament node `f[i]`.
+
+This corresponds to the LIA term (localised induction approximation).
+
+# Mandatory arguments
+
+- the vortex core size `a` as a keyword argument;
+
+- either the vortex circulation `Γ` as a keyword argument, or the precomputed
+  coefficient `Γ / 4π` as a positional argument.
+
+# Optional arguments
+
+One can control the effect of the vorticity profile via the optional `Δ`
+keyword argument (see [`ParamsBiotSavart`](@ref) for details).
+"""
+function local_self_induced_velocity(
+        f::AbstractFilament, i::Int, prefactor::Real;
+        a::Real, Δ::Real = 0.25,
+    )
+    ts = knots(f)
+    # TODO
+    # - can we use a better estimation of ℓ? And is it worth it?
+    # - could we average ṡ × s̈ over the local segments? (And is it worth it?)
+    # We could use available quadratures for this...
+    # - should we compensate for some effect of the long-range component? (I guess not, the effect should be negligible)
+    ℓ₋ = ts[i] - ts[i - 1]  # assume that the parametrisation roughly corresponds to the vortex arclength
+    ℓ₊ = ts[i + 1] - ts[i]
+    β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
+    Ẋ = f[i, Derivative(1)]  # ∂f/∂t at node i
+    Ẍ = f[i, Derivative(2)]
+    # Note that the derivatives are wrt the parameter `t` and not exactly wrt
+    # the arclength `ξ`, hence the extra `norm(Ẋ)^3` factor wrt the literature.
+    # Usually, `norm(Ẋ)` should be actually quite close to 1 since the
+    # parametrisation is a rough approximation of the arclength.
+    β / norm(Ẋ)^3 * (Ẋ × Ẍ)
+end
+
+local_self_induced_velocity(f, i; Γ, kws...) =
+    local_self_induced_velocity(f, i, Γ / 4π; kws...)
 
 include("naive.jl")

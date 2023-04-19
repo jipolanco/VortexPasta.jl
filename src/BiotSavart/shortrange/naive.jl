@@ -5,7 +5,8 @@ export NaiveShortRangeBackend
 
 Naive computation of short-range interactions.
 
-This backend can be quite slow and should be used for testing only.
+For now this is the only available short-range backend. In the future a more
+efficient alternative backend will be added using cell lists.
 """
 struct NaiveShortRangeBackend <: ShortRangeBackend end
 
@@ -64,5 +65,5 @@ function short_range_velocity(
             v⃗ = v⃗ + (Δt * w * g(α * r) / r^3) * (Ẋ × r⃗)
         end
     end
-    (Γ / (4π)) * v⃗
+    (Γ / 4π) * v⃗
 end

@@ -235,6 +235,7 @@ end
 
 """
     long_range_velocity_physical!(
+        [vs::AbstractVector],
         cache::LongRangeCache,
         fs::AbstractVector{<:AbstractFilament},
     )
@@ -244,10 +245,14 @@ Interpolate long-range velocity at the location of filament nodes.
 The `cache` must contain a velocity field in Fourier space. To do this, one
 should first call [`long_range_velocity_fourier!`](@ref).
 
-Velocities are written to `cache.charges`, which is also returned for convenience.
+Velocities are written to `cache.charges`.
 
-Use [`copy_interpolated_data!`](@ref) to copy the results to a vector of velocities.
+If the optional `vs` argument is passed, then interpolated velocities are
+copied to the `vs` vector (using [`copy_interpolated_data`](@ref)). Otherwise,
+`cache.charges` is returned for convenience.
 """
+function long_range_velocity_physical! end
+
 function long_range_velocity_physical!(
         cache::LongRangeCache,
         fs::AbstractVector{<:AbstractFilament},
@@ -261,6 +266,11 @@ function long_range_velocity_physical!(
     @assert n == Npoints
     interpolate_to_physical!(cache)
     cache.charges
+end
+
+function long_range_velocity_physical!(vs::AbstractVector, cache::LongRangeCache, fs)
+    long_range_velocity_physical!(cache, fs)
+    copy_interpolated_data!(vs, cache)
 end
 
 """
