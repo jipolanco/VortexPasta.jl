@@ -1,7 +1,7 @@
 # BasicTypes
 
 ```@meta
-CurrentModule = VortexFilamentEwald.BasicTypes
+CurrentModule = VortexPasta.BasicTypes
 ```
 
 ```@docs

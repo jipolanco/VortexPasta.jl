@@ -1,7 +1,7 @@
 # Filaments
 
 ```@meta
-CurrentModule = VortexFilamentEwald.Filaments
+CurrentModule = VortexPasta.Filaments
 ```
 
 ```@docs

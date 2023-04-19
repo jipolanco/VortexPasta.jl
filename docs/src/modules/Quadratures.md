@@ -1,7 +1,7 @@
 # Quadratures
 
 ```@meta
-CurrentModule = VortexFilamentEwald.Quadratures
+CurrentModule = VortexPasta.Quadratures
 ```
 
 ```@docs

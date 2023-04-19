@@ -1,7 +1,7 @@
 # BiotSavart
 
 ```@meta
-CurrentModule = VortexFilamentEwald.BiotSavart
+CurrentModule = VortexPasta.BiotSavart
 ```
 
 ```@docs

@@ -3,7 +3,7 @@ using Random
 using LinearAlgebra
 using StaticArrays
 using ForwardDiff: ForwardDiff
-using VortexFilamentEwald.Filaments
+using VortexPasta.Filaments
 
 function test_filament_ring(f)
     R = 3  # ring radius

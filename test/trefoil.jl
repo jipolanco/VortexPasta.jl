@@ -1,7 +1,7 @@
 using Test
 using LinearAlgebra: norm, ⋅
-using VortexFilamentEwald.Filaments
-using VortexFilamentEwald.BiotSavart
+using VortexPasta.Filaments
+using VortexPasta.BiotSavart
 
 function init_trefoil_filament(N::Int)
     R = π / 5

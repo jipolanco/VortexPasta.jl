@@ -1,4 +1,4 @@
-# VortexFilamentEwald.jl
+# VortexPasta.jl
 
-Documentation for VortexFilamentEwald.jl.
+Documentation for VortexPasta.jl.
 

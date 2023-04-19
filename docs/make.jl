@@ -1,20 +1,20 @@
 using Documenter
-using VortexFilamentEwald
+using VortexPasta
 
 DocMeta.setdocmeta!(
-    VortexFilamentEwald.Filaments,
+    VortexPasta.Filaments,
     :DocTestSetup,
-    :(using VortexFilamentEwald.Filaments),
+    :(using VortexPasta.Filaments),
 )
 
-# doctest(VortexFilamentEwald; fix = true)
+# doctest(VortexPasta; fix = true)
 
 makedocs(
-    sitename = "VortexFilamentEwald",
+    sitename = "VortexPasta",
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
     ),
-    modules = [VortexFilamentEwald],
+    modules = [VortexPasta],
     pages = [
         "index.md",
         "Modules" => [

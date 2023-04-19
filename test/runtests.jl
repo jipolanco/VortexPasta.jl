@@ -1,7 +1,7 @@
 using Test
-using VortexFilamentEwald
+using VortexPasta
 
-@testset "VortexFilamentEwald.jl" begin
+@testset "VortexPasta.jl" begin
     include("filaments.jl")
     include("trefoil.jl")
     include("plots.jl")

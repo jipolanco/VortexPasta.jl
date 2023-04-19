@@ -1,5 +1,5 @@
 using CairoMakie
-using VortexFilamentEwald.Filaments
+using VortexPasta.Filaments
 using Test
 
 function init_trefoil_filament(N::Int)
