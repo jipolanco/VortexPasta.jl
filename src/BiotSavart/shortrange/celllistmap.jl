@@ -1,6 +1,8 @@
 using CellListMap.PeriodicSystems:
     AbstractPeriodicSystem,
-    PeriodicSystem, map_pairwise!
+    PeriodicSystem,
+    PeriodicSystem1,
+    map_pairwise!
 
 """
     CellListMapBackend <: ShortRangeBackend
@@ -29,13 +31,16 @@ function init_cache_short(
     (; Ls,) = common
     (; rcut,) = params
     positions = [zero(Vec3{T})]  # CellListMap needs at least one element
+    # Note: we add a type assert since the type of `system` is not fully inferred otherwise.
     system = PeriodicSystem(
         xpositions = positions,
         unitcell = SVector(Ls),
         cutoff = rcut,
         output = similar(positions),
-    )
+        output_name = :velocities,
+    ) :: PeriodicSystem1{:velocities, eltype(positions), typeof(positions)}
     CellListMapCache(
         params, system,
     )
 end
+
