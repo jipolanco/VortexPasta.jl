@@ -97,10 +97,12 @@ Mandatory and optional keyword arguments are detailed in the following.
 
   * `Δ = 0.5` for a hollow vortex;
 
-  * `Δ ≈ 0.905 ≈ 0.558 + ln(2) / 2` for a Gaussian vorticity profile;
+  * `Δ ≈ 0.905 ≈ 0.558 + ln(2) / 2` for a Gaussian vorticity profile (taking
+    `a` as the Gaussian standard deviation `σ`);
 
   * `Δ ≈ 0.615` for a Gross–Pitaevskii vortex with healing length `a`.
 
+  See Saffman (1992), sections 10.2--10.3 for the first three.
 
 """
 struct ParamsBiotSavart{

@@ -120,7 +120,7 @@ function short_range_velocity_self!(
         vs::AbstractVector{<:Vec3},
         cache::ShortRangeCache,
         f::AbstractFilament;
-        LIA::Bool = true,  # allows to disable LIA for testing
+        LIA::Bool = true,  # allows disabling LIA for testing
     )
     (; params,) = cache
     (; common, quad,) = params
@@ -174,10 +174,14 @@ This corresponds to the LIA term (localised induction approximation).
 One can control the effect of the vorticity profile via the optional `Δ`
 keyword argument (see [`ParamsBiotSavart`](@ref) for details).
 """
-function local_self_induced_velocity(
-        f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real = 0.25,
+function local_self_induced_velocity end
+
+function _local_self_induced_velocity(
+        quad::Nothing, f::AbstractFilament, i::Int, prefactor::Real;
+        a::Real, Δ::Real,
     )
+    # TODO should we add an Ewald correction based on α?
+    # The idea is that the total velocity at a filament point should not depend on α...
     ts = knots(f)
     # TODO
     # - can we use a better estimation of ℓ? And is it worth it?
@@ -194,6 +198,37 @@ function local_self_induced_velocity(
     # Usually, `norm(Ẋ)` should be actually quite close to 1 since the
     # parametrisation is a rough approximation of the arclength.
     β / norm(Ẋ)^3 * (Ẋ × Ẍ)
+end
+
+# Alternative estimation using quadratures for better accuracy (maybe...).
+function _local_self_induced_velocity(
+        quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
+        a::Real, Δ::Real,
+    )
+    ζs, ws = quadrature(quad)
+    ts = knots(f)
+    ℓ₋ = (ts[i] - ts[i - 1]) * sum(eachindex(ws)) do j
+        ws[j] * norm(f(i - 1, ζs[j], Derivative(1)))
+    end
+    ℓ₊ = (ts[i + 1] - ts[i]) * sum(eachindex(ws)) do j
+        ws[j] * norm(f(i, ζs[j], Derivative(1)))
+    end
+    b⃗ = sum(eachindex(ws)) do j
+        Ẋ₋ = f(i - 1, ζs[j], Derivative(1))
+        Ẍ₋ = f(i - 1, ζs[j], Derivative(2))
+        Ẋ₊ = f(i    , ζs[j], Derivative(1))
+        Ẍ₊ = f(i    , ζs[j], Derivative(2))
+        (ws[j] / 2) * ((Ẋ₋ × Ẍ₋) ./ norm(Ẋ₋)^3 + (Ẋ₊ × Ẍ₊) ./ norm(Ẋ₊)^3)
+    end
+    β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
+    β * b⃗
+end
+
+function local_self_induced_velocity(
+        f::AbstractFilament, i::Int, prefactor::Real;
+        a::Real, Δ::Real = 0.25, quad = nothing,
+    )
+    _local_self_induced_velocity(quad, f, i, prefactor; a, Δ)
 end
 
 local_self_induced_velocity(f, i; Γ, kws...) =
