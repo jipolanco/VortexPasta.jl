@@ -24,18 +24,18 @@ end
 
 # TODO split function into "elemental" parts that can be shared with another backend?
 function short_range_velocity(
+        g::F,  # this allows to set a custom kernel function g(α * r)
         cache::NaiveShortRangeCache,
         x⃗::Vec3,
         f::AbstractFilament,
         js::AbstractUnitRange = eachindex(segments(f)),
-    )
+    ) where {F <: Function}
     (; params,) = cache
     (; common, quad, rcut,) = params
     (; Ls, Γ, α,) = common
     Lhs = map(L -> L / 2, Ls)  # half periods
     v⃗ = zero(x⃗)
     ts = knots(f)
-    g(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
     r²_cut = rcut * rcut
     Xs = Filaments.points(f)
     t₊ = ts[first(js)]

@@ -1,5 +1,5 @@
 using LinearAlgebra: ×, norm
-using SpecialFunctions: erfc
+using SpecialFunctions: erfc, erf
 
 """
     ShortRangeBackend
@@ -95,6 +95,13 @@ belongs to the filament.
 """
 function short_range_velocity end
 
+kernel_velocity_shortrange(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
+kernel_velocity_longrange(αr) = erf(αr) - 2αr / sqrt(π) * exp(-αr^2)
+
+function short_range_velocity(cache::ShortRangeCache, args...)
+    short_range_velocity(kernel_velocity_shortrange, cache, args...)
+end
+
 """
     short_range_velocity_self!(vs::AbstractVector{<:Vec3}, cache::ShortRangeCache, f::AbstractFilament)
 
@@ -129,26 +136,39 @@ function short_range_velocity_self!(
     prefactor = Γ / 4π
 
     length(vs) == length(f) || throw(DimensionMismatch("wrong length of output `vs`"))
+    N = length(segments(f))
     inds_all = UnitRange(eachindex(segments(f)))
 
     # Case of the initial node (i = 1): we don't integrate over the first nor
     # the last segment (assuming periodicity / closed filament...).
     inds_left = inds_all[0:-1]
     inds_right = inds_all[2:end - 1]
+    @assert inds_all === 1:N
+    inds_singular = 0:1  # singularity region
 
     for (i, x⃗) ∈ pairs(Filaments.points(f))
         v⃗ = zero(eltype(vs))
         @assert length(inds_left) + length(inds_right) == length(inds_all) - 2
         v⃗ = v⃗ + short_range_velocity(cache, x⃗, f, inds_left)  # this already includes the prefactor
+        # We subtract part of the long-range velocity computed by the long-range backend.
+        # Namely, we subtract the local self-induced velocity in the
+        # singularity region, which will be replaced by the LIA approximation.
+        # This correction is needed to have a total velocity which does not depend
+        # on the (unphysical) Ewald parameter α.
+        # Note that the integral with the long-range kernel is *not* singular
+        # (since it's a smoothing kernel), so there's no problem with
+        # evaluating this integral.
+        v⃗ = v⃗ - short_range_velocity(kernel_velocity_longrange, cache, x⃗, f, inds_singular)
+        v⃗ = v⃗ + short_range_velocity(cache, x⃗, f, inds_right)
         if LIA
             v⃗ = v⃗ + local_self_induced_velocity(f, i, prefactor; a, Δ)
         end
-        v⃗ = v⃗ + short_range_velocity(cache, x⃗, f, inds_right)
         vs[i] = v⃗
-        # For the next point (i + 1), skip integration over segments {i, i + 1}
-        # which include the point.
+        # For the next point (i + 1), the singularity region corresponds to the
+        # segments [i, i + 1].
         inds_left = inds_all[begin:(i - 1)]
         inds_right = inds_all[(i + 2):end]
+        inds_singular = i:(i + 1)
     end
 
     vs
