@@ -3,6 +3,7 @@ export ExactSumBackend
 using AbstractFFTs: fftfreq, rfftfreq
 using StructArrays: StructArrays, StructVector, StructArray
 using LinearAlgebra: ⋅
+using Polyester: @batch  # @threads replacement
 
 """
     ExactSumBackend <: LongRangeBackend
@@ -62,7 +63,7 @@ function add_pointcharge!(c::ExactSumCache, X::Vec3, Q::Vec3, i::Int)
     (; uhat, wavenumbers,) = c
     @assert size(uhat) == map(length, wavenumbers)
     inds = CartesianIndices(uhat)
-    @inbounds Threads.@threads for I ∈ inds
+    @inbounds @batch for I ∈ inds
         k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
         uhat[I] += Q * cis(-k⃗ ⋅ X)
     end
