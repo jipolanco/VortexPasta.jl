@@ -83,7 +83,7 @@ end
     Ls = (2π, 2π, 2π)  # TODO test other sizes?
     Ns = (64, 64, 64)
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    params_kws = (; Ls, Ns, Γ = 2.0, α = kmax / 3,)
+    params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5, α = kmax / 3,)
     @testset "Long range" begin
         compare_long_range([f]; tol = 1e-8, params_kws...)
     end
