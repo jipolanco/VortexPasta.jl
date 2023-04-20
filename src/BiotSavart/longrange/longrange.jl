@@ -216,13 +216,13 @@ function long_range_velocity_fourier!(cache::LongRangeCache, fs::AbstractVector{
     @inbounds for f ∈ fs
         ts = knots(f)
         for i ∈ eachindex(segments(f))
-            dt = ts[i + 1] - ts[i]
+            Δt = ts[i + 1] - ts[i]
             for (ζ, w) ∈ zip(ζs, ws)
                 X = f(i, ζ)
                 Ẋ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
                 # Note: the vortex circulation Γ is included in the Ewald operator and
                 # doesn't need to be included here.
-                q = w * dt
+                q = w * Δt
                 add_pointcharge!(cache, X, q * Ẋ, n += 1)
             end
         end
@@ -235,6 +235,7 @@ end
 
 """
     long_range_velocity_physical!(
+        [vs::AbstractVector],
         cache::LongRangeCache,
         fs::AbstractVector{<:AbstractFilament},
     )
@@ -244,10 +245,14 @@ Interpolate long-range velocity at the location of filament nodes.
 The `cache` must contain a velocity field in Fourier space. To do this, one
 should first call [`long_range_velocity_fourier!`](@ref).
 
-Velocities are written to `cache.charges`, which is also returned for convenience.
+Velocities are written to `cache.charges`.
 
-Use [`copy_interpolated_data!`](@ref) to copy the results to a vector of velocities.
+If the optional `vs` argument is passed, then interpolated velocities are
+copied to the `vs` vector (using [`copy_interpolated_data`](@ref)). Otherwise,
+`cache.charges` is returned for convenience.
 """
+function long_range_velocity_physical! end
+
 function long_range_velocity_physical!(
         cache::LongRangeCache,
         fs::AbstractVector{<:AbstractFilament},
@@ -261,6 +266,11 @@ function long_range_velocity_physical!(
     @assert n == Npoints
     interpolate_to_physical!(cache)
     cache.charges
+end
+
+function long_range_velocity_physical!(vs::AbstractVector, cache::LongRangeCache, fs)
+    long_range_velocity_physical!(cache, fs)
+    copy_interpolated_data!(vs, cache)
 end
 
 """

@@ -63,7 +63,7 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     max_rel_error_physical = maximum(zip(cache_exact.charges, cache_default.charges)) do (qexact, qdefault)
         norm(qexact - qdefault) / norm(qexact)
     end
-    @test max_rel_error_physical < tol  # note: the actual value depends a lot on the choice of α (and also on `tol`)
+    @test max_rel_error_physical < tol
 
     vs_exact = map(f -> similar(Filaments.points(f)), fs)
     vs_default = map(f -> similar(Filaments.points(f)), fs)
@@ -78,13 +78,38 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     nothing
 end
 
+function compute_filament_velocity(f, α; params_kws...)
+    params = ParamsBiotSavart(; params_kws..., α)
+    cache = BiotSavart.init_cache(params)
+    vs_short = similar(Filaments.points(f))
+    vs_long = similar(vs_short)
+    BiotSavart.short_range_velocity_self!(vs_short, cache.shortrange, f)
+    fs = [f]
+    BiotSavart.long_range_velocity_fourier!(cache.longrange, fs)
+    BiotSavart.long_range_velocity_physical!(vs_long, cache.longrange, fs)
+    vs_short + vs_long
+end
+
+# Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
+# (In theory it shouldn't depend at all.)
+function check_dependence_on_ewald_parameter(f, αs; params_kws...)
+    vs_all = map(α -> compute_filament_velocity(f, α; params_kws...), αs)
+    vs_test = first(vs_all)
+    @test all(vs -> isapprox(vs, vs_test; rtol = 0.01), vs_all)
+    nothing
+end
+
 @testset "Trefoil" begin
     f = @inferred init_trefoil_filament(30)
     Ls = (2π, 2π, 2π)  # TODO test other sizes?
     Ns = (64, 64, 64)
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    params_kws = (; Ls, Ns, Γ = 2.0, α = kmax / 3,)
+    params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5, α = kmax / 6,)
     @testset "Long range" begin
         compare_long_range([f]; tol = 1e-8, params_kws...)
+    end
+    @testset "Dependence on α" begin
+        αs = [kmax / 5, kmax / 8, kmax / 16]
+        check_dependence_on_ewald_parameter(f, αs; params_kws...)
     end
 end

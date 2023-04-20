@@ -3,6 +3,7 @@ export ExactSumBackend
 using AbstractFFTs: fftfreq, rfftfreq
 using StructArrays: StructArrays, StructVector, StructArray
 using LinearAlgebra: ⋅
+using Polyester: @batch  # @threads replacement
 
 """
     ExactSumBackend <: LongRangeBackend
@@ -62,7 +63,7 @@ function add_pointcharge!(c::ExactSumCache, X::Vec3, Q::Vec3, i::Int)
     (; uhat, wavenumbers,) = c
     @assert size(uhat) == map(length, wavenumbers)
     inds = CartesianIndices(uhat)
-    @inbounds Threads.@threads for I ∈ inds
+    @inbounds @batch for I ∈ inds
         k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
         uhat[I] += Q * cis(-k⃗ ⋅ X)
     end
@@ -102,17 +103,18 @@ function _ensure_hermitian_symmetry!(c::ExactSumCache, us::AbstractArray)
 end
 
 # Ensure Hermitian symmetry one dimension at a time.
-function _ensure_hermitian_symmetry!(c::ExactSumCache, ::Val{d}, us) where {d}
+@inline function _ensure_hermitian_symmetry!(c::ExactSumCache, ::Val{d}, us) where {d}
     N = size(us, d)
     kd = c.wavenumbers[d]
-    if kd[end] > 0  # real-to-complex dimension (rfftfreq)
+    imin = if kd[end] > 0  # real-to-complex dimension (rfftfreq)
         @assert d == 1
-        imin = N
+        N
     elseif iseven(N)
-        imin = (N ÷ 2) + 1  # asymmetric mode
-        @assert -kd[imin] ≈ kd[imin - 1] + 1
+        imin_ = (N ÷ 2) + 1  # asymmetric mode
+        @assert -kd[imin_] ≈ kd[imin_ - 1] + 1
+        imin_
     else
-        imin = 0
+        0
     end
     if imin > 0
         inds = ntuple(j -> j == d ? imin : Colon(), Val(ndims(us)))

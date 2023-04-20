@@ -27,7 +27,7 @@ init_cache
 
 ```@docs
 ShortRangeBackend
-CellListMapBackend
+NaiveShortRangeCache
 ```
 
 ### Internals
