@@ -4,7 +4,7 @@ using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 
 function init_trefoil_filament(N::Int)
-    R = π / 5
+    R = π / 4
     S(t) = π .+ R .* Vec3(
         sinpi(t) + 2 * sinpi(2t),
         cospi(t) - 2 * cospi(2t),
@@ -79,7 +79,7 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
 end
 
 function compute_filament_velocity(f, α; params_kws...)
-    params = ParamsBiotSavart(; params_kws..., α)
+    params = ParamsBiotSavart(; params_kws..., α, rcut = 4 / α)
     cache = BiotSavart.init_cache(params)
     vs_short = similar(Filaments.points(f))
     vs_long = similar(vs_short)
@@ -91,18 +91,31 @@ function compute_filament_velocity(f, α; params_kws...)
 end
 
 # Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
-# (In theory it shouldn't depend at all.)
-function check_dependence_on_ewald_parameter(f, αs; params_kws...)
-    vs_all = map(α -> compute_filament_velocity(f, α; params_kws...), αs)
+# (In theory it shouldn't depend at all...)
+function check_independence_on_ewald_parameter(f, αs; params_kws...)
+    vs_all = map(αs) do α
+        compute_filament_velocity(
+            f, α;
+            # Use high-order quadratures to make sure that errors don't come from there.
+            quadrature_short = GaussLegendreQuadrature(6),
+            quadrature_long = GaussLegendreQuadrature(6),
+            params_kws...,
+        )
+    end
     vs_test = first(vs_all)
-    @test all(vs -> isapprox(vs, vs_test; rtol = 0.01), vs_all)
+    @test all(vs_all) do vs
+        maxdiff = maximum(zip(vs, vs_test)) do (a, b)
+            norm(a - b) / norm(b)
+        end
+        maxdiff < 1e-4
+    end
     nothing
 end
 
 @testset "Trefoil" begin
     f = @inferred init_trefoil_filament(30)
     Ls = (2π, 2π, 2π)  # TODO test other sizes?
-    Ns = (64, 64, 64)
+    Ns = (64, 64, 64) .* 2
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5, α = kmax / 6,)
     @testset "Long range" begin
@@ -110,6 +123,6 @@ end
     end
     @testset "Dependence on α" begin
         αs = [kmax / 5, kmax / 8, kmax / 16]
-        check_dependence_on_ewald_parameter(f, αs; params_kws...)
+        check_independence_on_ewald_parameter(f, αs; params_kws...)
     end
 end
