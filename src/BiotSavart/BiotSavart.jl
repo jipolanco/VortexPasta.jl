@@ -195,4 +195,14 @@ function velocity_on_nodes!(
     vs
 end
 
+# Case of a single filament: interpret inputs as single-element vectors.
+function velocity_on_nodes!(
+        v::VectorOfVelocities, cache::BiotSavartCache, f::AbstractFilament,
+    )
+    vs = SVector{1}((v,))
+    fs = SVector{1}((f,))
+    velocity_on_nodes!(vs, cache, fs)
+    v
+end
+
 end

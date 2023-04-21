@@ -81,13 +81,8 @@ end
 
 function compute_filament_velocity(f, α; params_kws...)
     params = ParamsBiotSavart(; params_kws..., α, rcut = 4 / α)
-    cache = BiotSavart.init_cache(params)
-    vs = zero(nodes(f))
-    BiotSavart.add_short_range_velocity_self!(vs, cache.shortrange, f)
-    fs = [f]
-    BiotSavart.long_range_velocity_fourier!(cache.longrange, fs)
-    BiotSavart.add_long_range_velocity!(vs, cache.longrange, fs)
-    vs
+    cache = init_cache(params)
+    velocity_on_nodes!(zero(nodes(f)), cache, f)
 end
 
 # Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
