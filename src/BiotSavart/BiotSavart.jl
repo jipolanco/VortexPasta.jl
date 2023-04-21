@@ -122,7 +122,7 @@ struct ParamsBiotSavart{
             backend_short::ShortRangeBackend = NaiveShortRangeBackend(),
             backend_long::LongRangeBackend = FINUFFTBackend(),
             Δ::Real = 0.25,
-            rcut = 4√2 / α,
+            rcut = 4 / α,
         ) where {T}
         # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
         # - define ParamsPhysical instead of ParamsCommon
