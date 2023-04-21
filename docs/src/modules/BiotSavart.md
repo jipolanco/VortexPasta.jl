@@ -39,6 +39,7 @@ init_cache_short
 short_range_velocity
 local_self_induced_velocity
 add_short_range_velocity_self!
+add_short_range_velocity_other!
 ```
 
 ## Long-range interactions

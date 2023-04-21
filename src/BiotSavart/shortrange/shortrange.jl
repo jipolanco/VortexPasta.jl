@@ -120,10 +120,11 @@ This includes:
 
 This does *not* include:
 
-- the short-range velocity induced by other filaments;
+- the short-range velocity induced by other filaments (see
+  [`add_short_range_velocity_other!`](@ref) for that);
 
-- the long-range velocity induced by all filaments (see e.g.
-  [`long_range_velocity_physical!`](@ref) for that).
+- the long-range velocity induced by all filaments (see
+  [`add_long_range_velocity!`](@ref) for that).
 
 The length of the output vector `vs` must be equal to the number of nodes of the filament `f`.
 """
