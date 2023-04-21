@@ -27,13 +27,17 @@ init_cache
 
 ```@docs
 ShortRangeBackend
-NaiveShortRangeCache
+NaiveShortRangeBackend
 ```
 
 ### Internals
 
 ```@docs
 ShortRangeCache
+init_cache_short
+short_range_velocity
+local_self_induced_velocity
+add_short_range_velocity_self!
 ```
 
 ## Long-range interactions
@@ -60,10 +64,11 @@ to_filtered_velocity!
 interpolate_to_physical!
 long_range_velocity_fourier!
 long_range_velocity_physical!
-copy_interpolated_data!
+add_long_range_velocity!
 ```
 
 ## Index
 
 ```@index
+Pages = ["BiotSavart.md"]
 ```

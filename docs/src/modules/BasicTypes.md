@@ -14,3 +14,9 @@ BasicTypes
 Derivative
 Vec3
 ```
+
+## Index
+
+```@index
+Pages = ["BasicTypes.md"]
+```

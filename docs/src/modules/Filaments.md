@@ -75,4 +75,5 @@ filamentplot
 ## Index
 
 ```@index
+Pages = ["Filaments.md"]
 ```

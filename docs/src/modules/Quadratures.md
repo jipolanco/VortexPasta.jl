@@ -30,4 +30,5 @@ length
 ## Index
 
 ```@index
+Pages = ["Quadratures.md"]
 ```
