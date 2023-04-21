@@ -12,6 +12,7 @@ export
     Derivative,
     knots,
     knotlims,
+    nodes,
     segments,
     update_coefficients!,
     normalise_derivatives,
@@ -54,6 +55,9 @@ usual indexing notation to retrieve and to modify discretisation points. See
 Different ways are proposed of evaluating filament coordinates and derivatives
 along a filament `f`, depending on whether one wants values on discretisation
 points or in-between them.
+
+In short, square brackets `f[...]` should be used to evaluate on filament nodes,
+while round brackets `f(...)` to evaluate in-between nodes.
 
 ### Values on discretisation points
 
@@ -130,11 +134,11 @@ Return the method used to discretise the filament based on its node locations.
 function discretisation_method end
 
 """
-    Filaments.points(f::AbstractFilament{T}) -> AbstractVector{T}
+    nodes(f::AbstractFilament{T}) -> AbstractVector{T}
 
-Return the discretisation points ``\\bm{X}_i`` of the filament.
+Return the nodes (or discretisation points) ``\\bm{X}_i`` of the filament.
 """
-points(f::AbstractFilament) = f.Xs
+nodes(f::AbstractFilament) = f.Xs
 
 """
     knots(f::AbstractFilament{T}) -> AbstractVector{T}
@@ -163,7 +167,7 @@ Return coordinates of discretisation point ``\\bm{X}_i``.
 One may also obtain derivatives at point ``\\bm{X}_i`` by passing an optional
 [`Derivative`](@ref).
 """
-Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = points(f)[i]
+Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
 
 Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int, d::Derivative) =
     f(AtNode(i), d)
@@ -173,11 +177,11 @@ Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int, d::Derivativ
 
 Set coordinates of discretisation point ``\\bm{X}_i``.
 """
-Base.@propagate_inbounds Base.setindex!(f::AbstractFilament, v, i::Int) = points(f)[i] = v
+Base.@propagate_inbounds Base.setindex!(f::AbstractFilament, v, i::Int) = nodes(f)[i] = v
 
 Base.eltype(::Type{<:AbstractFilament{T}}) where {T} = Vec3{T}  # type returned when indexing into a filament
 Base.eltype(f::AbstractFilament) = eltype(typeof(f))
-Base.size(f::AbstractFilament) = size(points(f))
+Base.size(f::AbstractFilament) = size(nodes(f))
 
 function Base.showarg(io::IO, f::AbstractFilament, toplevel)
     toplevel || print(io, "::")

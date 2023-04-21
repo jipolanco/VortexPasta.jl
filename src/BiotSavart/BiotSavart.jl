@@ -17,7 +17,7 @@ using ..Quadratures:
     quadrature, GaussLegendreQuadrature, AbstractQuadrature
 
 using ..Filaments:
-    Filaments, AbstractFilament, ClosedFilament, knots, segments
+    Filaments, AbstractFilament, ClosedFilament, knots, nodes, segments
 
 # Common parameters to short- and long-range computations.
 struct ParamsCommon{T}

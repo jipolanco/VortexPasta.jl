@@ -146,7 +146,7 @@ function add_short_range_velocity_self!(
     @assert inds_all === 1:N
     inds_singular = 0:1  # singularity region
 
-    for (i, x⃗) ∈ pairs(Filaments.points(f))
+    for (i, x⃗) ∈ pairs(nodes(f))
         v⃗ = zero(eltype(vs))
         @assert length(inds_left) + length(inds_right) == length(inds_all) - 2
         v⃗ = v⃗ + short_range_velocity(cache, x⃗, f, inds_left)  # this already includes the prefactor

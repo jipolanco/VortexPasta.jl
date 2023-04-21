@@ -119,7 +119,7 @@ function MakieCore.plot!(p::FilamentPlot)
 end
 
 # Make sure we include `end + 1` point to close the loop.
-_select_points_to_plot(f::ClosedFilament) = points(f)[begin:end + 1]
+_select_points_to_plot(f::ClosedFilament) = nodes(f)[begin:end + 1]
 
 function _plot_tangents!(
         p::FilamentPlot, f::ClosedFilament, tangents::Bool,
@@ -180,7 +180,7 @@ _arrow_kwargs() = (;
 )
 
 function _refine_filament(f::ClosedFilament, refinement::Int)
-    Xs_nodes = points(f)
+    Xs_nodes = nodes(f)
     refinement ≥ 1 || error("refinement must be ≥ 1")
     refinement == 1 && return Xs_nodes[begin:end + 1]
     N = refinement * length(f) + 1  # the +1 is to close the loop

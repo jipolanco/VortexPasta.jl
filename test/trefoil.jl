@@ -66,8 +66,8 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     @test max_rel_error_physical < tol
 
     # Copy data to arrays.
-    vs_exact = map(f -> zero(Filaments.points(f)), fs)
-    vs_default = map(f -> zero(Filaments.points(f)), fs)
+    vs_exact = map(f -> zero(nodes(f)), fs)
+    vs_default = map(f -> zero(nodes(f)), fs)
     BiotSavart.add_long_range_velocity!(vs_exact, cache_exact)
     BiotSavart.add_long_range_velocity!(vs_default, cache_default)
 
@@ -82,7 +82,7 @@ end
 function compute_filament_velocity(f, α; params_kws...)
     params = ParamsBiotSavart(; params_kws..., α, rcut = 4 / α)
     cache = BiotSavart.init_cache(params)
-    vs = zero(Filaments.points(f))
+    vs = zero(nodes(f))
     BiotSavart.add_short_range_velocity_self!(vs, cache.shortrange, f)
     fs = [f]
     BiotSavart.long_range_velocity_fourier!(cache.longrange, fs)

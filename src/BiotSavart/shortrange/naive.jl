@@ -37,7 +37,7 @@ function short_range_velocity(
     v⃗ = zero(x⃗)
     ts = knots(f)
     r²_cut = rcut * rcut
-    Xs = Filaments.points(f)
+    Xs = nodes(f)
     t₊ = ts[first(js)]
     is_outside_range⁺ = let
         r⃗₊ = deperiodise_separation(x⃗ - Xs[first(js)], Ls, Lhs)

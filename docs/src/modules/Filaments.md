@@ -24,7 +24,7 @@ Filaments.init
 discretisation_method
 knots
 knotlims
-Filaments.points
+nodes
 Base.getindex
 Base.setindex!
 update_coefficients!
