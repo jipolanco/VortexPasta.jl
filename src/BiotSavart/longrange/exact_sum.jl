@@ -109,12 +109,13 @@ end
 @inline function _ensure_hermitian_symmetry!(c::ExactSumCache, ::Val{d}, us) where {d}
     N = size(us, d)
     kd = c.wavenumbers[d]
+    Δk = kd[2]
     imin = if kd[end] > 0  # real-to-complex dimension (rfftfreq)
         @assert d == 1
         N
     elseif iseven(N)
         imin_ = (N ÷ 2) + 1  # asymmetric mode
-        @assert -kd[imin_] ≈ kd[imin_ - 1] + 1
+        @assert -kd[imin_] ≈ kd[imin_ - 1] + Δk
         imin_
     else
         0

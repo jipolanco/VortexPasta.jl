@@ -69,6 +69,9 @@ struct FINUFFTBackend{KwArgs <: NamedTuple} <: LongRangeBackend
     end
 end
 
+expected_period(::FINUFFTBackend) = 2π
+folding_limits(::FINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
+
 struct FINUFFTCache{
         T <: AbstractFloat,
         Params <: ParamsLongRange{<:FINUFFTBackend},
@@ -159,9 +162,10 @@ end
 @inline function _ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{d}, us) where {d}
     N = size(us, d)
     kd = c.wavenumbers[d]
+    Δk = kd[2]
     if iseven(N)
         imin = (N ÷ 2) + 1  # asymmetric mode
-        @assert -kd[imin] ≈ kd[imin - 1] + 1
+        @assert -kd[imin] ≈ kd[imin - 1] + Δk
         inds = ntuple(j -> j == d ? imin : Colon(), Val(ndims(us)))
         @inbounds @views us[inds...] .= 0
     end

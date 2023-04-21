@@ -137,7 +137,7 @@ struct ParamsBiotSavart{
         # - include α in both ParamsShortRange and ParamsLongRange?
         common = ParamsCommon{T}(Γ, a, Δ, α, Ls)
         sr = ParamsShortRange(backend_short, quadrature_short, common, rcut)
-        lr = ParamsLongRange(backend_long, quadrature_long, Ns)
+        lr = ParamsLongRange(backend_long, quadrature_long, common, Ns)
         new{typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
     end
 end

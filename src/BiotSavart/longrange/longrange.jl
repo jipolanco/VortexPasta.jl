@@ -1,4 +1,5 @@
 using StaticArrays: SVector
+using StructArrays: StructArrays
 
 """
     LongRangeBackend
@@ -9,10 +10,39 @@ Abstract type denoting the backend to use for computing long-range interactions.
 
 The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
-- `init_cache_long(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`
+- `init_cache_long(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`.
+
+- [`expected_period`](@ref) (optional),
+
+- [`folding_limits`](@ref) (optional).
 
 """
 abstract type LongRangeBackend end
+
+"""
+    expected_period(::LongRangeBackend) -> Union{Nothing, Real}
+
+Domain period expected by the backend.
+
+This is used for rescaling input coordinates to the requirements of the backend.
+For instance, FINUFFT assumes a period ``2π``, and therefore coordinates are
+rescaled if the input data has a period different from ``2π``.
+"""
+expected_period(::LongRangeBackend) = nothing
+
+"""
+    folding_limits(::LongRangeBackend) -> Union{Nothing, NTuple{2, Real}}
+
+Domain limits required by the backend.
+
+This is used for folding input coordinates so that they are within the limits
+expected by the backend.
+For instance, FINUFFT requires coordinates to be in the ``[-3π, 3π]`` interval.
+
+Note that, if a backend defines `folding_limits`, then it must also define
+[`expected_period`](@ref).
+"""
+folding_limits(::LongRangeBackend) = nothing
 
 """
     LongRangeCache
@@ -31,18 +61,23 @@ The following fields must be included in a cache:
 
 - `wavenumbers <: NTuple{3, <:AbstractVector}` Fourier-space wavenumbers `(kx, ky, kz)`;
 
-- `uhat :: NTuple{3, Array{Complex{T}, 3}}` vector field in Fourier space which can
+- `uhat :: StructArray{Vec3{Complex{T}}, 3}` vector field in Fourier space which can
   contain coarse-grained vorticity or velocity fields;
 
 - `ewald_op :: Array{T, 3}` scalar in Fourier space containing Ewald operator, converting
   vorticity to a coarse-grained streamfunction properly scaled by the vortex
   circulation `Γ` and the unit cell volume `V`;
 
-- `charges :: NTuple{3, <:AbstractVector}` contains values at non-uniform points.
+- `charges :: StructVector{Vec3{Complex{T}}}` contains values at non-uniform points.
   In particular, it stores the output of type-2 NUFFTs (i.e. interpolations to
   physical space);
 
 - `to :: TimerOutput` for measuring time spent on different functions.
+
+Optional fields:
+
+- `points :: StructVector{Vec3{T}}` contains non-uniform points. If the backend defines
+  [`expected_period`](@ref), then the `points` field *must* be defined.
 
 ## Functions
 
@@ -159,9 +194,11 @@ function interpolate_to_physical! end
 struct ParamsLongRange{
         Backend <: LongRangeBackend,
         Quadrature <: AbstractQuadrature,
+        Common <: ParamsCommon,
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
+    common  :: Common      # common parameters (Γ, α, Ls)
     Ns      :: Dims{3}     # grid dimensions for FFTs
 end
 
@@ -193,6 +230,59 @@ function init_ewald_fourier_operator(::Type{T}, ks, args...) where {T <: Real}
     dims = map(length, ks)
     u = Array{T}(undef, dims)
     init_ewald_fourier_operator!(u, ks, args...)
+end
+
+function rescale_coordinates!(c::LongRangeCache)
+    L = expected_period(backend(c))
+    _rescale_coordinates!(c, L)
+end
+
+# Backend doesn't define `expected_period`, so no rescaling is needed.
+_rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing
+
+function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
+    (; Ls,) = c.params.common
+    for (xs, L) ∈ zip(StructArrays.components(c.points), Ls)
+        _rescale_coordinates!(xs, L, L_expected)
+    end
+    nothing
+end
+
+function _rescale_coordinates!(xs::AbstractVector, L::Real, L_expected)
+    if L != L_expected
+        xs .*= L_expected / L
+    end
+    nothing
+end
+
+# Note: This function must be called **after** `rescale_coordinates!`.
+function fold_coordinates!(c::LongRangeCache)
+    lims = folding_limits(backend(c))
+    L = expected_period(backend(c))
+    _fold_coordinates!(c, lims, L)
+end
+
+# Backend doesn't define `folding_limits`, so no rescaling is needed.
+_fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
+
+function _fold_coordinates!(c::LongRangeCache, lims::NTuple{2}, L::Real)
+    for xs ∈ StructArrays.components(c.points)
+        @inbounds for (i, x) ∈ pairs(xs)
+            xs[i] = _fold_coordinate(x, lims, L)
+        end
+    end
+    nothing
+end
+
+# We assume that L = b - a.
+@inline function _fold_coordinate(x::Real, (a, b), L::Real)
+    while x ≥ b
+        x -= L
+    end
+    while x < a
+        x += L
+    end
+    x
 end
 
 """
@@ -231,6 +321,8 @@ function long_range_velocity_fourier!(cache::LongRangeCache, fs::VectorOfFilamen
         end
     end
     @assert n == Ncharges
+    @timeit to "rescale coordinates" rescale_coordinates!(cache)
+    @timeit to "fold coordinates" fold_coordinates!(cache)
     @timeit to "transform to Fourier" transform_to_fourier!(cache)
     @timeit to "compute velocity" to_filtered_velocity!(cache)
     cache.uhat
@@ -252,6 +344,7 @@ function long_range_velocity_physical!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
     )
+    (; to,) = cache
     Npoints = sum(length, fs)
     set_num_points!(cache, Npoints)
     n = 0
@@ -259,7 +352,9 @@ function long_range_velocity_physical!(
         add_point!(cache, X, n += 1)
     end
     @assert n == Npoints
-    interpolate_to_physical!(cache)
+    @timeit to "rescale coordinates" rescale_coordinates!(cache)
+    @timeit to "fold coordinates" fold_coordinates!(cache)
+    @timeit to "interpolate" interpolate_to_physical!(cache)
     cache.charges
 end
 

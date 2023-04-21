@@ -109,8 +109,8 @@ end
 
 @testset "Trefoil" begin
     f = @inferred init_trefoil_filament(30)
-    Ls = (2π, 2π, 2π)  # TODO test other sizes?
-    Ns = (64, 64, 64)
+    Ls = (2π, 2π, 1.5π)
+    Ns = (4, 4, 3) .* 16
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5, α = kmax / 6,)
     @testset "Long range" begin

@@ -56,6 +56,8 @@ ExactSumBackend
 ```@docs
 LongRangeCache
 init_cache_long
+expected_period
+folding_limits
 reset_fields!
 set_num_points!
 add_pointcharge!
