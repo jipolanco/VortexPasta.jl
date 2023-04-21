@@ -107,6 +107,8 @@ end
 
 Compute short-range self-induced velocity of a filament on its own nodes.
 
+The result is added to existent values in the `vs` vector.
+
 This includes:
 
 - the LIA term (*localised induction approximation*), i.e. the local self-induced
@@ -124,14 +126,12 @@ This does *not* include:
 The length of the output vector `vs` must be equal to the number of nodes of the filament `f`.
 """
 function add_short_range_velocity_self!(
-        vs::AbstractVector{<:Vec3},
+        vs::VectorOfVelocities,
         cache::ShortRangeCache,
         f::AbstractFilament;
         LIA::Bool = true,  # allows disabling LIA for testing
     )
-    (; params,) = cache
-    (; common, quad,) = params
-    (; Γ, a, Δ) = common
+    (; Γ, a, Δ) = cache.params.common
 
     prefactor = Γ / 4π
 
@@ -171,6 +171,33 @@ function add_short_range_velocity_self!(
         inds_singular = i:(i + 1)
     end
 
+    vs
+end
+
+"""
+    add_short_range_velocity_other!(
+        vs::AbstractVector{<:Vec3},
+        Xs::AbstractVector{<:Vec3},
+        cache::ShortRangeCache,
+        f::AbstractFilament,
+    )
+
+Compute short-range velocity induced by a filament `f` at locations `Xs`.
+
+The locations `Xs` can be the nodes of a vortex filament different from `f`.
+They can also be arbitrary locations in the domain.
+"""
+function add_short_range_velocity_other!(
+        vs::VectorOfVelocities,
+        Xs::VectorOfPositions,
+        cache::ShortRangeCache,
+        f::AbstractFilament,
+    )
+    eachindex(vs) == eachindex(Xs) || throw(DimensionMismatch("wrong length of output `vs`"))
+    for (i, x⃗) ∈ pairs(Xs)
+        v⃗ = short_range_velocity(cache, x⃗, f)  # already includes the prefactor Γ/4π
+        vs[i] = vs[i] + v⃗
+    end
     vs
 end
 

@@ -8,7 +8,9 @@ module BiotSavart
 
 export
     ParamsBiotSavart,
-    GaussLegendreQuadrature
+    GaussLegendreQuadrature,
+    init_cache,
+    velocity_on_nodes!
 
 using ..BasicTypes:
     Vec3, Derivative
@@ -32,6 +34,10 @@ struct ParamsCommon{T}
         new{T}(Γ, a, Δ, α, σ, Ls)
     end
 end
+
+const VectorOfFilaments = AbstractVector{<:AbstractFilament}
+const VectorOfPositions = AbstractVector{<:Vec3}
+const VectorOfVelocities = AbstractVector{<:Vec3}
 
 include("shortrange/shortrange.jl")
 include("longrange/longrange.jl")
@@ -165,6 +171,28 @@ function init_cache(p::ParamsBiotSavart)
     shortrange = init_cache_short(p.common, p.shortrange)
     longrange = init_cache_long(p.common, p.longrange)
     BiotSavartCache(shortrange, longrange)
+end
+
+function velocity_on_nodes!(
+        vs::AbstractVector{<:VectorOfVelocities},
+        cache::BiotSavartCache,
+        fs::VectorOfFilaments,
+    )
+    eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
+    add_long_range_velocity!(vs, cache.longrange, fs)
+    inds = eachindex(fs)
+    @inbounds for (i, f) ∈ pairs(fs)
+        for j ∈ first(inds):(i - 1)
+            Xs = nodes(fs[j])
+            add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
+        end
+        add_short_range_velocity_self!(vs[i], cache.shortrange, f)
+        for j ∈ (i + 1):last(inds)
+            Xs = nodes(fs[j])
+            add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
+        end
+    end
+    vs
 end
 
 end

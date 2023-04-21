@@ -206,7 +206,7 @@ The resulting velocity field, coarse-grained at a scale given by the Ewald
 splitting parameter ``α``, is written in Fourier space to `cache.uhat`, which
 is also returned by this function for convenience.
 """
-function long_range_velocity_fourier!(cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
+function long_range_velocity_fourier!(cache::LongRangeCache, fs::VectorOfFilaments)
     quad = quadrature_rule(cache.params)
     Ncharges = _count_charges(quad, fs)
     reset_fields!(cache)
@@ -247,7 +247,7 @@ function long_range_velocity_physical! end
 
 function long_range_velocity_physical!(
         cache::LongRangeCache,
-        fs::AbstractVector{<:AbstractFilament},
+        fs::VectorOfFilaments,
     )
     Npoints = sum(length, fs)
     set_num_points!(cache, Npoints)
@@ -261,8 +261,9 @@ function long_range_velocity_physical!(
 end
 
 function add_long_range_velocity!(
-        vs::AbstractVector, cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament},
+        vs::AbstractVector, cache::LongRangeCache, fs::VectorOfFilaments,
     )
+    long_range_velocity_fourier!(cache, fs)
     long_range_velocity_physical!(cache, fs)
     add_long_range_velocity!(vs, cache)
 end
@@ -277,17 +278,18 @@ Add non-uniform data interpolated from a Fourier-space field to `vs`.
 For convenience, the output array `vs` can be a vector of vectors. This is
 useful for storing the velocities of multiple vortex filaments.
 
-The first two variants only copy data from the cache to `vs`. Interpolations
-must be first performed using [`long_range_velocity_physical!`](@ref).
+The first two variants only copy data from the cache to `vs`. They require
+first calling [`long_range_velocity_fourier!`](@ref) to compute the velocity
+field in Fourier space, and then [`long_range_velocity_physical!`](@ref) to
+interpolate velocities in physical space.
 
-The last variant (which also requires a list of filaments) performs the
-interpolations and copies data, and thus does *not* require a call to
-[`long_range_velocity_physical!`](@ref).
+The last variant (which also requires a list of filaments) performs all of
+these operations, and thus calling these other functions is not required.
 """
 function add_long_range_velocity! end
 
 function add_long_range_velocity!(
-        vs::AbstractVector{<:AbstractVector{<:Vec3}}, cache::LongRangeCache,
+        vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
     )
     (; charges,) = cache
     nout = sum(length, vs)
@@ -300,8 +302,9 @@ function add_long_range_velocity!(
     vs
 end
 
+# TODO remove this variant?
 function add_long_range_velocity!(
-        v::AbstractVector{<:Vec3}, cache::LongRangeCache,
+        v::VectorOfVelocities, cache::LongRangeCache,
     )
     @assert !(v isa SVector)          # check for recursions
     vs = SVector{1, typeof(v)}((v,))  # interpret output as vector of vectors
