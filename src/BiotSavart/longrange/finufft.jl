@@ -86,6 +86,7 @@ struct FINUFFTCache{
     charges :: Charges  # values at non-uniform locations (3 × [Np])
     uhat :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
     ewald_op :: Array{T, 3}  # Ewald operator in Fourier space ([Nx, Ny, Nz])
+    to :: TimerOutput
 end
 
 # FINUFFT options which should never be modified!
@@ -111,6 +112,7 @@ end
 
 function init_cache_long(
         common::ParamsCommon{T}, params::ParamsLongRange{<:FINUFFTBackend},
+        timer::TimerOutput,
     ) where {T}
     (; Γ, α, Ls,) = common
     (; backend, Ns,) = params
@@ -124,7 +126,7 @@ function init_cache_long(
     charges = StructVector{Vec3{Complex{T}}}(undef, 0)
     ewald_op = init_ewald_fourier_operator(T, wavenumbers, Γ, α, Ls)
     uhat = StructArray{Vec3{Complex{T}}}(undef, Nks...)
-    FINUFFTCache(params, wavenumbers, plan_type1, plan_type2, points, charges, uhat, ewald_op)
+    FINUFFTCache(params, wavenumbers, plan_type1, plan_type2, points, charges, uhat, ewald_op, timer)
 end
 
 function set_num_points!(c::FINUFFTCache, Np)

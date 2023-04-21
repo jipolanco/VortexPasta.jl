@@ -10,7 +10,7 @@ Abstract type denoting the backend used for computing short-range interactions.
 
 The following functions must be implemented by a `BACKEND <: ShortRangeBackend`:
 
-- `init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}) -> ShortRangeCache`
+- `init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, to::TimerOutput) -> ShortRangeCache`
 
 """
 abstract type ShortRangeBackend end
@@ -28,13 +28,15 @@ The [`init_cache_short`](@ref) function returns a concrete instance of a `ShortR
 
 The following fields must be included in a cache:
 
-- `params <: ParamsShortRange` parameters for short-range computations.
+- `params <: ParamsShortRange` parameters for short-range computations;
+
+- `to :: TimerOutput` for measuring time spent on different functions.
 
 """
 abstract type ShortRangeCache end
 
 """
-    init_cache_short(pc::ParamsCommon, p::ParamsShortRange) -> ShortRangeCache
+    init_cache_short(pc::ParamsCommon, p::ParamsShortRange, to::TimerOutput) -> ShortRangeCache
 
 Initialise the cache for the short-range backend defined in `p`.
 """
@@ -131,6 +133,7 @@ function add_short_range_velocity_self!(
         f::AbstractFilament;
         LIA::Bool = true,  # allows disabling LIA for testing
     )
+    (; to,) = cache
     (; Γ, a, Δ) = cache.params.common
 
     prefactor = Γ / 4π

@@ -21,6 +21,8 @@ using ..Quadratures:
 using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, knots, nodes, segments
 
+using TimerOutputs: TimerOutput, @timeit
+
 # Common parameters to short- and long-range computations.
 struct ParamsCommon{T}
     Γ  :: T             # vortex circulation
@@ -152,25 +154,31 @@ Includes arrays and data required for computation of Biot–Savart integrals.
 
 ## Fields
 
-- `longrange` cache associated to long-range computations
+- `shortrange` cache associated to short-range computations;
+- `longrange` cache associated to long-range computations;
+- `to` a `TimerOutput` instance for measuring the time spent on different functions.
+
 """
 struct BiotSavartCache{
         ShortRange <: ShortRangeCache,
         LongRange <: LongRangeCache,
+        Timer,
     }
     shortrange :: ShortRange
     longrange  :: LongRange
+    to         :: Timer
 end
 
 """
-    init_cache(p::ParamsBiotSavart) -> BiotSavartCache
+    init_cache(p::ParamsBiotSavart; timer = TimerOutput("BiotSavart")) -> BiotSavartCache
 
 Initialise caches for computing Biot–Savart integrals.
 """
 function init_cache(p::ParamsBiotSavart)
-    shortrange = init_cache_short(p.common, p.shortrange)
-    longrange = init_cache_long(p.common, p.longrange)
-    BiotSavartCache(shortrange, longrange)
+    timer = TimerOutput("BiotSavart")
+    shortrange = init_cache_short(p.common, p.shortrange, timer)
+    longrange = init_cache_long(p.common, p.longrange, timer)
+    BiotSavartCache(shortrange, longrange, timer)
 end
 
 """
@@ -194,26 +202,32 @@ pass a single velocity vector `v` and a single filament `f`.
 """
 function velocity_on_nodes! end
 
+function _reset_vectors!(vs)
+    for v ∈ vs
+        fill!(v, zero(eltype(v)))
+    end
+    vs
+end
+
 function velocity_on_nodes!(
         vs::AbstractVector{<:VectorOfVelocities},
         cache::BiotSavartCache,
         fs::VectorOfFilaments,
     )
+    (; to,) = cache
     eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
-    for v ∈ vs
-        fill!(v, zero(eltype(v)))  # set velocities to zero
-    end
-    add_long_range_velocity!(vs, cache.longrange, fs)
+    _reset_vectors!(vs)
+    @timeit to "add_long_range_velocity!" add_long_range_velocity!(vs, cache.longrange, fs)
     inds = eachindex(fs)
     @inbounds for (i, f) ∈ pairs(fs)
         for j ∈ first(inds):(i - 1)
             Xs = nodes(fs[j])
-            add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
+            @timeit to "add_short_range_velocity_other!" add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
         end
-        add_short_range_velocity_self!(vs[i], cache.shortrange, f)
+        @timeit to "add_short_range_velocity_self!" add_short_range_velocity_self!(vs[i], cache.shortrange, f)
         for j ∈ (i + 1):last(inds)
             Xs = nodes(fs[j])
-            add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
+            @timeit to "add_short_range_velocity_other!" add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
         end
     end
     vs

@@ -9,7 +9,7 @@ Abstract type denoting the backend to use for computing long-range interactions.
 
 The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
-- `init_cache_long(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}) -> LongRangeCache`
+- `init_cache_long(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`
 
 """
 abstract type LongRangeBackend end
@@ -32,15 +32,17 @@ The following fields must be included in a cache:
 - `wavenumbers <: NTuple{3, <:AbstractVector}` Fourier-space wavenumbers `(kx, ky, kz)`;
 
 - `uhat :: NTuple{3, Array{Complex{T}, 3}}` vector field in Fourier space which can
-  contain coarse-grained vorticity or velocity fields.
+  contain coarse-grained vorticity or velocity fields;
 
 - `ewald_op :: Array{T, 3}` scalar in Fourier space containing Ewald operator, converting
   vorticity to a coarse-grained streamfunction properly scaled by the vortex
-  circulation `Γ` and the unit cell volume `V`.
+  circulation `Γ` and the unit cell volume `V`;
 
 - `charges :: NTuple{3, <:AbstractVector}` contains values at non-uniform points.
   In particular, it stores the output of type-2 NUFFTs (i.e. interpolations to
-  physical space).
+  physical space);
+
+- `to :: TimerOutput` for measuring time spent on different functions.
 
 ## Functions
 
@@ -63,7 +65,7 @@ abstract type LongRangeCache end
 backend(c::LongRangeCache) = backend(c.params)
 
 """
-    init_cache_long(pc::ParamsCommon, p::ParamsLongRange) -> LongRangeCache
+    init_cache_long(pc::ParamsCommon, p::ParamsLongRange, to::TimerOutput) -> LongRangeCache
 
 Initialise the cache for the long-range backend defined in `p`.
 """
@@ -207,13 +209,14 @@ splitting parameter ``α``, is written in Fourier space to `cache.uhat`, which
 is also returned by this function for convenience.
 """
 function long_range_velocity_fourier!(cache::LongRangeCache, fs::VectorOfFilaments)
+    (; to,) = cache
     quad = quadrature_rule(cache.params)
     Ncharges = _count_charges(quad, fs)
     reset_fields!(cache)
     set_num_points!(cache, Ncharges)
     ζs, ws = quadrature(quad)
     n = 0
-    @inbounds for f ∈ fs
+    @timeit to "add point charges" @inbounds for f ∈ fs
         ts = knots(f)
         for i ∈ eachindex(segments(f))
             Δt = ts[i + 1] - ts[i]
@@ -228,8 +231,8 @@ function long_range_velocity_fourier!(cache::LongRangeCache, fs::VectorOfFilamen
         end
     end
     @assert n == Ncharges
-    transform_to_fourier!(cache)
-    to_filtered_velocity!(cache)
+    @timeit to "transform to Fourier" transform_to_fourier!(cache)
+    @timeit to "compute velocity" to_filtered_velocity!(cache)
     cache.uhat
 end
 
@@ -263,9 +266,11 @@ end
 function add_long_range_velocity!(
         vs::AbstractVector, cache::LongRangeCache, fs::VectorOfFilaments,
     )
-    long_range_velocity_fourier!(cache, fs)
-    long_range_velocity_physical!(cache, fs)
-    add_long_range_velocity!(vs, cache)
+    (; to,) = cache
+    @timeit to "compute v̂" long_range_velocity_fourier!(cache, fs)
+    @timeit to "interpolate" long_range_velocity_physical!(cache, fs)
+    @timeit to "copy output" add_long_range_velocity!(vs, cache)
+    vs
 end
 
 """

@@ -22,16 +22,19 @@ struct ExactSumCache{
         WaveNumbers <: NTuple{3, AbstractVector},
         Charges <: StructVector{Vec3{Complex{T}}},
         FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
+        Timer <: TimerOutput,
     } <: LongRangeCache
     params :: Params
     wavenumbers :: WaveNumbers
     charges :: Charges  # values at non-uniform locations (3 × [Np]) -- only used to store interpolations
     uhat :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
     ewald_op :: Array{T, 3}  # Ewald operator in Fourier space ([Nx, Ny, Nz])
+    to :: Timer
 end
 
 function init_cache_long(
         common::ParamsCommon{T}, params::ParamsLongRange{<:ExactSumBackend},
+        timer::TimerOutput,
     ) where {T}
     (; Γ, α, Ls,) = common
     (; Ns,) = params
@@ -44,7 +47,7 @@ function init_cache_long(
     charges = StructVector{Vec3{Complex{T}}}(undef, 0)
     ewald_op = init_ewald_fourier_operator(T, wavenumbers, Γ, α, Ls)
     uhat = StructArray{Vec3{Complex{T}}}(undef, Nks)
-    ExactSumCache(params, wavenumbers, charges, uhat, ewald_op)
+    ExactSumCache(params, wavenumbers, charges, uhat, ewald_op, timer)
 end
 
 function reset_fields!(c::ExactSumCache)

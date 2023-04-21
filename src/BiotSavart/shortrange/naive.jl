@@ -12,14 +12,17 @@ struct NaiveShortRangeBackend <: ShortRangeBackend end
 
 struct NaiveShortRangeCache{
         Params <: ParamsShortRange,
+        Timer <: TimerOutput,
     } <: ShortRangeCache
     params :: Params
+    to     :: Timer
 end
 
 function init_cache_short(
         common::ParamsCommon{T}, params::ParamsShortRange{<:NaiveShortRangeBackend},
+        to::TimerOutput,
     ) where {T}
-    NaiveShortRangeCache(params)
+    NaiveShortRangeCache(params, to)
 end
 
 # TODO split function into "elemental" parts that can be shared with another backend?
