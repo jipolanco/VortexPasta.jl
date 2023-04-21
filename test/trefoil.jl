@@ -65,10 +65,11 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     end
     @test max_rel_error_physical < tol
 
-    vs_exact = map(f -> similar(Filaments.points(f)), fs)
-    vs_default = map(f -> similar(Filaments.points(f)), fs)
-    BiotSavart.copy_interpolated_data!(vs_exact, cache_exact)
-    BiotSavart.copy_interpolated_data!(vs_default, cache_default)
+    # Copy data to arrays.
+    vs_exact = map(f -> zero(Filaments.points(f)), fs)
+    vs_default = map(f -> zero(Filaments.points(f)), fs)
+    BiotSavart.add_long_range_velocity!(vs_exact, cache_exact)
+    BiotSavart.add_long_range_velocity!(vs_default, cache_default)
 
     # Compare velocities one filament at a time.
     @test all(zip(vs_exact, vs_default)) do (u, v)
@@ -81,13 +82,12 @@ end
 function compute_filament_velocity(f, α; params_kws...)
     params = ParamsBiotSavart(; params_kws..., α, rcut = 4 / α)
     cache = BiotSavart.init_cache(params)
-    vs_short = similar(Filaments.points(f))
-    vs_long = similar(vs_short)
-    BiotSavart.short_range_velocity_self!(vs_short, cache.shortrange, f)
+    vs = zero(Filaments.points(f))
+    BiotSavart.add_short_range_velocity_self!(vs, cache.shortrange, f)
     fs = [f]
     BiotSavart.long_range_velocity_fourier!(cache.longrange, fs)
-    BiotSavart.long_range_velocity_physical!(vs_long, cache.longrange, fs)
-    vs_short + vs_long
+    BiotSavart.add_long_range_velocity!(vs, cache.longrange, fs)
+    vs
 end
 
 # Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
@@ -115,7 +115,7 @@ end
 @testset "Trefoil" begin
     f = @inferred init_trefoil_filament(30)
     Ls = (2π, 2π, 2π)  # TODO test other sizes?
-    Ns = (64, 64, 64) .* 2
+    Ns = (64, 64, 64)
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5, α = kmax / 6,)
     @testset "Long range" begin

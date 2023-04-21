@@ -234,22 +234,14 @@ function long_range_velocity_fourier!(cache::LongRangeCache, fs::AbstractVector{
 end
 
 """
-    long_range_velocity_physical!(
-        [vs::AbstractVector],
-        cache::LongRangeCache,
-        fs::AbstractVector{<:AbstractFilament},
-    )
+    long_range_velocity_physical!(cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
 
 Interpolate long-range velocity at the location of filament nodes.
 
 The `cache` must contain a velocity field in Fourier space. To do this, one
 should first call [`long_range_velocity_fourier!`](@ref).
 
-Velocities are written to `cache.charges`.
-
-If the optional `vs` argument is passed, then interpolated velocities are
-copied to the `vs` vector (using [`copy_interpolated_data`](@ref)). Otherwise,
-`cache.charges` is returned for convenience.
+Velocities are written to `cache.charges`, which is also returned for convenience.
 """
 function long_range_velocity_physical! end
 
@@ -268,23 +260,33 @@ function long_range_velocity_physical!(
     cache.charges
 end
 
-function long_range_velocity_physical!(vs::AbstractVector, cache::LongRangeCache, fs)
+function add_long_range_velocity!(
+        vs::AbstractVector, cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament},
+    )
     long_range_velocity_physical!(cache, fs)
-    copy_interpolated_data!(vs, cache)
+    add_long_range_velocity!(vs, cache)
 end
 
 """
-    copy_interpolated_data!(vs::AbstractVector{<:Vec3}, cache::LongRangeCache)
-    copy_interpolated_data!(vs::AbstractVector{<:AbstractVector{<:Vec3}}, cache::LongRangeCache)
+    add_long_range_velocity!(vs::AbstractVector{<:Vec3}, cache::LongRangeCache)
+    add_long_range_velocity!(vs::AbstractVector{<:AbstractVector{<:Vec3}}, cache::LongRangeCache)
+    add_long_range_velocity!(vs::AbstractVector, cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
 
-Copy non-uniform data interpolated from a Fourier-space field to `vs`.
+Add non-uniform data interpolated from a Fourier-space field to `vs`.
 
 For convenience, the output array `vs` can be a vector of vectors. This is
 useful for storing the velocities of multiple vortex filaments.
-"""
-function copy_interpolated_data! end
 
-function copy_interpolated_data!(
+The first two variants only copy data from the cache to `vs`. Interpolations
+must be first performed using [`long_range_velocity_physical!`](@ref).
+
+The last variant (which also requires a list of filaments) performs the
+interpolations and copies data, and thus does *not* require a call to
+[`long_range_velocity_physical!`](@ref).
+"""
+function add_long_range_velocity! end
+
+function add_long_range_velocity!(
         vs::AbstractVector{<:AbstractVector{<:Vec3}}, cache::LongRangeCache,
     )
     (; charges,) = cache
@@ -293,17 +295,17 @@ function copy_interpolated_data!(
     n = 0
     @inbounds for v ∈ vs, i ∈ eachindex(v)
         q = charges[n += 1]
-        v[i] = real(q)
+        v[i] = v[i] + real(q)
     end
     vs
 end
 
-function copy_interpolated_data!(
+function add_long_range_velocity!(
         v::AbstractVector{<:Vec3}, cache::LongRangeCache,
     )
     @assert !(v isa SVector)          # check for recursions
     vs = SVector{1, typeof(v)}((v,))  # interpret output as vector of vectors
-    copy_interpolated_data!(vs, cache)
+    add_long_range_velocity!(vs, cache)
     v
 end
 

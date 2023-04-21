@@ -103,7 +103,7 @@ function short_range_velocity(cache::ShortRangeCache, args...)
 end
 
 """
-    short_range_velocity_self!(vs::AbstractVector{<:Vec3}, cache::ShortRangeCache, f::AbstractFilament)
+    add_short_range_velocity_self!(vs::AbstractVector{<:Vec3}, cache::ShortRangeCache, f::AbstractFilament)
 
 Compute short-range self-induced velocity of a filament on its own nodes.
 
@@ -123,7 +123,7 @@ This does *not* include:
 
 The length of the output vector `vs` must be equal to the number of nodes of the filament `f`.
 """
-function short_range_velocity_self!(
+function add_short_range_velocity_self!(
         vs::AbstractVector{<:Vec3},
         cache::ShortRangeCache,
         f::AbstractFilament;
@@ -163,7 +163,7 @@ function short_range_velocity_self!(
         if LIA
             v⃗ = v⃗ + local_self_induced_velocity(f, i, prefactor; a, Δ)
         end
-        vs[i] = v⃗
+        vs[i] = vs[i] + v⃗
         # For the next point (i + 1), the singularity region corresponds to the
         # segments [i, i + 1].
         inds_left = inds_all[begin:(i - 1)]
