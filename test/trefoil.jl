@@ -82,7 +82,7 @@ end
 function compute_filament_velocity(f, α; params_kws...)
     params = ParamsBiotSavart(; params_kws..., α, rcut = 4 / α)
     cache = init_cache(params)
-    velocity_on_nodes!(zero(nodes(f)), cache, f)
+    velocity_on_nodes!(similar(nodes(f)), cache, f)
 end
 
 # Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.

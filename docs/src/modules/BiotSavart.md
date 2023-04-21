@@ -15,10 +15,11 @@ ParamsBiotSavart
 BiotSavartCache
 ```
 
-## Functions
+## Exported functions
 
 ```@docs
 init_cache
+velocity_on_nodes!
 ```
 
 ## Short-range interactions

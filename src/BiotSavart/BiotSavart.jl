@@ -173,12 +173,36 @@ function init_cache(p::ParamsBiotSavart)
     BiotSavartCache(shortrange, longrange)
 end
 
+"""
+    velocity_on_nodes!(
+        vs::AbstractVector{<:AbstractVector{<:Vec3}},
+        cache::BiotSavartCache,
+        fs::AbstractVector{<:AbstractFilament},
+    )
+
+Compute velocity induced by vortex filaments on filament nodes.
+
+Velocities induced by vortex filaments `fs` are written to `vs`.
+
+Usually, `fs` is a vector containing all the vortex filaments in the system.
+In that case, `vs` must be a vector of vectors, which will contain the velocities of
+all filament nodes. The length of `vs[i]` must be equal to the number of nodes
+in the filament `fs[i]`.
+
+For convenience, if the system contains a single vortex filament, one can also
+pass a single velocity vector `v` and a single filament `f`.
+"""
+function velocity_on_nodes! end
+
 function velocity_on_nodes!(
         vs::AbstractVector{<:VectorOfVelocities},
         cache::BiotSavartCache,
         fs::VectorOfFilaments,
     )
     eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
+    for v ∈ vs
+        fill!(v, zero(eltype(v)))  # set velocities to zero
+    end
     add_long_range_velocity!(vs, cache.longrange, fs)
     inds = eachindex(fs)
     @inbounds for (i, f) ∈ pairs(fs)
