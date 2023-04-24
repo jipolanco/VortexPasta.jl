@@ -50,7 +50,8 @@ function test_vortex_ring_nonperiodic(ring)
         # This assumes that the point distribution is uniform; otherwise the variance is much higher.
         @test all(std(vs) .< U * 1e-12)
         U_expected = vortex_ring_velocity(ps.Γ, R, ps.a; Δ = ps.Δ)
-        @test isapprox(U, U_expected; rtol = 1e-3)  # the tolerance will mainly depend on the vortex resolution N
+        @show (U - U_expected) / U_expected
+        @test isapprox(U, U_expected; rtol = 1e-4)  # the tolerance will mainly depend on the vortex resolution N
     end
     # Check velocity excluding LIA (i.e. only non-local integration)
     @testset "Non-local velocity" begin
@@ -60,14 +61,17 @@ function test_vortex_ring_nonperiodic(ring)
         fill!(vs, zero(eltype(vs)))
         BiotSavart.add_short_range_velocity_self!(vs, cache.shortrange, f; LIA = false)
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
-        Ui = norm(vs[i])
-        @test isapprox(Ui, U_nonlocal_expected; rtol = 1e-3)
+        U_nonlocal = norm(vs[i])
+        @show (U_nonlocal - U_nonlocal_expected) / U_nonlocal_expected
+        @test isapprox(U_nonlocal, U_nonlocal_expected; rtol = 1e-3)
     end
     nothing
 end
 
 @testset "Vortex ring" begin
-    N = 64
+    N = 32
     ring = init_ring_filament(N)
-    test_vortex_ring_nonperiodic(ring)
+    @testset "Non-periodic" begin
+        test_vortex_ring_nonperiodic(ring)
+    end
 end
