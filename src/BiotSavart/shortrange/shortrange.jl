@@ -134,8 +134,9 @@ function add_short_range_velocity_self!(
         f::AbstractFilament;
         LIA::Bool = true,  # allows disabling LIA for testing
     )
-    (; to,) = cache
-    (; Γ, a, Δ) = cache.params.common
+    (; to, params,) = cache
+    (; quad,) = params
+    (; Γ, a, Δ) = params.common
 
     prefactor = Γ / 4π
 
@@ -165,7 +166,8 @@ function add_short_range_velocity_self!(
         v⃗ = v⃗ - short_range_velocity(kernel_velocity_longrange, cache, x⃗, f, inds_singular)
         v⃗ = v⃗ + short_range_velocity(cache, x⃗, f, inds_right)
         if LIA
-            v⃗ = v⃗ + local_self_induced_velocity(f, i, prefactor; a, Δ)
+            v⃗_LIA = local_self_induced_velocity(f, i, prefactor; a, Δ, quad)
+            v⃗ = v⃗ + v⃗_LIA
         end
         vs[i] = vs[i] + v⃗
         # For the next point (i + 1), the singularity region corresponds to the
@@ -206,8 +208,8 @@ function add_short_range_velocity_other!(
 end
 
 """
-    local_self_induced_velocity(f::AbstractFilament, i::Int; Γ::Real, a::Real, Δ = 0.25)
-    local_self_induced_velocity(f::AbstractFilament, i::Int, prefactor::Real; a::Real, Δ = 0.25)
+    local_self_induced_velocity(f::AbstractFilament, i::Int; Γ::Real, a::Real, Δ = 0.25, quad = nothing)
+    local_self_induced_velocity(f::AbstractFilament, i::Int, prefactor::Real; a::Real, Δ = 0.25, quad = nothing)
 
 Compute local self-induced velocity of filament node `f[i]`.
 
@@ -222,8 +224,11 @@ This corresponds to the LIA term (localised induction approximation).
 
 # Optional arguments
 
-One can control the effect of the vorticity profile via the optional `Δ`
-keyword argument (see [`ParamsBiotSavart`](@ref) for details).
+- the optional parameter `Δ` sets the effect of the vorticity profile (see
+  [`ParamsBiotSavart`](@ref) for details);
+
+- a quadrature rule can be passed via `quad`, which can improve the estimation
+  of the LIA term for relatively large segments.
 """
 function local_self_induced_velocity end
 
@@ -231,14 +236,7 @@ function _local_self_induced_velocity(
         quad::Nothing, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real,
     )
-    # TODO should we add an Ewald correction based on α?
-    # The idea is that the total velocity at a filament point should not depend on α...
     ts = knots(f)
-    # TODO
-    # - can we use a better estimation of ℓ? And is it worth it?
-    # - could we average ṡ × s̈ over the local segments? (And is it worth it?)
-    # We could use available quadratures for this...
-    # - should we compensate for some effect of the long-range component? (I guess not, the effect should be negligible)
     ℓ₋ = ts[i] - ts[i - 1]  # assume that the parametrisation roughly corresponds to the vortex arclength
     ℓ₊ = ts[i + 1] - ts[i]
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
@@ -251,26 +249,30 @@ function _local_self_induced_velocity(
     β / norm(Ẋ)^3 * (Ẋ × Ẍ)
 end
 
-# Alternative estimation using quadratures for better accuracy (maybe...).
+# Alternative estimation using quadratures.
+# It seems to improve accuracy (tested with vortex ring example).
 function _local_self_induced_velocity(
         quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real,
     )
-    ζs, ws = quadrature(quad)
     ts = knots(f)
-    ℓ₋ = (ts[i] - ts[i - 1]) * sum(eachindex(ws)) do j
-        ws[j] * norm(f(i - 1, ζs[j], Derivative(1)))
+    ℓ₋ = integrate(f, i - 1, quad) do ζ
+        norm(f(i - 1, ζ, Derivative(1)))
     end
-    ℓ₊ = (ts[i + 1] - ts[i]) * sum(eachindex(ws)) do j
-        ws[j] * norm(f(i, ζs[j], Derivative(1)))
+    ℓ₊ = integrate(f, i, quad) do ζ
+        norm(f(i, ζ, Derivative(1)))
     end
-    b⃗ = sum(eachindex(ws)) do j
-        Ẋ₋ = f(i - 1, ζs[j], Derivative(1))
-        Ẍ₋ = f(i - 1, ζs[j], Derivative(2))
-        Ẋ₊ = f(i    , ζs[j], Derivative(1))
-        Ẍ₊ = f(i    , ζs[j], Derivative(2))
-        (ws[j] / 2) * ((Ẋ₋ × Ẍ₋) ./ norm(Ẋ₋)^3 + (Ẋ₊ × Ẍ₊) ./ norm(Ẋ₊)^3)
+    b⃗₋ = integrate(f, i - 1, quad) do ζ
+        Ẋ = f(i - 1, ζ, Derivative(1))
+        Ẍ = f(i - 1, ζ, Derivative(2))
+        (Ẋ × Ẍ) ./ norm(Ẋ)^3
     end
+    b⃗₊ = integrate(f, i, quad) do ζ
+        Ẋ = f(i, ζ, Derivative(1))
+        Ẍ = f(i, ζ, Derivative(2))
+        (Ẋ × Ẍ) ./ norm(Ẋ)^3
+    end
+    b⃗ = (b⃗₋ + b⃗₊) ./ (ts[i + 1] - ts[i - 1])  # average on [i - 1, i + 1]
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
     β * b⃗
 end
