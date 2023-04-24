@@ -85,14 +85,14 @@ julia> X′, X″ = normalise_derivatives(Ẋ, Ẍ)
 The parametrisation knots ``t_i`` are directly obtained from the interpolation point
 positions.
 A standard choice, which is used here, is for the knot increments to
-approximate the arclength between two interpolation points:
+approximate the arc length between two interpolation points:
 
 ```math
 ℓ_{i} ≡ t_{i + 1} - t_{i} = |\bm{X}_{i + 1} - \bm{X}_i|,
 ```
 
 which is a zero-th order approximation (and a lower bound) for the actual
-arclength between points ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
+arc length between points ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
 """
 struct ClosedSplineFilament{
         T <: AbstractFloat,

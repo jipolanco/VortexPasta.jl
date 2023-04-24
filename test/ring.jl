@@ -77,7 +77,7 @@ function test_local_induced_approximation(ring)
         Δ = 1/4,
         Γ = 4.2,
     )
-    quad = GaussLegendreQuadrature(8)  # for accurate estimation of arclength
+    quad = GaussLegendreQuadrature(8)  # for accurate estimation of arc length
     arclength(j) = integrate(ζ -> norm(f(j, ζ, Derivative(1))), f, j, quad)
     ℓ₋ = arclength(i - 1)
     ℓ₊ = arclength(i)

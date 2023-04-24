@@ -10,7 +10,7 @@ to the position of a point within the segment.
 
 # Examples
 
-Estimate arclength of segment ``[i, i + 1]``, given by ``ℓ = ∫_{t_{i}}^{t_{i + 1}} |∂_t \\bm{X}(t)| \\, \\mathrm{d}t``:
+Estimate arc length of segment ``[i, i + 1]``, given by ``ℓ = ∫_{t_{i}}^{t_{i + 1}} |∂_t \\bm{X}(t)| \\, \\mathrm{d}t``:
 
 ```julia
 quad = GaussLegendreQuadrature(4)  # quadrature rule

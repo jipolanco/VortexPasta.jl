@@ -237,15 +237,15 @@ function _local_self_induced_velocity(
         a::Real, Δ::Real,
     )
     ts = knots(f)
-    ℓ₋ = ts[i] - ts[i - 1]  # assume that the parametrisation roughly corresponds to the vortex arclength
+    ℓ₋ = ts[i] - ts[i - 1]  # assume that the parametrisation roughly corresponds to the vortex arc length
     ℓ₊ = ts[i + 1] - ts[i]
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
     Ẋ = f[i, Derivative(1)]  # ∂f/∂t at node i
     Ẍ = f[i, Derivative(2)]
     # Note that the derivatives are wrt the parameter `t` and not exactly wrt
-    # the arclength `ξ`, hence the extra `norm(Ẋ)^3` factor wrt the literature.
+    # the arc length `ξ`, hence the extra `norm(Ẋ)^3` factor wrt the literature.
     # Usually, `norm(Ẋ)` should be actually quite close to 1 since the
-    # parametrisation is a rough approximation of the arclength.
+    # parametrisation is a rough approximation of the arc length.
     β / norm(Ẋ)^3 * (Ẋ × Ẍ)
 end
 

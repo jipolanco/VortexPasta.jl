@@ -106,7 +106,7 @@ Two options are proposed:
 
 !!! note "Derivative normalisation"
 
-    Since ``t`` is a rough approximation for the arclength ``ξ``, first
+    Since ``t`` is a rough approximation for the arc length ``ξ``, first
     derivatives almost represent the **unit tangent vector** to the filament, and
     second derivatives are a rough approximation of the local **curvature vector**.
 
@@ -234,7 +234,7 @@ In the case of local Hermite interpolations, the coefficients are just the
 derivatives at the discretisation points.
 
 Note that derivatives are with respect to the (arbitrary) parametrisation
-``\\bm{X}(t)``, and *not* with respect to the arclength ``ξ = ξ(t)``. In other
+``\\bm{X}(t)``, and *not* with respect to the arc length ``ξ = ξ(t)``. In other
 words, the returned derivatives do not directly correspond to the unit tangent
 and curvature vectors (but they are closely related).
 """
@@ -295,7 +295,7 @@ end
 # TESTING / EXPERIMENTAL
 # This function may be removed in the future.
 # The idea is to update the parametrisation of `f` to follow more closely the
-# actual arclengths of the filament. Not sure if it's worth it...
+# actual arc lengths of the filament. Not sure if it's worth it...
 function recompute_parametrisation!(f::ClosedFilament)
     m = interpolation_method(f)
     _recompute_parametrisation!(m, f)
@@ -307,16 +307,13 @@ _recompute_parametrisation!(::HermiteInterpolation{0}, f::AbstractFilament) = f
 
 function _recompute_parametrisation!(::Any, f::AbstractFilament)
     (; ts,) = f
-    xs, ws = quadrature(GaussLegendreQuadrature(4))  # valid in [0, 1] interval
+    quad = GaussLegendreQuadrature(4)
     @assert npad(ts) ≥ 1
     tnext = ts[begin]
     for i ∈ eachindex(ts)
-        # Estimate arclength from ts[i] to ts[i + 1]
-        h = ts[i + 1] - ts[i]
-        ℓ = h * sum(eachindex(xs)) do j
-            ζ = xs[j]  # in [0, 1]
-            X′ = f(i, ζ, Derivative(1))  # = ∂X/∂t
-            ws[j] * norm(X′)
+        # Estimate arc length from ts[i] to ts[i + 1]
+        ℓ = integrate(f, i, quad) do ζ
+            norm(f(i, ζ, Derivative(1)))  # = ∂X/∂t
         end
         @assert ℓ ≥ ts[i + 1] - ts[i]
         ts[i] = tnext
