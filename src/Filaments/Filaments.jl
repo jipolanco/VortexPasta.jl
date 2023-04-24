@@ -217,9 +217,23 @@ Depending on the type of `method`, the returned filament may be a
 [`ClosedLocalFilament`](@ref) or a [`ClosedSplineFilament`](@ref).
 See their respective documentations for possible optional arguments (`args...`).
 """
-function init end
+init(::Type{ClosedFilament}, N::Integer, args...) = init(ClosedFilament{Float64}, N, args...)
 
-init(::Type{ClosedFilament}, args...) = init(ClosedFilament{Float64}, args...)
+"""
+    Filaments.init(ClosedFilament, points::AbstractVector{<:Vec3}, method::DiscretisationMethod, [args...])
+
+Initialise new filament with the chosen discretisation points.
+
+Note that [`update_coefficients!`](@ref) does not need to be called after using
+this variant (until node locations change, of course!).
+"""
+function init(::Type{ClosedFilament}, positions::AbstractVector{<:Vec3}, args...)
+    T = eltype(eltype(positions))
+    f = init(ClosedFilament{T}, length(positions), args...)
+    copy!(nodes(f), positions)
+    update_coefficients!(f)
+    f
+end
 
 """
     update_coefficients!(f::AbstractFilament)

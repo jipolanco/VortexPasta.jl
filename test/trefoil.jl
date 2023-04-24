@@ -10,10 +10,8 @@ function init_trefoil_filament(N::Int)
         cospi(t) - 2 * cospi(2t),
         -sinpi(3t),
     )
-    f = Filaments.init(ClosedFilament, N, CubicSplineMethod())
     ζs = range(0, 2; length = N + 1)[1:N]
-    f .= S.(ζs)
-    update_coefficients!(f)
+    Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
     f
 end
 

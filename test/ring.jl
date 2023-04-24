@@ -7,11 +7,9 @@ using VortexPasta.BiotSavart
 function init_ring_filament(N::Int, R = π / 3)
     S(t) = π .+ R .* Vec3(cospi(t), sinpi(t), zero(t))
     tlims = (0, 2)
-    f = Filaments.init(ClosedFilament, N, CubicSplineMethod())
     ζs = collect(range(tlims...; length = N + 1)[1:N])
     # ζs .+= rand(N) / 2N
-    f .= S.(ζs)
-    update_coefficients!(f)
+    f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
     (; f, R,)
 end
 
