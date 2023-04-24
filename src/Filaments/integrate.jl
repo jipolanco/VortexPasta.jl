@@ -13,7 +13,7 @@ to the position of a point within the segment.
 Estimate arclength of segment ``[i, i + 1]``, given by ``ℓ = ∫_{t_{i}}^{t_{i + 1}} |∂_t \\bm{X}(t)| \\, \\mathrm{d}t``:
 
 ```julia
-quad = GaussLegendre(4)  # quadrature rule
+quad = GaussLegendreQuadrature(4)  # quadrature rule
 ℓ = integrate(f, i, quad) do ζ
     norm(f(i, ζ, Derivative(1)))  # = |∂ₜ𝐗|
 end

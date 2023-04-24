@@ -68,10 +68,41 @@ function test_vortex_ring_nonperiodic(ring)
     nothing
 end
 
+# Check convergence of LIA using quadratures for better accuracy.
+function test_local_induced_approximation(ring)
+    (; R, f,) = ring
+    i = firstindex(f)
+    ps = (;
+        a = 1e-6,
+        Δ = 1/4,
+        Γ = 4.2,
+    )
+    quad = GaussLegendreQuadrature(8)  # for accurate estimation of arclength
+    arclength(j) = integrate(ζ -> norm(f(j, ζ, Derivative(1))), f, j, quad)
+    ℓ₋ = arclength(i - 1)
+    ℓ₊ = arclength(i)
+    ℓ = sqrt(ℓ₋ * ℓ₊) / 4
+    v_expected = vortex_ring_velocity(ps.Γ, R, ps.a; ps.Δ) - vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
+    v_base = norm(BiotSavart.local_self_induced_velocity(f, i; quad = nothing, ps...))  # without quadrature
+    v_quad = map(1:8) do n
+        quad = GaussLegendreQuadrature(n)
+        norm(BiotSavart.local_self_induced_velocity(f, i; quad, ps...))
+    end
+    # Things converge quite quickly; in this case GaussLegendreQuadrature(2) seems to be enough.
+    @test isapprox(v_expected, v_base; rtol = 1e-2)
+    @test isapprox(v_expected, v_quad[1]; rtol = 1e-2)
+    @test isapprox(v_expected, v_quad[2]; rtol = 6e-6)
+    @test isapprox(v_expected, v_quad[3]; rtol = 3e-6)
+    nothing
+end
+
 @testset "Vortex ring" begin
     N = 32
     ring = init_ring_filament(N)
     @testset "Non-periodic" begin
         test_vortex_ring_nonperiodic(ring)
+    end
+    @testset "LIA" begin
+        test_local_induced_approximation(ring)
     end
 end
