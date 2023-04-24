@@ -14,11 +14,12 @@ export
     knotlims,
     nodes,
     segments,
+    integrate,
     update_coefficients!,
     normalise_derivatives,
     normalise_derivatives!
 
-using ..Quadratures: GaussLegendreQuadrature, quadrature
+using ..Quadratures: AbstractQuadrature, GaussLegendreQuadrature, quadrature
 using ..BasicTypes: Vec3, Derivative
 
 using LinearAlgebra: norm, normalize, ⋅, ×
@@ -193,6 +194,7 @@ end
 include("discretisations.jl")
 include("padded_vector.jl")
 include("segments.jl")
+include("integrate.jl")
 
 include("local/finitediff.jl")
 include("local/interpolation.jl")

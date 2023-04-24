@@ -19,7 +19,7 @@ using ..Quadratures:
     quadrature, GaussLegendreQuadrature, AbstractQuadrature
 
 using ..Filaments:
-    Filaments, AbstractFilament, ClosedFilament, knots, nodes, segments
+    Filaments, AbstractFilament, ClosedFilament, knots, nodes, segments, integrate
 
 using TimerOutputs: TimerOutput, @timeit
 

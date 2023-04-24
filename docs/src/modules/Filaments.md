@@ -30,6 +30,7 @@ Base.setindex!
 update_coefficients!
 normalise_derivatives
 normalise_derivatives!
+integrate
 ```
 
 ## Local discretisations
