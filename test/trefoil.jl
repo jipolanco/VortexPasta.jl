@@ -12,7 +12,6 @@ function init_trefoil_filament(N::Int)
     )
     ζs = range(0, 2; length = N + 1)[1:N]
     Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
-    f
 end
 
 function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, params_kws...)
