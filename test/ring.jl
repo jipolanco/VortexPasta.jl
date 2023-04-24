@@ -89,6 +89,8 @@ function test_local_induced_approximation(ring)
         norm(BiotSavart.local_self_induced_velocity(f, i; quad, ps...))
     end
     # Things converge quite quickly; in this case GaussLegendreQuadrature(2) seems to be enough.
+    @show (v_base - v_expected) / v_expected
+    @show (v_quad .- v_expected) ./ v_expected
     @test isapprox(v_expected, v_base; rtol = 1e-2)
     @test isapprox(v_expected, v_quad[1]; rtol = 1e-2)
     @test isapprox(v_expected, v_quad[2]; rtol = 6e-6)
