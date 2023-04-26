@@ -3,6 +3,7 @@
 using Test
 using LinearAlgebra: norm, normalize, ⋅
 using StaticArrays
+using Statistics: mean, std
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 
@@ -13,9 +14,12 @@ function init_ring_filament(; R, z, sign)
 end
 
 function test_ring_collision()
+    R = π / 3  # ring radius
+    L = π / 8  # ring distance
+
     rings = [
-        init_ring_filament(; R = π / 3, z = π - π / 16, sign = +1),
-        init_ring_filament(; R = π / 3, z = π + π / 16, sign = -1),
+        init_ring_filament(; R, z = π - L / 2, sign = +1),
+        init_ring_filament(; R, z = π + L / 2, sign = -1),
     ]
 
     filaments = map(rings) do ring
@@ -42,13 +46,6 @@ function test_ring_collision()
     vs = map(f -> similar(nodes(f)), filaments)
     velocity_on_nodes!(vs, cache, filaments)
 
-    # Each vortex has a velocity which can be decomposed as v = v⟂ + vz, where
-    # vz is its own self-induced velocity, and v⟂ is the velocity induced by
-    # the other vortex. In this case, v⟂ is orthogonal to vz. It is also
-    # orthogonal to the filament tangent and is opposite to the curvature vector,
-    # i.e. it is directed towards the exterior of the vortex (such that the
-    # vortex tends to grow).
-
     for (f, v) ∈ zip(filaments, vs)
         velocity_perpendicular_to_tangent = true
         velocity_towards_outside = true
@@ -63,6 +60,26 @@ function test_ring_collision()
         end
         @test velocity_perpendicular_to_tangent
         @test velocity_towards_outside
+    end
+
+    # Expected radial velocity of a vortex ring (induced only by the other ring).
+    # Note that, since we're periodic, there are some tiny deviations from the
+    # expected velocity (< 1% in this case) due to periodic copies of the vortices.
+    vradial_expected = let N = 100
+        ℓ = L / R
+        θs = range(0, 2π; length = N + 1)[1:N]
+        dθ = step(θs)
+        (Γ * ℓ / (4π * R)) * dθ * sum(θs) do θ
+            c = cos(θ)
+            r² = 2 * (1 - c) + ℓ^2
+            c / sqrt(r²)^3
+        end
+    end
+
+    for v ∈ vs
+        v_perp = map(v⃗ -> norm(setindex(v⃗, 0.0, 3)), v)
+        @test std(v_perp) < 1e-4
+        @test isapprox(mean(v_perp), vradial_expected; rtol = 0.002)
     end
 
     nothing
