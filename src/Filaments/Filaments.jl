@@ -160,6 +160,8 @@ function knotlims(f::ClosedFilament)
     ts[begin], ts[end + 1]  # we can index at end+1 thanks to padding
 end
 
+Base.checkbounds(::Type{Bool}, f::AbstractFilament, I...) = checkbounds(Bool, nodes(f), I...)
+
 """
     Base.getindex(f::AbstractFilament{T}, i::Int, [Derivative(n)]) -> Vec3{T}
 

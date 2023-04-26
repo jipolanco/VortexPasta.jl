@@ -234,7 +234,7 @@ function _interpolate(
         i::Int, t::Number, deriv::Derivative{N},
     ) where {M, N}
     (; ts, Xs, Xderivs,) = f
-    checkbounds(eachindex(f), i)
+    checkbounds(f, i)
     @assert npad(Xs) ≥ 1
     @assert all(X -> npad(X) ≥ 1, Xderivs)
     @inbounds ℓ_i = ts[i + 1] - ts[i]
