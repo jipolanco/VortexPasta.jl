@@ -387,21 +387,20 @@ function add_long_range_velocity!(
 end
 
 """
-    add_long_range_velocity!(vs::AbstractVector{<:Vec3}, cache::LongRangeCache)
     add_long_range_velocity!(vs::AbstractVector{<:AbstractVector{<:Vec3}}, cache::LongRangeCache)
-    add_long_range_velocity!(vs::AbstractVector, cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
+    add_long_range_velocity!(vs::AbstractVector{<:AbstractVector{<:Vec3}}, cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
 
 Add non-uniform data interpolated from a Fourier-space field to `vs`.
 
-For convenience, the output array `vs` can be a vector of vectors. This is
-useful for storing the velocities of multiple vortex filaments.
+The output array `vs` should be a vector of vectors, where each inner vector
+corresponds to the nodes of a single vortex filament.
 
-The first two variants only copy data from the cache to `vs`. They require
+The first variant only copies data from the cache to `vs`. It require
 first calling [`long_range_velocity_fourier!`](@ref) to compute the velocity
 field in Fourier space, and then [`long_range_velocity_physical!`](@ref) to
 interpolate velocities in physical space.
 
-The last variant (which also requires a list of filaments) performs all of
+The second variant (which also takes a list of filaments) performs all of
 these operations, and thus calling these other functions is not required.
 """
 function add_long_range_velocity! end
@@ -418,16 +417,6 @@ function add_long_range_velocity!(
         v[i] = v[i] + real(q)
     end
     vs
-end
-
-# TODO remove this variant?
-function add_long_range_velocity!(
-        v::VectorOfVelocities, cache::LongRangeCache,
-    )
-    @assert !(v isa SVector)          # check for recursions
-    vs = SVector{1, typeof(v)}((v,))  # interpret output as vector of vectors
-    add_long_range_velocity!(vs, cache)
-    v
 end
 
 include("exact_sum.jl")
