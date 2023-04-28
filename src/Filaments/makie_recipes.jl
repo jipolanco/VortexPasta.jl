@@ -97,6 +97,7 @@ MakieCore.@recipe(FilamentPlot) do scene
         marker = :circle,
         markersize = 10.0f0,
         linewidth = 1.5f0,
+        cycle = [:color],  # this gives the default colour cycle (see e.g. docs for Makie.lines)
         color = :black,
         colormap = :viridis,
         markercolor = nothing,  # defaults to `color`
