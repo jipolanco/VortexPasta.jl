@@ -63,15 +63,18 @@ Mandatory and optional keyword arguments are detailed in the following.
 
 ## Mandatory keyword arguments
 
-- `Γ::Real` vortex circulation (assumed constant);
+- `Γ::Real`: vortex circulation (assumed constant);
 
-- `a::Real` vortex core size (assumed constant);
+- `a::Real`: vortex core size (assumed constant);
 
-- `α::Real` Ewald splitting parameter (inverse length scale);
+- `α::Real`: Ewald splitting parameter (inverse length scale). One can set
+  `α = Zero()` to efficiently disable long-range computations.
 
-- `Ls::NTuple{3, Real}` size of unit cell (i.e. period in each direction);
+- `Ls::NTuple{3, Real}`: size of unit cell (i.e. period in each direction). One can set
+  `Ls = (∞, ∞, ∞)` to disable periodicity. This should be used along with `α = Zero()`.
 
-- `Ns::Dims{3}` dimensions of physical grid used for long-range interactions.
+- `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions. This parameter
+  is not required if `α = Zero()`.
 
 ## Optional keyword arguments (and their defaults)
 
@@ -125,23 +128,27 @@ struct ParamsBiotSavart{
 
     function ParamsBiotSavart(
             ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
-            a::Real, Ns::Dims{3}, 
+            a::Real,
             quadrature_short::AbstractQuadrature = GaussLegendreQuadrature(4),
             quadrature_long::AbstractQuadrature = GaussLegendreQuadrature(2),
             backend_short::ShortRangeBackend = NaiveShortRangeBackend(),
             backend_long::LongRangeBackend = FINUFFTBackend(),
             Δ::Real = 0.25,
-            rcut = 4 / α,
+            kws...,
         ) where {T}
         # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
         # - define ParamsPhysical instead of ParamsCommon
         # - include α in both ParamsShortRange and ParamsLongRange?
+        (; Ns, rcut,) = _extra_params(α; kws...)
         common = ParamsCommon{T}(Γ, a, Δ, α, Ls)
         sr = ParamsShortRange(backend_short, quadrature_short, common, rcut)
         lr = ParamsLongRange(backend_long, quadrature_long, common, Ns)
         new{typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
     end
 end
+
+_extra_params(α::Zero; Ns = (0, 0, 0), rcut = ∞) = (; Ns, rcut,)
+_extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case
 
 ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls::NTuple, kws...) where {T} =
     ParamsBiotSavart(T, Γ, α, Ls; kws...)
