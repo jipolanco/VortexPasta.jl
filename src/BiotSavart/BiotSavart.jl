@@ -9,11 +9,12 @@ module BiotSavart
 export
     ParamsBiotSavart,
     GaussLegendreQuadrature,
+    Zero, Infinity, ∞,
     init_cache,
     velocity_on_nodes!
 
 using ..BasicTypes:
-    Vec3, Derivative
+    Vec3, Derivative, Zero, Infinity, ∞
 
 using ..Quadratures:
     quadrature, GaussLegendreQuadrature, AbstractQuadrature
@@ -24,16 +25,16 @@ using ..Filaments:
 using TimerOutputs: TimerOutput, @timeit
 
 # Common parameters to short- and long-range computations.
-struct ParamsCommon{T}
-    Γ  :: T             # vortex circulation
-    a  :: T             # vortex core size
-    Δ  :: T             # LIA coefficient given by core vorticity profile
-    α  :: T             # Ewald splitting parameter (inverse length scale)
-    σ  :: T             # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
-    Ls :: NTuple{3, T}  # size of unit cell (= period in each direction)
+struct ParamsCommon{T, Alpha <: Real, Sigma <: Real, Periods <: NTuple{3, Real}}
+    Γ  :: T        # vortex circulation
+    a  :: T        # vortex core size
+    Δ  :: T        # LIA coefficient given by core vorticity profile
+    α  :: Alpha    # Ewald splitting parameter (inverse length scale)
+    σ  :: Sigma    # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
+    Ls :: Periods  # size of unit cell (= period in each direction)
     function ParamsCommon{T}(Γ, a, Δ, α, Ls) where {T}
         σ = 1 / (α * sqrt(2))
-        new{T}(Γ, a, Δ, α, σ, Ls)
+        new{T, typeof(α), typeof(σ), typeof(Ls)}(Γ, a, Δ, α, σ, Ls)
     end
 end
 
@@ -62,15 +63,21 @@ Mandatory and optional keyword arguments are detailed in the following.
 
 ## Mandatory keyword arguments
 
-- `Γ::Real` vortex circulation (assumed constant);
+- `Γ::Real`: vortex circulation (assumed constant);
 
-- `a::Real` vortex core size (assumed constant);
+- `a::Real`: vortex core size (assumed constant);
 
-- `α::Real` Ewald splitting parameter (inverse length scale);
+- `α::Real`: Ewald splitting parameter (inverse length scale). One can set
+  `α = Zero()` to efficiently disable long-range computations.
 
-- `Ls::NTuple{3, Real}` size of unit cell (i.e. period in each direction);
+- `Ls::Union{Real, NTuple{3, Real}}`: size of unit cell (i.e. period in each direction).
+  If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
+  the same in each direction.
 
-- `Ns::Dims{3}` dimensions of physical grid used for long-range interactions.
+  One can set `Ls = ∞` to disable periodicity. This should be done in combination with `α = Zero()`.
+
+- `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions. This parameter
+  is not required if `α = Zero()`.
 
 ## Optional keyword arguments (and their defaults)
 
@@ -124,17 +131,18 @@ struct ParamsBiotSavart{
 
     function ParamsBiotSavart(
             ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
-            a::Real, Ns::Dims{3}, 
+            a::Real,
             quadrature_short::AbstractQuadrature = GaussLegendreQuadrature(4),
             quadrature_long::AbstractQuadrature = GaussLegendreQuadrature(2),
             backend_short::ShortRangeBackend = NaiveShortRangeBackend(),
             backend_long::LongRangeBackend = FINUFFTBackend(),
             Δ::Real = 0.25,
-            rcut = 4 / α,
+            kws...,
         ) where {T}
         # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
         # - define ParamsPhysical instead of ParamsCommon
         # - include α in both ParamsShortRange and ParamsLongRange?
+        (; Ns, rcut,) = _extra_params(α; kws...)
         common = ParamsCommon{T}(Γ, a, Δ, α, Ls)
         sr = ParamsShortRange(backend_short, quadrature_short, common, rcut)
         lr = ParamsLongRange(backend_long, quadrature_long, common, Ns)
@@ -142,8 +150,14 @@ struct ParamsBiotSavart{
     end
 end
 
-ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls::NTuple, kws...) where {T} =
-    ParamsBiotSavart(T, Γ, α, Ls; kws...)
+_extra_params(α::Zero; Ns = (0, 0, 0), rcut = ∞) = (; Ns, rcut,)
+_extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case
+
+ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls, kws...) where {T} =
+    ParamsBiotSavart(T, Γ, α, _convert_periods(Ls); kws...)
+
+_convert_periods(Ls::NTuple{3, Real}) = Ls
+_convert_periods(L::Real) = (L, L, L)
 
 ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)
 
@@ -155,7 +169,8 @@ Includes arrays and data required for computation of Biot–Savart integrals.
 ## Fields
 
 - `shortrange` cache associated to short-range computations;
-- `longrange` cache associated to long-range computations;
+- `longrange` cache associated to long-range computations. It can be `nothing`
+  in case the Ewald parameter `α` was set to `Zero()`;
 - `to` a `TimerOutput` instance for measuring the time spent on different functions.
 
 """
@@ -217,7 +232,9 @@ function velocity_on_nodes!(
     (; to,) = cache
     eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
     _reset_vectors!(vs)
-    @timeit to "add_long_range_velocity!" add_long_range_velocity!(vs, cache.longrange, fs)
+    if cache.longrange !== NullLongRangeCache()
+        @timeit to "add_long_range_velocity!" add_long_range_velocity!(vs, cache.longrange, fs)
+    end
     inds = eachindex(fs)
     @inbounds for (i, f) ∈ pairs(fs)
         for j ∈ first(inds):(i - 1)

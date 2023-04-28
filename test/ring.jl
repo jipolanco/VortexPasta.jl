@@ -30,14 +30,12 @@ function test_vortex_ring_nonperiodic(ring)
         Γ = 2.4,
         a = 1e-6,
         Δ = 1/4,
-        Ls = (R, R, R) .* 1000,
-        Ns = (4, 4, 4),
-        α = 0.0,
-        rcut = 499 * R,
+        Ls = Infinity(),
+        α = Zero(),
         quadrature_short = GaussLegendreQuadrature(4),
     )
-    params = ParamsBiotSavart(; ps...)
-    cache = BiotSavart.init_cache(params)
+    params = @inferred ParamsBiotSavart(; ps...)
+    cache = @inferred BiotSavart.init_cache(params)
     vs = similar(nodes(f))
     @testset "Total velocity" begin
         velocity_on_nodes!(vs, cache, f)

@@ -7,7 +7,10 @@ module BasicTypes
 
 export
     Vec3,
-    Derivative
+    Derivative,
+    Zero,
+    Infinity,
+    ∞
 
 using StaticArrays: SVector
 
@@ -30,5 +33,7 @@ Used in particular to interpolate derivatives along filaments.
 struct Derivative{N} end
 Derivative(N::Int) = Derivative{N}()
 Base.broadcastable(d::Derivative) = Ref(d)  # disable broadcasting on Derivative objects
+
+include("constants.jl")
 
 end

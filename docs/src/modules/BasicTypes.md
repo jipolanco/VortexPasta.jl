@@ -13,6 +13,9 @@ BasicTypes
 ```@docs
 Derivative
 Vec3
+Zero
+Infinity
+∞
 ```
 
 ## Index
