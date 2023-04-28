@@ -48,6 +48,7 @@ add_short_range_velocity_other!
 
 ```@docs
 LongRangeBackend
+NullLongRangeBackend
 FINUFFTBackend
 ExactSumBackend
 ```
