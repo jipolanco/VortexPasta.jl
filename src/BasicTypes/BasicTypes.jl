@@ -9,7 +9,8 @@ export
     Vec3,
     Derivative,
     Zero,
-    Infinity
+    Infinity,
+    ∞
 
 using StaticArrays: SVector
 

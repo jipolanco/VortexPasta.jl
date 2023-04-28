@@ -1,5 +1,10 @@
 import Base: +, *, /, ^, <
 
+"""
+    Zero <: Real
+
+Singleton type representing zero.
+"""
 struct Zero <: Real end
 
 (::Zero) * (::Number) = Zero()
@@ -11,7 +16,19 @@ struct Zero <: Real end
 (::Zero) / (::Number) = Zero()
 (::Zero)^(::Integer) = Zero()
 
+"""
+    Infinity <: Real
+
+Singleton type representing infinity.
+"""
 struct Infinity <: Real end
+
+"""
+    ∞
+
+Alias for Infinity().
+"""
+const ∞ = Infinity()
 
 # Here we assume that Number > 0, which is the case in our application.
 (::Infinity) * (::Number) = Infinity()

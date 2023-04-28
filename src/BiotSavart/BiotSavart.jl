@@ -9,12 +9,12 @@ module BiotSavart
 export
     ParamsBiotSavart,
     GaussLegendreQuadrature,
-    Zero, Infinity,
+    Zero, Infinity, ∞,
     init_cache,
     velocity_on_nodes!
 
 using ..BasicTypes:
-    Vec3, Derivative, Zero, Infinity
+    Vec3, Derivative, Zero, Infinity, ∞
 
 using ..Quadratures:
     quadrature, GaussLegendreQuadrature, AbstractQuadrature
