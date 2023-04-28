@@ -28,6 +28,7 @@ nodes
 Base.getindex
 Base.setindex!
 update_coefficients!
+fold_periodic!
 normalise_derivatives
 normalise_derivatives!
 integrate

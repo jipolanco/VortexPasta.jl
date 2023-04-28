@@ -206,6 +206,8 @@ include("local/closed_filament.jl")
 include("spline/spline.jl")
 include("spline/closed_filament.jl")
 
+include("utils.jl")
+
 include("makie_recipes.jl")
 
 """
