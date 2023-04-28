@@ -110,6 +110,18 @@ function test_filament_ring(f)
         @assert L > 0 && Lc > 0
         @test Lc ≥ L  # generally, Lc will be greater than L
     end
+
+    @testset "Fold periodic" begin
+        Ls = (2π, 3π, 4π)
+        forig = Filaments.fold_periodic!(copy(f), Ls)
+        fc = copy(forig)
+        for i ∈ eachindex(fc)
+            fc[i] += 2 * Vec3(Ls)
+        end
+        @test !(nodes(fc) ≈ nodes(forig))
+        Filaments.fold_periodic!(fc, Ls)
+        @test nodes(fc) ≈ nodes(forig)
+    end
 end
 
 @testset "Ring" begin

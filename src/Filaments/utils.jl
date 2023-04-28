@@ -28,6 +28,18 @@ function fold_periodic!(Xs::AbstractVector{<:Vec3}, periods::NTuple{3, Real})
     Xs
 end
 
+"""
+    fold_periodic!(f::AbstractFilament, Ls)
+
+Fold filament nodes onto the main unit cell.
+"""
+function fold_periodic!(f::AbstractFilament, periods::NTuple{3, Real})
+    fold_periodic!(nodes(f), periods)
+    pad_periodic!(nodes(f))
+    # TODO also update coefficients?
+    f
+end
+
 function _count_periodic_offsets(x::Real, L::Real)
     offset = 0
     while x < 0
