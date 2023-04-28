@@ -248,6 +248,9 @@ derivatives.
 Uses the current locations of the filament nodes. If nodes change, this
 function should be called to update the coefficients.
 
+This function also updates the parametrisation knots ``t_i`` according to the
+current node positions.
+
 In the case of local Hermite interpolations, the coefficients are just the
 derivatives at the discretisation points.
 
