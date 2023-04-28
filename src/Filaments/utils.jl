@@ -7,7 +7,7 @@ The idea is that the filament coordinates are (mainly) in the main unit cell, gi
 ``[0, L₁] × [0, L₂] × [0, L₃]``, where ``Lᵢ`` is the period in each direction.
 
 This is nice for visualisations, and might also improve performance of the
-folding required by long-range computations (see [`BiotSavart.folding_limits`](@ref)).
+folding required by long-range computations.
 
 To avoid creating discontinuities in the filament, what this function actually
 does is to make sure that the *average* among all filament nodes is in the main
