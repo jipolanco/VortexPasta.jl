@@ -9,11 +9,12 @@ module BiotSavart
 export
     ParamsBiotSavart,
     GaussLegendreQuadrature,
+    Zero, Infinity,
     init_cache,
     velocity_on_nodes!
 
 using ..BasicTypes:
-    Vec3, Derivative
+    Vec3, Derivative, Zero, Infinity
 
 using ..Quadratures:
     quadrature, GaussLegendreQuadrature, AbstractQuadrature
@@ -24,16 +25,16 @@ using ..Filaments:
 using TimerOutputs: TimerOutput, @timeit
 
 # Common parameters to short- and long-range computations.
-struct ParamsCommon{T}
-    Γ  :: T             # vortex circulation
-    a  :: T             # vortex core size
-    Δ  :: T             # LIA coefficient given by core vorticity profile
-    α  :: T             # Ewald splitting parameter (inverse length scale)
-    σ  :: T             # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
-    Ls :: NTuple{3, T}  # size of unit cell (= period in each direction)
+struct ParamsCommon{T, Alpha <: Real, Sigma <: Real, Periods <: NTuple{3, Real}}
+    Γ  :: T        # vortex circulation
+    a  :: T        # vortex core size
+    Δ  :: T        # LIA coefficient given by core vorticity profile
+    α  :: Alpha    # Ewald splitting parameter (inverse length scale)
+    σ  :: Sigma    # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
+    Ls :: Periods  # size of unit cell (= period in each direction)
     function ParamsCommon{T}(Γ, a, Δ, α, Ls) where {T}
         σ = 1 / (α * sqrt(2))
-        new{T}(Γ, a, Δ, α, σ, Ls)
+        new{T, typeof(α), typeof(σ), typeof(Ls)}(Γ, a, Δ, α, σ, Ls)
     end
 end
 
@@ -155,7 +156,8 @@ Includes arrays and data required for computation of Biot–Savart integrals.
 ## Fields
 
 - `shortrange` cache associated to short-range computations;
-- `longrange` cache associated to long-range computations;
+- `longrange` cache associated to long-range computations. It can be `nothing`
+  in case the Ewald parameter `α` was set to `Zero()`;
 - `to` a `TimerOutput` instance for measuring the time spent on different functions.
 
 """
@@ -217,7 +219,9 @@ function velocity_on_nodes!(
     (; to,) = cache
     eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
     _reset_vectors!(vs)
-    @timeit to "add_long_range_velocity!" add_long_range_velocity!(vs, cache.longrange, fs)
+    if cache.longrange !== NullLongRangeCache()
+        @timeit to "add_long_range_velocity!" add_long_range_velocity!(vs, cache.longrange, fs)
+    end
     inds = eachindex(fs)
     @inbounds for (i, f) ∈ pairs(fs)
         for j ∈ first(inds):(i - 1)

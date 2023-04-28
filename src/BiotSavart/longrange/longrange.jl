@@ -10,7 +10,7 @@ Abstract type denoting the backend to use for computing long-range interactions.
 
 The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
-- `init_cache_long(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`.
+- `_init_cache_long(c::ParamsCommon, α::AbstractFloat, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`.
 
 - [`expected_period`](@ref) (optional),
 
@@ -49,7 +49,8 @@ folding_limits(::LongRangeBackend) = nothing
 
 Abstract type describing the storage of data required to compute long-range interactions.
 
-The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRangeCache`.
+The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRangeCache`
+(or `NullLongRangeCache()`, if long-range computations were disabled by setting `α = Zero()`).
 
 # Interface
 
@@ -97,14 +98,31 @@ The following functions must be implemented by a cache:
 """
 abstract type LongRangeCache end
 
+"""
+    NullLongRangeCache <: LongRangeCache
+
+Dummy cache type returned by [`init_cache_long`](@ref) when long-range
+computations are disabled.
+
+This is the case when the Ewald splitting parameter ``α`` is set to `Zero()`.
+"""
+struct NullLongRangeCache <: LongRangeCache end
+
 backend(c::LongRangeCache) = backend(c.params)
 
 """
     init_cache_long(pc::ParamsCommon, p::ParamsLongRange, to::TimerOutput) -> LongRangeCache
 
 Initialise the cache for the long-range backend defined in `p`.
+
+Note that, if `pc.α === Zero()`, then long-range computations are disabled and
+this returns a [`NullLongRangeCache`](@ref).
 """
 function init_cache_long end
+
+init_cache_long(pc::ParamsCommon, args...) = _init_cache_long(pc, pc.α, args...)
+
+_init_cache_long(::ParamsCommon, ::Zero, args...) = NullLongRangeCache()
 
 """
     reset_fields!(cache::LongRangeCache)

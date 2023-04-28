@@ -1,3 +1,5 @@
+using ..BasicTypes: Infinity
+
 """
     fold_periodic!(Xs::AbstractVector{<:Vec3}, Ls::NTuple{3, Real})
 
@@ -15,18 +17,7 @@ unit cell.
 """
 function fold_periodic!(Xs::AbstractVector{<:Vec3}, periods::NTuple{3, Real})
     Xmean = sum(Xs) ./ length(Xs)
-    noffsets = map(Xmean, periods) do x, L
-        offset = 0
-        while x < 0
-            x += L
-            offset += 1
-        end
-        while x ≥ L
-            x -= L
-            offset -= 1
-        end
-        offset
-    end
+    noffsets = map(_count_periodic_offsets, Xmean, periods)
     if all(==(0), noffsets)  # Xmean is already in the main unit cell
         return Xs
     end
@@ -36,3 +27,18 @@ function fold_periodic!(Xs::AbstractVector{<:Vec3}, periods::NTuple{3, Real})
     end
     Xs
 end
+
+function _count_periodic_offsets(x::Real, L::Real)
+    offset = 0
+    while x < 0
+        x += L
+        offset += 1
+    end
+    while x ≥ L
+        x -= L
+        offset -= 1
+    end
+    offset
+end
+
+_count_periodic_offsets(x::Real, ::Infinity) = 0

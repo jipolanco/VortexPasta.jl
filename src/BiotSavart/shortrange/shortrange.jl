@@ -46,7 +46,7 @@ struct ParamsShortRange{
         Backend <: ShortRangeBackend,
         Quadrature <: AbstractQuadrature,
         Common <: ParamsCommon,
-        T <: AbstractFloat,
+        T <: Real,
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
@@ -58,8 +58,8 @@ struct ParamsShortRange{
             common::ParamsCommon, rcut::Real,
         )
         (; Ls,) = common
-        2 * rcut < min(Ls...) ||
-        error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
+        2 * rcut ≤ min(Ls...) ||
+            error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
         new{typeof(backend), typeof(quad), typeof(common), typeof(rcut)}(
             backend, quad, common, rcut,
         )
@@ -68,7 +68,7 @@ end
 
 # Return the shortest separation r′ given the separation r = a - b between two points given a period L.
 # In the periodic line, the shortest separation satisfies |r′| ≤ L / 2.
-@inline function deperiodise_separation(r::Real, L::Real, Lhalf::Real = L / 2)
+@inline function deperiodise_separation(r::Real, L::Real, Lhalf::Real)
     while r > Lhalf
         r -= L
     end
@@ -78,6 +78,9 @@ end
     # @assert abs(r) ≤ Lhalf
     r
 end
+
+# Infinite period -> nothing to deperiodise.
+@inline deperiodise_separation(r::Real, ::Infinity, ::Infinity) = r
 
 # We convert SVector to tuple to make sure that no heap allocations are performed.
 @inline deperiodise_separation(r⃗::Vec3, args...) = oftype(r⃗, deperiodise_separation(Tuple(r⃗), args...))
@@ -98,7 +101,10 @@ belongs to the filament.
 function short_range_velocity end
 
 kernel_velocity_shortrange(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
+kernel_velocity_shortrange(::Zero) = 1
+
 kernel_velocity_longrange(αr) = erf(αr) - 2αr / sqrt(π) * exp(-αr^2)
+kernel_velocity_longrange(::Zero) = Zero()
 
 function short_range_velocity(cache::ShortRangeCache, args...)
     short_range_velocity(kernel_velocity_shortrange, cache, args...)

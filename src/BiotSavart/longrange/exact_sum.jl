@@ -32,12 +32,13 @@ struct ExactSumCache{
     to :: Timer
 end
 
-function init_cache_long(
-        common::ParamsCommon{T}, params::ParamsLongRange{<:ExactSumBackend},
-        timer::TimerOutput,
+function _init_cache_long(
+        common::ParamsCommon{T}, α::AbstractFloat,
+        params::ParamsLongRange{<:ExactSumBackend}, timer::TimerOutput,
     ) where {T}
-    (; Γ, α, Ls,) = common
+    (; Γ, Ls,) = common
     (; Ns,) = params
+    @assert α === common.α
     wavenumbers = ntuple(Val(3)) do i
         N, L = Ns[i], Ls[i]
         f = i == 1 ? rfftfreq : fftfreq

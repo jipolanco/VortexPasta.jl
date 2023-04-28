@@ -113,12 +113,13 @@ function _make_finufft_plan_type2(p::FINUFFTBackend, n_modes::Vector{Int64}, ::T
     finufft_makeplan(type, n_modes, iflag, ntrans, p.tol; dtype = T, p.kws..., opts...)
 end
 
-function init_cache_long(
-        common::ParamsCommon{T}, params::ParamsLongRange{<:FINUFFTBackend},
-        timer::TimerOutput,
+function _init_cache_long(
+        common::ParamsCommon{T}, α::AbstractFloat,
+        params::ParamsLongRange{<:FINUFFTBackend}, timer::TimerOutput,
     ) where {T}
-    (; Γ, α, Ls,) = common
+    (; Γ, Ls,) = common
     (; backend, Ns,) = params
+    @assert α === common.α
     n_modes = collect(Int64, Ns)  # type expected by finufft_makeplan
     wavenumbers = map((N, L) -> fftfreq(N, 2π * N / L), Ns, Ls)
     Nks = map(length, wavenumbers)  # in this case (complex-to-complex transform) this is the same as Ns
