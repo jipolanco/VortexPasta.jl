@@ -70,8 +70,11 @@ Mandatory and optional keyword arguments are detailed in the following.
 - `α::Real`: Ewald splitting parameter (inverse length scale). One can set
   `α = Zero()` to efficiently disable long-range computations.
 
-- `Ls::NTuple{3, Real}`: size of unit cell (i.e. period in each direction). One can set
-  `Ls = (∞, ∞, ∞)` to disable periodicity. This should be used along with `α = Zero()`.
+- `Ls::Union{Real, NTuple{3, Real}}`: size of unit cell (i.e. period in each direction).
+  If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
+  the same in each direction.
+
+  One can set `Ls = ∞` to disable periodicity. This should be done in combination with `α = Zero()`.
 
 - `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions. This parameter
   is not required if `α = Zero()`.
@@ -150,8 +153,11 @@ end
 _extra_params(α::Zero; Ns = (0, 0, 0), rcut = ∞) = (; Ns, rcut,)
 _extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case
 
-ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls::NTuple, kws...) where {T} =
-    ParamsBiotSavart(T, Γ, α, Ls; kws...)
+ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls, kws...) where {T} =
+    ParamsBiotSavart(T, Γ, α, _convert_periods(Ls); kws...)
+
+_convert_periods(Ls::NTuple{3, Real}) = Ls
+_convert_periods(L::Real) = (L, L, L)
 
 ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)
 

@@ -30,7 +30,7 @@ function test_vortex_ring_nonperiodic(ring)
         Γ = 2.4,
         a = 1e-6,
         Δ = 1/4,
-        Ls = (∞, ∞, ∞),
+        Ls = Infinity(),
         α = Zero(),
         quadrature_short = GaussLegendreQuadrature(4),
     )
