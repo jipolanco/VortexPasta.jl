@@ -12,7 +12,10 @@ on each side of a given discretisation point to estimate derivatives.
 
 ---
 
-    Filaments.init(ClosedFilament{T}, N::Integer, discret::LocalDiscretisationMethod, [interp = HermiteInterpolation(2)]) -> ClosedLocalFilament{T}
+    Filaments.init(
+        ClosedFilament{T}, N::Integer, discret::LocalDiscretisationMethod, [interp = HermiteInterpolation(2)];
+        offset = zero(Vec3{T}),
+    ) -> ClosedLocalFilament{T}
 
 Allocate data for a closed filament with `N` discretisation points.
 
@@ -129,30 +132,37 @@ struct ClosedLocalFilament{
     # Derivatives (∂ₜX)_i and (∂ₜₜX)_i at nodes with respect to the parametrisation `t`.
     Xderivs :: NTuple{2, Points}
 
+    Xoffset :: Vec3{T}
+
     function ClosedLocalFilament(
             N::Integer, discretisation::LocalDiscretisationMethod,
-            interpolation::LocalInterpolationMethod, ::Type{T},
+            interpolation::LocalInterpolationMethod, ::Type{T};
+            offset = zero(Vec3{T}),
         ) where {T}
         M = npad(discretisation)
         ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
         Xs = similar(ts, Vec3{T})
         Xderivs = (similar(Xs), similar(Xs))
         new{T, M, typeof(discretisation), typeof(interpolation), typeof(ts), typeof(Xs)}(
-            discretisation, interpolation, ts, Xs, Xderivs,
+            discretisation, interpolation, ts, Xs, Xderivs, offset,
         )
     end
 end
 
 # Use default interpolation method
-ClosedLocalFilament(N::Integer, disc::LocalDiscretisationMethod, ::Type{T}) where {T} =
-    ClosedLocalFilament(N, disc, HermiteInterpolation(2), T)
+ClosedLocalFilament(N::Integer, disc::LocalDiscretisationMethod, ::Type{T}; kws...) where {T} =
+    ClosedLocalFilament(N, disc, HermiteInterpolation(2), T; kws...)
 
-init(::Type{ClosedFilament{T}}, N::Integer, disc::LocalDiscretisationMethod, args...) where {T} =
-    ClosedLocalFilament(N, disc, args..., T)
+function init(
+        ::Type{ClosedFilament{T}}, N::Integer, disc::LocalDiscretisationMethod, args...;
+        kws...,
+    ) where {T}
+    ClosedLocalFilament(N, disc, args..., T; kws...)
+end
 
 function Base.similar(f::ClosedLocalFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
     N, = dims
-    ClosedLocalFilament(N, discretisation_method(f), interpolation_method(f), T)
+    ClosedLocalFilament(N, discretisation_method(f), interpolation_method(f), T; offset = f.Xoffset)
 end
 
 function Base.copyto!(v::ClosedLocalFilament, u::ClosedLocalFilament)
@@ -168,10 +178,10 @@ discretisation_method(f::ClosedLocalFilament) = f.discretisation
 interpolation_method(f::ClosedLocalFilament) = f.interpolation
 
 function update_coefficients!(f::ClosedLocalFilament)
-    (; ts, Xs,) = f
+    (; ts, Xs, Xoffset,) = f
 
     # 1. Periodically pad Xs.
-    pad_periodic!(Xs)
+    pad_periodic!(Xs, Xoffset)
 
     # 2. Compute parametrisation knots `ts`.
     M = npad(Xs)

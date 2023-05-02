@@ -211,17 +211,26 @@ include("utils.jl")
 include("makie_recipes.jl")
 
 """
-    Filaments.init(ClosedFilament{T}, N::Integer, method::DiscretisationMethod, [args...]) -> ClosedFilament{T}
+    Filaments.init(
+        ClosedFilament{T}, N::Integer, method::DiscretisationMethod, [args...];
+        offset = zero(Vec3{T}),
+    ) -> ClosedFilament{T}
 
 Allocate data for a closed filament with `N` discretisation points.
 
 The element type `T` can be omitted, in which case the default `T = Float64` is used.
 
+The optional `offset` keyword argument allows to define a filament with a spatial
+offset between points `f[i]` and `f[i + N]`. By default the offset is zero,
+meaning that the filament is a closed loop. This can be used for defining
+infinite (so not really closed) filaments living in periodic domains.
+
 Depending on the type of `method`, the returned filament may be a
 [`ClosedLocalFilament`](@ref) or a [`ClosedSplineFilament`](@ref).
 See their respective documentations for possible optional arguments (`args...`).
 """
-init(::Type{ClosedFilament}, N::Integer, args...) = init(ClosedFilament{Float64}, N, args...)
+init(::Type{ClosedFilament}, N::Integer, args...; kws...) =
+    init(ClosedFilament{Float64}, N, args...; kws...)
 
 """
     Filaments.init(ClosedFilament, points::AbstractVector{<:Vec3}, method::DiscretisationMethod, [args...])
@@ -231,9 +240,9 @@ Initialise new filament with the chosen discretisation points.
 Note that [`update_coefficients!`](@ref) does not need to be called after using
 this variant (until node locations change, of course!).
 """
-function init(::Type{ClosedFilament}, positions::AbstractVector{<:Vec3}, args...)
+function init(::Type{ClosedFilament}, positions::AbstractVector{<:Vec3}, args...; kws...)
     T = eltype(eltype(positions))
-    f = init(ClosedFilament{T}, length(positions), args...)
+    f = init(ClosedFilament{T}, length(positions), args...; kws...)
     copy!(nodes(f), positions)
     update_coefficients!(f)
     f
