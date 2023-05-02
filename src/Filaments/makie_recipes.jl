@@ -1,4 +1,5 @@
 using MakieCore: MakieCore
+using Observables: Observable, @map
 using LinearAlgebra: normalize
 
 export filamentplot, filamentplot!
@@ -123,10 +124,10 @@ fixfirst(f::F, x) where {F} = (ys...) -> f(x, ys...)
 # We use the fact that `Makie.lift` (not included in MakieCore) is the same as `map`.
 function MakieCore.plot!(p::FilamentPlot)
     argnames = MakieCore.argument_names(p)
-    f = p.filament
+    f = p.filament :: Observable{<:AbstractFilament}
     v = (:velocities ∈ argnames) ? p.velocities : nothing
-    Xs_nodes = map(_select_points_to_plot, f)
-    Xs_line = map(_refine_filament, f, p.refinement)
+    Xs_nodes = @map _select_points_to_plot(&f)
+    Xs_line = @map _refine_filament(&f, &p.refinement)
     MakieCore.lines!(
         p, Xs_line;
         color = p.color, linewidth = p.linewidth,
@@ -134,22 +135,26 @@ function MakieCore.plot!(p::FilamentPlot)
     )
     MakieCore.scatter!(
         p, Xs_nodes;
-        color = map(something, p.markercolor, p.color),
+        color = @map(something(&p.markercolor, &p.color)),
         marker = p.marker, markersize = p.markersize,
         colormap = p.colormap,
     )
     arrowscale = p.arrowscale
     let
-        tangentcolor = map(something, p.tangentcolor, p.color)
-        map(fixfirst(_plot_tangents!, p), f, p.tangents, p.vectorpos, tangentcolor, p.colormap, arrowscale)
+        tangentcolor = @map something(&p.tangentcolor, &p.color)
+        @map _plot_tangents!(
+            p, &f, &p.tangents, &p.vectorpos, &tangentcolor, &p.colormap, &arrowscale,
+        )
     end
     let
-        curvaturecolor = map(something, p.curvaturecolor, p.color,)
-        map(fixfirst(_plot_curvatures!, p), f, p.curvatures, p.vectorpos, curvaturecolor, p.colormap, arrowscale)
+        curvaturecolor = @map something(&p.curvaturecolor, &p.color)
+        @map _plot_curvatures!(
+            p, &f, &p.curvatures, &p.vectorpos, &curvaturecolor, &p.colormap, &arrowscale,
+        )
     end
     if v !== nothing
-        velocitycolor = map(something, p.velocitycolor, p.color,)
-        map(fixfirst(_plot_velocities!, p), f, v, velocitycolor, p.colormap, arrowscale)
+        velocitycolor = @map something(&p.velocitycolor, &p.color)
+        @map _plot_velocities!(p, &f, &v, &velocitycolor, &p.colormap, &arrowscale)
     end
     p
 end
