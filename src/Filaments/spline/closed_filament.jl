@@ -157,8 +157,8 @@ function update_coefficients!(f::ClosedSplineFilament)
 end
 
 function _update_coefficients_only!(f::ClosedSplineFilament)
-    (; ts, Xs, cs, cderivs,) = f
-    solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1])
+    (; ts, Xs, cs, cderivs, Xoffset,) = f
+    solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1], Xoffset,)
     spline_derivative!(cderivs[1], cs, ts, Val(4))
     spline_derivative!(cderivs[2], cderivs[1], ts, Val(3))
     f
@@ -181,7 +181,7 @@ function (f::ClosedSplineFilament)(
         t::Number, ::Derivative{n} = Derivative(0);
         ileft::Union{Nothing, Int} = nothing,
     ) where {n}
-    (; ts, cs, cderivs,) = f
+    (; ts, cs, cderivs, Xoffset,) = f
     i = if ileft === nothing
         searchsortedlast(ts, t) :: Int
     else
@@ -189,5 +189,6 @@ function (f::ClosedSplineFilament)(
     end
     coefs = (cs, cderivs...)[n + 1]
     ord = 4 - n
-    evaluate_spline(coefs, ts, i, t, Val(ord))
+    y = evaluate_spline(coefs, ts, i, t, Val(ord))
+    deperiodise_spline(y, Xoffset, ts, t, Val(n))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
 end
