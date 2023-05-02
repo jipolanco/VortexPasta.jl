@@ -143,18 +143,18 @@ function MakieCore.plot!(p::FilamentPlot)
     let
         tangentcolor = @map something(&p.tangentcolor, &p.color)
         @map _plot_tangents!(
-            p, &f, &p.tangents, &p.vectorpos, &tangentcolor, &p.colormap, &arrowscale,
+            p, f, &p.tangents, &p.vectorpos, &tangentcolor, &p.colormap, &arrowscale,
         )
     end
     let
         curvaturecolor = @map something(&p.curvaturecolor, &p.color)
         @map _plot_curvatures!(
-            p, &f, &p.curvatures, &p.vectorpos, &curvaturecolor, &p.colormap, &arrowscale,
+            p, f, &p.curvatures, &p.vectorpos, &curvaturecolor, &p.colormap, &arrowscale,
         )
     end
     if v !== nothing
         velocitycolor = @map something(&p.velocitycolor, &p.color)
-        @map _plot_velocities!(p, &f, &v, &velocitycolor, &p.colormap, &arrowscale)
+        @map _plot_velocities!(p, f, v, &velocitycolor, &p.colormap, &arrowscale)
     end
     p
 end
@@ -162,11 +162,7 @@ end
 # Make sure we include `end + 1` point to close the loop.
 _select_points_to_plot(f::ClosedFilament) = nodes(f)[begin:end + 1]
 
-function _plot_tangents!(
-        p::FilamentPlot, f::ClosedFilament, tangents::Bool,
-        vectorpos::Real, tangentcolor, colormap, arrowscale::Real,
-    )
-    tangents || return p
+function _tangents_for_arrows(f::AbstractFilament, vectorpos::Real)
     N = length(f)
     Xs = ntuple(_ -> Vector{Float32}(undef, N), 3)  # layout accepted by Makie.arrows
     Vs = map(similar, Xs)
@@ -178,8 +174,18 @@ function _plot_tangents!(
             Vs[n][i] = v[n]
         end
     end
+    (Xs..., Vs...)
+end
+
+function _plot_tangents!(
+        p::FilamentPlot, f::Observable{<:AbstractFilament}, tangents::Bool,
+        vectorpos::Real, tangentcolor, colormap, arrowscale::Real,
+    )
+    tangents || return p
+    data = @map _tangents_for_arrows(&f, vectorpos)
+    args = ntuple(i -> @map((&data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
     MakieCore.arrows!(
-        p, Xs..., Vs...;
+        p, args...;
         color = tangentcolor,
         colormap,
         _arrow_kwargs(; arrowscale,)...,
@@ -187,14 +193,7 @@ function _plot_tangents!(
     p
 end
 
-function _plot_curvatures!(
-        p::FilamentPlot, f::ClosedFilament, curvatures::Bool,
-        vectorpos::Real,
-        curvaturecolor,
-        colormap,
-        arrowscale::Real,
-    )
-    curvatures || return p
+function _curvatures_for_arrows(f::AbstractFilament, vectorpos::Real)
     N = length(f)
     Xs = ntuple(_ -> Vector{Float32}(undef, N), 3)  # layout accepted by Makie.arrows
     Vs = map(similar, Xs)
@@ -209,8 +208,21 @@ function _plot_curvatures!(
             Vs[n][i] = v[n]
         end
     end
+    (Xs..., Vs...)
+end
+
+function _plot_curvatures!(
+        p::FilamentPlot, f::Observable{<:AbstractFilament}, curvatures::Bool,
+        vectorpos::Real,
+        curvaturecolor,
+        colormap,
+        arrowscale::Real,
+    )
+    curvatures || return p
+    data = @map _curvatures_for_arrows(&f, vectorpos)
+    args = ntuple(i -> @map((&data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
     MakieCore.arrows!(
-        p, Xs..., Vs...;
+        p, args...;
         color = curvaturecolor,
         colormap,
         _arrow_kwargs(; arrowscale,)...,
@@ -218,12 +230,8 @@ function _plot_curvatures!(
     p
 end
 
-function _plot_velocities!(
-        p::FilamentPlot, f::AbstractFilament, v::AbstractVector, velocitycolor,
-        colormap,
-        arrowscale::Real,
-    )
-    length(v) == length(f) || throw(DimensionMismatch("wront length of velocity vector"))
+function _velocities_for_arrows(f::AbstractFilament, v::AbstractVector)
+    length(v) == length(f) || throw(DimensionMismatch("wrong length of velocity vector"))
     N = length(f)
     Xs = ntuple(_ -> Vector{Float32}(undef, N), 3)  # layout accepted by Makie.arrows
     Vs = map(similar, Xs)
@@ -231,8 +239,19 @@ function _plot_velocities!(
         Xs[n][i] = f[i][n]
         Vs[n][i] = v[i][n]
     end
+    (Xs..., Vs...)
+end
+
+function _plot_velocities!(
+        p::FilamentPlot, f::Observable{<:AbstractFilament},
+        v::Observable{<:AbstractVector}, velocitycolor,
+        colormap,
+        arrowscale::Real,
+    )
+    data = @map _velocities_for_arrows(&f, &v)
+    args = ntuple(i -> @map((&data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
     MakieCore.arrows!(
-        p, Xs..., Vs...;
+        p, args...;
         color = velocitycolor,
         colormap,
         _arrow_kwargs(; arrowscale,)...,
