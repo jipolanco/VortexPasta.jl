@@ -54,3 +54,19 @@ function _count_periodic_offsets(x::Real, L::Real)
 end
 
 _count_periodic_offsets(x::Real, ::Infinity) = 0
+
+_find_knot_segment(ileft::Integer, tlims, ts, t) = (ileft, t)
+
+function _find_knot_segment(::Nothing, tlims, ts, t)
+    ta, tb = tlims
+    T = tb - ta
+    # This enables evaluation outside of the knot limits.
+    while t ≥ tb
+        t -= T
+    end
+    while t < ta
+        t += T
+    end
+    i = searchsortedlast(ts, t) :: Int
+    i, t
+end

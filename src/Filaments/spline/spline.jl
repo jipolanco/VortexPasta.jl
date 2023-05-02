@@ -37,17 +37,50 @@ end
 # Obtain coefficients `cs` of periodic cubic spline from positions `Xs` and knots `ts`.
 function solve_cubic_spline_coefficients!(
         cs::PaddedVector, ts::PaddedVector{3}, Xs::PaddedVector;
-        buf::PaddedVector = similar(Xs),
+        buf::PaddedVector = similar(Xs), Xoffset = zero(eltype(Xs)),
     )
+    periodise_coordinates!(cs, Xs, ts, Xoffset)  # useful if Xoffset ≠ 0
     # TODO can we do something cleaner, like preallocating the right type of buffer and avoiding unsafe stuff?
     GC.@preserve buf begin
         unsafe = Val(true)
         bufs = _thomas_buffers(ts, buf, unsafe)
-        _solve_periodic_cubic_spline_coefficients_thomas!(ts, copyto!(cs, Xs), bufs)
+        _solve_periodic_cubic_spline_coefficients_thomas!(ts, cs, bufs)
     end
     pad_periodic!(cs)
     cs
 end
+
+function periodise_coordinates!(
+        Ys::AbstractVector, Xs::AbstractVector,
+        ts::AbstractVector, Xoffset::Vec3,
+    )
+    if Xoffset === zero(Xoffset)
+        copyto!(Ys, Xs)
+    else
+        # In this case X is not really periodic. We define Y = X - (t / T) * Xoffset
+        # which is really periodic.
+        # @inbounds @assert Xoffset ≈ Xs[end + 1] - Xs[begin]
+        @inbounds T = ts[end + 1] - ts[begin]  # knot period
+        @inbounds for i ∈ eachindex(Ys)
+            # Change of variables to have a periodic spline.
+            # See also `deperiodise_spline` below, which undoes this after the spline
+            # has been evaluated.
+            Ys[i] = Xs[i] - (ts[i] / T) * Xoffset
+        end
+    end
+    Ys
+end
+
+# This should be used to undo periodisation of non-periodic splines.
+function deperiodise_spline(y::Vec3, Xoffset::Vec3, ts::AbstractVector, t::Number, derivative::Val)
+    Xoffset === zero(Xoffset) && return y
+    @inbounds T = ts[end + 1] - ts[begin]  # knot period
+    _deperiodise_spline(y, Xoffset, T, t, derivative)
+end
+
+_deperiodise_spline(y::Vec3, Xoffset::Vec3, T, t, ::Val{0}) = y + (t / T) * Xoffset  # zero-th derivative
+_deperiodise_spline(y::Vec3, Xoffset::Vec3, T, t, ::Val{1}) = y + (1 / T) * Xoffset  # first derivative
+_deperiodise_spline(y::Vec3, Xoffset::Vec3, T, t, ::Val)    = y  # higher-order derivatives
 
 function _thomas_buffers(ts::AbstractVector, buf_in::PaddedVector, ::Val{unsafe} = Val(true)) where {unsafe}
     n = length(ts)

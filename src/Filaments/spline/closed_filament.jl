@@ -8,8 +8,8 @@ Describes a closed curve (a loop) in 3D space using periodic cubic splines.
 
 ---
 
-    ClosedSplineFilament(N::Integer, [T = Float64])                    -> ClosedSplineFilament
-    Filaments.init(ClosedFilament{T}, N::Integer, CubicSplineMethod()) -> ClosedSplineFilament
+    ClosedSplineFilament(N::Integer, [T = Float64]; offset = zero(Vec3{T}))
+    Filaments.init(ClosedFilament{T}, N::Integer, CubicSplineMethod(); offset = zero(Vec3{T}))
 
 Allocate data for a closed spline filament with `N` discretisation points.
 
@@ -96,7 +96,7 @@ arc length between points ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
 """
 struct ClosedSplineFilament{
         T <: AbstractFloat,
-        M,  # padding (fixed to 2?)
+        M,  # padding (fixed to 3?)
         Knots <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
     } <: ClosedFilament{T}
@@ -113,7 +113,9 @@ struct ClosedSplineFilament{
     # Spline coefficients associated to first/second derivatives
     cderivs :: NTuple{2, Points}
 
-    function ClosedSplineFilament(N::Integer, ::Type{T}) where {T}
+    Xoffset :: Vec3{T}
+
+    function ClosedSplineFilament(N::Integer, ::Type{T}; offset = zero(Vec3{T})) where {T}
         M = 3  # padding needed for cubic splines
         ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
         Xs = similar(ts, Vec3{T})
@@ -121,16 +123,16 @@ struct ClosedSplineFilament{
         ċs = similar(Xs)
         c̈s = similar(Xs)
         cderivs = (ċs, c̈s)
-        new{T, M, typeof(ts), typeof(Xs)}(ts, Xs, cs, cderivs)
+        new{T, M, typeof(ts), typeof(Xs)}(ts, Xs, cs, cderivs, offset)
     end
 end
 
-init(::Type{ClosedFilament{T}}, N::Integer, ::CubicSplineMethod) where {T} =
-    ClosedSplineFilament(N, T)
+init(::Type{ClosedFilament{T}}, N::Integer, ::CubicSplineMethod; kws...) where {T} =
+    ClosedSplineFilament(N, T; kws...)
 
-function Base.similar(::ClosedSplineFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
+function Base.similar(f::ClosedSplineFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
     N, = dims
-    ClosedSplineFilament(N, T)
+    ClosedSplineFilament(N, T; offset = f.Xoffset)
 end
 
 function Base.copyto!(v::ClosedSplineFilament, u::ClosedSplineFilament)
@@ -147,16 +149,16 @@ interpolation_method(::ClosedSplineFilament) = CubicSplineMethod()
 # TODO optimise solving for coefficients
 # - pass "raw" data only? (instead of PaddedVector's)
 function update_coefficients!(f::ClosedSplineFilament)
-    (; ts, Xs,) = f
-    pad_periodic!(Xs)
+    (; ts, Xs, Xoffset,) = f
+    pad_periodic!(Xs, Xoffset)
     _update_knots_periodic!(ts, Xs)
     _update_coefficients_only!(f)
     f
 end
 
 function _update_coefficients_only!(f::ClosedSplineFilament)
-    (; ts, Xs, cs, cderivs,) = f
-    solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1])
+    (; ts, Xs, cs, cderivs, Xoffset,) = f
+    solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1], Xoffset,)
     spline_derivative!(cderivs[1], cs, ts, Val(4))
     spline_derivative!(cderivs[2], cderivs[1], ts, Val(3))
     f
@@ -176,16 +178,13 @@ end
 
 # Here `t` is in the spline parametrisation.
 function (f::ClosedSplineFilament)(
-        t::Number, ::Derivative{n} = Derivative(0);
+        t_in::Number, ::Derivative{n} = Derivative(0);
         ileft::Union{Nothing, Int} = nothing,
     ) where {n}
-    (; ts, cs, cderivs,) = f
-    i = if ileft === nothing
-        searchsortedlast(ts, t) :: Int
-    else
-        ileft
-    end
+    (; ts, cs, cderivs, Xoffset,) = f
+    i, t = _find_knot_segment(ileft, knotlims(f), ts, t_in)
     coefs = (cs, cderivs...)[n + 1]
     ord = 4 - n
-    evaluate_spline(coefs, ts, i, t, Val(ord))
+    y = evaluate_spline(coefs, ts, i, t, Val(ord))
+    deperiodise_spline(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
 end
