@@ -226,18 +226,27 @@ function (f::ClosedLocalFilament)(i::Int, ζ::Number, deriv::Derivative = Deriva
 end
 
 function (f::ClosedLocalFilament)(
-        t::Number, deriv::Derivative = Derivative(0);
+        t_in::Number, deriv::Derivative = Derivative(0);
         ileft::Union{Nothing, Int} = nothing,
     )
     (; ts,) = f
-    i = if ileft === nothing
-        searchsortedlast(ts, t) :: Int
-    else
-        ileft
-    end
+    i, t = _find_knot_segment(ileft, knotlims(f), ts, t_in)
     ζ = (t - ts[i]) / (ts[i + 1] - ts[i])
-    f(i, ζ, deriv)
+    y = f(i, ζ, deriv)
+    _deperiodise_finitediff(deriv, y, f, t, t_in)
 end
+
+function _deperiodise_finitediff(::Derivative{0}, y, f::ClosedLocalFilament, t, t_in)
+    (; Xoffset,) = f
+    Xoffset === zero(Xoffset) && return y
+    t == t_in && return y
+    ta, tb = knotlims(f)
+    T = tb - ta
+    dt = t_in - t  # expected to be a multiple of T
+    y + dt / T * Xoffset
+end
+
+_deperiodise_finitediff(::Derivative, y, args...) = y  # derivatives (n ≥ 1): shift not needed
 
 function _interpolate(
         method::HermiteInterpolation{M}, f::ClosedLocalFilament,

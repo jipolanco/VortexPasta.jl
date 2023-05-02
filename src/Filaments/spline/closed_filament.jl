@@ -178,17 +178,13 @@ end
 
 # Here `t` is in the spline parametrisation.
 function (f::ClosedSplineFilament)(
-        t::Number, ::Derivative{n} = Derivative(0);
+        t_in::Number, ::Derivative{n} = Derivative(0);
         ileft::Union{Nothing, Int} = nothing,
     ) where {n}
     (; ts, cs, cderivs, Xoffset,) = f
-    i = if ileft === nothing
-        searchsortedlast(ts, t) :: Int
-    else
-        ileft
-    end
+    i, t = _find_knot_segment(ileft, knotlims(f), ts, t_in)
     coefs = (cs, cderivs...)[n + 1]
     ord = 4 - n
     y = evaluate_spline(coefs, ts, i, t, Val(ord))
-    deperiodise_spline(y, Xoffset, ts, t, Val(n))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
+    deperiodise_spline(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
 end
