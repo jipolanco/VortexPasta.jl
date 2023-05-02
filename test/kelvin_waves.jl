@@ -77,7 +77,10 @@ function test_kelvin_waves(method::Tuple)
         vstd = std(vnorms)
         # The velocity std should be approximately zero.
         # This condition fails for continuity == 0 (HermiteInterpolation(0), i.e. linear segments).
-        @test vstd / abs(vmean) < 1e-3 || continuity == 0
+        continuity = Filaments.continuity(Filaments.interpolation_method(first(filaments)))
+        if continuity ≥ 1
+            @test vstd / abs(vmean) < 1e-3
+        end
     end
 
     nothing
