@@ -249,7 +249,7 @@ function init(::Type{ClosedFilament}, positions::AbstractVector{<:Vec3}, args...
 end
 
 """
-    update_coefficients!(f::AbstractFilament)
+    update_coefficients!(f::AbstractFilament; knots = nothing)
 
 Compute coefficients needed to perform inter-node interpolations and estimate
 derivatives.
@@ -257,8 +257,9 @@ derivatives.
 Uses the current locations of the filament nodes. If nodes change, this
 function should be called to update the coefficients.
 
-This function also updates the parametrisation knots ``t_i`` according to the
-current node positions.
+By default, this function also updates the parametrisation knots ``t_i``
+according to the current node positions. One can override this by passing a
+`knots` vector as a keyword argument.
 
 In the case of local Hermite interpolations, the coefficients are just the
 derivatives at the discretisation points.

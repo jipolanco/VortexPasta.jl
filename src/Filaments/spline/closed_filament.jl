@@ -148,10 +148,14 @@ interpolation_method(::ClosedSplineFilament) = CubicSplineMethod()
 
 # TODO optimise solving for coefficients
 # - pass "raw" data only? (instead of PaddedVector's)
-function update_coefficients!(f::ClosedSplineFilament)
+function update_coefficients!(f::ClosedSplineFilament; knots = nothing)
     (; ts, Xs, Xoffset,) = f
     pad_periodic!(Xs, Xoffset)
-    _update_knots_periodic!(ts, Xs)
+    if knots === nothing
+        _update_knots_periodic!(ts, Xs)
+    else
+        copyto!(ts, knots)
+    end
     _update_coefficients_only!(f)
     f
 end
