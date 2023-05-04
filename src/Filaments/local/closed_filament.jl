@@ -177,28 +177,6 @@ end
 discretisation_method(f::ClosedLocalFilament) = f.discretisation
 interpolation_method(f::ClosedLocalFilament) = f.interpolation
 
-function update_coefficients!(f::ClosedLocalFilament; knots = nothing)
-    (; ts, Xs, Xoffset,) = f
-
-    # 1. Periodically pad Xs.
-    pad_periodic!(Xs, Xoffset)
-
-    # 2. Compute parametrisation knots `ts`.
-    M = npad(Xs)
-    @assert M == npad(ts)
-    @assert M ≥ 1  # minimum padding required for computation of ts
-    if knots === nothing
-        _update_knots_periodic!(ts, Xs)
-    else
-        copyto!(ts, knots)
-    end
-
-    # 3. Estimate derivatives at nodes.
-    _update_coefficients_only!(f)
-
-    f
-end
-
 function _update_coefficients_only!(f::ClosedLocalFilament)
     (; ts, Xs, Xderivs,) = f
     M = npad(ts)

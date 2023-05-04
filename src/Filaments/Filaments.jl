@@ -271,6 +271,24 @@ and curvature vectors (but they are closely related).
 """
 function update_coefficients! end
 
+function update_coefficients!(f::ClosedFilament; knots = nothing)
+    (; ts, Xs, Xoffset,) = f
+
+    # 1. Periodically pad Xs.
+    pad_periodic!(Xs, Xoffset)
+
+    # 2. Compute parametrisation knots `ts`.
+    M = npad(Xs)
+    @assert M == npad(ts)
+    @assert M ≥ 1  # minimum padding required for computation of ts
+    _update_knots_periodic!(ts, Xs, knots)
+
+    # 3. Estimate coefficients needed for derivatives and interpolations.
+    _update_coefficients_only!(f)
+
+    f
+end
+
 """
     normalise_derivatives(Ẋ::Vec3, Ẍ::Vec3) -> (X′, X″)
     normalise_derivatives((Ẋ, Ẍ)::NTuple)   -> (X′, X″)
@@ -311,7 +329,7 @@ function normalise_derivatives!(Ẋ::AbstractVector, Ẍ::AbstractVector)
 end
 
 # Update filament parametrisation knots `ts` from node coordinates `Xs`.
-function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector)
+function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ::Nothing = nothing)
     @assert eachindex(ts) == eachindex(Xs)
     ts[begin] = 0
     inds = eachindex(ts)
@@ -322,6 +340,10 @@ function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector)
     L = ts[end + 1] - ts[begin]  # knot period
     pad_periodic!(ts, L)
 end
+
+# In this case, override the computation of knots and copy the input knot vector.
+_update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ts_in::AbstractVector) =
+    copyto!(ts, ts_in)
 
 # TESTING / EXPERIMENTAL
 # This function may be removed in the future.
