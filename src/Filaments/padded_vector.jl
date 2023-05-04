@@ -75,6 +75,11 @@ Base.parent(v::PaddedVector) = v.data
 Base.size(v::PaddedVector) = (length(parent(v)) - 2 * npad(v),)
 Base.size(v::PaddedVector{0}) = size(parent(v))
 
+function Base.resize!(v::PaddedVector, n::Integer)
+    resize!(parent(v), n + 2 * npad(v))
+    v
+end
+
 Base.checkbounds(::Type{Bool}, v::PaddedVector, I...) = _checkbounds(v, I...)
 
 # TODO define copyto! for different paddings M, M′?

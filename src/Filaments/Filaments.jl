@@ -140,6 +140,11 @@ function Base.copyto!(v::F, u::F) where {F <: AbstractFilament}
     v
 end
 
+function Base.resize!(f::AbstractFilament, n::Integer)
+    map(v -> resize!(v, n), allvectors(f))
+    f
+end
+
 """
     ClosedFilament{T} <: AbstractFilament{T}
 
