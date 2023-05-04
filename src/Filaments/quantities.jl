@@ -51,7 +51,7 @@ end
 
 Represents the curvature vector associated to a filament.
 
-The curvature vector is given by ``ρ⃗ = ρ n̂`` where ``n̂`` is the unit normal
+The curvature vector is given by ``\\bm{ρ} = ρ n̂`` where ``n̂`` is the unit normal
 vector and ``ρ`` the scalar curvature (the inverse of the curvature radius).
 """
 struct CurvatureVector <: GeometricQuantity end
@@ -82,7 +82,7 @@ end
 
 Represents the scaled binormal vector associated to a filament.
 
-The scaled binormal vector is defined as ``b⃗ = t̂ × ρ⃗ = ρ (t̂ × n̂) = ρ b̂``,
+The scaled binormal vector is defined as ``\\bm{b} = t̂ × ρ⃗ = ρ \\, (t̂ × n̂) = ρ \\, b̂``,
 where ``b̂`` is the (unit) binormal vector and ``ρ`` is the scalar curvature.
 """
 struct CurvatureBinormal <: GeometricQuantity end
