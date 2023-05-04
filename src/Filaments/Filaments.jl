@@ -178,21 +178,6 @@ end
 Base.checkbounds(::Type{Bool}, f::AbstractFilament, I...) = checkbounds(Bool, nodes(f), I...)
 
 """
-    Base.getindex(f::AbstractFilament{T}, i::Int) -> Vec3{T}
-    Base.getindex(f::AbstractFilament{T}, i::Int, ::Derivative{n}) -> Vec3{T}
-    Base.getindex(f::AbstractFilament{T}, i::Int, ::GeometricQuantity)
-
-Return coordinates of discretisation point ``\\bm{X}_i``.
-
-One may also obtain derivatives and other geometric quantities at point ``\\bm{X}_i``
-by passing an optional [`Derivative`](@ref) or [`GeometricQuantity`](@ref).
-"""
-Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
-
-# `d` can be a Derivative or a GeometricQuantity
-Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int, d) = f(AtNode(i), d)
-
-"""
     Base.setindex!(f::AbstractFilament{T}, v, i::Int) -> Vec3{T}
 
 Set coordinates of discretisation point ``\\bm{X}_i``.
@@ -227,6 +212,22 @@ include("quantities.jl")
 include("utils.jl")
 
 include("makie_recipes.jl")
+
+"""
+    Base.getindex(f::AbstractFilament{T}, i::Int) -> Vec3{T}
+    Base.getindex(f::AbstractFilament{T}, i::Int, ::Derivative{n}) -> Vec3{T}
+    Base.getindex(f::AbstractFilament{T}, i::Int, ::GeometricQuantity)
+
+Return coordinates of discretisation point ``\\bm{X}_i``.
+
+One may also obtain derivatives and other geometric quantities at point ``\\bm{X}_i``
+by passing an optional [`Derivative`](@ref) or [`GeometricQuantity`](@ref).
+"""
+Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
+
+Base.@propagate_inbounds Base.getindex(
+    f::AbstractFilament, i::Int, d::Union{Derivative, GeometricQuantity},
+) = f(AtNode(i), d)
 
 """
     Filaments.init(
