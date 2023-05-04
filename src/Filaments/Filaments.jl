@@ -363,37 +363,4 @@ end
 _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ts_in::AbstractVector) =
     copyto!(ts, ts_in)
 
-# TESTING / EXPERIMENTAL
-# This function may be removed in the future.
-# The idea is to update the parametrisation of `f` to follow more closely the
-# actual arc lengths of the filament. Not sure if it's worth it...
-function recompute_parametrisation!(f::ClosedFilament)
-    m = interpolation_method(f)
-    _recompute_parametrisation!(m, f)
-end
-
-# In the case of straight segments (linear interpolation), the parametrisation
-# cannot be improved from its initial estimation.
-_recompute_parametrisation!(::HermiteInterpolation{0}, f::AbstractFilament) = f
-
-function _recompute_parametrisation!(::Any, f::AbstractFilament)
-    (; ts,) = f
-    quad = GaussLegendreQuadrature(4)
-    @assert npad(ts) ≥ 1
-    tnext = ts[begin]
-    for i ∈ eachindex(ts)
-        # Estimate arc length from ts[i] to ts[i + 1]
-        ℓ = integrate(f, i, quad) do ζ
-            norm(f(i, ζ, Derivative(1)))  # = ∂X/∂t
-        end
-        @assert ℓ ≥ ts[i + 1] - ts[i]
-        ts[i] = tnext
-        tnext += ℓ  # this will be the new value of ts[i + 1], but we can't update it yet...
-    end
-    L = tnext - ts[begin]  # full length of the filament
-    pad_periodic!(ts, L)
-    _update_coefficients_only!(f)
-    f
-end
-
 end
