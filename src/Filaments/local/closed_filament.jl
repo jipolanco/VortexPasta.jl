@@ -149,6 +149,8 @@ struct ClosedLocalFilament{
     end
 end
 
+allvectors(f::ClosedLocalFilament) = (f.ts, f.Xs, f.Xderivs...)
+
 # Use default interpolation method
 ClosedLocalFilament(N::Integer, disc::LocalDiscretisationMethod, ::Type{T}; kws...) where {T} =
     ClosedLocalFilament(N, disc, HermiteInterpolation(2), T; kws...)
@@ -163,15 +165,6 @@ end
 function Base.similar(f::ClosedLocalFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
     N, = dims
     ClosedLocalFilament(N, discretisation_method(f), interpolation_method(f), T; offset = f.Xoffset)
-end
-
-function Base.copyto!(v::ClosedLocalFilament, u::ClosedLocalFilament)
-    discretisation_method(u) === discretisation_method(v) ||
-        error("discretisation methods of both filaments should be the same")
-    copyto!(v.ts, u.ts)
-    copyto!(v.Xs, u.Xs)
-    map(copyto!, v.Xderivs, u.Xderivs)
-    v
 end
 
 discretisation_method(f::ClosedLocalFilament) = f.discretisation

@@ -127,20 +127,14 @@ struct ClosedSplineFilament{
     end
 end
 
+allvectors(f::ClosedSplineFilament) = (f.ts, f.Xs, f.cs, f.cderivs...)
+
 init(::Type{ClosedFilament{T}}, N::Integer, ::CubicSplineMethod; kws...) where {T} =
     ClosedSplineFilament(N, T; kws...)
 
 function Base.similar(f::ClosedSplineFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
     N, = dims
     ClosedSplineFilament(N, T; offset = f.Xoffset)
-end
-
-function Base.copyto!(v::ClosedSplineFilament, u::ClosedSplineFilament)
-    copyto!(v.ts, u.ts)
-    copyto!(v.Xs, u.Xs)
-    copyto!(v.cs, u.cs)
-    map(copyto!, v.cderivs, u.cderivs)
-    v
 end
 
 discretisation_method(::ClosedSplineFilament) = CubicSplineMethod()

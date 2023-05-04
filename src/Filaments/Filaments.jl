@@ -135,6 +135,11 @@ abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 Base.similar(f::AbstractFilament, ::Type{Vec3{T}}, dims::Dims{1}) where {T} =
     similar(f, T, dims)
 
+function Base.copyto!(v::F, u::F) where {F <: AbstractFilament}
+    map(copyto!, allvectors(v), allvectors(u))
+    v
+end
+
 """
     ClosedFilament{T} <: AbstractFilament{T}
 
