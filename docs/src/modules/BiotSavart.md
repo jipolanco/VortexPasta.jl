@@ -48,7 +48,6 @@ add_short_range_velocity_other!
 
 ```@docs
 LongRangeBackend
-NullLongRangeBackend
 FINUFFTBackend
 ExactSumBackend
 ```
@@ -57,6 +56,7 @@ ExactSumBackend
 
 ```@docs
 LongRangeCache
+NullLongRangeCache
 init_cache_long
 expected_period
 folding_limits

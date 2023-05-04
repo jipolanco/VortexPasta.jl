@@ -178,12 +178,14 @@ end
 Base.checkbounds(::Type{Bool}, f::AbstractFilament, I...) = checkbounds(Bool, nodes(f), I...)
 
 """
-    Base.getindex(f::AbstractFilament{T}, i::Int, [Derivative(n)]) -> Vec3{T}
+    Base.getindex(f::AbstractFilament{T}, i::Int) -> Vec3{T}
+    Base.getindex(f::AbstractFilament{T}, i::Int, ::Derivative{n}) -> Vec3{T}
+    Base.getindex(f::AbstractFilament{T}, i::Int, ::GeometricQuantity)
 
 Return coordinates of discretisation point ``\\bm{X}_i``.
 
-One may also obtain derivatives at point ``\\bm{X}_i`` by passing an optional
-[`Derivative`](@ref).
+One may also obtain derivatives and other geometric quantities at point ``\\bm{X}_i``
+by passing an optional [`Derivative`](@ref) or [`GeometricQuantity`](@ref).
 """
 Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
 
