@@ -34,6 +34,19 @@ normalise_derivatives!
 integrate
 ```
 
+## Geometric quantities
+
+The following types are provided as a convenient way of evaluating scalar and
+vector quantities of interest along filaments.
+
+```@docs
+GeometricQuantity
+UnitTangent
+CurvatureVector
+CurvatureScalar
+CurvatureBinormal
+```
+
 ## Local discretisations
 
 ```@docs

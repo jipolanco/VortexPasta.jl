@@ -268,15 +268,12 @@ function _local_self_induced_velocity(
     ℓ₊ = integrate(f, i, quad) do ζ
         norm(f(i, ζ, Derivative(1)))
     end
+    # Estimate the scaled binormal vector b⃗ = ρ b̂, where ρ is the curvature and b̂ = t̂ × n̂.
     b⃗₋ = integrate(f, i - 1, quad) do ζ
-        Ẋ = f(i - 1, ζ, Derivative(1))
-        Ẍ = f(i - 1, ζ, Derivative(2))
-        (Ẋ × Ẍ) ./ norm(Ẋ)^3
+        f(i - 1, ζ, CurvatureBinormal())
     end
     b⃗₊ = integrate(f, i, quad) do ζ
-        Ẋ = f(i, ζ, Derivative(1))
-        Ẍ = f(i, ζ, Derivative(2))
-        (Ẋ × Ẍ) ./ norm(Ẋ)^3
+        f(i, ζ, CurvatureBinormal())
     end
     b⃗ = (b⃗₋ + b⃗₊) ./ (ts[i + 1] - ts[i - 1])  # average on [i - 1, i + 1]
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)

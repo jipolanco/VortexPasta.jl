@@ -88,6 +88,31 @@ function test_filament_ring(f)
                 if continuity ≥ 1  # don't run test with HermiteInterpolation{0} (→ curvature = 0)
                     @test isapprox(norm(X″), 1 / R; rtol = 0.1)  # ring curvature (some methods are more accurate than others...)
                 end
+                @test X′ ≈ f(i, ζ, UnitTangent())
+                @test X″ ≈ f(i, ζ, CurvatureVector())
+            end
+        end
+    end
+
+    @testset "Geometric quantities" begin
+        let i = 5, ζ = 0.3
+            t̂ = @inferred f(i, ζ, UnitTangent())
+            ρ⃗ = @inferred f(i, ζ, CurvatureVector())
+            ρ = @inferred f(i, ζ, CurvatureScalar())
+            b⃗ = @inferred f(i, ζ, CurvatureBinormal())
+            @test norm(t̂) ≈ 1
+            @test norm(ρ⃗) ≈ ρ
+            @test norm(b⃗) ≈ ρ
+            @test abs(t̂ ⋅ ρ⃗) < 1e-12
+            @test t̂ × ρ⃗ ≈ b⃗
+            let t = (1 - ζ) * ts[i] + ζ * ts[i + 1]
+                @test ρ⃗ ≈ f(t, CurvatureVector())
+            end
+        end
+        let i = 5
+            if continuity ≥ 2
+                @test f[i, CurvatureVector()] ≈ f(i, 0.0, CurvatureVector())
+                @test f[i + 1, CurvatureVector()] ≈ f(i, 1.0, CurvatureVector())
             end
         end
     end
