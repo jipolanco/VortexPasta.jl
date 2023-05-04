@@ -10,6 +10,10 @@ export
     ClosedFilament,
     Vec3,
     Derivative,
+    UnitTangent,
+    CurvatureVector,
+    CurvatureScalar,
+    CurvatureBinormal,
     knots,
     knotlims,
     nodes,
@@ -74,6 +78,12 @@ Derivatives at discretisation points can be similarly obtained by doing:
 
 (Note that this also works with `Derivative(0)`, in which case it's the same as `f[i]`.)
 
+For convenience, other geometric quantities can be evaluated in a similar way:
+
+    ρ⃗ = f[i, CurvatureVector()]
+
+(See [`GeometricQuantity`](@ref) for available quantities.)
+
 ### Values in-between discretisation points
 
 In this case, one wants to evaluate a value in-between two discretisation
@@ -98,6 +108,11 @@ Two options are proposed:
   where `ζ` must be in ``[0, 1]``, and the two limits correspond to knots ``t_i`` and ``t_{i + 1}``.
   This is convenient if one wants to evaluate, say, right in the middle between
   two discretisation points, in which case one would choose `ζ = 0.5`.
+
+For convenience, other geometric quantities can be evaluated in a similar way:
+
+    ρ⃗ = f(t, CurvatureVector())
+    ρ⃗ = f(i, ζ, CurvatureVector())
 
 !!! note "Derivatives"
 
@@ -172,8 +187,8 @@ One may also obtain derivatives at point ``\\bm{X}_i`` by passing an optional
 """
 Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
 
-Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int, d::Derivative) =
-    f(AtNode(i), d)
+# `d` can be a Derivative or a GeometricQuantity
+Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int, d) = f(AtNode(i), d)
 
 """
     Base.setindex!(f::AbstractFilament{T}, v, i::Int) -> Vec3{T}
@@ -206,6 +221,7 @@ include("local/closed_filament.jl")
 include("spline/spline.jl")
 include("spline/closed_filament.jl")
 
+include("quantities.jl")
 include("utils.jl")
 
 include("makie_recipes.jl")
