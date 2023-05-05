@@ -336,4 +336,26 @@ function spline_derivative!(
     cs
 end
 
+# Boehm's (1980) knot insertion algorithm applied to periodic cubic splines.
+# The new knot `t` should be such that ts[i] ≤ t < ts[i + 1].
+function spline_insert_knot!(cs::PaddedVector, ts::PaddedVector, i::Int, t::Real)
+    T = ts[end + 1] - ts[begin]
+    cs_new = ntuple(Val(3)) do m
+        j = i - 1 + m
+        @inbounds α = (t - ts[j - 2]) / (ts[j + 1] - ts[j - 2])
+        @inbounds (1 - α) * cs[j - 1] + α * cs[j]
+    end
+    @inbounds cs[i] = cs_new[1]
+    @inbounds insert!(cs, i + 1, cs_new[2])
+    @inbounds cs[i + 2] = cs_new[3]
+    insert!(ts, i + 1, t)
+    if i + 2 > lastindex(cs)
+        pad_periodic!(FromRight(), cs)   # preserve values such as cs[end + 1] (over of cs[1])
+    else
+        pad_periodic!(FromCentre(), cs)  # usual padding, preserves cs[1]
+    end
+    Filaments.pad_periodic!(FromCentre(), ts, T)
+    nothing
+end
+
 # ============================================================================ #
