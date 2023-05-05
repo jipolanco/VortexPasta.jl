@@ -24,19 +24,31 @@ function refine! end
 
 """
     BasedOnCurvature <: RefinementCriterion
-    BasedOnCurvature(ρℓ_max::Real, ρℓ_min = ρℓ_max / 2; ℓ_max = Inf)
+    BasedOnCurvature(ρℓ_max::Real, ρℓ_min = ρℓ_max / 2.5; ℓ_max = Inf)
 
 Curvature-based refinement criterion.
+
+## Node insertion
 
 According to this criterion, a filament is locally refined if:
 
 ```math
-ρ_{i + 1/2} \\left|\\bm{X}_{i + 1} - \\bm{X}_{i}\\right| > (ρℓ)_{\\mathrm{max}}
+ρ \\left|\\bm{X}_{i + 1} - \\bm{X}_{i}\\right| > (ρℓ)_{\\mathrm{max}}
 ```
 
-where ``ρ_{i + 1/2}`` is the curvature in the middle of the segment.
+where ``ρ`` is some estimation of the curvature of segment ``[i, i + 1]``.
+
+For splines, this uses a classical knot insertion algorithm which preserves the
+shape of the curve.
+
+## Node removal
 
 Similarly, filaments nodes are removed based on the value of `ρℓ_min`.
+This value should be less than `ρℓ_max / 2` to avoid alternatively adding and
+removing nodes when repeatedly calling [`refine!`](@ref).
+
+For safety, two adjacent nodes will never be removed in a single call to `refine!`.
+
 Note that, when filaments are nearly straight, this may lead to the removal of most nodes.
 To limit this, set the keyword argument `ℓ_max` to some finite value
 determining the maximum length of a segment.
@@ -67,12 +79,14 @@ function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
             continue
         end
         ℓ = ts[i + 1] - ts[i]  # assume parametrisation corresponds to node distance
-        ρ = f(i, 0.5, CurvatureScalar())
+        ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
         ρℓ = ρ * ℓ
         if ρℓ > ρℓ_max
             push!(inds, i)
             push!(remove, false)
             n_add += 1
+        elseif ρℓ ≤ 0  # some (really bad) discretisations can give ρ = 0
+            continue   # do nothing for safety
         elseif ρℓ < ρℓ_min && ℓ < ℓ_max / 2  # so that the new ℓ is roughly smaller than ℓ_max
             push!(inds, i + 1)
             push!(remove, true)

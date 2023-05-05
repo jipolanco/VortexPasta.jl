@@ -280,7 +280,7 @@ function refine!(f::ClosedLocalFilament, crit::RefinementCriterion)
         resize!(f, length(Xs))  # resize all vectors in the filament
         pad_periodic!(ts, T)
         pad_periodic!(Xs, f.Xoffset)
-        _update_coefficients_only!(f; only_derivatives = true)
+        update_coefficients!(f)
     end
 
     n_add, n_rem
