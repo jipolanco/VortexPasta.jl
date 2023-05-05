@@ -16,7 +16,8 @@ Returns the number of added and removed nodes.
 
 Example usage:
 
-    refine!(f, BasedOnCurvature(0.5))
+    crit = BasedOnCurvature(0.5)
+    refine!(f, crit)
 
 """
 function refine! end
@@ -40,24 +41,52 @@ Similarly, filaments nodes are removed based on the value of `ρℓ_min`.
 struct BasedOnCurvature <: RefinementCriterion
     ρℓ_max :: Float64
     ρℓ_min :: Float64
+    inds   :: Vector{Int}   # indices of nodes or segments to modify
+    remove :: Vector{Bool}  # determine whether nodes should be removed or segments should be refined
+    BasedOnCurvature(ρℓ_max, ρℓ_min) = new(ρℓ_max, ρℓ_min, Int[], Bool[])
 end
 
-BasedOnCurvature(ρℓ_max) = BasedOnCurvature(ρℓ_max, ρℓ_max / 2)
+BasedOnCurvature(ρℓ_max) = BasedOnCurvature(ρℓ_max, ρℓ_max / 2.1)
 
-# TODO
-# - is it better if one first identifies all segments to be refined?
-#   (That will need some small allocations even if we're not refining...)
-# - splines: use existent knot insertion algorithms! (they don't change the shape
-#   of the curve!)
+function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
+    (; ρℓ_max, ρℓ_min, inds, remove,) = crit
+    ts = knots(f)
+    n_add = n_rem = 0
+    empty!(inds)
+    empty!(remove)
+    skipnext = false
+    iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
+    for i ∈ iter
+        if skipnext
+            skipnext = false
+            continue
+        end
+        ℓ = ts[i + 1] - ts[i]  # assume parametrisation corresponds to node distance
+        ρ = f(i, 0.5, CurvatureScalar())
+        ρℓ = ρ * ℓ
+        if ρℓ > ρℓ_max
+            push!(inds, i)
+            push!(remove, false)
+            n_add += 1
+        elseif ρℓ < ρℓ_min
+            push!(inds, i + 1)
+            push!(remove, true)
+            n_rem += 1
+            skipnext = true
+        end
+    end
+    n_add, n_rem
+end
+
+# TODO remove / move variant to ClosedLocalFilament?
 function refine!(
         f::AbstractFilament,
         crit::BasedOnCurvature,
     )
     (; ρℓ_max, ρℓ_min,) = crit
-    n_add = 0
-    n_rem = 0
+    n_add = n_rem = 0
     removed_previous_node = false
-    inds = eachindex(segments(f))  # iterate over segments of the *original* filament
+    inds = eachindex(segments(f))  # iterate over segments of the unmodified filament
     ts = knots(f)
     Xs = nodes(f)
     for i ∈ inds

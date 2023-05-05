@@ -80,6 +80,11 @@ function Base.resize!(v::PaddedVector, n::Integer)
     v
 end
 
+function Base.sizehint!(v::PaddedVector, n::Integer)
+    sizehint!(parent(v), n + 2 * npad(v))
+    v
+end
+
 function Base.insert!(v::PaddedVector, i::Integer, x)
     insert!(parent(v), npad(v) + i, x)
     v

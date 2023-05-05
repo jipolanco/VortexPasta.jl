@@ -140,9 +140,11 @@ end
 discretisation_method(::ClosedSplineFilament) = CubicSplineMethod()
 interpolation_method(::ClosedSplineFilament) = CubicSplineMethod()
 
-function _update_coefficients_only!(f::ClosedSplineFilament)
+function _update_coefficients_only!(f::ClosedSplineFilament; only_derivatives = false)
     (; ts, Xs, cs, cderivs, Xoffset,) = f
-    solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1], Xoffset,)
+    if !only_derivatives
+        solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1], Xoffset,)
+    end
     spline_derivative!(cderivs[1], cs, ts, Val(4))
     spline_derivative!(cderivs[2], cderivs[1], ts, Val(3))
     f
@@ -171,4 +173,43 @@ function (f::ClosedSplineFilament)(
     ord = 4 - n
     y = evaluate_spline(coefs, ts, i, t, Val(ord))
     deperiodise_spline(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
+end
+
+# Refinement is based on the knot insertion algorithm for splines.
+function refine!(f::ClosedSplineFilament, crit::RefinementCriterion)
+    (; ts, cs, Xs,) = f
+    N = length(cs)  # original number of nodes
+
+    # Determine indices of nodes to modify (refine or remove).
+    n_add, n_rem = _nodes_to_refine!(f, crit)
+    (; inds, remove,) = crit
+
+    # Worst case scenario: we add all knots first, then we remove all knots to be removed.
+    if n_add > 0
+        sizehint!(cs, N + n_add)
+        sizehint!(ts, N + n_add)
+    end
+
+    # We iterate in reverse to avoiding the need to shift indices.
+    for n ∈ reverse(eachindex(inds))
+        i, rem = inds[n], remove[n]
+        if rem
+            popat!(cs, i)
+            popat!(ts, i)
+            popat!(Xs, i)
+        else
+            t = (ts[i] + ts[i + 1]) / 2  # insert knot in the middle of the segment
+            spline_insert_knot!(cs, ts, i, t)
+            insert!(Xs, i + 1, f(t; ileft = i))
+        end
+    end
+
+    if n_add + n_rem > 0
+        @assert length(cs) == N + n_add - n_rem
+        resize!(f, length(cs))  # resize all vectors in the filament
+        pad_periodic!(Xs, f.Xoffset)  # just in case...
+        _update_coefficients_only!(f; only_derivatives = true)
+    end
+
+    n_add, n_rem
 end
