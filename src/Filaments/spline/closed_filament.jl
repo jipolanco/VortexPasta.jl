@@ -198,8 +198,8 @@ function refine!(f::ClosedSplineFilament, crit::RefinementCriterion)
             popat!(ts, i)
             popat!(Xs, i)
         else
-            t = (ts[i] + ts[i + 1]) / 2  # insert knot in the middle of the segment
-            spline_insert_knot!(cs, ts, i, t)
+            t = (ts[i] + ts[i + 1]) / 2        # insert knot in the middle of the segment
+            spline_insert_knot!(cs, ts, i, t)  # note: this calls pad_periodic! on cs and ts
             insert!(Xs, i + 1, f(t; ileft = i))
         end
     end
