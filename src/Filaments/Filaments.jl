@@ -14,6 +14,7 @@ export
     CurvatureVector,
     CurvatureScalar,
     CurvatureBinormal,
+    BasedOnCurvature,
     knots,
     knotlims,
     nodes,
@@ -209,6 +210,7 @@ include("discretisations.jl")
 include("padded_vector.jl")
 include("segments.jl")
 include("integrate.jl")
+include("refinement.jl")
 
 include("local/finitediff.jl")
 include("local/interpolation.jl")

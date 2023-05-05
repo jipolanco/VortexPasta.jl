@@ -80,6 +80,13 @@ function Base.resize!(v::PaddedVector, n::Integer)
     v
 end
 
+function Base.insert!(v::PaddedVector, i::Integer, x)
+    insert!(parent(v), npad(v) + i, x)
+    v
+end
+
+Base.popat!(v::PaddedVector, i::Integer) = popat!(parent(v), i + npad(v))
+
 Base.checkbounds(::Type{Bool}, v::PaddedVector, I...) = _checkbounds(v, I...)
 
 # TODO define copyto! for different paddings M, M′?
