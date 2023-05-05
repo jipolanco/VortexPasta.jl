@@ -14,6 +14,7 @@ export
     CurvatureVector,
     CurvatureScalar,
     CurvatureBinormal,
+    BasedOnCurvature,
     knots,
     knotlims,
     nodes,
@@ -135,6 +136,16 @@ abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 Base.similar(f::AbstractFilament, ::Type{Vec3{T}}, dims::Dims{1}) where {T} =
     similar(f, T, dims)
 
+function Base.copyto!(v::F, u::F) where {F <: AbstractFilament}
+    map(copyto!, allvectors(v), allvectors(u))
+    v
+end
+
+function Base.resize!(f::AbstractFilament, n::Integer)
+    map(v -> resize!(v, n), allvectors(f))
+    f
+end
+
 """
     ClosedFilament{T} <: AbstractFilament{T}
 
@@ -178,21 +189,6 @@ end
 Base.checkbounds(::Type{Bool}, f::AbstractFilament, I...) = checkbounds(Bool, nodes(f), I...)
 
 """
-    Base.getindex(f::AbstractFilament{T}, i::Int) -> Vec3{T}
-    Base.getindex(f::AbstractFilament{T}, i::Int, ::Derivative{n}) -> Vec3{T}
-    Base.getindex(f::AbstractFilament{T}, i::Int, ::GeometricQuantity)
-
-Return coordinates of discretisation point ``\\bm{X}_i``.
-
-One may also obtain derivatives and other geometric quantities at point ``\\bm{X}_i``
-by passing an optional [`Derivative`](@ref) or [`GeometricQuantity`](@ref).
-"""
-Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
-
-# `d` can be a Derivative or a GeometricQuantity
-Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int, d) = f(AtNode(i), d)
-
-"""
     Base.setindex!(f::AbstractFilament{T}, v, i::Int) -> Vec3{T}
 
 Set coordinates of discretisation point ``\\bm{X}_i``.
@@ -214,6 +210,7 @@ include("discretisations.jl")
 include("padded_vector.jl")
 include("segments.jl")
 include("integrate.jl")
+include("refinement.jl")
 
 include("local/finitediff.jl")
 include("local/interpolation.jl")
@@ -227,6 +224,22 @@ include("quantities.jl")
 include("utils.jl")
 
 include("makie_recipes.jl")
+
+"""
+    Base.getindex(f::AbstractFilament{T}, i::Int) -> Vec3{T}
+    Base.getindex(f::AbstractFilament{T}, i::Int, ::Derivative{n}) -> Vec3{T}
+    Base.getindex(f::AbstractFilament{T}, i::Int, ::GeometricQuantity)
+
+Return coordinates of discretisation point ``\\bm{X}_i``.
+
+One may also obtain derivatives and other geometric quantities at point ``\\bm{X}_i``
+by passing an optional [`Derivative`](@ref) or [`GeometricQuantity`](@ref).
+"""
+Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
+
+Base.@propagate_inbounds Base.getindex(
+    f::AbstractFilament, i::Int, d::Union{Derivative, GeometricQuantity},
+) = f(AtNode(i), d)
 
 """
     Filaments.init(
@@ -362,38 +375,5 @@ end
 # In this case, override the computation of knots and copy the input knot vector.
 _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ts_in::AbstractVector) =
     copyto!(ts, ts_in)
-
-# TESTING / EXPERIMENTAL
-# This function may be removed in the future.
-# The idea is to update the parametrisation of `f` to follow more closely the
-# actual arc lengths of the filament. Not sure if it's worth it...
-function recompute_parametrisation!(f::ClosedFilament)
-    m = interpolation_method(f)
-    _recompute_parametrisation!(m, f)
-end
-
-# In the case of straight segments (linear interpolation), the parametrisation
-# cannot be improved from its initial estimation.
-_recompute_parametrisation!(::HermiteInterpolation{0}, f::AbstractFilament) = f
-
-function _recompute_parametrisation!(::Any, f::AbstractFilament)
-    (; ts,) = f
-    quad = GaussLegendreQuadrature(4)
-    @assert npad(ts) ≥ 1
-    tnext = ts[begin]
-    for i ∈ eachindex(ts)
-        # Estimate arc length from ts[i] to ts[i + 1]
-        ℓ = integrate(f, i, quad) do ζ
-            norm(f(i, ζ, Derivative(1)))  # = ∂X/∂t
-        end
-        @assert ℓ ≥ ts[i + 1] - ts[i]
-        ts[i] = tnext
-        tnext += ℓ  # this will be the new value of ts[i + 1], but we can't update it yet...
-    end
-    L = tnext - ts[begin]  # full length of the filament
-    pad_periodic!(ts, L)
-    _update_coefficients_only!(f)
-    f
-end
 
 end

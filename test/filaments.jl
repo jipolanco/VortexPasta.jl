@@ -5,7 +5,9 @@ using StaticArrays
 using ForwardDiff: ForwardDiff
 using VortexPasta.Filaments
 
-function test_filament_ring(f)
+function test_filament_ring(args)
+    f = @inferred Filaments.init(ClosedFilament, args...)
+
     R = 3  # ring radius
     S(t) = R * SVector(1 + cospi(2t), -1 + sinpi(2t), 0)  # t ∈ [0, 1]
     Ṡ(t) = R * 2π * SVector(-sinpi(2t), cospi(2t), 0)  # derivative wrt t
@@ -147,17 +149,67 @@ function test_filament_ring(f)
         Filaments.fold_periodic!(fc, Ls)
         @test nodes(fc) ≈ nodes(forig)
     end
+
+    if continuity ≥ 1
+        @testset "Refinement (ring)" begin
+            @testset "Coarsening" begin
+                # This criterion will basically remove points such that ρℓ = ℓ/R > 2π/M.
+                # Since this is a ring, in the end we should have between M/2 and M
+                # segments of length ~2π/M (actually, we seem to get M/2 + 1 = 9 segments).
+                M = 16
+                crit = BasedOnCurvature(2π, 2π / M)
+                fc = copy(f)
+                # Several iterations are needed to remove required nodes, since we never
+                # remove adjacent nodes in a single pass.
+                while true
+                    n_add, n_rem = Filaments.refine!(fc, crit)
+                    @test n_add == 0
+                    @test n_rem ≥ 0
+                    n_rem == 0 && break  # we're done removing nodes
+                end
+                @test length(fc) < length(f)
+                @test M ÷ 2 ≤ length(fc) ≤ M
+                # Check that all ρℓ > 2π / 2M
+                ρℓ_min = Inf
+                for i ∈ eachindex(segments(fc))
+                    ℓ = norm(f[i + 1] - f[i])
+                    ρ = f(i, 0.5, CurvatureScalar())
+                    ρℓ_min = min(ρℓ_min, ρ * ℓ)
+                end
+                @test ρℓ_min > 2π / 4M  # criterion is (roughly) satisfied
+            end
+            @testset "Refining" begin
+                crit = BasedOnCurvature(0.2)
+                fc = copy(f)
+                while true
+                    Filaments.refine!(fc, crit) == (0, 0) && break
+                end
+                @test length(fc) > length(f)
+                # Check that all ρℓ < 0.2
+                ρℓ_max = 0.0
+                for i ∈ eachindex(segments(fc))
+                    ℓ = norm(fc[i + 1] - fc[i])
+                    ρ = fc(i, 0.5, CurvatureScalar())
+                    ρℓ_max = max(ρℓ_max, ρ * ℓ)
+                end
+                factor = fc isa ClosedSplineFilament ? 1 : 2
+                @test ρℓ_max < factor * 0.2  # criterion is satisfied (only roughly for FiniteDiff)
+            end
+        end
+    end
+
+    nothing
 end
 
 @testset "Ring" begin
     N = 32
-    filaments = (
-        "FiniteDiff(2) / Hermite(2)" => @inferred(Filaments.init(ClosedFilament, N, FiniteDiffMethod(2), HermiteInterpolation(2))),
-        "FiniteDiff(2) / Hermite(1)" => @inferred(Filaments.init(ClosedFilament, N, FiniteDiffMethod(2), HermiteInterpolation(1))),
-        "FiniteDiff(2) / Hermite(0)" => @inferred(Filaments.init(ClosedFilament, N, FiniteDiffMethod(2), HermiteInterpolation(0))),
-        "CubicSpline" => @inferred(Filaments.init(ClosedFilament, N, CubicSplineMethod())),
+    methods = (
+        "FiniteDiff(2) / Hermite(2)" => (N, FiniteDiffMethod(2), HermiteInterpolation(2)),
+        "FiniteDiff(2) / Hermite(1)" => (N, FiniteDiffMethod(2), HermiteInterpolation(1)),
+        "FiniteDiff(2) / Hermite(0)" => (N, FiniteDiffMethod(2), HermiteInterpolation(0)),
+        "CubicSpline" => (N, CubicSplineMethod()),
     )
-    @testset "$s" for (s, f) ∈ filaments
-        test_filament_ring(f)
+    @testset "$label" for (label, args) ∈ methods
+        test_filament_ring(args)
     end
 end

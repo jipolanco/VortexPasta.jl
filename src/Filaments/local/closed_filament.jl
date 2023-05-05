@@ -149,6 +149,8 @@ struct ClosedLocalFilament{
     end
 end
 
+allvectors(f::ClosedLocalFilament) = (f.ts, f.Xs, f.Xderivs...)
+
 # Use default interpolation method
 ClosedLocalFilament(N::Integer, disc::LocalDiscretisationMethod, ::Type{T}; kws...) where {T} =
     ClosedLocalFilament(N, disc, HermiteInterpolation(2), T; kws...)
@@ -165,19 +167,11 @@ function Base.similar(f::ClosedLocalFilament, ::Type{T}, dims::Dims{1}) where {T
     ClosedLocalFilament(N, discretisation_method(f), interpolation_method(f), T; offset = f.Xoffset)
 end
 
-function Base.copyto!(v::ClosedLocalFilament, u::ClosedLocalFilament)
-    discretisation_method(u) === discretisation_method(v) ||
-        error("discretisation methods of both filaments should be the same")
-    copyto!(v.ts, u.ts)
-    copyto!(v.Xs, u.Xs)
-    map(copyto!, v.Xderivs, u.Xderivs)
-    v
-end
-
 discretisation_method(f::ClosedLocalFilament) = f.discretisation
 interpolation_method(f::ClosedLocalFilament) = f.interpolation
 
-function _update_coefficients_only!(f::ClosedLocalFilament)
+# Note: `only_derivatives` is not used, it's just there for compatibility with splines.
+function _update_coefficients_only!(f::ClosedLocalFilament; only_derivatives = false)
     (; ts, Xs, Xderivs,) = f
     M = npad(ts)
     @assert M ≥ 1  # minimum padding required for computation of ts
@@ -251,4 +245,43 @@ function _interpolate(
         data
     end
     α * interpolate(method, deriv, t, values_i...)
+end
+
+function refine!(f::ClosedLocalFilament, crit::RefinementCriterion)
+    (; ts, Xs,) = f
+    N = length(Xs)  # original number of nodes
+
+    # Determine indices of nodes to modify (refine or remove).
+    n_add, n_rem = _nodes_to_refine!(f, crit)
+    (; inds, remove,) = crit
+
+    # Worst case scenario: we add all knots first, then we remove all knots to be removed.
+    if n_add > 0
+        sizehint!(Xs, N + n_add)
+        sizehint!(ts, N + n_add)
+    end
+
+    T = ts[end + 1] - ts[begin]
+
+    # We iterate in reverse to avoiding the need to shift indices.
+    for n ∈ reverse(eachindex(inds))
+        i, rem = inds[n], remove[n]
+        if rem
+            popat!(ts, i)
+            popat!(Xs, i)
+        else
+            ζ = 0.5  # insert knot in the middle of the segment
+            insert!(Xs, i + 1, f(i, ζ))
+        end
+    end
+
+    if n_add + n_rem > 0
+        @assert length(Xs) == N + n_add - n_rem
+        resize!(f, length(Xs))  # resize all vectors in the filament
+        pad_periodic!(ts, T)
+        pad_periodic!(Xs, f.Xoffset)
+        update_coefficients!(f)
+    end
+
+    n_add, n_rem
 end

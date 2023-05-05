@@ -34,6 +34,14 @@ normalise_derivatives!
 integrate
 ```
 
+## Refinement
+
+```@docs
+RefinementCriterion
+BasedOnCurvature
+refine!
+```
+
 ## Geometric quantities
 
 The following types are provided as a convenient way of evaluating scalar and
