@@ -1,3 +1,5 @@
+using LinearAlgebra: norm
+
 """
     RefinementCriterion
 
@@ -78,15 +80,15 @@ function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
             skipnext = false
             continue
         end
-        ℓ = ts[i + 1] - ts[i]  # assume parametrisation corresponds to node distance
+        # ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
+        ℓ = norm(f[i + 1] - f[i])
         ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
+        # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
         ρℓ = ρ * ℓ
         if ρℓ > ρℓ_max
             push!(inds, i)
             push!(remove, false)
             n_add += 1
-        elseif ρℓ ≤ 0  # some (really bad) discretisations can give ρ = 0
-            continue   # do nothing for safety
         elseif ρℓ < ρℓ_min && ℓ < ℓ_max / 2  # so that the new ℓ is roughly smaller than ℓ_max
             push!(inds, i + 1)
             push!(remove, true)
