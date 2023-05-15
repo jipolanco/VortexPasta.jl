@@ -20,7 +20,7 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.0, k::Int = 1)
     (; x, y, Lz, sign, tlims, S, offset,)
 end
 
-function test_kelvin_waves(method::Tuple)
+function test_infinite_lines(method::Tuple)
     lines = let
         A = 0.08
         k = 2
@@ -86,7 +86,7 @@ function test_kelvin_waves(method::Tuple)
     nothing
 end
 
-@testset "Kelvin waves" begin
+@testset "Infinite lines" begin
     methods = (
         "FiniteDiff(2) / Hermite(2)" => (FiniteDiffMethod(2), HermiteInterpolation(2)),
         "FiniteDiff(2) / Hermite(1)" => (FiniteDiffMethod(2), HermiteInterpolation(1)),
@@ -94,6 +94,6 @@ end
         "CubicSpline" => (CubicSplineMethod(),),
     )
     @testset "$name" for (name, method) ∈ methods
-        test_kelvin_waves(method)
+        test_infinite_lines(method)
     end
 end
