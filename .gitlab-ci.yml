@@ -81,7 +81,7 @@ default:
 # Name a test and select an appropriate image.
 # images comes from Docker hub
 test:1.9:
-  image: julia:1.9-rc
+  image: julia:1.9
   <<: *test_definition
 
 # Maybe you would like to test your package against the development branch:
@@ -101,7 +101,7 @@ test:1.9:
 
 # Example documentation deployment
 pages:
-  image: julia:1.9-rc
+  image: julia:1.9
   dependencies:
     - test:1.9  # use artifacts from test:1.9 (lcov_html)
   stage: deploy
