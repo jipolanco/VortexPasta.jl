@@ -42,4 +42,3 @@ derivatives at a given point.
 Some examples of this are spline- or Fourier-based filament descriptions.
 """
 abstract type GlobalDiscretisationMethod <: DiscretisationMethod end
-npad(::Type{<:GlobalDiscretisationMethod}) = 0  # no padding required
