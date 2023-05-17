@@ -8,5 +8,6 @@ export GaussLegendreQuadrature
 
 include("Filaments/Filaments.jl")
 include("BiotSavart/BiotSavart.jl")
+include("Timestepping/Timestepping.jl")
 
 end
