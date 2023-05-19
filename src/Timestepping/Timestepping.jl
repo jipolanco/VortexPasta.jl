@@ -16,7 +16,8 @@ using ..BiotSavart:
     VectorOfFilaments,
     VectorOfPositions,
     VectorOfVelocities,
-    AllFilamentVelocities
+    AllFilamentVelocities,
+    periods
 
 # Reuse same init and solve! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
@@ -30,12 +31,52 @@ abstract type AbstractSolver end
 
 include("timesteppers/timesteppers.jl")
 
+"""
+    VortexFilamentProblem
+    VortexFilamentProblem(fs::AbstractVector{<:AbstractFilament}, tspan, p::ParamsBiotSavart)
+
+Define a vortex filament problem.
+
+Arguments:
+
+- `fs`: initial vortex positions;
+
+- `tspan = (t_begin, t_end)`: time span;
+
+- `p`: Biot–Savart parameters (see [`ParamsBiotSavart`](@ref)).
+
+See [`init`](@ref) for initialising a solver from a `VortexFilamentProblem`.
+"""
 struct VortexFilamentProblem{Filaments <: VectorOfFilaments} <: AbstractProblem
     fs    :: Filaments
     tspan :: NTuple{2, Float64}
     p     :: ParamsBiotSavart
 end
 
+"""
+    VortexFilamentSolver
+
+Contains the instantaneous state of a vortex filament simulation.
+
+Must be constructed using [`init`](@ref).
+
+Some useful fields are:
+
+- `prob`: associated [`VortexFilamentProblem`](@ref) (including Biot–Savart parameters);
+
+- `fs`: current state of vortex filaments in the system;
+
+- `vs`: current velocity of vortex filament nodes;
+
+- `t`: current time;
+
+- `dt`: timestep;
+
+- `to`: a `TimerOutput`, which records the time spent on different functions;
+
+- `cache_bs`: the Biot–Savart cache, which contains data from short- and
+  long-range computations.
+"""
 mutable struct VortexFilamentSolver{
         Problem <: VortexFilamentProblem,
         Filaments <: VectorOfFilaments,
@@ -48,20 +89,43 @@ mutable struct VortexFilamentSolver{
     const prob :: Problem
     const fs   :: Filaments
     const vs   :: Velocities
-    t    :: Float64
-    dt   :: Float64
+    t          :: Float64
+    dt         :: Float64
     const refinement          :: Refinement
     const cache_bs            :: CacheBS
     const cache_timestepper   :: CacheTimestepper
     const to :: Timer
 end
 
+"""
+    init(prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme; dt::Real, kws...) -> VortexFilamentSolver
+
+Initialise vortex filament problem.
+
+Returns a [`VortexFilamentSolver`](@ref) which can be advanced in time using
+either [`step!`](@ref) or [`solve!`](@ref).
+
+# Mandatory keyword arguments
+
+- `dt::Real`: the simulation timestep.
+
+# Optional keyword arguments
+
+- `alias_u0 = true`: if `true` (default), the solver is allowed to modify the
+  initial vortex filaments.
+
+- `refinement = BasedOnCurvature(0.35; ℓ_max = 1.0)`: method used for adaptive
+  refinement of vortex filaments. See [`BasedOnCurvature`](@ref) for details.
+
+- `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
+  recording the time spent on different functions.
+"""
 function init(
         prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme;
         alias_u0 = true,  # same as in OrdinaryDiffEq.jl
         dt,
-        refinement = BasedOnCurvature(0.35),
-        timer = TimerOutput(),
+        refinement = BasedOnCurvature(0.35; ℓ_max = 1.0),
+        timer = TimerOutput("VortexFilament"),
     )
     (; fs, tspan,) = prob
     vs_data = [similar(nodes(f)) for f ∈ fs] :: AllFilamentVelocities
@@ -127,18 +191,36 @@ function _advect_filaments!(fs, vs, dt; fbase = fs, kws...)
     fs
 end
 
+"""
+    solve!(iter::VortexFilamentSolver)
+
+Advance vortex filament solver to the ending time.
+
+See also [`step!`](@ref) for advancing one step at a time.
+"""
 function solve!(iter::VortexFilamentSolver)
     t_end = iter.prob.tspan[2]
     while iter.t < t_end
+        if can_change_dt(iter.cache_timestepper)
+            # Try to finish exactly at t = t_end.
+            iter.dt = min(iter.dt, t_end - iter.t)
+        end
         step!(iter)
     end
     iter
 end
 
+"""
+    step!(iter::VortexFilamentSolver)
+
+Advance solver by a single timestep.
+"""
 function step!(iter::VortexFilamentSolver)
     (; fs, dt, prob, refinement,) = iter
-    vs = _update_velocities!(vortex_velocities!, _advect_filaments!, iter.cache_timestepper, iter)
-    L_fold = prob.p.common.Ls  # box size (periodicity)
+    vs = _update_velocities!(
+        vortex_velocities!, _advect_filaments!, iter.cache_timestepper, iter,
+    )
+    L_fold = periods(prob.p)  # box size (periodicity)
     _advect_filaments!(fs, vs, dt; L_fold, refinement)
     iter.t += dt
     iter

@@ -1,3 +1,8 @@
+"""
+    RK4 <: ExplicitTemporalScheme
+
+Classic 4-step Runge–Kutta method.
+"""
 struct RK4 <: ExplicitTemporalScheme end
 
 function init_cache(::RK4, fs::VectorOfFilaments, vs::VectorOfArray)
@@ -13,6 +18,8 @@ struct RK4Cache{
     fc :: Filaments
     vc :: NTuple{1, Velocities}
 end
+
+scheme(::RK4Cache) = RK4()
 
 function _update_velocities!(
         rhs!::F, advect!::G, cache::RK4Cache, iter::AbstractSolver,

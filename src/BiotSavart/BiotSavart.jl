@@ -11,6 +11,7 @@ export
     GaussLegendreQuadrature,
     Zero, Infinity, ∞,
     init_cache,
+    periods,
     velocity_on_nodes!
 
 using ..BasicTypes:
@@ -151,6 +152,8 @@ struct ParamsBiotSavart{
         new{typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
     end
 end
+
+periods(p::ParamsBiotSavart) = p.common.Ls
 
 _extra_params(α::Zero; Ns = (0, 0, 0), rcut = ∞) = (; Ns, rcut,)
 _extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case

@@ -22,6 +22,7 @@ makedocs(
             "modules/Quadratures.md",
             "modules/Filaments.md",
             "modules/BiotSavart.md",
+            "modules/Timestepping.md",
         ]
     ]
 )
