@@ -42,6 +42,7 @@ end
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
 const VectorOfPositions = AbstractVector{<:Vec3}
 const VectorOfVelocities = AbstractVector{<:Vec3}
+const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
 
 include("shortrange/shortrange.jl")
 include("longrange/longrange.jl")
@@ -190,8 +191,7 @@ end
 
 Initialise caches for computing Biot–Savart integrals.
 """
-function init_cache(p::ParamsBiotSavart)
-    timer = TimerOutput("BiotSavart")
+function init_cache(p::ParamsBiotSavart; timer = TimerOutput("BiotSavart"))
     shortrange = init_cache_short(p.common, p.shortrange, timer)
     longrange = init_cache_long(p.common, p.longrange, timer)
     BiotSavartCache(shortrange, longrange, timer)
@@ -226,7 +226,7 @@ function _reset_vectors!(vs)
 end
 
 function velocity_on_nodes!(
-        vs::AbstractVector{<:VectorOfVelocities},
+        vs::AllFilamentVelocities,
         cache::BiotSavartCache,
         fs::VectorOfFilaments,
     )
