@@ -26,6 +26,7 @@ step!
 ## Timesteppers
 
 ```@docs
+Euler
 RK4
 ```
 

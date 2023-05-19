@@ -5,12 +5,6 @@ Classic 4-step Runge–Kutta method.
 """
 struct RK4 <: ExplicitTemporalScheme end
 
-function init_cache(::RK4, fs::VectorOfFilaments, vs::VectorOfArray)
-    fc = map(similar, fs) :: VectorOfFilaments
-    vc = (similar(vs),)
-    RK4Cache(fc, vc)
-end
-
 struct RK4Cache{
         Filaments <: VectorOfFilaments,
         Velocities <: VectorOfArray{<:Vec3},
@@ -20,6 +14,12 @@ struct RK4Cache{
 end
 
 scheme(::RK4Cache) = RK4()
+
+function init_cache(::RK4, fs::VectorOfFilaments, vs::VectorOfArray)
+    fc = map(similar, fs) :: VectorOfFilaments
+    vc = (similar(vs),)
+    RK4Cache(fc, vc)
+end
 
 function _update_velocities!(
         rhs!::F, advect!::G, cache::RK4Cache, iter::AbstractSolver,

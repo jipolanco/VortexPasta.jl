@@ -31,4 +31,5 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
     cache
 end
 
+include("Euler.jl")
 include("RK4.jl")
