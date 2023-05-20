@@ -1,4 +1,5 @@
 using LinearAlgebra: norm
+using StaticArrays: SVector
 
 """
     RefinementCriterion
@@ -23,6 +24,20 @@ Example usage:
 
 """
 function refine! end
+
+"""
+    NoRefinement <: RefinementCriterion
+    NoRefinement()
+
+Used to disable filament refinement.
+"""
+struct NoRefinement <: RefinementCriterion end
+
+@inline Base.getproperty(crit::NoRefinement, name::Symbol) = _getproperty(crit, Val(name))
+_getproperty(::NoRefinement, ::Val{:inds}) = SVector{0, Int}()
+_getproperty(::NoRefinement, ::Val{:remove}) = SVector{0, Bool}()
+
+_nodes_to_refine!(::AbstractFilament, ::NoRefinement) = (0, 0)
 
 """
     BasedOnCurvature <: RefinementCriterion

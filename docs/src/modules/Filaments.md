@@ -38,6 +38,7 @@ integrate
 
 ```@docs
 RefinementCriterion
+NoRefinement
 BasedOnCurvature
 refine!
 ```
