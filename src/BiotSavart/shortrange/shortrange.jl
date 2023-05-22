@@ -256,7 +256,7 @@ function _local_self_induced_velocity(
 end
 
 # Alternative estimation using quadratures.
-# It seems to improve accuracy (tested with vortex ring example).
+# It seems to improve accuracy and stability (tested with vortex ring example and Kelvin waves).
 function _local_self_induced_velocity(
         quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real,
@@ -276,6 +276,7 @@ function _local_self_induced_velocity(
         f(i, ζ, CurvatureBinormal())
     end
     b⃗ = (b⃗₋ + b⃗₊) ./ (ts[i + 1] - ts[i - 1])  # average on [i - 1, i + 1]
+    # b⃗ = (b⃗₋ ./ (ts[i] - ts[i - 1]) + b⃗₊ ./ (ts[i + 1] - ts[i])) ./ 2
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
     β * b⃗
 end
