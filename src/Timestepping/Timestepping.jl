@@ -89,6 +89,7 @@ mutable struct VortexFilamentSolver{
     const prob :: Problem
     const fs   :: Filaments
     const vs   :: Velocities
+    nstep      :: Int
     t          :: Float64
     dt         :: Float64
     const refinement          :: Refinement
@@ -134,8 +135,9 @@ function init(
     cache_bs = BiotSavart.init_cache(prob.p; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
     t = first(tspan)
+    nstep = 0
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, t, dt, refinement,
+        prob, fs_sol, vs, nstep, t, dt, refinement,
         cache_bs, cache_timestepper, timer,
     )
     iter
@@ -223,6 +225,7 @@ function step!(iter::VortexFilamentSolver)
     L_fold = periods(prob.p)  # box size (periodicity)
     _advect_filaments!(fs, vs, dt; L_fold, refinement)
     iter.t += dt
+    iter.nstep += 1
     iter
 end
 
