@@ -242,7 +242,7 @@ This corresponds to the LIA term (localised induction approximation).
 
 - if `quad = nothing`, one may set `fit_circle = true` to estimate the binormal
   vector by fitting a circle passing through 3 neighbouring nodes (as done in
-  Schwarz PRE 1985), instead of using local derivatives.
+  Schwarz PRB 1985), instead of using local derivatives.
 
 """
 function local_self_induced_velocity end
