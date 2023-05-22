@@ -47,10 +47,13 @@ Arguments:
 
 See [`init`](@ref) for initialising a solver from a `VortexFilamentProblem`.
 """
-struct VortexFilamentProblem{Filaments <: VectorOfFilaments} <: AbstractProblem
+struct VortexFilamentProblem{
+        Filaments <: VectorOfFilaments,
+        Params <: ParamsBiotSavart,
+    } <: AbstractProblem
     fs    :: Filaments
     tspan :: NTuple{2, Float64}
-    p     :: ParamsBiotSavart
+    p     :: Params
 end
 
 """
