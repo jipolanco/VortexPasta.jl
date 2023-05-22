@@ -214,8 +214,11 @@ function add_short_range_velocity_other!(
 end
 
 """
-    local_self_induced_velocity(f::AbstractFilament, i::Int; Γ::Real, a::Real, Δ = 0.25, quad = nothing)
-    local_self_induced_velocity(f::AbstractFilament, i::Int, prefactor::Real; a::Real, Δ = 0.25, quad = nothing)
+    local_self_induced_velocity(
+        f::AbstractFilament, i::Int, [prefactor::Real];
+        a::Real, [Γ::Real],
+        Δ = 0.25, quad = nothing, fit_circle = false,
+    )
 
 Compute local self-induced velocity of filament node `f[i]`.
 
@@ -234,25 +237,46 @@ This corresponds to the LIA term (localised induction approximation).
   [`ParamsBiotSavart`](@ref) for details);
 
 - a quadrature rule can be passed via `quad`, which can improve the estimation
-  of the LIA term for relatively large segments.
+  of the LIA term and the stability of the solver (even a 1-point quadrature
+  rule can importantly improve stability!);
+
+- if `quad = nothing`, one may set `fit_circle = true` to estimate the binormal
+  vector by fitting a circle passing through 3 neighbouring nodes (as done in
+  Schwarz PRE 1985), instead of using local derivatives.
+
 """
 function local_self_induced_velocity end
 
 function _local_self_induced_velocity(
         quad::Nothing, f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real,
+        a::Real, Δ::Real, fit_circle = false,
     )
     ts = knots(f)
     ℓ₋ = ts[i] - ts[i - 1]  # assume that the parametrisation roughly corresponds to the vortex arc length
     ℓ₊ = ts[i + 1] - ts[i]
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
-    Ẋ = f[i, Derivative(1)]  # ∂f/∂t at node i
-    Ẍ = f[i, Derivative(2)]
-    # Note that the derivatives are wrt the parameter `t` and not exactly wrt
-    # the arc length `ξ`, hence the extra `norm(Ẋ)^3` factor wrt the literature.
-    # Usually, `norm(Ẋ)` should be actually quite close to 1 since the
-    # parametrisation is a rough approximation of the arc length.
-    β / norm(Ẋ)^3 * (Ẋ × Ẍ)
+    if fit_circle
+        # Fit circle passing through the 3 points.
+        # See https://en.wikipedia.org/wiki/Circumscribed_circle#Higher_dimensions
+        A = @inbounds f[i - 1]
+        B = @inbounds f[i]
+        C = @inbounds f[i + 1]
+        a = A - B
+        b = C - B
+        a2 = sum(abs2, a)
+        b2 = sum(abs2, b)
+        ab2 = sum(abs2, a - b)
+        (2 * β / sqrt(a2 * b2 * ab2)) * (b × a)
+    else
+        # Evaluate derivatives at node `i`.
+        Ẋ = f[i, Derivative(1)]  # ∂f/∂t at node i
+        Ẍ = f[i, Derivative(2)]
+        # Note that the derivatives are wrt the parameter `t` and not exactly wrt
+        # the arc length `ξ`, hence the extra `norm(Ẋ)^3` factor wrt the literature.
+        # Usually, `norm(Ẋ)` should be actually quite close to 1 since the
+        # parametrisation is a rough approximation of the arc length.
+        β / norm(Ẋ)^3 * (Ẋ × Ẍ)
+    end
 end
 
 # Alternative estimation using quadratures.
@@ -260,6 +284,7 @@ end
 function _local_self_induced_velocity(
         quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real,
+        fit_circle = false,  # ignored
     )
     ts = knots(f)
     ℓ₋ = integrate(f, i - 1, quad) do ζ
@@ -283,9 +308,9 @@ end
 
 function local_self_induced_velocity(
         f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real = 0.25, quad = nothing,
+        a::Real, Δ::Real = 0.25, quad = nothing, kws...,
     )
-    _local_self_induced_velocity(quad, f, i, prefactor; a, Δ)
+    _local_self_induced_velocity(quad, f, i, prefactor; a, Δ, kws...)
 end
 
 local_self_induced_velocity(f, i; Γ, kws...) =
