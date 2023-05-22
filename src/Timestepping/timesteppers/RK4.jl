@@ -32,8 +32,9 @@ function _update_velocities!(
     @assert length(vs) == length(fs)
     resize!(cache, fs)  # in case the number of nodes (or filaments) has changed
 
-    # Step 1
-    rhs!(vs, fs, iter)
+    # We assume that `vs` already contains the velocity at step 1 (i.e. at the
+    # current timestep). In other words, if I do `rhs!(vs, fs, iter)`, then
+    # `vs` will have the same values it had before calling `rhs!`.
 
     # Step 2
     advect!(fc, vs, dt/2; fbase = fs)
@@ -49,7 +50,7 @@ function _update_velocities!(
     advect!(fc, vtmp, dt; fbase = fs)
     rhs!(vtmp, fc, iter)
 
-    # Final velocity: v = (v[1] + 2 * v[2] + 2 * v[3] + v[4]) / 6
+    # Final advecting velocity: v = (v[1] + 2 * v[2] + 2 * v[3] + v[4]) / 6
     @. vs = (vs + vtmp) / 6
 
     vs

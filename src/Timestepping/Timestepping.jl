@@ -140,6 +140,7 @@ function init(
         prob, fs_sol, vs, nstep, t, dt, refinement,
         cache_bs, cache_timestepper, timer,
     )
+    vortex_velocities!(iter.vs, iter.fs, iter)  # compute initial velocities
     iter
 end
 
@@ -218,12 +219,15 @@ end
 Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
-    (; fs, dt, prob, refinement,) = iter
-    vs = _update_velocities!(
+    (; fs, vs, dt, prob, refinement,) = iter
+    # Note: the timesteppers assume that iter.vs already contains the velocity
+    # induced by the filaments at the current timestep.
+    _update_velocities!(
         vortex_velocities!, _advect_filaments!, iter.cache_timestepper, iter,
     )
     L_fold = periods(prob.p)  # box size (periodicity)
     _advect_filaments!(fs, vs, dt; L_fold, refinement)
+    vortex_velocities!(vs, fs, iter)  # update velocities to the next timestep (and first RK step)
     iter.t += dt
     iter.nstep += 1
     iter

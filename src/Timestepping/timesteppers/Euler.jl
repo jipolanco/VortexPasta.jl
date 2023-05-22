@@ -18,6 +18,8 @@ function _update_velocities!(
         rhs!::F, advect!::G, cache::EulerCache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
     (; fs, vs, dt, to,) = iter
-    rhs!(vs, fs, iter)
+    # We assume that `vs` already contains the velocity at the current
+    # timestep. In other words, if I do `rhs!(vs, fs, iter)`, then `vs` will
+    # have the same values it had before calling `rhs!`.
     vs
 end
