@@ -88,6 +88,7 @@ mutable struct VortexFilamentSolver{
         CacheBS <: BiotSavartCache,
         CacheTimestepper <: TemporalSchemeCache,
         Timer <: TimerOutput,
+        Callback <: Function,
     } <: AbstractSolver
     const prob :: Problem
     const fs   :: Filaments
@@ -98,6 +99,7 @@ mutable struct VortexFilamentSolver{
     const refinement          :: Refinement
     const cache_bs            :: CacheBS
     const cache_timestepper   :: CacheTimestepper
+    const callback :: Callback
     const to :: Timer
 end
 
@@ -121,16 +123,21 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `refinement = BasedOnCurvature(0.35; ℓ_max = 1.0)`: method used for adaptive
   refinement of vortex filaments. See [`BasedOnCurvature`](@ref) for details.
 
+- `callback`: a function to be called at the end of each timestep. The function
+  must accept a single argument `iter::VortexFilamentSolver`.
+
 - `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
   recording the time spent on different functions.
 """
 function init(
         prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme;
-        alias_u0 = true,  # same as in OrdinaryDiffEq.jl
+        alias_u0 = true,   # same as in OrdinaryDiffEq.jl
+        adaptive = false,  # not used for now, but maybe in the future...
         dt,
         refinement = BasedOnCurvature(0.35; ℓ_max = 1.0),
+        callback::F = identity,
         timer = TimerOutput("VortexFilament"),
-    )
+    ) where {F <: Function}
     (; fs, tspan,) = prob
     vs_data = [similar(nodes(f)) for f ∈ fs] :: AllFilamentVelocities
     vs = VectorOfArray(vs_data)
@@ -141,9 +148,10 @@ function init(
     nstep = 0
     iter = VortexFilamentSolver(
         prob, fs_sol, vs, nstep, t, dt, refinement,
-        cache_bs, cache_timestepper, timer,
+        cache_bs, cache_timestepper, callback, timer,
     )
     vortex_velocities!(iter.vs, iter.fs, iter)  # compute initial velocities
+    callback(iter)
     iter
 end
 
@@ -222,7 +230,7 @@ end
 Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
-    (; fs, vs, dt, prob, refinement,) = iter
+    (; fs, vs, dt, prob, refinement, callback,) = iter
     # Note: the timesteppers assume that iter.vs already contains the velocity
     # induced by the filaments at the current timestep.
     _update_velocities!(
@@ -233,6 +241,7 @@ function step!(iter::VortexFilamentSolver)
     vortex_velocities!(vs, fs, iter)  # update velocities to the next timestep (and first RK step)
     iter.t += dt
     iter.nstep += 1
+    callback(iter)
     iter
 end
 
