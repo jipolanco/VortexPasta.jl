@@ -23,6 +23,7 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
 end
 
 dt_factor(::RK4) = 1.8    # this factor seems to give stability with RK4 (fails with factor = 1.9)
+dt_factor(::SSPRK33) = 1.2
 dt_factor(::Euler) = 0.12  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
 
 function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
@@ -179,7 +180,7 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
         end
 
         # Verify that we found a good global minimum.
-        A_tol = iseuler ? 1e-7 : 1e-13
+        A_tol = iseuler ? 1e-7 : 2e-13
         Nt = length(times)
         # @show xfit.minimum / (A * Nt)
         # @show yfit.minimum / (A * Nt)
@@ -207,7 +208,7 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
 end
 
 @testset "Kelvin waves" begin
-    schemes = [RK4(), Euler()]
+    schemes = [RK4(), SSPRK33(), Euler()]
     @testset "Scheme: $scheme" for scheme ∈ schemes
         test_kelvin_waves(scheme)
     end

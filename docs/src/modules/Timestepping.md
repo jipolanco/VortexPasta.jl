@@ -28,6 +28,7 @@ step!
 ```@docs
 Euler
 RK4
+SSPRK33
 ```
 
 ## Internals
