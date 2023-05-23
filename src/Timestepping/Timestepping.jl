@@ -150,12 +150,12 @@ function init(
         prob, fs_sol, vs, nstep, t, dt, refinement,
         cache_bs, cache_timestepper, callback, timer,
     )
-    vortex_velocities!(iter.vs, iter.fs, iter)  # compute initial velocities
+    vortex_velocities!(iter.vs, iter.fs, iter.t, iter)  # compute initial velocities
     callback(iter)
     iter
 end
 
-function vortex_velocities!(
+function _vortex_velocities!(
         vs::VectorOfArray,
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
@@ -165,12 +165,9 @@ function vortex_velocities!(
     vs
 end
 
-function vortex_velocities!(
-        fs::VectorOfFilaments,
-        iter::VortexFilamentSolver,
-    )
-    vortex_velocities!(iter.vs, fs, iter)
-end
+# This is the most general variant which should be called by timesteppers.
+# For now we don't use the time, but we might in the future...
+vortex_velocities!(vs, fs, t::Real, iter) = _vortex_velocities!(vs, fs, iter)
 
 function _advect_filament!(
         f::AbstractFilament, vs::VectorOfVelocities, dt::Real;
@@ -238,9 +235,9 @@ function step!(iter::VortexFilamentSolver)
     )
     L_fold = periods(prob.p)  # box size (periodicity)
     _advect_filaments!(fs, vs, dt; L_fold, refinement)
-    vortex_velocities!(vs, fs, iter)  # update velocities to the next timestep (and first RK step)
     iter.t += dt
     iter.nstep += 1
+    vortex_velocities!(vs, fs, iter.t, iter)  # update velocities to the next timestep (and first RK step)
     callback(iter)
     iter
 end

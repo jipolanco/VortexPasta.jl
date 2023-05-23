@@ -38,18 +38,21 @@ function _update_velocities!(
     # `vs` will have the same values it had before calling `rhs!`.
 
     # Step 2
+    t = iter.t + dt/2
     advect!(ftmp, vs, dt/2; fbase = fs)
-    rhs!(vtmp, ftmp, iter)
+    rhs!(vtmp, ftmp, t, iter)
     @. vs = vs + 2 * vtmp
 
     # Step 3
+    t = iter.t + dt/2
     advect!(ftmp, vtmp, dt/2; fbase = fs)
-    rhs!(vtmp, ftmp, iter)
+    rhs!(vtmp, ftmp, t, iter)
     @. vs = vs + 2 * vtmp
 
     # Step 4 
+    t = iter.t + dt
     advect!(ftmp, vtmp, dt; fbase = fs)
-    rhs!(vtmp, ftmp, iter)
+    rhs!(vtmp, ftmp, t, iter)
 
     # Final advecting velocity: v = (v[1] + 2 * v[2] + 2 * v[3] + v[4]) / 6
     @. vs = (vs + vtmp) / 6
