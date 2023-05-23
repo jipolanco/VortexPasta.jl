@@ -7,5 +7,6 @@ using VortexPasta
     include("ring_collision.jl")
     include("trefoil.jl")
     include("infinite_lines.jl")
+    include("kelvin_waves.jl")
     include("plots.jl")
 end
