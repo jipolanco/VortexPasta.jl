@@ -32,11 +32,12 @@ end
     fold_periodic!(f::AbstractFilament, Ls)
 
 Fold filament nodes onto the main unit cell.
+
+Curve coefficients may need to be updated afterwards using [`update_coefficients!`](@ref).
 """
 function fold_periodic!(f::AbstractFilament, periods::NTuple{3, Real})
     fold_periodic!(nodes(f), periods)
     pad_periodic!(nodes(f))
-    # TODO also update coefficients?
     f
 end
 

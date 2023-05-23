@@ -14,6 +14,7 @@ export
     CurvatureVector,
     CurvatureScalar,
     CurvatureBinormal,
+    NoRefinement,
     BasedOnCurvature,
     knots,
     knotlims,

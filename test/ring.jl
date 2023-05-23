@@ -1,5 +1,5 @@
 using Test
-using LinearAlgebra: norm
+using LinearAlgebra: norm, normalize
 using Statistics: mean, std
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
@@ -85,12 +85,20 @@ function test_local_induced_approximation(ring)
         norm(BiotSavart.local_self_induced_velocity(f, i; quad, ps...))
     end
     # Things converge quite quickly; in this case GaussLegendreQuadrature(2) seems to be enough.
-    @show (v_base - v_expected) / v_expected
-    @show (v_quad .- v_expected) ./ v_expected
+    # @show (v_base - v_expected) / v_expected
+    # @show (v_quad .- v_expected) ./ v_expected
     @test isapprox(v_expected, v_base; rtol = 1e-2)
     @test isapprox(v_expected, v_quad[1]; rtol = 1e-2)
     @test isapprox(v_expected, v_quad[2]; rtol = 6e-6)
     @test isapprox(v_expected, v_quad[3]; rtol = 3e-6)
+    @testset "Fit circle" begin
+        # Alternative estimation by fitting a circle (as in Schwarz PRB 1985).
+        # In the specific case of a vortex ring, this should give a perfect
+        # estimation of the curvature and binormal vectors.
+        v⃗_base_circle = BiotSavart.local_self_induced_velocity(f, i; quad = nothing, fit_circle = true, ps...)
+        @test normalize(v⃗_base_circle) ≈ Base.setindex(zero(v⃗_base_circle), 1, 3)  # has the right direction
+        @test isapprox(norm(v⃗_base_circle), v_expected; rtol = 1e-3)
+    end
     nothing
 end
 

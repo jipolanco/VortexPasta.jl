@@ -8,7 +8,7 @@ using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 using VortexPasta.BiotSavart
 
-# Initialise nearly straight vortex line with sinusoidal perturbation.
+# Initialise nearly straight vortex line with helicoidal perturbation.
 function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.0, k::Int = 1)
     tlims = (-0.5, 0.5)
     S(t) = SVector(
