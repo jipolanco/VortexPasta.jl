@@ -5,7 +5,6 @@ using StaticArrays
 using Statistics: mean, std
 using LinearAlgebra: norm, normalize
 using Optim: Optim
-using FFTW: FFTW
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 using VortexPasta.BiotSavart
