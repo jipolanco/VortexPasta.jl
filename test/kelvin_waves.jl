@@ -22,8 +22,8 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
     (; x, y, Lz, sign, A, k, tlims, S, offset,)
 end
 
-dt_factor(::RK4) = 1.8  # this factor seems to give stability with RK4 (fails with 1.9)
-dt_factor(::Euler) = 0.04
+dt_factor(::RK4) = 1.8     # this factor seems to give stability with RK4 (fails with factor = 1.9)
+dt_factor(::Euler) = 0.04  # Euler needs a really small dt!!
 
 function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
     Lx = Ly = Lz
@@ -150,32 +150,35 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
         @test std(xs) < A  # if this fails is likely because the solver diverged
         @test std(ys) < A
 
-        xmodel(t, p) = p[1] .* cos.(p[2] * t)
-        ymodel(t, p) = p[1] .* sin.(p[2] * t)
-        p0 = [2 * A, 3.2 * ω_kw]  # initial guess for parameters
+        xmodel(t, p) = p[1] * cos(p[2] * t)
+        ymodel(t, p) = p[1] * sin(p[2] * t)
+
+        # Initial guess for model parameters.
+        # For gradient-based methods (such as LBFGS), the guessed frequency
+        # must be quite close to the expected one, or otherwise the method
+        # converges to a different local minimum.
+        p0 = [2 * A, 1.1 * ω_kw]
 
         # Try to fit sinusoidal trajectory using Optim.
         # We minimise the square distance between data and model.
-        # The particle swarm algorithm is much more robust for finding global
-        # minima compared to gradient-based methods (such as LBFGS).
-        xfit = Optim.optimize(p0, Optim.ParticleSwarm()) do p
+        xfit = Optim.optimize(p0, Optim.LBFGS(); autodiff = :forward) do p
             sum(zip(xs, times)) do (x, t)
                 abs2(x - xmodel(t, p))
             end
         end
-        yfit = Optim.optimize(p0, Optim.ParticleSwarm()) do p
+        yfit = Optim.optimize(p0, Optim.LBFGS(); autodiff = :forward) do p
             sum(zip(ys, times)) do (y, t)
                 abs2(y - ymodel(t, p))
             end
         end
 
         # Verify that we found a good global minimum.
-        # For some reason, when using RK4 (or at least not Euler), the `y` fit
-        # is much better than the `x` one (which is still very good).
-        ytol = scheme isa Euler ? 1e-9 : 1e-13
+        A_tol = scheme isa Euler ? 1e-9 : 1e-13
         Nt = length(times)
-        @test xfit.minimum / (A * Nt) < 1e-9
-        @test yfit.minimum / (A * Nt) < ytol
+        # @show xfit.minimum / (A * Nt)
+        # @show yfit.minimum / (A * Nt)
+        @test xfit.minimum / (A * Nt) < A_tol
+        @test yfit.minimum / (A * Nt) < A_tol
 
         # Compare amplitude of both signals
         Ax = abs(xfit.minimizer[1])
@@ -183,10 +186,13 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
         ωx = abs(xfit.minimizer[2])
         ωy = abs(yfit.minimizer[2])
 
+        # @show abs(Ax - Ay) / Ay
+        # @show abs(ωx - ωy) / ωy
         @test isapprox(Ax, Ay; rtol = 1e-2)
-        @test isapprox(ωx, ωy; rtol = 1e-4)
+        @test isapprox(ωx, ωy; rtol = 1e-5)
 
         # Check that we actually recover the KW frequency!
+        # @show abs(ωy - ω_kw) / ω_kw
         @test isapprox(ωx, ω_kw; rtol = 2e-3)
         @test isapprox(ωy, ω_kw; rtol = 2e-3)
     end
