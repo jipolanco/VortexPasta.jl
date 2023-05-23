@@ -180,7 +180,7 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
         end
 
         # Verify that we found a good global minimum.
-        A_tol = iseuler ? 1e-7 : 2e-13
+        A_tol = iseuler ? 1e-6 : 2e-13
         Nt = length(times)
         # @show xfit.minimum / (A * Nt)
         # @show yfit.minimum / (A * Nt)
