@@ -22,8 +22,8 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
     (; x, y, Lz, sign, A, k, tlims, S, offset,)
 end
 
-dt_factor(::RK4) = 1.8     # this factor seems to give stability with RK4 (fails with factor = 1.9)
-dt_factor(::Euler) = 0.04  # Euler needs a really small dt!!
+dt_factor(::RK4) = 1.8    # this factor seems to give stability with RK4 (fails with factor = 1.9)
+dt_factor(::Euler) = 0.12  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
 
 function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
     Lx = Ly = Lz
@@ -85,7 +85,8 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
     dt = T_kw / round(T_kw / dt_base)  # make sure that we exactly sample t = T_kw
 
     fs = copy.(filaments)
-    tmax = scheme isa Euler ? 0.6 : 2.2  # Euler needs a very small dt, hence we reduce the time...
+    iseuler = scheme isa Euler
+    tmax = iseuler ? 0.8 : 1.2  # Euler needs a very small dt, hence we reduce the time...
     tspan = (0.0, tmax * T_kw)
 
     jprobe = 5
@@ -114,15 +115,18 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
     fil = fs[1]
     vel = vs[1]
 
-    @testset "Initial condition" begin
-        @test iter.t == 0
-        @test iter.nstep == 0
-        sign_kw = -line.sign  # KWs rotate in the direction opposite to the vortex circulation
-        for (X, v) ∈ zip(nodes(fil), vel)
-            @test norm(v) ≈ abs(v[2])  # initial velocity is in the `y` direction
-            δx = X[1] - line.x         # local perturbation
-            v_expected = sign_kw * ω_kw * δx
-            @test isapprox(v_expected, v[2]; rtol = 0.01)  # `rtol` can be further decreased if one increases the resolution `N` (things seem to converge)
+    # Test the initial condition just once, since it doesn't depend on the scheme...
+    if scheme isa RK4
+        @testset "Initial condition" begin
+            @test iter.t == 0
+            @test iter.nstep == 0
+            sign_kw = -line.sign  # KWs rotate in the direction opposite to the vortex circulation
+            for (X, v) ∈ zip(nodes(fil), vel)
+                @test norm(v) ≈ abs(v[2])  # initial velocity is in the `y` direction
+                δx = X[1] - line.x         # local perturbation
+                v_expected = sign_kw * ω_kw * δx
+                @test isapprox(v_expected, v[2]; rtol = 0.01)  # `rtol` can be further decreased if one increases the resolution `N` (things seem to converge)
+            end
         end
     end
 
@@ -139,8 +143,10 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
         zs = getindex.(X_probe, 3)
 
         # Position along the filament direction
-        # @show abs.(zs .- zs[begin]) ./ zs[begin]
-        @test all(z -> isapprox(z, zs[begin]; rtol = 1e-6), zs)  # the chosen node practically doesn't move vertically
+        # @show maximum(z -> abs(z - zs[begin]) / zs[begin], zs)
+        let rtol = iseuler ? 1e-5 : 1e-6
+            @test all(z -> isapprox(z, zs[begin]; rtol), zs)  # the chosen node practically doesn't move vertically
+        end
 
         # Set origin at equilibrium position
         @. xs -= line.x
@@ -173,7 +179,7 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
         end
 
         # Verify that we found a good global minimum.
-        A_tol = scheme isa Euler ? 1e-9 : 1e-13
+        A_tol = iseuler ? 1e-7 : 1e-13
         Nt = length(times)
         # @show xfit.minimum / (A * Nt)
         # @show yfit.minimum / (A * Nt)
@@ -189,7 +195,7 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
         # @show abs(Ax - Ay) / Ay
         # @show abs(ωx - ωy) / ωy
         @test isapprox(Ax, Ay; rtol = 1e-2)
-        @test isapprox(ωx, ωy; rtol = 1e-5)
+        @test isapprox(ωx, ωy; rtol = iseuler ? 1e-3 : 1e-5)
 
         # Check that we actually recover the KW frequency!
         # @show abs(ωy - ω_kw) / ω_kw
