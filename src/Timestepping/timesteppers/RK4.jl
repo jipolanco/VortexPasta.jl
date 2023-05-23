@@ -9,14 +9,14 @@ struct RK4Cache{
         Filaments <: VectorOfFilaments,
         Velocities <: VectorOfArray{<:Vec3},
     } <: TemporalSchemeCache
-    fc :: Filaments
-    vc :: NTuple{1, Velocities}
+    fc :: Tuple{Filaments}
+    vc :: Tuple{Velocities}
 end
 
 scheme(::RK4Cache) = RK4()
 
 function init_cache(::RK4, fs::VectorOfFilaments, vs::VectorOfArray)
-    fc = map(similar, fs) :: VectorOfFilaments
+    fc = (map(similar, fs),)
     vc = (similar(vs),)
     RK4Cache(fc, vc)
 end
@@ -27,6 +27,7 @@ function _update_velocities!(
     (; fs, vs, dt, to,) = iter
     (; fc, vc,) = cache
 
+    ftmp = fc[1]
     vtmp = vc[1]
 
     @assert length(vs) == length(fs)
@@ -37,18 +38,18 @@ function _update_velocities!(
     # `vs` will have the same values it had before calling `rhs!`.
 
     # Step 2
-    advect!(fc, vs, dt/2; fbase = fs)
-    rhs!(vtmp, fc, iter)
+    advect!(ftmp, vs, dt/2; fbase = fs)
+    rhs!(vtmp, ftmp, iter)
     @. vs = vs + 2 * vtmp
 
     # Step 3
-    advect!(fc, vtmp, dt/2; fbase = fs)
-    rhs!(vtmp, fc, iter)
+    advect!(ftmp, vtmp, dt/2; fbase = fs)
+    rhs!(vtmp, ftmp, iter)
     @. vs = vs + 2 * vtmp
 
     # Step 4 
-    advect!(fc, vtmp, dt; fbase = fs)
-    rhs!(vtmp, fc, iter)
+    advect!(ftmp, vtmp, dt; fbase = fs)
+    rhs!(vtmp, ftmp, iter)
 
     # Final advecting velocity: v = (v[1] + 2 * v[2] + 2 * v[3] + v[4]) / 6
     @. vs = (vs + vtmp) / 6
