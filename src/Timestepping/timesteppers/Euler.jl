@@ -5,17 +5,12 @@ Standard first-order Euler scheme.
 """
 struct Euler <: ExplicitTemporalScheme end
 
-# Euler doesn't need a cache...
-struct EulerCache <: TemporalSchemeCache end
-
-scheme(::EulerCache) = Euler()
-
-function init_cache(::Euler, fs::VectorOfFilaments, vs::VectorOfArray)
-    EulerCache()
-end
+# Number of buffers needed to hold "intermediate" filaments and velocities.
+nbuf_filaments(::Euler) = 0
+nbuf_velocities(::Euler) = 0
 
 function _update_velocities!(
-        rhs!::F, advect!::G, cache::EulerCache, iter::AbstractSolver,
+        ::Euler, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
     (; vs,) = iter
     # We assume that `vs` already contains the velocity at the current

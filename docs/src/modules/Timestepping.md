@@ -25,6 +25,9 @@ step!
 
 ## Timesteppers
 
+The following timesteppers are exported.
+For convenience, names are the same as those used in the [DifferentialEquations.jl](@ref) ecosystem.
+
 ```@docs
 Euler
 RK4

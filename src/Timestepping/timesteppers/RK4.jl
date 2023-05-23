@@ -5,33 +5,18 @@ Classic 4-stage Runge–Kutta method.
 """
 struct RK4 <: ExplicitTemporalScheme end
 
-struct RK4Cache{
-        Filaments <: VectorOfFilaments,
-        Velocities <: VectorOfArray{<:Vec3},
-    } <: TemporalSchemeCache
-    fc :: Tuple{Filaments}
-    vc :: Tuple{Velocities}
-end
-
-scheme(::RK4Cache) = RK4()
-
-function init_cache(::RK4, fs::VectorOfFilaments, vs::VectorOfArray)
-    fc = (map(similar, fs),)
-    vc = (similar(vs),)
-    RK4Cache(fc, vc)
-end
+# Number of buffers needed to hold "intermediate" filaments and velocities.
+nbuf_filaments(::RK4) = 1
+nbuf_velocities(::RK4) = 1
 
 function _update_velocities!(
-        rhs!::F, advect!::G, cache::RK4Cache, iter::AbstractSolver,
+        ::RK4, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
     (; fs, vs, t, dt, to,) = iter
     (; fc, vc,) = cache
 
     ftmp = fc[1]
     vtmp = vc[1]
-
-    @assert length(vs) == length(fs)
-    resize!(cache, fs)  # in case the number of nodes (or filaments) has changed
 
     # We assume that `vs` already contains the velocity at stage 1 (i.e. at the
     # current timestep). In other words, if I do `rhs!(vs, fs, iter)`, then

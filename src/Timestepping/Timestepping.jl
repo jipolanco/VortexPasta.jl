@@ -230,7 +230,7 @@ function step!(iter::VortexFilamentSolver)
     (; fs, vs, dt, prob, refinement, callback,) = iter
     # Note: the timesteppers assume that iter.vs already contains the velocity
     # induced by the filaments at the current timestep.
-    _update_velocities!(
+    update_velocities!(
         vortex_velocities!, _advect_filaments!, iter.cache_timestepper, iter,
     )
     L_fold = periods(prob.p)  # box size (periodicity)

@@ -9,13 +9,37 @@ abstract type ExplicitTemporalScheme end
 can_change_dt(::ExplicitTemporalScheme) = true
 
 """
-    TemporalSchemeCache
+    TemporalSchemeCache{Scheme <: ExplicitTemporalScheme}
 
-Abstract type defining the cache of a temporal scheme.
+Contains buffers needed by a temporal scheme.
 """
-abstract type TemporalSchemeCache end
+struct TemporalSchemeCache{
+        Scheme <: ExplicitTemporalScheme,
+        Nf, Nv,
+        Filaments <: VectorOfFilaments,
+        Velocities <: VectorOfArray{<:Vec3},
+    }
+    scheme :: Scheme
+    fc     :: NTuple{Nf, Filaments}
+    vc     :: NTuple{Nv, Velocities}
+end
 
+scheme(c::TemporalSchemeCache) = c.scheme
 can_change_dt(c::TemporalSchemeCache) = can_change_dt(scheme(c))
+
+function init_cache(
+        scheme::ExplicitTemporalScheme,
+        fs::VectorOfFilaments, vs::VectorOfArray,
+    )
+    Nf = nbuf_filaments(scheme)
+    Nv = nbuf_velocities(scheme)
+    fc = ntuple(_ -> map(similar, fs), Val(Nf))
+    vc = ntuple(_ -> similar(vs), Val(Nv))
+    TemporalSchemeCache{
+        typeof(scheme), Nf, Nv,
+        typeof(fs), typeof(vs),  # needed in case tuples are empty (case of Euler)
+    }(scheme, fc, vc)
+end
 
 function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
     (; fc, vc,) = cache
@@ -33,6 +57,14 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
     cache
 end
 
+function update_velocities!(
+        rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver,
+    ) where {F <: Function, G <: Function}
+    resize!(cache, iter.fs)  # in case the number of nodes (or filaments) has changed
+    _update_velocities!(scheme(cache), rhs!, advect!, cache, iter)
+end
+
 include("Euler.jl")
 include("RK4.jl")
 include("SSPRK33.jl")
+include("DP5.jl")
