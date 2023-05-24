@@ -13,6 +13,7 @@ Timestepping
 ```@docs
 VortexFilamentProblem
 VortexFilamentSolver
+TimeInfo
 ```
 
 ## Exported functions

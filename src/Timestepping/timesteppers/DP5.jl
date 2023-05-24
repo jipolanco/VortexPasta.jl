@@ -23,8 +23,11 @@ nbuf_velocities(::DP5) = 7
 function _update_velocities!(
         ::DP5, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
-    (; fs, vs, t, dt, to,) = iter
+    (; fs, vs, to,) = iter
     (; fc, vc,) = cache
+
+    t = get_t(iter)
+    dt = get_dt(iter)
 
     fbase = fs
     ftmp = fc[1]

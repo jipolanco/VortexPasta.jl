@@ -85,7 +85,7 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
     times = Float64[]
 
     function callback(iter)
-        push!(times, iter.t)
+        push!(times, iter.time.t)
         push!(X_probe, iter.fs[1][jprobe])
     end
 
@@ -110,8 +110,8 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
     # Test the initial condition just once, since it doesn't depend on the scheme...
     if scheme isa RK4
         @testset "Initial condition" begin
-            @test iter.t == 0
-            @test iter.nstep == 0
+            @test iter.time.t == 0
+            @test iter.time.nstep == 0
             sign_kw = -line.sign  # KWs rotate in the direction opposite to the vortex circulation
             for (X, v) ∈ zip(nodes(fil), vel)
                 @test norm(v) ≈ abs(v[2])  # initial velocity is in the `y` direction
@@ -123,12 +123,12 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
     end
 
     tlast = tspan[2]
-    @info "Solving with $scheme..." dt_initial = iter.dt tlast/T_kw
+    @info "Solving with $scheme..." dt_initial = iter.time.dt tlast/T_kw
     @time solve!(iter)
 
     # Analyse the trajectory of a single node
     @testset "Node trajectory" begin
-        @test length(X_probe) == length(times) == iter.nstep + 1  # data include step 0
+        @test length(X_probe) == length(times) == iter.time.nstep + 1  # data include step 0
         # Analyse probed data
         xs = getindex.(X_probe, 1)
         ys = getindex.(X_probe, 2)

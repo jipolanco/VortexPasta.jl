@@ -67,6 +67,28 @@ struct VortexFilamentProblem{
 end
 
 """
+    TimeInfo
+
+Contains information on the current time and timestep of a solver.
+
+Some useful fields are:
+
+- `t`: current time;
+
+- `dt`: timestep to be used in next iteration;
+
+- `dt_prev` : timestep used in the last performed iteration;
+
+- `nstep`: number of timesteps performed until now.
+"""
+@kwdef mutable struct TimeInfo
+    nstep   :: Int
+    t       :: Float64
+    dt      :: Float64
+    dt_prev :: Float64
+end
+
+"""
     VortexFilamentSolver
 
 Contains the instantaneous state of a vortex filament simulation.
@@ -81,7 +103,7 @@ Some useful fields are:
 
 - `vs`: current velocity of vortex filament nodes;
 
-- `t`: current time;
+- `time`: a [`TimeInfo`](@ref) object containing information such as the current time and timestep;
 
 - `dt`: timestep for next iteration;
 
@@ -90,7 +112,7 @@ Some useful fields are:
 - `cache_bs`: the Biot–Savart cache, which contains data from short- and
   long-range computations.
 """
-mutable struct VortexFilamentSolver{
+struct VortexFilamentSolver{
         Problem <: VortexFilamentProblem,
         Filaments <: VectorOfFilaments,
         Velocities <: VectorOfArray{<:Vec3},
@@ -103,22 +125,23 @@ mutable struct VortexFilamentSolver{
         AdvectFunction <: Function,
         RHSFunction <: Function,
     } <: AbstractSolver
-    const prob :: Problem
-    const fs   :: Filaments
-    const vs   :: Velocities
-    nstep      :: Int
-    t          :: Float64
-    dt         :: Float64
-    const dtmin :: Float64
-    const refinement        :: Refinement
-    const adaptivity        :: Adaptivity
-    const cache_bs          :: CacheBS
-    const cache_timestepper :: CacheTimestepper
-    const callback :: Callback
-    const to       :: Timer
-    const advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
-    const rhs!     :: RHSFunction     # function for estimating filament velocities from their positions
+    prob  :: Problem
+    fs    :: Filaments
+    vs    :: Velocities
+    time  :: TimeInfo
+    dtmin :: Float64
+    refinement        :: Refinement
+    adaptivity        :: Adaptivity
+    cache_bs          :: CacheBS
+    cache_timestepper :: CacheTimestepper
+    callback :: Callback
+    to       :: Timer
+    advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
+    rhs!     :: RHSFunction     # function for estimating filament velocities from their positions
 end
+
+get_dt(iter::VortexFilamentSolver) = iter.time.dt
+get_t(iter::VortexFilamentSolver) = iter.time.t
 
 """
     init(prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme; dt::Real, kws...) -> VortexFilamentSolver
@@ -169,21 +192,26 @@ function init(
     fs_sol = alias_u0 ? fs : copy.(fs)
     cache_bs = BiotSavart.init_cache(prob.p; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
-    t = first(tspan)
-    nstep = 0
+
     # Wrap functions with the timer, so that timings are estimated each time the function is called.
     advect! = timer(advect_filaments!, "advect_filaments!")
     rhs! = timer(vortex_velocities!, "vortex_velocities!")
     callback_ = timer(callback, "callback")
+
     if adaptivity !== NoAdaptivity() && !can_change_dt(scheme)
         throw(ArgumentError(lazy"temporal scheme $scheme doesn't support adaptibility; set `adaptivity = NoAdaptivity()` or choose a different scheme"))
     end
+
+    time = TimeInfo(nstep = 0, t = first(tspan), dt = dt, dt_prev = dt)
+
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, nstep, t, dt, dtmin, refinement, adaptivity,
+        prob, fs_sol, vs, time, dtmin, refinement, adaptivity,
         cache_bs, cache_timestepper, callback_, timer,
         advect!, rhs!,
     )
+
     after_advection!(iter)
+
     iter
 end
 
@@ -242,11 +270,12 @@ Advance vortex filament solver to the ending time.
 See also [`step!`](@ref) for advancing one step at a time.
 """
 function solve!(iter::VortexFilamentSolver)
+    (; time,) = iter
     t_end = iter.prob.tspan[2]
-    while iter.t < t_end
+    while time.t < t_end
         if can_change_dt(iter.cache_timestepper)
             # Try to finish exactly at t = t_end.
-            iter.dt = min(iter.dt, t_end - iter.t)
+            time.dt = min(time.dt, t_end - time.t)
         end
         step!(iter)
     end
@@ -259,27 +288,28 @@ end
 Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
-    (; fs, vs, prob, refinement, adaptivity, callback, advect!, rhs!, to,) = iter
-    iter.dt ≥ iter.dtmin || error(lazy"current timestep is too small ($(iter.dt) < $(iter.dtmin)). Stopping.")
+    (; fs, vs, prob, time, dtmin, refinement, advect!, rhs!, to,) = iter
+    time.dt ≥ dtmin || error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
     # Note: the timesteppers assume that iter.vs already contains the velocity
     # induced by the filaments at the current timestep.
     update_velocities!(
         rhs!, advect!, iter.cache_timestepper, iter,
     )
     L_fold = periods(prob.p)  # box size (periodicity)
-    advect!(fs, vs, iter.dt; L_fold, refinement)
-    iter.t += iter.dt
-    iter.nstep += 1
+    advect!(fs, vs, time.dt; L_fold, refinement)
+    time.t += time.dt
+    time.nstep += 1
     after_advection!(iter)
     iter
 end
 
 # Called whenever filament positions have just been initialised or updated.
 function after_advection!(iter::VortexFilamentSolver)
-    (; vs, fs, t, callback, adaptivity, rhs!,) = iter
-    rhs!(vs, fs, t, iter)  # update velocities to the next timestep (and first RK step)
+    (; vs, fs, time, callback, adaptivity, rhs!,) = iter
+    rhs!(vs, fs, time.t, iter)  # update velocities to the next timestep (and first RK step)
     callback(iter)
-    iter.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
+    time.dt_prev = time.dt
+    time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
     iter
 end
 

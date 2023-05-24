@@ -14,8 +14,11 @@ nbuf_velocities(::RK4) = 1
 function _update_velocities!(
         ::RK4, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
-    (; fs, vs, t, dt, to,) = iter
+    (; fs, vs, to,) = iter
     (; fc, vc,) = cache
+
+    t = get_t(iter)
+    dt = get_dt(iter)
 
     ftmp = fc[1]
     vtmp = vc[1]

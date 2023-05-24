@@ -22,7 +22,7 @@ Disable temporal adaptivity, leaving the timestep ``Δt`` constant.
 """
 struct NoAdaptivity <: AdaptivityCriterion end
 
-estimate_timestep(::NoAdaptivity, iter::AbstractSolver) = iter.dt  # don't change current dt
+estimate_timestep(::NoAdaptivity, iter::AbstractSolver) = get_dt(iter)  # don't change current dt
 
 """
     BasedOnSegmentLength <: AdaptivityCriterion
