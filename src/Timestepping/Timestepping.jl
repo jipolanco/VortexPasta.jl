@@ -107,8 +107,6 @@ Some useful fields are:
 
 - `time`: a [`TimeInfo`](@ref) object containing information such as the current time and timestep;
 
-- `dt`: timestep for next iteration;
-
 - `to`: a `TimerOutput`, which records the time spent on different functions;
 
 - `cache_bs`: the Biot–Savart cache, which contains data from short- and
@@ -255,7 +253,7 @@ function _advect_filament!(
         end
         nref = Filaments.refine!(f, refinement)
         if nref !== (0, 0)
-            @info "Added/removed $nref nodes"
+            @debug "Added/removed $nref nodes"
             if sum(nref) ≠ 0
                 resize!(vs, length(f))
             end
