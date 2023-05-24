@@ -26,12 +26,21 @@ step!
 ## Timesteppers
 
 The following timesteppers are exported.
-For convenience, names are the same as those used in the [DifferentialEquations.jl](@ref) ecosystem.
+When possible, names are the same as those used by [DifferentialEquations.jl solvers](https://docs.sciml.ai/DiffEqDocs/stable/solvers/ode_solve/).
 
 ```@docs
 Euler
 RK4
 SSPRK33
+DP5
+```
+
+## Adaptivity
+
+```@docs
+AdaptivityCriterion
+NoAdaptivity
+BasedOnSegmentLength
 ```
 
 ## Internals
