@@ -83,7 +83,7 @@ Some useful fields are:
 
 - `t`: current time;
 
-- `dt`: timestep;
+- `dt`: timestep for next iteration;
 
 - `to`: a `TimerOutput`, which records the time spent on different functions;
 
@@ -175,17 +175,15 @@ function init(
     advect! = timer(advect_filaments!, "advect_filaments!")
     rhs! = timer(vortex_velocities!, "vortex_velocities!")
     callback_ = timer(callback, "callback")
+    if adaptivity !== NoAdaptivity() && !can_change_dt(scheme)
+        throw(ArgumentError(lazy"temporal scheme $scheme doesn't support adaptibility; set `adaptivity = NoAdaptivity()` or choose a different scheme"))
+    end
     iter = VortexFilamentSolver(
         prob, fs_sol, vs, nstep, t, dt, dtmin, refinement, adaptivity,
         cache_bs, cache_timestepper, callback_, timer,
         advect!, rhs!,
     )
-    rhs!(iter.vs, iter.fs, iter.t, iter)  # compute initial velocities
-    iter.callback(iter)
-    if adaptivity !== NoAdaptivity() && !can_change_dt(scheme)
-        throw(ArgumentError(lazy"temporal scheme $scheme doesn't support adaptibility; set `adaptivity = NoAdaptivity()` or choose a different scheme"))
-    end
-    iter.dt = estimate_timestep(adaptivity, iter)
+    after_advection!(iter)
     iter
 end
 
@@ -272,7 +270,14 @@ function step!(iter::VortexFilamentSolver)
     advect!(fs, vs, iter.dt; L_fold, refinement)
     iter.t += iter.dt
     iter.nstep += 1
-    rhs!(vs, fs, iter.t, iter)  # update velocities to the next timestep (and first RK step)
+    after_advection!(iter)
+    iter
+end
+
+# Called whenever filament positions have just been initialised or updated.
+function after_advection!(iter::VortexFilamentSolver)
+    (; vs, fs, t, callback, adaptivity, rhs!,) = iter
+    rhs!(vs, fs, t, iter)  # update velocities to the next timestep (and first RK step)
     callback(iter)
     iter.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
     iter
