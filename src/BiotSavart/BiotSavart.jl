@@ -124,7 +124,8 @@ Mandatory and optional keyword arguments are detailed in the following.
 
 """
 struct ParamsBiotSavart{
-        Common <: ParamsCommon,
+        T,
+        Common <: ParamsCommon{T},
         ShortRange <: ParamsShortRange,
         LongRange <: ParamsLongRange,
     }
@@ -149,9 +150,13 @@ struct ParamsBiotSavart{
         common = ParamsCommon{T}(Γ, a, Δ, α, Ls)
         sr = ParamsShortRange(backend_short, quadrature_short, common, rcut)
         lr = ParamsLongRange(backend_long, quadrature_long, common, Ns)
-        new{typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
+        new{T, typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
     end
 end
+
+# Returns the float type used (e.g. Float64)
+Base.eltype(::Type{<:ParamsBiotSavart{T}}) where {T} = T
+Base.eltype(p::ParamsBiotSavart) = eltype(typeof(p))
 
 periods(p::ParamsBiotSavart) = p.common.Ls
 

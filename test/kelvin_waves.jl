@@ -75,17 +75,6 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
         )
     end
 
-    # Determine timestep
-    ℓ_min = minimum(filaments) do f
-        local ts = knots(f)
-        minimum(eachindex(segments(f))) do i
-            ts[i + 1] - ts[i]
-        end
-    end
-    β = Γ / 4π * (log(2 * ℓ_min / a) - Δ)
-    dt_base = dt_factor(scheme) * ℓ_min^2 / β
-    dt = T_kw / round(T_kw / dt_base)  # make sure that we exactly sample t = T_kw
-
     fs = copy.(filaments)
     iseuler = scheme isa Euler
     tmax = iseuler ? 0.8 : 1.2  # Euler needs a very small dt, hence we reduce the time...
@@ -104,8 +93,8 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
 
     iter = @inferred init(
         prob, scheme;
-        dt,
-        adaptive = false,
+        dt = 1.0,  # will be changed by the adaptivity
+        adaptivity = BasedOnSegmentLength(dt_factor(scheme)),
         refinement = NoRefinement(),  # make sure that nodes don't "move" vertically due to refinement
         callback,
     )
@@ -133,7 +122,7 @@ function test_kelvin_waves(scheme = RK4(); Lz = 2π, A = 0.01, k = 1,)
     end
 
     tlast = tspan[2]
-    @info "Solving with $scheme..." dt tlast/T_kw
+    @info "Solving with $scheme..." dt_initial = iter.dt tlast/T_kw
     @time solve!(iter)
 
     # Analyse the trajectory of a single node

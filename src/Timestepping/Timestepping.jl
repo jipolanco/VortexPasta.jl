@@ -8,7 +8,16 @@ module Timestepping
 export init, solve!, step!, VortexFilamentProblem
 
 using ..BasicTypes: Vec3
-using ..Filaments: Filaments, AbstractFilament, nodes, RefinementCriterion, BasedOnCurvature
+
+using ..Filaments:
+    Filaments,
+    AbstractFilament,
+    nodes,
+    segments,
+    knots,
+    RefinementCriterion,
+    BasedOnCurvature
+
 using ..BiotSavart:
     BiotSavart,
     ParamsBiotSavart,
@@ -30,6 +39,7 @@ abstract type AbstractProblem end
 abstract type AbstractSolver end
 
 include("timesteppers/timesteppers.jl")
+include("adaptivity.jl")
 
 """
     VortexFilamentProblem
@@ -85,6 +95,7 @@ mutable struct VortexFilamentSolver{
         Filaments <: VectorOfFilaments,
         Velocities <: VectorOfArray{<:Vec3},
         Refinement <: RefinementCriterion,
+        Adaptivity <: AdaptivityCriterion,
         CacheBS <: BiotSavartCache,
         CacheTimestepper <: TemporalSchemeCache,
         Timer <: TimerOutput,
@@ -98,9 +109,10 @@ mutable struct VortexFilamentSolver{
     nstep      :: Int
     t          :: Float64
     dt         :: Float64
-    const refinement          :: Refinement
-    const cache_bs            :: CacheBS
-    const cache_timestepper   :: CacheTimestepper
+    const refinement        :: Refinement
+    const adaptivity        :: Adaptivity
+    const cache_bs          :: CacheBS
+    const cache_timestepper :: CacheTimestepper
     const callback :: Callback
     const to       :: Timer
     const advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
@@ -127,6 +139,10 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `refinement = BasedOnCurvature(0.35; ℓ_max = 1.0)`: method used for adaptive
   refinement of vortex filaments. See [`BasedOnCurvature`](@ref) for details.
 
+- `adaptivity = NoAdaptivity()`: method used for adaptively setting the timestep `dt`.
+  See [`AdaptivityCriterion`](@ref) for a list of possible methods and
+  [`BasedOnSegmentLength`](@ref) for one of these methods.
+
 - `callback`: a function to be called at the end of each timestep. The function
   must accept a single argument `iter::VortexFilamentSolver`.
 
@@ -136,9 +152,9 @@ either [`step!`](@ref) or [`solve!`](@ref).
 function init(
         prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme;
         alias_u0 = true,   # same as in OrdinaryDiffEq.jl
-        adaptive = false,  # not used for now, but maybe in the future...
-        dt,
-        refinement = BasedOnCurvature(0.35; ℓ_max = 1.0),
+        dt::Real,
+        refinement::RefinementCriterion = BasedOnCurvature(0.35; ℓ_max = 1.0),
+        adaptivity::AdaptivityCriterion = NoAdaptivity(),
         callback::F = identity,
         timer = TimerOutput("VortexFilament"),
     ) where {F <: Function}
@@ -153,13 +169,15 @@ function init(
     # Wrap functions with the timer, so that timings are estimated each time the function is called.
     advect! = timer(advect_filaments!, "advect_filaments!")
     rhs! = timer(vortex_velocities!, "vortex_velocities!")
+    callback_ = timer(callback, "callback")
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, nstep, t, dt, refinement,
-        cache_bs, cache_timestepper, callback, timer,
+        prob, fs_sol, vs, nstep, t, dt, refinement, adaptivity,
+        cache_bs, cache_timestepper, callback_, timer,
         advect!, rhs!,
     )
     rhs!(iter.vs, iter.fs, iter.t, iter)  # compute initial velocities
-    callback(iter)
+    iter.callback(iter)
+    iter.dt = estimate_timestep(adaptivity, iter)
     iter
 end
 
@@ -235,18 +253,19 @@ end
 Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
-    (; fs, vs, dt, prob, refinement, callback, advect!, rhs!,) = iter
+    (; fs, vs, prob, refinement, adaptivity, callback, advect!, rhs!, to,) = iter
     # Note: the timesteppers assume that iter.vs already contains the velocity
     # induced by the filaments at the current timestep.
     update_velocities!(
         rhs!, advect!, iter.cache_timestepper, iter,
     )
     L_fold = periods(prob.p)  # box size (periodicity)
-    advect!(fs, vs, dt; L_fold, refinement)
-    iter.t += dt
+    advect!(fs, vs, iter.dt; L_fold, refinement)
+    iter.t += iter.dt
     iter.nstep += 1
     rhs!(vs, fs, iter.t, iter)  # update velocities to the next timestep (and first RK step)
     callback(iter)
+    iter.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
     iter
 end
 
