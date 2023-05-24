@@ -109,6 +109,7 @@ mutable struct VortexFilamentSolver{
     nstep      :: Int
     t          :: Float64
     dt         :: Float64
+    const dtmin :: Float64
     const refinement        :: Refinement
     const adaptivity        :: Adaptivity
     const cache_bs          :: CacheBS
@@ -143,6 +144,9 @@ either [`step!`](@ref) or [`solve!`](@ref).
   See [`AdaptivityCriterion`](@ref) for a list of possible methods and
   [`BasedOnSegmentLength`](@ref) for one of these methods.
 
+- `dtmin = 0.0`: minimum `dt` for adaptive timestepping. If `dt < dtmin`, the
+  solver is stopped with an error.
+
 - `callback`: a function to be called at the end of each timestep. The function
   must accept a single argument `iter::VortexFilamentSolver`.
 
@@ -153,6 +157,7 @@ function init(
         prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme;
         alias_u0 = true,   # same as in OrdinaryDiffEq.jl
         dt::Real,
+        dtmin::Real = 0.0,
         refinement::RefinementCriterion = BasedOnCurvature(0.35; ℓ_max = 1.0),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         callback::F = identity,
@@ -171,12 +176,15 @@ function init(
     rhs! = timer(vortex_velocities!, "vortex_velocities!")
     callback_ = timer(callback, "callback")
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, nstep, t, dt, refinement, adaptivity,
+        prob, fs_sol, vs, nstep, t, dt, dtmin, refinement, adaptivity,
         cache_bs, cache_timestepper, callback_, timer,
         advect!, rhs!,
     )
     rhs!(iter.vs, iter.fs, iter.t, iter)  # compute initial velocities
     iter.callback(iter)
+    if adaptivity !== NoAdaptivity() && !can_change_dt(scheme)
+        throw(ArgumentError(lazy"temporal scheme $scheme doesn't support adaptibility; set `adaptivity = NoAdaptivity()` or choose a different scheme"))
+    end
     iter.dt = estimate_timestep(adaptivity, iter)
     iter
 end
@@ -254,6 +262,7 @@ Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
     (; fs, vs, prob, refinement, adaptivity, callback, advect!, rhs!, to,) = iter
+    iter.dt ≥ iter.dtmin || error(lazy"current timestep is too small ($(iter.dt) < $(iter.dtmin)). Stopping.")
     # Note: the timesteppers assume that iter.vs already contains the velocity
     # induced by the filaments at the current timestep.
     update_velocities!(
