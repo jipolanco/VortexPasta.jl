@@ -89,6 +89,8 @@ mutable struct VortexFilamentSolver{
         CacheTimestepper <: TemporalSchemeCache,
         Timer <: TimerOutput,
         Callback <: Function,
+        AdvectFunction <: Function,
+        RHSFunction <: Function,
     } <: AbstractSolver
     const prob :: Problem
     const fs   :: Filaments
@@ -100,7 +102,9 @@ mutable struct VortexFilamentSolver{
     const cache_bs            :: CacheBS
     const cache_timestepper   :: CacheTimestepper
     const callback :: Callback
-    const to :: Timer
+    const to       :: Timer
+    const advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
+    const rhs!     :: RHSFunction     # function for estimating filament velocities from their positions
 end
 
 """
@@ -146,11 +150,15 @@ function init(
     cache_timestepper = init_cache(scheme, fs, vs)
     t = first(tspan)
     nstep = 0
+    # Wrap functions with the timer, so that timings are estimated each time the function is called.
+    advect! = timer(advect_filaments!, "advect_filaments!")
+    rhs! = timer(vortex_velocities!, "vortex_velocities!")
     iter = VortexFilamentSolver(
         prob, fs_sol, vs, nstep, t, dt, refinement,
         cache_bs, cache_timestepper, callback, timer,
+        advect!, rhs!,
     )
-    vortex_velocities!(iter.vs, iter.fs, iter.t, iter)  # compute initial velocities
+    rhs!(iter.vs, iter.fs, iter.t, iter)  # compute initial velocities
     callback(iter)
     iter
 end
@@ -195,7 +203,7 @@ function _advect_filament!(
     f
 end
 
-function _advect_filaments!(fs, vs, dt; fbase = fs, kws...)
+function advect_filaments!(fs, vs, dt; fbase = fs, kws...)
     for (f, f₀, v) ∈ zip(fs, fbase, vs)
         _advect_filament!(f, v, dt; fbase = f₀, kws...)
     end
@@ -227,17 +235,17 @@ end
 Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
-    (; fs, vs, dt, prob, refinement, callback,) = iter
+    (; fs, vs, dt, prob, refinement, callback, advect!, rhs!,) = iter
     # Note: the timesteppers assume that iter.vs already contains the velocity
     # induced by the filaments at the current timestep.
     update_velocities!(
-        vortex_velocities!, _advect_filaments!, iter.cache_timestepper, iter,
+        rhs!, advect!, iter.cache_timestepper, iter,
     )
     L_fold = periods(prob.p)  # box size (periodicity)
-    _advect_filaments!(fs, vs, dt; L_fold, refinement)
+    advect!(fs, vs, dt; L_fold, refinement)
     iter.t += dt
     iter.nstep += 1
-    vortex_velocities!(vs, fs, iter.t, iter)  # update velocities to the next timestep (and first RK step)
+    rhs!(vs, fs, iter.t, iter)  # update velocities to the next timestep (and first RK step)
     callback(iter)
     iter
 end
