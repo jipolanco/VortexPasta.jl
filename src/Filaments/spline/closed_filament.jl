@@ -213,3 +213,8 @@ function refine!(f::ClosedSplineFilament, crit::RefinementCriterion)
 
     n_add, n_rem
 end
+
+# Coefficients should be updated before refinement, but not after (since we use
+# knot insertion + updating of derivatives).
+update_coefficients_before_refinement(::ClosedSplineFilament) = true
+update_coefficients_after_refinement(::ClosedSplineFilament) = true

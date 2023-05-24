@@ -285,3 +285,7 @@ function refine!(f::ClosedLocalFilament, crit::RefinementCriterion)
 
     n_add, n_rem
 end
+
+# Coefficients should not be updated before refinement, but after (this is opposite to spline filaments).
+update_coefficients_before_refinement(::ClosedLocalFilament) = false
+update_coefficients_after_refinement(::ClosedLocalFilament) = true

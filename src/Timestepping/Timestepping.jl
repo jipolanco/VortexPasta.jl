@@ -16,6 +16,8 @@ using ..Filaments:
     segments,
     knots,
     RefinementCriterion,
+    update_coefficients_before_refinement,
+    update_coefficients_after_refinement,
     BasedOnCurvature
 
 using ..BiotSavart:
@@ -242,16 +244,24 @@ function _advect_filament!(
     if L_fold !== nothing
         Filaments.fold_periodic!(f, L_fold)
     end
+    need_to_update_coefs = true
     if refinement !== nothing
+        # Check whether the filament type requires coefficients to be updated before refining.
+        # The answer will be different depending on whether we're using spline or finite difference
+        # discretisations for filaments.
+        if update_coefficients_before_refinement(f)
+            Filaments.update_coefficients!(f)
+            need_to_update_coefs = update_coefficients_after_refinement(f)
+        end
         nref = Filaments.refine!(f, refinement)
         if nref !== (0, 0)
-            # @info "Added/removed $nref nodes"
+            @info "Added/removed $nref nodes"
             if sum(nref) ≠ 0
                 resize!(vs, length(f))
             end
         end
     end
-    Filaments.update_coefficients!(f)
+    need_to_update_coefs && Filaments.update_coefficients!(f)
     f
 end
 
