@@ -1,3 +1,5 @@
+export RK4
+
 """
     RK4 <: ExplicitTemporalScheme
 

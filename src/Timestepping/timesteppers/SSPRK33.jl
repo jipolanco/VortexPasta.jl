@@ -1,3 +1,5 @@
+export SSPRK33
+
 """
     SSPRK33 <: ExplicitTemporalScheme
 

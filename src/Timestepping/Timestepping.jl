@@ -5,7 +5,7 @@ Module defining timestepping solvers for vortex filament simulations.
 """
 module Timestepping
 
-export init, solve!, step!, VortexFilamentProblem, Euler, SSPRK33, RK4
+export init, solve!, step!, VortexFilamentProblem
 
 using ..BasicTypes: Vec3
 using ..Filaments: Filaments, AbstractFilament, nodes, RefinementCriterion, BasedOnCurvature

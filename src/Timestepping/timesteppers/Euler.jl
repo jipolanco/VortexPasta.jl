@@ -1,3 +1,5 @@
+export Euler
+
 """
     Euler <: ExplicitTemporalScheme
 
