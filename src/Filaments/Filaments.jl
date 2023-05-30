@@ -10,12 +10,21 @@ export
     ClosedFilament,
     Vec3,
     Derivative,
+
+    # Geometric quantities
     UnitTangent,
     CurvatureVector,
     CurvatureScalar,
     CurvatureBinormal,
+
+    # Refinement criteria
     NoRefinement,
     BasedOnCurvature,
+
+    # Reconnection criteria
+    NoReconnections,
+    BasedOnDistance,
+
     knots,
     knotlims,
     nodes,
@@ -212,6 +221,7 @@ include("padded_vector.jl")
 include("segments.jl")
 include("integrate.jl")
 include("refinement.jl")
+include("reconnections.jl")
 
 include("local/finitediff.jl")
 include("local/interpolation.jl")

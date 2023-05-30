@@ -43,6 +43,14 @@ BasedOnCurvature
 refine!
 ```
 
+## Reconnections
+
+```@docs
+ReconnectionCriterion
+NoReconnections
+BasedOnDistance
+```
+
 ## Geometric quantities
 
 The following types are provided as a convenient way of evaluating scalar and

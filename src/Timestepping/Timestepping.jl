@@ -15,10 +15,17 @@ using ..Filaments:
     nodes,
     segments,
     knots,
+
     RefinementCriterion,
+    NoRefinement,
+    BasedOnCurvature,
+
+    ReconnectionCriterion,
+    NoReconnections,
+    BasedOnDistance,
+
     update_coefficients_before_refinement,
-    update_coefficients_after_refinement,
-    BasedOnCurvature
+    update_coefficients_after_refinement
 
 using ..BiotSavart:
     BiotSavart,
@@ -42,7 +49,6 @@ abstract type AbstractSolver end
 
 include("timesteppers/timesteppers.jl")
 include("adaptivity.jl")
-include("reconnections.jl")
 
 """
     VortexFilamentProblem
@@ -188,7 +194,7 @@ function init(
         alias_u0 = true,   # same as in OrdinaryDiffEq.jl
         dt::Real,
         dtmin::Real = 0.0,
-        refinement::RefinementCriterion = NoRefinement()
+        refinement::RefinementCriterion = NoRefinement(),
         reconnections::ReconnectionCriterion = NoReconnections(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         callback::F = identity,
@@ -213,7 +219,7 @@ function init(
     time = TimeInfo(nstep = 0, t = first(tspan), dt = dt, dt_prev = dt)
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, time, dtmin, refinement, adaptivity,
+        prob, fs_sol, vs, time, dtmin, refinement, adaptivity, reconnections,
         cache_bs, cache_timestepper, callback_, timer,
         advect!, rhs!,
     )
