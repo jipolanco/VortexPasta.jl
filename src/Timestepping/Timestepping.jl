@@ -42,6 +42,7 @@ abstract type AbstractSolver end
 
 include("timesteppers/timesteppers.jl")
 include("adaptivity.jl")
+include("reconnections.jl")
 
 """
     VortexFilamentProblem
@@ -118,6 +119,7 @@ struct VortexFilamentSolver{
         Velocities <: VectorOfArray{<:Vec3},
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
+        Reconnect <: ReconnectionCriterion,
         CacheBS <: BiotSavartCache,
         CacheTimestepper <: TemporalSchemeCache,
         Timer <: TimerOutput,
@@ -132,6 +134,7 @@ struct VortexFilamentSolver{
     dtmin :: Float64
     refinement        :: Refinement
     adaptivity        :: Adaptivity
+    reconnect         :: Reconnect
     cache_bs          :: CacheBS
     cache_timestepper :: CacheTimestepper
     callback :: Callback
@@ -160,10 +163,14 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `alias_u0 = true`: if `true` (default), the solver is allowed to modify the
   initial vortex filaments.
 
-- `refinement = BasedOnCurvature(0.35; ℓ_max = 1.0)`: method used for adaptive
-  refinement of vortex filaments. See [`BasedOnCurvature`](@ref) for details.
+- `refinement = NoRefinement()`: criterium used for adaptive refinement of vortex
+  filaments. See [`BasedOnCurvature`](@ref) for a possible way of enabling refinement.
 
-- `adaptivity = NoAdaptivity()`: method used for adaptively setting the timestep `dt`.
+- `reconnections = NoReconnections()`: criterium used to perform vortex reconnections.
+  See [`ReconnectionCriterion`](@ref) for a list of possible methods and
+  [`BasedOnDistance`](@ref) for one of these methods.
+
+- `adaptivity = NoAdaptivity()`: criterium used for adaptively setting the timestep `dt`.
   See [`AdaptivityCriterion`](@ref) for a list of possible methods and
   [`BasedOnSegmentLength`](@ref) for one of these methods.
 
@@ -181,7 +188,8 @@ function init(
         alias_u0 = true,   # same as in OrdinaryDiffEq.jl
         dt::Real,
         dtmin::Real = 0.0,
-        refinement::RefinementCriterion = BasedOnCurvature(0.35; ℓ_max = 1.0),
+        refinement::RefinementCriterion = NoRefinement()
+        reconnections::ReconnectionCriterion = NoReconnections(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         callback::F = identity,
         timer = TimerOutput("VortexFilament"),
