@@ -31,7 +31,7 @@ end
         update_coefficients!.((f1, f2))
         @test length(f1) == length(f2) == length(f) ÷ 2
         @test f1 == f[i + 1:j]
-        @test f2 == vcat(f[j + 1:end], f[begin:i])
+        @test f2 == vcat(f[begin:i], f[j + 1:end])
     end
 end
 
