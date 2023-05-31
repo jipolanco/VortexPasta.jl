@@ -18,11 +18,17 @@ function figure_eight_curve(; a::Real = 1, origin::Vec3 = π * Vec3(1, 1, 1), Az
 end
 
 @testset "Reconnections: ∞ curve" begin
-    curve = figure_eight_curve(a = π / 4, Az = 0.001, origin = Vec3(0, 0, 0))
+    Az = 0.001
+    curve = figure_eight_curve(; a = π / 4, Az, origin = Vec3(0, 0, 0))
     (; S, tlims,) = curve
     N = 32
     ζs = range(tlims...; length = 2N + 1)[2:2:2N]
     f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+
+    ts = knots(f)
+    l_min = minimum(eachindex(ts)) do i
+        ts[i + 1] - ts[i]
+    end
 
     @testset "Filaments.split!" begin
         i = length(f) ÷ 4
@@ -33,13 +39,30 @@ end
         @test f1 == f[i + 1:j]
         @test f2 == vcat(f[begin:i], f[j + 1:end])
     end
+
+    @testset "reconnect_self!" begin
+        crit = @inferred BasedOnDistance(l_min / 2)
+        fc = copy(f)
+        fs_all = [fc]
+        Filaments.reconnect_self!(crit, fc, fs_all)
+        @test length(fs_all) == 2  # filament split into two!
+        f1, f2 = fs_all[1], fs_all[2]
+
+        # Check that the reconnection happened at the right place
+        i = length(f) ÷ 4
+        j = 3i
+        @test length(f1) == length(f2) == length(f) ÷ 2
+        @test f1 == f[i + 1:j]
+        @test f2 == vcat(f[begin:i], f[j + 1:end])
+    end
 end
 
 if @isdefined(Makie)
     fig = Figure()
     ax = Axis3(fig[1, 1]; aspect = :data)
     plot!(ax, f; refinement = 8)
-    plot!(ax, f1; refinement = 8)
-    plot!(ax, f2; refinement = 8)
+    for f ∈ fs_all
+        plot!(ax, f; refinement = 8)
+    end
     fig
 end

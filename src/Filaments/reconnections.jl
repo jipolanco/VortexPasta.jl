@@ -1,4 +1,5 @@
-using ..BasicTypes: Zero
+using ..BasicTypes: Zero, Infinity
+using LinearAlgebra: ⋅
 
 """
     ReconnectionCriterion
@@ -28,6 +29,7 @@ Used to disable filament reconnections.
 struct NoReconnections <: ReconnectionCriterion end
 
 distance(::NoReconnections) = Zero()
+should_reconnect(::NoReconnections, args...; kws...) = false
 
 """
     BasedOnDistance <: ReconnectionCriterion
@@ -40,11 +42,13 @@ The default value `cos_max = 0.97` disables reconnections when the angle between
 is ``θ < \\arccos(0.97) ≈ 14°``.
 """
 struct BasedOnDistance <: ReconnectionCriterion
-    dist    :: Float64
-    cos_max :: Float64
+    dist       :: Float64
+    dist_sq    :: Float64
+    cos_max    :: Float64
+    cos_max_sq :: Float64
 
     function BasedOnDistance(dist; cos_max = 0.97)
-        new(dist, cos_max)
+        new(dist, dist^2, cos_max, cos_max^2)
     end
 end
 
@@ -99,6 +103,7 @@ function reconnect_self!(
     # that the coarse filter doesn't use the *minimal* distance between
     # segments, but only a rough approximation.
     d_cut = 2 * d_crit
+    d_cut_sq = d_cut^2
 
     inds_i = istart:lastindex(segments(f))
     periods_half = map(L -> L / 2, periods)
@@ -111,20 +116,31 @@ function reconnect_self!(
     for i ∈ inds_i
         isempty(inds_j) && break
         x⃗_mid = (f[i] + f[i + 1]) ./ 2
-        y⃗_b = f[first(inds_j)]
-        r⃗_b = deperiodise_separation(y⃗_b - x⃗_mid, periods, periods_half)
+        r⃗_b = let
+            y⃗ = f[first(inds_j)]
+            deperiodise_separation(y⃗ - x⃗_mid, periods, periods_half)
+        end
         is_outside_range_b = any(>(d_cut), r⃗_b)  # should be cheaper than computing the squared vector norm
         for j ∈ inds_j
-            y⃗_a, y⃗_b = y⃗_b, f[j + 1]
-            r⃗_a = deperiodise_separation(y⃗_a - x⃗_mid, periods, periods_half)
-            is_outside_range_a = any(>(d_cut), r⃗_a)
+            r⃗_a = r⃗_b
+            r⃗_b = let
+                y⃗ = f[j + 1]
+                deperiodise_separation(y⃗ - x⃗_mid, periods, periods_half)
+            end
+            is_outside_range_a = is_outside_range_b
+            is_outside_range_b = any(>(d_cut), r⃗_b)
 
             if is_outside_range_a && is_outside_range_b
                 # Skip this segment if its two limits are too far from x⃗_mid.
                 continue
             end
 
-            # The current segment passed the first filter and is a candidate for reconnection.
+            # Second (slightly finer) filter: look at the actual distances.
+            if sum(abs2, r⃗_a) > d_cut_sq || sum(abs2, r⃗_b) > d_cut_sq
+                continue
+            end
+
+            # The current segment passed the first two filters and is a candidate for reconnection.
             should_reconnect(crit, f, f, i, j; periods) || continue
 
             # Split filament into 2
@@ -141,6 +157,7 @@ function reconnect_self!(
             # may fail if the split! function is modified.
             reconnect_self!(crit, f₁, fs_new; periods)
             reconnect_self!(crit, f₂, fs_new; periods, istart = i + 1)
+            return fs_new  # I don't need to continue iterating on this filament (which is the same as f₁)
         end
         inds_j = (i + 3):last(inds_i)  # for next iteration
     end
