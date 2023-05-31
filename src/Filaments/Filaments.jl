@@ -316,12 +316,14 @@ function update_coefficients! end
 
 function update_coefficients!(f::ClosedFilament; knots = nothing)
     (; ts, Xs, Xoffset,) = f
+    M = npad(Xs)
+
+    length(Xs) ≥ M || error(lazy"number of nodes in filament ($(length(Xs))) is below the allowed minimum ($M)")
 
     # 1. Periodically pad Xs.
     pad_periodic!(Xs, Xoffset)
 
     # 2. Compute parametrisation knots `ts`.
-    M = npad(Xs)
     @assert M == npad(ts)
     @assert M ≥ 1  # minimum padding required for computation of ts
     _update_knots_periodic!(ts, Xs, knots)
