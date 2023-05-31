@@ -32,6 +32,7 @@ fold_periodic!
 normalise_derivatives
 normalise_derivatives!
 integrate
+find_min_distance
 ```
 
 ## Refinement
