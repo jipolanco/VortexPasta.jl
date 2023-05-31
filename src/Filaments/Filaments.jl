@@ -220,6 +220,7 @@ include("discretisations.jl")
 include("padded_vector.jl")
 include("segments.jl")
 include("integrate.jl")
+include("min_distance.jl")
 include("refinement.jl")
 include("reconnections.jl")
 
