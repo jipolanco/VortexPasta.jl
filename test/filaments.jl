@@ -150,6 +150,14 @@ function test_filament_ring(args)
         @test nodes(fc) ≈ nodes(forig)
     end
 
+    @testset "Segments" begin
+        seg = @inferred segments(f)
+        inds = @inferred eachindex(seg)
+        @test inds == eachindex(nodes(f))  # true for closed filaments (same number of segments and nodes)
+        @test firstindex(seg) == first(inds)
+        @test lastindex(seg) == last(inds)
+    end
+
     if continuity ≥ 1
         @testset "Refinement (ring)" begin
             @testset "Coarsening" begin

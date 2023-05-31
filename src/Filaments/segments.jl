@@ -29,3 +29,6 @@ Return the indices associated to the segments of a filament.
 """
 @inline Base.eachindex(s::Segments) = _eachindex(s.f, s)
 _eachindex(f::ClosedFilament, ::Segments) = eachindex(f)
+
+@inline Base.firstindex(s::Segments) = first(eachindex(s))
+@inline Base.lastindex(s::Segments) = last(eachindex(s))
