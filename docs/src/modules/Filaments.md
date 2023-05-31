@@ -49,6 +49,7 @@ refine!
 ReconnectionCriterion
 NoReconnections
 BasedOnDistance
+distance
 ```
 
 ## Geometric quantities
