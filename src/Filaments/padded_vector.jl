@@ -135,29 +135,20 @@ pad_periodic!(v::PaddedVector, args...) = pad_periodic!(FromCentre(), v, args...
 # Apply periodic padding.
 # If L ≠ 0, it is interpreted as an unfolding period, such that v[N + 1 + i] - v[i] = L (where N = length(v)).
 function pad_periodic!(::FromCentre, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}
-    if length(v) ≥ M
-        @inbounds for i ∈ 1:M
-            v[begin - i] = v[end + 1 - i] - L
-            v[end + i] = v[begin - 1 + i] + L
-        end
-    else
-        # TODO apply "partial" (or multiple?) periodic padding based on the
-        # number of elements
-        @assert false
+    @assert length(v) ≥ M
+    @inbounds for i ∈ 1:M
+        v[begin - i] = v[end + 1 - i] - L
+        v[end + i] = v[begin - 1 + i] + L
     end
-    v
 end
 
 # This variant gives priority to padded values on the right of the "central" array.
 # This can be convenient for certain algorithms (e.g. when inserting spline knots).
 function pad_periodic!(::FromRight, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}
-    if length(v) ≥ M
-        @inbounds for i ∈ 1:M
-            v[begin - i] = v[end + 1 - i] - L
-            v[begin - 1 + i] = v[end + i] - L
-        end
-    else
-        @assert false  # TODO implement if needed
+    @assert length(v) ≥ M
+    @inbounds for i ∈ 1:M
+        v[begin - i] = v[end + 1 - i] - L
+        v[begin - 1 + i] = v[end + i] - L
     end
     v
 end

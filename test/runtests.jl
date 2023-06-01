@@ -8,5 +8,7 @@ using VortexPasta
     include("trefoil.jl")
     include("infinite_lines.jl")
     include("kelvin_waves.jl")
+    include("min_distance.jl")
+    include("reconnections.jl")
     include("plots.jl")
 end

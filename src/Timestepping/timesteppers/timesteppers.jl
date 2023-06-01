@@ -41,12 +41,38 @@ function init_cache(
     }(scheme, fc, vc)
 end
 
+# Here buf is usually a VectorOfFilaments or a vector of vectors of velocities
+# (containing the velocities of all filaments).
+function resize_container!(buf, fs::VectorOfFilaments)
+    i = lastindex(buf)
+    N = lastindex(fs)
+    i === N && return buf
+    while i < N
+        i += 1
+        push!(buf, similar(first(buf), length(fs[i])))
+    end
+    while i > N
+        i -= 1
+        pop!(buf)
+    end
+    @assert length(fs) == length(buf)
+    buf
+end
+
+# VectorOfArray doesn't implement pop!...
+resize_container!(vs::VectorOfArray, fs::VectorOfFilaments) = resize_container!(vs.u, fs)
+
 function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
     (; fc, vc,) = cache
+
+    # 1. Resize vectors of vectors if number of filaments changed.
+    map(buf -> resize_container!(buf, fs), fc)
+    map(buf -> resize_container!(buf, fs), vc)
+
+    # 2. Resize individual vectors if number of nodes in each filament changed.
     for (i, f) ∈ pairs(fs)
         N = length(f)
         for fbuf ∈ fc
-            # TODO add support for changing the number of filaments...
             @assert length(fbuf) == length(fs)
             resize!(fbuf[i], N)
         end
@@ -54,6 +80,7 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
             resize!(vbuf[i], N)
         end
     end
+
     cache
 end
 

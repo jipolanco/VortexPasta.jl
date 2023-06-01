@@ -10,14 +10,25 @@ export
     ClosedFilament,
     Vec3,
     Derivative,
+
+    # Geometric quantities
     UnitTangent,
     CurvatureVector,
     CurvatureScalar,
     CurvatureBinormal,
+
+    # Refinement criteria
     NoRefinement,
     BasedOnCurvature,
+
+    # Reconnection criteria
+    NoReconnections,
+    BasedOnDistance,
+
     knots,
     knotlims,
+    minimum_knot_increment,
+    maximum_knot_increment,
     nodes,
     segments,
     integrate,
@@ -176,6 +187,39 @@ Return parametrisation knots ``t_i`` of the filament.
 knots(f::AbstractFilament) = f.ts
 
 """
+    minimum_knot_increment(f::AbstractFilament) -> Real
+    minimum_knot_increment(fs::AbstractVector{<:AbstractFilament}) -> Real
+
+Return the minimum increment ``Δt = t_{i + 1} - t_{i}`` between filament knots.
+
+The second form allows to estimate the minimum increment among a vector of filaments.
+
+This is generally a good approximation for the minimum segment length.
+"""
+minimum_knot_increment(f::AbstractFilament) = reduce_knot_increments(min, f)
+minimum_knot_increment(fs::AbstractVector{<:AbstractFilament}) = minimum(minimum_knot_increment, fs)
+
+"""
+    maximum_knot_increment(f::AbstractFilament) -> Real
+    maximum_knot_increment(fs::AbstractVector{<:AbstractFilament}) -> Real
+
+Return the maximum increment ``Δt = t_{i + 1} - t_{i}`` between filament knots.
+
+The second form allows to estimate the maximum increment among a vector of filaments.
+
+This is generally a good approximation for the maximum segment length.
+"""
+maximum_knot_increment(f::AbstractFilament) = reduce_knot_increments(max, f)
+maximum_knot_increment(fs::AbstractVector{<:AbstractFilament}) = maximum(maximum_knot_increment, fs)
+
+function reduce_knot_increments(g::G, f::AbstractFilament) where {G <: Function}
+    ts = knots(f)
+    mapreduce(g, eachindex(segments(f))) do i
+        @inbounds ts[i + 1] - ts[i]
+    end
+end
+
+"""
     knotlims(f::AbstractFilament) -> (t_begin, t_end)
 
 Return limits within which the filament can be evaluated.
@@ -211,7 +255,9 @@ include("discretisations.jl")
 include("padded_vector.jl")
 include("segments.jl")
 include("integrate.jl")
+include("min_distance.jl")
 include("refinement.jl")
+include("reconnections.jl")
 
 include("local/finitediff.jl")
 include("local/interpolation.jl")
@@ -293,24 +339,21 @@ By default, this function also updates the parametrisation knots ``t_i``
 according to the current node positions. One can override this by passing a
 `knots` vector as a keyword argument.
 
-In the case of local Hermite interpolations, the coefficients are just the
-derivatives at the discretisation points.
-
-Note that derivatives are with respect to the (arbitrary) parametrisation
-``\\bm{X}(t)``, and *not* with respect to the arc length ``ξ = ξ(t)``. In other
-words, the returned derivatives do not directly correspond to the unit tangent
-and curvature vectors (but they are closely related).
+This function will fail if the number of filament nodes is smaller than that
+required by the discretisation method. For instance, closed filaments
+discretised using cubic splines must have at least 3 nodes.
 """
 function update_coefficients! end
 
 function update_coefficients!(f::ClosedFilament; knots = nothing)
     (; ts, Xs, Xoffset,) = f
+    M = npad(Xs)
+    check_nodes(f)
 
     # 1. Periodically pad Xs.
     pad_periodic!(Xs, Xoffset)
 
     # 2. Compute parametrisation knots `ts`.
-    M = npad(Xs)
     @assert M == npad(ts)
     @assert M ≥ 1  # minimum padding required for computation of ts
     _update_knots_periodic!(ts, Xs, knots)
@@ -319,6 +362,34 @@ function update_coefficients!(f::ClosedFilament; knots = nothing)
     _update_coefficients_only!(f)
 
     f
+end
+
+"""
+    check_nodes(Bool, f::AbstractFilament) -> Bool
+    check_nodes(f::AbstractFilament)
+
+Check whether current filament nodes are compatible with the filament discretisation method.
+
+In its first form, this function returns `false` in case of incompatibility,
+while it throws an error in its second form.
+
+For now, the only requirement is that the number of nodes must be larger than
+some small value. In particular, one can't have a closed filament with less
+than 3 nodes (but the specific discretisation method might impose some other small value).
+"""
+check_nodes(::Type{Bool}, f::AbstractFilament) = _check_nodes(Bool, nodes(f))
+check_nodes(f::AbstractFilament) = _check_nodes(Nothing, nodes(f))
+
+function _check_nodes(::Type{T}, Xs::PaddedVector) where {T}
+    M = max(npad(Xs), 3)  # can't have a closed filament with less than 3 nodes!
+    if length(Xs) < M
+        if T === Bool
+            return false
+        else
+            error(lazy"number of nodes in filament ($(length(Xs))) is below the allowed minimum ($M)")
+        end
+    end
+    true
 end
 
 """

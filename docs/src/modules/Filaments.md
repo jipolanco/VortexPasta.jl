@@ -24,6 +24,8 @@ Filaments.init
 discretisation_method
 knots
 knotlims
+minimum_knot_increment
+maximum_knot_increment
 nodes
 Base.getindex
 Base.setindex!
@@ -32,6 +34,8 @@ fold_periodic!
 normalise_derivatives
 normalise_derivatives!
 integrate
+find_min_distance
+check_nodes
 ```
 
 ## Refinement
@@ -41,6 +45,22 @@ RefinementCriterion
 NoRefinement
 BasedOnCurvature
 refine!
+```
+
+## Reconnections
+
+Reconnections are generally performed by calling [`reconnect!`](@ref) and
+according to a chosen reconnection criterion.
+
+```@docs
+ReconnectionCriterion
+NoReconnections
+BasedOnDistance
+reconnect!
+reconnect_self!
+reconnect_other!
+split!
+merge!
 ```
 
 ## Geometric quantities

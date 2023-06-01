@@ -75,15 +75,16 @@ struct BasedOnCurvature <: RefinementCriterion
     ρℓ_max :: Float64
     ρℓ_min :: Float64
     ℓ_max  :: Float64
+    ℓ_min  :: Float64
     inds   :: Vector{Int}   # indices of nodes or segments to modify
     remove :: Vector{Bool}  # determine whether nodes should be removed or segments should be refined
-    BasedOnCurvature(ρℓ_max, ρℓ_min; ℓ_max = Inf) = new(ρℓ_max, ρℓ_min, ℓ_max, Int[], Bool[])
+    BasedOnCurvature(ρℓ_max, ρℓ_min; ℓ_max = Inf, ℓ_min = 0.0) = new(ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, Int[], Bool[])
 end
 
 BasedOnCurvature(ρℓ_max; kws...) = BasedOnCurvature(ρℓ_max, ρℓ_max / 2.5; kws...)
 
 function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
-    (; ρℓ_max, ρℓ_min, ℓ_max, inds, remove,) = crit
+    (; ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, inds, remove,) = crit
     ts = knots(f)
     n_add = n_rem = 0
     empty!(inds)
@@ -100,7 +101,7 @@ function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
         ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
         # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
         ρℓ = ρ * ℓ
-        if ρℓ > ρℓ_max
+        if ρℓ > ρℓ_max && ℓ > 2 * ℓ_min  # so that the new ℓ is roughly larger than ℓ_min
             push!(inds, i)
             push!(remove, false)
             n_add += 1
