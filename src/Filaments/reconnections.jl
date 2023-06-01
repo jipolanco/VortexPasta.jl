@@ -15,13 +15,6 @@ Implemented reconnection criteria include:
 abstract type ReconnectionCriterion end
 
 """
-    distance(crit::ReconnectionCriterion) -> Real
-
-Return the critical distance associated to the reconnection criterion.
-"""
-function distance end
-
-"""
     NoReconnections <: ReconnectionCriterion
 
 Used to disable filament reconnections.
@@ -145,18 +138,24 @@ function reconnect_self!(
 
             # Split filament into 2
             f₁, f₂ = split!(f, i, j)
-            update_coefficients!(f₁)
-            update_coefficients!(f₂)
             @assert f₁ === f
             push!(fs_new, f₂)
 
-            # Possibly perform reconnections on each subfilament.
+            # Update coefficients and possibly perform reconnections on each subfilament.
             # In the second case, the `istart` is to save some time by skipping
             # segment pairs which were already verified. This requires the
             # nodes in each subfilament to be sorted in a specific manner, and
             # may fail if the split! function is modified.
-            reconnect_self!(crit, f₁, fs_new; periods)
-            reconnect_self!(crit, f₂, fs_new; periods, istart = i + 1)
+            if check_nodes(Bool, f₁)  # skip if coefficients can't be computed, typically if the number of nodes is too small (< 3 for cubic splines)
+                update_coefficients!(f₁)
+                reconnect_self!(crit, f₁, fs_new; periods)
+            end
+
+            if check_nodes(Bool, f₂)
+                update_coefficients!(f₂)
+                reconnect_self!(crit, f₂, fs_new; periods, istart = i + 1)
+            end
+
             return fs_new  # I don't need to continue iterating on this filament (which is the same as f₁)
         end
         inds_j = (i + 3):last(inds_i)  # for next iteration
@@ -164,6 +163,95 @@ function reconnect_self!(
 
     fs_new
 end
+
+"""
+    reconnect!(
+        [callback::Function],
+        crit::ReconnectionCriterion,
+        fs::AbstractVector{<:AbstractFilament};
+        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+    )
+
+Perform filament reconnections according to chosen criterion.
+
+Note that, when a filament self-reconnects, this creates new filaments, which
+are appended at the end of `fs`.
+
+Moreover, this function will remove reconnected filaments if their number of nodes is too small
+(typically ``< 3``, see [`check_nodes`](@ref)).
+
+Returns the number of new filaments appended to `fs`.
+
+## Callback function
+
+Optionally, one may pass a callback which will be called whenever the vector of
+filaments `fs` is modified. Its signature must be the following:
+
+    callback(f::AbstractFilament, i::Int, mode::Symbol)
+
+where `f` is the modified filament, `i` is its index in `fs`, and `mode` is one of:
+
+- `:modified`: if the filament `fs[i]` was modified;
+- `:appended`: if the filament was appended at the end of `fs` (at index `i`);
+- `:removed`: if the filament previously located at index `i` was removed.
+
+See also [`reconnect_self!`](@ref).
+"""
+function reconnect!(
+        callback::F,
+        crit::ReconnectionCriterion,
+        fs::AbstractVector{<:AbstractFilament};
+        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+    ) where {F <: Function}
+
+    # 1. Self-reconnect filaments
+    inds = eachindex(fs)
+    i = firstindex(fs) - 1
+    ilast = lastindex(fs)
+
+    while i < ilast  # make sure we don't include appended filaments in the iteration
+        i += 1
+        f = fs[i]
+        n_old = lastindex(fs)
+        reconnect_self!(crit, f, fs; periods)
+
+        if lastindex(fs) === n_old  # there were no reconnections
+            continue
+        end
+
+        # First check appended filaments, and remove them if they don't have enough nodes (typically < 3).
+        j = n_old
+        while j < lastindex(fs)
+            j += 1
+            fj = fs[j]  # this is an appended filament
+            if check_nodes(Bool, fj)
+                callback(fj, j, :appended)
+            else
+                popat!(fs, j)  # remove the filament
+                j -= 1
+            end
+        end
+
+        # Now check the modified filament f = fs[i].
+        if check_nodes(Bool, f)
+            callback(f, i, :modified)
+        else
+            popat!(fs, i)
+            callback(f, i, :removed)
+            i -= 1
+            ilast -= 1
+        end
+    end
+
+    # 2. Reconnect filaments with each other
+    # TODO
+
+    n_added_total = length(fs) - length(inds)
+    n_added_total
+end
+
+reconnect!(crit::ReconnectionCriterion, args...; kws...) =
+    reconnect!(Returns(nothing), crit, args...; kws...)
 
 """
     split!(f::ClosedFilament, i::Int, j::Int) -> (f₁, f₂)

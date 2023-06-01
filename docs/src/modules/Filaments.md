@@ -33,6 +33,7 @@ normalise_derivatives
 normalise_derivatives!
 integrate
 find_min_distance
+check_nodes
 ```
 
 ## Refinement
@@ -46,11 +47,16 @@ refine!
 
 ## Reconnections
 
+Reconnections are generally performed by calling [`reconnect!`](@ref) and
+according to a chosen reconnection criterion.
+
 ```@docs
 ReconnectionCriterion
 NoReconnections
 BasedOnDistance
-distance
+reconnect!
+reconnect_self!
+split!
 ```
 
 ## Geometric quantities

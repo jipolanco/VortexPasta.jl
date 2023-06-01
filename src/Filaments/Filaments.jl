@@ -304,21 +304,16 @@ By default, this function also updates the parametrisation knots ``t_i``
 according to the current node positions. One can override this by passing a
 `knots` vector as a keyword argument.
 
-In the case of local Hermite interpolations, the coefficients are just the
-derivatives at the discretisation points.
-
-Note that derivatives are with respect to the (arbitrary) parametrisation
-``\\bm{X}(t)``, and *not* with respect to the arc length ``ξ = ξ(t)``. In other
-words, the returned derivatives do not directly correspond to the unit tangent
-and curvature vectors (but they are closely related).
+This function will fail if the number of filament nodes is smaller than that
+required by the discretisation method. For instance, closed filaments
+discretised using cubic splines must have at least 3 nodes.
 """
 function update_coefficients! end
 
 function update_coefficients!(f::ClosedFilament; knots = nothing)
     (; ts, Xs, Xoffset,) = f
     M = npad(Xs)
-
-    length(Xs) ≥ M || error(lazy"number of nodes in filament ($(length(Xs))) is below the allowed minimum ($M)")
+    check_nodes(f)
 
     # 1. Periodically pad Xs.
     pad_periodic!(Xs, Xoffset)
@@ -332,6 +327,34 @@ function update_coefficients!(f::ClosedFilament; knots = nothing)
     _update_coefficients_only!(f)
 
     f
+end
+
+"""
+    check_nodes(Bool, f::AbstractFilament) -> Bool
+    check_nodes(f::AbstractFilament)
+
+Check whether current filament nodes are compatible with the filament discretisation method.
+
+In its first form, this function returns `false` in case of incompatibility,
+while it throws an error in its second form.
+
+For now, the only requirement is that the number of nodes must be larger than
+some small value. In particular, one can't have a closed filament with less
+than 3 nodes (but the specific discretisation method might impose some other small value).
+"""
+check_nodes(::Type{Bool}, f::AbstractFilament) = _check_nodes(Bool, nodes(f))
+check_nodes(f::AbstractFilament) = _check_nodes(Nothing, nodes(f))
+
+function _check_nodes(::Type{T}, Xs::PaddedVector) where {T}
+    M = max(npad(Xs), 3)  # can't have a closed filament with less than 3 nodes!
+    if length(Xs) < M
+        if T === Bool
+            return false
+        else
+            error(lazy"number of nodes in filament ($(length(Xs))) is below the allowed minimum ($M)")
+        end
+    end
+    true
 end
 
 """

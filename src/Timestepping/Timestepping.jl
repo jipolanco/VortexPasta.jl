@@ -325,13 +325,43 @@ function step!(iter::VortexFilamentSolver)
     iter
 end
 
+function reconnect!(iter::VortexFilamentSolver)
+    (; vs, fs, reconnect,) = iter
+    vs::VectorOfArray  # doesn't implement `popat!`...
+    us = vs.u
+    Filaments.reconnect!(reconnect, fs) do f, i, mode
+        if mode === :removed
+            @debug lazy"Filament was removed at index $i"
+            @assert i ≤ lastindex(vs) == lastindex(fs) + 1
+            popat!(us, i)
+        elseif mode === :appended
+            @debug lazy"Filament was appended at index $i"
+            @assert f === fs[i]
+            @assert i == lastindex(fs) == lastindex(vs) + 1
+            push!(us, similar(first(vs), length(f)))
+        elseif mode === :modified
+            @debug lazy"Filament was modified at index $i"
+            @assert f === fs[i]
+            @assert i ≤ lastindex(fs) == lastindex(vs)
+            resize!(us[i], length(f))
+        end
+    end
+    iter
+end
+
 # Called whenever filament positions have just been initialised or updated.
 function after_advection!(iter::VortexFilamentSolver)
-    (; vs, fs, time, callback, adaptivity, rhs!,) = iter
+    (; vs, fs, time, callback, adaptivity, rhs!, to,) = iter
+
+    # Perform reconnections, possibly changing the number of filaments.
+    @timeit to "reconnect!" reconnect!(iter)
+    @assert length(fs) == length(vs)
+
     rhs!(vs, fs, time.t, iter)  # update velocities to the next timestep (and first RK step)
     callback(iter)
     time.dt_prev = time.dt
     time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
+
     iter
 end
 
