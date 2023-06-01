@@ -1,5 +1,5 @@
 using ..BasicTypes: Zero, Infinity
-using LinearAlgebra: ⋅
+using LinearAlgebra: ⋅, norm
 
 """
     ReconnectionCriterion
@@ -56,6 +56,12 @@ function should_reconnect(
     (; d⃗, ζx, ζy,) = find_min_distance(fx, fy, i, j; periods)
     d² = sum(abs2, d⃗)
     d² > dist_sq && return false  # don't reconnect
+
+    # Make sure that reconnections reduce the total length (makes sense energetically for vortices).
+    # TODO make this optional
+    length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])
+    length_after = norm(fy[j + 1] - fx[i]) + norm(fx[i + 1] - fy[j])
+    length_after > length_before && return false
 
     X′ = fx(i, ζx, Derivative(1))
     Y′ = fy(j, ζy, Derivative(1))
