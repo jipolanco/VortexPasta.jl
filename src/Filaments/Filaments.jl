@@ -27,6 +27,7 @@ export
 
     knots,
     knotlims,
+    minimum_knot_increment,
     nodes,
     segments,
     integrate,
@@ -183,6 +184,26 @@ nodes(f::AbstractFilament) = f.Xs
 Return parametrisation knots ``t_i`` of the filament.
 """
 knots(f::AbstractFilament) = f.ts
+
+"""
+    minimum_knot_increment(f::AbstractFilament) -> Real
+    minimum_knot_increment(fs::AbstractVector{<:AbstractFilament}) -> Real
+
+Return the minimum increment ``Δt = t_{i + 1} - t_{i}`` between filament knots.
+
+The second form allows to estimate the minimum increment among a vector of filaments.
+
+This is generally a good approximation for the minimum segment length.
+"""
+function minimum_knot_increment(f::AbstractFilament)
+    ts = knots(f)
+    minimum(eachindex(segments(f))) do i
+        @inbounds ts[i + 1] - ts[i]
+    end
+end
+
+minimum_knot_increment(fs::AbstractVector{<:AbstractFilament}) =
+    minimum(minimum_knot_increment, fs)
 
 """
     knotlims(f::AbstractFilament) -> (t_begin, t_end)

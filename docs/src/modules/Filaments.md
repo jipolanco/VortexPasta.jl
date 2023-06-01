@@ -24,6 +24,7 @@ Filaments.init
 discretisation_method
 knots
 knotlims
+minimum_knot_increment
 nodes
 Base.getindex
 Base.setindex!
