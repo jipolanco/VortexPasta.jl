@@ -46,6 +46,8 @@ plot!(ax, f)  # f is a filament
 
 - `linewidth = 1.5f0`
 
+- `linestyle = :solid`
+
 - `markercolor = nothing` (`nothing` → same as `color`)
 
 - `marker = :circle`
@@ -98,6 +100,7 @@ MakieCore.@recipe(FilamentPlot) do scene
         marker = :circle,
         markersize = 10.0f0,
         linewidth = 1.5f0,
+        linestyle = :solid,
         cycle = [:color],  # this gives the default colour cycle (see e.g. docs for Makie.lines)
         color = :black,
         colormap = :viridis,
@@ -130,7 +133,7 @@ function MakieCore.plot!(p::FilamentPlot)
     Xs_line = @map _refine_filament(&f, &p.refinement)
     MakieCore.lines!(
         p, Xs_line;
-        color = p.color, linewidth = p.linewidth,
+        color = p.color, linewidth = p.linewidth, linestyle = p.linestyle,
         colormap = p.colormap,
     )
     MakieCore.scatter!(
