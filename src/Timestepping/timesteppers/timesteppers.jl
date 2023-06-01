@@ -46,14 +46,16 @@ end
 function resize_container!(buf, fs::VectorOfFilaments)
     i = lastindex(buf)
     N = lastindex(fs)
+    i === N && return buf
     while i < N
         i += 1
         push!(buf, similar(first(buf), length(fs[i])))
     end
     while i > N
-        i -= N
+        i -= 1
         pop!(buf)
     end
+    @assert length(fs) == length(buf)
     buf
 end
 
