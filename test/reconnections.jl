@@ -2,6 +2,7 @@ using Test
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
+using LinearAlgebra: norm
 
 # Create a curve which resembles an 8 (or ∞).
 # This specific curve is called the lemniscate of Bernouilli (https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli)
@@ -29,8 +30,14 @@ function trefoil_knot_curve(; a::Real, origin::Vec3 = π * Vec3(1, 1, 1))
     (; tlims, S, a, origin,)
 end
 
+function ring_curve(; R::Real, origin::Vec3 = π * Vec3(1, 1, 1), sign = +1)
+    tlims = (0, 2)
+    S(t) = origin + R * Vec3(cospi(sign * t), sinpi(sign * t), zero(t))
+    (; tlims, S, origin, R,)
+end
+
 @testset "Reconnections" begin
-    @testset "Static: figure-eight knot" begin
+    @testset "Static self-reconnection: figure-eight knot" begin
         Az = 0.001
         curve = figure_eight_curve(; a = π / 4, Az, origin = Vec3(0, 0, 0))
         (; S, tlims,) = curve
@@ -107,7 +114,7 @@ end
         for n = 1:200
             Timestepping.step!(iter)
             (; t,) = iter.time
-            Nf = length(iter.fs)
+            Nf = length(fs)
 
             # Run until the first self-reconnection.
             if Nf == 2
@@ -116,16 +123,58 @@ end
             end
         end
 
-        @test length(iter.fs) == 2
+        @test length(fs) == 2
+    end
+
+    @testset "Static reconnection: antiparallel rings" begin
+        # Test two nearly overlapping rings with the same sign (they should reconnect,
+        # since they're antiparallel at the reconnection point).
+        R = π / 4
+        ϵ = 0.02R
+        rings = (
+            ring_curve(; R, origin = Vec3(π - (R + ϵ), π, π), sign = +1),
+            ring_curve(; R, origin = Vec3(π + (R + ϵ), π, π), sign = +1),
+        )
+        d_min = norm(rings[2].S(1.0) - rings[1].S(0.0))  # minimum distance between the rings
+        @assert d_min ≈ 2ϵ
+
+        fs_orig = map(rings) do ring
+            (; S, tlims,) = ring
+            N = 32
+            ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+            Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+        end
+        l_min = minimum(minimum_knot_increment, fs_orig)
+        d_min_nodes = let (f, g) = fs_orig
+            minimum(Iterators.product(eachindex(f), eachindex(g))) do (i, j)
+                norm(f[i] - g[j])
+            end
+        end
+        crit = BasedOnDistance(1.2 * d_min_nodes)
+
+        @testset "Filaments.reconnect_other!" begin
+            f, g = copy.(fs_orig)
+            @test Filaments.reconnect_other!(crit, f, g) == true  # reconnection happened!
+            @test length(f) == sum(length, fs_orig)
+            @test maximum_knot_increment(f) < 2 * l_min  # check that there are no crazy jumps
+        end
+
+        @testset "Filaments.reconnect!" begin
+            fs = collect(copy.(fs_orig))
+            Filaments.reconnect!(crit, fs)
+            @test length(fs) == 1
+            @test length(fs[1]) == sum(length, fs_orig)
+            @test maximum_knot_increment(fs) < 2 * l_min  # check that there are no crazy jumps
+        end
     end
 end
 
 if @isdefined(Makie)
     fig = Figure()
     ax = Axis3(fig[1, 1]; aspect = :data)
-    plot!(ax, f; refinement = 8)
-    for f ∈ fs_all
-        plot!(ax, f; refinement = 8)
+    for f ∈ fs
+        plot!(ax, f; refinement = 8, linestyle = :dash)
     end
+    plot!(ax, f; refinement = 8)
     fig
 end

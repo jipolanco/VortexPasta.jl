@@ -25,6 +25,7 @@ discretisation_method
 knots
 knotlims
 minimum_knot_increment
+maximum_knot_increment
 nodes
 Base.getindex
 Base.setindex!
@@ -57,7 +58,9 @@ NoReconnections
 BasedOnDistance
 reconnect!
 reconnect_self!
+reconnect_other!
 split!
+merge!
 ```
 
 ## Geometric quantities

@@ -28,6 +28,7 @@ export
     knots,
     knotlims,
     minimum_knot_increment,
+    maximum_knot_increment,
     nodes,
     segments,
     integrate,
@@ -195,15 +196,28 @@ The second form allows to estimate the minimum increment among a vector of filam
 
 This is generally a good approximation for the minimum segment length.
 """
-function minimum_knot_increment(f::AbstractFilament)
+minimum_knot_increment(f::AbstractFilament) = reduce_knot_increments(min, f)
+minimum_knot_increment(fs::AbstractVector{<:AbstractFilament}) = minimum(minimum_knot_increment, fs)
+
+"""
+    maximum_knot_increment(f::AbstractFilament) -> Real
+    maximum_knot_increment(fs::AbstractVector{<:AbstractFilament}) -> Real
+
+Return the maximum increment ``Δt = t_{i + 1} - t_{i}`` between filament knots.
+
+The second form allows to estimate the maximum increment among a vector of filaments.
+
+This is generally a good approximation for the maximum segment length.
+"""
+maximum_knot_increment(f::AbstractFilament) = reduce_knot_increments(max, f)
+maximum_knot_increment(fs::AbstractVector{<:AbstractFilament}) = maximum(maximum_knot_increment, fs)
+
+function reduce_knot_increments(g::G, f::AbstractFilament) where {G <: Function}
     ts = knots(f)
-    minimum(eachindex(segments(f))) do i
+    mapreduce(g, eachindex(segments(f))) do i
         @inbounds ts[i + 1] - ts[i]
     end
 end
-
-minimum_knot_increment(fs::AbstractVector{<:AbstractFilament}) =
-    minimum(minimum_knot_increment, fs)
 
 """
     knotlims(f::AbstractFilament) -> (t_begin, t_end)

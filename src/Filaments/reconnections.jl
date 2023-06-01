@@ -182,6 +182,77 @@ function reconnect_self!(
 end
 
 """
+    reconnect_other!(
+        crit::ReconnectionCriterion, f::AbstractFilament, g::AbstractFilament;
+        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+    )
+
+Attempt to reconnect filaments `f` and `g`.
+
+The two filaments cannot be the same. To reconnect a filament with itself, see [`reconnect_self!`](@ref).
+
+This function allows at most a single reconnection between the two vortices.
+If a reconnection happens, the two vortices merge into one. Vortex `f` is
+updated with the result, while vortex `g` can be discarded.
+
+Returns `true` if a reconnection happened, `false` otherwise.
+"""
+function reconnect_other!(
+        crit::ReconnectionCriterion, f::AbstractFilament, g::AbstractFilament;
+        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+    )
+    @assert f !== g
+
+    d_crit = distance(crit)
+    d_crit === Zero() && return false  # reconnections are disabled
+
+    # The following is very similar to `reconnect_self!`
+    d_cut = 2 * d_crit
+    d_cut_sq = d_cut^2
+    periods_half = map(L -> L / 2, periods)
+
+    inds_i = eachindex(segments(f))
+    inds_j = eachindex(segments(g))
+
+    for i ∈ inds_i
+        x⃗_mid = (f[i] + f[i + 1]) ./ 2
+        r⃗_b = let
+            y⃗ = g[first(inds_j)]
+            deperiodise_separation(y⃗ - x⃗_mid, periods, periods_half)
+        end
+        is_outside_range_b = any(>(d_cut), r⃗_b)  # should be cheaper than computing the squared vector norm
+        for j ∈ inds_j
+            r⃗_a = r⃗_b
+            r⃗_b = let
+                y⃗ = g[j + 1]
+                deperiodise_separation(y⃗ - x⃗_mid, periods, periods_half)
+            end
+            is_outside_range_a = is_outside_range_b
+            is_outside_range_b = any(>(d_cut), r⃗_b)
+
+            if is_outside_range_a && is_outside_range_b
+                # Skip this segment if its two limits are too far from x⃗_mid.
+                continue
+            end
+
+            # Second (slightly finer) filter: look at the actual distances.
+            if sum(abs2, r⃗_a) > d_cut_sq || sum(abs2, r⃗_b) > d_cut_sq
+                continue
+            end
+
+            # The current segment passed the first two filters and is a candidate for reconnection.
+            if should_reconnect(crit, f, g, i, j; periods)
+                merge!(f, g, i, j)  # filaments are merged onto `f`
+                update_coefficients!(f)
+                return true
+            end
+        end
+    end
+
+    false
+end
+
+"""
     reconnect!(
         [callback::Function],
         crit::ReconnectionCriterion,
@@ -196,8 +267,6 @@ are appended at the end of `fs`.
 
 Moreover, this function will remove reconnected filaments if their number of nodes is too small
 (typically ``< 3``, see [`check_nodes`](@ref)).
-
-Returns the number of new filaments appended to `fs`.
 
 ## Callback function
 
@@ -221,8 +290,34 @@ function reconnect!(
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
     ) where {F <: Function}
 
-    # 1. Self-reconnect filaments
-    inds = eachindex(fs)
+    # 1. Reconnect filaments with each other.
+    i = firstindex(fs) - 1
+    ilast = lastindex(fs)
+    while i < ilast
+        i += 1
+        f = fs[i]
+        j = i
+        jlast = lastindex(fs)
+        while j < jlast
+            j += 1
+            g = fs[j]
+            if reconnect_other!(crit, f, g; periods)
+                # The two filaments were merged into `f`, and the filament `g` can be removed.
+                callback(f, i, :modified)
+                popat!(fs, j)
+                callback(g, j, :removed)
+                j -= 1
+                jlast -= 1
+                ilast -= 1
+            end
+        end
+    end
+
+    # 2. Reconnect filaments with themselves.
+    # This needs to be done after reconnecting with each other.
+    # In the specific case of two vortices reconnecting at two separate locations, this ensures that:
+    #  (i)  In step 1, the two vortices reconnect at one of the locations forming one vortex in step 1.
+    #  (ii) In step 2, the "big" vortex generated in step 1 self-reconnects, ending up with two vortices.
     i = firstindex(fs) - 1
     ilast = lastindex(fs)
 
@@ -260,11 +355,7 @@ function reconnect!(
         end
     end
 
-    # 2. Reconnect filaments with each other
-    # TODO
-
-    n_added_total = length(fs) - length(inds)
-    n_added_total
+    fs
 end
 
 reconnect!(crit::ReconnectionCriterion, args...; kws...) =
@@ -312,4 +403,43 @@ function split!(f::ClosedFilament, i::Int, j::Int)
     resize!(f1, n1)
 
     f1, f2
+end
+
+"""
+    merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int)
+
+Merge two closed filaments into one.
+
+The resulting filament is composed of nodes `f[begin:i] ∪ g[(j + 1:end) ∪ (begin:j)] ∪ f[i + 1:end]`.
+
+This function modifies (and returns) the filament `f`, which contains the
+merged filament at output. The filament `g` is not modified.
+
+One should generally call [`update_coefficients!`](@ref) on `f` after merging.
+"""
+function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int)
+    Nf, Ng = length(f), length(g)
+    is_shift = (i + 1):lastindex(f)
+
+    resize!(f, Nf + Ng)
+
+    # Shift second half of `f` nodes (i.e. f[is_shift]) to the end of `f`.
+    l = lastindex(f) + 1
+    for k ∈ reverse(is_shift)
+        f[l -= 1] = f[k]
+    end
+    @assert l == length(f) - length(is_shift) + 1
+
+    # Copy first half of `g` nodes (i.e. g[begin:j]).
+    for k ∈ j:-1:firstindex(g)
+        f[l -= 1] = g[k]
+    end
+
+    # Copy second half of `g` nodes (i.e. g[j + 1:end]).
+    for k ∈ lastindex(g):-1:(j + 1)
+        f[l -= 1] = g[k]
+    end
+    @assert l == i + 1
+
+    f
 end
