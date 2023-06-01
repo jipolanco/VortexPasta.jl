@@ -279,9 +279,9 @@ filaments `fs` is modified. Its signature must be the following:
 
 where `f` is the modified filament, `i` is its index in `fs`, and `mode` is one of:
 
-- `:modified`: if the filament `fs[i]` was modified;
-- `:appended`: if the filament was appended at the end of `fs` (at index `i`);
-- `:removed`: if the filament previously located at index `i` was removed.
+- `:modified` if the filament `fs[i]` was modified;
+- `:appended` if the filament was appended at the end of `fs` (at index `i`);
+- `:removed` if the filament previously located at index `i` was removed.
 
 See also [`reconnect_self!`](@ref).
 """
