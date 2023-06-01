@@ -172,7 +172,7 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `refinement = NoRefinement()`: criterium used for adaptive refinement of vortex
   filaments. See [`BasedOnCurvature`](@ref) for a possible way of enabling refinement.
 
-- `reconnections = NoReconnections()`: criterium used to perform vortex reconnections.
+- `reconnect = NoReconnections()`: criterium used to perform vortex reconnections.
   See [`ReconnectionCriterion`](@ref) for a list of possible methods and
   [`BasedOnDistance`](@ref) for one of these methods.
 
@@ -195,7 +195,7 @@ function init(
         dt::Real,
         dtmin::Real = 0.0,
         refinement::RefinementCriterion = NoRefinement(),
-        reconnections::ReconnectionCriterion = NoReconnections(),
+        reconnect::ReconnectionCriterion = NoReconnections(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         callback::F = identity,
         timer = TimerOutput("VortexFilament"),
@@ -219,7 +219,7 @@ function init(
     time = TimeInfo(nstep = 0, t = first(tspan), dt = dt, dt_prev = dt)
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, time, dtmin, refinement, adaptivity, reconnections,
+        prob, fs_sol, vs, time, dtmin, refinement, adaptivity, reconnect,
         cache_bs, cache_timestepper, callback_, timer,
         advect!, rhs!,
     )

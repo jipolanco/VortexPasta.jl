@@ -50,8 +50,15 @@ function resize_container!(buf, fs::VectorOfFilaments)
         i += 1
         push!(buf, similar(first(buf), length(fs[i])))
     end
+    while i > N
+        i -= N
+        pop!(buf)
+    end
     buf
 end
+
+# VectorOfArray doesn't implement pop!...
+resize_container!(vs::VectorOfArray, fs::VectorOfFilaments) = resize_container!(vs.u, fs)
 
 function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
     (; fc, vc,) = cache
