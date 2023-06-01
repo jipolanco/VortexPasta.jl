@@ -337,7 +337,7 @@ function reconnect!(iter::VortexFilamentSolver)
         elseif mode === :appended
             @debug lazy"Filament was appended at index $i"
             @assert f === fs[i]
-            @assert i == lastindex(fs) == lastindex(vs) + 1
+            @assert i == lastindex(vs) + 1
             push!(us, similar(first(vs), length(f)))
         elseif mode === :modified
             @debug lazy"Filament was modified at index $i"
