@@ -26,22 +26,31 @@ should_reconnect(::NoReconnections, args...; kws...) = false
 
 """
     BasedOnDistance <: ReconnectionCriterion
-    BasedOnDistance(d_crit; cos_max = 0.97)
+    BasedOnDistance(d_crit; decrease_length = true, cos_max = 0.97)
 
 Reconnects filament segments which are at a distance `d < d_crit`.
 
-The keyword argument `cos_max` disables the reconnection of nearly parallel segments.
-The default value `cos_max = 0.97` disables reconnections when the angle between lines
-is ``θ < \\arccos(0.97) ≈ 14°``.
+# Optional keyword arguments
+
+- `decrease_length`: if `true` (default), a reconnection will only be performed
+  if it will decrease the total filament length. Since, for vortices, the total
+  energy is roughly related to the vortex length, this means that reconnections
+  should always tend to dissipate energy.
+
+- `cos_max`: allows to disable reconnections of nearly parallel segments. Two segments
+  are considered to be "nearly parallel" if `cos(θ) > cos_max`.
+  The default value `cos_max = 0.97` disables reconnections when the angle between lines
+  is ``θ < \\arccos(0.97) ≈ 14°``.
 """
 struct BasedOnDistance <: ReconnectionCriterion
     dist       :: Float64
     dist_sq    :: Float64
     cos_max    :: Float64
     cos_max_sq :: Float64
+    decrease_length :: Bool
 
-    function BasedOnDistance(dist; cos_max = 0.97)
-        new(dist, dist^2, cos_max, cos_max^2)
+    function BasedOnDistance(dist; cos_max = 0.97, decrease_length = true)
+        new(dist, dist^2, cos_max, cos_max^2, decrease_length)
     end
 end
 
@@ -51,17 +60,18 @@ function should_reconnect(
         c::BasedOnDistance, fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;
         periods,
     )
-    (; dist_sq, cos_max_sq,) = c
+    (; dist_sq, cos_max_sq, decrease_length,) = c
 
     (; d⃗, ζx, ζy,) = find_min_distance(fx, fy, i, j; periods)
     d² = sum(abs2, d⃗)
     d² > dist_sq && return false  # don't reconnect
 
     # Make sure that reconnections reduce the total length (makes sense energetically for vortices).
-    # TODO make this optional
-    length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])
-    length_after = norm(fy[j + 1] - fx[i]) + norm(fx[i + 1] - fy[j])
-    length_after > length_before && return false
+    if decrease_length
+        length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])
+        length_after = norm(fy[j + 1] - fx[i]) + norm(fx[i + 1] - fy[j])
+        length_after > length_before && return false
+    end
 
     X′ = fx(i, ζx, Derivative(1))
     Y′ = fy(j, ζy, Derivative(1))

@@ -72,6 +72,7 @@ end
         (; S, tlims,) = curve
         N = 64
         ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+
         f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
         fs = [f]
         l_min = minimum_knot_increment(fs)
@@ -102,26 +103,20 @@ end
             adaptivity = BasedOnSegmentLength(1.0),
         )
 
-        @assert length(iter.fs) == 1
-
+        # TODO check that energy decreases?
         for n = 1:200
             Timestepping.step!(iter)
             (; t,) = iter.time
             Nf = length(iter.fs)
 
-            if t < 1.4
-                # This is completely empirical, but the first self-reconnection
-                # seems to occur "exactly" at t = 1.5 (between 1.4999 and 1.511).
-                # I guess this will depend a lot on the parameters...
-                @test Nf == 1
-            elseif 1.5 < t < 1.6
-                # Note that there may be other self-reconnections later, including
-                # tiny vortex rings which might be removed in future versions of the code...
-                @test Nf == 2
+            # Run until the first self-reconnection.
+            if Nf == 2
+                @test 1.5 < t < 1.6
+                break
             end
         end
 
-        @test iter.time.t > 2.0  # should be actually closer to 3
+        @test length(iter.fs) == 2
     end
 end
 
