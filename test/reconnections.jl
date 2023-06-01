@@ -167,14 +167,52 @@ end
             @test maximum_knot_increment(fs) < 2 * l_min  # check that there are no crazy jumps
         end
     end
+
+    @testset "Static reconnection: nearly overlapping rings" begin
+        # Test two nearly overlapping rings (with some small offset in z) which should reconnect at two points.
+        # We should end up with two separate vortices.
+        # Internally, this happens in two steps:
+        #   (1) the two vortices merge at one of the reconnection points, and
+        #   (2) the resulting vortex splits into two at the other reconnection point.
+        R = π / 4
+        ϵ = 0.02R
+        rings = (
+            ring_curve(; R, origin = Vec3(π - R / sqrt(2), π, π + ϵ), sign = +1),
+            ring_curve(; R, origin = Vec3(π + R / sqrt(2), π, π - ϵ), sign = +1),
+        )
+
+        fs_orig = map(rings) do ring
+            (; S, tlims,) = ring
+            N = 32
+            ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+            Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+        end
+        l_min = minimum(minimum_knot_increment, fs_orig)
+        d_min_nodes = let (f, g) = fs_orig
+            minimum(Iterators.product(eachindex(f), eachindex(g))) do (i, j)
+                norm(f[i] - g[j])
+            end
+        end
+        crit = BasedOnDistance(1.2 * d_min_nodes)
+
+        fs = collect(copy.(fs_orig))
+        Filaments.reconnect!(crit, fs)
+        @test length(fs) == 2
+        @test fs[1] != fs_orig[1]  # reconnection happened
+        @test fs[2] != fs_orig[2]  # reconnection happened
+        @test length(fs[1]) ≠ length(fs[2])  # the resulting vortices have different sizes
+    end
 end
 
+# This can be useful for playing around with the tests.
 if @isdefined(Makie)
     fig = Figure()
     ax = Axis3(fig[1, 1]; aspect = :data)
-    for f ∈ fs
+    for f ∈ fs_orig
         plot!(ax, f; refinement = 8, linestyle = :dash)
     end
-    plot!(ax, f; refinement = 8)
+    for f ∈ fs
+        plot!(ax, f; refinement = 8, linestyle = :solid)
+    end
     fig
 end
