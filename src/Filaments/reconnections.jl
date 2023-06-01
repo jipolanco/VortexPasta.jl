@@ -76,8 +76,9 @@ function should_reconnect(
     X′ = fx(i, ζx, Derivative(1))
     Y′ = fy(j, ζy, Derivative(1))
 
-    cos² = (X′ ⋅ Y′)^2 / (sum(abs2, X′) * sum(abs2, Y′))
-    cos² < cos_max_sq
+    xy = X′ ⋅ Y′
+    cos² = (xy * xy) / (sum(abs2, X′) * sum(abs2, Y′))
+    sign(xy) * cos² < cos_max_sq  # take into account the sign, to allow reconnection of antiparallel vortices
 end
 
 """
