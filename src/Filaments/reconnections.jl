@@ -15,6 +15,25 @@ Implemented reconnection criteria include:
 abstract type ReconnectionCriterion end
 
 """
+    should_reconnect(
+        c::ReconnectionCriterion,
+        fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;
+        periods,
+    ) -> Union{Nothing, NamedTuple}
+
+Check whether two filaments should reconnect according to the chosen criterion.
+
+Checks for a possible reconnection between filament segments `fx[i:i+1]` and `fy[j:j+1]`.
+
+If the filament segments should reconnect, this function returns a `NamedTuple`
+with reconnection information, which includes in particular all the fields
+returned by [`find_min_distance`](@ref).
+
+Otherwise, returns `nothing` if the filament segments should not reconnect.
+"""
+function should_reconnect end
+
+"""
     NoReconnections <: ReconnectionCriterion
 
 Used to disable filament reconnections.
@@ -22,7 +41,7 @@ Used to disable filament reconnections.
 struct NoReconnections <: ReconnectionCriterion end
 
 distance(::NoReconnections) = Zero()
-should_reconnect(::NoReconnections, args...; kws...) = false
+should_reconnect(::NoReconnections, args...; kws...) = nothing
 
 """
     BasedOnDistance <: ReconnectionCriterion
@@ -62,25 +81,28 @@ function should_reconnect(
     )
     (; dist_sq, cos_max_sq, decrease_length,) = c
 
-    (; d⃗, ζx, ζy,) = find_min_distance(fx, fy, i, j; periods)
+    min_dist = find_min_distance(fx, fy, i, j; periods)
+    (; d⃗, p⃗, ζx, ζy,) = min_dist
     d² = sum(abs2, d⃗)
-    d² > dist_sq && return false  # don't reconnect
+    d² > dist_sq && return nothing  # don't reconnect
 
     # Make sure that reconnections reduce the total length (makes sense energetically for vortices).
     if decrease_length
         length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])
-        length_after = norm(fy[j + 1] - fx[i]) + norm(fx[i + 1] - fy[j])
-        length_after > length_before && return false
+        length_after = norm(fy[j + 1] - fx[i] - p⃗) + norm(fx[i + 1] - fy[j] + p⃗)
+        length_after > length_before && return nothing
     end
 
     X′ = fx(i, ζx, Derivative(1))
     Y′ = fy(j, ζy, Derivative(1))
 
+    success = min_dist  # for now, only return the output of find_min_distance if segments should reconnect
+
     xy = X′ ⋅ Y′
-    xy < 0 && return true  # always reconnect antiparallel vortices
+    xy < 0 && return success  # always reconnect antiparallel vortices
 
     cos² = (xy * xy) / (sum(abs2, X′) * sum(abs2, Y′))
-    cos² < cos_max_sq
+    cos² < cos_max_sq ? success : nothing
 end
 
 """
@@ -153,7 +175,8 @@ function reconnect_self!(
             end
 
             # The current segment passed the first two filters and is a candidate for reconnection.
-            should_reconnect(crit, f, f, i, j; periods) || continue
+            info = should_reconnect(crit, f, f, i, j; periods)
+            info === nothing && continue
 
             # Split filament into 2
             f₁, f₂ = split!(f, i, j)
@@ -243,11 +266,12 @@ function reconnect_other!(
             end
 
             # The current segment passed the first two filters and is a candidate for reconnection.
-            if should_reconnect(crit, f, g, i, j; periods)
-                merge!(f, g, i, j)  # filaments are merged onto `f`
-                update_coefficients!(f)
-                return true
-            end
+            info =  should_reconnect(crit, f, g, i, j; periods)
+            info === nothing && continue
+
+            merge!(f, g, i, j; p⃗ = info.p⃗)  # filaments are merged onto `f`
+            update_coefficients!(f)
+            return true
         end
     end
 
@@ -408,18 +432,23 @@ function split!(f::ClosedFilament, i::Int, j::Int)
 end
 
 """
-    merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int)
+    merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
 
 Merge two closed filaments into one.
 
-The resulting filament is composed of nodes `f[begin:i] ∪ g[(j + 1:end) ∪ (begin:j)] ∪ f[i + 1:end]`.
+The resulting filament is composed of nodes:
+
+    f[begin:i] ∪ {g[(j + 1:end) ∪ (begin:j)] - p⃗} ∪ f[i + 1:end]
+
+Here `p⃗` is an optional offset which usually takes into account domain periodicity
+(see also [`find_min_distance`](@ref)).
 
 This function modifies (and returns) the filament `f`, which contains the
 merged filament at output. The filament `g` is not modified.
 
 One should generally call [`update_coefficients!`](@ref) on `f` after merging.
 """
-function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int)
+function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3 = zero(eltype(f)))
     Nf, Ng = length(f), length(g)
     is_shift = (i + 1):lastindex(f)
 
@@ -434,12 +463,12 @@ function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int)
 
     # Copy first half of `g` nodes (i.e. g[begin:j]).
     for k ∈ j:-1:firstindex(g)
-        f[l -= 1] = g[k]
+        f[l -= 1] = g[k] - p⃗
     end
 
     # Copy second half of `g` nodes (i.e. g[j + 1:end]).
     for k ∈ lastindex(g):-1:(j + 1)
-        f[l -= 1] = g[k]
+        f[l -= 1] = g[k] - p⃗
     end
     @assert l == i + 1
 
