@@ -38,7 +38,9 @@ It returns a `NamedTuple` with the following fields:
 
 - `x⃗`, `y⃗`: optimal locations within each segment;
 
-- `d⃗`: distance vector `x⃗ - y⃗` (but possibly accounting for periodicity).
+- `p⃗`: periodic offset (each component is a multiple of the domain period along that direction);
+
+- `d⃗`: minimum distance vector, `d⃗ = x⃗ - y⃗ + p⃗`.
 """
 function find_min_distance(
         fx::AbstractFilament, fy::AbstractFilament,
@@ -90,7 +92,9 @@ function find_min_distance(
     ζx, ζy = ζs
     x⃗ = fx(i, ζx)
     y⃗ = fy(j, ζy)
-    d⃗ = deperiodise_separation(x⃗ - y⃗, periods, periods_half)
+    r⃗ = x⃗ - y⃗
+    d⃗ = deperiodise_separation(r⃗, periods, periods_half)
+    p⃗ = d⃗ - r⃗  # periodic offset (most often 0⃗)
 
-    (; ζx, ζy, d⃗, x⃗, y⃗,)
+    (; ζx, ζy, d⃗, x⃗, y⃗, p⃗,)
 end
