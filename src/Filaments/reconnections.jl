@@ -188,21 +188,22 @@ function reconnect_self!(
 
             # Split filament into 2
             f₁, f₂ = split!(f, i, j; p⃗ = info.p⃗)
-            push!(fs_new, f₂)
 
             # Update coefficients and possibly perform reconnections on each subfilament.
-            # In the second case, the `istart` is to save some time by skipping
+            # In the first case, the `istart` is to save some time by skipping
             # segment pairs which were already verified. This requires the
             # nodes in each subfilament to be sorted in a specific manner, and
             # may fail if the split! function is modified.
-            if check_nodes(Bool, f₁)  # skip if coefficients can't be computed, typically if the number of nodes is too small (< 3 for cubic splines)
-                update_coefficients!(f₁)
-                reconnect_self!(crit, f₁, fs_new; periods)
+            if check_nodes(Bool, f₂)  # skip if coefficients can't be computed, typically if the number of nodes is too small (< 3 for cubic splines)
+                update_coefficients!(f₂)
+                g₂ = reconnect_self!(crit, f₂, fs_new; periods, istart = i + 1)
+                push!(fs_new, something(g₂, f₂))  # push f₂, or its replacement if f₂ itself reconnected
             end
 
-            if check_nodes(Bool, f₂)
-                update_coefficients!(f₂)
-                reconnect_self!(crit, f₂, fs_new; periods, istart = i + 1)
+            if check_nodes(Bool, f₁)
+                update_coefficients!(f₁)
+                g₁ = reconnect_self!(crit, f₁, fs_new; periods)
+                return something(g₁, f₁)  # return f₁, or its replacement if f₁ itself reconnected
             end
 
             return f₁  # we can stop iterating here, since the filament `f` doesn't exist anymore
@@ -416,7 +417,7 @@ function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
     n2 = length(f) - n1
 
     # Copy values onto f1
-    f1 = similar(f, n1)
+    f1 = change_offset(similar(f, n1), p⃗)
     l = firstindex(f1) - 1
     for k ∈ (i + 1):j
         f1[l += 1] = f[k]
@@ -424,23 +425,20 @@ function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
     @assert l == n1
 
     # Try to reuse `f` to reduce allocations.
-    f2 = if iszero(p⃗)
-        f
-    else
-        change_offset(f, f.Xoffset - p⃗)  # this still reuses `f`
-    end
+    # For some reason here the offset must be relative to the original one, which was not
+    # the case for f1.
+    f2 = change_offset(f, f.Xoffset - p⃗)
 
     # Fill f2.
-    # We want nodes to be in the order f[(j + 1:end) ∪ (begin:i)], which is
-    # more difficult to do in-place compared to the order f[(begin:i) ∪ (j + 1:end)].
-    # Only the first order is valid when there's a periodic offset p⃗
-    # (since the offset is between f[i] and f[j + 1], and so these should be at
-    # the limits of the new filament).
+    # We want nodes to be in the order f[(j + 1:end) ∪ (begin:i)], which is more difficult
+    # to do in-place compared to the order f[(begin:i) ∪ (j + 1:end)].
+    # Only the first order is valid when there's a periodic offset p⃗ (since the offset is
+    # between f[i] and f[j + 1], and so these should be at the limits of the new filament).
 
-    # We start by doing a circular shift of the nodes of `f` (which are also
-    # the nodes of `f2`), so that f[j + 1] is moved to the beginning.
-    # We use the trick described in https://stackoverflow.com/a/44658599, which
-    # uses three in-place reversals.
+    # We start by doing a circular shift of the nodes of `f` (which are also the nodes of
+    # `f2`), so that f[j + 1] is moved to the beginning.
+    # We use the trick described in https://stackoverflow.com/a/44658599, which requires
+    # three in-place reversals.
     Xs = nodes(f)
     @assert Xs === nodes(f2)
     shift = j + 1 - firstindex(Xs)
@@ -449,8 +447,18 @@ function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
     reverse!(Xs, lastindex(Xs) - shift + 1, lastindex(Xs))
 
     # Now, the nodes of f2 are simply the `n2` first elements of Xs, so we just
-    # need to resize f2 and we're done.
+    # need to resize f2 and we're (almost) done.
     resize!(f2, n2)
+
+    # Finally, we need to take into account the offset of the original filament `f`, to make
+    # sure that we don't have a jump between the ranges (j + 1:end) and (begin:i).
+    off = f.Xoffset
+    if !iszero(off)
+        istart = lastindex(f2) - i + 1
+        for k ∈ istart:lastindex(f2)
+            f2[k] = f2[k] + off
+        end
+    end
 
     f1, f2
 end
