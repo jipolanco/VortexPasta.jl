@@ -60,6 +60,8 @@ Reconnects filament segments which are at a distance `d < d_crit`.
   are considered to be "nearly parallel" if `cos(θ) > cos_max`.
   The default value `cos_max = 0.97` disables reconnections when the angle between lines
   is ``θ < \\arccos(0.97) ≈ 14°``.
+  Note that the angle ``θ`` is signed (it takes values in ``[-1, 1]``).
+  Negative angles mean that the segments are antiparallel, and in this case reconnections are always performed.
 """
 struct BasedOnDistance <: ReconnectionCriterion
     dist       :: Float64
@@ -224,9 +226,9 @@ Attempt to reconnect filaments `f` and `g`.
 
 The two filaments cannot be the same. To reconnect a filament with itself, see [`reconnect_self!`](@ref).
 
-This function allows at most a single reconnection between the two vortices.
-If a reconnection happens, the two vortices merge into one. Vortex `f` is
-updated with the result, while vortex `g` can be discarded.
+This function allows at most a single reconnection between the two filaments.
+If a reconnection happens, the two filaments merge into one, and the resulting filament is returned.
+The original filaments `f` and `g` can be discarded (in particular, `f` is modified internally).
 
 Returns the merged filament a reconnection happened, `nothing` otherwise.
 """
@@ -315,7 +317,8 @@ where `f` is the modified filament, `i` is its index in `fs`, and `mode` is one 
 - `:appended` if the filament was appended at the end of `fs` (at index `i`);
 - `:removed` if the filament previously located at index `i` was removed.
 
-See also [`reconnect_self!`](@ref).
+This function calls [`reconnect_other!`](@ref) on all filament pairs, and then
+[`reconnect_self!`](@ref) on all filaments.
 """
 function reconnect!(
         callback::F,
