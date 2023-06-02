@@ -61,9 +61,11 @@ end
             crit = @inferred BasedOnDistance(l_min / 2)
             fc = copy(f)
             fs_all = [fc]
-            Filaments.reconnect_self!(crit, fc, fs_all)
+            f1 = Filaments.reconnect_self!(crit, fc, fs_all)
+            @test f1 !== nothing       # reconnection happened
             @test length(fs_all) == 2  # filament split into two!
-            f1, f2 = fs_all[1], fs_all[2]
+            fs_all[1] = f1  # one usually wants to replace the old `fc` filament, no longer valid
+            f2 = fs_all[2]
 
             # Check that the reconnection happened at the right place
             i = length(f) ÷ 4

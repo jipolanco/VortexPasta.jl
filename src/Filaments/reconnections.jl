@@ -107,19 +107,27 @@ end
 
 """
     reconnect_self!(
-        crit::ReconnectionCriterion, f::AbstractFilament,
-        [fs::AbstractVector{<:AbstractFilament}];
+        crit::ReconnectionCriterion,
+        f::AbstractFilament,
+        flist::AbstractVector{<:AbstractFilament};
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
-    ) -> fs_added
+    ) -> Union{Nothing, AbstractFilament}
 
 Attempt to reconnect filament `f` with itself.
 
 Note that reconnections of a filament with itself produce new filaments.
-By default, this function allocates a new vector which will contain the newly created filaments.
-Optionally, one may pass an existent filament container `fs` to which new filaments will be appended.
+Newly created filaments will be appended to the `flist` container.
 
-In both cases, this function returns a vector view `fs_added` containing the newly created filaments.
-This means that one can get the number of added filaments by just doing `length(fs_added)`.
+This function returns `nothing` if no reconnection happened.
+
+Otherwise, if a reconnection happened, this function returns one of the
+resulting filaments, `f₁`. The other (one or more) resulting filaments are
+appended to `flist`.
+
+For example, if the filament `f` self-reconnects onto 4 filaments, this
+function returns one of these filaments, and the other 3 are appended to
+`flist`. This is useful if one wants to replace the original filament `f` by
+one of the resulting filaments.
 
 In a periodic domain, one should also pass the optional `periods` argument.
 """
@@ -179,8 +187,7 @@ function reconnect_self!(
             info === nothing && continue
 
             # Split filament into 2
-            f₁, f₂ = split!(f, i, j)
-            @assert f₁ === f
+            f₁, f₂ = split!(f, i, j; p⃗ = info.p⃗)
             push!(fs_new, f₂)
 
             # Update coefficients and possibly perform reconnections on each subfilament.
@@ -198,12 +205,12 @@ function reconnect_self!(
                 reconnect_self!(crit, f₂, fs_new; periods, istart = i + 1)
             end
 
-            return fs_new  # I don't need to continue iterating on this filament (which is the same as f₁)
+            return f₁  # we can stop iterating here, since the filament `f` doesn't exist anymore
         end
         inds_j = (i + 3):last(inds_i)  # for next iteration
     end
 
-    fs_new
+    nothing
 end
 
 """
@@ -351,11 +358,8 @@ function reconnect!(
         i += 1
         f = fs[i]
         n_old = lastindex(fs)
-        reconnect_self!(crit, f, fs; periods)
-
-        if lastindex(fs) === n_old  # there were no reconnections
-            continue
-        end
+        f₁ = reconnect_self!(crit, f, fs; periods)
+        f₁ === nothing && continue  # there were no reconnections
 
         # First check appended filaments, and remove them if they don't have enough nodes (typically < 3).
         j = n_old
@@ -370,12 +374,14 @@ function reconnect!(
             end
         end
 
-        # Now check the modified filament f = fs[i].
-        if check_nodes(Bool, f)
-            callback(f, i, :modified)
+        # Now replace the old filament `f` by filament `f₁` (which is one of
+        # the filaments resulting from the reconnection).
+        if check_nodes(Bool, f₁)
+            fs[i] = f₁
+            callback(f₁, i, :modified)
         else
             popat!(fs, i)
-            callback(f, i, :removed)
+            callback(f₁, i, :removed)
             i -= 1
             ilast -= 1
         end
@@ -388,45 +394,63 @@ reconnect!(crit::ReconnectionCriterion, args...; kws...) =
     reconnect!(Returns(nothing), crit, args...; kws...)
 
 """
-    split!(f::ClosedFilament, i::Int, j::Int) -> (f₁, f₂)
+    split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0)) -> (f₁, f₂)
 
 Split closed filament into two filaments.
 
 Assuming `j > i`, the resulting filaments are respectively composed of nodes
 `f[i + 1:j]` and `f[(j + 1:end) ∪ (begin:i)]`.
 
-In practice, a split makes sense when the nodes `f[i]` and `f[j]` are spatially "close".
+In practice, a split makes sense when the nodes `f[i]` and `f[j] - p⃗` are spatially "close".
+Here `p⃗` is an optional offset which usually takes into account domain periodicity
+(see also [`find_min_distance`](@ref)).
 
-Note that the filament `f` is modified by this function, and is returned as the filament `f₁`.
+Note that this function modifies the filament `f`, which should then be discarded.
 
 One should generally call [`update_coefficients!`](@ref) on both filaments after a split.
 """
-function split!(f::ClosedFilament, i::Int, j::Int)
+function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
     i ≤ j || return split!(f, j, i)
 
     n1 = j - i
     n2 = length(f) - n1
 
-    f1 = f
-    f2 = similar(f, n2)
-
-    # Fill f2
-    l = firstindex(f2) - 1
-    for k ∈ (j + 1):lastindex(f)
-        f2[l += 1] = f[k]
-    end
-    for k ∈ firstindex(f):i
-        f2[l += 1] = f[k]
-    end
-    @assert l == n2
-
-    # Shift values and then resize f1
+    # Copy values onto f1
+    f1 = similar(f, n1)
     l = firstindex(f1) - 1
     for k ∈ (i + 1):j
         f1[l += 1] = f[k]
     end
     @assert l == n1
-    resize!(f1, n1)
+
+    # Try to reuse `f` to reduce allocations.
+    f2 = if iszero(p⃗)
+        f
+    else
+        change_offset(f, f.Xoffset - p⃗)  # this still reuses `f`
+    end
+
+    # Fill f2.
+    # We want nodes to be in the order f[(j + 1:end) ∪ (begin:i)], which is
+    # more difficult to do in-place compared to the order f[(begin:i) ∪ (j + 1:end)].
+    # Only the first order is valid when there's a periodic offset p⃗
+    # (since the offset is between f[i] and f[j + 1], and so these should be at
+    # the limits of the new filament).
+
+    # We start by doing a circular shift of the nodes of `f` (which are also
+    # the nodes of `f2`), so that f[j + 1] is moved to the beginning.
+    # We use the trick described in https://stackoverflow.com/a/44658599, which
+    # uses three in-place reversals.
+    Xs = nodes(f)
+    @assert Xs === nodes(f2)
+    shift = j + 1 - firstindex(Xs)
+    reverse!(Xs)
+    reverse!(Xs, firstindex(Xs), lastindex(Xs) - shift)
+    reverse!(Xs, lastindex(Xs) - shift + 1, lastindex(Xs))
+
+    # Now, the nodes of f2 are simply the `n2` first elements of Xs, so we just
+    # need to resize f2 and we're done.
+    resize!(f2, n2)
 
     f1, f2
 end
