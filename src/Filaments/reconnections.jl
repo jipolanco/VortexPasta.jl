@@ -218,7 +218,7 @@ end
     reconnect_other!(
         crit::ReconnectionCriterion, f::AbstractFilament, g::AbstractFilament;
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
-    )
+    ) -> Union{Nothing, AbstractFilament}
 
 Attempt to reconnect filaments `f` and `g`.
 
@@ -228,7 +228,7 @@ This function allows at most a single reconnection between the two vortices.
 If a reconnection happens, the two vortices merge into one. Vortex `f` is
 updated with the result, while vortex `g` can be discarded.
 
-Returns `true` if a reconnection happened, `false` otherwise.
+Returns the merged filament a reconnection happened, `nothing` otherwise.
 """
 function reconnect_other!(
         crit::ReconnectionCriterion, f::AbstractFilament, g::AbstractFilament;
@@ -277,13 +277,13 @@ function reconnect_other!(
             info =  should_reconnect(crit, f, g, i, j; periods)
             info === nothing && continue
 
-            merge!(f, g, i, j; p⃗ = info.p⃗)  # filaments are merged onto `f`
-            update_coefficients!(f)
-            return true
+            h = merge!(f, g, i, j; p⃗ = info.p⃗)  # filaments are merged onto `h`
+            update_coefficients!(h)
+            return h
         end
     end
 
-    false
+    nothing
 end
 
 """
@@ -335,15 +335,17 @@ function reconnect!(
         while j < jlast
             j += 1
             g = fs[j]
-            if reconnect_other!(crit, f, g; periods)
-                # The two filaments were merged into `f`, and the filament `g` can be removed.
-                callback(f, i, :modified)
-                popat!(fs, j)
-                callback(g, j, :removed)
-                j -= 1
-                jlast -= 1
-                ilast -= 1
-            end
+            h = reconnect_other!(crit, f, g; periods)
+            h === nothing && continue
+
+            # The two filaments were merged into `h`, and filaments `f` and `g` can be removed.
+            fs[i] = h
+            callback(h, i, :modified)
+            popat!(fs, j)
+            callback(g, j, :removed)
+            j -= 1
+            jlast -= 1
+            ilast -= 1
         end
     end
 
@@ -412,6 +414,7 @@ One should generally call [`update_coefficients!`](@ref) on both filaments after
 """
 function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
     i ≤ j || return split!(f, j, i)
+    @debug "Splitting:" f[i] f[j] p⃗
 
     n1 = j - i
     n2 = length(f) - n1
@@ -475,16 +478,19 @@ The resulting filament is composed of nodes:
 Here `p⃗` is an optional offset which usually takes into account domain periodicity
 (see also [`find_min_distance`](@ref)).
 
-This function modifies (and returns) the filament `f`, which contains the
-merged filament at output. The filament `g` is not modified.
+This function returns a new filament `h` which may share memory with `f`.
+The filament `g` is not modified.
 
-One should generally call [`update_coefficients!`](@ref) on `f` after merging.
+One should generally call [`update_coefficients!`](@ref) on the returned filament after merging.
 """
 function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3 = zero(eltype(f)))
+    @debug "Merging:" f[i] g[j] p⃗ f.Xoffset g.Xoffset
     Nf, Ng = length(f), length(g)
     is_shift = (i + 1):lastindex(f)
 
     resize!(f, Nf + Ng)
+    foff = f.Xoffset
+    goff = g.Xoffset
 
     # Shift second half of `f` nodes (i.e. f[is_shift]) to the end of `f`.
     l = lastindex(f) + 1
@@ -492,6 +498,9 @@ function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3
         f[l -= 1] = f[k]
     end
     @assert l == length(f) - length(is_shift) + 1
+    for k ∈ firstindex(f):i
+        f[k] = f[k] + foff
+    end
 
     # Copy first half of `g` nodes (i.e. g[begin:j]).
     for k ∈ j:-1:firstindex(g)
@@ -499,10 +508,12 @@ function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3
     end
 
     # Copy second half of `g` nodes (i.e. g[j + 1:end]).
+    u⃗ = p⃗ + goff
     for k ∈ lastindex(g):-1:(j + 1)
-        f[l -= 1] = g[k] - p⃗
+        f[l -= 1] = g[k] - u⃗
     end
     @assert l == i + 1
 
-    f
+    off = foff + goff
+    change_offset(f, off)
 end

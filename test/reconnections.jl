@@ -37,6 +37,12 @@ function ring_curve(; R::Real, origin::Vec3 = π * Vec3(1, 1, 1), sign = +1, tra
     (; tlims, S, origin, R,)
 end
 
+# Check that the filament doesn't have any crazy jumps between two nodes.
+function no_jumps(f::AbstractFilament, lmax)
+    Xs = parent(nodes(f))  # use `parent` to consider periodically-padded nodes as well
+    maximum(norm, diff(Xs)) < lmax
+end
+
 @testset "Reconnections" begin
     @testset "Static self-reconnection: figure-eight knot" begin
         Az = 0.001
@@ -157,9 +163,10 @@ end
 
         @testset "Filaments.reconnect_other!" begin
             f, g = copy.(fs_orig)
-            @test Filaments.reconnect_other!(crit, f, g) == true  # reconnection happened!
-            @test length(f) == sum(length, fs_orig)
-            @test maximum_knot_increment(f) < 2 * l_min  # check that there are no crazy jumps
+            h = @inferred Nothing Filaments.reconnect_other!(crit, f, g)
+            @test h !== nothing  # reconnection happened!
+            @test length(h) == sum(length, fs_orig)
+            @test maximum_knot_increment(h) < 2 * l_min  # check that there are no crazy jumps
         end
 
         @testset "Filaments.reconnect!" begin
@@ -235,11 +242,7 @@ end
             @test abs(fs[1].Xoffset[1]) ≈ 2π  # infinite line in x
             @test abs(fs[2].Xoffset[1]) ≈ 2π  # infinite line in x
             foreach(Filaments.update_coefficients!, fs)
-
-            Xs = parent(nodes(fs[1]))  # use `parent` to consider periodically-padded nodes as well
-            Ys = parent(nodes(fs[2]))
-            @test maximum(norm, diff(Xs)) < 2 * l_min  # no crazy jumps
-            @test maximum(norm, diff(Ys)) < 2 * l_min
+            @test all(f -> no_jumps(f, 2 * l_min), fs)
         end
 
         @testset "Overlapping ellipses" begin
@@ -265,14 +268,47 @@ end
             @test sum(length, fs) == N  # number of nodes didn't change
 
             # Note that the order of the filaments is arbitrary and implementation-dependent...
+            @test sum(f -> norm(f.Xoffset), fs) ≈ 4π  # two infinite lines
             @test fs[1].Xoffset ≈ Vec3(-2π, 0, 0)  # infinite line
             @test fs[2].Xoffset == Vec3(0, 0, 0)   # small loop
             @test fs[3].Xoffset ≈ Vec3(+2π, 0, 0)  # infinite line
+            @test all(f -> no_jumps(f, 2.1 * l_min), fs)
+        end
 
-            for f ∈ fs
-                Xs = parent(nodes(f))  # use `parent` to consider periodically-padded nodes as well
-                @test maximum(norm, diff(Xs)) < 2.1 * l_min  # no crazy jumps
+        @testset "Overlapping circles" begin
+            # Slightly more complex case of overlapping periodic circles.
+            # Each circle is reconnected into 3 closed curves.
+            # Right now, this requires two passes of Filaments.reconnect! (shouldn't really
+            # matter in practice...).
+            periods = 2π .* (1, 1, 1)
+            R = π * 1.2
+            N = 64
+            transform = Diagonal(SVector(1, 1, 1))
+            ring = ring_curve(; R, origin = π * Vec3(1, 1, 1), transform,)
+            f_orig = let
+                (; S, tlims,) = ring
+                ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+                Filaments.init(ClosedFilament, S.(ζs), FiniteDiffMethod(2))
             end
+
+            l_min = minimum_knot_increment(f_orig)
+            fs = [copy(f_orig)]
+            crit = BasedOnDistance(l_min / 2)
+
+            # First pass: the ring splits into 2 infinite lines and a closed curve (very
+            # similar to the overlapping ellipse case).
+            Filaments.reconnect!(crit, fs; periods)
+            @test length(fs) == 3
+            @test sum(length, fs) == N  # number of nodes didn't change
+            @test sum(f -> norm(f.Xoffset), fs) ≈ 4π  # two infinite lines
+            @test all(f -> no_jumps(f, 2.1 * l_min), fs)
+
+            # Second pass: the two infinite lines merge and then split, forming two closed lines.
+            Filaments.reconnect!(crit, fs; periods)
+            @test length(fs) == 3
+            @test sum(length, fs) == N  # number of nodes didn't change
+            @test sum(f -> norm(f.Xoffset), fs) < 1e-12  # no infinite lines
+            @test all(f -> no_jumps(f, 2.1 * l_min), fs)
         end
     end
 end
