@@ -114,17 +114,23 @@ struct ClosedSplineFilament{
     cderivs :: NTuple{2, Points}
 
     Xoffset :: Vec3{T}
+end
 
-    function ClosedSplineFilament(N::Integer, ::Type{T}; offset = zero(Vec3{T})) where {T}
-        M = 3  # padding needed for cubic splines
-        ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
-        Xs = similar(ts, Vec3{T})
-        cs = similar(Xs)
-        ċs = similar(Xs)
-        c̈s = similar(Xs)
-        cderivs = (ċs, c̈s)
-        new{T, M, typeof(ts), typeof(Xs)}(ts, Xs, cs, cderivs, offset)
-    end
+function ClosedSplineFilament(N::Integer, ::Type{T}; offset = zero(Vec3{T})) where {T}
+    M = 3  # padding needed for cubic splines
+    ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
+    Xs = similar(ts, Vec3{T})
+    cs = similar(Xs)
+    ċs = similar(Xs)
+    c̈s = similar(Xs)
+    cderivs = (ċs, c̈s)
+    Xoffset = convert(Vec3{T}, offset)
+    ClosedSplineFilament(ts, Xs, cs, cderivs, Xoffset)
+end
+
+function change_offset(f::ClosedSplineFilament{T}, offset::Vec3) where {T}
+    Xoffset = convert(Vec3{T}, offset)
+    ClosedSplineFilament(f.ts, f.Xs, f.cs, f.cderivs, Xoffset)
 end
 
 allvectors(f::ClosedSplineFilament) = (f.ts, f.Xs, f.cs, f.cderivs...)

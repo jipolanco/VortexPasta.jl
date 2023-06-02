@@ -23,7 +23,9 @@ using VortexPasta.Filaments
 
     # Case 1: the minimum distance is given by points in the interior of both segments.
     let i = 0, j = 0
-        (; ζx, ζy, d⃗,) = Filaments.find_min_distance(fx, fy, i, j)
+        (; ζx, ζy, d⃗, x⃗, y⃗, d⃗, p⃗,) = Filaments.find_min_distance(fx, fy, i, j)
+        @test d⃗ == x⃗ - y⃗ + p⃗
+        @test all(iszero, p⃗)  # no periodicity -> p⃗ (periodic offset) is always zero
         @test isapprox(ζx, 1/3; rtol = 1e-3)
         @test isapprox(ζy, 1/3; rtol = 1e-3)
         @test isapprox(norm(d⃗), d_min_exact; rtol = 1e-5)

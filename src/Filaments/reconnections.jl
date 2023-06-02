@@ -15,6 +15,25 @@ Implemented reconnection criteria include:
 abstract type ReconnectionCriterion end
 
 """
+    should_reconnect(
+        c::ReconnectionCriterion,
+        fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;
+        periods,
+    ) -> Union{Nothing, NamedTuple}
+
+Check whether two filaments should reconnect according to the chosen criterion.
+
+Checks for a possible reconnection between filament segments `fx[i:i+1]` and `fy[j:j+1]`.
+
+If the filament segments should reconnect, this function returns a `NamedTuple`
+with reconnection information, which includes in particular all the fields
+returned by [`find_min_distance`](@ref).
+
+Otherwise, returns `nothing` if the filament segments should not reconnect.
+"""
+function should_reconnect end
+
+"""
     NoReconnections <: ReconnectionCriterion
 
 Used to disable filament reconnections.
@@ -22,7 +41,7 @@ Used to disable filament reconnections.
 struct NoReconnections <: ReconnectionCriterion end
 
 distance(::NoReconnections) = Zero()
-should_reconnect(::NoReconnections, args...; kws...) = false
+should_reconnect(::NoReconnections, args...; kws...) = nothing
 
 """
     BasedOnDistance <: ReconnectionCriterion
@@ -41,6 +60,8 @@ Reconnects filament segments which are at a distance `d < d_crit`.
   are considered to be "nearly parallel" if `cos(θ) > cos_max`.
   The default value `cos_max = 0.97` disables reconnections when the angle between lines
   is ``θ < \\arccos(0.97) ≈ 14°``.
+  Note that the angle ``θ`` is signed (it takes values in ``[-1, 1]``).
+  Negative angles mean that the segments are antiparallel, and in this case reconnections are always performed.
 """
 struct BasedOnDistance <: ReconnectionCriterion
     dist       :: Float64
@@ -62,42 +83,53 @@ function should_reconnect(
     )
     (; dist_sq, cos_max_sq, decrease_length,) = c
 
-    (; d⃗, ζx, ζy,) = find_min_distance(fx, fy, i, j; periods)
+    min_dist = find_min_distance(fx, fy, i, j; periods)
+    (; d⃗, p⃗, ζx, ζy,) = min_dist
     d² = sum(abs2, d⃗)
-    d² > dist_sq && return false  # don't reconnect
+    d² > dist_sq && return nothing  # don't reconnect
 
     # Make sure that reconnections reduce the total length (makes sense energetically for vortices).
     if decrease_length
         length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])
-        length_after = norm(fy[j + 1] - fx[i]) + norm(fx[i + 1] - fy[j])
-        length_after > length_before && return false
+        length_after = norm(fy[j + 1] - fx[i] - p⃗) + norm(fx[i + 1] - fy[j] + p⃗)
+        length_after > length_before && return nothing
     end
 
     X′ = fx(i, ζx, Derivative(1))
     Y′ = fy(j, ζy, Derivative(1))
 
+    success = min_dist  # for now, only return the output of find_min_distance if segments should reconnect
+
     xy = X′ ⋅ Y′
-    xy < 0 && return true  # always reconnect antiparallel vortices
+    xy < 0 && return success  # always reconnect antiparallel vortices
 
     cos² = (xy * xy) / (sum(abs2, X′) * sum(abs2, Y′))
-    cos² < cos_max_sq
+    cos² < cos_max_sq ? success : nothing
 end
 
 """
     reconnect_self!(
-        crit::ReconnectionCriterion, f::AbstractFilament,
-        [fs::AbstractVector{<:AbstractFilament}];
+        crit::ReconnectionCriterion,
+        f::AbstractFilament,
+        flist::AbstractVector{<:AbstractFilament};
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
-    ) -> fs_added
+    ) -> Union{Nothing, AbstractFilament}
 
 Attempt to reconnect filament `f` with itself.
 
 Note that reconnections of a filament with itself produce new filaments.
-By default, this function allocates a new vector which will contain the newly created filaments.
-Optionally, one may pass an existent filament container `fs` to which new filaments will be appended.
+Newly created filaments will be appended to the `flist` container.
 
-In both cases, this function returns a vector view `fs_added` containing the newly created filaments.
-This means that one can get the number of added filaments by just doing `length(fs_added)`.
+This function returns `nothing` if no reconnection happened.
+
+Otherwise, if a reconnection happened, this function returns one of the
+resulting filaments, `f₁`. The other (one or more) resulting filaments are
+appended to `flist`.
+
+For example, if the filament `f` self-reconnects onto 4 filaments, this
+function returns one of these filaments, and the other 3 are appended to
+`flist`. This is useful if one wants to replace the original filament `f` by
+one of the resulting filaments.
 
 In a periodic domain, one should also pass the optional `periods` argument.
 """
@@ -108,7 +140,7 @@ function reconnect_self!(
         istart = firstindex(segments(f)),
     ) where {F <: AbstractFilament}
     d_crit = distance(crit)
-    d_crit === Zero() && return fs_new  # reconnections are disabled
+    d_crit === Zero() && return nothing  # reconnections are disabled
 
     # This cutoff distance serves as a first (coarse) filter.
     # It is larger than the critical distance to take into account the fact
@@ -153,51 +185,52 @@ function reconnect_self!(
             end
 
             # The current segment passed the first two filters and is a candidate for reconnection.
-            should_reconnect(crit, f, f, i, j; periods) || continue
+            info = should_reconnect(crit, f, f, i, j; periods)
+            info === nothing && continue
 
             # Split filament into 2
-            f₁, f₂ = split!(f, i, j)
-            @assert f₁ === f
-            push!(fs_new, f₂)
+            f₁, f₂ = split!(f, i, j; p⃗ = info.p⃗)
 
             # Update coefficients and possibly perform reconnections on each subfilament.
-            # In the second case, the `istart` is to save some time by skipping
+            # In the first case, the `istart` is to save some time by skipping
             # segment pairs which were already verified. This requires the
             # nodes in each subfilament to be sorted in a specific manner, and
             # may fail if the split! function is modified.
-            if check_nodes(Bool, f₁)  # skip if coefficients can't be computed, typically if the number of nodes is too small (< 3 for cubic splines)
-                update_coefficients!(f₁)
-                reconnect_self!(crit, f₁, fs_new; periods)
-            end
-
-            if check_nodes(Bool, f₂)
+            if check_nodes(Bool, f₂)  # skip if coefficients can't be computed, typically if the number of nodes is too small (< 3 for cubic splines)
                 update_coefficients!(f₂)
-                reconnect_self!(crit, f₂, fs_new; periods, istart = i + 1)
+                g₂ = reconnect_self!(crit, f₂, fs_new; periods, istart = i + 1)
+                push!(fs_new, something(g₂, f₂))  # push f₂, or its replacement if f₂ itself reconnected
             end
 
-            return fs_new  # I don't need to continue iterating on this filament (which is the same as f₁)
+            if check_nodes(Bool, f₁)
+                update_coefficients!(f₁)
+                g₁ = reconnect_self!(crit, f₁, fs_new; periods)
+                return something(g₁, f₁)  # return f₁, or its replacement if f₁ itself reconnected
+            end
+
+            return f₁  # we can stop iterating here, since the filament `f` doesn't exist anymore
         end
         inds_j = (i + 3):last(inds_i)  # for next iteration
     end
 
-    fs_new
+    nothing
 end
 
 """
     reconnect_other!(
         crit::ReconnectionCriterion, f::AbstractFilament, g::AbstractFilament;
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
-    )
+    ) -> Union{Nothing, AbstractFilament}
 
 Attempt to reconnect filaments `f` and `g`.
 
 The two filaments cannot be the same. To reconnect a filament with itself, see [`reconnect_self!`](@ref).
 
-This function allows at most a single reconnection between the two vortices.
-If a reconnection happens, the two vortices merge into one. Vortex `f` is
-updated with the result, while vortex `g` can be discarded.
+This function allows at most a single reconnection between the two filaments.
+If a reconnection happens, the two filaments merge into one, and the resulting filament is returned.
+The original filaments `f` and `g` can be discarded (in particular, `f` is modified internally).
 
-Returns `true` if a reconnection happened, `false` otherwise.
+Returns the merged filament a reconnection happened, `nothing` otherwise.
 """
 function reconnect_other!(
         crit::ReconnectionCriterion, f::AbstractFilament, g::AbstractFilament;
@@ -206,7 +239,7 @@ function reconnect_other!(
     @assert f !== g
 
     d_crit = distance(crit)
-    d_crit === Zero() && return false  # reconnections are disabled
+    d_crit === Zero() && return nothing  # reconnections are disabled
 
     # The following is very similar to `reconnect_self!`
     d_cut = 2 * d_crit
@@ -243,15 +276,16 @@ function reconnect_other!(
             end
 
             # The current segment passed the first two filters and is a candidate for reconnection.
-            if should_reconnect(crit, f, g, i, j; periods)
-                merge!(f, g, i, j)  # filaments are merged onto `f`
-                update_coefficients!(f)
-                return true
-            end
+            info =  should_reconnect(crit, f, g, i, j; periods)
+            info === nothing && continue
+
+            h = merge!(f, g, i, j; p⃗ = info.p⃗)  # filaments are merged onto `h`
+            update_coefficients!(h)
+            return h
         end
     end
 
-    false
+    nothing
 end
 
 """
@@ -283,7 +317,8 @@ where `f` is the modified filament, `i` is its index in `fs`, and `mode` is one 
 - `:appended` if the filament was appended at the end of `fs` (at index `i`);
 - `:removed` if the filament previously located at index `i` was removed.
 
-See also [`reconnect_self!`](@ref).
+This function calls [`reconnect_other!`](@ref) on all filament pairs, and then
+[`reconnect_self!`](@ref) on all filaments.
 """
 function reconnect!(
         callback::F,
@@ -303,15 +338,17 @@ function reconnect!(
         while j < jlast
             j += 1
             g = fs[j]
-            if reconnect_other!(crit, f, g; periods)
-                # The two filaments were merged into `f`, and the filament `g` can be removed.
-                callback(f, i, :modified)
-                popat!(fs, j)
-                callback(g, j, :removed)
-                j -= 1
-                jlast -= 1
-                ilast -= 1
-            end
+            h = reconnect_other!(crit, f, g; periods)
+            h === nothing && continue
+
+            # The two filaments were merged into `h`, and filaments `f` and `g` can be removed.
+            fs[i] = h
+            callback(h, i, :modified)
+            popat!(fs, j)
+            callback(g, j, :removed)
+            j -= 1
+            jlast -= 1
+            ilast -= 1
         end
     end
 
@@ -327,11 +364,8 @@ function reconnect!(
         i += 1
         f = fs[i]
         n_old = lastindex(fs)
-        reconnect_self!(crit, f, fs; periods)
-
-        if lastindex(fs) === n_old  # there were no reconnections
-            continue
-        end
+        f₁ = reconnect_self!(crit, f, fs; periods)
+        f₁ === nothing && continue  # there were no reconnections
 
         # First check appended filaments, and remove them if they don't have enough nodes (typically < 3).
         j = n_old
@@ -346,12 +380,14 @@ function reconnect!(
             end
         end
 
-        # Now check the modified filament f = fs[i].
-        if check_nodes(Bool, f)
-            callback(f, i, :modified)
+        # Now replace the old filament `f` by filament `f₁` (which is one of
+        # the filaments resulting from the reconnection).
+        if check_nodes(Bool, f₁)
+            fs[i] = f₁
+            callback(f₁, i, :modified)
         else
             popat!(fs, i)
-            callback(f, i, :removed)
+            callback(f₁, i, :removed)
             i -= 1
             ilast -= 1
         end
@@ -364,66 +400,100 @@ reconnect!(crit::ReconnectionCriterion, args...; kws...) =
     reconnect!(Returns(nothing), crit, args...; kws...)
 
 """
-    split!(f::ClosedFilament, i::Int, j::Int) -> (f₁, f₂)
+    split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0)) -> (f₁, f₂)
 
 Split closed filament into two filaments.
 
 Assuming `j > i`, the resulting filaments are respectively composed of nodes
-`f[i + 1:j]` and `f[(begin:i) ∪ (j + 1:end)]`.
+`f[i + 1:j]` and `f[(j + 1:end) ∪ (begin:i)]`.
 
-In practice, a split makes sense when the nodes `f[i]` and `f[j]` are spatially "close".
+In practice, a split makes sense when the nodes `f[i]` and `f[j] - p⃗` are spatially "close".
+Here `p⃗` is an optional offset which usually takes into account domain periodicity
+(see also [`find_min_distance`](@ref)).
 
-Note that the filament `f` is modified by this function, and is returned as the filament `f₁`.
+Note that this function modifies the filament `f`, which should then be discarded.
 
 One should generally call [`update_coefficients!`](@ref) on both filaments after a split.
 """
-function split!(f::ClosedFilament, i::Int, j::Int)
+function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
     i ≤ j || return split!(f, j, i)
+    @debug "Splitting:" f[i] f[j] p⃗
 
     n1 = j - i
     n2 = length(f) - n1
 
-    f1 = f
-    f2 = similar(f, n2)
-
-    # Fill f2
-    l = firstindex(f2) - 1
-    for k ∈ firstindex(f):i
-        f2[l += 1] = f[k]
-    end
-    for k ∈ (j + 1):lastindex(f)
-        f2[l += 1] = f[k]
-    end
-    @assert l == n2
-
-    # Shift values and then resize f1
+    # Copy values onto f1
+    f1 = change_offset(similar(f, n1), p⃗)
     l = firstindex(f1) - 1
     for k ∈ (i + 1):j
         f1[l += 1] = f[k]
     end
     @assert l == n1
-    resize!(f1, n1)
+
+    # Try to reuse `f` to reduce allocations.
+    # For some reason here the offset must be relative to the original one, which was not
+    # the case for f1.
+    f2 = change_offset(f, f.Xoffset - p⃗)
+
+    # Fill f2.
+    # We want nodes to be in the order f[(j + 1:end) ∪ (begin:i)], which is more difficult
+    # to do in-place compared to the order f[(begin:i) ∪ (j + 1:end)].
+    # Only the first order is valid when there's a periodic offset p⃗ (since the offset is
+    # between f[i] and f[j + 1], and so these should be at the limits of the new filament).
+
+    # We start by doing a circular shift of the nodes of `f` (which are also the nodes of
+    # `f2`), so that f[j + 1] is moved to the beginning.
+    # We use the trick described in https://stackoverflow.com/a/44658599, which requires
+    # three in-place reversals.
+    Xs = nodes(f)
+    @assert Xs === nodes(f2)
+    shift = j + 1 - firstindex(Xs)
+    reverse!(Xs)
+    reverse!(Xs, firstindex(Xs), lastindex(Xs) - shift)
+    reverse!(Xs, lastindex(Xs) - shift + 1, lastindex(Xs))
+
+    # Now, the nodes of f2 are simply the `n2` first elements of Xs, so we just
+    # need to resize f2 and we're (almost) done.
+    resize!(f2, n2)
+
+    # Finally, we need to take into account the offset of the original filament `f`, to make
+    # sure that we don't have a jump between the ranges (j + 1:end) and (begin:i).
+    off = f.Xoffset
+    if !iszero(off)
+        istart = lastindex(f2) - i + 1
+        for k ∈ istart:lastindex(f2)
+            f2[k] = f2[k] + off
+        end
+    end
 
     f1, f2
 end
 
 """
-    merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int)
+    merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
 
 Merge two closed filaments into one.
 
-The resulting filament is composed of nodes `f[begin:i] ∪ g[(j + 1:end) ∪ (begin:j)] ∪ f[i + 1:end]`.
+The resulting filament is composed of nodes:
 
-This function modifies (and returns) the filament `f`, which contains the
-merged filament at output. The filament `g` is not modified.
+    f[begin:i] ∪ {g[(j + 1:end) ∪ (begin:j)] - p⃗} ∪ f[i + 1:end]
 
-One should generally call [`update_coefficients!`](@ref) on `f` after merging.
+Here `p⃗` is an optional offset which usually takes into account domain periodicity
+(see also [`find_min_distance`](@ref)).
+
+This function returns a new filament `h` which may share memory with `f`.
+The filament `g` is not modified.
+
+One should generally call [`update_coefficients!`](@ref) on the returned filament after merging.
 """
-function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int)
+function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3 = zero(eltype(f)))
+    @debug "Merging:" f[i] g[j] p⃗ f.Xoffset g.Xoffset
     Nf, Ng = length(f), length(g)
     is_shift = (i + 1):lastindex(f)
 
     resize!(f, Nf + Ng)
+    foff = f.Xoffset
+    goff = g.Xoffset
 
     # Shift second half of `f` nodes (i.e. f[is_shift]) to the end of `f`.
     l = lastindex(f) + 1
@@ -431,17 +501,22 @@ function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int)
         f[l -= 1] = f[k]
     end
     @assert l == length(f) - length(is_shift) + 1
+    for k ∈ firstindex(f):i
+        f[k] = f[k] + foff
+    end
 
     # Copy first half of `g` nodes (i.e. g[begin:j]).
     for k ∈ j:-1:firstindex(g)
-        f[l -= 1] = g[k]
+        f[l -= 1] = g[k] - p⃗
     end
 
     # Copy second half of `g` nodes (i.e. g[j + 1:end]).
+    u⃗ = p⃗ + goff
     for k ∈ lastindex(g):-1:(j + 1)
-        f[l -= 1] = g[k]
+        f[l -= 1] = g[k] - u⃗
     end
     @assert l == i + 1
 
-    f
+    off = foff + goff
+    change_offset(f, off)
 end

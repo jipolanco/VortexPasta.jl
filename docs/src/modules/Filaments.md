@@ -21,6 +21,7 @@ PaddedVector
 
 ```@docs
 Filaments.init
+change_offset
 discretisation_method
 knots
 knotlims
@@ -56,6 +57,7 @@ according to a chosen reconnection criterion.
 ReconnectionCriterion
 NoReconnections
 BasedOnDistance
+should_reconnect
 reconnect!
 reconnect_self!
 reconnect_other!
