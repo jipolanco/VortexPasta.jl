@@ -133,20 +133,24 @@ struct ClosedLocalFilament{
     Xderivs :: NTuple{2, Points}
 
     Xoffset :: Vec3{T}
+end
 
-    function ClosedLocalFilament(
-            N::Integer, discretisation::LocalDiscretisationMethod,
-            interpolation::LocalInterpolationMethod, ::Type{T};
-            offset = zero(Vec3{T}),
-        ) where {T}
-        M = npad(discretisation)
-        ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
-        Xs = similar(ts, Vec3{T})
-        Xderivs = (similar(Xs), similar(Xs))
-        new{T, M, typeof(discretisation), typeof(interpolation), typeof(ts), typeof(Xs)}(
-            discretisation, interpolation, ts, Xs, Xderivs, offset,
-        )
-    end
+function ClosedLocalFilament(
+        N::Integer, discretisation::LocalDiscretisationMethod,
+        interpolation::LocalInterpolationMethod, ::Type{T};
+        offset = zero(Vec3{T}),
+    ) where {T}
+    M = npad(discretisation)
+    ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
+    Xs = similar(ts, Vec3{T})
+    Xderivs = (similar(Xs), similar(Xs))
+    Xoffset = convert(Vec3{T}, offset)
+    ClosedLocalFilament(discretisation, interpolation, ts, Xs, Xderivs, Xoffset)
+end
+
+function change_offset(f::ClosedLocalFilament{T}, offset::Vec3) where {T}
+    Xoffset = convert(Vec3{T}, offset)
+    ClosedLocalFilament(f.discretisation, f.interpolation, f.ts, f.Xs, f.Xderivs, Xoffset)
 end
 
 allvectors(f::ClosedLocalFilament) = (f.ts, f.Xs, f.Xderivs...)

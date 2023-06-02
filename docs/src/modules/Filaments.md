@@ -21,6 +21,7 @@ PaddedVector
 
 ```@docs
 Filaments.init
+change_offset
 discretisation_method
 knots
 knotlims

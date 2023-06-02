@@ -55,6 +55,22 @@ function test_infinite_lines(method::Tuple)
         @test f(t₀, Derivative(2)) ≈ f(t₀ + T, Derivative(2))
     end
 
+    @testset "Change offset" begin
+        f = first(filaments)
+        fc = copy(f)
+        off = Vec3(1, 1, 1)
+        g = @inferred Filaments.change_offset(fc, off)
+        for (u, v) ∈ zip(Filaments.allvectors.((fc, g))...)
+            @test u === v  # we're reusing the same arrays (for nodes, coefficients, etc...)
+        end
+        update_coefficients!(g)
+        @test g.Xoffset == off
+        ta, tb = knotlims(g)
+        T = tb - ta
+        t₀ = 0.1  # arbitrary location
+        @test g(t₀) + off ≈ g(t₀ + T)
+    end
+
     Ls = (2π, 2π, 2π)
     Ns = (1, 1, 1) .* 64
     kmax = (Ns[1] ÷ 2) * 2π / Ls[1]

@@ -311,7 +311,11 @@ init(::Type{ClosedFilament}, N::Integer, args...; kws...) =
     init(ClosedFilament{Float64}, N, args...; kws...)
 
 """
-    Filaments.init(ClosedFilament, points::AbstractVector{<:Vec3}, method::DiscretisationMethod, [args...])
+    Filaments.init(
+        ClosedFilament, points::AbstractVector{<:Vec3}, method::DiscretisationMethod,
+        [args...];
+        [kws...],
+    )
 
 Initialise new filament with the chosen discretisation points.
 
@@ -325,6 +329,19 @@ function init(::Type{ClosedFilament}, positions::AbstractVector{<:Vec3}, args...
     update_coefficients!(f)
     f
 end
+
+"""
+    change_offset(f::ClosedFilament, offset::Vec3{<:Real}) -> f′
+
+Change spatial offset between a filament start and endpoints.
+
+See [`init`](@ref) for more details on optional spatial offsets.
+
+This function is allocation-free. It returns a new filament which shares the same
+arrays as `f`, and only differs in the offset. Modifying nodes of the returned
+filament also modifies nodes of `f`.
+"""
+function change_offset end
 
 """
     update_coefficients!(f::AbstractFilament; knots = nothing)
