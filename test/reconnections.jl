@@ -54,7 +54,7 @@ end
             update_coefficients!.((f1, f2))
             @test length(f1) == length(f2) == length(f) ÷ 2
             @test f1 == f[i + 1:j]
-            @test f2 == vcat(f[begin:i], f[j + 1:end])
+            @test f2 == vcat(f[j + 1:end], f[begin:i])
         end
 
         @testset "reconnect_self!" begin
@@ -70,7 +70,7 @@ end
             j = 3i
             @test length(f1) == length(f2) == length(f) ÷ 2
             @test f1 == f[i + 1:j]
-            @test f2 == vcat(f[begin:i], f[j + 1:end])
+            @test f2 == vcat(f[j + 1:end], f[begin:i])
         end
     end
 
@@ -187,7 +187,6 @@ end
             ζs = range(tlims...; length = 2N + 1)[2:2:2N]
             Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
         end
-        l_min = minimum(minimum_knot_increment, fs_orig)
         d_min_nodes = let (f, g) = fs_orig
             minimum(Iterators.product(eachindex(f), eachindex(g))) do (i, j)
                 norm(f[i] - g[j])

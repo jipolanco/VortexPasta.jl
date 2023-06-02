@@ -393,7 +393,7 @@ reconnect!(crit::ReconnectionCriterion, args...; kws...) =
 Split closed filament into two filaments.
 
 Assuming `j > i`, the resulting filaments are respectively composed of nodes
-`f[i + 1:j]` and `f[(begin:i) ∪ (j + 1:end)]`.
+`f[i + 1:j]` and `f[(j + 1:end) ∪ (begin:i)]`.
 
 In practice, a split makes sense when the nodes `f[i]` and `f[j]` are spatially "close".
 
@@ -412,10 +412,10 @@ function split!(f::ClosedFilament, i::Int, j::Int)
 
     # Fill f2
     l = firstindex(f2) - 1
-    for k ∈ firstindex(f):i
+    for k ∈ (j + 1):lastindex(f)
         f2[l += 1] = f[k]
     end
-    for k ∈ (j + 1):lastindex(f)
+    for k ∈ firstindex(f):i
         f2[l += 1] = f[k]
     end
     @assert l == n2
