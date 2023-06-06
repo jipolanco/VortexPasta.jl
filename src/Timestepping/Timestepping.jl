@@ -169,13 +169,13 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `alias_u0 = true`: if `true` (default), the solver is allowed to modify the
   initial vortex filaments.
 
-- `refinement = NoRefinement()`: criterium used for adaptive refinement of vortex
+- `refinement = NoRefinement()`: criterion used for adaptive refinement of vortex
   filaments. See [`RefinementCriterion`](@ref) for a list of possible criteria.
 
-- `reconnect = NoReconnections()`: criterium used to perform vortex reconnections.
+- `reconnect = NoReconnections()`: criterion used to perform vortex reconnections.
   See [`ReconnectionCriterion`](@ref) for a list of possible criteria.
 
-- `adaptivity = NoAdaptivity()`: criterium used for adaptively setting the timestep `dt`.
+- `adaptivity = NoAdaptivity()`: criterion used for adaptively setting the timestep `dt`.
   See [`AdaptivityCriterion`](@ref) for a list of possible criteria.
 
 - `dtmin = 0.0`: minimum `dt` for adaptive timestepping. If `dt < dtmin`, the
