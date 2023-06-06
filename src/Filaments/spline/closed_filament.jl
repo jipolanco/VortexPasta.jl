@@ -188,7 +188,7 @@ function refine!(f::ClosedSplineFilament, crit::RefinementCriterion)
 
     # Determine indices of nodes to modify (refine or remove).
     n_add, n_rem = _nodes_to_refine!(f, crit)
-    (; inds, remove,) = crit
+    (; inds, remove,) = crit.cache
 
     # Worst case scenario: we add all knots first, then we remove all knots to be removed.
     if n_add > 0

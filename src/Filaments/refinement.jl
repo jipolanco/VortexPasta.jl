@@ -29,6 +29,12 @@ Example usage:
 """
 function refine! end
 
+struct RefinementCache
+    inds   :: Vector{Int}   # indices of nodes or segments to modify
+    remove :: Vector{Bool}  # determine whether nodes should be removed or segments should be refined
+    RefinementCache() = new(Int[], Bool[])
+end
+
 """
     NoRefinement <: RefinementCriterion
     NoRefinement()
@@ -54,7 +60,7 @@ Curvature-based refinement criterion.
 According to this criterion, a filament is locally refined if:
 
 ```math
-ρ \\left|\\bm{X}_{i + 1} - \\bm{X}_{i}\\right| > (ρℓ)_{\\mathrm{max}}
+ρ \\left|\\bm{X}_{i + 1} - \\bm{X}_{i}\\right| > (ρℓ)_{\\max}
 ```
 
 where ``ρ`` is some estimation of the curvature of segment ``[i, i + 1]``.
@@ -80,15 +86,16 @@ struct BasedOnCurvature <: RefinementCriterion
     ρℓ_min :: Float64
     ℓ_max  :: Float64
     ℓ_min  :: Float64
-    inds   :: Vector{Int}   # indices of nodes or segments to modify
-    remove :: Vector{Bool}  # determine whether nodes should be removed or segments should be refined
-    BasedOnCurvature(ρℓ_max, ρℓ_min; ℓ_max = Inf, ℓ_min = 0.0) = new(ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, Int[], Bool[])
+    cache  :: RefinementCache
+    BasedOnCurvature(ρℓ_max, ρℓ_min; ℓ_max = Inf, ℓ_min = 0.0) =
+        new(ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, RefinementCache())
 end
 
 BasedOnCurvature(ρℓ_max; kws...) = BasedOnCurvature(ρℓ_max, ρℓ_max / 2.5; kws...)
 
 function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
-    (; ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, inds, remove,) = crit
+    (; ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, cache,) = crit
+    (; inds, remove,) = cache
     ts = knots(f)
     n_add = n_rem = 0
     empty!(inds)
@@ -119,19 +126,36 @@ function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
     n_add, n_rem
 end
 
+"""
+    RefineBasedOnSegmentLength <: RefinementCriterion
+    RefineBasedOnSegmentLength(ℓ_min, ℓ_max = 2 * ℓ_min)
+
+Refinement criterion imposing a minimum segment length.
+
+This refinement criterion imposes neighbouring filament nodes to be at a distance
+``ℓ ∈ [ℓ_{\\min}, ℓ_{\\max}]``. This means that:
+
+- nodes are **inserted** if the distance between two nodes is ``ℓ > ℓ_{\\max}``.
+  The insertion is done at an intermediate position using the functional representation of
+  the filament (e.g. splines or Hermite interpolation);
+
+- nodes are **removed** if the distance between two nodes is ``ℓ < ℓ_{\\min}.
+  For a filament which is strongly curved at that point, this means that local information
+  is lost and that the filament is smoothed.
+"""
 struct RefineBasedOnSegmentLength <: RefinementCriterion
     ℓ_min :: Float64
     ℓ_max :: Float64
-    inds   :: Vector{Int}   # indices of nodes or segments to modify
-    remove :: Vector{Bool}  # determine whether nodes should be removed or segments should be refined
+    cache :: RefinementCache
     function RefineBasedOnSegmentLength(ℓ_min, ℓ_max = 2 * ℓ_min)
         ℓ_min < ℓ_max || error(lazy"ℓ_min should be smaller than ℓ_max (got ℓ_max/ℓ_min = $ℓ_max/$ℓ_min)")
-        new(ℓ_min, ℓ_max, Int[], Bool[])
+        new(ℓ_min, ℓ_max, RefinementCache())
     end
 end
 
 function _nodes_to_refine!(f::AbstractFilament, crit::RefineBasedOnSegmentLength)
-    (; ℓ_max, ℓ_min, inds, remove,) = crit
+    (; ℓ_max, ℓ_min, cache,) = crit
+    (; inds, remove,) = cache
     ts = knots(f)
     n_add = n_rem = 0
     empty!(inds)

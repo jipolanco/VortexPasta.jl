@@ -44,6 +44,7 @@ check_nodes
 ```@docs
 RefinementCriterion
 NoRefinement
+RefineBasedOnSegmentLength
 BasedOnCurvature
 refine!
 ```
