@@ -267,7 +267,8 @@ function refine!(f::ClosedLocalFilament, crit::RefinementCriterion)
 
     T = ts[end + 1] - ts[begin]
 
-    # We iterate in reverse to avoiding the need to shift indices.
+    # We iterate in reverse to avoiding the need to shift indices (assuming `inds` is
+    # sorted).
     for n ∈ reverse(eachindex(inds))
         i, rem = inds[n], remove[n]
         if rem
@@ -290,6 +291,8 @@ function refine!(f::ClosedLocalFilament, crit::RefinementCriterion)
     n_add, n_rem
 end
 
-# Coefficients should not be updated before refinement, but after (this is opposite to spline filaments).
-update_coefficients_before_refinement(::ClosedLocalFilament) = false
-update_coefficients_after_refinement(::ClosedLocalFilament) = true
+# Coefficients should be updated before refinement to make sure we have the right curvatures
+# and knots consistent with segment lengths. After refinement it's not needed, since we call
+# update_coefficients! in refine! (see above).
+update_coefficients_before_refinement(::ClosedLocalFilament) = true
+update_coefficients_after_refinement(::ClosedLocalFilament) = false
