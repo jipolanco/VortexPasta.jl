@@ -212,9 +212,11 @@ function refine!(f::ClosedSplineFilament, crit::RefinementCriterion)
 
     if n_add + n_rem > 0
         @assert length(cs) == N + n_add - n_rem
-        resize!(f, length(cs))  # resize all vectors in the filament
-        pad_periodic!(Xs, f.Xoffset)  # just in case...
-        _update_coefficients_only!(f; only_derivatives = true)
+        resize!(f, length(cs))   # resize all vectors in the filament
+        if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
+            pad_periodic!(Xs, f.Xoffset)  # just in case...
+            _update_coefficients_only!(f; only_derivatives = true)
+        end
     end
 
     n_add, n_rem

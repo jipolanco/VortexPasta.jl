@@ -283,9 +283,11 @@ function refine!(f::ClosedLocalFilament, crit::RefinementCriterion)
     if n_add + n_rem > 0
         @assert length(Xs) == N + n_add - n_rem
         resize!(f, length(Xs))  # resize all vectors in the filament
-        pad_periodic!(ts, T)
-        pad_periodic!(Xs, f.Xoffset)
-        update_coefficients!(f)
+        if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
+            pad_periodic!(ts, T)
+            pad_periodic!(Xs, f.Xoffset)
+            update_coefficients!(f)
+        end
     end
 
     n_add, n_rem
