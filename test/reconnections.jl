@@ -110,13 +110,18 @@ end
 
         tspan = (0.0, 1.0)  # ignored
         prob = @inferred VortexFilamentProblem(fs, tspan, params_bs)
+        adaptivity = @inferred (
+            AdaptBasedOnSegmentLength(1.0) |
+            AdaptBasedOnVelocity(l_min) |
+            AdaptBasedOnVelocity(2 * l_min)  # this one doesn't do anything, it's just for testing
+        )
         iter = @inferred init(
             prob, RK4();
             dt = 1.0,  # will be changed by the adaptivity
             dtmin = 1e-4,
             refinement = RefineBasedOnCurvature(π / 8; ℓ_min = l_min / 2),
             reconnect = ReconnectBasedOnDistance(l_min),
-            adaptivity = AdaptBasedOnSegmentLength(1.0),
+            adaptivity,
         )
 
         # TODO check that energy decreases?
