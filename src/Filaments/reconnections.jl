@@ -10,7 +10,8 @@ Implemented reconnection criteria include:
 
 - [`NoReconnections`](@ref): disables reconnections;
 
-- [`BasedOnDistance`](@ref): reconnects filament segments which are closer than a critical distance.
+- [`ReconnectBasedOnDistance`](@ref): reconnects filament segments which are closer than a
+  critical distance.
 """
 abstract type ReconnectionCriterion end
 
@@ -44,8 +45,8 @@ distance(::NoReconnections) = Zero()
 should_reconnect(::NoReconnections, args...; kws...) = nothing
 
 """
-    BasedOnDistance <: ReconnectionCriterion
-    BasedOnDistance(d_crit; decrease_length = true, cos_max = 0.97)
+    ReconnectBasedOnDistance <: ReconnectionCriterion
+    ReconnectBasedOnDistance(d_crit; decrease_length = true, cos_max = 0.97)
 
 Reconnects filament segments which are at a distance `d < d_crit`.
 
@@ -63,22 +64,22 @@ Reconnects filament segments which are at a distance `d < d_crit`.
   Note that the angle ``θ`` is signed (it takes values in ``[-1, 1]``).
   Negative angles mean that the segments are antiparallel, and in this case reconnections are always performed.
 """
-struct BasedOnDistance <: ReconnectionCriterion
+struct ReconnectBasedOnDistance <: ReconnectionCriterion
     dist       :: Float64
     dist_sq    :: Float64
     cos_max    :: Float64
     cos_max_sq :: Float64
     decrease_length :: Bool
 
-    function BasedOnDistance(dist; cos_max = 0.97, decrease_length = true)
+    function ReconnectBasedOnDistance(dist; cos_max = 0.97, decrease_length = true)
         new(dist, dist^2, cos_max, cos_max^2, decrease_length)
     end
 end
 
-distance(c::BasedOnDistance) = c.dist
+distance(c::ReconnectBasedOnDistance) = c.dist
 
 function should_reconnect(
-        c::BasedOnDistance, fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;
+        c::ReconnectBasedOnDistance, fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;
         periods,
     )
     (; dist_sq, cos_max_sq, decrease_length,) = c

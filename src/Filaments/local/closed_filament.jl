@@ -255,9 +255,15 @@ function refine!(f::ClosedLocalFilament, crit::RefinementCriterion)
     (; ts, Xs,) = f
     N = length(Xs)  # original number of nodes
 
-    # Determine indices of nodes to modify (refine or remove).
-    n_add, n_rem = _nodes_to_refine!(f, crit)
-    (; inds, remove,) = crit
+    # Determine where to add or remove nodes.
+    cache = _nodes_to_refine!(f, crit)
+    (; inds, remove,) = cache
+    n_modify = length(inds)
+    iszero(n_modify) && return (n_modify, n_modify)  # = (n_add = 0, n_rem = 0)
+
+    n_rem = sum(remove)  # note: `remove` is a vector of Bool
+    n_add = n_modify - n_rem
+    @assert n_add ≥ 0
 
     # Worst case scenario: we add all knots first, then we remove all knots to be removed.
     if n_add > 0
@@ -283,9 +289,11 @@ function refine!(f::ClosedLocalFilament, crit::RefinementCriterion)
     if n_add + n_rem > 0
         @assert length(Xs) == N + n_add - n_rem
         resize!(f, length(Xs))  # resize all vectors in the filament
-        pad_periodic!(ts, T)
-        pad_periodic!(Xs, f.Xoffset)
-        update_coefficients!(f)
+        if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
+            pad_periodic!(ts, T)
+            pad_periodic!(Xs, f.Xoffset)
+            update_coefficients!(f)
+        end
     end
 
     n_add, n_rem

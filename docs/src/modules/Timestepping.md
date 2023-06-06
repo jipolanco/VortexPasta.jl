@@ -41,7 +41,7 @@ DP5
 ```@docs
 AdaptivityCriterion
 NoAdaptivity
-BasedOnSegmentLength
+AdaptBasedOnSegmentLength
 ```
 
 ## Internals

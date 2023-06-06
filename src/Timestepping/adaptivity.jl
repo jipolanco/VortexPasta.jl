@@ -1,15 +1,15 @@
-export NoAdaptivity, BasedOnSegmentLength
+export NoAdaptivity, AdaptBasedOnSegmentLength
 
 """
     AdaptivityCriterion
 
 Abstract type representing a temporal adaptivity criterion.
 
-Implemented adaptivity criteria include:
+Implemented adaptivity criteria are:
 
 - [`NoAdaptivity`](@ref): disables time adaptivity;
 
-- [`BasedOnSegmentLength`](@ref): CFL-like condition, based on the minimum
+- [`AdaptBasedOnSegmentLength`](@ref): CFL-like condition, based on the minimum
   distance between two filament nodes.
 """
 abstract type AdaptivityCriterion end
@@ -25,8 +25,8 @@ struct NoAdaptivity <: AdaptivityCriterion end
 estimate_timestep(::NoAdaptivity, iter::AbstractSolver) = get_dt(iter)  # don't change current dt
 
 """
-    BasedOnSegmentLength <: AdaptivityCriterion
-    BasedOnSegmentLength(γ::Float64)
+    AdaptBasedOnSegmentLength <: AdaptivityCriterion
+    AdaptBasedOnSegmentLength(γ::Float64)
 
 Adapt timestep ``Δt`` based on the minimum distance ``ℓ`` between two filament nodes.
 
@@ -54,11 +54,11 @@ This basically shows that among these methods, `RK4` should be preferred as it
 allows for a larger timestep for a given number of function evaluations. On the
 other hand, `Euler` should be always avoided!
 """
-struct BasedOnSegmentLength <: AdaptivityCriterion
+struct AdaptBasedOnSegmentLength <: AdaptivityCriterion
     γ :: Float64
 end
 
-function estimate_timestep(crit::BasedOnSegmentLength, iter::AbstractSolver)
+function estimate_timestep(crit::AdaptBasedOnSegmentLength, iter::AbstractSolver)
     (; γ,) = crit
     (; prob, fs,)  = iter
     p = prob.p :: ParamsBiotSavart

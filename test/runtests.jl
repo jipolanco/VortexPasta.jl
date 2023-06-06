@@ -3,6 +3,7 @@ using VortexPasta
 
 @testset "VortexPasta.jl" begin
     include("filaments.jl")
+    include("refinement.jl")
     include("ring.jl")
     include("ring_collision.jl")
     include("trefoil.jl")

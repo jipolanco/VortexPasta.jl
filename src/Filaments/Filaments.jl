@@ -17,13 +17,9 @@ export
     CurvatureScalar,
     CurvatureBinormal,
 
-    # Refinement criteria
-    NoRefinement,
-    BasedOnCurvature,
-
     # Reconnection criteria
     NoReconnections,
-    BasedOnDistance,
+    ReconnectBasedOnDistance,
 
     knots,
     knotlims,

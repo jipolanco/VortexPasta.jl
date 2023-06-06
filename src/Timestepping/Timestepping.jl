@@ -18,11 +18,11 @@ using ..Filaments:
 
     RefinementCriterion,
     NoRefinement,
-    BasedOnCurvature,
+    RefineBasedOnCurvature,
 
     ReconnectionCriterion,
     NoReconnections,
-    BasedOnDistance,
+    ReconnectBasedOnDistance,
 
     update_coefficients_before_refinement,
     update_coefficients_after_refinement
@@ -170,15 +170,13 @@ either [`step!`](@ref) or [`solve!`](@ref).
   initial vortex filaments.
 
 - `refinement = NoRefinement()`: criterium used for adaptive refinement of vortex
-  filaments. See [`BasedOnCurvature`](@ref) for a possible way of enabling refinement.
+  filaments. See [`RefinementCriterion`](@ref) for a list of possible criteria.
 
 - `reconnect = NoReconnections()`: criterium used to perform vortex reconnections.
-  See [`ReconnectionCriterion`](@ref) for a list of possible methods and
-  [`BasedOnDistance`](@ref) for one of these methods.
+  See [`ReconnectionCriterion`](@ref) for a list of possible criteria.
 
 - `adaptivity = NoAdaptivity()`: criterium used for adaptively setting the timestep `dt`.
-  See [`AdaptivityCriterion`](@ref) for a list of possible methods and
-  [`BasedOnSegmentLength`](@ref) for one of these methods.
+  See [`AdaptivityCriterion`](@ref) for a list of possible criteria.
 
 - `dtmin = 0.0`: minimum `dt` for adaptive timestepping. If `dt < dtmin`, the
   solver is stopped with an error.
@@ -248,9 +246,10 @@ function _advect_filament!(
         fbase = f, L_fold = nothing, refinement = nothing,
     )
     Xs = nodes(f)
+    @assert Filaments.check_nodes(Bool, f)  # filament has enough nodes
     Xs_base = nodes(fbase)
     @assert eachindex(Xs) == eachindex(Xs_base) == eachindex(vs)
-    @inbounds for i ∈ eachindex(Xs)
+    @inbounds for i ∈ eachindex(Xs, Xs_base, vs)
         Xs[i] = Xs_base[i] + dt * vs[i]
     end
     if L_fold !== nothing
@@ -271,6 +270,9 @@ function _advect_filament!(
             if sum(nref) ≠ 0
                 resize!(vs, length(f))
             end
+            if !Filaments.check_nodes(Bool, f)
+                return nothing  # filament should be removed (too small / not enough nodes)
+            end
         end
     end
     need_to_update_coefs && Filaments.update_coefficients!(f)
@@ -278,11 +280,21 @@ function _advect_filament!(
 end
 
 function advect_filaments!(fs, vs, dt; fbase = fs, kws...)
-    for (f, f₀, v) ∈ zip(fs, fbase, vs)
-        _advect_filament!(f, v, dt; fbase = f₀, kws...)
+    for i ∈ reverse(eachindex(fs, fbase, vs))
+        ret = _advect_filament!(fs[i], vs[i], dt; fbase = fbase[i], kws...)
+        if ret === nothing
+            # This should only happen if the filament was "refined" (well, unrefined in this case).
+            # This only happens after a full timestep (i.e. not in intermediate RK stages),
+            # in which case `fbase` and `fs` are the same.
+            @assert fs === fbase
+            popat!(fs, i)
+            popat!(vs, i)
+        end
     end
     fs
 end
+
+advect_filaments!(fs, vs::VectorOfArray, dt; kws...) = advect_filaments!(fs, vs.u, dt; kws...)
 
 """
     solve!(iter::VortexFilamentSolver)

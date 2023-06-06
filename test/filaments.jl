@@ -165,7 +165,7 @@ function test_filament_ring(args)
                 # Since this is a ring, in the end we should have between M/2 and M
                 # segments of length ~2π/M (actually, we seem to get M/2 + 1 = 9 segments).
                 M = 16
-                crit = BasedOnCurvature(2π, 2π / M)
+                crit = RefineBasedOnCurvature(2π, 2π / M)
                 fc = copy(f)
                 # Several iterations are needed to remove required nodes, since we never
                 # remove adjacent nodes in a single pass.
@@ -187,7 +187,7 @@ function test_filament_ring(args)
                 @test ρℓ_min > 2π / 4M  # criterion is (roughly) satisfied
             end
             @testset "Refining" begin
-                crit = BasedOnCurvature(0.2)
+                crit = RefineBasedOnCurvature(0.2)
                 fc = copy(f)
                 while true
                     Filaments.refine!(fc, crit) == (0, 0) && break
