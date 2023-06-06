@@ -44,6 +44,12 @@ struct RefinementCache
     RefinementCache() = new(Int[], Bool[])
 end
 
+function Base.empty!(c::RefinementCache)
+    empty!(c.inds)
+    empty!(c.remove)
+    c
+end
+
 """
     NoRefinement <: RefinementCriterion
     NoRefinement()
@@ -53,10 +59,15 @@ Used to disable filament refinement.
 struct NoRefinement <: RefinementCriterion end
 
 @inline Base.getproperty(crit::NoRefinement, name::Symbol) = _getproperty(crit, Val(name))
-_getproperty(::NoRefinement, ::Val{:inds}) = SVector{0, Int}()
-_getproperty(::NoRefinement, ::Val{:remove}) = SVector{0, Bool}()
 
-_nodes_to_refine!(::AbstractFilament, ::NoRefinement) = (0, 0)
+# Return a fake cache.
+function _getproperty(::NoRefinement, ::Val{:cache})
+    inds = SVector{0, Int}()
+    remove = SVector{0, Float64}()
+    (; inds, remove,)
+end
+
+_nodes_to_refine!(::AbstractFilament, crit::NoRefinement) = crit.cache
 
 """
     RefineBasedOnCurvature <: RefinementCriterion
@@ -106,9 +117,7 @@ function _nodes_to_refine!(f::AbstractFilament, crit::RefineBasedOnCurvature)
     (; ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, cache,) = crit
     (; inds, remove,) = cache
     ts = knots(f)
-    n_add = n_rem = 0
-    empty!(inds)
-    empty!(remove)
+    empty!(cache)
     skipnext = false
     iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
     for i ∈ iter
@@ -122,17 +131,17 @@ function _nodes_to_refine!(f::AbstractFilament, crit::RefineBasedOnCurvature)
         # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
         ρℓ = ρ * ℓ
         if ρℓ > ρℓ_max && ℓ > 2 * ℓ_min  # so that the new ℓ is roughly larger than ℓ_min
+            @debug lazy"Inserting node at t = $((ts[i] + ts[i + 1]) / 2)"
             push!(inds, i)
             push!(remove, false)
-            n_add += 1
         elseif ρℓ < ρℓ_min && ℓ < ℓ_max / 2  # so that the new ℓ is roughly smaller than ℓ_max
+            @debug lazy"Removing node at t = $(ts[i + 1])"
             push!(inds, i + 1)
             push!(remove, true)
-            n_rem += 1
             skipnext = true
         end
     end
-    n_add, n_rem
+    cache
 end
 
 """
@@ -166,9 +175,7 @@ function _nodes_to_refine!(f::AbstractFilament, crit::RefineBasedOnSegmentLength
     (; ℓ_max, ℓ_min, cache,) = crit
     (; inds, remove,) = cache
     ts = knots(f)
-    n_add = n_rem = 0
-    empty!(inds)
-    empty!(remove)
+    empty!(cache)
     skipnext = false
     iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
     for i ∈ iter
@@ -179,15 +186,15 @@ function _nodes_to_refine!(f::AbstractFilament, crit::RefineBasedOnSegmentLength
         ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
         # ℓ = norm(f[i + 1] - f[i])
         if ℓ > ℓ_max
+            @debug lazy"Inserting node at t = $((ts[i] + ts[i + 1]) / 2)"
             push!(inds, i)
             push!(remove, false)
-            n_add += 1
         elseif ℓ < ℓ_min
+            @debug lazy"Removing node at t = $(ts[i + 1])"
             push!(inds, i + 1)
             push!(remove, true)
-            n_rem += 1
             skipnext = true
         end
     end
-    n_add, n_rem
+    cache
 end

@@ -187,8 +187,14 @@ function refine!(f::ClosedSplineFilament, crit::RefinementCriterion)
     N = length(cs)  # original number of nodes
 
     # Determine indices of nodes to modify (refine or remove).
-    n_add, n_rem = _nodes_to_refine!(f, crit)
-    (; inds, remove,) = crit.cache
+    cache = _nodes_to_refine!(f, crit)
+    (; inds, remove,) = cache
+    n_modify = length(inds)
+    iszero(n_modify) && return (n_modify, n_modify)  # = (n_add = 0, n_rem = 0)
+
+    n_rem = sum(remove)  # note: `remove` is a vector of Bool
+    n_add = n_modify - n_rem
+    @assert n_add ≥ 0
 
     # Worst case scenario: we add all knots first, then we remove all knots to be removed.
     if n_add > 0
@@ -225,4 +231,4 @@ end
 # Coefficients should be updated before refinement, but not after (since we use
 # knot insertion + updating of derivatives).
 update_coefficients_before_refinement(::ClosedSplineFilament) = true
-update_coefficients_after_refinement(::ClosedSplineFilament) = true
+update_coefficients_after_refinement(::ClosedSplineFilament) = false
