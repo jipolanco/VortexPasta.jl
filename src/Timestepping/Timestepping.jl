@@ -22,7 +22,7 @@ using ..Filaments:
 
     ReconnectionCriterion,
     NoReconnections,
-    BasedOnDistance,
+    ReconnectBasedOnDistance,
 
     update_coefficients_before_refinement,
     update_coefficients_after_refinement

@@ -57,7 +57,7 @@ according to a chosen reconnection criterion.
 ```@docs
 ReconnectionCriterion
 NoReconnections
-BasedOnDistance
+ReconnectBasedOnDistance
 should_reconnect
 reconnect!
 reconnect_self!

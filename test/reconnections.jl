@@ -65,7 +65,7 @@ end
         end
 
         @testset "reconnect_self!" begin
-            crit = @inferred BasedOnDistance(l_min / 2)
+            crit = @inferred ReconnectBasedOnDistance(l_min / 2)
             fc = copy(f)
             fs_all = [fc]
             f1 = Filaments.reconnect_self!(crit, fc, fs_all)
@@ -115,7 +115,7 @@ end
             dt = 1.0,  # will be changed by the adaptivity
             dtmin = 1e-4,
             refinement = RefineBasedOnCurvature(π / 8; ℓ_min = l_min / 2),
-            reconnect = BasedOnDistance(l_min),
+            reconnect = ReconnectBasedOnDistance(l_min),
             adaptivity = AdaptBasedOnSegmentLength(1.0),
         )
 
@@ -159,7 +159,7 @@ end
                 norm(f[i] - g[j])
             end
         end
-        crit = BasedOnDistance(1.2 * d_min_nodes)
+        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes)
 
         @testset "Filaments.reconnect_other!" begin
             f, g = copy.(fs_orig)
@@ -202,7 +202,7 @@ end
                 norm(f[i] - g[j])
             end
         end
-        crit = BasedOnDistance(1.2 * d_min_nodes)
+        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes)
 
         fs = collect(copy.(fs_orig))
         Filaments.reconnect!(crit, fs)
@@ -234,7 +234,7 @@ end
             l_min = minimum_knot_increment(f_orig)
 
             fs = [copy(f_orig)]
-            crit = BasedOnDistance(4 * ϵ)
+            crit = ReconnectBasedOnDistance(4 * ϵ)
             f1 = Filaments.reconnect_self!(crit, first(fs), fs; periods)
             @test f1 !== nothing
             @test length(fs) == 2  # filament reconnected onto 2
@@ -262,7 +262,7 @@ end
 
             l_min = minimum_knot_increment(f_orig)
             fs = [copy(f_orig)]
-            crit = BasedOnDistance(l_min / 2)
+            crit = ReconnectBasedOnDistance(l_min / 2)
             Filaments.reconnect!(crit, fs; periods)
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
@@ -293,7 +293,7 @@ end
 
             l_min = minimum_knot_increment(f_orig)
             fs = [copy(f_orig)]
-            crit = BasedOnDistance(l_min / 2)
+            crit = ReconnectBasedOnDistance(l_min / 2)
 
             # First pass: the ring splits into 2 infinite lines and a closed curve (very
             # similar to the overlapping ellipse case).

@@ -19,7 +19,7 @@ export
 
     # Reconnection criteria
     NoReconnections,
-    BasedOnDistance,
+    ReconnectBasedOnDistance,
 
     knots,
     knotlims,
