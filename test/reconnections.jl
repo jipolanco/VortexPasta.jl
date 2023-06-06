@@ -116,7 +116,7 @@ end
             dtmin = 1e-4,
             refinement = RefineBasedOnCurvature(π / 8; ℓ_min = l_min / 2),
             reconnect = BasedOnDistance(l_min),
-            adaptivity = BasedOnSegmentLength(1.0),
+            adaptivity = AdaptBasedOnSegmentLength(1.0),
         )
 
         # TODO check that energy decreases?

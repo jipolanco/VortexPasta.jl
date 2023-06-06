@@ -94,7 +94,7 @@ function test_kelvin_waves(scheme = RK4(); method = (CubicSplineMethod(),), Lz =
         prob, scheme;
         dt = 1.0,  # will be changed by the adaptivity
         dtmin = T_kw * 1e-5,
-        adaptivity = BasedOnSegmentLength(dt_factor(scheme)),
+        adaptivity = AdaptBasedOnSegmentLength(dt_factor(scheme)),
         refinement = NoRefinement(),  # make sure that nodes don't "move" vertically due to refinement
         callback,
     )
