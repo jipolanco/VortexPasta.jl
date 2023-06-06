@@ -1,3 +1,7 @@
+export NoRefinement,
+       BasedOnCurvature,
+       RefineBasedOnSegmentLength
+
 using LinearAlgebra: norm
 using StaticArrays: SVector
 
@@ -96,8 +100,8 @@ function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
             skipnext = false
             continue
         end
-        # ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
-        ℓ = norm(f[i + 1] - f[i])
+        ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
+        # ℓ = norm(f[i + 1] - f[i])
         ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
         # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
         ρℓ = ρ * ℓ
@@ -106,6 +110,46 @@ function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
             push!(remove, false)
             n_add += 1
         elseif ρℓ < ρℓ_min && ℓ < ℓ_max / 2  # so that the new ℓ is roughly smaller than ℓ_max
+            push!(inds, i + 1)
+            push!(remove, true)
+            n_rem += 1
+            skipnext = true
+        end
+    end
+    n_add, n_rem
+end
+
+struct RefineBasedOnSegmentLength <: RefinementCriterion
+    ℓ_min :: Float64
+    ℓ_max :: Float64
+    inds   :: Vector{Int}   # indices of nodes or segments to modify
+    remove :: Vector{Bool}  # determine whether nodes should be removed or segments should be refined
+    function RefineBasedOnSegmentLength(ℓ_min, ℓ_max = 2 * ℓ_min)
+        ℓ_min < ℓ_max || error(lazy"ℓ_min should be smaller than ℓ_max (got ℓ_max/ℓ_min = $ℓ_max/$ℓ_min)")
+        new(ℓ_min, ℓ_max, Int[], Bool[])
+    end
+end
+
+function _nodes_to_refine!(f::AbstractFilament, crit::RefineBasedOnSegmentLength)
+    (; ℓ_max, ℓ_min, inds, remove,) = crit
+    ts = knots(f)
+    n_add = n_rem = 0
+    empty!(inds)
+    empty!(remove)
+    skipnext = false
+    iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
+    for i ∈ iter
+        if skipnext
+            skipnext = false
+            continue
+        end
+        ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
+        # ℓ = norm(f[i + 1] - f[i])
+        if ℓ > ℓ_max
+            push!(inds, i)
+            push!(remove, false)
+            n_add += 1
+        elseif ℓ < ℓ_min
             push!(inds, i + 1)
             push!(remove, true)
             n_rem += 1
