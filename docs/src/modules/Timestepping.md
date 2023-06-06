@@ -42,6 +42,7 @@ DP5
 AdaptivityCriterion
 NoAdaptivity
 AdaptBasedOnSegmentLength
+AdaptBasedOnVelocity
 ```
 
 ## Internals
