@@ -2,8 +2,6 @@ export NoAdaptivity,
        AdaptBasedOnSegmentLength,
        AdaptBasedOnVelocity
 
-using LinearAlgebra: norm
-
 """
     AdaptivityCriterion
 
@@ -121,10 +119,11 @@ end
 function estimate_timestep(crit::AdaptBasedOnVelocity, iter::AbstractSolver)
     (; δ,) = crit
     (; vs,)  = iter
-    vmax = maximum(vs) do vnodes
-        maximum(norm, vnodes)  # maximum velocity norm among the nodes of a single filament
+    v²_max = maximum(vs) do vnodes
+        maximum(v⃗ -> sum(abs2, v⃗), vnodes)  # maximum squared velocity norm among the nodes of a single filament
     end
-    δ / vmax
+    v_max = sqrt(v²_max)
+    δ / v_max
 end
 
 struct CombinedAdaptivityCriteria{
