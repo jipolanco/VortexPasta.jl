@@ -105,12 +105,13 @@ end
     AdaptBasedOnVelocity(δ::Float64)
 
 Adapt timestep ``Δt`` based on the maximum velocity ``v_{\\max}`` of filament nodes and on
-the distance ``δ`.
+the given distance ``δ`.
 
 The timestep is set to ``Δt = δ / v_{\\max}``.
 
 One application of this criterion is to ensure that reconnections happen in-between two
-solver iterations. In this case, ``δ`` should be proportional to the chosen distance below
+solver iterations (that is, to avoid that two filaments cross each other without
+reconnecting). In this case, ``δ`` should be proportional to the chosen distance below
 which reconnections are performed.
 """
 struct AdaptBasedOnVelocity <: AdaptivityCriterion
