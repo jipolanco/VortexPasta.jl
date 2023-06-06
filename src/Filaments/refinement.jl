@@ -1,5 +1,5 @@
 export NoRefinement,
-       BasedOnCurvature,
+       RefineBasedOnCurvature,
        RefineBasedOnSegmentLength
 
 using LinearAlgebra: norm
@@ -9,6 +9,15 @@ using StaticArrays: SVector
     RefinementCriterion
 
 Abstract type describing a curve refinement criterion.
+
+Implemented refinement criteria are:
+
+- [`NoRefinement`](@ref): disables refinement;
+
+- [`RefineBasedOnSegmentLength`](@ref): enforces a minimum and maximum distance between
+  neighbouring filament nodes;
+
+- [`RefineBasedOnCurvature`](@ref): inserts more nodes on highly-curved filament segments.
 """
 abstract type RefinementCriterion end
 
@@ -23,7 +32,7 @@ Returns the number of added and removed nodes.
 
 Example usage:
 
-    crit = BasedOnCurvature(0.5)
+    crit = RefineBasedOnCurvature(0.5)
     refine!(f, crit)
 
 """
@@ -50,8 +59,8 @@ _getproperty(::NoRefinement, ::Val{:remove}) = SVector{0, Bool}()
 _nodes_to_refine!(::AbstractFilament, ::NoRefinement) = (0, 0)
 
 """
-    BasedOnCurvature <: RefinementCriterion
-    BasedOnCurvature(ρℓ_max::Real, ρℓ_min = ρℓ_max / 2.5; ℓ_max = Inf)
+    RefineBasedOnCurvature <: RefinementCriterion
+    RefineBasedOnCurvature(ρℓ_max::Real, ρℓ_min = ρℓ_max / 2.5; ℓ_max = Inf)
 
 Curvature-based refinement criterion.
 
@@ -81,19 +90,19 @@ To limit this, set the keyword argument `ℓ_max` to some finite value
 determining the maximum length of a segment.
 This setting will be roughly respected when removing nodes.
 """
-struct BasedOnCurvature <: RefinementCriterion
+struct RefineBasedOnCurvature <: RefinementCriterion
     ρℓ_max :: Float64
     ρℓ_min :: Float64
     ℓ_max  :: Float64
     ℓ_min  :: Float64
     cache  :: RefinementCache
-    BasedOnCurvature(ρℓ_max, ρℓ_min; ℓ_max = Inf, ℓ_min = 0.0) =
+    RefineBasedOnCurvature(ρℓ_max, ρℓ_min; ℓ_max = Inf, ℓ_min = 0.0) =
         new(ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, RefinementCache())
 end
 
-BasedOnCurvature(ρℓ_max; kws...) = BasedOnCurvature(ρℓ_max, ρℓ_max / 2.5; kws...)
+RefineBasedOnCurvature(ρℓ_max; kws...) = RefineBasedOnCurvature(ρℓ_max, ρℓ_max / 2.5; kws...)
 
-function _nodes_to_refine!(f::AbstractFilament, crit::BasedOnCurvature)
+function _nodes_to_refine!(f::AbstractFilament, crit::RefineBasedOnCurvature)
     (; ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, cache,) = crit
     (; inds, remove,) = cache
     ts = knots(f)

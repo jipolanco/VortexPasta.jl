@@ -18,7 +18,7 @@ using ..Filaments:
 
     RefinementCriterion,
     NoRefinement,
-    BasedOnCurvature,
+    RefineBasedOnCurvature,
 
     ReconnectionCriterion,
     NoReconnections,
@@ -170,15 +170,13 @@ either [`step!`](@ref) or [`solve!`](@ref).
   initial vortex filaments.
 
 - `refinement = NoRefinement()`: criterium used for adaptive refinement of vortex
-  filaments. See [`BasedOnCurvature`](@ref) for a possible way of enabling refinement.
+  filaments. See [`RefinementCriterion`](@ref) for a list of possible criteria.
 
 - `reconnect = NoReconnections()`: criterium used to perform vortex reconnections.
-  See [`ReconnectionCriterion`](@ref) for a list of possible methods and
-  [`BasedOnDistance`](@ref) for one of these methods.
+  See [`ReconnectionCriterion`](@ref) for a list of possible criteria.
 
 - `adaptivity = NoAdaptivity()`: criterium used for adaptively setting the timestep `dt`.
-  See [`AdaptivityCriterion`](@ref) for a list of possible methods and
-  [`BasedOnSegmentLength`](@ref) for one of these methods.
+  See [`AdaptivityCriterion`](@ref) for a list of possible criteria.
 
 - `dtmin = 0.0`: minimum `dt` for adaptive timestepping. If `dt < dtmin`, the
   solver is stopped with an error.

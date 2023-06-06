@@ -45,7 +45,7 @@ check_nodes
 RefinementCriterion
 NoRefinement
 RefineBasedOnSegmentLength
-BasedOnCurvature
+RefineBasedOnCurvature
 refine!
 ```
 

@@ -114,7 +114,7 @@ end
             prob, RK4();
             dt = 1.0,  # will be changed by the adaptivity
             dtmin = 1e-4,
-            refinement = BasedOnCurvature(π / 8; ℓ_min = l_min / 2),
+            refinement = RefineBasedOnCurvature(π / 8; ℓ_min = l_min / 2),
             reconnect = BasedOnDistance(l_min),
             adaptivity = BasedOnSegmentLength(1.0),
         )
