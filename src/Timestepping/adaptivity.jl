@@ -103,7 +103,7 @@ end
     AdaptBasedOnVelocity(δ::Float64)
 
 Adapt timestep ``Δt`` based on the maximum velocity ``v_{\\max}`` of filament nodes and on
-the given distance ``δ`.
+the given distance ``δ``.
 
 The timestep is set to ``Δt = δ / v_{\\max}``.
 
