@@ -7,7 +7,7 @@ module Timestepping
 
 export init, solve!, step!, VortexFilamentProblem
 
-using ..BasicTypes: Vec3
+using ..BasicTypes: Vec3, VectorOfVectors
 
 using ..Filaments:
     Filaments,
@@ -40,7 +40,6 @@ using ..BiotSavart:
 # Reuse same init and solve! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
 import CommonSolve: init, solve!
-using RecursiveArrayTools: VectorOfArray  # for convenience, to deal with filament velocities
 
 using TimerOutputs: TimerOutput, @timeit
 
@@ -122,7 +121,7 @@ Some useful fields are:
 struct VortexFilamentSolver{
         Problem <: VortexFilamentProblem,
         Filaments <: VectorOfFilaments,
-        Velocities <: VectorOfArray{<:Vec3},
+        Velocities <: VectorOfVectors{<:Vec3},
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
         Reconnect <: ReconnectionCriterion,
@@ -200,7 +199,7 @@ function init(
     ) where {F <: Function}
     (; fs, tspan,) = prob
     vs_data = [similar(nodes(f)) for f ∈ fs] :: AllFilamentVelocities
-    vs = VectorOfArray(vs_data)
+    vs = VectorOfVectors(vs_data)
     fs_sol = alias_u0 ? fs : copy.(fs)
     cache_bs = BiotSavart.init_cache(prob.p; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
@@ -228,7 +227,7 @@ function init(
 end
 
 function _vortex_velocities!(
-        vs::VectorOfArray,
+        vs::VectorOfVectors,
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
     )
@@ -294,8 +293,6 @@ function advect_filaments!(fs, vs, dt; fbase = fs, kws...)
     fs
 end
 
-advect_filaments!(fs, vs::VectorOfArray, dt; kws...) = advect_filaments!(fs, vs.u, dt; kws...)
-
 """
     solve!(iter::VortexFilamentSolver)
 
@@ -339,23 +336,21 @@ end
 
 function reconnect!(iter::VortexFilamentSolver)
     (; vs, fs, reconnect,) = iter
-    vs::VectorOfArray  # doesn't implement `popat!`...
-    us = vs.u
     Filaments.reconnect!(reconnect, fs) do f, i, mode
         if mode === :removed
             @debug lazy"Filament was removed at index $i"
             @assert i ≤ lastindex(vs) == lastindex(fs) + 1
-            popat!(us, i)
+            popat!(vs, i)
         elseif mode === :appended
             @debug lazy"Filament was appended at index $i"
             @assert f === fs[i]
             @assert i == lastindex(vs) + 1
-            push!(us, similar(first(vs), length(f)))
+            push!(vs, similar(first(vs), length(f)))
         elseif mode === :modified
             @debug lazy"Filament was modified at index $i"
             @assert f === fs[i]
             @assert i ≤ lastindex(fs) == lastindex(vs)
-            resize!(us[i], length(f))
+            resize!(vs[i], length(f))
         end
     end
     iter

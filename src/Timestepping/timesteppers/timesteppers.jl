@@ -17,7 +17,7 @@ struct TemporalSchemeCache{
         Scheme <: ExplicitTemporalScheme,
         Nf, Nv,
         Filaments <: VectorOfFilaments,
-        Velocities <: VectorOfArray{<:Vec3},
+        Velocities <: VectorOfVectors{<:Vec3},
     }
     scheme :: Scheme
     fc     :: NTuple{Nf, Filaments}
@@ -29,7 +29,7 @@ can_change_dt(c::TemporalSchemeCache) = can_change_dt(scheme(c))
 
 function init_cache(
         scheme::ExplicitTemporalScheme,
-        fs::VectorOfFilaments, vs::VectorOfArray,
+        fs::VectorOfFilaments, vs::VectorOfVectors,
     )
     Nf = nbuf_filaments(scheme)
     Nv = nbuf_velocities(scheme)
@@ -58,9 +58,6 @@ function resize_container!(buf, fs::VectorOfFilaments)
     @assert length(fs) == length(buf)
     buf
 end
-
-# VectorOfArray doesn't implement pop!...
-resize_container!(vs::VectorOfArray, fs::VectorOfFilaments) = resize_container!(vs.u, fs)
 
 function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
     (; fc, vc,) = cache
