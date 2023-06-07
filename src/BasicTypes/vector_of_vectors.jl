@@ -2,6 +2,7 @@ using Base: @propagate_inbounds
 
 """
     VectorOfVectors{T, V <: AbstractVector{T}} <: AbstractVector{V <: AbstractVector}
+    VectorOfVectors(data::AbstractVector{<:AbstractVector})
 
 Contains a list of vectors.
 
@@ -14,6 +15,8 @@ It behaves as much as possible as a basic vector of vectors. For instance:
 - it only allows linear indexing (e.g. `u[i]` to get a single vector).
   To get an individual element (of type `T`), one should do `u[i][j]`.
 
+Note that the individual vectors `u[i]` can have different lengths from each other.
+
 There are also some differences:
 
 - it overloads broadcasting mechanisms, so that doing `@. u = 2 * u + v` (where both
@@ -21,6 +24,37 @@ There are also some differences:
 
 - copying a `VectorOfVectors` recursively copies its contained vectors, instead of just
   copying array references ("pointers").
+
+# Examples
+
+```jldoctest; setup = :(using Random; Random.seed!(42))
+julia> data = [rand(n) for n ∈ 1:4]
+4-element Vector{Vector{Float64}}:
+ [0.6293451231426089]
+ [0.4503389405961936, 0.47740714343281776]
+ [0.7031298490032014, 0.6733461456394962, 0.16589443479313404]
+ [0.6134782250008441, 0.6683403279577278, 0.4570310908017041, 0.2993652953937611]
+
+julia> us = VectorOfVectors(data)
+4-element VectorOfVectors{Float64, Vector{Float64}}:
+ [0.6293451231426089]
+ [0.4503389405961936, 0.47740714343281776]
+ [0.7031298490032014, 0.6733461456394962, 0.16589443479313404]
+ [0.6134782250008441, 0.6683403279577278, 0.4570310908017041, 0.2993652953937611]
+
+julia> us[2]
+2-element Vector{Float64}:
+ 0.4503389405961936
+ 0.47740714343281776
+
+julia> vs = @. us + 2 * us  # broadcasting
+4-element VectorOfVectors{Float64, Vector{Float64}}:
+ [1.888035369427827]
+ [1.3510168217885807, 1.4322214302984533]
+ [2.109389547009604, 2.0200384369184885, 0.4976833043794021]
+ [1.8404346750025324, 2.0050209838731834, 1.3710932724051124, 0.8980958861812833]
+
+```
 """
 struct VectorOfVectors{T, V <: AbstractVector{T}} <: AbstractVector{V}
     u :: Vector{V}

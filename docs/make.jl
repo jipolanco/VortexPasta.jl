@@ -2,6 +2,12 @@ using Documenter
 using VortexPasta
 
 DocMeta.setdocmeta!(
+    VortexPasta.BasicTypes,
+    :DocTestSetup,
+    :(using VortexPasta.BasicTypes),
+)
+
+DocMeta.setdocmeta!(
     VortexPasta.Filaments,
     :DocTestSetup,
     :(using VortexPasta.Filaments),
