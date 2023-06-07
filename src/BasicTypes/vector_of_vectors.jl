@@ -5,21 +5,22 @@ using Base: @propagate_inbounds
 
 Contains a list of vectors.
 
-It behaves as much as possible as a vector of vectors, with some convenience additions e.g.
-for broadcasting over vectors of vectors.
+It behaves as much as possible as a basic vector of vectors. For instance:
 
-This is somewhat similar to the `VectorOfArray` type from the `RecursiveArrayTools.jl`
-package, but with some important differences:
+- its `length` is the number of contained vectors;
 
-- a `VectorOfVectors` only allows linear indexing (e.g. `u[i]` to get a single vector).
+- its element type (`eltype`) is the type of a contained vector;
+
+- it only allows linear indexing (e.g. `u[i]` to get a single vector).
   To get an individual element (of type `T`), one should do `u[i][j]`.
 
-- a `VectorOfVectors` has `IndexStyle(u) = IndexLinear()`, which means that
-  `eachindex(u, v)` returns a linear range.
+There are also some differences:
 
-- the element type is an `AbstractVector{T}` instead of `T`.
+- it overloads broadcasting mechanisms, so that doing `@. u = 2 * u + v` (where both
+  variables are `VectorOfVectors`) works as expected and is efficient;
 
-- defines functions such as `popat!`.
+- copying a `VectorOfVectors` recursively copies its contained vectors, instead of just
+  copying array references ("pointers").
 """
 struct VectorOfVectors{T, V <: AbstractVector{T}} <: AbstractVector{V}
     u :: Vector{V}
@@ -50,7 +51,6 @@ end
 
 # This is called when doing push!.
 Base.resize!(vs::VectorOfVectors, n::Integer) = resize!(vs.u, n)
-
 Base.pop!(vs::VectorOfVectors) = pop!(vs.u)
 Base.popat!(vs::VectorOfVectors, i::Integer, args...) = popat!(vs.u, i, args...)
 
