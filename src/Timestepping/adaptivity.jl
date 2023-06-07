@@ -103,7 +103,7 @@ end
     AdaptBasedOnVelocity(δ::Float64)
 
 Adapt timestep ``Δt`` based on the maximum velocity ``v_{\\max}`` of filament nodes and on
-the given distance ``δ`.
+the given distance ``δ``.
 
 The timestep is set to ``Δt = δ / v_{\\max}``.
 
@@ -141,5 +141,7 @@ Base.:|(a::CombinedAdaptivityCriteria, b::AdaptivityCriterion) =
 
 function estimate_timestep(crit::CombinedAdaptivityCriteria, iter::AbstractSolver)
     (; criteria,) = crit
-    minimum(c -> estimate_timestep(c, iter), criteria)  # choose the smallest estimated timestep
+    dts = map(c -> estimate_timestep(c, iter), criteria)
+    @debug lazy"Estimated timesteps: $dts"
+    min(dts...)  # choose the smallest estimated timestep
 end

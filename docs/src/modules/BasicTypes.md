@@ -13,6 +13,7 @@ BasicTypes
 ```@docs
 Derivative
 Vec3
+VectorOfVectors
 Zero
 Infinity
 ∞

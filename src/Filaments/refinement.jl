@@ -157,7 +157,7 @@ This refinement criterion imposes neighbouring filament nodes to be at a distanc
   The insertion is done at an intermediate position using the functional representation of
   the filament (e.g. splines or Hermite interpolation);
 
-- nodes are **removed** if the distance between two nodes is ``ℓ < ℓ_{\\min}.
+- nodes are **removed** if the distance between two nodes is ``ℓ < ℓ_{\\min}``.
   For a filament which is strongly curved at that point, this means that local information
   is lost and that the filament is smoothed.
 """

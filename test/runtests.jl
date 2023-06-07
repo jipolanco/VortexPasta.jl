@@ -2,6 +2,7 @@ using Test
 using VortexPasta
 
 @testset "VortexPasta.jl" begin
+    include("vector_of_vector.jl")
     include("filaments.jl")
     include("refinement.jl")
     include("ring.jl")
