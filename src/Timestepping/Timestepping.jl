@@ -37,9 +37,9 @@ using ..BiotSavart:
     AllFilamentVelocities,
     periods
 
-# Reuse same init and solve! functions from the SciML ecosystem, to avoid clashes.
+# Reuse same init, solve! and step! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
-import CommonSolve: init, solve!
+import CommonSolve: init, solve!, step!
 
 using TimerOutputs: TimerOutput, @timeit
 
