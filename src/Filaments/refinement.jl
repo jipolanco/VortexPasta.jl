@@ -18,8 +18,36 @@ Implemented refinement criteria are:
   neighbouring filament nodes;
 
 - [`RefineBasedOnCurvature`](@ref): inserts more nodes on highly-curved filament segments.
+
 """
 abstract type RefinementCriterion end
+
+function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
+    (; cache,) = crit
+    (; inds, remove,) = cache
+    empty!(cache)
+    ts = knots(f)
+    skipnext = false
+    iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
+    for i ∈ iter
+        if skipnext
+            skipnext = false
+            continue
+        end
+        action = _refinement_action(crit, f, i)
+        if action === :insert
+            @debug lazy"Inserting node at t = $((ts[i] + ts[i + 1]) / 2)"
+            push!(inds, i)
+            push!(remove, false)
+        elseif action === :remove
+            @debug lazy"Removing node at t = $(ts[i + 1])"
+            push!(inds, i + 1)
+            push!(remove, true)
+            skipnext = true
+        end
+    end
+    cache
+end
 
 """
     refine!(f::AbstractFilament, crit::RefinementCriterion) -> (Int, Int)
@@ -113,35 +141,20 @@ end
 
 RefineBasedOnCurvature(ρℓ_max; kws...) = RefineBasedOnCurvature(ρℓ_max, ρℓ_max / 2.5; kws...)
 
-function _nodes_to_refine!(f::AbstractFilament, crit::RefineBasedOnCurvature)
-    (; ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, cache,) = crit
-    (; inds, remove,) = cache
+function _refinement_action(crit::RefineBasedOnCurvature, f::AbstractFilament, i::Integer)
+    (; ρℓ_min, ρℓ_max, ℓ_min, ℓ_max,) = crit
     ts = knots(f)
-    empty!(cache)
-    skipnext = false
-    iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
-    for i ∈ iter
-        if skipnext
-            skipnext = false
-            continue
-        end
-        ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
-        # ℓ = norm(f[i + 1] - f[i])
-        ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
-        # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
-        ρℓ = ρ * ℓ
-        if ρℓ > ρℓ_max && ℓ > 2 * ℓ_min  # so that the new ℓ is roughly larger than ℓ_min
-            @debug lazy"Inserting node at t = $((ts[i] + ts[i + 1]) / 2)"
-            push!(inds, i)
-            push!(remove, false)
-        elseif ρℓ < ρℓ_min && ℓ < ℓ_max / 2  # so that the new ℓ is roughly smaller than ℓ_max
-            @debug lazy"Removing node at t = $(ts[i + 1])"
-            push!(inds, i + 1)
-            push!(remove, true)
-            skipnext = true
-        end
+    ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
+    ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
+    # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
+    ρℓ = ρ * ℓ
+    if ρℓ > ρℓ_max && ℓ > 2 * ℓ_min  # so that the new ℓ is roughly larger than ℓ_min
+        :insert
+    elseif ρℓ < ρℓ_min && ℓ < ℓ_max / 2  # so that the new ℓ is roughly smaller than ℓ_max
+        :remove
+    else
+        :nothing
     end
-    cache
 end
 
 """
@@ -171,30 +184,15 @@ struct RefineBasedOnSegmentLength <: RefinementCriterion
     end
 end
 
-function _nodes_to_refine!(f::AbstractFilament, crit::RefineBasedOnSegmentLength)
-    (; ℓ_max, ℓ_min, cache,) = crit
-    (; inds, remove,) = cache
+function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)
+    (; ℓ_min, ℓ_max,) = crit
     ts = knots(f)
-    empty!(cache)
-    skipnext = false
-    iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
-    for i ∈ iter
-        if skipnext
-            skipnext = false
-            continue
-        end
-        ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
-        # ℓ = norm(f[i + 1] - f[i])
-        if ℓ > ℓ_max
-            @debug lazy"Inserting node at t = $((ts[i] + ts[i + 1]) / 2)"
-            push!(inds, i)
-            push!(remove, false)
-        elseif ℓ < ℓ_min
-            @debug lazy"Removing node at t = $(ts[i + 1])"
-            push!(inds, i + 1)
-            push!(remove, true)
-            skipnext = true
-        end
+    ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
+    if ℓ > ℓ_max
+        :insert
+    elseif ℓ < ℓ_min
+        :remove
+    else
+        :nothing
     end
-    cache
 end
