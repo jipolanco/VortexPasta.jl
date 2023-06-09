@@ -181,51 +181,31 @@ function (f::ClosedSplineFilament)(
     deperiodise_spline(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
 end
 
-# Refinement is based on the knot insertion algorithm for splines.
-function refine!(f::ClosedSplineFilament, crit::RefinementCriterion)
+# Insertion is based on the knot insertion algorithm for splines.
+function insert_node!(f::ClosedSplineFilament, i::Integer, ζ::Real)
     (; ts, cs, Xs,) = f
-    N = length(cs)  # original number of nodes
+    t = (1 - ζ) * ts[i] + ζ * ts[i + 1]  # insert knot somewhere in the middle (ζ ∈ [0, 1]; by default ζ = 0.5)
+    spline_insert_knot!(cs, ts, i, t)    # note: this calls pad_periodic! on cs and ts
+    Xnew = f(t; ileft = i)
+    insert!(Xs, i + 1, Xnew)
+    Xnew
+end
 
-    # Determine indices of nodes to modify (refine or remove).
-    cache = _nodes_to_refine!(f, crit)
-    (; inds, remove,) = cache
-    n_modify = length(inds)
-    iszero(n_modify) && return (n_modify, n_modify)  # = (n_add = 0, n_rem = 0)
+function remove_node!(f::ClosedSplineFilament, i::Integer)
+    (; ts, cs, Xs,) = f
+    popat!(cs, i)
+    popat!(ts, i)
+    popat!(Xs, i)
+end
 
-    n_rem = sum(remove)  # note: `remove` is a vector of Bool
-    n_add = n_modify - n_rem
-    @assert n_add ≥ 0
-
-    # Worst case scenario: we add all knots first, then we remove all knots to be removed.
-    if n_add > 0
-        sizehint!(cs, N + n_add)
-        sizehint!(ts, N + n_add)
+function update_after_changing_nodes!(f::ClosedSplineFilament)
+    (; Xs,) = f
+    resize!(f, length(Xs))   # resize all vectors in the filament
+    if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
+        pad_periodic!(Xs, f.Xoffset)  # just in case...
+        _update_coefficients_only!(f; only_derivatives = true)
     end
-
-    # We iterate in reverse to avoiding the need to shift indices.
-    for n ∈ reverse(eachindex(inds))
-        i, rem = inds[n], remove[n]
-        if rem
-            popat!(cs, i)
-            popat!(ts, i)
-            popat!(Xs, i)
-        else
-            t = (ts[i] + ts[i + 1]) / 2        # insert knot in the middle of the segment
-            spline_insert_knot!(cs, ts, i, t)  # note: this calls pad_periodic! on cs and ts
-            insert!(Xs, i + 1, f(t; ileft = i))
-        end
-    end
-
-    if n_add + n_rem > 0
-        @assert length(cs) == N + n_add - n_rem
-        resize!(f, length(cs))   # resize all vectors in the filament
-        if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
-            pad_periodic!(Xs, f.Xoffset)  # just in case...
-            _update_coefficients_only!(f; only_derivatives = true)
-        end
-    end
-
-    n_add, n_rem
+    f
 end
 
 # Coefficients should be updated before refinement, but not after (since we use

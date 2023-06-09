@@ -251,52 +251,27 @@ function _interpolate(
     α * interpolate(method, deriv, t, values_i...)
 end
 
-function refine!(f::ClosedLocalFilament, crit::RefinementCriterion)
+function insert_node!(f::ClosedLocalFilament, i::Integer, ζ::Real)
+    (; Xs,) = f
+    Xnew = f(i, ζ)
+    insert!(Xs, i + 1, Xnew)
+    Xnew
+end
+
+function remove_node!(f::ClosedLocalFilament, i::Integer)
     (; ts, Xs,) = f
-    N = length(Xs)  # original number of nodes
+    popat!(ts, i)
+    popat!(Xs, i)
+end
 
-    # Determine where to add or remove nodes.
-    cache = _nodes_to_refine!(f, crit)
-    (; inds, remove,) = cache
-    n_modify = length(inds)
-    iszero(n_modify) && return (n_modify, n_modify)  # = (n_add = 0, n_rem = 0)
-
-    n_rem = sum(remove)  # note: `remove` is a vector of Bool
-    n_add = n_modify - n_rem
-    @assert n_add ≥ 0
-
-    # Worst case scenario: we add all knots first, then we remove all knots to be removed.
-    if n_add > 0
-        sizehint!(Xs, N + n_add)
-        sizehint!(ts, N + n_add)
+function update_after_changing_nodes!(f::ClosedLocalFilament)
+    (; Xs,) = f
+    resize!(f, length(Xs))   # resize all vectors in the filament
+    if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
+        pad_periodic!(Xs, f.Xoffset)
+        update_coefficients!(f)
     end
-
-    T = ts[end + 1] - ts[begin]
-
-    # We iterate in reverse to avoiding the need to shift indices (assuming `inds` is
-    # sorted).
-    for n ∈ reverse(eachindex(inds))
-        i, rem = inds[n], remove[n]
-        if rem
-            popat!(ts, i)
-            popat!(Xs, i)
-        else
-            ζ = 0.5  # insert knot in the middle of the segment
-            insert!(Xs, i + 1, f(i, ζ))
-        end
-    end
-
-    if n_add + n_rem > 0
-        @assert length(Xs) == N + n_add - n_rem
-        resize!(f, length(Xs))  # resize all vectors in the filament
-        if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
-            pad_periodic!(ts, T)
-            pad_periodic!(Xs, f.Xoffset)
-            update_coefficients!(f)
-        end
-    end
-
-    n_add, n_rem
+    f
 end
 
 # Coefficients should be updated before refinement to make sure we have the right curvatures

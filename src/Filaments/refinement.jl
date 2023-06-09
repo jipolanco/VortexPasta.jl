@@ -6,6 +6,53 @@ using LinearAlgebra: norm
 using StaticArrays: SVector
 
 """
+    insert_node!(f::AbstractFilament, i::Integer, [ζ = 0.5]) -> Vec3
+
+Insert node in-between locations `f[i]` and `f[i + 1]`.
+
+The optional argument `ζ ∈ [0, 1]` corresponds to the relative location of the new node
+within the segment. By default it is set to `ζ = 0.5`, which corresponds to an estimation of
+the middle of the segment.
+
+Note that [`update_after_changing_nodes!`](@ref) must be called after inserting one or more
+nodes.
+
+See also [`remove_node!`](@ref).
+
+Returns the inserted node.
+"""
+function insert_node! end
+
+insert_node!(f::AbstractFilament, i::Integer) = insert_node!(f, i, 0.5)
+
+"""
+    remove_node!(f::AbstractFilament, i::Integer) -> Vec3
+
+Remove node at location `f[i]`.
+
+Note that [`update_after_changing_nodes!`](@ref) must be called after removing one or more
+nodes.
+
+See also [`insert_node!`](@ref).
+
+Returns the removed node.
+"""
+function remove_node! end
+
+"""
+    update_after_changing_nodes!(f::AbstractFilament)
+
+Update filament fields after changing nodes.
+
+Depending on the filament discretisation method, this can recompute derivatives, knots or
+discretisation coefficients.
+
+Should be called after inserting or removing filament nodes.
+See [`insert_node!`](@ref) and [`remove_node!`](@ref).
+"""
+function update_after_changing_nodes! end
+
+"""
     RefinementCriterion
 
 Abstract type describing a curve refinement criterion.
@@ -64,7 +111,43 @@ Example usage:
     refine!(f, crit)
 
 """
-function refine! end
+function refine!(f::AbstractFilament, crit::RefinementCriterion)
+    N = length(f)  # original number of nodes
+
+    # Determine where to add or remove nodes.
+    cache = _nodes_to_refine!(f, crit)
+    (; inds, remove,) = cache
+    n_modify = length(inds)
+    iszero(n_modify) && return (n_modify, n_modify)  # = (n_add = 0, n_rem = 0)
+
+    n_rem = sum(remove)  # note: `remove` is a vector of Bool
+    n_add = n_modify - n_rem
+    @assert n_add ≥ 0
+
+    # Worst case scenario: we add all knots first, then we remove all knots to be removed.
+    if n_add > 0
+        sizehint!(f, N + n_add)
+    end
+
+    # We iterate in reverse to avoiding the need to shift indices (assuming `inds` is
+    # sorted).
+    for n ∈ reverse(eachindex(inds))
+        i, rem = inds[n], remove[n]
+        if rem
+            remove_node!(f, i)
+        else
+            insert_node!(f, i)
+        end
+    end
+
+    if n_add + n_rem > 0
+        @assert length(nodes(f)) == N + n_add - n_rem
+        update_after_changing_nodes!(f)
+    end
+
+    n_add, n_rem
+end
+
 
 struct RefinementCache
     inds   :: Vector{Int}   # indices of nodes or segments to modify
