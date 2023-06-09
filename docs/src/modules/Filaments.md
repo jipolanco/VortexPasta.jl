@@ -47,6 +47,9 @@ NoRefinement
 RefineBasedOnSegmentLength
 RefineBasedOnCurvature
 refine!
+insert_node!
+remove_node!
+update_after_changing_nodes!
 ```
 
 ## Reconnections

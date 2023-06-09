@@ -154,6 +154,11 @@ function Base.resize!(f::AbstractFilament, n::Integer)
     f
 end
 
+function Base.sizehint!(f::AbstractFilament, n::Integer)
+    map(v -> sizehint!(v, n), allvectors(f))
+    f
+end
+
 """
     ClosedFilament{T} <: AbstractFilament{T}
 
