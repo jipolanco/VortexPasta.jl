@@ -8,7 +8,7 @@ module BiotSavart
 
 export
     ParamsBiotSavart,
-    GaussLegendreQuadrature,
+    GaussLegendre,
     Zero, Infinity, ∞,
     init_cache,
     periods,
@@ -18,7 +18,7 @@ using ..BasicTypes:
     Vec3, Derivative, Zero, Infinity, ∞
 
 using ..Quadratures:
-    quadrature, GaussLegendreQuadrature, AbstractQuadrature
+    quadrature, GaussLegendre, AbstractQuadrature
 
 using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, CurvatureBinormal,
@@ -89,7 +89,7 @@ Mandatory and optional keyword arguments are detailed in the following.
 - `backend_short::ShortRangeBackend = NaiveShortRangeBackend()` backend used to compute
   short-range interactions;
 
-- `quadrature_short::AbstractQuadrature = GaussLegendreQuadrature(4)`
+- `quadrature_short::AbstractQuadrature = GaussLegendre(4)`
   quadrature rule for short-range interactions;
 
 - `rcut = 4√2 / α` cutoff distance for computation of short-range interactions.
@@ -101,7 +101,7 @@ Mandatory and optional keyword arguments are detailed in the following.
 - `backend_long::LongRangeBackend = FINUFFTBackend()` backend used to compute
   long-range interactions;
 
-- `quadrature_long::AbstractQuadrature = GaussLegendreQuadrature(2)`
+- `quadrature_long::AbstractQuadrature = GaussLegendre(2)`
   quadrature rule for long-range interactions.
 
 ### Local self-induced velocity
@@ -136,8 +136,8 @@ struct ParamsBiotSavart{
     function ParamsBiotSavart(
             ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
             a::Real,
-            quadrature_short::AbstractQuadrature = GaussLegendreQuadrature(4),
-            quadrature_long::AbstractQuadrature = GaussLegendreQuadrature(2),
+            quadrature_short::AbstractQuadrature = GaussLegendre(4),
+            quadrature_long::AbstractQuadrature = GaussLegendre(2),
             backend_short::ShortRangeBackend = NaiveShortRangeBackend(),
             backend_long::LongRangeBackend = FINUFFTBackend(),
             Δ::Real = 0.25,

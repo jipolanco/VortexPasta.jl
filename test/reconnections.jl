@@ -103,8 +103,8 @@ end
                 Γ = 2.0, α, a = 1e-6, Δ = 1/4, rcut, Ls, Ns,
                 backend_short = NaiveShortRangeBackend(),
                 backend_long = FINUFFTBackend(),
-                quadrature_short = GaussLegendreQuadrature(4),
-                quadrature_long = GaussLegendreQuadrature(4),
+                quadrature_short = GaussLegendre(4),
+                quadrature_long = GaussLegendre(4),
             )
         end
 

@@ -18,7 +18,7 @@ quadrature
 
 ```@docs
 AbstractQuadrature
-GaussLegendreQuadrature
+GaussLegendre
 ```
 
 ## Functions

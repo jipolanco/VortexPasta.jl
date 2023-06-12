@@ -87,7 +87,7 @@ _recompute_parametrisation!(::HermiteInterpolation{0}, f::AbstractFilament) = f
 
 function _recompute_parametrisation!(::Any, f::AbstractFilament)
     (; ts,) = f
-    quad = GaussLegendreQuadrature(4)
+    quad = GaussLegendre(4)
     @assert npad(ts) ≥ 1
     tnext = ts[begin]
     for i ∈ eachindex(ts)

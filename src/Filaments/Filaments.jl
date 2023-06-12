@@ -32,7 +32,7 @@ export
     normalise_derivatives,
     normalise_derivatives!
 
-using ..Quadratures: AbstractQuadrature, GaussLegendreQuadrature, quadrature
+using ..Quadratures: AbstractQuadrature, GaussLegendre, quadrature
 using ..BasicTypes: Vec3, Derivative
 
 using LinearAlgebra: norm, normalize, ⋅, ×

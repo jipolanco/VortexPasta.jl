@@ -89,8 +89,8 @@ function check_independence_on_ewald_parameter(f, αs; params_kws...)
         compute_filament_velocity(
             f, α;
             # Use high-order quadratures to make sure that errors don't come from there.
-            quadrature_short = GaussLegendreQuadrature(6),
-            quadrature_long = GaussLegendreQuadrature(6),
+            quadrature_short = GaussLegendre(6),
+            quadrature_long = GaussLegendre(6),
             params_kws...,
         )
     end

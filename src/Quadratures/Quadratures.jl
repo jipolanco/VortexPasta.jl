@@ -17,7 +17,7 @@ interval, as opposed to the standard ``[-1, 1]`` interval.
 module Quadratures
 
 export
-    GaussLegendreQuadrature,
+    GaussLegendre,
     quadrature
 
 using FastGaussQuadrature: gausslegendre
@@ -64,12 +64,12 @@ Base.length(q::AbstractQuadrature) = length(typeof(q))
 Base.length(::Type{<:AbstractQuadrature{N}}) where {N} = N
 
 """
-    GaussLegendreQuadrature{N} <: AbstractQuadrature{N}
+    GaussLegendre{N} <: AbstractQuadrature{N}
 
 ``N``-point Gauss–Legendre quadrature.
 """
-struct GaussLegendreQuadrature{N} <: AbstractQuadrature{N} end
-GaussLegendreQuadrature(N::Int) = GaussLegendreQuadrature{N}()
-_generator(::Type{<:GaussLegendreQuadrature}) = gausslegendre
+struct GaussLegendre{N} <: AbstractQuadrature{N} end
+GaussLegendre(N::Int) = GaussLegendre{N}()
+_generator(::Type{<:GaussLegendre}) = gausslegendre
 
 end

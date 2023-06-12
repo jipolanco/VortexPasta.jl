@@ -32,7 +32,7 @@ function test_vortex_ring_nonperiodic(ring)
         Δ = 1/4,
         Ls = Infinity(),
         α = Zero(),
-        quadrature_short = GaussLegendreQuadrature(4),
+        quadrature_short = GaussLegendre(4),
     )
     params = @inferred ParamsBiotSavart(; ps...)
     cache = @inferred BiotSavart.init_cache(params)
@@ -73,7 +73,7 @@ function test_local_induced_approximation(ring)
         Δ = 1/4,
         Γ = 4.2,
     )
-    quad = GaussLegendreQuadrature(8)  # for accurate estimation of arc length
+    quad = GaussLegendre(8)  # for accurate estimation of arc length
     arclength(j) = integrate(ζ -> norm(f(j, ζ, Derivative(1))), f, j, quad)
     ℓ₋ = arclength(i - 1)
     ℓ₊ = arclength(i)
@@ -81,10 +81,10 @@ function test_local_induced_approximation(ring)
     v_expected = vortex_ring_velocity(ps.Γ, R, ps.a; ps.Δ) - vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
     v_base = norm(BiotSavart.local_self_induced_velocity(f, i; quad = nothing, ps...))  # without quadrature
     v_quad = map(1:8) do n
-        quad = GaussLegendreQuadrature(n)
+        quad = GaussLegendre(n)
         norm(BiotSavart.local_self_induced_velocity(f, i; quad, ps...))
     end
-    # Things converge quite quickly; in this case GaussLegendreQuadrature(2) seems to be enough.
+    # Things converge quite quickly; in this case GaussLegendre(2) seems to be enough.
     # @show (v_base - v_expected) / v_expected
     # @show (v_quad .- v_expected) ./ v_expected
     @test isapprox(v_expected, v_base; rtol = 1e-2)
