@@ -94,13 +94,14 @@ function check_independence_on_ewald_parameter(f, αs; params_kws...)
             params_kws...,
         )
     end
-    vs_test = first(vs_all)
-    @test all(vs_all) do vs
-        maxdiff = maximum(zip(vs, vs_test)) do (a, b)
+    vs_test = last(vs_all)
+    maxdiffs = map(vs_all) do vs
+        maximum(zip(vs, vs_test)) do (a, b)
             norm(a - b) / norm(b)
         end
-        maxdiff < 1e-4
     end
+    # @show maxdiffs
+    @test maximum(maxdiffs) < 1e-4
     nothing
 end
 
