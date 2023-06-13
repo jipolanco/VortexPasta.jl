@@ -86,7 +86,7 @@ end
     @testset "Dynamic: trefoil knot" begin
         curve = trefoil_knot_curve(; a = π / 4,)
         (; S, tlims,) = curve
-        N = 64
+        N = 96
         ζs = range(tlims...; length = 2N + 1)[2:2:2N]
 
         f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
@@ -119,7 +119,7 @@ end
             prob, RK4();
             dt = 1.0,  # will be changed by the adaptivity
             dtmin = 1e-4,
-            refinement = RefineBasedOnCurvature(π / 8; ℓ_min = l_min / 2),
+            refinement = RefineBasedOnSegmentLength(l_min),
             reconnect = ReconnectBasedOnDistance(l_min),
             adaptivity,
         )
