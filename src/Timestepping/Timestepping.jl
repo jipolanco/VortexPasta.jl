@@ -18,11 +18,9 @@ using ..Filaments:
 
     RefinementCriterion,
     NoRefinement,
-    RefineBasedOnCurvature,
 
     ReconnectionCriterion,
     NoReconnections,
-    ReconnectBasedOnDistance,
 
     update_coefficients_before_refinement,
     update_coefficients_after_refinement
@@ -240,6 +238,23 @@ end
 # For now we don't use the time, but we might in the future...
 vortex_velocities!(vs, fs, t::Real, iter) = _vortex_velocities!(vs, fs, iter)
 
+function refine!(f::AbstractFilament, refinement::RefinementCriterion)
+    nref = Filaments.refine!(f, refinement)  # we assume update_coefficients! was already called
+    n = 0
+    while nref !== (0, 0)
+        n += 1
+        @debug "Added/removed $nref nodes"
+        if !Filaments.check_nodes(Bool, f)
+            return nothing  # filament should be removed (too small / not enough nodes)
+        end
+        if update_coefficients_after_refinement(f)
+            Filaments.update_coefficients!(f)
+        end
+        nref = Filaments.refine!(f, refinement)
+    end
+    n
+end
+
 function _advect_filament!(
         f::AbstractFilament, vs::VectorOfVelocities, dt::Real;
         fbase = f, L_fold = nothing, refinement = nothing,
@@ -255,26 +270,23 @@ function _advect_filament!(
         Filaments.fold_periodic!(f, L_fold)
     end
     need_to_update_coefs = true
-    if refinement !== nothing
+    if refinement === nothing
+        Filaments.update_coefficients!(f)
+    else
         # Check whether the filament type requires coefficients to be updated before refining.
-        # The answer will be different depending on whether we're using spline or finite difference
+        # The answer may be different depending on whether we're using spline or finite difference
         # discretisations for filaments.
         if update_coefficients_before_refinement(f)
             Filaments.update_coefficients!(f)
-            need_to_update_coefs = update_coefficients_after_refinement(f)
         end
-        nref = Filaments.refine!(f, refinement)
-        if nref !== (0, 0)
-            @debug "Added/removed $nref nodes"
-            if sum(nref) ≠ 0
-                resize!(vs, length(f))
-            end
-            if !Filaments.check_nodes(Bool, f)
-                return nothing  # filament should be removed (too small / not enough nodes)
-            end
+        refinement_steps = refine!(f, refinement)
+        if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
+            return nothing
+        elseif refinement_steps > 0  # refinement was performed
+            resize!(vs, length(f))
         end
+        need_to_update_coefs = false  # already done in `refine!`
     end
-    need_to_update_coefs && Filaments.update_coefficients!(f)
     f
 end
 
