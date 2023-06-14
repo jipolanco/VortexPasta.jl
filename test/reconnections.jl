@@ -392,6 +392,40 @@ end
         @test length(fs) == 2
         @test fs == fs_manual  # compare with manually merged vortices
     end
+
+    @testset "Static: two infinite lines" begin
+        lines = [
+            infinite_line_curve(; L = 2π, orientation = 1, origin = Vec3(1, 1, 0.98) * π, sign = +1),
+            infinite_line_curve(; L = 2π, orientation = 2, origin = Vec3(1, 1, 1.02) * π, sign = +1),
+        ]
+        Ns = 8, 12
+        fs_orig = map(lines, Ns) do line, N
+            (; S, offset, tlims,) = line
+            ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+            Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod(); offset)
+        end
+
+        l_min = minimum_knot_increment(fs_orig)
+
+        # Manual merge
+        Xmerge = Vec3(1, 1, 1) * π
+        fs = copy.(fs_orig)
+        i = findlast(X -> X[1] < Xmerge[1], fs[1])
+        j = findlast(X -> X[2] < Xmerge[2], fs[2])
+        h = Filaments.merge!(fs[1], fs[2], i, j)
+        Filaments.update_coefficients!(h)
+        fs_manual = [h]
+        @test no_jumps(h, 2 * l_min)
+        @test h.Xoffset == sum(g -> g.Xoffset, fs_orig)  # output offset = sum of input offsets
+
+        # Automatic reconnection
+        crit = ReconnectBasedOnDistance(l_min)
+        fs = copy.(fs_orig)
+        Filaments.reconnect!(crit, fs; periods)
+        @test length(fs) == 1
+        @test fs == fs_manual  # compare with manually merged vortices
+    end
+
 end
 
 # This can be useful for playing around with the tests.
