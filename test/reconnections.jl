@@ -420,6 +420,7 @@ end
 
         # Automatic reconnection
         crit = ReconnectBasedOnDistance(l_min)
+        periods = 2π .* (1, 1, 1)
         fs = copy.(fs_orig)
         Filaments.reconnect!(crit, fs; periods)
         @test length(fs) == 1
