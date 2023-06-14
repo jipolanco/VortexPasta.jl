@@ -492,9 +492,11 @@ function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3
     Nf, Ng = length(f), length(g)
     is_shift = (i + 1):lastindex(f)
 
-    resize!(f, Nf + Ng)
     foff = f.Xoffset
     goff = g.Xoffset
+    offset_total = foff + goff
+
+    resize!(f, Nf + Ng)
 
     # Shift second half of `f` nodes (i.e. f[is_shift]) to the end of `f`.
     l = lastindex(f) + 1
@@ -502,8 +504,12 @@ function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3
         f[l -= 1] = f[k]
     end
     @assert l == length(f) - length(is_shift) + 1
-    for k ∈ firstindex(f):i
-        f[k] = f[k] + foff
+
+    u⃗ = foff - offset_total
+    if !iszero(u⃗)
+        for k ∈ firstindex(f):i
+            f[k] = f[k] + u⃗
+        end
     end
 
     # Copy first half of `g` nodes (i.e. g[begin:j]).
@@ -512,12 +518,11 @@ function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3
     end
 
     # Copy second half of `g` nodes (i.e. g[j + 1:end]).
-    u⃗ = p⃗ + goff
+    u⃗ = -(p⃗ + goff)
     for k ∈ lastindex(g):-1:(j + 1)
-        f[l -= 1] = g[k] - u⃗
+        f[l -= 1] = g[k] + u⃗
     end
     @assert l == i + 1
 
-    off = foff + goff
-    change_offset(f, off)
+    change_offset(f, offset_total)
 end

@@ -34,7 +34,15 @@ end
 function ring_curve(; R::Real, origin::Vec3 = π * Vec3(1, 1, 1), sign = +1, transform = I)
     tlims = (0, 2)
     S(t) = origin + R * transform * Vec3(cospi(sign * t), sinpi(sign * t), zero(t))
-    (; tlims, S, origin, R,)
+    (; tlims, S, origin, R, offset = zero(Vec3{Float64}))
+end
+
+function infinite_line_curve(; origin::Vec3, L = 2π, sign, orientation::Int)
+    tlims = (-0.5, 0.5)
+    zerovec = zero(Vec3{Float64})
+    S(t) = origin + setindex(zerovec, sign * t * L, orientation)
+    offset = setindex(zerovec, sign * L, orientation)
+    (; tlims, S, offset,)
 end
 
 # Check that the filament doesn't have any crazy jumps between two nodes.
@@ -316,6 +324,74 @@ end
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
         end
     end
+
+    @testset "Static: infinite line + ring" begin
+        R = 0.6π
+        lines = [
+            infinite_line_curve(; L = 2π, orientation = 1, origin = Vec3(1, 1, 1) * π, sign = +1),
+            ring_curve(; R, origin = Vec3(1, 1, 1) * π, sign = +1,)
+        ]
+        Ns = 10, 12
+        fs_orig = map(lines, Ns) do line, N
+            (; S, offset, tlims,) = line
+            ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+            Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod(); offset)
+        end
+        fs = copy.(fs_orig)
+        l_min = minimum_knot_increment(fs_orig)
+        periods = 2π .* (1, 1, 1)
+
+        # Manual reconnection: merge then split
+        # 1. Determine merge location
+        x_merge = π - R
+        i = searchsortedlast(fs[1], x_merge; by = X -> X[1])
+        _, j = findmin(X -> X[1], fs[2])
+        @assert fs[1][i].x ≤ x_merge ≤ fs[1][i + 1].x
+        let a = fs[2][j], b = fs[2][j + 1]
+            @assert π - a.y ≈ b.y - π
+            @assert a.x ≈ b.x
+            @assert fs[1][i].x < a.x < fs[1][i + 1].x
+        end
+
+        h = Filaments.merge!(fs[1], fs[2], i, j)
+        Filaments.update_coefficients!(h)
+        @test h.Xoffset == fs_orig[1].Xoffset
+        @test no_jumps(h, 2 * l_min)
+        fs = [h]
+
+        # 2. Determine split location
+        x_split = π + R
+        j = findlast(X -> X[1] < x_split, h)
+        @assert h[j].x ≤ x_split < h[j + 1].x
+        i = findlast(X -> X[1] > h[j].x, @view(h[begin:j - 1])) - 1
+        let a = h[i], b = h[i + 1]
+            @assert π - a.y ≈ b.y - π
+            @assert a.x ≈ b.x
+            @assert h[j].x < a.x < h[j + 1].x
+        end
+
+        f, g = Filaments.split!(h, i, j)
+        fs_manual = [f, g]
+        for f ∈ fs_manual
+            Filaments.fold_periodic!(f, periods)
+            Filaments.update_coefficients!(f)
+        end
+        @test iszero(f.Xoffset)  # closed loop
+        @test g.Xoffset == fs_orig[1].Xoffset  # infinite line
+        @test no_jumps(f, 2 * l_min)
+        @test no_jumps(g, 2 * l_min)
+
+        # Automatic reconnection
+        fs = copy.(fs_orig)
+        crit = ReconnectBasedOnDistance(0.5 * l_min)
+        Filaments.reconnect!(crit, fs)
+        for f ∈ fs
+            Filaments.fold_periodic!(f, periods)
+            Filaments.update_coefficients!(f)
+        end
+        @test length(fs) == 2
+        @test fs == fs_manual  # compare with manually merged vortices
+    end
 end
 
 # This can be useful for playing around with the tests.
@@ -325,11 +401,16 @@ if @isdefined(Makie)
     ax = Axis3(fig[1, 1]; aspect = :data)
     wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
     for f ∈ fs_orig
-        plot!(ax, f; refinement = 8, linestyle = :dash, color = (:grey, 0.5), markersize = 2)
+        plot!(ax, f; refinement = 8, linestyle = :dash, color = (:grey, 0.5), markersize = 8)
     end
     for f ∈ fs
         p = plot!(ax, f; refinement = 8, linestyle = :solid)
         scatter!(ax, nodes(f).data; color = p.color)
+        inds = (firstindex(f) - 1):(lastindex(f) + 1)
+        for i ∈ inds
+            align = i ∈ eachindex(f) ? (:left, :bottom) : (:right, :top)
+            text!(ax, f[i]; text = string(i), fontsize = 16, color = p.color, align)
+        end
     end
     fig
 end
