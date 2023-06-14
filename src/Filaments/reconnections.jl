@@ -505,10 +505,9 @@ function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3
     end
     @assert l == length(f) - length(is_shift) + 1
 
-    u⃗ = foff - offset_total
-    if !iszero(u⃗)
+    if !iszero(goff)
         for k ∈ firstindex(f):i
-            f[k] = f[k] + u⃗
+            f[k] = f[k] - goff
         end
     end
 
