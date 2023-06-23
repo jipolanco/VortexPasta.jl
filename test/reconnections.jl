@@ -252,8 +252,8 @@ end
             @test f1 !== nothing
             @test length(fs) == 2  # filament reconnected onto 2
             fs[1] = f1  # replace now invalid filament with new filament
-            @test abs(fs[1].Xoffset[1]) ≈ 2π  # infinite line in x
-            @test abs(fs[2].Xoffset[1]) ≈ 2π  # infinite line in x
+            @test abs(end_to_end_offset(fs[1])[1]) ≈ 2π  # infinite line in x
+            @test abs(end_to_end_offset(fs[2])[1]) ≈ 2π  # infinite line in x
             foreach(Filaments.update_coefficients!, fs)
             @test all(f -> no_jumps(f, 2 * l_min), fs)
         end
@@ -281,10 +281,10 @@ end
             @test sum(length, fs) == N  # number of nodes didn't change
 
             # Note that the order of the filaments is arbitrary and implementation-dependent...
-            @test sum(f -> norm(f.Xoffset), fs) ≈ 4π  # two infinite lines
-            @test fs[1].Xoffset ≈ Vec3(-2π, 0, 0)  # infinite line
-            @test fs[2].Xoffset == Vec3(0, 0, 0)   # small loop
-            @test fs[3].Xoffset ≈ Vec3(+2π, 0, 0)  # infinite line
+            @test sum(f -> norm(end_to_end_offset(f)), fs) ≈ 4π  # two infinite lines
+            @test end_to_end_offset(fs[1]) ≈ Vec3(-2π, 0, 0)  # infinite line
+            @test end_to_end_offset(fs[2]) == Vec3(0, 0, 0)   # small loop
+            @test end_to_end_offset(fs[3]) ≈ Vec3(+2π, 0, 0)  # infinite line
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
         end
 
@@ -313,14 +313,14 @@ end
             Filaments.reconnect!(crit, fs; periods)
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
-            @test sum(f -> norm(f.Xoffset), fs) ≈ 4π  # two infinite lines
+            @test sum(f -> norm(end_to_end_offset(f)), fs) ≈ 4π  # two infinite lines
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
 
             # Second pass: the two infinite lines merge and then split, forming two closed lines.
             Filaments.reconnect!(crit, fs; periods)
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
-            @test sum(f -> norm(f.Xoffset), fs) < 1e-12  # no infinite lines
+            @test sum(f -> norm(end_to_end_offset(f)), fs) < 1e-12  # no infinite lines
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
         end
     end
@@ -355,7 +355,7 @@ end
 
         h = Filaments.merge!(fs[1], fs[2], i, j)
         Filaments.update_coefficients!(h)
-        @test h.Xoffset == fs_orig[1].Xoffset
+        @test end_to_end_offset(h) == end_to_end_offset(fs_orig[1])
         @test no_jumps(h, 2 * l_min)
         fs = [h]
 
@@ -376,8 +376,8 @@ end
             Filaments.fold_periodic!(f, periods)
             Filaments.update_coefficients!(f)
         end
-        @test iszero(f.Xoffset)  # closed loop
-        @test g.Xoffset == fs_orig[1].Xoffset  # infinite line
+        @test iszero(end_to_end_offset(f))  # closed loop
+        @test end_to_end_offset(g) == end_to_end_offset(fs_orig[1])  # infinite line
         @test no_jumps(f, 2 * l_min)
         @test no_jumps(g, 2 * l_min)
 
@@ -416,7 +416,7 @@ end
         Filaments.update_coefficients!(h)
         fs_manual = [h]
         @test no_jumps(h, 2 * l_min)
-        @test h.Xoffset == sum(g -> g.Xoffset, fs_orig)  # output offset = sum of input offsets
+        @test end_to_end_offset(h) == sum(end_to_end_offset, fs_orig)  # output offset = sum of input offsets
 
         # Automatic reconnection
         crit = ReconnectBasedOnDistance(l_min)

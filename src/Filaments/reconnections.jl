@@ -422,6 +422,7 @@ function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
 
     n1 = j - i
     n2 = length(f) - n1
+    foff = end_to_end_offset(f)
 
     # Copy values onto f1
     f1 = change_offset(similar(f, n1), p⃗)
@@ -434,7 +435,7 @@ function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
     # Try to reuse `f` to reduce allocations.
     # For some reason here the offset must be relative to the original one, which was not
     # the case for f1.
-    f2 = change_offset(f, f.Xoffset - p⃗)
+    f2 = change_offset(f, foff - p⃗)
 
     # Fill f2.
     # We want nodes to be in the order f[(j + 1:end) ∪ (begin:i)], which is more difficult
@@ -459,11 +460,10 @@ function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
 
     # Finally, we need to take into account the offset of the original filament `f`, to make
     # sure that we don't have a jump between the ranges (j + 1:end) and (begin:i).
-    off = f.Xoffset
-    if !iszero(off)
+    if !iszero(foff)
         istart = lastindex(f2) - i + 1
         for k ∈ istart:lastindex(f2)
-            f2[k] = f2[k] + off
+            f2[k] = f2[k] + foff
         end
     end
 
@@ -488,12 +488,12 @@ The filament `g` is not modified.
 One should generally call [`update_coefficients!`](@ref) on the returned filament after merging.
 """
 function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3 = zero(eltype(f)))
-    @debug "Merging:" f[i] g[j] p⃗ f.Xoffset g.Xoffset
+    @debug "Merging:" f[i] g[j]
     Nf, Ng = length(f), length(g)
     is_shift = (i + 1):lastindex(f)
 
-    foff = f.Xoffset
-    goff = g.Xoffset
+    foff = end_to_end_offset(f)
+    goff = end_to_end_offset(g)
     offset_total = foff + goff
 
     resize!(f, Nf + Ng)

@@ -43,7 +43,7 @@ function test_infinite_lines(method::Tuple)
     @testset "Filaments" begin
         f = first(filaments)
         update_coefficients!(f)
-        (; Xoffset,) = f
+        Xoffset = end_to_end_offset(f)
         @test Xoffset[1] == Xoffset[2] == 0
         @test abs(Xoffset[3]) == 2π
         # Xoffset = Vec3(0, 0, 2π)
@@ -64,7 +64,7 @@ function test_infinite_lines(method::Tuple)
             @test u === v  # we're reusing the same arrays (for nodes, coefficients, etc...)
         end
         update_coefficients!(g)
-        @test g.Xoffset == off
+        @test end_to_end_offset(g) == off
         ta, tb = knotlims(g)
         T = tb - ta
         t₀ = 0.1  # arbitrary location

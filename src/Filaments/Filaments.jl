@@ -23,6 +23,7 @@ export
 
     knots,
     knotlims,
+    end_to_end_offset,
     minimum_knot_increment,
     maximum_knot_increment,
     nodes,
@@ -235,6 +236,20 @@ end
 Base.checkbounds(::Type{Bool}, f::AbstractFilament, I...) = checkbounds(Bool, nodes(f), I...)
 
 """
+    end_to_end_offset(f::ClosedFilament{T}) -> Vec3{T}
+
+Return the end-to-end offset `Δ⃗ = f[end + 1] - f[begin]` of a "closed" filament.
+
+For actually closed filaments, the end-to-end offset is zero. However, `ClosedFilament` also
+supports the case of infinite (but unclosed) filaments, which infinitely extend along one or
+more Cartesian directions. The restriction imposed by `ClosedFilament` is that infinite
+filaments repeat themselves periodically, such that `f[i + m * N] == f[i] + m * Δ⃗` where `N`
+is the `length` of the filament (i.e. the number of degrees of freedom, or the total number
+of *independent* filament nodes).
+"""
+end_to_end_offset(f::ClosedFilament) = f.Xoffset
+
+"""
     Base.setindex!(f::AbstractFilament{T}, v, i::Int) -> Vec3{T}
 
 Set coordinates of discretisation point ``\\bm{X}_i``.
@@ -364,7 +379,8 @@ discretised using cubic splines must have at least 3 nodes.
 function update_coefficients! end
 
 function update_coefficients!(f::ClosedFilament; knots = nothing)
-    (; ts, Xs, Xoffset,) = f
+    (; ts, Xs,) = f
+    Xoffset = end_to_end_offset(f)
     M = npad(Xs)
     check_nodes(f)
 

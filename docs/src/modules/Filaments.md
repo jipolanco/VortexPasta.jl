@@ -25,6 +25,7 @@ change_offset
 discretisation_method
 knots
 knotlims
+end_to_end_offset
 minimum_knot_increment
 maximum_knot_increment
 nodes
