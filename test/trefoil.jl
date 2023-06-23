@@ -24,8 +24,8 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
         backend_long = FINUFFTBackend(; tol,),
     )
 
-    cache_exact = @inferred(BiotSavart.init_cache(params_exact)).longrange
-    cache_default = @inferred(BiotSavart.init_cache(params_default)).longrange
+    cache_exact = @inferred(BiotSavart.init_cache(params_exact, fs)).longrange
+    cache_default = @inferred(BiotSavart.init_cache(params_default, fs)).longrange
 
     @test BiotSavart.backend(cache_exact) isa ExactSumBackend
     @test BiotSavart.backend(cache_default) isa FINUFFTBackend
@@ -78,7 +78,7 @@ end
 
 function compute_filament_velocity(f, α; params_kws...)
     params = ParamsBiotSavart(; params_kws..., α, rcut = 4 / α)
-    cache = init_cache(params)
+    cache = init_cache(params, [f])
     velocity_on_nodes!(similar(nodes(f)), cache, f)
 end
 

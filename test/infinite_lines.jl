@@ -83,7 +83,7 @@ function test_infinite_lines(method)
         Δ = 1/4,
         Ls, Ns, rcut, α,
     )
-    cache = @inferred BiotSavart.init_cache(params)
+    cache = @inferred BiotSavart.init_cache(params, filaments)
     vs = map(f -> similar(nodes(f)), filaments)
     velocity_on_nodes!(vs, cache, filaments)
 

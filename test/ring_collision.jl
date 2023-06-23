@@ -42,7 +42,7 @@ function test_ring_collision()
         Γ, α, a, Δ, rcut, Ls, Ns,
     )
 
-    cache = BiotSavart.init_cache(params)
+    cache = BiotSavart.init_cache(params, filaments)
     vs = map(f -> similar(nodes(f)), filaments)
     velocity_on_nodes!(vs, cache, filaments)
 
