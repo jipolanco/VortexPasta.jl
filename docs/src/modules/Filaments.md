@@ -109,11 +109,20 @@ ClosedSplineFilament
 
 ## Segments
 
+### Segment iterators
+
 ```@docs
 SegmentIterator
 segments
 length(::SegmentIterator)
 eachindex(::SegmentIterator)
+```
+
+### Single segments
+
+```@docs
+Segment
+midpoint
 ```
 
 ## Plotting

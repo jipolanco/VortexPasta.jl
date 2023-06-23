@@ -63,6 +63,11 @@ struct Segment{Filament <: AbstractFilament}
     i :: Int
 end
 
+"""
+    midpoint(s::Segment) -> Vec3
+
+Return an estimation of the segment midpoint (prioritising performance over accuracy).
+"""
 @inline function midpoint(s::Segment)
     (; f, i,) = s
     # f(i, 0.5)  # "exact" midpoint
