@@ -54,7 +54,8 @@ default:
     # https://docs.gitlab.com/ee/ci/jobs/index.html#custom-collapsible-sections
     - echo -e "\e[0Ksection_start:$(date +%s):apt-get[collapsed=true]\r\e[0KRunning apt-get install python3-pip pipx lcov"
     - apt-get update -qq && apt-get install -qq python3-pip pipx lcov
-    - pipx ensurepath  # make sure apps installed by pipx are in the PATH
+    - export PIPX_BIN_DIR=~/.local/bin  # make sure that pipx-installed apps are in the path
+    - export PATH=$PIPX_BIN_DIR:$PATH
     - echo -e "\e[0Ksection_end:`date +%s`:apt-get\r\e[0K"
 
     # This is needed to convert LCOV coverage files to Cobertura format (used by gitlab)
