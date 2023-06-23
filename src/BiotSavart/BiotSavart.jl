@@ -206,7 +206,7 @@ function init_cache(
         p::ParamsBiotSavart, fs::AbstractVector{<:AbstractFilament};
         timer = TimerOutput("BiotSavart"),
     )
-    shortrange = init_cache_short(p.common, p.shortrange, timer)
+    shortrange = init_cache_short(p.common, p.shortrange, fs, timer)
     longrange = init_cache_long(p.common, p.longrange, timer)
     BiotSavartCache(shortrange, longrange, timer)
 end

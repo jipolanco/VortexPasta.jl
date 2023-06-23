@@ -16,9 +16,10 @@ struct NaiveShortRangeCache{
 end
 
 function init_cache_short(
-        common::ParamsCommon{T}, params::ParamsShortRange{<:NaiveShortRangeBackend},
+        ::ParamsCommon, params::ParamsShortRange{<:NaiveShortRangeBackend},
+        ::AbstractVector{<:AbstractFilament},
         to::TimerOutput,
-    ) where {T}
+    )
     NaiveShortRangeCache(params, to)
 end
 

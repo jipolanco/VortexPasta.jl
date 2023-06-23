@@ -3,17 +3,6 @@ export CellListsBackend
 using ..Filaments: Segment, segments
 
 """
-    CellListsBackend <: ShortRangeBackend
-
-Compute short-range interactions using the cell lists algorithm.
-
-This backend does not support non-periodic domains.
-
-See [Wikipedia](https://en.wikipedia.org/wiki/Cell_lists) for details.
-"""
-struct CellListsBackend <: ShortRangeBackend end
-
-"""
     SegmentCellList
     SegmentCellList(f::AbstractFilament, rcut::Real, periods::NTuple{3, Real})
     SegmentCellList(fs::AbstractVector{<:AbstractFilament}, rcut::Real, periods::NTuple{3, Real})
@@ -108,4 +97,37 @@ function assign_cells!(cl::SegmentCellList, fs::AbstractVector{<:AbstractFilamen
         assign_cells!(cl, f)
     end
     cl
+end
+
+# ================================================================================ #
+
+"""
+    CellListsBackend <: ShortRangeBackend
+
+Compute short-range interactions using the cell lists algorithm.
+
+This backend does not support non-periodic domains.
+
+See [Wikipedia](https://en.wikipedia.org/wiki/Cell_lists) for details.
+"""
+struct CellListsBackend <: ShortRangeBackend end
+
+struct CellListsCache{
+        Params <: ParamsShortRange,
+        Timer <: TimerOutput,
+    } <: ShortRangeCache
+    cl     :: SegmentCellList
+    params :: Params
+    to     :: Timer
+end
+
+function init_cache_short(
+        pc::ParamsCommon, params::ParamsShortRange{<:CellListsBackend},
+        fs::AbstractVector{<:AbstractFilament},
+        to::TimerOutput,
+    )
+    (; rcut,) = params
+    (; Ls,) = pc
+    cl = SegmentCellList(fs, rcut, Ls)
+    CellListsCache(cl, params, to)
 end

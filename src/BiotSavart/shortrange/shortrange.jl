@@ -11,7 +11,7 @@ Abstract type denoting the backend used for computing short-range interactions.
 
 The following functions must be implemented by a `BACKEND <: ShortRangeBackend`:
 
-- `init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, to::TimerOutput) -> ShortRangeCache`
+- `init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput) -> ShortRangeCache`
 
 """
 abstract type ShortRangeBackend end
@@ -37,7 +37,11 @@ The following fields must be included in a cache:
 abstract type ShortRangeCache end
 
 """
-    init_cache_short(pc::ParamsCommon, p::ParamsShortRange, to::TimerOutput) -> ShortRangeCache
+    init_cache_short(
+        pc::ParamsCommon, p::ParamsShortRange,
+        fs::AbstractVector{<:AbstractFilament},
+        to::TimerOutput,
+    ) -> ShortRangeCache
 
 Initialise the cache for the short-range backend defined in `p`.
 """
