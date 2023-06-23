@@ -212,9 +212,9 @@ end
 @testset "Ring" begin
     N = 32
     methods = (
-        "FiniteDiff(2) / Hermite(2)" => (N, FiniteDiffMethod(2), HermiteInterpolation(2)),
-        "FiniteDiff(2) / Hermite(1)" => (N, FiniteDiffMethod(2), HermiteInterpolation(1)),
-        "FiniteDiff(2) / Hermite(0)" => (N, FiniteDiffMethod(2), HermiteInterpolation(0)),
+        "FiniteDiff(2) / Hermite(2)" => (N, FiniteDiffMethod(2, HermiteInterpolation(2))),
+        "FiniteDiff(2) / Hermite(1)" => (N, FiniteDiffMethod(2, HermiteInterpolation(1))),
+        "FiniteDiff(2) / Hermite(0)" => (N, FiniteDiffMethod(2, HermiteInterpolation(0))),
         "CubicSpline" => (N, CubicSplineMethod()),
     )
     @testset "$label" for (label, args) ∈ methods

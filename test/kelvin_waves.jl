@@ -27,7 +27,7 @@ dt_factor(::DP5) = 1.5    # I'd expect DP5 to allow a larger timestep than RK4, 
 dt_factor(::SSPRK33) = 1.2
 dt_factor(::Euler) = 0.12  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
 
-function test_kelvin_waves(scheme = RK4(); method = (CubicSplineMethod(),), Lz = 2π, A = 0.01, k = 1,)
+function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,)
     Lx = Ly = Lz
     lines = [
         init_vortex_line(; x = 0.25Lx, y = 0.25Ly, Lz, sign = +1, A = +A, k,),
@@ -42,7 +42,7 @@ function test_kelvin_waves(scheme = RK4(); method = (CubicSplineMethod(),), Lz =
         dζ = (tlims[2] - tlims[1]) / N
         ζs = range(tlims[1] + dζ / 2, tlims[2]; step = dζ)
         @assert length(ζs) == N && last(ζs) ≈ tlims[2] - dζ / 2
-        Filaments.init(ClosedFilament, S.(ζs), method...; offset)
+        Filaments.init(ClosedFilament, S.(ζs), method; offset)
     end
 
     Γ = 2.0
@@ -200,9 +200,9 @@ end
 @testset "Kelvin waves" begin
     schemes = [RK4(), SSPRK33(), Euler(), DP5()]
     @testset "Scheme: $scheme" for scheme ∈ schemes
-        test_kelvin_waves(scheme; method = (CubicSplineMethod(),))
+        test_kelvin_waves(scheme; method = CubicSplineMethod())
     end
     @testset "RK4 + FiniteDiff(2)" begin
-        test_kelvin_waves(RK4(); method = (FiniteDiffMethod(2), HermiteInterpolation(2)))
+        test_kelvin_waves(RK4(); method = FiniteDiffMethod(2, HermiteInterpolation(2)))
     end
 end
