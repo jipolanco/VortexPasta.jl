@@ -4,15 +4,9 @@ using ..Filaments: Segment, segments
 
 """
     SegmentCellList
-    SegmentCellList(f::AbstractFilament, rcut::Real, periods::NTuple{3, Real})
-    SegmentCellList(fs::AbstractVector{<:AbstractFilament}, rcut::Real, periods::NTuple{3, Real})
+    SegmentCellList(::Type{<:AbstractFilament}, rcut::Real, periods::NTuple{3, Real})
 
 Construct a cell list for dealing with the interaction between filament segments.
-
-In the first case, the filament `f` is only used to determine the type of segment to be
-stored, and the cell list is initially empty.
-
-In the second case, the cell list is filled with all the segments in all filaments `fs`.
 
 The applied cutoff radius ``r_{\\text{cut}}`` should be much larger than the maximum segment
 length ``ℓ``, or should at least account for ``ℓ``.
@@ -30,7 +24,7 @@ struct SegmentCellList{S <: Segment, T <: AbstractFloat, Periods <: NTuple{3, Re
     Ls       :: Periods
 end
 
-function SegmentCellList(f::AbstractFilament, rcut, Ls)
+function SegmentCellList(::Type{Filament}, rcut, Ls) where {Filament <: AbstractFilament}
     any(L -> L === Infinity(), Ls) && throw(ArgumentError(
         "infinite non-periodic domains not currently supported by CellListsBackend"
     ))
@@ -40,7 +34,8 @@ function SegmentCellList(f::AbstractFilament, rcut, Ls)
         ceil(Int, L / rcut)
     end
 
-    S = eltype(segments(f))
+    S = Segment{Filament}
+    @assert isconcretetype(S)
     segs = Array{Vector{S}, 3}(undef, ncells)
     for i ∈ eachindex(segs)
         segs[i] = S[]
@@ -53,12 +48,6 @@ function Base.empty!(cl::SegmentCellList)
     for v ∈ cl.segments
         empty!(v)
     end
-    cl
-end
-
-function SegmentCellList(fs::AbstractVector{<:AbstractFilament}, rcut, Ls)
-    cl = SegmentCellList(first(fs), rcut, Ls)
-    assign_cells!(cl, fs)
     cl
 end
 
@@ -128,6 +117,6 @@ function init_cache_short(
     )
     (; rcut,) = params
     (; Ls,) = pc
-    cl = SegmentCellList(fs, rcut, Ls)
+    cl = SegmentCellList(eltype(fs), rcut, Ls)
     CellListsCache(cl, params, to)
 end

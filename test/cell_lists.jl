@@ -32,7 +32,8 @@ end
         Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod(); offset)
     end
 
-    cl = @inferred BiotSavart.SegmentCellList(fs, rcut, Ls)
+    cl = @inferred BiotSavart.SegmentCellList(eltype(fs), rcut, Ls)
     @test size(cl.segments) == (ncells_expected, ncells_expected, ncells_expected)
+    BiotSavart.assign_cells!(cl, fs)
     @test sum(length, cl.segments) == sum(f -> length(segments(f)), fs)  # contains all segments
 end
