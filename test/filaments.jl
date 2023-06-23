@@ -156,6 +156,7 @@ function test_filament_ring(args)
         @test inds == eachindex(nodes(f))  # true for closed filaments (same number of segments and nodes)
         @test firstindex(seg) == first(inds)
         @test lastindex(seg) == last(inds)
+        @test @inferred(first(seg)) isa @inferred(eltype(seg))
     end
 
     if continuity ≥ 1

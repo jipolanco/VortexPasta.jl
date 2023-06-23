@@ -77,7 +77,7 @@ Mandatory and optional keyword arguments are detailed in the following.
   If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
   the same in each direction.
 
-  One can set `Ls = ∞` to disable periodicity. This should be done in combination with `α = Zero()`.
+  One can set `Ls = Infinity()` to disable periodicity. This should be done in combination with `α = Zero()`.
 
 - `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions. This parameter
   is not required if `α = Zero()`.

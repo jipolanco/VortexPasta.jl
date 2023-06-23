@@ -196,3 +196,4 @@ end
 
 include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)
 include("naive.jl")
+include("cell_lists.jl")

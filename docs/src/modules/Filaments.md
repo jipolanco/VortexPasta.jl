@@ -110,10 +110,10 @@ ClosedSplineFilament
 ## Segments
 
 ```@docs
-Segments
+SegmentIterator
 segments
-length(::Segments)
-eachindex(::Segments)
+length(::SegmentIterator)
+eachindex(::SegmentIterator)
 ```
 
 ## Plotting

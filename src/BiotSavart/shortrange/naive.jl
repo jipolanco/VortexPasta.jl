@@ -4,9 +4,6 @@ export NaiveShortRangeBackend
     NaiveShortRangeBackend <: ShortRangeBackend
 
 Naive computation of short-range interactions.
-
-For now this is the only available short-range backend. In the future a more
-efficient alternative backend will be added using cell lists.
 """
 struct NaiveShortRangeBackend <: ShortRangeBackend end
 

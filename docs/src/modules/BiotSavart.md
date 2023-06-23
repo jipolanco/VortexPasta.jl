@@ -29,6 +29,7 @@ velocity_on_nodes!
 ```@docs
 ShortRangeBackend
 NaiveShortRangeBackend
+CellListsBackend
 ```
 
 ### Internals
@@ -40,6 +41,7 @@ short_range_velocity
 local_self_induced_velocity
 add_short_range_velocity_self!
 add_short_range_velocity_other!
+SegmentCellList
 ```
 
 ## Long-range interactions

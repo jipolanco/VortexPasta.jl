@@ -4,6 +4,7 @@ using VortexPasta
 @testset "VortexPasta.jl" begin
     include("vector_of_vector.jl")
     include("filaments.jl")
+    include("cell_lists.jl")
     include("refinement.jl")
     include("ring.jl")
     include("ring_collision.jl")
