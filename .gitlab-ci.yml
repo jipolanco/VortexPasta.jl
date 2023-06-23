@@ -52,13 +52,15 @@ default:
       '
 
     # https://docs.gitlab.com/ee/ci/jobs/index.html#custom-collapsible-sections
-    - echo -e "\e[0Ksection_start:$(date +%s):apt-get[collapsed=true]\r\e[0KRunning apt-get install python3-pip lcov"
-    - apt-get update -qq && apt-get install -qq python3-pip lcov
+    - echo -e "\e[0Ksection_start:$(date +%s):apt-get[collapsed=true]\r\e[0KRunning apt-get install python3-pip pipx lcov"
+    - apt-get update -qq && apt-get install -qq python3-pip pipx lcov
     - echo -e "\e[0Ksection_end:`date +%s`:apt-get\r\e[0K"
 
-    - echo -e "\e[0Ksection_start:$(date +%s):pip[collapsed=true]\r\e[0KRunning pip install lcov_cobertura"
     # This is needed to convert LCOV coverage files to Cobertura format (used by gitlab)
-    - pip install lcov_cobertura  # requires python3-pip package
+    # We use pipx instead of pip to avoid "externally-managed-environment" error since Debian Bookworm.
+    - echo "PATH = $PATH"
+    - echo -e "\e[0Ksection_start:$(date +%s):pip[collapsed=true]\r\e[0KRunning pipx install lcov_cobertura"
+    - pipx install lcov_cobertura  # requires python3-pip package
     - echo -e "\e[0Ksection_end:`date +%s`:pip\r\e[0K"
 
     - lcov_cobertura coverage.lcov -o coverage.xml
