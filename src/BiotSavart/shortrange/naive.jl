@@ -8,19 +8,26 @@ Naive computation of short-range interactions.
 struct NaiveShortRangeBackend <: ShortRangeBackend end
 
 struct NaiveShortRangeCache{
+        Filaments <: Ref{<:AbstractVector{<:AbstractFilament}},
         Params <: ParamsShortRange,
         Timer <: TimerOutput,
     } <: ShortRangeCache
+    fs     :: Filaments
     params :: Params
     to     :: Timer
 end
 
 function init_cache_short(
         ::ParamsCommon, params::ParamsShortRange{<:NaiveShortRangeBackend},
-        ::AbstractVector{<:AbstractFilament},
+        fs::AbstractVector{<:AbstractFilament},
         to::TimerOutput,
     )
-    NaiveShortRangeCache(params, to)
+    NaiveShortRangeCache(Ref(fs), params, to)
+end
+
+function set_filaments!(c::NaiveShortRangeCache, fs)
+    c.fs[] = fs
+    c
 end
 
 # TODO split function into "elemental" parts that can be shared with another backend?

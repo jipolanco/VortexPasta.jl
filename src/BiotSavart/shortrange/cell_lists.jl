@@ -102,10 +102,11 @@ See [Wikipedia](https://en.wikipedia.org/wiki/Cell_lists) for details.
 struct CellListsBackend <: ShortRangeBackend end
 
 struct CellListsCache{
+        CellList <: SegmentCellList,
         Params <: ParamsShortRange,
         Timer <: TimerOutput,
     } <: ShortRangeCache
-    cl     :: SegmentCellList
+    cl     :: CellList
     params :: Params
     to     :: Timer
 end
@@ -119,4 +120,9 @@ function init_cache_short(
     (; Ls,) = pc
     cl = SegmentCellList(eltype(fs), rcut, Ls)
     CellListsCache(cl, params, to)
+end
+
+function set_filaments!(c::CellListsCache, fs)
+    assign_cells!(c.cl, fs)
+    c
 end

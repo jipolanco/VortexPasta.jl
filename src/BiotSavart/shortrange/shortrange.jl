@@ -33,6 +33,12 @@ The following fields must be included in a cache:
 
 - `to :: TimerOutput` for measuring time spent on different functions.
 
+## Functions
+
+The following functions must be implemented by a cache:
+
+- [`set_filaments!`](@ref).
+
 """
 abstract type ShortRangeCache end
 
@@ -46,6 +52,16 @@ abstract type ShortRangeCache end
 Initialise the cache for the short-range backend defined in `p`.
 """
 function init_cache_short end
+
+"""
+    set_filaments!(c::ShortRangeCache, fs::AbstractVector{<:AbstractFilament})
+
+Store (and optionally process) the list of filaments to be used for short-range computations.
+
+This must be called before computing any short-range quantities (e.g. using
+[`add_short_range_velocity!`](@ref)).
+"""
+function set_filaments! end
 
 struct ParamsShortRange{
         Backend <: ShortRangeBackend,
