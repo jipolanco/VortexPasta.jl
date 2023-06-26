@@ -31,31 +31,37 @@ function set_filaments!(c::NaiveShortRangeCache, fs)
 end
 
 struct NaiveSegmentIterator{
+        S <: Segment,
         Filaments <: AbstractVector{<:AbstractFilament},
         CutoffRadius <: Real,
         Periods <: NTuple{3, Real},
         HalfPeriods <: NTuple{3, Real},
         Position <: Vec3{<:Real},
-    }
+    } <: NearbySegmentIterator{S}
     fs     :: Filaments
     r_cut  :: CutoffRadius
     r²_cut :: CutoffRadius
     Ls     :: Periods
     Lhs    :: HalfPeriods
     x⃗      :: Position
-end
 
-# These are needed e.g. by collect(it::NaiveSegmentIterator)
-Base.IteratorSize(::Type{<:NaiveSegmentIterator}) = Base.SizeUnknown()
-Base.eltype(::Type{<:NaiveSegmentIterator{Filaments}}) where {Filaments} =
-    Segment{eltype(Filaments)}
+    function NaiveSegmentIterator{S}(fs, r_cut, r²_cut, Ls, Lhs, x⃗) where {S}
+        new{S, typeof(fs), typeof(r_cut), typeof(Ls), typeof(Lhs), typeof(x⃗)}(
+            fs, r_cut, r²_cut, Ls, Lhs, x⃗,
+        )
+    end
+end
 
 function nearby_segments(c::NaiveShortRangeCache, x⃗::Vec3)
     (; params, fs_ref,) = c
     (; common, rcut,) = params
     (; Ls,) = common
     Lhs = map(L -> L / 2, Ls)  # half periods
-    NaiveSegmentIterator(fs_ref[], rcut, rcut^2, Ls, Lhs, x⃗)
+    Filament = eltype(eltype(fs_ref))
+    @assert Filament <: AbstractFilament
+    S = Segment{Filament}
+    @assert isconcretetype(S)
+    NaiveSegmentIterator{S}(fs_ref[], rcut, rcut^2, Ls, Lhs, x⃗)
 end
 
 @inline function _initial_state(it::NaiveSegmentIterator)
