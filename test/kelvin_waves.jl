@@ -64,10 +64,11 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
         Ns = (1, 1, 1) .* 32
         kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
         α = kmax / 5
-        rcut = 4 / α
+        rcut = 5 / α
         ParamsBiotSavart(;
             Γ, α, a, Δ, rcut, Ls, Ns,
-            backend_short = NaiveShortRangeBackend(),
+            backend_short = CellListsBackend(),
+            # backend_short = NaiveShortRangeBackend(),
             backend_long = FINUFFTBackend(),
             quadrature_short = GaussLegendre(4),
             quadrature_long = GaussLegendre(4),
