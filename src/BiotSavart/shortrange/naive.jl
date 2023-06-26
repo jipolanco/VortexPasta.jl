@@ -8,11 +8,11 @@ Naive computation of short-range interactions.
 struct NaiveShortRangeBackend <: ShortRangeBackend end
 
 struct NaiveShortRangeCache{
-        Filaments <: Ref{<:AbstractVector{<:AbstractFilament}},
+        FilamentsRef <: Ref{<:AbstractVector{<:AbstractFilament}},
         Params <: ParamsShortRange,
         Timer <: TimerOutput,
     } <: ShortRangeCache
-    fs     :: Filaments
+    fs_ref :: FilamentsRef
     params :: Params
     to     :: Timer
 end
@@ -26,48 +26,101 @@ function init_cache_short(
 end
 
 function set_filaments!(c::NaiveShortRangeCache, fs)
-    c.fs[] = fs
+    c.fs_ref[] = fs
     c
 end
 
-# TODO split function into "elemental" parts that can be shared with another backend?
-function short_range_velocity(
-        g::F,  # this allows to set a custom kernel function g(α * r)
-        cache::NaiveShortRangeCache,
-        x⃗::Vec3,
-        f::AbstractFilament,
-        js::AbstractUnitRange = eachindex(segments(f)),
-    ) where {F <: Function}
-    (; params,) = cache
-    (; common, quad, rcut,) = params
-    (; Ls, Γ, α,) = common
+struct NaiveSegmentIterator{
+        Filaments <: AbstractVector{<:AbstractFilament},
+        CutoffRadius <: Real,
+        Periods <: NTuple{3, Real},
+        HalfPeriods <: NTuple{3, Real},
+        Position <: Vec3{<:Real},
+    }
+    fs     :: Filaments
+    r_cut  :: CutoffRadius
+    r²_cut :: CutoffRadius
+    Ls     :: Periods
+    Lhs    :: HalfPeriods
+    x⃗      :: Position
+end
+
+# These are needed e.g. by collect(it::NaiveSegmentIterator)
+Base.IteratorSize(::Type{<:NaiveSegmentIterator}) = Base.SizeUnknown()
+Base.eltype(::Type{<:NaiveSegmentIterator{Filaments}}) where {Filaments} =
+    Segment{eltype(Filaments)}
+
+function nearby_segments(c::NaiveShortRangeCache, x⃗::Vec3)
+    (; params, fs_ref,) = c
+    (; common, rcut,) = params
+    (; Ls,) = common
     Lhs = map(L -> L / 2, Ls)  # half periods
-    v⃗ = zero(x⃗)
-    r²_cut = rcut * rcut
-    Xs = nodes(f)
-    is_outside_range⁺ = let
-        r⃗₊ = deperiodise_separation(x⃗ - Xs[first(js)], Ls, Lhs)
-        r²₊ = sum(abs2, r⃗₊)
-        r²₊ > r²_cut
+    NaiveSegmentIterator(fs_ref[], rcut, rcut^2, Ls, Lhs, x⃗)
+end
+
+@inline function _initial_state(it::NaiveSegmentIterator)
+    (; fs, x⃗, Ls, Lhs, r_cut,) = it
+    n = firstindex(fs)
+    f = first(fs)
+    i = firstindex(segments(f)) - 1
+    r⃗_b = let  # separation vector to first node of first filament
+        y⃗ = f[i + 1]
+        deperiodise_separation(y⃗ - x⃗, Ls, Lhs)
     end
-    @inbounds for j ∈ js
-        # Integrate over segment [j, j + 1]
-        r⃗₊ = deperiodise_separation(x⃗ - Xs[j + 1], Ls, Lhs)
-        r²₊ = sum(abs2, r⃗₊)
-        is_outside_range⁻, is_outside_range⁺ = is_outside_range⁺, r²₊ > r²_cut
-        if is_outside_range⁻ && is_outside_range⁺
-            # Skip this segment if its two extremities are too far from x⃗.
+    # We discard a pair interaction if the distance *along a Cartesian direction* is larger
+    # than r_cut. This is less precise (but cheaper than) using the actual squared distance.
+    is_outside_range_b = any(>(r_cut), r⃗_b)
+    (; n, i, r⃗_b, is_outside_range_b,)
+end
+
+# We mark this function with :terminates_locally just to ensure the compiler that the
+# function always terminates (despite the `while true`).
+@inline Base.@assume_effects :terminates_locally function Base.iterate(
+        it::NaiveSegmentIterator,
+        state = _initial_state(it),
+    )
+    (; fs, r_cut, r²_cut, Ls, Lhs, x⃗,) = it
+    (; n, i, r⃗_b, is_outside_range_b,) = state
+    State = typeof(state)
+
+    f = @inbounds fs[n]
+
+    # Advance until we find a filament segment which is within the cutoff radius (or until
+    # we have explored all filament segments).
+    while true
+        if i == lastindex(segments(f))
+            n += 1
+            if n == lastindex(fs) + 1
+                return nothing  # we iterated over all filaments, so we're done
+            end
+            f = @inbounds fs[n]  # next filament
+            i = firstindex(segments(f))
+        else
+            i += 1
+        end
+
+        r⃗_a = r⃗_b
+        is_outside_range_a = is_outside_range_b
+
+        r⃗_b = let  # separation vector to first node of first filament
+            y⃗ = @inbounds f[i + 1]  # the current segment is f[i]..f[i + 1]
+            deperiodise_separation(y⃗ - x⃗, Ls, Lhs)
+        end
+        is_outside_range_b = any(>(r_cut), r⃗_b)
+
+        # Skip this segment if its two limits are too far from x⃗.
+        if is_outside_range_a && is_outside_range_b
             continue
         end
-        v⃗_j = integrate(f, j, quad) do ζ
-            X = f(j, ζ)
-            Ẋ = f(j, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
-            r⃗ = deperiodise_separation(x⃗ - X, Ls, Lhs)
-            r² = sum(abs2, r⃗)
-            r = sqrt(r²)
-            (g(α * r) / r^3) * (Ẋ × r⃗)
+
+        # Second (more precise) filter: look at the actual distances.
+        if sum(abs2, r⃗_a) > r²_cut && sum(abs2, r⃗_b) > r²_cut
+            continue
         end
-        v⃗ = v⃗ + v⃗_j
+
+        # The current segment is sufficiently close to x⃗, so we return it.
+        ret = Segment(f, i) :: eltype(it)  # check that we return the type promised by eltype
+        state = (; n, i, r⃗_b, is_outside_range_b,) :: State
+        return ret, state
     end
-    (Γ / 4π) * v⃗
 end

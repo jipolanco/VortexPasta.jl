@@ -248,18 +248,12 @@ function velocity_on_nodes!(
     eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
     _reset_vectors!(vs)
     if cache.longrange !== NullLongRangeCache()
-        @timeit to "add_long_range_velocity!" add_long_range_velocity!(vs, cache.longrange, fs)
+        @timeit to "Long-range velocity" add_long_range_velocity!(vs, cache.longrange, fs)
     end
-    inds = eachindex(fs)
-    @inbounds for (i, f) ∈ pairs(fs)
-        for j ∈ first(inds):(i - 1)
-            Xs = nodes(fs[j])
-            @timeit to "add_short_range_velocity_other!" add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
-        end
-        @timeit to "add_short_range_velocity_self!" add_short_range_velocity_self!(vs[i], cache.shortrange, f)
-        for j ∈ (i + 1):last(inds)
-            Xs = nodes(fs[j])
-            @timeit to "add_short_range_velocity_other!" add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
+    @timeit to "Short-range velocity" begin
+        @timeit to "set_filaments!" set_filaments!(cache.shortrange, fs)
+        @timeit to "add_short_range_velocity!" for (f, v) ∈ zip(fs, vs)
+            add_short_range_velocity!(v, cache.shortrange, f)
         end
     end
     vs

@@ -250,6 +250,7 @@ function reconnect_other!(
     inds_i = eachindex(segments(f))
     inds_j = eachindex(segments(g))
 
+    # TODO reuse Biot-Savart short-range backends
     for i ∈ inds_i
         x⃗_mid = (f[i] + f[i + 1]) ./ 2
         r⃗_b = let
@@ -272,7 +273,7 @@ function reconnect_other!(
             end
 
             # Second (slightly finer) filter: look at the actual distances.
-            if sum(abs2, r⃗_a) > d_cut_sq || sum(abs2, r⃗_b) > d_cut_sq
+            if sum(abs2, r⃗_a) > d_cut_sq && sum(abs2, r⃗_b) > d_cut_sq
                 continue
             end
 

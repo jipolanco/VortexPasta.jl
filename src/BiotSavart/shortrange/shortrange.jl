@@ -1,6 +1,6 @@
 using LinearAlgebra: ×, norm
 using SpecialFunctions: erfc, erf
-using ..Filaments: deperiodise_separation
+using ..Filaments: deperiodise_separation, Segment, segments
 
 """
     ShortRangeBackend
@@ -87,18 +87,6 @@ struct ParamsShortRange{
     end
 end
 
-"""
-    short_range_velocity(cache::ShortRangeCache, x⃗::Vec3, f::AbstractFilament, [inds = eachindex(segments(f))])
-
-Compute short-range velocity induced by filament `f` on coordinate `x⃗`.
-
-This involves the estimation of a line integral over the filament `f`.
-By default, the integration is performed over the whole filament.
-
-One may optionally choose to integrate over a subset of the segments of the filament.
-This is useful for avoiding the Biot–Savart singularity when the point `x⃗`
-belongs to the filament.
-"""
 function short_range_velocity end
 
 kernel_velocity_shortrange(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
@@ -107,110 +95,93 @@ kernel_velocity_shortrange(::Zero) = 1
 kernel_velocity_longrange(αr) = erf(αr) - 2αr / sqrt(π) * exp(-αr^2)
 kernel_velocity_longrange(::Zero) = Zero()
 
-function short_range_velocity(cache::ShortRangeCache, args...)
-    short_range_velocity(kernel_velocity_shortrange, cache, args...)
+# Compute Biot-Savart integral over a single filament segment.
+# Note: this doesn't include the prefactor Γ/4π.
+function integrate_biot_savart(
+        kernel::F,
+        seg::Segment,
+        x⃗::Vec3,
+        params::ParamsShortRange;
+        Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
+    ) where {F <: Function}
+    (; common, quad,) = params
+    (; Ls, α,) = common
+    (; f, i,) = seg
+    integrate(seg, quad) do ζ
+        X = f(i, ζ)
+        Ẋ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
+        r⃗ = deperiodise_separation(x⃗ - X, Ls, Lhs)
+        r² = sum(abs2, r⃗)
+        r = sqrt(r²)
+        (kernel(α * r) / r^3) * (Ẋ × r⃗)
+    end
 end
 
 """
-    add_short_range_velocity_self!(vs::AbstractVector{<:Vec3}, cache::ShortRangeCache, f::AbstractFilament)
+    add_short_range_velocity!(vs::AbstractVector{<:Vec3}, cache::ShortRangeCache, f::AbstractFilament)
 
-Compute short-range self-induced velocity of a filament on its own nodes.
+Compute short-range velocity induced on the nodes of filament `f`.
 
-The result is added to existent values in the `vs` vector.
+The velocity vector `vs` must have the same length as the number of nodes in `f`.
 
-This includes:
-
-- the LIA term (*localised induction approximation*), i.e. the local self-induced
-  velocity based on the local filament curvature;
-
-- the non-local (and short-range in the Ewald sense) velocity induced by the filament.
-
-This does *not* include:
-
-- the short-range velocity induced by other filaments (see
-  [`add_short_range_velocity_other!`](@ref) for that);
-
-- the long-range velocity induced by all filaments (see
-  [`add_long_range_velocity!`](@ref) for that).
-
-The length of the output vector `vs` must be equal to the number of nodes of the filament `f`.
+Before calling this function, one must first set the list of filaments using
+[`set_filaments!`](@ref).
 """
-function add_short_range_velocity_self!(
-        vs::VectorOfVelocities,
+function add_short_range_velocity!(
+        vs::AbstractVector{<:Vec3},
         cache::ShortRangeCache,
         f::AbstractFilament;
-        LIA::Bool = true,  # allows disabling LIA for testing
-    )
-    (; to, params,) = cache
+        LIA::Val{_LIA} = Val(true),  # can be used to disable LIA (for testing only)
+    ) where {_LIA}
+    (; params,) = cache
     (; quad,) = params
-    (; Γ, a, Δ) = params.common
-
+    (; Γ, a, Δ,) = params.common
     prefactor = Γ / 4π
 
-    length(vs) == length(f) || throw(DimensionMismatch("wrong length of output `vs`"))
-    N = length(segments(f))
-    inds_all = UnitRange(eachindex(segments(f)))
+    Xs = nodes(f)
+    eachindex(vs) == eachindex(Xs) || throw(DimensionMismatch(
+        "vector of velocities has wrong length"
+    ))
 
-    # Case of the initial node (i = 1): we don't integrate over the first nor
-    # the last segment (assuming periodicity / closed filament...).
-    inds_left = inds_all[0:-1]
-    inds_right = inds_all[2:end - 1]
-    @assert inds_all === 1:N
-    inds_singular = 0:1  # singularity region
+    segment_a = lastindex(segments(f))   # index of segment ending at point x⃗
+    segment_b = firstindex(segments(f))  # index of segment starting at point x⃗
 
-    for (i, x⃗) ∈ pairs(nodes(f))
-        v⃗ = zero(eltype(vs))
-        @assert length(inds_left) + length(inds_right) == length(inds_all) - 2
-        v⃗ = v⃗ + short_range_velocity(cache, x⃗, f, inds_left)  # this already includes the prefactor
-        # We subtract part of the long-range velocity computed by the long-range backend.
-        # Namely, we subtract the local self-induced velocity in the
-        # singularity region, which will be replaced by the LIA approximation.
-        # This correction is needed to have a total velocity which does not depend
-        # on the (unphysical) Ewald parameter α.
-        # Note that the integral with the long-range kernel is *not* singular
-        # (since it's a smoothing kernel), so there's no problem with
-        # evaluating this integral.
-        v⃗ = v⃗ - short_range_velocity(kernel_velocity_longrange, cache, x⃗, f, inds_singular)
-        v⃗ = v⃗ + short_range_velocity(cache, x⃗, f, inds_right)
-        if LIA
-            v⃗_LIA = local_self_induced_velocity(f, i, prefactor; a, Δ, quad)
-            v⃗ = v⃗ + v⃗_LIA
-        end
-        vs[i] = vs[i] + v⃗
-        # For the next point (i + 1), the singularity region corresponds to the
-        # segments [i, i + 1].
-        inds_left = inds_all[begin:(i - 1)]
-        inds_right = inds_all[(i + 2):end]
-        inds_singular = i:(i + 1)
-    end
-
-    vs
-end
-
-"""
-    add_short_range_velocity_other!(
-        vs::AbstractVector{<:Vec3},
-        Xs::AbstractVector{<:Vec3},
-        cache::ShortRangeCache,
-        f::AbstractFilament,
-    )
-
-Compute short-range velocity induced by a filament `f` at locations `Xs`.
-
-The locations `Xs` can be the nodes of a vortex filament different from `f`.
-They can also be arbitrary locations in the domain.
-"""
-function add_short_range_velocity_other!(
-        vs::VectorOfVelocities,
-        Xs::VectorOfPositions,
-        cache::ShortRangeCache,
-        f::AbstractFilament,
-    )
-    eachindex(vs) == eachindex(Xs) || throw(DimensionMismatch("wrong length of output `vs`"))
     for (i, x⃗) ∈ pairs(Xs)
-        v⃗ = short_range_velocity(cache, x⃗, f)  # already includes the prefactor Γ/4π
-        vs[i] = vs[i] + v⃗
+        # Start with the LIA term in the singular region.
+        # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the
+        # prefactor later.
+        v⃗ = local_self_induced_velocity(f, i, one(prefactor); a, Δ, quad,)
+        if !_LIA
+            v⃗ = zero(v⃗)
+        end
+
+        for seg ∈ nearby_segments(cache, x⃗)
+            g, j = seg.f, seg.i
+
+            # Singular region.
+            if f === g && (j == segment_a || j == segment_b)
+                # Target point x⃗ is one of the segment limits. This is the singular region.
+                # We just need to subtract the effect of the long-range estimation, which is
+                # actually included in the LIA term.
+                # Without this correction is needed to have a total velocity which does not depend
+                # on the (unphysical) Ewald parameter α.
+                # Note that the integral with the long-range kernel is *not* singular
+                # (since it's a smoothing kernel), so there's no problem with
+                # evaluating this integral.
+                @assert x⃗ === g[i]
+                v⃗ = v⃗ - integrate_biot_savart(kernel_velocity_longrange, seg, x⃗, params)
+            else
+                # Usual case: non-singular region.
+                v⃗ = v⃗ + integrate_biot_savart(kernel_velocity_shortrange, seg, x⃗, params)
+            end
+        end
+
+        segment_a = segment_b
+        segment_b += 1
+
+        vs[i] = vs[i] + v⃗ * prefactor
     end
+
     vs
 end
 

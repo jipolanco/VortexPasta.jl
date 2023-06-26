@@ -1,7 +1,5 @@
 export CellListsBackend
 
-using ..Filaments: Segment, segments
-
 """
     SegmentCellList
     SegmentCellList(::Type{<:AbstractFilament}, rcut::Real, periods::NTuple{3, Real})
