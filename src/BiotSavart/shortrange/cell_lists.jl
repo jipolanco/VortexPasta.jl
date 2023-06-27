@@ -21,11 +21,12 @@ Note that infinite non-periodic domains (in the sense of `period = Infinity()`) 
 struct SegmentCellList{
         N,  # usually N = 3 (=> 3D space)
         S <: Segment,
+        SegmentList <: AbstractVector{S},
         CutoffRadii <: NTuple{N, Real},
         Periods <: NTuple{N, Real},
     }
-    segments :: Array{Vector{S}, N}  # segments[i, j, k] contains all filament segments inside cell (i, j, k)
-    rs_cut   :: CutoffRadii          # cutoff radii (can be different in each direction)
+    segments :: Array{SegmentList, N}  # segments[i, j, k] contains all filament segments inside cell (i, j, k)
+    rs_cut   :: CutoffRadii            # cutoff radii (can be different in each direction)
     Ls       :: Periods
 end
 
@@ -47,9 +48,14 @@ function SegmentCellList(
 
     S = Segment{Filament}
     @assert isconcretetype(S)
-    segs = Array{Vector{S}, 3}(undef, ncells)
+
+    vempty = Vector{S}(undef, 0)
+    # vempty = StructVector{S}(undef, 0)  # not necessarily faster than a regular Vector in this case
+    SegmentList = typeof(vempty)
+    segs = Array{SegmentList, N}(undef, ncells)
+
     for i ∈ eachindex(segs)
-        segs[i] = S[]
+        segs[i] = copy(vempty)
     end
 
     SegmentCellList(segs, rs_cut, Ls)
@@ -145,6 +151,77 @@ function set_filaments!(c::CellListsCache, fs)
     c
 end
 
+struct CellListSegmentIterator{
+        S <: Segment,
+        N,
+        CellList <: SegmentCellList{N, S},
+        CellIndices,
+    } <: NearbySegmentIterator{S}
+    cl           :: CellList
+    cell_indices :: CellIndices  # iterator over indices of cells to be visited
+    function CellListSegmentIterator(cl::SegmentCellList{N, S}, inds) where {N, S}
+        new{S, N, typeof(cl), typeof(inds)}(cl, inds)
+    end
+end
+
+# First iteration.
+# As of Julia 1.9.1, the @inline is needed to avoid poor performance, which seems to be
+# related to the use of Iterators.product...
+@inline function Base.iterate(it::CellListSegmentIterator)
+    (; cl, cell_indices,) = it
+    (; segments,) = cl
+
+    cell_index, cell_indices_state = iterate(cell_indices)
+    segments_in_current_cell = segments[cell_index...] :: AbstractVector{<:Segment}
+    ret_segment = iterate(segments_in_current_cell)
+
+    # If the initial cell has no segments, continue iterating until we find a cell with
+    # segments, or until we've visited all cells.
+    while ret_segment === nothing  # case of a cell with no segments
+        ret = _jump_to_next_cell(segments, cell_indices, cell_indices_state)
+        ret === nothing && return nothing  # we're done iterating over cells
+        cell_indices_state, segments_in_current_cell, ret_segment = ret
+    end
+
+    current_segment, segments_state = ret_segment
+    state_next = (cell_indices_state, segments_in_current_cell, segments_state,)
+    current_segment, state_next
+end
+
+function Base.iterate(it::CellListSegmentIterator, state)
+    (; cl, cell_indices,) = it
+    (; segments,) = cl
+    (cell_indices_state, segments_in_current_cell, segments_state,) = state
+
+    # 1. Try to keep iterating over the segments of the current cell.
+    ret_segment = iterate(segments_in_current_cell, segments_state)
+    if ret_segment !== nothing
+        current_segment, segments_state = ret_segment
+        state_next = (cell_indices_state, segments_in_current_cell, segments_state,)
+        return current_segment, state_next
+    end
+
+    # 2. We're done iterating over the current cell, so we jump to the next non-empty cell.
+    while ret_segment === nothing
+        ret = _jump_to_next_cell(segments, cell_indices, cell_indices_state)
+        ret === nothing && return nothing  # we're done iterating over cells
+        cell_indices_state, segments_in_current_cell, ret_segment = ret
+    end
+
+    current_segment, segments_state = ret_segment
+    state_next = (cell_indices_state, segments_in_current_cell, segments_state,)
+    current_segment, state_next
+end
+
+function _jump_to_next_cell(segments, cell_indices, cell_indices_state)
+    ret_cell = iterate(cell_indices, cell_indices_state)
+    ret_cell === nothing && return nothing  # we're done iterating over cells
+    cell_index, cell_indices_state = ret_cell
+    segments_in_current_cell = segments[cell_index...]
+    ret_segment = iterate(segments_in_current_cell)
+    cell_indices_state, segments_in_current_cell, ret_segment
+end
+
 function nearby_segments(c::CellListsCache, x⃗::Vec3)
     (; params, cl,) = c
     (; segments, rs_cut,) = cl
@@ -153,7 +230,7 @@ function nearby_segments(c::CellListsCache, x⃗::Vec3)
     inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(segments))
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
     offsets = (-1, 0, 1)  # index offset along each dimension
-    inds = map(Tuple(I₀), size(segments)) do i, N
+    inds_per_direction = map(Tuple(I₀), size(segments)) do i, N
         map(offsets) do δi
             j = i + δi
             if j ≤ 0
@@ -164,9 +241,6 @@ function nearby_segments(c::CellListsCache, x⃗::Vec3)
             j  # absolute index of cell along one dimension
         end
     end
-    Is = Iterators.product(inds...)  # iterate over the 3³ == 27 cells around I₀
-    SA = similar_type(Array{eltype(Is)}, Size(size(Is)))  # note: the size of `Is` is known by the compiler
-    Is_array = StaticArrays.sacollect(SA, Is)
-    cells = map(I -> segments[I...], Is_array)  # each element is a vector of segments
-    Iterators.flatten(cells)  # iterator over all segments
+    cell_indices = Iterators.product(inds_per_direction...)  # iterate over the M³ cells around I₀
+    CellListSegmentIterator(cl, cell_indices)
 end
