@@ -76,6 +76,40 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     nothing
 end
 
+function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws...)
+    params_naive = @inferred ParamsBiotSavart(;
+        params_kws...,
+        backend_short = NaiveShortRangeBackend(),
+    )
+    params_cl = @inferred ParamsBiotSavart(;
+        params_kws...,
+        backend_short = CellListsBackend(),
+    )
+
+    cache_naive = @inferred(BiotSavart.init_cache(params_naive, fs)).shortrange
+    cache_cl = @inferred(BiotSavart.init_cache(params_cl, fs)).shortrange
+
+    BiotSavart.set_filaments!(cache_naive, fs)
+    BiotSavart.set_filaments!(cache_cl, fs)
+
+    vs_naive = map(f -> zero(nodes(f)), fs)
+    vs_cl = map(f -> zero(nodes(f)), fs)
+
+    for (v, f) ∈ zip(vs_naive, fs)
+        BiotSavart.add_short_range_velocity!(v, cache_naive, f)
+    end
+
+    for (v, f) ∈ zip(vs_cl, fs)
+        BiotSavart.add_short_range_velocity!(v, cache_cl, f)
+    end
+
+    for (a, b) ∈ zip(vs_naive, vs_cl)
+        @test isapprox(a, b; rtol = 1e-7)
+    end
+
+    nothing
+end
+
 function compute_filament_velocity(f; α, Ls, params_kws...)
     rcut = min(4 * sqrt(2) / α, minimum(Ls) / 2)
     params = ParamsBiotSavart(; params_kws..., α, Ls, rcut)
@@ -116,6 +150,9 @@ end
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
     @testset "Long range" begin
         compare_long_range([f]; tol = 1e-8, params_kws..., α = kmax / 6)
+    end
+    @testset "Short range" begin
+        compare_short_range([f]; params_kws..., α = kmax / 6)
     end
     @testset "Dependence on α" begin
         αs = [kmax / 5, kmax / 8, kmax / 16]
