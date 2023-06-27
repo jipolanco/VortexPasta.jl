@@ -164,37 +164,22 @@ struct CellListSegmentIterator{
     end
 end
 
-# First iteration.
-# As of Julia 1.9.1, the @inline is needed to avoid poor performance, which seems to be
-# related to the use of Iterators.product...
-@inline function Base.iterate(it::CellListSegmentIterator)
+# As of Julia 1.9.1, the @inline is needed to avoid poor performance.
+# This seems to be related to the use of Iterators.product (type of `cell_indices`)...
+@inline function Base.iterate(it::CellListSegmentIterator, state = nothing)
     (; cl, cell_indices,) = it
     (; segments,) = cl
 
-    cell_index, cell_indices_state = iterate(cell_indices)
-    segments_in_current_cell = segments[cell_index...] :: AbstractVector{<:Segment}
-    ret_segment = iterate(segments_in_current_cell)
-
-    # If the initial cell has no segments, continue iterating until we find a cell with
-    # segments, or until we've visited all cells.
-    while ret_segment === nothing  # case of a cell with no segments
-        ret = _jump_to_next_cell(segments, cell_indices, cell_indices_state)
-        ret === nothing && return nothing  # we're done iterating over cells
-        cell_indices_state, segments_in_current_cell, ret_segment = ret
+    if state === nothing  # initial iteration
+        cell_index, cell_indices_state = iterate(cell_indices)
+        segments_in_current_cell = segments[cell_index...]
+        ret_segment = iterate(segments_in_current_cell)  # get first segment of first cell (or `nothing`, if the cell is empty)
+    else
+        (cell_indices_state, segments_in_current_cell, segments_state,) = state
+        ret_segment = iterate(segments_in_current_cell, segments_state)  # advance to next segment (or `nothing`, if we're done)
     end
 
-    current_segment, segments_state = ret_segment
-    state_next = (cell_indices_state, segments_in_current_cell, segments_state,)
-    current_segment, state_next
-end
-
-function Base.iterate(it::CellListSegmentIterator, state)
-    (; cl, cell_indices,) = it
-    (; segments,) = cl
-    (cell_indices_state, segments_in_current_cell, segments_state,) = state
-
     # 1. Try to keep iterating over the segments of the current cell.
-    ret_segment = iterate(segments_in_current_cell, segments_state)
     if ret_segment !== nothing
         current_segment, segments_state = ret_segment
         state_next = (cell_indices_state, segments_in_current_cell, segments_state,)
@@ -203,23 +188,17 @@ function Base.iterate(it::CellListSegmentIterator, state)
 
     # 2. We're done iterating over the current cell, so we jump to the next non-empty cell.
     while ret_segment === nothing
-        ret = _jump_to_next_cell(segments, cell_indices, cell_indices_state)
-        ret === nothing && return nothing  # we're done iterating over cells
-        cell_indices_state, segments_in_current_cell, ret_segment = ret
+        ret_cell = iterate(cell_indices, cell_indices_state)
+        ret_cell === nothing && return nothing  # we're done iterating over cells
+        cell_index, cell_indices_state = ret_cell
+        segments_in_current_cell = segments[cell_index...]
+        ret_segment = iterate(segments_in_current_cell)
+        cell_indices_state, segments_in_current_cell, ret_segment
     end
 
     current_segment, segments_state = ret_segment
     state_next = (cell_indices_state, segments_in_current_cell, segments_state,)
     current_segment, state_next
-end
-
-function _jump_to_next_cell(segments, cell_indices, cell_indices_state)
-    ret_cell = iterate(cell_indices, cell_indices_state)
-    ret_cell === nothing && return nothing  # we're done iterating over cells
-    cell_index, cell_indices_state = ret_cell
-    segments_in_current_cell = segments[cell_index...]
-    ret_segment = iterate(segments_in_current_cell)
-    cell_indices_state, segments_in_current_cell, ret_segment
 end
 
 function nearby_segments(c::CellListsCache, x⃗::Vec3)
