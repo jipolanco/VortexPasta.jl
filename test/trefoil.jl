@@ -5,9 +5,9 @@ using VortexPasta.BiotSavart
 
 function init_trefoil_filament(N::Int)
     R = π / 4
-    S(t) = π .+ R .* Vec3(
-        sinpi(t) + 2 * sinpi(2t),
-        cospi(t) - 2 * cospi(2t),
+    S(t) = R .+ R .* Vec3(
+        2 + sinpi(t) + 2 * sinpi(2t),
+        2 + cospi(t) - 2 * cospi(2t),
         -sinpi(3t),
     )
     ζs = range(0, 2; length = N + 1)[1:N]
@@ -144,8 +144,8 @@ end
 
 @testset "Trefoil" begin
     f = @inferred init_trefoil_filament(30)
-    Ls = (2π, 2π, 1.5π)
-    Ns = (4, 4, 3) .* 16
+    Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
+    Ns = (3, 3, 4) .* 16
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
     @testset "Long range" begin
@@ -158,4 +158,14 @@ end
         αs = [kmax / 5, kmax / 8, kmax / 16]
         check_independence_on_ewald_parameter(f, αs; params_kws...)
     end
+end
+
+##
+
+if @isdefined(Makie)
+    fig = Figure()
+    ax = Axis3(fig[1, 1]; aspect = :data)
+    wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
+    plot!(ax, f; refinement = 8)
+    fig
 end
