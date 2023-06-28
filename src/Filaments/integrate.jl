@@ -1,5 +1,6 @@
 """
     integrate(func::Function, f::AbstractFilament, i::Int, quad::AbstractQuadrature)
+    integrate(func::Function, s::Segment, quad::AbstractQuadrature)
 
 Estimate integral along a filament segment using the chosen quadrature.
 
@@ -28,4 +29,9 @@ function integrate(func::F, f::AbstractFilament, i::Int, quad::AbstractQuadratur
         fx = @inline func(ζs[j])
         ws[j] * fx
     end
+end
+
+function integrate(func::F, s::Segment, quad::AbstractQuadrature) where {F}
+    (; f, i,) = s
+    integrate(func, f, i, quad)
 end

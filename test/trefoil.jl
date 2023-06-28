@@ -5,9 +5,9 @@ using VortexPasta.BiotSavart
 
 function init_trefoil_filament(N::Int)
     R = π / 4
-    S(t) = π .+ R .* Vec3(
-        sinpi(t) + 2 * sinpi(2t),
-        cospi(t) - 2 * cospi(2t),
+    S(t) = R .+ R .* Vec3(
+        2 + sinpi(t) + 2 * sinpi(2t),
+        2 + cospi(t) - 2 * cospi(2t),
         -sinpi(3t),
     )
     ζs = range(0, 2; length = N + 1)[1:N]
@@ -24,8 +24,8 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
         backend_long = FINUFFTBackend(; tol,),
     )
 
-    cache_exact = @inferred(BiotSavart.init_cache(params_exact)).longrange
-    cache_default = @inferred(BiotSavart.init_cache(params_default)).longrange
+    cache_exact = @inferred(BiotSavart.init_cache(params_exact, fs)).longrange
+    cache_default = @inferred(BiotSavart.init_cache(params_default, fs)).longrange
 
     @test BiotSavart.backend(cache_exact) isa ExactSumBackend
     @test BiotSavart.backend(cache_default) isa FINUFFTBackend
@@ -76,9 +76,44 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     nothing
 end
 
-function compute_filament_velocity(f, α; params_kws...)
-    params = ParamsBiotSavart(; params_kws..., α, rcut = 4 / α)
-    cache = init_cache(params)
+function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws...)
+    params_naive = @inferred ParamsBiotSavart(;
+        params_kws...,
+        backend_short = NaiveShortRangeBackend(),
+    )
+    params_cl = @inferred ParamsBiotSavart(;
+        params_kws...,
+        backend_short = CellListsBackend(2),
+    )
+
+    cache_naive = @inferred(BiotSavart.init_cache(params_naive, fs)).shortrange
+    cache_cl = @inferred(BiotSavart.init_cache(params_cl, fs)).shortrange
+
+    BiotSavart.set_filaments!(cache_naive, fs)
+    BiotSavart.set_filaments!(cache_cl, fs)
+
+    vs_naive = map(f -> zero(nodes(f)), fs)
+    vs_cl = map(f -> zero(nodes(f)), fs)
+
+    for (v, f) ∈ zip(vs_naive, fs)
+        BiotSavart.add_short_range_velocity!(v, cache_naive, f)
+    end
+
+    for (v, f) ∈ zip(vs_cl, fs)
+        BiotSavart.add_short_range_velocity!(v, cache_cl, f)
+    end
+
+    for (a, b) ∈ zip(vs_naive, vs_cl)
+        @test isapprox(a, b; rtol = 1e-7)
+    end
+
+    nothing
+end
+
+function compute_filament_velocity(f; α, Ls, params_kws...)
+    rcut = min(4 * sqrt(2) / α, minimum(Ls) / 2)
+    params = ParamsBiotSavart(; params_kws..., α, Ls, rcut)
+    cache = init_cache(params, [f])
     velocity_on_nodes!(similar(nodes(f)), cache, f)
 end
 
@@ -87,7 +122,9 @@ end
 function check_independence_on_ewald_parameter(f, αs; params_kws...)
     vs_all = map(αs) do α
         compute_filament_velocity(
-            f, α;
+            f;
+            α,
+            backend_short = NaiveShortRangeBackend(),
             # Use high-order quadratures to make sure that errors don't come from there.
             quadrature_short = GaussLegendre(6),
             quadrature_long = GaussLegendre(6),
@@ -107,15 +144,28 @@ end
 
 @testset "Trefoil" begin
     f = @inferred init_trefoil_filament(30)
-    Ls = (2π, 2π, 1.5π)
-    Ns = (4, 4, 3) .* 16
+    Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
+    Ns = (3, 3, 4) .* 16
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5, α = kmax / 6,)
+    params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
     @testset "Long range" begin
-        compare_long_range([f]; tol = 1e-8, params_kws...)
+        compare_long_range([f]; tol = 1e-8, params_kws..., α = kmax / 6)
+    end
+    @testset "Short range" begin
+        compare_short_range([f]; params_kws..., α = kmax / 6)
     end
     @testset "Dependence on α" begin
         αs = [kmax / 5, kmax / 8, kmax / 16]
         check_independence_on_ewald_parameter(f, αs; params_kws...)
     end
+end
+
+##
+
+if @isdefined(Makie)
+    fig = Figure()
+    ax = Axis3(fig[1, 1]; aspect = :data)
+    wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
+    plot!(ax, f; refinement = 8)
+    fig
 end

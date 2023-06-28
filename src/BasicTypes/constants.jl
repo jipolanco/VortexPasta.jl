@@ -1,4 +1,4 @@
-import Base: +, *, /, ^, <
+import Base: +, -, *, /, ^, <
 
 """
     Zero <: Real
@@ -10,6 +10,7 @@ struct Zero <: Real end
 (::Zero) * (::Number) = Zero()
 (::Number) * (::Zero) = Zero()
 (x::Number) + (::Zero) = x
+(x::Number) - (::Zero) = x
 (::Zero) + (::Zero) = Zero()
 (::Zero) / (::Number) = Zero()
 

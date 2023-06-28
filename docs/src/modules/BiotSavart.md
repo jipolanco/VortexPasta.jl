@@ -29,6 +29,7 @@ velocity_on_nodes!
 ```@docs
 ShortRangeBackend
 NaiveShortRangeBackend
+CellListsBackend
 ```
 
 ### Internals
@@ -36,10 +37,11 @@ NaiveShortRangeBackend
 ```@docs
 ShortRangeCache
 init_cache_short
-short_range_velocity
+set_filaments!
+add_short_range_velocity!
 local_self_induced_velocity
-add_short_range_velocity_self!
-add_short_range_velocity_other!
+nearby_segments
+SegmentCellList
 ```
 
 ## Long-range interactions

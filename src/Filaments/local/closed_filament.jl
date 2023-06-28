@@ -13,7 +13,7 @@ on each side of a given discretisation point to estimate derivatives.
 ---
 
     Filaments.init(
-        ClosedFilament{T}, N::Integer, discret::LocalDiscretisationMethod, [interp = HermiteInterpolation(2)];
+        ClosedFilament{T}, N::Integer, discret::LocalDiscretisationMethod;
         offset = zero(Vec3{T}),
     ) -> ClosedLocalFilament{T}
 
@@ -23,20 +23,12 @@ The element type `T` can be omitted, in which case the default `T = Float64` is 
 
 See also [`Filaments.init`](@ref).
 
-# Optional arguments
-
-- `interpolation`: method used to evaluate curve coordinates or derivatives
-  in-between discretisation points. Must be a type of [`LocalInterpolationMethod`](@ref).
-  By default, quintic Hermite interpolation (`HermiteInterpolation(2)`) is used.
-  Note that Hermite interpolations use the derivatives estimated via the chosen
-  discretisation method.
-
 # Examples
 
 Initialise filament with set of discretisation points:
 
 ```jldoctest ClosedLocalFilament
-julia> f = Filaments.init(ClosedFilament, 16, FiniteDiffMethod(2), HermiteInterpolation(2));
+julia> f = Filaments.init(ClosedFilament, 16, FiniteDiffMethod(2, HermiteInterpolation(2)));
 
 julia> θs = range(-1, 1; length = 17)[1:16]
 -1.0:0.125:0.875
@@ -115,13 +107,11 @@ struct ClosedLocalFilament{
         T <: AbstractFloat,
         M,  # padding
         Discretisation <: LocalDiscretisationMethod,
-        Interpolation <: LocalInterpolationMethod,
         Knots <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
     } <: ClosedFilament{T}
 
     discretisation :: Discretisation  # derivative estimation method
-    interpolation  :: Interpolation   # interpolation method
 
     # Parametrisation knots: t_i = ∑_{j = 1}^{i - 1} ℓ_i
     ts      :: Knots
@@ -136,8 +126,7 @@ struct ClosedLocalFilament{
 end
 
 function ClosedLocalFilament(
-        N::Integer, discretisation::LocalDiscretisationMethod,
-        interpolation::LocalInterpolationMethod, ::Type{T};
+        N::Integer, discretisation::LocalDiscretisationMethod, ::Type{T};
         offset = zero(Vec3{T}),
     ) where {T}
     M = npad(discretisation)
@@ -145,34 +134,30 @@ function ClosedLocalFilament(
     Xs = similar(ts, Vec3{T})
     Xderivs = (similar(Xs), similar(Xs))
     Xoffset = convert(Vec3{T}, offset)
-    ClosedLocalFilament(discretisation, interpolation, ts, Xs, Xderivs, Xoffset)
+    ClosedLocalFilament(discretisation, ts, Xs, Xderivs, Xoffset)
 end
 
 function change_offset(f::ClosedLocalFilament{T}, offset::Vec3) where {T}
     Xoffset = convert(Vec3{T}, offset)
-    ClosedLocalFilament(f.discretisation, f.interpolation, f.ts, f.Xs, f.Xderivs, Xoffset)
+    ClosedLocalFilament(f.discretisation, f.ts, f.Xs, f.Xderivs, Xoffset)
 end
 
 allvectors(f::ClosedLocalFilament) = (f.ts, f.Xs, f.Xderivs...)
 
-# Use default interpolation method
-ClosedLocalFilament(N::Integer, disc::LocalDiscretisationMethod, ::Type{T}; kws...) where {T} =
-    ClosedLocalFilament(N, disc, HermiteInterpolation(2), T; kws...)
-
 function init(
-        ::Type{ClosedFilament{T}}, N::Integer, disc::LocalDiscretisationMethod, args...;
+        ::Type{ClosedFilament{T}}, N::Integer, disc::LocalDiscretisationMethod;
         kws...,
     ) where {T}
-    ClosedLocalFilament(N, disc, args..., T; kws...)
+    ClosedLocalFilament(N, disc, T; kws...)
 end
 
 function Base.similar(f::ClosedLocalFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
     N, = dims
-    ClosedLocalFilament(N, discretisation_method(f), interpolation_method(f), T; offset = f.Xoffset)
+    ClosedLocalFilament(N, discretisation_method(f), T; offset = f.Xoffset)
 end
 
 discretisation_method(f::ClosedLocalFilament) = f.discretisation
-interpolation_method(f::ClosedLocalFilament) = f.interpolation
+interpolation_method(f::ClosedLocalFilament) = interpolation_method(discretisation_method(f))
 
 # Note: `only_derivatives` is not used, it's just there for compatibility with splines.
 function _update_coefficients_only!(f::ClosedLocalFilament; only_derivatives = false)

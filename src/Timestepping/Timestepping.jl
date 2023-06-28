@@ -199,7 +199,7 @@ function init(
     vs_data = [similar(nodes(f)) for f ∈ fs] :: AllFilamentVelocities
     vs = VectorOfVectors(vs_data)
     fs_sol = alias_u0 ? fs : copy.(fs)
-    cache_bs = BiotSavart.init_cache(prob.p; timer)
+    cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
 
     # Wrap functions with the timer, so that timings are estimated each time the function is called.

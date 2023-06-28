@@ -268,16 +268,16 @@ function Base.showarg(io::IO, f::AbstractFilament, toplevel)
 end
 
 include("discretisations.jl")
-include("padded_vector.jl")
+include("padded_array.jl")
 include("segments.jl")
 include("integrate.jl")
 include("min_distance.jl")
 include("refinement.jl")
 include("reconnections.jl")
 
-include("local/finitediff.jl")
 include("local/interpolation.jl")
 include("local/interp_hermite.jl")
+include("local/finitediff.jl")
 include("local/closed_filament.jl")
 
 include("spline/spline.jl")

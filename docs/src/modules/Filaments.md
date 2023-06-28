@@ -14,6 +14,7 @@ Filaments
 DiscretisationMethod
 AbstractFilament
 ClosedFilament
+PaddedArray
 PaddedVector
 ```
 
@@ -109,11 +110,20 @@ ClosedSplineFilament
 
 ## Segments
 
+### Segment iterators
+
 ```@docs
-Segments
+SegmentIterator
 segments
-length(::Segments)
-eachindex(::Segments)
+length(::SegmentIterator)
+eachindex(::SegmentIterator)
+```
+
+### Single segments
+
+```@docs
+Segment
+midpoint
 ```
 
 ## Plotting

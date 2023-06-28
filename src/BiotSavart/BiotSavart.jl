@@ -77,7 +77,7 @@ Mandatory and optional keyword arguments are detailed in the following.
   If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
   the same in each direction.
 
-  One can set `Ls = ∞` to disable periodicity. This should be done in combination with `α = Zero()`.
+  One can set `Ls = Infinity()` to disable periodicity. This should be done in combination with `α = Zero()`.
 
 - `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions. This parameter
   is not required if `α = Zero()`.
@@ -86,27 +86,29 @@ Mandatory and optional keyword arguments are detailed in the following.
 
 ### Short-range interactions
 
-- `backend_short::ShortRangeBackend = NaiveShortRangeBackend()` backend used to compute
-  short-range interactions;
+- `backend_short::ShortRangeBackend`: backend used to compute
+  short-range interactions. The default is `CellListsBackend(2)`, unless periodicity is
+  disabled, in which case `NaiveShortRangeBackend()` is used.
+  See [`ShortRangeBackend`](@ref) for a list of possible backends;
 
-- `quadrature_short::AbstractQuadrature = GaussLegendre(4)`
+- `quadrature_short::AbstractQuadrature = GaussLegendre(4)`:
   quadrature rule for short-range interactions;
 
-- `rcut = 4√2 / α` cutoff distance for computation of short-range interactions.
-  For performance reasons, the cutoff distance must be less than half the cell
+- `rcut = 4√2 / α`: cutoff distance for computation of short-range interactions.
+  For performance and practical reasons, the cutoff distance must be less than half the cell
   unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
 
 ### Long-range interactions
 
-- `backend_long::LongRangeBackend = FINUFFTBackend()` backend used to compute
-  long-range interactions;
+- `backend_long::LongRangeBackend = FINUFFTBackend()`: backend used to compute
+  long-range interactions. See [`LongRangeBackend`](@ref) for a list of possible backends;
 
-- `quadrature_long::AbstractQuadrature = GaussLegendre(2)`
+- `quadrature_long::AbstractQuadrature = GaussLegendre(2)`:
   quadrature rule for long-range interactions.
 
 ### Local self-induced velocity
 
-- `Δ = 0.25` coefficient appearing in the local self-induced velocity (LIA
+- `Δ = 0.25`: coefficient appearing in the local self-induced velocity (LIA
   term), which depends on the vorticity profile at the vortex core.
 
   Some common values of `Δ` are:
@@ -138,7 +140,7 @@ struct ParamsBiotSavart{
             a::Real,
             quadrature_short::AbstractQuadrature = GaussLegendre(4),
             quadrature_long::AbstractQuadrature = GaussLegendre(2),
-            backend_short::ShortRangeBackend = NaiveShortRangeBackend(),
+            backend_short::ShortRangeBackend = default_short_range_backend(Ls),
             backend_long::LongRangeBackend = FINUFFTBackend(),
             Δ::Real = 0.25,
             kws...,
@@ -151,6 +153,20 @@ struct ParamsBiotSavart{
         sr = ParamsShortRange(backend_short, quadrature_short, common, rcut)
         lr = ParamsLongRange(backend_long, quadrature_long, common, Ns)
         new{T, typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
+    end
+end
+
+# Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.
+is_open_domain(Ls::Tuple) = is_open_domain(Ls...)
+is_open_domain(::Infinity, etc...) = true
+is_open_domain(::Real, etc...) = is_open_domain(etc...)
+is_open_domain() = false
+
+function default_short_range_backend(Ls::Tuple)
+    if is_open_domain(Ls)
+        NaiveShortRangeBackend()
+    else
+        CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
     end
 end
 
@@ -195,12 +211,18 @@ struct BiotSavartCache{
 end
 
 """
-    init_cache(p::ParamsBiotSavart; timer = TimerOutput("BiotSavart")) -> BiotSavartCache
+    init_cache(
+        p::ParamsBiotSavart, fs::AbstractVector{<:AbstractFilament};
+        timer = TimerOutput("BiotSavart"),
+    ) -> BiotSavartCache
 
 Initialise caches for computing Biot–Savart integrals.
 """
-function init_cache(p::ParamsBiotSavart; timer = TimerOutput("BiotSavart"))
-    shortrange = init_cache_short(p.common, p.shortrange, timer)
+function init_cache(
+        p::ParamsBiotSavart, fs::AbstractVector{<:AbstractFilament};
+        timer = TimerOutput("BiotSavart"),
+    )
+    shortrange = init_cache_short(p.common, p.shortrange, fs, timer)
     longrange = init_cache_long(p.common, p.longrange, timer)
     BiotSavartCache(shortrange, longrange, timer)
 end
@@ -242,18 +264,12 @@ function velocity_on_nodes!(
     eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
     _reset_vectors!(vs)
     if cache.longrange !== NullLongRangeCache()
-        @timeit to "add_long_range_velocity!" add_long_range_velocity!(vs, cache.longrange, fs)
+        @timeit to "Long-range velocity" add_long_range_velocity!(vs, cache.longrange, fs)
     end
-    inds = eachindex(fs)
-    @inbounds for (i, f) ∈ pairs(fs)
-        for j ∈ first(inds):(i - 1)
-            Xs = nodes(fs[j])
-            @timeit to "add_short_range_velocity_other!" add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
-        end
-        @timeit to "add_short_range_velocity_self!" add_short_range_velocity_self!(vs[i], cache.shortrange, f)
-        for j ∈ (i + 1):last(inds)
-            Xs = nodes(fs[j])
-            @timeit to "add_short_range_velocity_other!" add_short_range_velocity_other!(vs[j], Xs, cache.shortrange, f)
+    @timeit to "Short-range velocity" begin
+        @timeit to "set_filaments!" set_filaments!(cache.shortrange, fs)
+        @timeit to "add_short_range_velocity!" for (f, v) ∈ zip(fs, vs)
+            add_short_range_velocity!(v, cache.shortrange, f)
         end
     end
     vs

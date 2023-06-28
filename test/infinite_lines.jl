@@ -20,7 +20,7 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.0, k::Int = 1)
     (; x, y, Lz, sign, tlims, S, offset,)
 end
 
-function test_infinite_lines(method::Tuple)
+function test_infinite_lines(method)
     lines = let
         A = 0.08
         k = 2
@@ -37,7 +37,7 @@ function test_infinite_lines(method::Tuple)
     filaments = map(lines) do line
         (; tlims, S, offset,) = line
         ζs = range(tlims...; length = N + 1)[1:N]
-        @inferred Filaments.init(ClosedFilament, S.(ζs), method...; offset)
+        @inferred Filaments.init(ClosedFilament, S.(ζs), method; offset)
     end
 
     @testset "Filaments" begin
@@ -83,7 +83,7 @@ function test_infinite_lines(method::Tuple)
         Δ = 1/4,
         Ls, Ns, rcut, α,
     )
-    cache = @inferred BiotSavart.init_cache(params)
+    cache = @inferred BiotSavart.init_cache(params, filaments)
     vs = map(f -> similar(nodes(f)), filaments)
     velocity_on_nodes!(vs, cache, filaments)
 
@@ -104,10 +104,10 @@ end
 
 @testset "Infinite lines" begin
     methods = (
-        "FiniteDiff(2) / Hermite(2)" => (FiniteDiffMethod(2), HermiteInterpolation(2)),
-        "FiniteDiff(2) / Hermite(1)" => (FiniteDiffMethod(2), HermiteInterpolation(1)),
-        "FiniteDiff(2) / Hermite(0)" => (FiniteDiffMethod(2), HermiteInterpolation(0)),
-        "CubicSpline" => (CubicSplineMethod(),),
+        "FiniteDiff(2) / Hermite(2)" => FiniteDiffMethod(2, HermiteInterpolation(2)),
+        "FiniteDiff(2) / Hermite(1)" => FiniteDiffMethod(2, HermiteInterpolation(1)),
+        "FiniteDiff(2) / Hermite(0)" => FiniteDiffMethod(2, HermiteInterpolation(0)),
+        "CubicSpline" => CubicSplineMethod(),
     )
     @testset "$name" for (name, method) ∈ methods
         test_infinite_lines(method)

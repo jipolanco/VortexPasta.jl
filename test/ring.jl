@@ -25,21 +25,30 @@ vortex_ring_velocity(Γ, R, a; Δ) = Γ / (4π * R) * (log(8R / a) - Δ)
 # Test vortex ring without periodic BCs (i.e. setting α = 0 in Ewald's method, disabling long-range part)
 function test_vortex_ring_nonperiodic(ring)
     (; R, f,) = ring
-    N = length(f)
     ps = (;
         Γ = 2.4,
         a = 1e-6,
         Δ = 1/4,
         Ls = Infinity(),
         α = Zero(),
+        backend_short = NaiveShortRangeBackend(),
         quadrature_short = GaussLegendre(4),
     )
+
     params = @inferred ParamsBiotSavart(; ps...)
-    cache = @inferred BiotSavart.init_cache(params)
+    cache = @inferred BiotSavart.init_cache(params, [f])
     vs = similar(nodes(f))
+
+    @testset "NaiveSegmentIterator" begin
+        it = @inferred BiotSavart.nearby_segments(cache.shortrange, f[2])
+        @test it isa BiotSavart.NaiveSegmentIterator
+        @test eltype(it) === typeof(first(segments(f))) === typeof(first(it))
+        segs = @inferred collect(it)
+        @test eltype(it) === eltype(segs)
+    end
+
     @testset "Total velocity" begin
         velocity_on_nodes!(vs, cache, f)
-        @show vs[1]
         v⃗_mean = mean(vs)
         U = norm(v⃗_mean)
         # All points have basically the same velocity (since there's no periodicity to introduce anisotropy).
@@ -49,18 +58,21 @@ function test_vortex_ring_nonperiodic(ring)
         @show (U - U_expected) / U_expected
         @test isapprox(U, U_expected; rtol = 1e-4)  # the tolerance will mainly depend on the vortex resolution N
     end
+
     # Check velocity excluding LIA (i.e. only non-local integration)
     @testset "Non-local velocity" begin
         ts = knots(f)
         i = 1
         ℓ = sqrt((ts[i + 1] - ts[i]) * (ts[i] - ts[i - 1])) / 4  # = √(l₋ l₊) / 4
         fill!(vs, zero(eltype(vs)))
-        BiotSavart.add_short_range_velocity_self!(vs, cache.shortrange, f; LIA = false)
+        BiotSavart.set_filaments!(cache.shortrange, [f])
+        BiotSavart.add_short_range_velocity!(vs, cache.shortrange, f; LIA = Val(false))
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
         U_nonlocal = norm(vs[i])
         @show (U_nonlocal - U_nonlocal_expected) / U_nonlocal_expected
         @test isapprox(U_nonlocal, U_nonlocal_expected; rtol = 1e-3)
     end
+
     nothing
 end
 

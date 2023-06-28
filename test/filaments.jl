@@ -156,6 +156,7 @@ function test_filament_ring(args)
         @test inds == eachindex(nodes(f))  # true for closed filaments (same number of segments and nodes)
         @test firstindex(seg) == first(inds)
         @test lastindex(seg) == last(inds)
+        @test @inferred(first(seg)) isa @inferred(eltype(seg))
     end
 
     if continuity ≥ 1
@@ -212,9 +213,9 @@ end
 @testset "Ring" begin
     N = 32
     methods = (
-        "FiniteDiff(2) / Hermite(2)" => (N, FiniteDiffMethod(2), HermiteInterpolation(2)),
-        "FiniteDiff(2) / Hermite(1)" => (N, FiniteDiffMethod(2), HermiteInterpolation(1)),
-        "FiniteDiff(2) / Hermite(0)" => (N, FiniteDiffMethod(2), HermiteInterpolation(0)),
+        "FiniteDiff(2) / Hermite(2)" => (N, FiniteDiffMethod(2, HermiteInterpolation(2))),
+        "FiniteDiff(2) / Hermite(1)" => (N, FiniteDiffMethod(2, HermiteInterpolation(1))),
+        "FiniteDiff(2) / Hermite(0)" => (N, FiniteDiffMethod(2, HermiteInterpolation(0))),
         "CubicSpline" => (N, CubicSplineMethod()),
     )
     @testset "$label" for (label, args) ∈ methods
