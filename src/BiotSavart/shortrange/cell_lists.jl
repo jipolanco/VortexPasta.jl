@@ -25,10 +25,7 @@ The cutoff radii `rs_cut` (which can be different in each direction) don't need 
 divide the domain period `L` into equal pieces, but it's recommended that it does so for
 performance reasons.
 
-One can optionally specify a subdivision of the cells by passing `nsubdiv`, which allows to
-reduce the number of spurious pairs (i.e. beyond the cutoff radius) as described
-[here](https://en.wikipedia.org/wiki/Cell_lists#Improvements). In practice, a value of
-`static(2)` can improve performance significantly compared to no subdivision (`static(1)`).
+See [`CellListsBackend`](@ref) for details on the subdivision parameter `nsubdiv`.
 
 Infinite non-periodic domains (in the sense of `period = Infinity()`) are not supported.
 """
@@ -142,6 +139,7 @@ end
 
 """
     CellListsBackend <: ShortRangeBackend
+    CellListsBackend(nsubdiv::Int = 1)
 
 Compute short-range interactions using the cell lists algorithm.
 
@@ -149,6 +147,12 @@ This backend can be significantly faster than the [`NaiveShortRangeBackend`](@re
 cutoff radius `rcut` is much smaller than the domain period `L` (roughly when `rcut ≲ L / 10`).
 
 Future improvements may further increase the performance of this backend.
+
+Optionally, one can choose to subdivide each cell (of size `≈ rcut`) onto `nsubdiv`
+subcells. This can significantly improve performance, since it allows to discard some
+spurious pair interactions (i.e. beyond the chosen cutoff radius) as described
+[here](https://en.wikipedia.org/wiki/Cell_lists#Improvements). In practice, a value of
+`2` or `3` can significantly improve performance compared to no subdivision (`1`).
 
 This backend does not support non-periodic domains.
 

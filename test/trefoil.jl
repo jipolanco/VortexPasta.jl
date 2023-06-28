@@ -83,7 +83,7 @@ function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws.
     )
     params_cl = @inferred ParamsBiotSavart(;
         params_kws...,
-        backend_short = CellListsBackend(),
+        backend_short = CellListsBackend(2),
     )
 
     cache_naive = @inferred(BiotSavart.init_cache(params_naive, fs)).shortrange
