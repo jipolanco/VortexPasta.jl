@@ -268,7 +268,7 @@ function Base.showarg(io::IO, f::AbstractFilament, toplevel)
 end
 
 include("discretisations.jl")
-include("padded_vector.jl")
+include("padded_array.jl")
 include("segments.jl")
 include("integrate.jl")
 include("min_distance.jl")
