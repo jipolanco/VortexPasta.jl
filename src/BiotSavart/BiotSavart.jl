@@ -86,27 +86,29 @@ Mandatory and optional keyword arguments are detailed in the following.
 
 ### Short-range interactions
 
-- `backend_short::ShortRangeBackend = NaiveShortRangeBackend()` backend used to compute
-  short-range interactions;
+- `backend_short::ShortRangeBackend`: backend used to compute
+  short-range interactions. The default is `CellListsBackend(2)`, unless periodicity is
+  disabled, in which case `NaiveShortRangeBackend()` is used.
+  See [`ShortRangeBackend`](@ref) for a list of possible backends;
 
-- `quadrature_short::AbstractQuadrature = GaussLegendre(4)`
+- `quadrature_short::AbstractQuadrature = GaussLegendre(4)`:
   quadrature rule for short-range interactions;
 
-- `rcut = 4√2 / α` cutoff distance for computation of short-range interactions.
-  For performance reasons, the cutoff distance must be less than half the cell
+- `rcut = 4√2 / α`: cutoff distance for computation of short-range interactions.
+  For performance and practical reasons, the cutoff distance must be less than half the cell
   unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
 
 ### Long-range interactions
 
-- `backend_long::LongRangeBackend = FINUFFTBackend()` backend used to compute
-  long-range interactions;
+- `backend_long::LongRangeBackend = FINUFFTBackend()`: backend used to compute
+  long-range interactions. See [`LongRangeBackend`](@ref) for a list of possible backends;
 
-- `quadrature_long::AbstractQuadrature = GaussLegendre(2)`
+- `quadrature_long::AbstractQuadrature = GaussLegendre(2)`:
   quadrature rule for long-range interactions.
 
 ### Local self-induced velocity
 
-- `Δ = 0.25` coefficient appearing in the local self-induced velocity (LIA
+- `Δ = 0.25`: coefficient appearing in the local self-induced velocity (LIA
   term), which depends on the vorticity profile at the vortex core.
 
   Some common values of `Δ` are:

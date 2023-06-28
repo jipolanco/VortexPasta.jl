@@ -6,7 +6,17 @@ using StructArrays: StructArrays
 
 Abstract type denoting the backend to use for computing long-range interactions.
 
-# Interface
+# Implemented backends
+
+- [`FINUFFTBackend`](@ref): estimates long-range interactions via the non-uniform fast
+  Fourier transform (NUFFT) using the FINUFFT library;
+
+- [`ExactSumBackend`](@ref): computes long-range interactions using exact Fourier sums. This
+  is really inefficient and should only be used for testing.
+
+# Extended help
+
+## Implementation details
 
 The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
@@ -52,9 +62,11 @@ Abstract type describing the storage of data required to compute long-range inte
 The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRangeCache`
 (or `NullLongRangeCache()`, if long-range computations were disabled by setting `α = Zero()`).
 
-# Interface
+# Extended help
 
-## Fields
+## Implementation details
+
+### Fields
 
 The following fields must be included in a cache:
 
@@ -80,7 +92,7 @@ Optional fields:
 - `points :: StructVector{Vec3{T}}` contains non-uniform points. If the backend defines
   [`expected_period`](@ref), then the `points` field *must* be defined.
 
-## Functions
+### Functions
 
 The following functions must be implemented by a cache:
 

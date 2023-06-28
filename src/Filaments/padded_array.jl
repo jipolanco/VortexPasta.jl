@@ -143,6 +143,7 @@ julia> v[end + 2]
 
 julia> v[end - 1] = 42; println(v)
 [3, 4, 5, 6, 42, 8]
+```
 """
 const PaddedVector{M, T, V} = PaddedArray{M, T, 1, V}
 

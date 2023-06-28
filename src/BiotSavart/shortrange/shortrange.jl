@@ -7,12 +7,23 @@ using ..Filaments: deperiodise_separation, Segment, segments
 
 Abstract type denoting the backend used for computing short-range interactions.
 
-# Interface
+# Implemented backends
 
-The following functions must be implemented by a `BACKEND <: ShortRangeBackend`:
+- [`CellListsBackend`](@ref): most efficient when the cutoff radius is much smaller than the
+  domain size. Can only be used with periodic boundary conditions.
 
-- `init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput) -> ShortRangeCache`
+- [`NaiveShortRangeBackend`](@ref): usually less efficient as it needs to compute distances
+  between all pairs of locations.
 
+# Extended help
+
+## Implementation details
+
+A `BACKEND <: ShortRangeBackend` must implement the function:
+
+    init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput)
+
+which should return a [`ShortRangeCache`](@ref).
 """
 abstract type ShortRangeBackend end
 
