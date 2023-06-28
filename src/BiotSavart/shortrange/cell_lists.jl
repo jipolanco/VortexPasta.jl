@@ -44,6 +44,8 @@ struct SegmentCellList{
     Ls       :: Periods
 end
 
+subdivisions(::SegmentCellList{A, B, C, M}) where {A, B, C, M} = M
+
 function SegmentCellList(
         ::Type{Filament},
         rs_cut_in::NTuple{N, Real},
@@ -84,7 +86,6 @@ function SegmentCellList(
     # Initialise cells inside the domain (i.e. not including ghost cells)
     for I ∈ CartesianIndices(segs)
         segs[I] = copy(vempty)
-        sizehint!(segs[I], 8)
     end
 
     # Pad array periodically. Note that this needs to be done only once (and not whenever
@@ -99,7 +100,8 @@ function Base.empty!(cl::SegmentCellList)
     for v ∈ cl.segments
         n = length(v)
         empty!(v)
-        sizehint!(v, nextpow(8, n + 2))  # heuristic value to avoid allocations in push!
+        # Heuristic to reduce allocations in `push!` when refilling the cells.
+        sizehint!(v, n < 8 ? 8 : nextpow(2, n))
     end
     cl
 end
@@ -120,7 +122,7 @@ function add_segment!(cl::SegmentCellList{N, S}, seg::S) where {N, S <: Segment}
     inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(segments))
     I = CartesianIndex(inds)
     @inbounds cell = segments[I]
-    push!(cell, seg)  # this can allocate if we don't put a sizehint somewhere (which we do!)
+    push!(cell, seg)  # this can allocate if we don't put a `sizehint!` somewhere (which we do!)
     cl
 end
 
@@ -162,12 +164,10 @@ This backend does not support non-periodic domains.
 
 See [Wikipedia](https://en.wikipedia.org/wiki/Cell_lists) for details.
 """
-struct CellListsBackend{SubDiv <: StaticInt} <: ShortRangeBackend
-    nsubdiv :: SubDiv
-end
+struct CellListsBackend{M} <: ShortRangeBackend end
+CellListsBackend(n::Int = 1) = CellListsBackend{n}()
 
-CellListsBackend() = CellListsBackend(static(1))
-CellListsBackend(n::Int) = CellListsBackend(static(n))
+subdivisions(::CellListsBackend{M}) where {M} = M
 
 struct CellListsCache{
         CellList <: SegmentCellList,
@@ -192,7 +192,8 @@ function init_cache_short(
         L / floor(L / rcut)
     end
     @assert all(≥(rcut), rs_cut)
-    cl = SegmentCellList(eltype(fs), rs_cut, Ls, backend.nsubdiv)
+    M = subdivisions(backend)
+    cl = SegmentCellList(eltype(fs), rs_cut, Ls, static(M))
     CellListsCache(cl, params, to)
 end
 
@@ -214,7 +215,7 @@ struct CellListSegmentIterator{
     end
 end
 
-# As of Julia 1.9.1, the @inline is needed to avoid poor performance.
+# As of Julia 1.9.1, the @inline is needed to avoid poor performance and spurious allocations.
 @inline function Base.iterate(it::CellListSegmentIterator, state = nothing)
     (; cl, cell_indices,) = it
     (; segments,) = cl
@@ -252,14 +253,14 @@ end
 
 function nearby_segments(c::CellListsCache, x⃗::Vec3)
     (; params, cl,) = c
-    (; segments, rs_cut, nsubdiv,) = cl
+    (; segments, rs_cut,) = cl
     (; common,) = params
     (; Ls,) = common
     inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(segments))
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
-    δ = dynamic(nsubdiv)
+    M = subdivisions(cl)
     cell_indices = CartesianIndices(
-        map(i -> (i - δ):(i + δ), Tuple(I₀))
+        map(i -> (i - M):(i + M), Tuple(I₀))
     )
     CellListSegmentIterator(cl, cell_indices)
 end
