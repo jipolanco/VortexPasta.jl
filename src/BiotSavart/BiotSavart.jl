@@ -140,7 +140,7 @@ struct ParamsBiotSavart{
             a::Real,
             quadrature_short::AbstractQuadrature = GaussLegendre(4),
             quadrature_long::AbstractQuadrature = GaussLegendre(2),
-            backend_short::ShortRangeBackend = NaiveShortRangeBackend(),
+            backend_short::ShortRangeBackend = default_short_range_backend(Ls),
             backend_long::LongRangeBackend = FINUFFTBackend(),
             Δ::Real = 0.25,
             kws...,
@@ -153,6 +153,20 @@ struct ParamsBiotSavart{
         sr = ParamsShortRange(backend_short, quadrature_short, common, rcut)
         lr = ParamsLongRange(backend_long, quadrature_long, common, Ns)
         new{T, typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
+    end
+end
+
+# Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.
+is_open_domain(Ls::Tuple) = is_open_domain(Ls...)
+is_open_domain(::Infinity, etc...) = true
+is_open_domain(::Real, etc...) = is_open_domain(etc...)
+is_open_domain() = false
+
+function default_short_range_backend(Ls::Tuple)
+    if is_open_domain(Ls)
+        NaiveShortRangeBackend()
+    else
+        CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
     end
 end
 
