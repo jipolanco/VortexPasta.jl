@@ -79,10 +79,16 @@ Base.checkbounds(::Type{Bool}, v::PaddedArray, I...) = _checkbounds(v, I...)
 
 _checkbounds(v::PaddedArray, I::CartesianIndex) = _checkbounds(v, Tuple(I)...)
 
-function _checkbounds(v::PaddedArray{M, T, N}, Is::Vararg{Any, N}) where {M, T, N}
-    all(zip(axes(v), Is)) do (inds, i)
+function _checkbounds(v::PaddedArray, Is...)
+    M = npad(v)
+    N = ndims(v)
+    P = length(Is)
+    @assert P ≥ N
+    Is_head = ntuple(n -> Is[n], Val(N))
+    Is_tail = ntuple(n -> Is[N + n], Val(P - N))  # possible additional indices which should be all 1
+    all(zip(axes(v), Is_head)) do (inds, i)
         _checkbounds(Val(M), inds, i)
-    end
+    end && all(isone, Is_tail)
 end
 
 _checkbounds(::Val{M}, inds::AbstractUnitRange, i::Integer) where {M} =
