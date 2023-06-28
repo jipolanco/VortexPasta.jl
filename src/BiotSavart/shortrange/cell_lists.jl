@@ -84,6 +84,7 @@ function SegmentCellList(
     # Initialise cells inside the domain (i.e. not including ghost cells)
     for I ∈ CartesianIndices(segs)
         segs[I] = copy(vempty)
+        sizehint!(segs[I], 8)
     end
 
     # Pad array periodically. Note that this needs to be done only once (and not whenever
@@ -96,7 +97,9 @@ end
 
 function Base.empty!(cl::SegmentCellList)
     for v ∈ cl.segments
+        n = length(v)
         empty!(v)
+        sizehint!(v, nextpow(8, n + 2))  # heuristic value to avoid allocations in push!
     end
     cl
 end
@@ -116,7 +119,8 @@ function add_segment!(cl::SegmentCellList{N, S}, seg::S) where {N, S <: Segment}
     x⃗ = Filaments.midpoint(seg)
     inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(segments))
     I = CartesianIndex(inds)
-    @inbounds push!(segments[I], seg)
+    @inbounds cell = segments[I]
+    push!(cell, seg)  # this can allocate if we don't put a sizehint somewhere (which we do!)
     cl
 end
 
