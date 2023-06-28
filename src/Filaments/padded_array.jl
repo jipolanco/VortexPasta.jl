@@ -159,12 +159,14 @@ end
 
 Base.popat!(v::PaddedVector, i::Integer) = popat!(parent(v), i + npad(v))
 
-# Periodic padding
+## ================================================================================ ##
+## Periodic padding.
+## ================================================================================ ##
 
 struct FromCentre end
 struct FromRight end
 
-pad_periodic!(v::PaddedVector, args...) = pad_periodic!(FromCentre(), v, args...)
+pad_periodic!(v::PaddedArray, args...) = pad_periodic!(FromCentre(), v, args...)
 
 # Apply periodic padding.
 # If L ≠ 0, it is interpreted as an unfolding period, such that v[N + 1 + i] - v[i] = L (where N = length(v)).
@@ -183,6 +185,35 @@ function pad_periodic!(::FromRight, v::PaddedVector{M, T}, L::T = zero(T)) where
     @inbounds for i ∈ 1:M
         v[begin - i] = v[end + 1 - i] - L
         v[begin - 1 + i] = v[end + i] - L
+    end
+    v
+end
+
+# Generalisation to N-dimensional PaddedArray.
+function pad_periodic!(::FromCentre, v::PaddedArray)
+    M = npad(v)
+    @assert all(≥(2M), size(v))
+    for I ∈ CartesianIndices(v)
+        # Determine index of associated ghost cell
+        js = map(Tuple(I), axes(v)) do i, ax
+            if i < first(ax) + M
+                last(ax) + i
+            elseif i > last(ax) - M
+                i - last(ax)
+            else
+                i
+            end
+        end
+        J = CartesianIndex(js)
+        I === J && continue  # no ghost cells
+        dest_indices = Iterators.product(
+            map((i, j) -> (i, j), Tuple(I), Tuple(J))...
+        )
+        for dest ∈ dest_indices
+            K = CartesianIndex(dest)
+            K === I && continue
+            @inbounds v[K] = v[I]
+        end
     end
     v
 end
