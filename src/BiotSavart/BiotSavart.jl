@@ -13,7 +13,8 @@ export
     Velocity, Streamfunction,
     init_cache,
     periods,
-    velocity_on_nodes!
+    velocity_on_nodes!,
+    compute_on_nodes!
 
 using ..BasicTypes:
     Vec3, Derivative, Zero, Infinity, ∞
@@ -283,6 +284,36 @@ function velocity_on_nodes!(
     v
 end
 
+"""
+    compute_on_nodes!(
+        fields::NamedTuple{Names, NTuple{N, V}},
+        cache::BiotSavartCache,
+        fs::AbstractVector{<:AbstractFilament},
+    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+
+Compute velocity and/or streamfunction on filament nodes.
+
+The first argument contains one or more output fields to compute. It is usually of length 1
+or 2, and can contain fields named `velocity` and `streamfunction`.
+
+For example, to compute both velocity and streamfunction on the nodes of filaments `fs`:
+
+```julia
+# Initialise fields to compute (vectors of vectors)
+vs = map(similar ∘ nodes, fs)  # one velocity vector per filament node
+ψs = map(similar, vs)
+
+# The first argument to `compute_on_nodes!` must have the following form.
+# One can also choose to pass just one of the two fields.
+fields = (;
+    velocity = vs,
+    streamfunction = ψs,
+)
+
+cache = BiotSavart.init_cache(...)
+compute_on_nodes!(fields, cache, fs)
+```
+"""
 function compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::BiotSavartCache,
@@ -319,6 +350,7 @@ function compute_on_nodes!(
             end
         end
     end
+
     @timeit to "Short-range component" begin
         @timeit to "set_filaments!" set_filaments!(cache.shortrange, fs)
         # TODO streamfunction
