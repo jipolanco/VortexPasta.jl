@@ -37,19 +37,19 @@ function init_cache_long_ewald(
 end
 
 function reset_fields!(c::ExactSumCache)
-    (; uhat,) = c.common
+    (; uhat,) = c
     fill!(uhat, zero(eltype(uhat)))
     c
 end
 
 function set_num_points!(c::ExactSumCache, Np)
-    resize!(c.common.charges, Np)
+    resize!(c.charges, Np)
     c
 end
 
 # Add contribution of point charge to Fourier space field `uhat`.
 function add_pointcharge!(c::ExactSumCache, X::Vec3, Q::Vec3, i::Int)
-    (; uhat, wavenumbers,) = c.common
+    (; uhat, wavenumbers,) = c
     @assert size(uhat) == map(length, wavenumbers)
     inds = CartesianIndices(uhat)
     @inbounds @batch for I ∈ inds
@@ -61,7 +61,7 @@ end
 
 # Compute Fourier interpolation at X
 function add_point!(c::ExactSumCache, X::Vec3, i::Int)
-    (; uhat, wavenumbers, charges,) = c.common
+    (; uhat, wavenumbers, charges,) = c
     kxs = first(wavenumbers)
     kx_lims = first(kxs), last(kxs)
     @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
@@ -94,7 +94,7 @@ end
 # Ensure Hermitian symmetry one dimension at a time.
 @inline function _ensure_hermitian_symmetry!(c::ExactSumCache, ::Val{d}, us) where {d}
     N = size(us, d)
-    kd = c.common.wavenumbers[d]
+    kd = c.wavenumbers[d]
     Δk = kd[2]
     imin = if kd[end] > 0  # real-to-complex dimension (rfftfreq)
         @assert d == 1
@@ -119,7 +119,7 @@ _ensure_hermitian_symmetry!(::ExactSumCache, ::Val{0}, us) = us  # we're done, d
 # Almost nothing to do, most of the work was already done in `add_pointcharge!`.
 # We just zero out some "asymmetric" modes to ease the comparison with other implementations.
 function transform_to_fourier!(c::ExactSumCache)
-    _ensure_hermitian_symmetry!(c, c.common.uhat)
+    _ensure_hermitian_symmetry!(c, c.uhat)
     c
 end
 

@@ -124,14 +124,14 @@ end
 
 function set_num_points!(c::FINUFFTCache, Np)
     resize!(c.points, Np)
-    resize!(c.common.charges, Np)
+    resize!(c.charges, Np)
     c
 end
 
 # This is used for type-1 NUFFTs (physical to Fourier).
 function add_pointcharge!(c::FINUFFTCache, X::Vec3, Q::Vec3, i::Int)
     @inbounds c.points[i] = X
-    @inbounds c.common.charges[i] = Q
+    @inbounds c.charges[i] = Q
     c
 end
 
@@ -149,7 +149,7 @@ end
 # Ensure Hermitian symmetry one dimension at a time.
 @inline function _ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{d}, us) where {d}
     N = size(us, d)
-    kd = c.common.wavenumbers[d]
+    kd = c.wavenumbers[d]
     Δk = kd[2]
     if iseven(N)
         imin = (N ÷ 2) + 1  # asymmetric mode
@@ -163,10 +163,9 @@ end
 _ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{0}, us) = us  # we're done, do nothing
 
 function transform_to_fourier!(c::FINUFFTCache)
-    (; plan_type1, common,) = c
-    (; charges, uhat,) = common
+    (; plan_type1, points, charges, uhat,) = c
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
-    points = StructArrays.components(c.points) :: NTuple{3, <:AbstractVector}
+    points = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     charges = StructArrays.components(charges)
     uhat = StructArrays.components(uhat)
     finufft_setpts!(plan_type1, points...)
@@ -178,10 +177,9 @@ function transform_to_fourier!(c::FINUFFTCache)
 end
 
 function interpolate_to_physical!(c::FINUFFTCache)
-    (; plan_type2, common,) = c
-    (; charges, uhat,) = common
+    (; plan_type2, points, charges, uhat,) = c
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
-    points = StructArrays.components(c.points) :: NTuple{3, <:AbstractVector}
+    points = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     charges = StructArrays.components(charges)
     uhat = StructArrays.components(uhat)
     finufft_setpts!(plan_type2, points...)
