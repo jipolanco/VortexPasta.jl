@@ -10,6 +10,7 @@ export
     ParamsBiotSavart,
     GaussLegendre,
     Zero, Infinity, ∞,
+    Velocity, Streamfunction,
     init_cache,
     periods,
     velocity_on_nodes!
@@ -26,6 +27,10 @@ using ..Filaments:
 
 using TimerOutputs: TimerOutput, @timeit
 
+abstract type OutputField end
+struct Streamfunction <: OutputField end
+struct Velocity <: OutputField end
+
 # Common parameters to short- and long-range computations.
 struct ParamsCommon{T, Alpha <: Real, Sigma <: Real, Periods <: NTuple{3, Real}}
     Γ  :: T        # vortex circulation
@@ -40,9 +45,13 @@ struct ParamsCommon{T, Alpha <: Real, Sigma <: Real, Periods <: NTuple{3, Real}}
     end
 end
 
+Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
+Base.eltype(p::ParamsCommon) = eltype(typeof(p))
+
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
-const VectorOfPositions = AbstractVector{<:Vec3}
-const VectorOfVelocities = AbstractVector{<:Vec3}
+const VectorOfVec = AbstractVector{<:Vec3}
+const VectorOfPositions = VectorOfVec
+const VectorOfVelocities = VectorOfVec
 const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
 
 include("shortrange/shortrange.jl")
@@ -256,9 +265,10 @@ function _reset_vectors!(vs)
 end
 
 function velocity_on_nodes!(
-        vs::AllFilamentVelocities,
+        vs::AbstractVector{<:VectorOfVec},
         cache::BiotSavartCache,
-        fs::VectorOfFilaments,
+        fs::VectorOfFilaments;
+        streamfunction = nothing,
     )
     (; to,) = cache
     eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
@@ -277,11 +287,13 @@ end
 
 # Case of a single filament: interpret inputs as single-element vectors.
 function velocity_on_nodes!(
-        v::VectorOfVelocities, cache::BiotSavartCache, f::AbstractFilament,
+        v::VectorOfVelocities, cache::BiotSavartCache, f::AbstractFilament;
+        streamfunction = nothing,
     )
     vs = SVector{1}((v,))
     fs = SVector{1}((f,))
-    velocity_on_nodes!(vs, cache, fs)
+    ψs = streamfunction === nothing ? nothing : SVector{1}((streamfunction,))
+    velocity_on_nodes!(vs, cache, fs; streamfunction = ψs)
     v
 end
 

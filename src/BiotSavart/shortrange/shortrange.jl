@@ -134,31 +134,47 @@ end
 
 function short_range_velocity end
 
-kernel_velocity_shortrange(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
-kernel_velocity_shortrange(::Zero) = 1
+abstract type EwaldComponent end
+struct ShortRange <: EwaldComponent end
+struct LongRange <: EwaldComponent end
 
-kernel_velocity_longrange(αr) = erf(αr) - 2αr / sqrt(π) * exp(-αr^2)
-kernel_velocity_longrange(::Zero) = Zero()
+ewald_screening_function(::Velocity, ::ShortRange, αr::Real) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
+ewald_screening_function(::Velocity, ::ShortRange,   ::Zero) = 1
+
+ewald_screening_function(::Velocity, ::LongRange, αr::Real) = erf(αr) - 2αr / sqrt(π) * exp(-αr^2)
+ewald_screening_function(::Velocity, ::LongRange,   ::Zero) = Zero()
+
+ewald_screening_function(::Streamfunction, ::ShortRange, αr::Real) = erfc(αr)
+ewald_screening_function(::Streamfunction, ::ShortRange,   ::Zero) = 1
+
+ewald_screening_function(::Streamfunction, ::LongRange, αr::Real) = erf(αr)
+ewald_screening_function(::Streamfunction, ::LongRange,   ::Zero) = Zero()
+
+biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3
+biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r
 
 # Compute Biot-Savart integral over a single filament segment.
 # Note: this doesn't include the prefactor Γ/4π.
 function integrate_biot_savart(
-        kernel::F,
+        quantity::OutputField,
+        component::EwaldComponent,
         seg::Segment,
         x⃗::Vec3,
         params::ParamsShortRange;
         Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
-    ) where {F <: Function}
+    )
     (; common, quad,) = params
     (; Ls, α,) = common
     (; f, i,) = seg
     integrate(seg, quad) do ζ
-        X = f(i, ζ)
-        Ẋ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
-        r⃗ = deperiodise_separation(x⃗ - X, Ls, Lhs)
+        s⃗ = f(i, ζ)
+        ∂ₜs⃗ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
+        r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
         r² = sum(abs2, r⃗)
         r = sqrt(r²)
-        (kernel(α * r) / r^3) * (Ẋ × r⃗)
+        A = ewald_screening_function(quantity, component, α * r)
+        B = biot_savart_integrand(quantity, ∂ₜs⃗, r⃗, r)
+        A * B
     end
 end
 
@@ -214,10 +230,10 @@ function add_short_range_velocity!(
                 # (since it's a smoothing kernel), so there's no problem with
                 # evaluating this integral.
                 @assert x⃗ === g[i]
-                v⃗ = v⃗ - integrate_biot_savart(kernel_velocity_longrange, seg, x⃗, params)
+                v⃗ = v⃗ - integrate_biot_savart(Velocity(), LongRange(), seg, x⃗, params)
             else
                 # Usual case: non-singular region.
-                v⃗ = v⃗ + integrate_biot_savart(kernel_velocity_shortrange, seg, x⃗, params)
+                v⃗ = v⃗ + integrate_biot_savart(Velocity(), ShortRange(), seg, x⃗, params)
             end
         end
 
