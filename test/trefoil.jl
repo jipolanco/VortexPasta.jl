@@ -31,8 +31,10 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     @test BiotSavart.backend(cache_default) isa FINUFFTBackend
 
     # Compute induced velocity field in Fourier space
-    BiotSavart.long_range_velocity_fourier!(cache_exact, fs)
-    BiotSavart.long_range_velocity_fourier!(cache_default, fs)
+    foreach((cache_exact, cache_default)) do c
+        BiotSavart.compute_vorticity_fourier!(c, fs)
+        BiotSavart.to_smoothed_velocity!(c)
+    end
 
     # Compare velocities in Fourier space.
     # Note: the comparison is not straightforward since the wavenumbers are not the same.
@@ -54,8 +56,10 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     @test diffnorm_L2 < tol^2
 
     # Interpolate velocity back to filament positions
-    BiotSavart.long_range_velocity_physical!(cache_exact, fs)
-    BiotSavart.long_range_velocity_physical!(cache_default, fs)
+    foreach((cache_exact, cache_default)) do c
+        BiotSavart.set_interpolation_points!(c, fs)
+        BiotSavart.interpolate_to_physical!(c)
+    end
 
     max_rel_error_physical = maximum(zip(cache_exact.common.charges, cache_default.common.charges)) do (qexact, qdefault)
         norm(qexact - qdefault) / norm(qexact)
@@ -65,8 +69,8 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     # Copy data to arrays.
     vs_exact = map(f -> zero(nodes(f)), fs)
     vs_default = map(f -> zero(nodes(f)), fs)
-    BiotSavart.copy_long_range_output!(vs_exact, cache_exact)
-    BiotSavart.copy_long_range_output!(vs_default, cache_default)
+    BiotSavart.add_long_range_output!(vs_exact, cache_exact)
+    BiotSavart.add_long_range_output!(vs_default, cache_default)
 
     # Compare velocities one filament at a time.
     @test all(zip(vs_exact, vs_default)) do (u, v)

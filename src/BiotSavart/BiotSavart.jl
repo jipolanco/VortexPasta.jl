@@ -267,34 +267,67 @@ end
 function velocity_on_nodes!(
         vs::AbstractVector{<:VectorOfVec},
         cache::BiotSavartCache,
-        fs::VectorOfFilaments;
-        streamfunction = nothing,
+        fs::VectorOfFilaments,
     )
-    (; to,) = cache
-    eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
-    _reset_vectors!(vs)
-    if cache.longrange !== NullLongRangeCache()
-        @timeit to "Long-range velocity" add_long_range_velocity!(vs, cache.longrange, fs)
-    end
-    @timeit to "Short-range velocity" begin
-        @timeit to "set_filaments!" set_filaments!(cache.shortrange, fs)
-        @timeit to "add_short_range_velocity!" for (f, v) ∈ zip(fs, vs)
-            add_short_range_velocity!(v, cache.shortrange, f)
-        end
-    end
-    vs
+    fields = (; velocity = vs,)
+    compute_on_nodes!(fields, cache, fs)
 end
 
 # Case of a single filament: interpret inputs as single-element vectors.
 function velocity_on_nodes!(
         v::VectorOfVelocities, cache::BiotSavartCache, f::AbstractFilament;
-        streamfunction = nothing,
     )
     vs = SVector{1}((v,))
     fs = SVector{1}((f,))
-    ψs = streamfunction === nothing ? nothing : SVector{1}((streamfunction,))
-    velocity_on_nodes!(vs, cache, fs; streamfunction = ψs)
+    velocity_on_nodes!(vs, cache, fs)
     v
+end
+
+function compute_on_nodes!(
+        fields::NamedTuple{Names, NTuple{N, V}},
+        cache::BiotSavartCache,
+        fs::VectorOfFilaments,
+    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+    vs = get(fields, :velocity, nothing)
+    ψs = get(fields, :streamfunction, nothing)
+    nfields = (vs !== nothing) + (ψs !== nothing)
+    nfields == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
+
+    (; to,) = cache
+    vecs = filter(!isnothing, (vs, ψs))
+
+    for us ∈ vecs
+        eachindex(us) == eachindex(fs) ||
+            throw(DimensionMismatch("wrong dimensions of vector"))
+        _reset_vectors!(us)
+    end
+
+    if cache.longrange !== NullLongRangeCache()
+        @timeit to "Long-range component" begin
+            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange, fs)
+            @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)
+            if ψs !== nothing
+                @timeit to "Streamfunction/Fourier" to_smoothed_streamfunction!(cache.longrange)
+                @timeit to "Streamfunction/physical" interpolate_to_physical!(cache.longrange)
+                @timeit to "Streamfunction/copy" add_long_range_output!(ψs, cache.longrange)
+            end
+            if vs !== nothing
+                # Velocity must be computed after streamfunction if both are enabled.
+                @timeit to "Velocity/Fourier" to_smoothed_velocity!(cache.longrange)
+                @timeit to "Velocity/physical" interpolate_to_physical!(cache.longrange)
+                @timeit to "Velocity/copy" add_long_range_output!(vs, cache.longrange)
+            end
+        end
+    end
+    @timeit to "Short-range component" begin
+        @timeit to "set_filaments!" set_filaments!(cache.shortrange, fs)
+        # TODO streamfunction
+        @timeit to "add_short_range_velocity!" for (f, v) ∈ zip(fs, vs)
+            add_short_range_velocity!(v, cache.shortrange, f)
+        end
+    end
+
+    fields
 end
 
 end

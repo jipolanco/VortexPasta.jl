@@ -75,13 +75,27 @@ folding_limits(::FINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
 struct FINUFFTCache{
         T,
         CacheCommon <: LongRangeCacheCommon{T},
-        Points <: StructVector{Vec3{T}},
         Plan,
     } <: LongRangeCache
     common :: CacheCommon
     plan_type1 :: Plan  # plan for type-1 NUFFT (physical non-uniform → Fourier uniform)
     plan_type2 :: Plan  # plan for type-2 NUFFT (Fourier uniform → physical non-uniform)
-    points  :: Points   # non-uniform locations in physical space (3 × [Np])
+end
+
+function init_cache_long_ewald(
+        pc::ParamsCommon{T},
+        params::ParamsLongRange{<:FINUFFTBackend}, timer::TimerOutput,
+    ) where {T}
+    (; Ls,) = pc
+    (; backend, Ns,) = params
+    n_modes = collect(Int64, Ns)  # type expected by finufft_makeplan
+    wavenumbers = map((N, L) -> fftfreq(N, 2π * N / L), Ns, Ls)
+    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, timer)
+    Nks = map(length, wavenumbers)  # in this case (complex-to-complex transform) this is the same as Ns
+    @assert Ns == Nks
+    plan_type1 = _make_finufft_plan_type1(backend, n_modes, T)
+    plan_type2 = _make_finufft_plan_type2(backend, n_modes, T)
+    FINUFFTCache(cache_common, plan_type1, plan_type2)
 end
 
 # FINUFFT options which should never be modified!
@@ -105,39 +119,10 @@ function _make_finufft_plan_type2(p::FINUFFTBackend, n_modes::Vector{Int64}, ::T
     finufft_makeplan(type, n_modes, iflag, ntrans, p.tol; dtype = T, p.kws..., opts...)
 end
 
-function init_cache_long_ewald(
-        pc::ParamsCommon{T},
-        params::ParamsLongRange{<:FINUFFTBackend}, timer::TimerOutput,
-    ) where {T}
-    (; Ls,) = pc
-    (; backend, Ns,) = params
-    n_modes = collect(Int64, Ns)  # type expected by finufft_makeplan
-    wavenumbers = map((N, L) -> fftfreq(N, 2π * N / L), Ns, Ls)
-    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, timer)
-    Nks = map(length, wavenumbers)  # in this case (complex-to-complex transform) this is the same as Ns
-    @assert Ns == Nks
-    plan_type1 = _make_finufft_plan_type1(backend, n_modes, T)
-    plan_type2 = _make_finufft_plan_type2(backend, n_modes, T)
-    points = StructVector{Vec3{T}}(undef, 0)
-    FINUFFTCache(cache_common, plan_type1, plan_type2, points)
-end
-
-function set_num_points!(c::FINUFFTCache, Np)
-    resize!(c.points, Np)
-    resize!(c.charges, Np)
-    c
-end
-
 # This is used for type-1 NUFFTs (physical to Fourier).
 function add_pointcharge!(c::FINUFFTCache, X::Vec3, Q::Vec3, i::Int)
-    @inbounds c.points[i] = X
-    @inbounds c.charges[i] = Q
-    c
-end
-
-# This is used for type-2 NUFFTs (X is an interpolation point).
-function add_point!(c::FINUFFTCache, X::Vec3, i::Int)
-    @inbounds c.points[i] = X
+    @inbounds c.common.points[i] = X
+    @inbounds c.common.charges[i] = Q
     c
 end
 
@@ -149,7 +134,7 @@ end
 # Ensure Hermitian symmetry one dimension at a time.
 @inline function _ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{d}, us) where {d}
     N = size(us, d)
-    kd = c.wavenumbers[d]
+    kd = c.common.wavenumbers[d]
     Δk = kd[2]
     if iseven(N)
         imin = (N ÷ 2) + 1  # asymmetric mode
@@ -163,7 +148,8 @@ end
 _ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{0}, us) = us  # we're done, do nothing
 
 function transform_to_fourier!(c::FINUFFTCache)
-    (; plan_type1, points, charges, uhat,) = c
+    (; plan_type1,) = c
+    (; points, charges, uhat,) = c.common
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     charges = StructArrays.components(charges)
@@ -177,7 +163,8 @@ function transform_to_fourier!(c::FINUFFTCache)
 end
 
 function interpolate_to_physical!(c::FINUFFTCache)
-    (; plan_type2, points, charges, uhat,) = c
+    (; plan_type2,) = c
+    (; points, charges, uhat,) = c.common
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     charges = StructArrays.components(charges)
