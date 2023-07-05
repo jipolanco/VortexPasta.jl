@@ -24,8 +24,11 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
         backend_long = FINUFFTBackend(; tol,),
     )
 
-    cache_exact = @inferred(BiotSavart.init_cache(params_exact, fs)).longrange
-    cache_default = @inferred(BiotSavart.init_cache(params_default, fs)).longrange
+    cache_exact_base = @inferred(BiotSavart.init_cache(params_exact, fs))
+    cache_default_base = @inferred(BiotSavart.init_cache(params_default, fs))
+
+    cache_exact = cache_exact_base.longrange
+    cache_default = cache_default_base.longrange
 
     @test BiotSavart.backend(cache_exact) isa ExactSumBackend
     @test BiotSavart.backend(cache_default) isa FINUFFTBackend
@@ -73,9 +76,30 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     BiotSavart.add_long_range_output!(vs_default, cache_default)
 
     # Compare velocities one filament at a time.
-    @test all(zip(vs_exact, vs_default)) do (u, v)
+    check_approx(us, vs, tol) = all(zip(us, vs)) do (u, v)
         isapprox(u, v; rtol = tol)
     end
+    @test check_approx(vs_default, vs_exact, tol)
+
+    # Also compare output of full (short + long range) computation, and including
+    # the streamfunction.
+    ψs_exact = map(similar ∘ nodes, fs)
+    ψs_default = map(similar ∘ nodes, fs)
+
+    fields_exact = (;
+        velocity = vs_exact,
+        streamfunction = ψs_exact,
+    )
+    fields_default = (;
+        velocity = vs_default,
+        streamfunction = ψs_default,
+    )
+
+    BiotSavart.compute_on_nodes!(fields_default, cache_default_base, fs)
+    BiotSavart.compute_on_nodes!(fields_exact, cache_exact_base, fs)
+
+    @test check_approx(vs_default, vs_exact, tol)
+    @test check_approx(ψs_default, ψs_exact, tol)
 
     nothing
 end
