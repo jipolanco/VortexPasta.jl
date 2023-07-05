@@ -38,8 +38,8 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     # Note: the comparison is not straightforward since the wavenumbers are not the same.
     # The "exact" implementation takes advantage of Hermitian symmetry to avoid
     # computing half of the data, while FINUFFT doesn't make this possible...
-    ks_default = cache_default.wavenumbers
-    ks_exact = cache_exact.wavenumbers
+    ks_default = cache_default.common.wavenumbers
+    ks_exact = cache_exact.common.wavenumbers
     inds_to_compare = ntuple(Val(3)) do i
         inds = eachindex(ks_exact[i])
         js = i == 1 ? inds[begin:end - 1] : inds
@@ -47,7 +47,7 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
         js
     end |> CartesianIndices
     diffnorm_L2 = sum(inds_to_compare) do I
-        uhat, vhat = cache_exact.uhat, cache_default.uhat
+        uhat, vhat = cache_exact.common.uhat, cache_default.common.uhat
         du = uhat[I] - vhat[I]
         sum(abs2, du)  # = |u - v|^2
     end
@@ -57,7 +57,7 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     BiotSavart.long_range_velocity_physical!(cache_exact, fs)
     BiotSavart.long_range_velocity_physical!(cache_default, fs)
 
-    max_rel_error_physical = maximum(zip(cache_exact.charges, cache_default.charges)) do (qexact, qdefault)
+    max_rel_error_physical = maximum(zip(cache_exact.common.charges, cache_default.common.charges)) do (qexact, qdefault)
         norm(qexact - qdefault) / norm(qexact)
     end
     @test max_rel_error_physical < tol
@@ -65,8 +65,8 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     # Copy data to arrays.
     vs_exact = map(f -> zero(nodes(f)), fs)
     vs_default = map(f -> zero(nodes(f)), fs)
-    BiotSavart.add_long_range_velocity!(vs_exact, cache_exact)
-    BiotSavart.add_long_range_velocity!(vs_default, cache_default)
+    BiotSavart.copy_long_range_output!(vs_exact, cache_exact)
+    BiotSavart.copy_long_range_output!(vs_default, cache_default)
 
     # Compare velocities one filament at a time.
     @test all(zip(vs_exact, vs_default)) do (u, v)

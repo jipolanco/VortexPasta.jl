@@ -1,5 +1,7 @@
 using StaticArrays: SVector
-using StructArrays: StructArrays
+using StructArrays: StructArrays, StructVector, StructArray
+
+## ================================================================================ ##
 
 """
     LongRangeBackend
@@ -20,7 +22,7 @@ Abstract type denoting the backend to use for computing long-range interactions.
 
 The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
-- `_init_cache_long(c::ParamsCommon, α::AbstractFloat, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`.
+- `init_cache_long_ewald(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`.
 
 - [`expected_period`](@ref) (optional),
 
@@ -54,6 +56,65 @@ Note that, if a backend defines `folding_limits`, then it must also define
 """
 folding_limits(::LongRangeBackend) = nothing
 
+## ================================================================================ ##
+
+struct ParamsLongRange{
+        Backend <: LongRangeBackend,
+        Quadrature <: AbstractQuadrature,
+        Common <: ParamsCommon,
+    }
+    backend :: Backend
+    quad    :: Quadrature  # quadrature rule used for numerical integration
+    common  :: Common      # common parameters (Γ, α, Ls)
+    Ns      :: Dims{3}     # grid dimensions for FFTs
+end
+
+backend(p::ParamsLongRange) = p.backend
+quadrature_rule(p::ParamsLongRange) = p.quad
+
+## ================================================================================ ##
+
+mutable struct LongRangeCacheState
+    quantity :: Symbol  # quantity currently held by the cache (:undef, :vorticity, :velocity, :streamfunction)
+    smoothed :: Bool    # true if Ewald's Gaussian filter has already been applied
+end
+
+LongRangeCacheState() = LongRangeCacheState(:undef, false)
+
+struct LongRangeCacheCommon{
+        T <: AbstractFloat,
+        Params <: ParamsLongRange,
+        WaveNumbers <: NTuple{3, AbstractVector},
+        Charges <: StructVector{Vec3{Complex{T}}},
+        FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
+        Timer <: TimerOutput,
+    }
+    params      :: Params
+    wavenumbers :: WaveNumbers
+    charges     :: Charges  # values at non-uniform locations (3 × [Np]) -- only used to store interpolations
+    uhat        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
+    ewald_op    :: Array{T, 3}  # Ewald operator in Fourier space ([Nx, Ny, Nz])
+    state       :: LongRangeCacheState
+    to          :: Timer
+end
+
+function LongRangeCacheCommon(
+        pcommon::ParamsCommon,
+        params::ParamsLongRange,
+        wavenumbers::NTuple{3, AbstractVector},
+        timer::TimerOutput,
+    )
+    T = eltype(pcommon)
+    (; Γ, Ls, α,) = pcommon
+    @assert α !== Zero()
+    Nks = map(length, wavenumbers)
+    charges = StructVector{Vec3{Complex{T}}}(undef, 0)
+    uhat = StructArray{Vec3{Complex{T}}}(undef, Nks)
+    ewald_op = init_ewald_fourier_operator(T, wavenumbers, Γ, α, Ls)
+    state = LongRangeCacheState()
+    LongRangeCacheCommon(params, wavenumbers, charges, uhat, ewald_op, state, timer)
+end
+
 """
     LongRangeCache
 
@@ -68,24 +129,8 @@ The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRan
 
 ### Fields
 
-The following fields must be included in a cache:
-
-- `params <: ParamsLongRange` parameters for long-range computations;
-
-- `wavenumbers <: NTuple{3, <:AbstractVector}` Fourier-space wavenumbers `(kx, ky, kz)`;
-
-- `uhat :: StructArray{Vec3{Complex{T}}, 3}` vector field in Fourier space which can
-  contain coarse-grained vorticity or velocity fields;
-
-- `ewald_op :: Array{T, 3}` scalar in Fourier space containing Ewald operator, converting
-  vorticity to a coarse-grained streamfunction properly scaled by the vortex
-  circulation `Γ` and the unit cell volume `V`;
-
-- `charges :: StructVector{Vec3{Complex{T}}}` contains values at non-uniform points.
-  In particular, it stores the output of type-2 NUFFTs (i.e. interpolations to
-  physical space);
-
-- `to :: TimerOutput` for measuring time spent on different functions.
+All caches must include a `common <: LongRangeCacheCommon` field which contains common
+definitions for all backends.
 
 Optional fields:
 
@@ -120,7 +165,7 @@ This is the case when the Ewald splitting parameter ``α`` is set to `Zero()`.
 """
 struct NullLongRangeCache <: LongRangeCache end
 
-backend(c::LongRangeCache) = backend(c.params)
+backend(c::LongRangeCache) = backend(c.common.params)
 
 """
     init_cache_long(pc::ParamsCommon, p::ParamsLongRange, to::TimerOutput) -> LongRangeCache
@@ -130,11 +175,13 @@ Initialise the cache for the long-range backend defined in `p`.
 Note that, if `pc.α === Zero()`, then long-range computations are disabled and
 this returns a [`NullLongRangeCache`](@ref).
 """
-function init_cache_long end
-
-init_cache_long(pc::ParamsCommon, args...) = _init_cache_long(pc, pc.α, args...)
-
-_init_cache_long(::ParamsCommon, ::Zero, args...) = NullLongRangeCache()
+function init_cache_long(pc::ParamsCommon, args...)
+    if pc.α === Zero()
+        NullLongRangeCache()  # disables Ewald method / long-range computations
+    else
+        init_cache_long_ewald(pc, args...)
+    end
+end
 
 """
     reset_fields!(cache::LongRangeCache)
@@ -201,7 +248,7 @@ This function should also scale the magnitude of the velocity field according
 to the chosen vortex circulation `Γ` and to the cell unit dimensions `Ls`.
 """
 function to_filtered_velocity!(c::LongRangeCache)
-    (; uhat, ewald_op, wavenumbers,) = c
+    (; uhat, ewald_op, wavenumbers,) = c.common
     @assert size(uhat) === size(ewald_op)
     @inbounds for I ∈ CartesianIndices(ewald_op)
         op = ewald_op[I]
@@ -214,26 +261,12 @@ end
 """
     interpolate_to_physical!(cache::LongRangeCache)
 
-Perform type-2 NUFFT to interpolate values in `cache.uhat` to non-uniform
+Perform type-2 NUFFT to interpolate values in `cache.common.uhat` to non-uniform
 points in physical space.
 
-Results are written to `cache.charges`.
+Results are written to `cache.common.charges`.
 """
 function interpolate_to_physical! end
-
-struct ParamsLongRange{
-        Backend <: LongRangeBackend,
-        Quadrature <: AbstractQuadrature,
-        Common <: ParamsCommon,
-    }
-    backend :: Backend
-    quad    :: Quadrature  # quadrature rule used for numerical integration
-    common  :: Common      # common parameters (Γ, α, Ls)
-    Ns      :: Dims{3}     # grid dimensions for FFTs
-end
-
-backend(p::ParamsLongRange) = p.backend
-quadrature_rule(p::ParamsLongRange) = p.quad
 
 function _count_charges(quad::AbstractQuadrature, fs::AbstractVector{<:ClosedFilament})
     Nq = length(quad)        # number of evaluation points per filament segment
@@ -271,7 +304,7 @@ end
 _rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing
 
 function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
-    (; Ls,) = c.params.common
+    (; Ls,) = c.common.params.common
     for (xs, L) ∈ zip(StructArrays.components(c.points), Ls)
         _rescale_coordinates!(xs, L, L_expected)
     end
@@ -325,12 +358,12 @@ preserve the periodicity of the velocity field (→ zero total circulation).
 This function implicitly sets the average vorticity to zero.
 
 The resulting velocity field, coarse-grained at a scale given by the Ewald
-splitting parameter ``α``, is written in Fourier space to `cache.uhat`, which
+splitting parameter ``α``, is written in Fourier space to `cache.common.uhat`, which
 is also returned by this function for convenience.
 """
 function long_range_velocity_fourier!(cache::LongRangeCache, fs::VectorOfFilaments)
-    (; to,) = cache
-    quad = quadrature_rule(cache.params)
+    (; to, params, uhat,) = cache.common
+    quad = quadrature_rule(params)
     Ncharges = _count_charges(quad, fs)
     reset_fields!(cache)
     set_num_points!(cache, Ncharges)
@@ -355,7 +388,7 @@ function long_range_velocity_fourier!(cache::LongRangeCache, fs::VectorOfFilamen
     @timeit to "fold coordinates" fold_coordinates!(cache)
     @timeit to "transform to Fourier" transform_to_fourier!(cache)
     @timeit to "compute velocity" to_filtered_velocity!(cache)
-    cache.uhat
+    uhat
 end
 
 """
@@ -366,7 +399,7 @@ Interpolate long-range velocity at the location of filament nodes.
 The `cache` must contain a velocity field in Fourier space. To do this, one
 should first call [`long_range_velocity_fourier!`](@ref).
 
-Velocities are written to `cache.charges`, which is also returned for convenience.
+Velocities are written to `cache.common.charges`, which is also returned for convenience.
 """
 function long_range_velocity_physical! end
 
@@ -374,7 +407,7 @@ function long_range_velocity_physical!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
     )
-    (; to,) = cache
+    (; to, charges,) = cache.common
     Npoints = sum(length, fs)
     set_num_points!(cache, Npoints)
     n = 0
@@ -385,42 +418,35 @@ function long_range_velocity_physical!(
     @timeit to "rescale coordinates" rescale_coordinates!(cache)
     @timeit to "fold coordinates" fold_coordinates!(cache)
     @timeit to "interpolate" interpolate_to_physical!(cache)
-    cache.charges
+    charges
 end
 
+"""
+    add_long_range_velocity!(
+        vs::AbstractVector{<:AbstractVector{<:Vec3}},
+        cache::LongRangeCache,
+        fs::AbstractVector{<:AbstractFilament},
+    )
+
+Compute long-range part of the velocity from vortex filament locations.
+
+The results are added to `vs`. The output array `vs` should be a vector of vectors, where
+each inner vector corresponds to the nodes of a single vortex filament.
+"""
 function add_long_range_velocity!(
         vs::AbstractVector, cache::LongRangeCache, fs::VectorOfFilaments,
     )
-    (; to,) = cache
+    (; to,) = cache.common
     @timeit to "compute v̂" long_range_velocity_fourier!(cache, fs)
     @timeit to "interpolate" long_range_velocity_physical!(cache, fs)
-    @timeit to "copy output" add_long_range_velocity!(vs, cache)
+    @timeit to "copy output" copy_long_range_output!(vs, cache)
     vs
 end
 
-"""
-    add_long_range_velocity!(vs::AbstractVector{<:AbstractVector{<:Vec3}}, cache::LongRangeCache)
-    add_long_range_velocity!(vs::AbstractVector{<:AbstractVector{<:Vec3}}, cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
-
-Add non-uniform data interpolated from a Fourier-space field to `vs`.
-
-The output array `vs` should be a vector of vectors, where each inner vector
-corresponds to the nodes of a single vortex filament.
-
-The first variant only copies data from the cache to `vs`. It require
-first calling [`long_range_velocity_fourier!`](@ref) to compute the velocity
-field in Fourier space, and then [`long_range_velocity_physical!`](@ref) to
-interpolate velocities in physical space.
-
-The second variant (which also takes a list of filaments) performs all of
-these operations, and thus calling these other functions is not required.
-"""
-function add_long_range_velocity! end
-
-function add_long_range_velocity!(
+function copy_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
     )
-    (; charges,) = cache
+    (; charges,) = cache.common
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     n = 0
