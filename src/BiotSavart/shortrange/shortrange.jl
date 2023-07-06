@@ -194,15 +194,33 @@ function add_short_range_velocity!(
         f::AbstractFilament;
         LIA::Val{_LIA} = Val(true),  # can be used to disable LIA (for testing only)
     ) where {_LIA}
+    fields = (; velocity = vs,)
+    add_short_range_fields!(fields, cache, f; LIA)
+end
+
+function add_short_range_fields!(
+        fields::NamedTuple{Names, NTuple{N, V}},
+        cache::ShortRangeCache,
+        f::AbstractFilament;
+        LIA::Val{_LIA} = Val(true),  # can be used to disable LIA (for testing only)
+    ) where {Names, N, V <: VectorOfVec, _LIA}
+    vs = get(fields, :velocity, nothing)
+    ψs = get(fields, :streamfunction, nothing)
+    vecs = filter(!isnothing, (vs, ψs))
+    nfields = length(vecs)
+    @assert nfields == N > 0
+
     (; params,) = cache
     (; quad,) = params
     (; Γ, a, Δ,) = params.common
     prefactor = Γ / 4π
 
     Xs = nodes(f)
-    eachindex(vs) == eachindex(Xs) || throw(DimensionMismatch(
-        "vector of velocities has wrong length"
-    ))
+    foreach(vecs) do us
+        eachindex(us) == eachindex(Xs) || throw(DimensionMismatch(
+            "vector has wrong length"
+        ))
+    end
 
     segment_a = lastindex(segments(f))   # index of segment ending at point x⃗
     segment_b = firstindex(segments(f))  # index of segment starting at point x⃗
@@ -211,9 +229,17 @@ function add_short_range_velocity!(
         # Start with the LIA term in the singular region.
         # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the
         # prefactor later.
-        v⃗ = local_self_induced_velocity(f, i, one(prefactor); a, Δ, quad,)
-        if !_LIA
-            v⃗ = zero(v⃗)
+        if vs !== nothing
+            v⃗ = local_self_induced_velocity(f, i, one(prefactor); a, Δ, quad,)
+            if !_LIA
+                v⃗ = zero(v⃗)
+            end
+        end
+        if ψs !== nothing
+            ψ⃗ = local_self_induced_streamfunction(f, i, one(prefactor); a, Δ, quad,)
+            if !_LIA
+                ψ⃗ = zero(ψ⃗)
+            end
         end
 
         for seg ∈ nearby_segments(cache, x⃗)
@@ -230,20 +256,35 @@ function add_short_range_velocity!(
                 # (since it's a smoothing kernel), so there's no problem with
                 # evaluating this integral.
                 @assert x⃗ === g[i]
-                v⃗ = v⃗ - integrate_biot_savart(Velocity(), LongRange(), seg, x⃗, params)
+                if vs !== nothing
+                    v⃗ = v⃗ - integrate_biot_savart(Velocity(), LongRange(), seg, x⃗, params)
+                end
+                if ψs !== nothing
+                    ψ⃗ = ψ⃗ - integrate_biot_savart(Streamfunction(), LongRange(), seg, x⃗, params)
+                end
             else
                 # Usual case: non-singular region.
-                v⃗ = v⃗ + integrate_biot_savart(Velocity(), ShortRange(), seg, x⃗, params)
+                if vs !== nothing
+                    v⃗ = v⃗ + integrate_biot_savart(Velocity(), ShortRange(), seg, x⃗, params)
+                end
+                if ψs !== nothing
+                    ψ⃗ = ψ⃗ + integrate_biot_savart(Streamfunction(), ShortRange(), seg, x⃗, params)
+                end
             end
         end
 
         segment_a = segment_b
         segment_b += 1
 
-        vs[i] = vs[i] + v⃗ * prefactor
+        if vs !== nothing
+            vs[i] = vs[i] + v⃗ * prefactor
+        end
+        if ψs !== nothing
+            ψs[i] = ψs[i] + ψ⃗ * prefactor
+        end
     end
 
-    vs
+    fields
 end
 
 include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)

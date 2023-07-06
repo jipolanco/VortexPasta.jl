@@ -319,13 +319,13 @@ function compute_on_nodes!(
         cache::BiotSavartCache,
         fs::VectorOfFilaments,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+    (; to,) = cache
+    @assert N > 0
     vs = get(fields, :velocity, nothing)
     ψs = get(fields, :streamfunction, nothing)
-    nfields = (vs !== nothing) + (ψs !== nothing)
-    nfields == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
-
-    (; to,) = cache
     vecs = filter(!isnothing, (vs, ψs))
+    nfields = length(vecs)
+    nfields == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
 
     for us ∈ vecs
         eachindex(us) == eachindex(fs) ||
@@ -352,10 +352,10 @@ function compute_on_nodes!(
     end
 
     @timeit to "Short-range component" begin
-        @timeit to "set_filaments!" set_filaments!(cache.shortrange, fs)
-        # TODO streamfunction
-        @timeit to "add_short_range_velocity!" for (f, v) ∈ zip(fs, vs)
-            add_short_range_velocity!(v, cache.shortrange, f)
+        @timeit to "Set filaments" set_filaments!(cache.shortrange, fs)
+        @timeit to "Biot-Savart integrals" for i ∈ eachindex(fs)
+            fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
+            add_short_range_fields!(fields_i, cache.shortrange, fs[i])
         end
     end
 
