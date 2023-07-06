@@ -138,18 +138,25 @@ function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws.
     nothing
 end
 
-function compute_filament_velocity(f; α, Ls, params_kws...)
+function compute_filament_velocity_and_streamfunction(f::AbstractFilament; α, Ls, params_kws...)
     rcut = min(4 * sqrt(2) / α, minimum(Ls) / 2)
     params = ParamsBiotSavart(; params_kws..., α, Ls, rcut)
-    cache = init_cache(params, [f])
-    velocity_on_nodes!(similar(nodes(f)), cache, f)
+    fs = [f]
+    cache = init_cache(params, fs)
+    vs = map(similar ∘ nodes, fs)
+    fields = (
+        velocity = vs,
+        streamfunction = map(similar, vs),
+    )
+    compute_on_nodes!(fields, cache, fs)
+    fields
 end
 
 # Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
 # (In theory it shouldn't depend at all...)
 function check_independence_on_ewald_parameter(f, αs; params_kws...)
-    vs_all = map(αs) do α
-        compute_filament_velocity(
+    fields_all = map(αs) do α
+        compute_filament_velocity_and_streamfunction(
             f;
             α,
             backend_short = NaiveShortRangeBackend(),
@@ -159,14 +166,20 @@ function check_independence_on_ewald_parameter(f, αs; params_kws...)
             params_kws...,
         )
     end
-    vs_test = last(vs_all)
-    maxdiffs = map(vs_all) do vs
-        maximum(zip(vs, vs_test)) do (a, b)
+    fields_test = last(fields_all)
+    maxdiffs_vel = map(fields_all) do fields
+        maximum(zip(fields.velocity, fields_test.velocity)) do (a, b)
             norm(a - b) / norm(b)
         end
     end
-    # @show maxdiffs
-    @test maximum(maxdiffs) < 1e-4
+    maxdiffs_stf = map(fields_all) do fields
+        maximum(zip(fields.streamfunction, fields_test.streamfunction)) do (a, b)
+            norm(a - b) / norm(b)
+        end
+    end
+    @show maxdiffs_vel maxdiffs_stf
+    @test maximum(maxdiffs_vel) < 1e-4
+    @test maximum(maxdiffs_stf) < 1e-5
     nothing
 end
 
