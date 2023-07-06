@@ -1,5 +1,7 @@
 using ..Filaments:
     CurvatureBinormal, UnitTangent
+using LinearAlgebra:
+    normalize
 
 """
     local_self_induced_velocity(
@@ -109,6 +111,11 @@ function _local_self_induced(
     β * b⃗
 end
 
+# TODO
+# - I'm not yet sure whether this is the good LIA term for the streamfunction. In
+#   particular, should one use the same Δ? One way to check this is by looking at energy
+#   conservation of non-reconnecting cases.
+# - Implement variant with no quadratures?
 function _local_self_induced(
         ::Streamfunction, quad::AbstractQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
@@ -120,7 +127,15 @@ function _local_self_induced(
     ℓ₊ = integrate(f, i, quad) do ζ
         norm(f(i, ζ, Derivative(1)))
     end
-    t̂ = f[i, UnitTangent()]  # use local (non-averaged) tangent at point of interest
+    # Compute an average for the derivative ∂ₜs⃗.
+    ṡ₋ = integrate(f, i - 1, quad) do ζ
+        f(i - 1, ζ, Derivative(1))
+    end
+    ṡ₊ = integrate(f, i, quad) do ζ
+        f(i, ζ, Derivative(1))
+    end
+    t̂ = normalize(ṡ₋ + ṡ₊)
+    # t̂ = f[i, UnitTangent()]  # use local (non-averaged) tangent at point of interest
     β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)  # note: prefactor = Γ/4π (hence the 2)
     β * t̂
 end

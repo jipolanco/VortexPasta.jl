@@ -141,9 +141,9 @@ The following functions must be implemented by a cache:
 
 - [`reset_fields!`](@ref) (optional),
 
-- [`set_num_points!`](@ref),
+- [`set_num_points!`](@ref) (optional),
 
-- [`add_point!`](@ref),
+- [`add_point!`](@ref) (optional),
 
 - [`add_pointcharge!`](@ref),
 
