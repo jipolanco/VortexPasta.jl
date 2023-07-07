@@ -78,5 +78,42 @@ end
             @test ρl_min ≥ crit.ρℓ_min
             @test ρl_max ≤ crit.ρℓ_max
         end
+
+        @testset "Knot removal" begin
+            # Check that removing a node doesn't change the curve properties (continuity,
+            # periodicity...). We test all nodes just in case, but nodes near the beginning
+            # and end are the ones which used to fail for splines (fixed since)...
+            for i ∈ eachindex(f)
+                @testset "Node $i/$N" begin
+                    fc = copy(f)
+                    Filaments.remove_node!(fc, i)
+                    Filaments.update_after_changing_nodes!(fc; removed = true)
+                    @test all(i -> fc[i] == fc(i, 0.0), eachindex(fc))
+                    @test fc[end + 1] == fc[begin]
+                    @test fc[end] == fc[begin - 1]
+                    ts = knots(fc)
+                    @test fc(ts[begin]) == fc[begin]
+                    @test fc(lastindex(fc), 1.0) ≈ fc[end + 1]
+                end
+            end
+        end
     end
+end
+
+if @isdefined(Makie)
+    fig = Figure()
+    ax = Axis3(fig[1, 1]; aspect = :data)
+    # wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
+    plot!(ax, f; refinement = 8, linestyle = :dash, color = (:grey, 0.5))
+    let f = fc
+        p = plot!(ax, f; refinement = 8)
+        scatter!(ax, nodes(f).data; color = p.color)
+        inds = (firstindex(f) - 2):(lastindex(f) + 2)
+        for i ∈ inds
+            align = i ∈ eachindex(f) ? (:left, :bottom) : (:right, :top)
+            color = i ∈ eachindex(f) ? (p.color, 1.0) : (p.color, 0.6)
+            text!(ax, f[i]; text = string(i), fontsize = 16, color, align)
+        end
+    end
+    fig
 end
