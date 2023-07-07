@@ -249,7 +249,8 @@ function remove_node!(f::ClosedLocalFilament, i::Integer)
     popat!(Xs, i)
 end
 
-function update_after_changing_nodes!(f::ClosedLocalFilament)
+# The `removed` argument is just there for compatibility with splines.
+function update_after_changing_nodes!(f::ClosedLocalFilament; removed = true)
     (; Xs,) = f
     resize!(f, length(Xs))   # resize all vectors in the filament
     if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
