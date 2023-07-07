@@ -193,18 +193,30 @@ end
 
 function remove_node!(f::ClosedSplineFilament, i::Integer)
     (; ts, cs, Xs,) = f
+    T = ts[end + 1] - ts[begin]
     popat!(cs, i)
     popat!(ts, i)
     popat!(Xs, i)
+    pad_periodic!(cs)
+    pad_periodic!(ts, T)
+    nothing
 end
 
-function update_after_changing_nodes!(f::ClosedSplineFilament)
+# If knots were not removed but only inserted, one can pass `removed = false` to avoid
+# reevaluating node positions (not needed for node insertion, since the curve is unchanged
+# in that case).
+function update_after_changing_nodes!(f::ClosedSplineFilament; removed = true)
     (; Xs,) = f
     resize!(f, length(Xs))   # resize all vectors in the filament
-    if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
-        pad_periodic!(Xs, f.Xoffset)  # just in case...
-        _update_coefficients_only!(f; only_derivatives = true)
+    check_nodes(Bool, f) || return f  # avoids error if the new number of nodes is too low
+    if removed
+        # Recompute node positions from new coefficients.
+        @inbounds for i ∈ eachindex(f)
+            Xs[i] = f(i, 0.0)
+        end
     end
+    pad_periodic!(Xs, f.Xoffset)
+    _update_coefficients_only!(f; only_derivatives = true)
     f
 end
 

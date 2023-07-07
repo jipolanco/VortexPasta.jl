@@ -142,12 +142,11 @@ function refine!(f::AbstractFilament, crit::RefinementCriterion)
 
     if n_add + n_rem > 0
         @assert length(nodes(f)) == N + n_add - n_rem
-        update_after_changing_nodes!(f)
+        update_after_changing_nodes!(f; removed = n_rem > 0)
     end
 
     n_add, n_rem
 end
-
 
 struct RefinementCache
     inds   :: Vector{Int}   # indices of nodes or segments to modify
