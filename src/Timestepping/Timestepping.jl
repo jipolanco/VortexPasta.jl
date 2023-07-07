@@ -413,6 +413,7 @@ function after_advection!(iter::VortexFilamentSolver)
     # Perform reconnections, possibly changing the number of filaments.
     @timeit to "reconnect!" reconnect!(iter)
     @assert length(fs) == length(vs)
+    isempty(fs) && error("all vortices disappeared!")  # TODO nicer way to handle this?
 
     # Update velocities and streamfunctions to the next timestep (and first RK step).
     # Note that we only compute the streamfunction at full steps, and not in the middle of
