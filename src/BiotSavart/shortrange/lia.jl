@@ -118,25 +118,18 @@ end
 function _local_self_induced(
         ::Streamfunction, quad::AbstractQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real, fit_circle = false,  # ignored
+        a::Real, Δ::Real,
+        fit_circle = false,  # ignored
     )
-    ṡ₋, ℓ₋ = let
-        # Compute both integrals at once, to avoid evaluating the derivative twice.
-        x = integrate(f, i - 1, quad) do ζ
-            ṡ = f(i - 1, ζ, Derivative(1))
-            SVector(ṡ..., norm(ṡ))
-        end
-        SVector(x[1], x[2], x[3]), x[4]
+    ℓ₋ = integrate(f, i - 1, quad) do ζ
+        norm(f(i - 1, ζ, Derivative(1)))
     end
-    ṡ₊, ℓ₊ = let
-        x = integrate(f, i, quad) do ζ
-            ṡ = f(i, ζ, Derivative(1))
-            SVector(ṡ..., norm(ṡ))
-        end
-        SVector(x[1], x[2], x[3]), x[4]
+    ℓ₊ = integrate(f, i, quad) do ζ
+        norm(f(i, ζ, Derivative(1)))
     end
-    t̂ = normalize(ṡ₋ + ṡ₊)  # average unit tangent vector
-    # t̂ = f[i, UnitTangent()]  # alternative: use local (non-averaged) tangent at point of interest
+    # Use local (non-averaged) tangent at point of interest.
+    # We want to make sure that the result is exactly tangent to the curve at the node.
+    t̂ = f[i, UnitTangent()]
     β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)  # note: prefactor = Γ/4π (hence the 2)
     β * t̂
 end
