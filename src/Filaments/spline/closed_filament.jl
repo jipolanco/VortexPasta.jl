@@ -197,8 +197,12 @@ function remove_node!(f::ClosedSplineFilament, i::Integer)
     popat!(cs, i)
     popat!(ts, i)
     popat!(Xs, i)
-    pad_periodic!(cs)
-    pad_periodic!(ts, T)
+    # Avoid error if number of nodes decreased below the limit.
+    # Note that `check_nodes` uses the length of f.Xs to determine this.
+    if check_nodes(Bool, f)
+        pad_periodic!(cs)
+        pad_periodic!(ts, T)
+    end
     nothing
 end
 
