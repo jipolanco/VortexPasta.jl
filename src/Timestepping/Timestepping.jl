@@ -109,6 +109,8 @@ Some useful fields are:
 
 - `vs`: current velocity of vortex filament nodes;
 
+- `ψs`: current streamfunction at vortex filament nodes;
+
 - `time`: a [`TimeInfo`](@ref) object containing information such as the current time and timestep;
 
 - `to`: a `TimerOutput`, which records the time spent on different functions;
@@ -133,6 +135,7 @@ struct VortexFilamentSolver{
     prob  :: Problem
     fs    :: Filaments
     vs    :: Velocities
+    ψs    :: Velocities  # not really velocity, but streamfunction
     time  :: TimeInfo
     dtmin :: Float64
     refinement        :: Refinement
@@ -143,7 +146,7 @@ struct VortexFilamentSolver{
     callback :: Callback
     to       :: Timer
     advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
-    rhs!     :: RHSFunction     # function for estimating filament velocities from their positions
+    rhs!     :: RHSFunction     # function for estimating filament velocities (and sometimes streamfunction) from their positions
 end
 
 get_dt(iter::VortexFilamentSolver) = iter.time.dt
@@ -198,13 +201,14 @@ function init(
     (; fs, tspan,) = prob
     vs_data = [similar(nodes(f)) for f ∈ fs] :: AllFilamentVelocities
     vs = VectorOfVectors(vs_data)
+    ψs = similar(vs)
     fs_sol = alias_u0 ? fs : copy.(fs)
     cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
 
     # Wrap functions with the timer, so that timings are estimated each time the function is called.
     advect! = timer(advect_filaments!, "advect_filaments!")
-    rhs! = timer(vortex_velocities!, "vortex_velocities!")
+    rhs! = timer(update_values_at_nodes!, "update_values_at_nodes!")
     callback_ = timer(callback, "callback")
 
     if adaptivity !== NoAdaptivity() && !can_change_dt(scheme)
@@ -214,7 +218,7 @@ function init(
     time = TimeInfo(nstep = 0, t = first(tspan), dt = dt, dt_prev = dt)
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, time, dtmin, refinement, adaptivity, reconnect,
+        prob, fs_sol, vs, ψs, time, dtmin, refinement, adaptivity, reconnect,
         cache_bs, cache_timestepper, callback_, timer,
         advect!, rhs!,
     )
@@ -224,19 +228,53 @@ function init(
     iter
 end
 
-function _vortex_velocities!(
-        vs::VectorOfVectors,
+function _update_values_at_nodes!(
+        fields::NamedTuple{Names, NTuple{N, V}},
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
-    )
-    (; cache_bs,) = iter
-    BiotSavart.velocity_on_nodes!(vs.u, cache_bs, fs)
-    vs
+    ) where {Names, N, V <: VectorOfVectors}
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
+    fields
 end
 
 # This is the most general variant which should be called by timesteppers.
 # For now we don't use the time, but we might in the future...
-vortex_velocities!(vs, fs, t::Real, iter) = _vortex_velocities!(vs, fs, iter)
+update_values_at_nodes!(fields::NamedTuple, fs, t::Real, iter) =
+    _update_values_at_nodes!(fields, fs, iter)
+
+# Case where only the velocity is passed (generally used in internal RK substeps).
+function update_values_at_nodes!(vs::VectorOfVectors, args...)
+    fields = (velocity = vs,)
+    update_values_at_nodes!(fields, args...)
+    vs
+end
+
+# Here buf is usually a VectorOfFilaments or a vector of vectors of velocities
+# (containing the velocities of all filaments).
+# Resizes the higher-level vector without resizing the individual vectors it contains.
+function resize_container!(buf, fs::VectorOfFilaments)
+    i = lastindex(buf)
+    N = lastindex(fs)
+    i === N && return buf
+    while i < N
+        i += 1
+        push!(buf, similar(first(buf), length(fs[i])))
+    end
+    while i > N
+        i -= 1
+        pop!(buf)
+    end
+    @assert length(fs) == length(buf)
+    buf
+end
+
+function resize_contained_vectors!(buf, fs::VectorOfFilaments)
+    for (i, f) ∈ pairs(fs)
+        N = length(f)
+        resize!(buf[i], N)
+    end
+    buf
+end
 
 function refine!(f::AbstractFilament, refinement::RefinementCriterion)
     nref = Filaments.refine!(f, refinement)  # we assume update_coefficients! was already called
@@ -370,13 +408,25 @@ end
 
 # Called whenever filament positions have just been initialised or updated.
 function after_advection!(iter::VortexFilamentSolver)
-    (; vs, fs, time, callback, adaptivity, rhs!, to,) = iter
+    (; vs, ψs, fs, time, callback, adaptivity, rhs!, to,) = iter
 
     # Perform reconnections, possibly changing the number of filaments.
     @timeit to "reconnect!" reconnect!(iter)
     @assert length(fs) == length(vs)
+    isempty(fs) && error("all vortices disappeared!")  # TODO nicer way to handle this?
 
-    rhs!(vs, fs, time.t, iter)  # update velocities to the next timestep (and first RK step)
+    # Update velocities and streamfunctions to the next timestep (and first RK step).
+    # Note that we only compute the streamfunction at full steps, and not in the middle of
+    # RK substeps.
+    # At this point, the size of the velocity vectors `vs` is expected to be correct (as it
+    # is updated during timestepping), but that's not the case for the streamfunction, so we
+    # resize it if needed.
+    # TODO make computation of ψ optional?
+    resize_container!(ψs, fs)
+    resize_contained_vectors!(ψs, fs)
+    fields = (velocity = vs, streamfunction = ψs,)
+    rhs!(fields, fs, time.t, iter)
+
     callback(iter)
     time.dt_prev = time.dt
     time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep

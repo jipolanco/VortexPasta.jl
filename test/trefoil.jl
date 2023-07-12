@@ -24,22 +24,27 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
         backend_long = FINUFFTBackend(; tol,),
     )
 
-    cache_exact = @inferred(BiotSavart.init_cache(params_exact, fs)).longrange
-    cache_default = @inferred(BiotSavart.init_cache(params_default, fs)).longrange
+    cache_exact_base = @inferred(BiotSavart.init_cache(params_exact, fs))
+    cache_default_base = @inferred(BiotSavart.init_cache(params_default, fs))
+
+    cache_exact = cache_exact_base.longrange
+    cache_default = cache_default_base.longrange
 
     @test BiotSavart.backend(cache_exact) isa ExactSumBackend
     @test BiotSavart.backend(cache_default) isa FINUFFTBackend
 
     # Compute induced velocity field in Fourier space
-    BiotSavart.long_range_velocity_fourier!(cache_exact, fs)
-    BiotSavart.long_range_velocity_fourier!(cache_default, fs)
+    foreach((cache_exact, cache_default)) do c
+        BiotSavart.compute_vorticity_fourier!(c, fs)
+        BiotSavart.to_smoothed_velocity!(c)
+    end
 
     # Compare velocities in Fourier space.
     # Note: the comparison is not straightforward since the wavenumbers are not the same.
     # The "exact" implementation takes advantage of Hermitian symmetry to avoid
     # computing half of the data, while FINUFFT doesn't make this possible...
-    ks_default = cache_default.wavenumbers
-    ks_exact = cache_exact.wavenumbers
+    ks_default = cache_default.common.wavenumbers
+    ks_exact = cache_exact.common.wavenumbers
     inds_to_compare = ntuple(Val(3)) do i
         inds = eachindex(ks_exact[i])
         js = i == 1 ? inds[begin:end - 1] : inds
@@ -47,17 +52,19 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
         js
     end |> CartesianIndices
     diffnorm_L2 = sum(inds_to_compare) do I
-        uhat, vhat = cache_exact.uhat, cache_default.uhat
+        uhat, vhat = cache_exact.common.uhat, cache_default.common.uhat
         du = uhat[I] - vhat[I]
         sum(abs2, du)  # = |u - v|^2
     end
     @test diffnorm_L2 < tol^2
 
     # Interpolate velocity back to filament positions
-    BiotSavart.long_range_velocity_physical!(cache_exact, fs)
-    BiotSavart.long_range_velocity_physical!(cache_default, fs)
+    foreach((cache_exact, cache_default)) do c
+        BiotSavart.set_interpolation_points!(c, fs)
+        BiotSavart.interpolate_to_physical!(c)
+    end
 
-    max_rel_error_physical = maximum(zip(cache_exact.charges, cache_default.charges)) do (qexact, qdefault)
+    max_rel_error_physical = maximum(zip(cache_exact.common.charges, cache_default.common.charges)) do (qexact, qdefault)
         norm(qexact - qdefault) / norm(qexact)
     end
     @test max_rel_error_physical < tol
@@ -65,13 +72,34 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     # Copy data to arrays.
     vs_exact = map(f -> zero(nodes(f)), fs)
     vs_default = map(f -> zero(nodes(f)), fs)
-    BiotSavart.add_long_range_velocity!(vs_exact, cache_exact)
-    BiotSavart.add_long_range_velocity!(vs_default, cache_default)
+    BiotSavart.add_long_range_output!(vs_exact, cache_exact)
+    BiotSavart.add_long_range_output!(vs_default, cache_default)
 
     # Compare velocities one filament at a time.
-    @test all(zip(vs_exact, vs_default)) do (u, v)
+    check_approx(us, vs, tol) = all(zip(us, vs)) do (u, v)
         isapprox(u, v; rtol = tol)
     end
+    @test check_approx(vs_default, vs_exact, tol)
+
+    # Also compare output of full (short + long range) computation, and including
+    # the streamfunction.
+    ψs_exact = map(similar ∘ nodes, fs)
+    ψs_default = map(similar ∘ nodes, fs)
+
+    fields_exact = (;
+        velocity = vs_exact,
+        streamfunction = ψs_exact,
+    )
+    fields_default = (;
+        velocity = vs_default,
+        streamfunction = ψs_default,
+    )
+
+    BiotSavart.compute_on_nodes!(fields_default, cache_default_base, fs)
+    BiotSavart.compute_on_nodes!(fields_exact, cache_exact_base, fs)
+
+    @test check_approx(vs_default, vs_exact, tol)
+    @test check_approx(ψs_default, ψs_exact, tol)
 
     nothing
 end
@@ -110,18 +138,25 @@ function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws.
     nothing
 end
 
-function compute_filament_velocity(f; α, Ls, params_kws...)
+function compute_filament_velocity_and_streamfunction(f::AbstractFilament; α, Ls, params_kws...)
     rcut = min(4 * sqrt(2) / α, minimum(Ls) / 2)
     params = ParamsBiotSavart(; params_kws..., α, Ls, rcut)
-    cache = init_cache(params, [f])
-    velocity_on_nodes!(similar(nodes(f)), cache, f)
+    fs = [f]
+    cache = init_cache(params, fs)
+    vs = map(similar ∘ nodes, fs)
+    fields = (
+        velocity = vs,
+        streamfunction = map(similar, vs),
+    )
+    compute_on_nodes!(fields, cache, fs)
+    fields
 end
 
 # Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
 # (In theory it shouldn't depend at all...)
 function check_independence_on_ewald_parameter(f, αs; params_kws...)
-    vs_all = map(αs) do α
-        compute_filament_velocity(
+    fields_all = map(αs) do α
+        compute_filament_velocity_and_streamfunction(
             f;
             α,
             backend_short = NaiveShortRangeBackend(),
@@ -131,14 +166,20 @@ function check_independence_on_ewald_parameter(f, αs; params_kws...)
             params_kws...,
         )
     end
-    vs_test = last(vs_all)
-    maxdiffs = map(vs_all) do vs
-        maximum(zip(vs, vs_test)) do (a, b)
+    fields_test = last(fields_all)
+    maxdiffs_vel = map(fields_all) do fields
+        maximum(zip(fields.velocity, fields_test.velocity)) do (a, b)
             norm(a - b) / norm(b)
         end
     end
-    # @show maxdiffs
-    @test maximum(maxdiffs) < 1e-4
+    maxdiffs_stf = map(fields_all) do fields
+        maximum(zip(fields.streamfunction, fields_test.streamfunction)) do (a, b)
+            norm(a - b) / norm(b)
+        end
+    end
+    @show maxdiffs_vel maxdiffs_stf
+    @test maximum(maxdiffs_vel) < 1e-4
+    @test maximum(maxdiffs_stf) < 1e-5
     nothing
 end
 

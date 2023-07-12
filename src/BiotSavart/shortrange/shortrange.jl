@@ -134,31 +134,47 @@ end
 
 function short_range_velocity end
 
-kernel_velocity_shortrange(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
-kernel_velocity_shortrange(::Zero) = 1
+abstract type EwaldComponent end
+struct ShortRange <: EwaldComponent end
+struct LongRange <: EwaldComponent end
 
-kernel_velocity_longrange(αr) = erf(αr) - 2αr / sqrt(π) * exp(-αr^2)
-kernel_velocity_longrange(::Zero) = Zero()
+ewald_screening_function(::Velocity, ::ShortRange, αr::Real) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
+ewald_screening_function(::Velocity, ::ShortRange,   ::Zero) = 1
+
+ewald_screening_function(::Velocity, ::LongRange, αr::Real) = erf(αr) - 2αr / sqrt(π) * exp(-αr^2)
+ewald_screening_function(::Velocity, ::LongRange,   ::Zero) = Zero()
+
+ewald_screening_function(::Streamfunction, ::ShortRange, αr::Real) = erfc(αr)
+ewald_screening_function(::Streamfunction, ::ShortRange,   ::Zero) = 1
+
+ewald_screening_function(::Streamfunction, ::LongRange, αr::Real) = erf(αr)
+ewald_screening_function(::Streamfunction, ::LongRange,   ::Zero) = Zero()
+
+biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3
+biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r
 
 # Compute Biot-Savart integral over a single filament segment.
 # Note: this doesn't include the prefactor Γ/4π.
 function integrate_biot_savart(
-        kernel::F,
+        quantity::OutputField,
+        component::EwaldComponent,
         seg::Segment,
         x⃗::Vec3,
         params::ParamsShortRange;
         Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
-    ) where {F <: Function}
+    )
     (; common, quad,) = params
     (; Ls, α,) = common
     (; f, i,) = seg
     integrate(seg, quad) do ζ
-        X = f(i, ζ)
-        Ẋ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
-        r⃗ = deperiodise_separation(x⃗ - X, Ls, Lhs)
+        s⃗ = f(i, ζ)
+        ∂ₜs⃗ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
+        r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
         r² = sum(abs2, r⃗)
         r = sqrt(r²)
-        (kernel(α * r) / r^3) * (Ẋ × r⃗)
+        A = ewald_screening_function(quantity, component, α * r)
+        B = biot_savart_integrand(quantity, ∂ₜs⃗, r⃗, r)
+        A * B
     end
 end
 
@@ -178,15 +194,33 @@ function add_short_range_velocity!(
         f::AbstractFilament;
         LIA::Val{_LIA} = Val(true),  # can be used to disable LIA (for testing only)
     ) where {_LIA}
+    fields = (; velocity = vs,)
+    add_short_range_fields!(fields, cache, f; LIA)
+end
+
+function add_short_range_fields!(
+        fields::NamedTuple{Names, NTuple{N, V}},
+        cache::ShortRangeCache,
+        f::AbstractFilament;
+        LIA::Val{_LIA} = Val(true),  # can be used to disable LIA (for testing only)
+    ) where {Names, N, V <: VectorOfVec, _LIA}
+    vs = get(fields, :velocity, nothing)
+    ψs = get(fields, :streamfunction, nothing)
+    vecs = filter(!isnothing, (vs, ψs))
+    nfields = length(vecs)
+    @assert nfields == N > 0
+
     (; params,) = cache
     (; quad,) = params
     (; Γ, a, Δ,) = params.common
     prefactor = Γ / 4π
 
     Xs = nodes(f)
-    eachindex(vs) == eachindex(Xs) || throw(DimensionMismatch(
-        "vector of velocities has wrong length"
-    ))
+    foreach(vecs) do us
+        eachindex(us) == eachindex(Xs) || throw(DimensionMismatch(
+            "vector has wrong length"
+        ))
+    end
 
     segment_a = lastindex(segments(f))   # index of segment ending at point x⃗
     segment_b = firstindex(segments(f))  # index of segment starting at point x⃗
@@ -195,9 +229,17 @@ function add_short_range_velocity!(
         # Start with the LIA term in the singular region.
         # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the
         # prefactor later.
-        v⃗ = local_self_induced_velocity(f, i, one(prefactor); a, Δ, quad,)
-        if !_LIA
-            v⃗ = zero(v⃗)
+        if vs !== nothing
+            v⃗ = local_self_induced_velocity(f, i, one(prefactor); a, Δ, quad,)
+            if !_LIA
+                v⃗ = zero(v⃗)
+            end
+        end
+        if ψs !== nothing
+            ψ⃗ = local_self_induced_streamfunction(f, i, one(prefactor); a, Δ, quad,)
+            if !_LIA
+                ψ⃗ = zero(ψ⃗)
+            end
         end
 
         for seg ∈ nearby_segments(cache, x⃗)
@@ -214,20 +256,35 @@ function add_short_range_velocity!(
                 # (since it's a smoothing kernel), so there's no problem with
                 # evaluating this integral.
                 @assert x⃗ === g[i]
-                v⃗ = v⃗ - integrate_biot_savart(kernel_velocity_longrange, seg, x⃗, params)
+                if vs !== nothing
+                    v⃗ = v⃗ - integrate_biot_savart(Velocity(), LongRange(), seg, x⃗, params)
+                end
+                if ψs !== nothing
+                    ψ⃗ = ψ⃗ - integrate_biot_savart(Streamfunction(), LongRange(), seg, x⃗, params)
+                end
             else
                 # Usual case: non-singular region.
-                v⃗ = v⃗ + integrate_biot_savart(kernel_velocity_shortrange, seg, x⃗, params)
+                if vs !== nothing
+                    v⃗ = v⃗ + integrate_biot_savart(Velocity(), ShortRange(), seg, x⃗, params)
+                end
+                if ψs !== nothing
+                    ψ⃗ = ψ⃗ + integrate_biot_savart(Streamfunction(), ShortRange(), seg, x⃗, params)
+                end
             end
         end
 
         segment_a = segment_b
         segment_b += 1
 
-        vs[i] = vs[i] + v⃗ * prefactor
+        if vs !== nothing
+            vs[i] = vs[i] + v⃗ * prefactor
+        end
+        if ψs !== nothing
+            ψs[i] = ψs[i] + ψ⃗ * prefactor
+        end
     end
 
-    vs
+    fields
 end
 
 include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)

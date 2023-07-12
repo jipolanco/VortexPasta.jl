@@ -1,3 +1,7 @@
+using ..Filaments: CurvatureBinormal, UnitTangent
+using LinearAlgebra: normalize
+using StaticArrays: SVector
+
 """
     local_self_induced_velocity(
         f::AbstractFilament, i::Int, [prefactor::Real];
@@ -30,10 +34,25 @@ This corresponds to the LIA term (localised induction approximation).
   Schwarz PRB 1985), instead of using local derivatives.
 
 """
-function local_self_induced_velocity end
+local_self_induced_velocity(args...; kws...) =
+    local_self_induced(Velocity(), args...; kws...)
 
-function _local_self_induced_velocity(
-        quad::Nothing, f::AbstractFilament, i::Int, prefactor::Real;
+local_self_induced_streamfunction(args...; kws...) =
+    local_self_induced(Streamfunction(), args...; kws...)
+
+# Prefactor was not given as an argument, compute it.
+local_self_induced(q::OutputField, f, i; Γ, kws...) =
+    local_self_induced(q, f, i, Γ / 4π; kws...)
+
+function local_self_induced(
+        q::OutputField, f::AbstractFilament, i::Int, prefactor::Real;
+        a::Real, Δ::Real = 0.25, quad = nothing, kws...,
+    )
+    _local_self_induced(q, quad, f, i, prefactor; a, Δ, kws...)
+end
+
+function _local_self_induced(
+        ::Velocity, quad::Nothing, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real, fit_circle = false,
     )
     ts = knots(f)
@@ -66,8 +85,8 @@ end
 
 # Alternative estimation using quadratures.
 # It seems to improve accuracy and stability (tested with vortex ring example and Kelvin waves).
-function _local_self_induced_velocity(
-        quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
+function _local_self_induced(
+        ::Velocity, quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real,
         fit_circle = false,  # ignored
     )
@@ -91,12 +110,26 @@ function _local_self_induced_velocity(
     β * b⃗
 end
 
-function local_self_induced_velocity(
+# TODO
+# - I'm not yet sure whether this is the good LIA term for the streamfunction. In
+#   particular, should one use the same Δ? One way to check this is by looking at energy
+#   conservation of non-reconnecting cases.
+# - Implement variant with no quadratures?
+function _local_self_induced(
+        ::Streamfunction, quad::AbstractQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real = 0.25, quad = nothing, kws...,
+        a::Real, Δ::Real,
+        fit_circle = false,  # ignored
     )
-    _local_self_induced_velocity(quad, f, i, prefactor; a, Δ, kws...)
+    ℓ₋ = integrate(f, i - 1, quad) do ζ
+        norm(f(i - 1, ζ, Derivative(1)))
+    end
+    ℓ₊ = integrate(f, i, quad) do ζ
+        norm(f(i, ζ, Derivative(1)))
+    end
+    # Use local (non-averaged) tangent at point of interest.
+    # We want to make sure that the result is exactly tangent to the curve at the node.
+    t̂ = f[i, UnitTangent()]
+    β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)
+    β * t̂
 end
-
-local_self_induced_velocity(f, i; Γ, kws...) =
-    local_self_induced_velocity(f, i, Γ / 4π; kws...)

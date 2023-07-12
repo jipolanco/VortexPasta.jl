@@ -10,9 +10,11 @@ export
     ParamsBiotSavart,
     GaussLegendre,
     Zero, Infinity, ∞,
+    Velocity, Streamfunction,
     init_cache,
     periods,
-    velocity_on_nodes!
+    velocity_on_nodes!,
+    compute_on_nodes!
 
 using ..BasicTypes:
     Vec3, Derivative, Zero, Infinity, ∞
@@ -25,6 +27,10 @@ using ..Filaments:
     knots, nodes, segments, integrate
 
 using TimerOutputs: TimerOutput, @timeit
+
+abstract type OutputField end
+struct Streamfunction <: OutputField end
+struct Velocity <: OutputField end
 
 # Common parameters to short- and long-range computations.
 struct ParamsCommon{T, Alpha <: Real, Sigma <: Real, Periods <: NTuple{3, Real}}
@@ -40,9 +46,13 @@ struct ParamsCommon{T, Alpha <: Real, Sigma <: Real, Periods <: NTuple{3, Real}}
     end
 end
 
+Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
+Base.eltype(p::ParamsCommon) = eltype(typeof(p))
+
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
-const VectorOfPositions = AbstractVector{<:Vec3}
-const VectorOfVelocities = AbstractVector{<:Vec3}
+const VectorOfVec = AbstractVector{<:Vec3}
+const VectorOfPositions = VectorOfVec
+const VectorOfVelocities = VectorOfVec
 const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
 
 include("shortrange/shortrange.jl")
@@ -238,6 +248,8 @@ Compute velocity induced by vortex filaments on filament nodes.
 
 Velocities induced by vortex filaments `fs` are written to `vs`.
 
+This is the same as calling [`compute_on_nodes!`](@ref) when only the velocity is needed.
+
 Usually, `fs` is a vector containing all the vortex filaments in the system.
 In that case, `vs` must be a vector of vectors, which will contain the velocities of
 all filament nodes. The length of `vs[i]` must be equal to the number of nodes
@@ -256,33 +268,90 @@ function _reset_vectors!(vs)
 end
 
 function velocity_on_nodes!(
-        vs::AllFilamentVelocities,
+        vs::AbstractVector{<:VectorOfVec},
         cache::BiotSavartCache,
         fs::VectorOfFilaments,
     )
-    (; to,) = cache
-    eachindex(vs) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of velocity vector"))
-    _reset_vectors!(vs)
-    if cache.longrange !== NullLongRangeCache()
-        @timeit to "Long-range velocity" add_long_range_velocity!(vs, cache.longrange, fs)
-    end
-    @timeit to "Short-range velocity" begin
-        @timeit to "set_filaments!" set_filaments!(cache.shortrange, fs)
-        @timeit to "add_short_range_velocity!" for (f, v) ∈ zip(fs, vs)
-            add_short_range_velocity!(v, cache.shortrange, f)
-        end
-    end
-    vs
+    fields = (; velocity = vs,)
+    compute_on_nodes!(fields, cache, fs)
 end
 
-# Case of a single filament: interpret inputs as single-element vectors.
-function velocity_on_nodes!(
-        v::VectorOfVelocities, cache::BiotSavartCache, f::AbstractFilament,
-    )
-    vs = SVector{1}((v,))
-    fs = SVector{1}((f,))
-    velocity_on_nodes!(vs, cache, fs)
-    v
+"""
+    compute_on_nodes!(
+        fields::NamedTuple{Names, NTuple{N, V}},
+        cache::BiotSavartCache,
+        fs::AbstractVector{<:AbstractFilament},
+    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+
+Compute velocity and/or streamfunction on filament nodes.
+
+The first argument contains one or more output fields to compute. It is usually of length 1
+or 2, and can contain fields named `velocity` and `streamfunction`.
+
+For example, to compute both velocity and streamfunction on the nodes of filaments `fs`:
+
+```julia
+# Initialise fields to compute (vectors of vectors)
+vs = map(similar ∘ nodes, fs)  # one velocity vector per filament node
+ψs = map(similar, vs)
+
+# The first argument to `compute_on_nodes!` must have the following form.
+# One can also choose to pass just one of the two fields.
+fields = (;
+    velocity = vs,
+    streamfunction = ψs,
+)
+
+cache = BiotSavart.init_cache(...)
+compute_on_nodes!(fields, cache, fs)
+```
+"""
+function compute_on_nodes!(
+        fields::NamedTuple{Names, NTuple{N, V}},
+        cache::BiotSavartCache,
+        fs::VectorOfFilaments,
+    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+    (; to,) = cache
+    @assert N > 0
+    vs = get(fields, :velocity, nothing)
+    ψs = get(fields, :streamfunction, nothing)
+    vecs = filter(!isnothing, (vs, ψs))
+    nfields = length(vecs)
+    nfields == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
+
+    for us ∈ vecs
+        eachindex(us) == eachindex(fs) ||
+            throw(DimensionMismatch("wrong dimensions of vector"))
+        _reset_vectors!(us)
+    end
+
+    if cache.longrange !== NullLongRangeCache()
+        @timeit to "Long-range component" begin
+            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange, fs)
+            @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)
+            if ψs !== nothing
+                @timeit to "Streamfunction/Fourier" to_smoothed_streamfunction!(cache.longrange)
+                @timeit to "Streamfunction/physical" interpolate_to_physical!(cache.longrange)
+                @timeit to "Streamfunction/copy" add_long_range_output!(ψs, cache.longrange)
+            end
+            if vs !== nothing
+                # Velocity must be computed after streamfunction if both are enabled.
+                @timeit to "Velocity/Fourier" to_smoothed_velocity!(cache.longrange)
+                @timeit to "Velocity/physical" interpolate_to_physical!(cache.longrange)
+                @timeit to "Velocity/copy" add_long_range_output!(vs, cache.longrange)
+            end
+        end
+    end
+
+    @timeit to "Short-range component" begin
+        @timeit to "Set filaments" set_filaments!(cache.shortrange, fs)
+        @timeit to "Biot-Savart integrals" for i ∈ eachindex(fs)
+            fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
+            add_short_range_fields!(fields_i, cache.shortrange, fs[i])
+        end
+    end
+
+    fields
 end
 
 end

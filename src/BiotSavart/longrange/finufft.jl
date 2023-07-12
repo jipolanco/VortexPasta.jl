@@ -73,23 +73,29 @@ expected_period(::FINUFFTBackend) = 2π
 folding_limits(::FINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
 
 struct FINUFFTCache{
-        T <: AbstractFloat,
-        Params <: ParamsLongRange{<:FINUFFTBackend},
-        WaveNumbers <: NTuple{3, AbstractVector},
-        Points <: StructVector{Vec3{T}},
-        Charges <: StructVector{Vec3{Complex{T}}},
-        FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
+        T,
+        CacheCommon <: LongRangeCacheCommon{T},
         Plan,
     } <: LongRangeCache
-    params :: Params
-    wavenumbers :: WaveNumbers
+    common :: CacheCommon
     plan_type1 :: Plan  # plan for type-1 NUFFT (physical non-uniform → Fourier uniform)
     plan_type2 :: Plan  # plan for type-2 NUFFT (Fourier uniform → physical non-uniform)
-    points  :: Points   # non-uniform locations in physical space (3 × [Np])
-    charges :: Charges  # values at non-uniform locations (3 × [Np])
-    uhat :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
-    ewald_op :: Array{T, 3}  # Ewald operator in Fourier space ([Nx, Ny, Nz])
-    to :: TimerOutput
+end
+
+function init_cache_long_ewald(
+        pc::ParamsCommon{T},
+        params::ParamsLongRange{<:FINUFFTBackend}, timer::TimerOutput,
+    ) where {T}
+    (; Ls,) = pc
+    (; backend, Ns,) = params
+    n_modes = collect(Int64, Ns)  # type expected by finufft_makeplan
+    wavenumbers = map((N, L) -> fftfreq(N, 2π * N / L), Ns, Ls)
+    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, timer)
+    Nks = map(length, wavenumbers)  # in this case (complex-to-complex transform) this is the same as Ns
+    @assert Ns == Nks
+    plan_type1 = _make_finufft_plan_type1(backend, n_modes, T)
+    plan_type2 = _make_finufft_plan_type2(backend, n_modes, T)
+    FINUFFTCache(cache_common, plan_type1, plan_type2)
 end
 
 # FINUFFT options which should never be modified!
@@ -113,44 +119,10 @@ function _make_finufft_plan_type2(p::FINUFFTBackend, n_modes::Vector{Int64}, ::T
     finufft_makeplan(type, n_modes, iflag, ntrans, p.tol; dtype = T, p.kws..., opts...)
 end
 
-function _init_cache_long(
-        common::ParamsCommon{T}, α::AbstractFloat,
-        params::ParamsLongRange{<:FINUFFTBackend}, timer::TimerOutput,
-    ) where {T}
-    (; Γ, Ls,) = common
-    (; backend, Ns,) = params
-    @assert α === common.α
-    n_modes = collect(Int64, Ns)  # type expected by finufft_makeplan
-    wavenumbers = map((N, L) -> fftfreq(N, 2π * N / L), Ns, Ls)
-    Nks = map(length, wavenumbers)  # in this case (complex-to-complex transform) this is the same as Ns
-    @assert Ns == Nks
-    plan_type1 = _make_finufft_plan_type1(backend, n_modes, T)
-    plan_type2 = _make_finufft_plan_type2(backend, n_modes, T)
-    points = StructVector{Vec3{T}}(undef, 0)
-    charges = StructVector{Vec3{Complex{T}}}(undef, 0)
-    ewald_op = init_ewald_fourier_operator(T, wavenumbers, Γ, α, Ls)
-    uhat = StructArray{Vec3{Complex{T}}}(undef, Nks...)
-    FINUFFTCache(params, wavenumbers, plan_type1, plan_type2, points, charges, uhat, ewald_op, timer)
-end
-
-function set_num_points!(c::FINUFFTCache, Np)
-    resize!(c.points, Np)
-    resize!(c.charges, Np)
-    c
-end
-
 # This is used for type-1 NUFFTs (physical to Fourier).
 function add_pointcharge!(c::FINUFFTCache, X::Vec3, Q::Vec3, i::Int)
-    # TODO map points to [0, 2π] or [-π, π]? Support L ≠ 2π?
-    @inbounds c.points[i] = X
-    @inbounds c.charges[i] = Q
-    c
-end
-
-# This is used for type-2 NUFFTs (X is an interpolation point).
-function add_point!(c::FINUFFTCache, X::Vec3, i::Int)
-    # TODO map points to [0, 2π] or [-π, π]? Support L ≠ 2π?
-    @inbounds c.points[i] = X
+    @inbounds c.common.points[i] = X
+    @inbounds c.common.charges[i] = Q
     c
 end
 
@@ -162,7 +134,7 @@ end
 # Ensure Hermitian symmetry one dimension at a time.
 @inline function _ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{d}, us) where {d}
     N = size(us, d)
-    kd = c.wavenumbers[d]
+    kd = c.common.wavenumbers[d]
     Δk = kd[2]
     if iseven(N)
         imin = (N ÷ 2) + 1  # asymmetric mode
@@ -177,10 +149,11 @@ _ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{0}, us) = us  # we're done, d
 
 function transform_to_fourier!(c::FINUFFTCache)
     (; plan_type1,) = c
+    (; points, charges, uhat,) = c.common
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
-    points = StructArrays.components(c.points) :: NTuple{3, <:AbstractVector}
-    charges = StructArrays.components(c.charges)
-    uhat = StructArrays.components(c.uhat)
+    points = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
+    charges = StructArrays.components(charges)
+    uhat = StructArrays.components(uhat)
     finufft_setpts!(plan_type1, points...)
     for (qs, us) ∈ zip(charges, uhat)
         finufft_exec!(plan_type1, qs, us)
@@ -191,10 +164,11 @@ end
 
 function interpolate_to_physical!(c::FINUFFTCache)
     (; plan_type2,) = c
+    (; points, charges, uhat,) = c.common
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
-    points = StructArrays.components(c.points) :: NTuple{3, <:AbstractVector}
-    charges = StructArrays.components(c.charges)
-    uhat = StructArrays.components(c.uhat)
+    points = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
+    charges = StructArrays.components(charges)
+    uhat = StructArrays.components(uhat)
     finufft_setpts!(plan_type2, points...)
     for (qs, us) ∈ zip(charges, uhat)
         finufft_exec!(plan_type2, us, qs)
