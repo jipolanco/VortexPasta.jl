@@ -248,6 +248,8 @@ Compute velocity induced by vortex filaments on filament nodes.
 
 Velocities induced by vortex filaments `fs` are written to `vs`.
 
+This is the same as calling [`compute_on_nodes!`](@ref) when only the velocity is needed.
+
 Usually, `fs` is a vector containing all the vortex filaments in the system.
 In that case, `vs` must be a vector of vectors, which will contain the velocities of
 all filament nodes. The length of `vs[i]` must be equal to the number of nodes
@@ -272,16 +274,6 @@ function velocity_on_nodes!(
     )
     fields = (; velocity = vs,)
     compute_on_nodes!(fields, cache, fs)
-end
-
-# Case of a single filament: interpret inputs as single-element vectors.
-function velocity_on_nodes!(
-        v::VectorOfVelocities, cache::BiotSavartCache, f::AbstractFilament;
-    )
-    vs = SVector{1}((v,))
-    fs = SVector{1}((f,))
-    velocity_on_nodes!(vs, cache, fs)
-    v
 end
 
 """
