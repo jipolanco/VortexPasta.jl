@@ -36,6 +36,7 @@ Derivative(N::Int) = Derivative{N}()
 Base.broadcastable(d::Derivative) = Ref(d)  # disable broadcasting on Derivative objects
 
 include("constants.jl")
+include("padded_array.jl")
 include("vector_of_vectors.jl")
 
 end

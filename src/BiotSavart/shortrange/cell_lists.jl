@@ -1,6 +1,6 @@
 export CellListsBackend
 
-using ..Filaments: PaddedArray
+using ..BasicTypes: PaddedArray, pad_periodic!
 using StaticArrays: StaticArrays, similar_type, Size
 using Static: StaticInt, static, dynamic
 
@@ -91,7 +91,7 @@ function PeriodicCellList(
     # Pad array periodically. Note that this needs to be done only once (and not whenever
     # filaments are added), since we're copying array references ("pointers"), so modifying
     # a "central" cell will also modify its corresponding ghost cell if it has one.
-    Filaments.pad_periodic!(segs)
+    pad_periodic!(segs)
 
     PeriodicCellList(segs, rs_cut, nsubdiv, Ls)
 end

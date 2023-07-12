@@ -8,7 +8,15 @@ CurrentModule = VortexPasta.BasicTypes
 BasicTypes
 ```
 
-## Exported types
+## Padded arrays
+
+```@docs
+PaddedArray
+PaddedVector
+pad_periodic!
+```
+
+## Other exported types
 
 ```@docs
 Derivative

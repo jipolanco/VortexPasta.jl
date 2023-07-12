@@ -354,7 +354,7 @@ function spline_insert_knot!(cs::PaddedVector, ts::PaddedVector, i::Int, t::Real
     else
         pad_periodic!(FromCentre(), cs)  # usual padding, preserves cs[1]
     end
-    Filaments.pad_periodic!(FromCentre(), ts, T)
+    pad_periodic!(FromCentre(), ts, T)
     nothing
 end
 
