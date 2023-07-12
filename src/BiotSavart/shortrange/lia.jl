@@ -130,6 +130,6 @@ function _local_self_induced(
     # Use local (non-averaged) tangent at point of interest.
     # We want to make sure that the result is exactly tangent to the curve at the node.
     t̂ = f[i, UnitTangent()]
-    β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)  # note: prefactor = Γ/4π (hence the 2)
+    β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)
     β * t̂
 end

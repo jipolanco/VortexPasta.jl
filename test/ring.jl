@@ -158,7 +158,7 @@ end
 
 N = 32  # number of discretisation points
 
-# `noise`: non-uniformity of filament discretisation (uniform discretisation if noise = 0)
+# `noise`: non-uniformity of filament discretisation (noise == 0 means uniform discretisation)
 
 @testset "Vortex ring (N = $N, noise = $noise)" for noise ∈ (0.0, 0.2)
     ring = init_ring_filament(N; noise)
