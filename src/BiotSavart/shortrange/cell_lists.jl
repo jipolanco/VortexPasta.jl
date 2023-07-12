@@ -5,8 +5,8 @@ using StaticArrays: StaticArrays, similar_type, Size
 using Static: StaticInt, static, dynamic
 
 """
-    SegmentCellList
-    SegmentCellList(
+    PeriodicCellList
+    PeriodicCellList(
         ::Type{<:AbstractFilament}, rs_cut::NTuple{N, Real}, periods::NTuple{N, Real},
         [nsubdiv::StaticInt = static(1)],
     )
@@ -29,7 +29,7 @@ See [`CellListsBackend`](@ref) for details on the subdivision parameter `nsubdiv
 
 Infinite non-periodic domains (in the sense of `period = Infinity()`) are not supported.
 """
-struct SegmentCellList{
+struct PeriodicCellList{
         N,  # usually N = 3 (=> 3D space)
         S <: Segment,
         SegmentList <: AbstractVector{S},
@@ -44,9 +44,9 @@ struct SegmentCellList{
     Ls       :: Periods
 end
 
-subdivisions(::SegmentCellList{A, B, C, M}) where {A, B, C, M} = M
+subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M
 
-function SegmentCellList(
+function PeriodicCellList(
         ::Type{Filament},
         rs_cut_in::NTuple{N, Real},
         Ls::NTuple{N, Real},
@@ -93,10 +93,10 @@ function SegmentCellList(
     # a "central" cell will also modify its corresponding ghost cell if it has one.
     Filaments.pad_periodic!(segs)
 
-    SegmentCellList(segs, rs_cut, nsubdiv, Ls)
+    PeriodicCellList(segs, rs_cut, nsubdiv, Ls)
 end
 
-function Base.empty!(cl::SegmentCellList)
+function Base.empty!(cl::PeriodicCellList)
     for v ∈ cl.segments
         n = length(v)
         empty!(v)
@@ -116,7 +116,7 @@ end
     clamp(1 + floor(Int, x / rcut), 1, N)  # make sure the index is in 1:N
 end
 
-function add_segment!(cl::SegmentCellList{N, S}, seg::S) where {N, S <: Segment}
+function add_segment!(cl::PeriodicCellList{N, S}, seg::S) where {N, S <: Segment}
     (; segments, rs_cut, Ls,) = cl
     x⃗ = Filaments.midpoint(seg)
     inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(segments))
@@ -126,14 +126,14 @@ function add_segment!(cl::SegmentCellList{N, S}, seg::S) where {N, S <: Segment}
     cl
 end
 
-function assign_cells!(cl::SegmentCellList, f::AbstractFilament)
+function assign_cells!(cl::PeriodicCellList, f::AbstractFilament)
     for s ∈ segments(f)
         add_segment!(cl, s)
     end
     cl
 end
 
-function assign_cells!(cl::SegmentCellList, fs::AbstractVector{<:AbstractFilament})
+function assign_cells!(cl::PeriodicCellList, fs::AbstractVector{<:AbstractFilament})
     empty!(cl)
     for f ∈ fs
         assign_cells!(cl, f)
@@ -170,7 +170,7 @@ CellListsBackend(n::Int = 1) = CellListsBackend{n}()
 subdivisions(::CellListsBackend{M}) where {M} = M
 
 struct CellListsCache{
-        CellList <: SegmentCellList,
+        CellList <: PeriodicCellList,
         Params <: ParamsShortRange,
         Timer <: TimerOutput,
     } <: ShortRangeCache
@@ -193,7 +193,7 @@ function init_cache_short(
     end
     @assert all(≥(rcut), rs_cut)
     M = subdivisions(backend)
-    cl = SegmentCellList(eltype(fs), rs_cut, Ls, static(M))
+    cl = PeriodicCellList(eltype(fs), rs_cut, Ls, static(M))
     CellListsCache(cl, params, to)
 end
 
@@ -205,12 +205,12 @@ end
 struct CellListSegmentIterator{
         S <: Segment,
         N,
-        CellList <: SegmentCellList{N, S},
+        CellList <: PeriodicCellList{N, S},
         CellIndices,
     } <: NearbySegmentIterator{S}
     cl           :: CellList
     cell_indices :: CellIndices  # iterator over indices of cells to be visited
-    function CellListSegmentIterator(cl::SegmentCellList{N, S}, inds) where {N, S}
+    function CellListSegmentIterator(cl::PeriodicCellList{N, S}, inds) where {N, S}
         new{S, N, typeof(cl), typeof(inds)}(cl, inds)
     end
 end

@@ -42,7 +42,7 @@ set_filaments!
 add_short_range_velocity!
 local_self_induced_velocity
 nearby_segments
-SegmentCellList
+PeriodicCellList
 ```
 
 ## Long-range interactions
