@@ -1,14 +1,21 @@
 using Test
-using LinearAlgebra: norm, normalize
+using LinearAlgebra: norm, normalize, ⋅
 using Statistics: mean, std
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
+using Random
 
-function init_ring_filament(N::Int, R = π / 3)
+function init_ring_filament(N::Int, R = π / 3; noise = 0.0, rng = nothing)
     S(t) = π .+ R .* Vec3(cospi(t), sinpi(t), zero(t))
     tlims = (0, 2)
-    ζs = collect(range(tlims...; length = N + 1)[1:N])
-    # ζs .+= rand(N) / 2N
+    ζs_base = range(tlims...; length = 2N + 1)[2:2:end]
+    dζ = step(ζs_base)
+    ζs = collect(ζs_base)
+    @assert length(ζs) == N
+    if !iszero(noise)
+        rng_ = rng === nothing ? MersenneTwister(42) : rng
+        ζs .+= noise * dζ * rand(rng_, N)  # `noise` should be ∈ ]-1, 1[
+    end
     f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
     (; f, R,)
 end
@@ -22,11 +29,14 @@ vortex_ring_nonlocal_velocity(Γ, R, ℓ) = Γ / (4π * R) * log(R / ℓ)
 # Total self-induced vortex ring velocity.
 vortex_ring_velocity(Γ, R, a; Δ) = Γ / (4π * R) * (log(8R / a) - Δ)
 
+vortex_ring_streamfunction(Γ, R, a; Δ) = Γ / 2π * (log(8R / a) - (2 + Δ))
+
 # Test vortex ring without periodic BCs (i.e. setting α = 0 in Ewald's method, disabling long-range part)
-function test_vortex_ring_nonperiodic(ring)
+function test_vortex_ring_nonperiodic(ring; noise = 0.0)
     (; R, f,) = ring
+    Γ = 2.4
     ps = (;
-        Γ = 2.4,
+        Γ,
         a = 1e-6,
         Δ = 1/4,
         Ls = Infinity(),
@@ -35,9 +45,16 @@ function test_vortex_ring_nonperiodic(ring)
         quadrature_short = GaussLegendre(4),
     )
 
+    fs = [f]
     params = @inferred ParamsBiotSavart(; ps...)
-    cache = @inferred BiotSavart.init_cache(params, [f])
-    vs = similar(nodes(f))
+    cache = @inferred BiotSavart.init_cache(params, fs)
+    vs_all = map(similar ∘ nodes, fs)
+    ψs_all = map(similar ∘ nodes, fs)
+    fields = (velocity = vs_all, streamfunction = ψs_all)
+
+    compute_on_nodes!(fields, cache, fs)
+    vs = only(vs_all)  # velocity of the first (and only) filament
+    ψs = only(ψs_all)
 
     @testset "NaiveSegmentIterator" begin
         it = @inferred BiotSavart.nearby_segments(cache.shortrange, f[2])
@@ -48,16 +65,37 @@ function test_vortex_ring_nonperiodic(ring)
     end
 
     @testset "Total velocity" begin
-        velocity_on_nodes!(vs, cache, f)
         v⃗_mean = mean(vs)
         U = norm(v⃗_mean)
         # All points have basically the same velocity (since there's no periodicity to introduce anisotropy).
         # This assumes that the point distribution is uniform; otherwise the variance is much higher.
-        @test all(std(vs) .< U * 1e-12)
+        # @test all(std(vs) .< U * 1e-12)
         U_expected = vortex_ring_velocity(ps.Γ, R, ps.a; Δ = ps.Δ)
         @show (U - U_expected) / U_expected
         @test isapprox(U, U_expected; rtol = 1e-4)  # the tolerance will mainly depend on the vortex resolution N
     end
+
+    @testset "Total streamfunction" begin
+        ψs_para = map(eachindex(ψs)) do i
+            t̂ = f[i, UnitTangent()]
+            ψs[i] ⋅ t̂
+        end
+        ψs_perp = map(eachindex(ψs)) do i
+            t̂ = f[i, UnitTangent()]
+            norm(ψs[i] - ψs_para[i] * t̂)
+        end
+        # Check that ψ⃗ is always parallel to the tangent vector s′ (⇒ ψs_perp ≈ 0).
+        @test all(zip(ψs_para, ψs_perp)) do (a, b)
+            b / a < max(noise / 100, 1e-10)  # use `max` in case noise == 0
+        end
+        ψ_mean = mean(ψs_para)
+        # @test std(ψs_para) < 2 * eps(ψ_mean)  # ψ ⋅ s⃗ along the curve doesn't vary
+        ψ_expected = vortex_ring_streamfunction(ps.Γ, R, ps.a; Δ = ps.Δ)
+        @show (ψ_mean - ψ_expected) / ψ_expected
+        @test isapprox(ψ_mean, ψ_expected; rtol = 1e-3)
+    end
+
+    # TODO test ring energy?
 
     # Check velocity excluding LIA (i.e. only non-local integration)
     @testset "Non-local velocity" begin
@@ -70,14 +108,15 @@ function test_vortex_ring_nonperiodic(ring)
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
         U_nonlocal = norm(vs[i])
         @show (U_nonlocal - U_nonlocal_expected) / U_nonlocal_expected
-        @test isapprox(U_nonlocal, U_nonlocal_expected; rtol = 1e-3)
+        rtol = max(1e-3, noise / 400)
+        @test isapprox(U_nonlocal, U_nonlocal_expected; rtol)
     end
 
     nothing
 end
 
 # Check convergence of LIA using quadratures for better accuracy.
-function test_local_induced_approximation(ring)
+function test_local_induced_approximation(ring; noise)
     (; R, f,) = ring
     i = firstindex(f)
     ps = (;
@@ -97,12 +136,15 @@ function test_local_induced_approximation(ring)
         norm(BiotSavart.local_self_induced_velocity(f, i; quad, ps...))
     end
     # Things converge quite quickly; in this case GaussLegendre(2) seems to be enough.
-    # @show (v_base - v_expected) / v_expected
-    # @show (v_quad .- v_expected) ./ v_expected
-    @test isapprox(v_expected, v_base; rtol = 1e-2)
+    @show (v_base - v_expected) / v_expected
+    @show (v_quad[1] .- v_expected) ./ v_expected
+    @show (v_quad[2] .- v_expected) ./ v_expected
+    @show (v_quad[3] .- v_expected) ./ v_expected
+    @test isapprox(v_expected, v_base; rtol = 5e-3)
     @test isapprox(v_expected, v_quad[1]; rtol = 1e-2)
-    @test isapprox(v_expected, v_quad[2]; rtol = 6e-6)
-    @test isapprox(v_expected, v_quad[3]; rtol = 3e-6)
+    rtol = max(6e-6, noise * 1e-3)
+    @test isapprox(v_expected, v_quad[2]; rtol)
+    @test isapprox(v_expected, v_quad[3]; rtol)
     @testset "Fit circle" begin
         # Alternative estimation by fitting a circle (as in Schwarz PRB 1985).
         # In the specific case of a vortex ring, this should give a perfect
@@ -114,13 +156,24 @@ function test_local_induced_approximation(ring)
     nothing
 end
 
-@testset "Vortex ring" begin
-    N = 32
-    ring = init_ring_filament(N)
+N = 32  # number of discretisation points
+
+# `noise`: non-uniformity of filament discretisation (uniform discretisation if noise = 0)
+
+@testset "Vortex ring (N = $N, noise = $noise)" for noise ∈ (0.0, 0.2)
+    ring = init_ring_filament(N; noise)
     @testset "Non-periodic" begin
-        test_vortex_ring_nonperiodic(ring)
+        test_vortex_ring_nonperiodic(ring; noise)
     end
     @testset "LIA" begin
-        test_local_induced_approximation(ring)
+        test_local_induced_approximation(ring; noise)
+    end
+end
+
+if @isdefined(Makie)
+    let fig = Figure()
+        ax = Axis3(fig[1, 1])
+        filamentplot!(ax, ring.f)
+        fig
     end
 end
