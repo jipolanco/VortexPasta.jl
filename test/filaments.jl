@@ -210,7 +210,7 @@ function test_filament_ring(args)
     nothing
 end
 
-@testset "Ring" begin
+@testset "Filaments: ring" begin
     N = 32
     methods = (
         "FiniteDiff(2) / Hermite(2)" => (N, FiniteDiffMethod(2, HermiteInterpolation(2))),

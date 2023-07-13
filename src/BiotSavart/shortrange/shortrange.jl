@@ -164,18 +164,26 @@ function integrate_biot_savart(
         params::ParamsShortRange;
         Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
     )
-    (; common, quad,) = params
+    (; common, quad, rcut,) = params
     (; Ls, α,) = common
     (; f, i,) = seg
+    rc² = rcut * rcut
     integrate(seg, quad) do ζ
         s⃗ = f(i, ζ)
         ∂ₜs⃗ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
         r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
         r² = sum(abs2, r⃗)
-        r = sqrt(r²)
-        A = ewald_screening_function(quantity, component, α * r)
-        B = biot_savart_integrand(quantity, ∂ₜs⃗, r⃗, r)
-        A * B
+        # Note: the short-range backend may allow some pair interactions beyond the cutoff.
+        # This is in particular the case for cell lists.
+        # We want to avoid extra computations in that case.
+        if component === ShortRange() && r² > rc²
+            zero(r⃗)
+        else
+            r = sqrt(r²)
+            g = ewald_screening_function(quantity, component, α * r)
+            w⃗ = biot_savart_integrand(quantity, ∂ₜs⃗, r⃗, r)
+            oftype(r⃗, g * w⃗)  # we assume w⃗ is a vector...
+        end
     end
 end
 
@@ -227,42 +235,40 @@ function add_short_range_fields!(
     segment_b = firstindex(segments(f))  # index of segment starting at point x⃗
 
     for (i, x⃗) ∈ pairs(Xs)
-        # Start with the LIA term in the singular region.
-        # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the
-        # prefactor later.
+        # Start with the "singular" region (i.e. the segments which include x⃗: `segment_a` and `segment_b`).
+        # We first subtract the effect of the long-range estimation, and then replace it with the LIA term.
+        # Removing the long-range integral is needed to have a total velocity which does not
+        # depend on the (unphysical) Ewald parameter α.
+        # Note that the integral with the long-range kernel is *not* singular (since it's a
+        # smoothing kernel), so there's no problem with evaluating this integral.
+        # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the prefactor later.
         if vs !== nothing
-            v⃗ = local_self_induced_velocity(f, i, one(prefactor); a, Δ, quad,)
-            if !_LIA
-                v⃗ = zero(v⃗)
+            v⃗ = -(
+                integrate_biot_savart(Velocity(), LongRange(), Segment(f, segment_a), x⃗, params) +
+                integrate_biot_savart(Velocity(), LongRange(), Segment(f, segment_b), x⃗, params)
+            )
+            if _LIA
+                v⃗ = v⃗ + local_self_induced_velocity(f, i, one(prefactor); a, Δ, quad,)
             end
         end
         if ψs !== nothing
-            ψ⃗ = local_self_induced_streamfunction(f, i, one(prefactor); a, Δ, quad,)
-            if !_LIA
-                ψ⃗ = zero(ψ⃗)
+            ψ⃗ = -(
+                integrate_biot_savart(Streamfunction(), LongRange(), Segment(f, segment_a), x⃗, params) +
+                integrate_biot_savart(Streamfunction(), LongRange(), Segment(f, segment_b), x⃗, params)
+            )
+            if _LIA
+                ψ⃗ = ψ⃗ + local_self_induced_streamfunction(f, i, one(prefactor); a, Δ, quad,)
             end
         end
 
+        # Then integrate short-range effect of nearby segments.
         for seg ∈ nearby_segments(cache, x⃗)
             g, j = seg.f, seg.i
 
-            # Singular region.
             if f === g && (j == segment_a || j == segment_b)
-                # Target point x⃗ is one of the segment limits. This is the singular region.
-                # We just need to subtract the effect of the long-range estimation, which is
-                # actually included in the LIA term.
-                # Without this correction is needed to have a total velocity which does not depend
-                # on the (unphysical) Ewald parameter α.
-                # Note that the integral with the long-range kernel is *not* singular
-                # (since it's a smoothing kernel), so there's no problem with
-                # evaluating this integral.
+                # Target point x⃗ is one of the segment limits.
+                # This is the singular region, and we do nothing.
                 @assert x⃗ === g[i]
-                if vs !== nothing
-                    v⃗ = v⃗ - integrate_biot_savart(Velocity(), LongRange(), seg, x⃗, params)
-                end
-                if ψs !== nothing
-                    ψ⃗ = ψ⃗ - integrate_biot_savart(Streamfunction(), LongRange(), seg, x⃗, params)
-                end
             else
                 # Usual case: non-singular region.
                 if vs !== nothing

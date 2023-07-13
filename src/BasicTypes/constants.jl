@@ -7,6 +7,9 @@ Singleton type representing zero.
 """
 struct Zero <: Real end
 
+Base.convert(::Type{T}, ::Zero) where {T <: Number} = zero(T)
+Base.convert(::Type{Zero}, ::Zero) = Zero()
+
 (::Zero) * (::Number) = Zero()
 (::Number) * (::Zero) = Zero()
 (x::Number) + (::Zero) = x
@@ -35,6 +38,7 @@ Base.isinf(::Infinity) = true
 (::Infinity) * (::Infinity) = Infinity()
 (::Infinity) / (::Number) = Infinity()
 
+(::Real) > (::Infinity) = false
 (::Infinity) < (::Real) = false   # needs to be Real to disambiguate
 (::Infinity) < (::Infinity) = false
 
