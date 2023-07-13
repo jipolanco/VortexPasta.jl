@@ -187,7 +187,7 @@ struct FromCentre end
 struct FromRight end
 
 """
-    pad_periodic!(v::PaddedArray{M, T, N}, [L = zero{T}])
+    pad_periodic!(v::PaddedArray{M, T, N}, [L = zero(T)])
 
 Fill ghost cells in a periodic manner.
 
@@ -197,14 +197,15 @@ In the simplest case of a 1D `PaddedArray` (`N = 1`), this function will copy:
 
 - `v[(end - M + 1):end]` → `v[(begin - M):(begin - 1)]`.
 
-Something equivalent (but more complicated) is done in multiple directions.
+Something equivalent (but more complicated) is done in multiple dimensions.
+
+If `L ≠ 0`, it is interpreted as an unfolding period (or as an end-to-end distance after a
+single period), such that `v[N + i] - v[i] = L`, where `N = length(v)`.
 """
 function pad_periodic! end
 
 pad_periodic!(v::PaddedArray, args...) = pad_periodic!(FromCentre(), v, args...)
 
-# Apply periodic padding.
-# If L ≠ 0, it is interpreted as an unfolding period, such that v[N + 1 + i] - v[i] = L (where N = length(v)).
 function pad_periodic!(::FromCentre, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}
     @assert length(v) ≥ M
     @inbounds for i ∈ 1:M
