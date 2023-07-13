@@ -24,6 +24,7 @@ makedocs(
     pages = [
         "index.md",
         "Modules" => [
+            "modules/PaddedArrays.md",
             "modules/BasicTypes.md",
             "modules/Quadratures.md",
             "modules/Filaments.md",

@@ -1,5 +1,7 @@
 module VortexPasta
 
+include("PaddedArrays/PaddedArrays.jl")  # completely independent of other modules
+
 include("BasicTypes/BasicTypes.jl")
 
 include("Quadratures/Quadratures.jl")

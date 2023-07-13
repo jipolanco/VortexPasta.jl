@@ -37,8 +37,8 @@ using ..Quadratures: AbstractQuadrature, GaussLegendre, quadrature
 using ..BasicTypes: Vec3, Derivative
 
 # Load PaddedVector and some non-exported functions associated to PaddedVector
-using ..BasicTypes: PaddedVector, pad_periodic!, FromCentre, FromRight
-import ..BasicTypes: npad  # overloaded for DiscretisationMethod
+using ..PaddedArrays: PaddedVector, pad_periodic!, FromCentre, FromRight
+import ..PaddedArrays: npad  # overloaded for DiscretisationMethod
 
 using LinearAlgebra: norm, normalize, ⋅, ×
 using StaticArrays

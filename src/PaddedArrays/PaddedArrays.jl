@@ -1,3 +1,14 @@
+"""
+    PaddedArrays
+
+Module defining the [`PaddedArray`](@ref) type for dealing with arrays padded by ghost
+cells.
+
+Among other things, this type allows to efficiently work with periodic boundary conditions
+in one and more spatial dimensions.
+"""
+module PaddedArrays
+
 export PaddedArray, PaddedVector, pad_periodic!
 
 """
@@ -241,3 +252,5 @@ function pad_periodic!(::FromCentre, v::PaddedArray)
     end
     v
 end
+
+end  # module

@@ -1,6 +1,6 @@
 export CellListsBackend
 
-using ..BasicTypes: PaddedArray, pad_periodic!
+using ..PaddedArrays: PaddedArray, pad_periodic!
 using StaticArrays: StaticArrays, similar_type, Size
 using Static: StaticInt, static, dynamic
 
