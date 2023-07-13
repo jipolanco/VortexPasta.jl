@@ -1,6 +1,7 @@
 module VortexPasta
 
 include("PaddedArrays/PaddedArrays.jl")  # completely independent of other modules
+include("CellLists/CellLists.jl")        # requires PaddedArrays only
 
 include("BasicTypes/BasicTypes.jl")
 
