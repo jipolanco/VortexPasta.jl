@@ -28,6 +28,8 @@ Alias for Infinity().
 """
 const ∞ = Infinity()
 
+Base.isinf(::Infinity) = true
+
 # Here we assume that Number > 0, which is the case in our application.
 (::Number) * (::Infinity) = Infinity()
 (::Infinity) * (::Infinity) = Infinity()

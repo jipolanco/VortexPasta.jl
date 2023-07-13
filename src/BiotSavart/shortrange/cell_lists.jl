@@ -5,55 +5,78 @@ using StaticArrays: StaticArrays, similar_type, Size
 using Static: StaticInt, static, dynamic
 
 """
-    PeriodicCellList
+    PeriodicCellList{N, T}
     PeriodicCellList(
-        ::Type{<:AbstractFilament}, rs_cut::NTuple{N, Real}, periods::NTuple{N, Real},
-        [nsubdiv::StaticInt = static(1)],
+        ::Type{T}, rs_cut::NTuple{N, Real}, periods::NTuple{N, Real},
+        [nsubdiv::StaticInt = static(1)];
+        [to_coordinate::Function = identity],
     )
 
-Construct a cell list for dealing with the interaction between filament segments.
+Construct a cell list for dealing with pair interactions.
 
-Above, `N` is the number of dimensions (usually `N = 3`).
+Above, `N` is the number of spatial dimensions, and `T` is the type of each element.
+In the simplest cases, `T` can simply describe a coordinate in N-dimensional space
+(e.g. `T = SVector{N, Float64}`). One can also deal with more complicated elements which
+include more information. As an example, see further below for how to deal with filament
+segments in 3D space.
+
+The cutoff radii `rs_cut` (which can be different in each direction) don't need to exactly
+divide the domain period `L` into equal pieces, but it's recommended that it does so for
+performance reasons.
+
+Optionally, one can choose to subdivide each cell (of size `≈ rcut`) onto `nsubdiv`
+subcells. This can significantly improve performance, since it allows to discard some
+spurious pair interactions (i.e. beyond the chosen cutoff radius) as described
+[here](https://en.wikipedia.org/wiki/Cell_lists#Improvements). In practice, a value of
+`2` or `3` can significantly improve performance compared to no subdivision (`1`).
+
+Infinite non-periodic domains (in the sense of `period = Infinity()`) are not supported.
+
+# Dealing with filament segments
+
+One of the possible uses of `PeriodicCellList` is to classify filament segments (which are
+typically shorter than the cutoff radius) according to their spatial location. In that case,
+`T` is not a simple coordinate, but may contain more information including things like (1)
+the filament the segment belongs to, and (2) the location of the segment within the filament.
+As there is no unique way of associating a coordinate to a segment, one should pass the
+`to_coordinate` argument which "converts" the segment to a coordinate in space. For instance,
+the passed `to_coordinate` function may return the midpoint of the segment, which will be
+used to determine the cell associated to the segment.
 
 The applied cutoff radius ``r_{\\text{cut}}`` should be much larger than the maximum segment
 length ``ℓ``, or should at least account for ``ℓ``.
 Basically, if one wants an actual cut-off radius ``r₀``, then the applied cutoff radius passed
 to the constructor should be ``r_{\\text{cut}} = r₀ + ℓ``.
 Otherwise, a small amount of interactions within ``[r₀ - ℓ, r₀]`` may be missed.
-
-The cutoff radii `rs_cut` (which can be different in each direction) don't need to exactly
-divide the domain period `L` into equal pieces, but it's recommended that it does so for
-performance reasons.
-
-See [`CellListsBackend`](@ref) for details on the subdivision parameter `nsubdiv`.
-
-Infinite non-periodic domains (in the sense of `period = Infinity()`) are not supported.
 """
 struct PeriodicCellList{
-        N,  # usually N = 3 (=> 3D space)
-        S <: Segment,
-        SegmentList <: AbstractVector{S},
+        N,  # spatial dimension
+        T,  # type of "element": can be a coordinate in 3D space, or some other element which includes some coordinate information (e.g. a filament segment)
+        ElementList <: AbstractVector{T},
         M,  # number of cell subdivisions (≥ 1)
-        CellList <: PaddedArray{M, SegmentList, N},  # array of cells, each containing a list of segments
+        CellList <: PaddedArray{M, ElementList, N},  # array of cells, each containing a list of elements
+        ToCoordFunc <: Function,
         CutoffRadii <: NTuple{N, Real},
         Periods <: NTuple{N, Real},
     }
-    segments :: CellList       # segments[i, j, k] contains all filament segments inside cell (i, j, k)
-    rs_cut   :: CutoffRadii    # cutoff radii (can be different in each direction)
-    nsubdiv  :: StaticInt{M}
-    Ls       :: Periods
+    data          :: CellList     # data[i, j, k] contains all "elements" inside cell (i, j, k)
+    to_coordinate :: ToCoordFunc  # convert "element" to N-D coordinate
+    rs_cut        :: CutoffRadii  # cutoff radii (can be different in each direction)
+    nsubdiv       :: StaticInt{M}
+    Ls            :: Periods
 end
 
 subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M
 
 function PeriodicCellList(
-        ::Type{Filament},
+        ::Type{T},
         rs_cut_in::NTuple{N, Real},
         Ls::NTuple{N, Real},
-        nsubdiv::StaticInt = static(1),
-    ) where {N, Filament <: AbstractFilament}
-    any(L -> L === Infinity(), Ls) && throw(ArgumentError(
-        "infinite non-periodic domains not currently supported by CellListsBackend"
+        nsubdiv::StaticInt = static(1);
+        to_coordinate::F = identity,
+    ) where {N, T, F <: Function}
+    any(isinf, Ls) && throw(ArgumentError(
+        "infinite non-periodic domains not currently supported by PeriodicCellList"
     ))
 
     M = dynamic(nsubdiv)
@@ -71,33 +94,31 @@ function PeriodicCellList(
                Try reducing the cutoff radius (got rs_cut = $rs_cut_in)."""
     )
 
-    S = Segment{Filament}
-    @assert isconcretetype(S)
-
-    vempty = Vector{S}(undef, 0)
+    @assert isconcretetype(T)
+    vempty = Vector{T}(undef, 0)
     # vempty = StructVector{S}(undef, 0)  # not necessarily faster than a regular Vector in this case
-    SegmentList = typeof(vempty)
+    ElementList = typeof(vempty)
     data_dims = ncells .+ 2M  # add 2M ghost cells in each direction
-    data = Array{SegmentList, N}(undef, data_dims)
+    data_raw = Array{ElementList, N}(undef, data_dims)
 
-    segs = PaddedArray{M}(data)
-    @assert size(segs) == ncells
+    data = PaddedArray{M}(data_raw)
+    @assert size(data) == ncells
 
     # Initialise cells inside the domain (i.e. not including ghost cells)
-    for I ∈ CartesianIndices(segs)
-        segs[I] = copy(vempty)
+    for I ∈ CartesianIndices(data)
+        data[I] = copy(vempty)
     end
 
     # Pad array periodically. Note that this needs to be done only once (and not whenever
     # filaments are added), since we're copying array references ("pointers"), so modifying
     # a "central" cell will also modify its corresponding ghost cell if it has one.
-    pad_periodic!(segs)
+    pad_periodic!(data)
 
-    PeriodicCellList(segs, rs_cut, nsubdiv, Ls)
+    PeriodicCellList(data, to_coordinate, rs_cut, nsubdiv, Ls)
 end
 
 function Base.empty!(cl::PeriodicCellList)
-    for v ∈ cl.segments
+    for v ∈ cl.data
         n = length(v)
         empty!(v)
         # Heuristic to reduce allocations in `push!` when refilling the cells.
@@ -116,19 +137,19 @@ end
     clamp(1 + floor(Int, x / rcut), 1, N)  # make sure the index is in 1:N
 end
 
-function add_segment!(cl::PeriodicCellList{N, S}, seg::S) where {N, S <: Segment}
-    (; segments, rs_cut, Ls,) = cl
-    x⃗ = Filaments.midpoint(seg)
-    inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(segments))
+function add_element!(cl::PeriodicCellList{N, T}, el::T) where {N, T}
+    (; data, rs_cut, Ls, to_coordinate,) = cl
+    x⃗ = to_coordinate(el)
+    inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(data))
     I = CartesianIndex(inds)
-    @inbounds cell = segments[I]
-    push!(cell, seg)  # this can allocate if we don't put a `sizehint!` somewhere (which we do!)
+    @inbounds cell = data[I]
+    push!(cell, el)  # this can allocate if we don't put a `sizehint!` somewhere (which we do!)
     cl
 end
 
 function assign_cells!(cl::PeriodicCellList, f::AbstractFilament)
     for s ∈ segments(f)
-        add_segment!(cl, s)
+        add_element!(cl, s)
     end
     cl
 end
@@ -152,17 +173,14 @@ Compute short-range interactions using the cell lists algorithm.
 This backend can be significantly faster than the [`NaiveShortRangeBackend`](@ref) when the
 cutoff radius `rcut` is much smaller than the domain period `L` (roughly when `rcut ≲ L / 10`).
 
-Future improvements may further increase the performance of this backend.
-
 Optionally, one can choose to subdivide each cell (of size `≈ rcut`) onto `nsubdiv`
-subcells. This can significantly improve performance, since it allows to discard some
-spurious pair interactions (i.e. beyond the chosen cutoff radius) as described
-[here](https://en.wikipedia.org/wiki/Cell_lists#Improvements). In practice, a value of
-`2` or `3` can significantly improve performance compared to no subdivision (`1`).
+subcells. In practice, a value of `2` or `3` can significantly improve performance compared
+to no subdivision (`1`).
 
 This backend does not support non-periodic domains.
 
-See [Wikipedia](https://en.wikipedia.org/wiki/Cell_lists) for details.
+See [`PeriodicCellList`](@ref) and [Wikipedia](https://en.wikipedia.org/wiki/Cell_lists) for
+more details.
 """
 struct CellListsBackend{M} <: ShortRangeBackend end
 CellListsBackend(n::Int = 1) = CellListsBackend{n}()
@@ -193,7 +211,12 @@ function init_cache_short(
     end
     @assert all(≥(rcut), rs_cut)
     M = subdivisions(backend)
-    cl = PeriodicCellList(eltype(fs), rs_cut, Ls, static(M))
+    Filament = eltype(fs)
+    S = Segment{Filament}
+    @assert isconcretetype(S)
+    # Construct cell list of filament segments.
+    # We use the `midpoint` function to associate a coordinate to each segment.
+    cl = PeriodicCellList(S, rs_cut, Ls, static(M); to_coordinate = Filaments.midpoint)
     CellListsCache(cl, params, to)
 end
 
@@ -218,11 +241,11 @@ end
 # As of Julia 1.9.1, the @inline is needed to avoid poor performance and spurious allocations.
 @inline function Base.iterate(it::CellListSegmentIterator, state = nothing)
     (; cl, cell_indices,) = it
-    (; segments,) = cl
+    (; data,) = cl
 
     if state === nothing  # initial iteration
         cell_index, cell_indices_state = iterate(cell_indices)
-        @inbounds segments_in_current_cell = segments[cell_index]
+        @inbounds segments_in_current_cell = data[cell_index]
         ret_segment = iterate(segments_in_current_cell)  # get first segment of first cell (or `nothing`, if the cell is empty)
     else
         (cell_indices_state, segments_in_current_cell, segments_state,) = state
@@ -241,7 +264,7 @@ end
         ret_cell = iterate(cell_indices, cell_indices_state)
         ret_cell === nothing && return nothing  # we're done iterating over cells
         cell_index, cell_indices_state = ret_cell
-        @inbounds segments_in_current_cell = segments[cell_index]
+        @inbounds segments_in_current_cell = data[cell_index]
         ret_segment = iterate(segments_in_current_cell)
         cell_indices_state, segments_in_current_cell, ret_segment
     end
@@ -253,10 +276,10 @@ end
 
 function nearby_segments(c::CellListsCache, x⃗::Vec3)
     (; params, cl,) = c
-    (; segments, rs_cut,) = cl
+    (; data, rs_cut,) = cl
     (; common,) = params
     (; Ls,) = common
-    inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(segments))
+    inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(data))
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
     M = subdivisions(cl)
     cell_indices = CartesianIndices(
