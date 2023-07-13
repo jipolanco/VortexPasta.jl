@@ -76,6 +76,7 @@ This must be called before computing any short-range quantities (e.g. using
 """
 function set_filaments! end
 
+# This may be overloaded by different backends (but it's not necessary).
 abstract type NearbySegmentIterator{S <: Segment} end
 
 # These are needed e.g. by collect(it::NearbySegmentIterator)

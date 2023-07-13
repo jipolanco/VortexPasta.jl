@@ -1,4 +1,15 @@
-export PaddedArray, PaddedVector
+"""
+    PaddedArrays
+
+Module defining the [`PaddedArray`](@ref) type for dealing with arrays padded by ghost
+cells.
+
+Among other things, this type allows to efficiently work with periodic boundary conditions
+in one and more spatial dimensions.
+"""
+module PaddedArrays
+
+export PaddedArray, PaddedVector, pad_periodic!
 
 """
     PaddedArray{M, T, N} <: AbstractArray{T, N}
@@ -6,6 +17,8 @@ export PaddedArray, PaddedVector
 Pads a vector with `M` "ghost" entries on each side, along each direction.
 
 Can be useful for dealing with periodic boundary conditions.
+In that use case, one can call [`pad_periodic!`](@ref) once the non-ghost entries have been
+filled to conveniently impose those kind of conditions.
 
 See also [`PaddedVector`](@ref).
 
@@ -173,6 +186,21 @@ Base.popat!(v::PaddedVector, i::Integer) = popat!(parent(v), i + npad(v))
 struct FromCentre end
 struct FromRight end
 
+"""
+    pad_periodic!(v::PaddedArray{M, T, N}, [L = zero{T}])
+
+Fill ghost cells in a periodic manner.
+
+In the simplest case of a 1D `PaddedArray` (`N = 1`), this function will copy:
+
+- `v[begin:(begin + M - 1)]` → `v[(end + 1):(end + M)]`, and
+
+- `v[(end - M + 1):end]` → `v[(begin - M):(begin - 1)]`.
+
+Something equivalent (but more complicated) is done in multiple directions.
+"""
+function pad_periodic! end
+
 pad_periodic!(v::PaddedArray, args...) = pad_periodic!(FromCentre(), v, args...)
 
 # Apply periodic padding.
@@ -224,3 +252,5 @@ function pad_periodic!(::FromCentre, v::PaddedArray)
     end
     v
 end
+
+end  # module

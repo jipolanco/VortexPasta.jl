@@ -14,8 +14,6 @@ Filaments
 DiscretisationMethod
 AbstractFilament
 ClosedFilament
-PaddedArray
-PaddedVector
 ```
 
 ## Functions

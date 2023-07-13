@@ -2,6 +2,12 @@ using Documenter
 using VortexPasta
 
 DocMeta.setdocmeta!(
+    VortexPasta.PaddedArrays,
+    :DocTestSetup,
+    :(using VortexPasta.PaddedArrays),
+)
+
+DocMeta.setdocmeta!(
     VortexPasta.BasicTypes,
     :DocTestSetup,
     :(using VortexPasta.BasicTypes),
@@ -24,6 +30,8 @@ makedocs(
     pages = [
         "index.md",
         "Modules" => [
+            "modules/PaddedArrays.md",
+            "modules/CellLists.md",
             "modules/BasicTypes.md",
             "modules/Quadratures.md",
             "modules/Filaments.md",

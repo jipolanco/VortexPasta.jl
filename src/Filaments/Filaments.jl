@@ -36,6 +36,10 @@ export
 using ..Quadratures: AbstractQuadrature, GaussLegendre, quadrature
 using ..BasicTypes: Vec3, Derivative
 
+# Load PaddedVector and some non-exported functions associated to PaddedVector
+using ..PaddedArrays: PaddedVector, pad_periodic!, FromCentre, FromRight
+import ..PaddedArrays: npad  # overloaded for DiscretisationMethod
+
 using LinearAlgebra: norm, normalize, ⋅, ×
 using StaticArrays
 using StructArrays
@@ -268,7 +272,6 @@ function Base.showarg(io::IO, f::AbstractFilament, toplevel)
 end
 
 include("discretisations.jl")
-include("padded_array.jl")
 include("segments.jl")
 include("integrate.jl")
 include("min_distance.jl")
