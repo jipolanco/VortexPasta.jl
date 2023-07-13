@@ -1,4 +1,11 @@
+"""
+    CellLists
+
+Module implementing the cell lists algorithm over N-dimensional periodic domains.
+"""
 module CellLists
+
+export PeriodicCellList, CellListIterator, static, nearby_elements
 
 using ..PaddedArrays: PaddedArray, pad_periodic!
 using Static: StaticInt, static, dynamic
@@ -65,6 +72,7 @@ struct PeriodicCellList{
     Ls            :: Periods
 end
 
+Base.size(cl::PeriodicCellList) = size(cl.data)
 subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M
 
 function PeriodicCellList(
@@ -116,6 +124,11 @@ function PeriodicCellList(
     PeriodicCellList(data, to_coordinate, rs_cut, nsubdiv, Ls)
 end
 
+"""
+    Base.empty!(cl::PeriodicCellList) -> cl
+
+Remove all elements from the cell list.
+"""
 function Base.empty!(cl::PeriodicCellList)
     for v ∈ cl.data
         n = length(v)
@@ -136,14 +149,96 @@ end
     clamp(1 + floor(Int, x / rcut), 1, N)  # make sure the index is in 1:N
 end
 
+"""
+    add_element!(cl::PeriodicCellList{N, T}, el::T)
+
+Add element to the cell list.
+
+Determines the cell associated to the element and then appends the element to that cell.
+"""
 function add_element!(cl::PeriodicCellList{N, T}, el::T) where {N, T}
     (; data, rs_cut, Ls, to_coordinate,) = cl
     x⃗ = to_coordinate(el)
-    inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(data))
+    inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
     I = CartesianIndex(inds)
     @inbounds cell = data[I]
     push!(cell, el)  # this can allocate if we don't put a `sizehint!` somewhere (which we do!)
     cl
+end
+
+struct CellListIterator{
+        T, N,
+        CellList <: PeriodicCellList{N, T},
+        CellIndices,
+    }
+    cl           :: CellList
+    cell_indices :: CellIndices  # iterator over indices of cells to be visited
+    function CellListIterator(cl::PeriodicCellList{N, T}, inds) where {N, T}
+        new{T, N, typeof(cl), typeof(inds)}(cl, inds)
+    end
+end
+
+# These are needed e.g. by collect(it::CellListIterator)
+Base.IteratorSize(::Type{<:CellListIterator}) = Base.SizeUnknown()
+Base.eltype(::Type{<:CellListIterator{T}}) where {T} = T
+
+# As of Julia 1.9.1, the @inline is needed to avoid poor performance and spurious allocations.
+@inline function Base.iterate(it::CellListIterator, state = nothing)
+    (; cl, cell_indices,) = it
+    (; data,) = cl
+
+    if state === nothing  # initial iteration
+        cell_index, cell_indices_state = iterate(cell_indices)
+        @inbounds elements_in_current_cell = data[cell_index]
+        ret_element = iterate(elements_in_current_cell)  # get first element of first cell (or `nothing`, if the cell is empty)
+    else
+        (cell_indices_state, elements_in_current_cell, elements_state,) = state
+        ret_element = iterate(elements_in_current_cell, elements_state)  # advance to next element (or `nothing`, if we're done with this cell)
+    end
+
+    # 1. Try to keep iterating over the elements of the current cell.
+    if ret_element !== nothing
+        current_element, elements_state = ret_element
+        state_next = (cell_indices_state, elements_in_current_cell, elements_state,)
+        return current_element, state_next
+    end
+
+    # 2. We're done iterating over the current cell, so we jump to the next non-empty cell.
+    while ret_element === nothing
+        ret_cell = iterate(cell_indices, cell_indices_state)
+        ret_cell === nothing && return nothing  # we're done iterating over cells
+        cell_index, cell_indices_state = ret_cell
+        @inbounds elements_in_current_cell = data[cell_index]
+        ret_element = iterate(elements_in_current_cell)
+        cell_indices_state, elements_in_current_cell, ret_element
+    end
+
+    current_element, elements_state = ret_element
+    state_next = (cell_indices_state, elements_in_current_cell, elements_state,)
+    current_element, state_next
+end
+
+"""
+    nearby_elements(cl::PeriodicCellList{N}, x⃗) -> CellListIterator
+
+Return an iterator over the elements that are sufficiently close to the point `x⃗`.
+
+The iterator returns the elements which are likely to be within the cutoff radius of the
+point `x⃗`. More precisely, it returns elements in the same cell as `x⃗` as well as in
+neighbouring cells.
+
+Here x⃗ should be a coordinate, usually represented by an `SVector{N}` or an `NTuple{N}`.
+"""
+function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}
+    length(x⃗) == N || throw(DimensionMismatch(lazy"wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)"))
+    (; rs_cut, Ls,) = cl
+    inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
+    I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
+    M = subdivisions(cl)
+    cell_indices = CartesianIndices(
+        map(i -> (i - M):(i + M), Tuple(I₀))
+    )
+    CellListIterator(cl, cell_indices)
 end
 
 end

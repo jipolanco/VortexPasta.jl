@@ -8,6 +8,20 @@ CurrentModule = VortexPasta.CellLists
 CellLists
 ```
 
+## Types
+
+```@docs
+PeriodicCellList
+```
+
+## Functions
+
+```@docs
+add_element!
+empty!
+nearby_elements
+```
+
 ## Index
 
 ```@index
