@@ -276,7 +276,7 @@ This function should also scale the magnitude of the velocity field according
 to the chosen vortex circulation `Γ` and to the cell unit dimensions `Ls`.
 
 This function should generally be called after [`compute_vorticity_fourier!`](@ref).
-Optionally, one can use [`to_smoothed_streamfunction`](@ref) *before* computing the velocity.
+Optionally, one can use [`to_smoothed_streamfunction!`](@ref) *before* computing the velocity.
 """
 function to_smoothed_velocity!(c::LongRangeCache)
     (; uhat, state, ewald_op, wavenumbers,) = c.common
@@ -391,7 +391,19 @@ end
     x
 end
 
-function compute_vorticity_fourier!(cache::LongRangeCache, fs::VectorOfFilaments)
+"""
+    compute_vorticity_fourier!(cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
+
+Estimate vorticity in Fourier space.
+
+The vorticity, written to `cache.common.uhat`, is estimated using some variant of
+non-uniform Fourier transforms (depending on the chosen backend). Note that this function
+doesn't perform smoothing over the vorticity.
+
+After calling this function, one may want to use [`to_smoothed_streamfunction!`](@ref) and/or
+[`to_smoothed_velocity!`](@ref) to obtain the respective fields.
+"""
+function compute_vorticity_fourier!(cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
     (; to, params, uhat, state,) = cache.common
     quad = quadrature_rule(params)
     Ncharges = _count_charges(quad, fs)

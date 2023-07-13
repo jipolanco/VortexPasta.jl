@@ -42,7 +42,6 @@ set_filaments!
 add_short_range_velocity!
 local_self_induced_velocity
 nearby_segments
-PeriodicCellList
 ```
 
 ## Long-range interactions
@@ -67,10 +66,11 @@ reset_fields!
 set_num_points!
 add_pointcharge!
 add_point!
-transform_to_fourier!
+compute_vorticity_fourier!
 to_smoothed_streamfunction!
 to_smoothed_velocity!
 interpolate_to_physical!
+transform_to_fourier!
 ```
 
 ## Index
