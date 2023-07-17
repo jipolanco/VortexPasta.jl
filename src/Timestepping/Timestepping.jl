@@ -384,26 +384,30 @@ function step!(iter::VortexFilamentSolver)
     iter
 end
 
+@inline function reconnect_callback((fs, vs), f, i, mode::Symbol)
+    if mode === :removed
+        @debug lazy"Filament was removed at index $i"
+        @assert i ≤ lastindex(vs) == lastindex(fs) + 1
+        popat!(vs, i)
+    elseif mode === :appended
+        @debug lazy"Filament was appended at index $i"
+        @assert f === fs[i]
+        @assert i == lastindex(vs) + 1
+        push!(vs, similar(first(vs), length(f)))
+    elseif mode === :modified
+        @debug lazy"Filament was modified at index $i"
+        @assert f === fs[i]
+        @assert i ≤ lastindex(fs) == lastindex(vs)
+        resize!(vs[i], length(f))
+    end
+    nothing
+end
+
 function reconnect!(iter::VortexFilamentSolver)
     (; vs, fs, reconnect,) = iter
     Filaments.reconnect!(reconnect, fs) do f, i, mode
-        if mode === :removed
-            @debug lazy"Filament was removed at index $i"
-            @assert i ≤ lastindex(vs) == lastindex(fs) + 1
-            popat!(vs, i)
-        elseif mode === :appended
-            @debug lazy"Filament was appended at index $i"
-            @assert f === fs[i]
-            @assert i == lastindex(vs) + 1
-            push!(vs, similar(first(vs), length(f)))
-        elseif mode === :modified
-            @debug lazy"Filament was modified at index $i"
-            @assert f === fs[i]
-            @assert i ≤ lastindex(fs) == lastindex(vs)
-            resize!(vs[i], length(f))
-        end
-    end
-    iter
+        reconnect_callback((fs, vs), f, i, mode)
+    end :: Int  # returns the number of reconnections
 end
 
 # Called whenever filament positions have just been initialised or updated.
@@ -411,7 +415,8 @@ function after_advection!(iter::VortexFilamentSolver)
     (; vs, ψs, fs, time, callback, adaptivity, rhs!, to,) = iter
 
     # Perform reconnections, possibly changing the number of filaments.
-    @timeit to "reconnect!" reconnect!(iter)
+    @timeit to "reconnect!" number_of_reconnections = reconnect!(iter)
+    @debug lazy"Number of reconnections: $number_of_reconnections"
     @assert length(fs) == length(vs)
     isempty(fs) && error("all vortices disappeared!")  # TODO nicer way to handle this?
 

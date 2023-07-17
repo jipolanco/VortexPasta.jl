@@ -296,9 +296,11 @@ end
         crit::ReconnectionCriterion,
         fs::AbstractVector{<:AbstractFilament};
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
-    )
+    ) -> Int
 
 Perform filament reconnections according to chosen criterion.
+
+Returns the number of performed reconnections.
 
 Note that, when a filament self-reconnects, this creates new filaments, which
 are appended at the end of `fs`.
@@ -329,6 +331,8 @@ function reconnect!(
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
     ) where {F <: Function}
 
+    number_of_reconnections = 0
+
     # 1. Reconnect filaments with each other.
     i = firstindex(fs) - 1
     ilast = lastindex(fs)
@@ -342,6 +346,8 @@ function reconnect!(
             g = fs[j]
             h = reconnect_other!(crit, f, g; periods)
             h === nothing && continue
+
+            number_of_reconnections += 1
 
             # The two filaments were merged into `h`, and filaments `f` and `g` can be removed.
             fs[i] = h
@@ -366,12 +372,18 @@ function reconnect!(
         i += 1
         f = fs[i]
         n_old = lastindex(fs)
+
+        # If the filament `f` reconnects onto `N` filaments, this will:
+        #  1. construct a new filament `f₁`, which should replace `f` in the list of filaments `fs`
+        #  2. construct N - 1 additional filaments which will be appended to `fs`
         f₁ = reconnect_self!(crit, f, fs; periods)
         f₁ === nothing && continue  # there were no reconnections
 
         # First check appended filaments, and remove them if they don't have enough nodes (typically < 3).
         j = n_old
         while j < lastindex(fs)
+            # We consider each new filament as a single reconnection.
+            number_of_reconnections += 1
             j += 1
             fj = fs[j]  # this is an appended filament
             if check_nodes(Bool, fj)
@@ -382,8 +394,8 @@ function reconnect!(
             end
         end
 
-        # Now replace the old filament `f` by filament `f₁` (which is one of
-        # the filaments resulting from the reconnection).
+        # Now replace the old filament `f` by filament `f₁` (which is one of the filaments
+        # resulting from the reconnection).
         if check_nodes(Bool, f₁)
             fs[i] = f₁
             callback(f₁, i, :modified)
@@ -395,7 +407,7 @@ function reconnect!(
         end
     end
 
-    fs
+    number_of_reconnections
 end
 
 reconnect!(crit::ReconnectionCriterion, args...; kws...) =

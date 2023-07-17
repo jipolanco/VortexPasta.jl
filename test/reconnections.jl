@@ -184,7 +184,8 @@ end
 
         @testset "Filaments.reconnect!" begin
             fs = collect(copy.(fs_orig))
-            Filaments.reconnect!(crit, fs)
+            nrec = @inferred Filaments.reconnect!(crit, fs)
+            @test nrec == 1  # one reconnection
             @test length(fs) == 1
             @test length(fs[1]) == sum(length, fs_orig)
             @test maximum_knot_increment(fs) < 2 * l_min  # check that there are no crazy jumps
@@ -218,7 +219,8 @@ end
         crit = ReconnectBasedOnDistance(1.2 * d_min_nodes)
 
         fs = collect(copy.(fs_orig))
-        Filaments.reconnect!(crit, fs)
+        nrec = @inferred Filaments.reconnect!(crit, fs)
+        @test nrec == 2
         @test length(fs) == 2
         @test fs[1] != fs_orig[1]  # reconnection happened
         @test fs[2] != fs_orig[2]  # reconnection happened
@@ -276,7 +278,8 @@ end
             l_min = minimum_knot_increment(f_orig)
             fs = [copy(f_orig)]
             crit = ReconnectBasedOnDistance(l_min / 2)
-            Filaments.reconnect!(crit, fs; periods)
+            nrec = @inferred Filaments.reconnect!(crit, fs; periods)
+            @test nrec == 2
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
 
@@ -310,14 +313,16 @@ end
 
             # First pass: the ring splits into 2 infinite lines and a closed curve (very
             # similar to the overlapping ellipse case).
-            Filaments.reconnect!(crit, fs; periods)
+            nrec = Filaments.reconnect!(crit, fs; periods)
+            @test nrec == 2
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
             @test sum(f -> norm(end_to_end_offset(f)), fs) ≈ 4π  # two infinite lines
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
 
             # Second pass: the two infinite lines merge and then split, forming two closed lines.
-            Filaments.reconnect!(crit, fs; periods)
+            nrec = Filaments.reconnect!(crit, fs; periods)
+            @test nrec == 2
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
             @test sum(f -> norm(end_to_end_offset(f)), fs) < 1e-12  # no infinite lines
@@ -384,7 +389,8 @@ end
         # Automatic reconnection
         fs = copy.(fs_orig)
         crit = ReconnectBasedOnDistance(0.5 * l_min)
-        Filaments.reconnect!(crit, fs)
+        nrec = Filaments.reconnect!(crit, fs)
+        @test nrec == 2
         for f ∈ fs
             Filaments.fold_periodic!(f, periods)
             Filaments.update_coefficients!(f)
@@ -422,7 +428,8 @@ end
         crit = ReconnectBasedOnDistance(l_min)
         periods = 2π .* (1, 1, 1)
         fs = copy.(fs_orig)
-        Filaments.reconnect!(crit, fs; periods)
+        nrec = Filaments.reconnect!(crit, fs; periods)
+        @test nrec == 1
         @test length(fs) == 1
         @test fs == fs_manual  # compare with manually merged vortices
     end
