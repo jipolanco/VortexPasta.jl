@@ -10,6 +10,8 @@ using .Quadratures
 export GaussLegendre
 
 include("Filaments/Filaments.jl")
+include("FilamentIO/FilamentIO.jl")
+
 include("BiotSavart/BiotSavart.jl")
 include("Timestepping/Timestepping.jl")
 
