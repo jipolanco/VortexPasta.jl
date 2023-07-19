@@ -99,9 +99,10 @@ function _checkbounds(v::PaddedArray, Is...)
     @assert P ≥ N
     Is_head = ntuple(n -> Is[n], Val(N))
     Is_tail = ntuple(n -> Is[N + n], Val(P - N))  # possible additional indices which should be all 1
-    all(zip(axes(v), Is_head)) do (inds, i)
-        _checkbounds(Val(M), inds, i)
-    end && all(isone, Is_tail)
+    for (inds, i) ∈ zip(axes(v), Is_head)
+        _checkbounds(Val(M), inds, i) || return false
+    end
+    all(isone, Is_tail)
 end
 
 _checkbounds(::Val{M}, inds::AbstractUnitRange, i::Integer) where {M} =
