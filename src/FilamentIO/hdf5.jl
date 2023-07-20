@@ -10,6 +10,14 @@ function datatype_ascii(s::AbstractString)
     dtype
 end
 
+function open_or_create_group(parent, name)
+    if haskey(parent, name)
+        HDF5.open_group(parent, name)
+    else
+        HDF5.create_group(parent, name)
+    end
+end
+
 """
     init_vtkhdf(io::HDF5.File, fs::AbstractVector{<:AbstractFilament})
 
@@ -34,7 +42,7 @@ Some relevant datasets which are written are:
 - `/VTKHDF/Offsets`: contains the offset associated to each filament within the `Points`
   dataset. Its length is `1 + Nf` where `Nf` is the number of filaments. The points
   associated to the `i`-th filament are those with indices `(Offsets[i] + 1):Offsets[i + 1]`.
-  Once again, note that number of nodes of filament `i` *excluding the endpoint* is
+  Once again, note that number of nodes of filament `i` *including the endpoint* is
   `Offsets[i + 1] - Offsets[i]`.
 
 After calling this function, one may use [`write_point_data`](@ref) to attach data (for
@@ -133,13 +141,7 @@ function write_point_data(
         vs::AbstractVector{<:AbstractVector},
     )
     gtop = HDF5.open_group(io, "VTKHDF")
-
-    gname = "PointData"
-    gdata = if haskey(gtop, gname)
-        HDF5.open_group(gtop, gname)
-    else
-        HDF5.create_group(gtop, gname)
-    end
+    gdata = open_or_create_group(gtop, "PointData")
 
     # For now, assume `vs` contains vector data (such as velocities).
     # This can be easily generalised later.
@@ -175,4 +177,120 @@ function write_point_data(
     close(gtop)
 
     nothing
+end
+
+"""
+    write_field_data(io::HDF5.File, name::AbstractString, data)
+
+Write data as VTK field data to VTK HDF file.
+
+In VTK, *field data* refers to data which is not directly attached to the geometry.
+This is typically small datasets or simple values, such as the current time or simulation
+parameters.
+"""
+function write_field_data(io::HDF5.File, name::AbstractString, data)
+    gtop = HDF5.open_group(io, "VTKHDF")
+    gdata = open_or_create_group(gtop, "FieldData")
+    _write_field_data(gdata, name, data)
+    close(gdata)
+    close(gtop)
+    nothing
+end
+
+# General arrays of data (this actually will only work with regular `Array`s I think...)
+function _write_field_data(g, name, data::AbstractArray)
+    g[name] = data
+end
+
+# Strings as VTK field data require special handling:
+# - they must be encoded in ASCII
+# - they must be variable-length strings (default in HDF5.jl for arrays of strings, but we
+#   enforce it anyways just in case)
+function _write_field_data(g, name, data::AbstractArray{<:AbstractString})
+    dtype = HDF5.datatype(data)
+    HDF5.API.h5t_set_cset(dtype.id, HDF5.API.H5T_CSET_ASCII)
+    HDF5.API.h5t_set_size(dtype.id, HDF5.API.H5T_VARIABLE)
+    dspace = HDF5.dataspace(data)
+    dset = HDF5.create_dataset(g, name, dtype, dspace)
+    HDF5.write_dataset(dset, dtype, data)
+end
+
+# Otherwise, assume scalar data (numbers, strings)
+function _write_field_data(g, name, data)
+    _write_field_data(g, name, [data])
+end
+
+"""
+    read_filaments(io::HDF5.File, ::Type{T}, method::DiscretisationMethod) -> Vector{<:AbstractFilament}
+
+Read filament locations from VTK HDF file.
+
+This function loads filaments based on the datasets `/VTKHDF/Points` and `/VTKHDF/Offsets`
+as written by the [`init_vtkhdf`](@ref) function.
+
+Returns a vector of filaments. The specific type of filament (e.g.
+[`ClosedSplineFilament`](@ref) or [`ClosedLocalFilament`](@ref)) depends on the chosen
+`method`. See [`Filaments.init`](@ref) for possible options.
+
+## Typical usage
+
+```
+using HDF5
+h5open("filaments.hdf", "r") do io
+    fs = read_filaments(io, Float64, CubicSplineMethod())  # here `fs` is a list of filaments
+    vs = read_point_data(io, "Velocity")  # here `vs` contains one velocity vector per filament node
+    t = read_field_data(io, "Time")
+    # one can read other fields here...
+end
+```
+"""
+function read_filaments(
+        io::HDF5.File,
+        ::Type{T},
+        method::DiscretisationMethod,
+    ) where {T <: AbstractFloat}
+    haskey(io, "VTKHDF") || error("expected a `VTKHDF` group at the top of the file")
+    gtop = HDF5.open_group(io, "VTKHDF")
+
+    dset_points = HDF5.open_dataset(gtop, "Points")
+    dset_offset = HDF5.open_dataset(gtop, "Offsets")
+
+    Ñ, num_points = size(dset_points) :: Dims{2}
+    @assert Ñ == 3
+    num_cells = length(dset_offset) - 1
+    num_cells > 0 || error("expected at least one filament in the file")
+
+    # Read points as an Array{T} even if it was written as an Array{S} with S ≠ T
+    # (for instance, if data was written as S = Float64 and we want to read it as T = Float32).
+    # Similar thing for offsets. This ensures type stability...
+    points = Array{T}(undef, 3, num_points)
+    offsets = Array{Int}(undef, num_cells + 1)
+
+    HDF5.read_dataset(dset_points, HDF5.datatype(dset_points), points)
+    HDF5.read_dataset(dset_offset, HDF5.datatype(dset_offset), offsets)
+
+    fs = map(1:num_cells) do i
+        _load_filament(T, points, offsets, method, i)
+    end
+
+    close(gtop)
+
+    fs
+end
+
+# Load filament `i` from the list of points using the given offsets
+function _load_filament(
+        ::Type{T}, points::AbstractMatrix, offsets::AbstractVector, method, i::Int,
+    ) where {T}
+    S = eltype(points)
+    Xs = reinterpret(Vec3{S}, points)
+    a = offsets[i]      # points[:, a + 1] is the first point of this filament
+    b = offsets[i + 1]  # points[:, b] is the filament endpoint
+    num_nodes = b - a - 1         # excluding the endpoint
+    Xoffset = Xs[b] - Xs[a + 1]
+    f = Filaments.init(ClosedFilament{T}, num_nodes, method; offset = Xoffset)
+    @inbounds for j ∈ eachindex(f)
+        f[j] = Xs[a + j]
+    end
+    f
 end
