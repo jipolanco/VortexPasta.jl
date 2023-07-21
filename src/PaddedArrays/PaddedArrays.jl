@@ -180,6 +180,10 @@ end
 
 Base.popat!(v::PaddedVector, i::Integer) = popat!(parent(v), i + npad(v))
 
+# This is used by HDF5.jl when reading data directly onto a PaddedVector using HDF5.API.h5d_read()
+Base.unsafe_convert(::Type{Ptr{T}}, v::PaddedVector{M, T}) where {M, T} = pointer(v)
+Base.pointer(v::PaddedVector) = pointer(parent(v), npad(v) + 1)  # points to the first non-ghost entry
+
 ## ================================================================================ ##
 ## Periodic padding.
 ## ================================================================================ ##

@@ -2,6 +2,10 @@ export init_vtkhdf, write_point_data
 
 using HDF5: HDF5
 
+## ================================================================================ ##
+## 1. Writing filament HDF5 files
+## ================================================================================ ##
+
 # This is to make sure we write the dataset type ("UnstructuredGrid") as ASCII.
 # This is required by VTK/ParaView.
 function datatype_ascii(s::AbstractString)
@@ -187,6 +191,9 @@ Write data as VTK field data to VTK HDF file.
 In VTK, *field data* refers to data which is not directly attached to the geometry.
 This is typically small datasets or simple values, such as the current time or simulation
 parameters.
+
+Note that scalar data (such as time) is always written as a single-element vector, since
+otherwise it cannot be parsed by VTK.
 """
 function write_field_data(io::HDF5.File, name::AbstractString, data)
     gtop = HDF5.open_group(io, "VTKHDF")
@@ -204,12 +211,14 @@ end
 
 # Strings as VTK field data require special handling:
 # - they must be encoded in ASCII
-# - they must be variable-length strings (default in HDF5.jl for arrays of strings, but we
-#   enforce it anyways just in case)
+# - they must be variable-length strings
 function _write_field_data(g, name, data::AbstractArray{<:AbstractString})
-    dtype = HDF5.datatype(data)
-    HDF5.API.h5t_set_cset(dtype.id, HDF5.API.H5T_CSET_ASCII)
-    HDF5.API.h5t_set_size(dtype.id, HDF5.API.H5T_VARIABLE)
+    # This is adapted from the code for HDF5.datatype(data), but making sure we use ASCII.
+    S = eltype(data)
+    type_id = HDF5.API.h5t_copy(HDF5.hdf5_type_id(S))
+    HDF5.API.h5t_set_size(type_id, HDF5.API.H5T_VARIABLE)
+    HDF5.API.h5t_set_cset(type_id, HDF5.API.H5T_CSET_UTF8)
+    dtype = HDF5.Datatype(type_id)
     dspace = HDF5.dataspace(data)
     dset = HDF5.create_dataset(g, name, dtype, dspace)
     HDF5.write_dataset(dset, dtype, data)
@@ -219,6 +228,10 @@ end
 function _write_field_data(g, name, data)
     _write_field_data(g, name, [data])
 end
+
+## ================================================================================ ##
+## 2. Reading filament HDF5 files
+## ================================================================================ ##
 
 """
     read_filaments(io::HDF5.File, ::Type{T}, method::DiscretisationMethod) -> Vector{<:AbstractFilament}
@@ -238,8 +251,8 @@ Returns a vector of filaments. The specific type of filament (e.g.
 using HDF5
 h5open("filaments.hdf", "r") do io
     fs = read_filaments(io, Float64, CubicSplineMethod())  # here `fs` is a list of filaments
-    vs = read_point_data(io, "Velocity")  # here `vs` contains one velocity vector per filament node
-    t = read_field_data(io, "Time")
+    vs = read_point_data(io, "Velocity", fs)        # here `vs` contains one velocity vector per filament node
+    t = only(read_field_data(io, "Time", Float64))  # note: field data is always written as an array
     # one can read other fields here...
 end
 ```
@@ -293,4 +306,108 @@ function _load_filament(
         f[j] = Xs[a + j]
     end
     f
+end
+
+"""
+    read_point_data(
+        io::HDF5.File, name::AbstractString,
+        fs::AbstractVector{<:AbstractFilament},
+        [V = eltype(eltype(fs))],  # default is Vec3{T}
+    ) -> AbstractVector{<:AbstractVector}
+
+Load point data from VTK HDF file.
+
+Reads data written by [`write_point_data`](@ref).
+The output is a vector of vectors, where each subvector holds the data associated to a
+single filament.
+
+See [`read_filaments`](@ref) for a typical usage example.
+"""
+function read_point_data(
+        io::HDF5.File, name::AbstractString,
+        fs::AbstractVector{<:AbstractFilament},
+        ::Type{V} = eltype(eltype(fs)),  # Vec3{T} by default
+    ) where {V}
+    vs = map(f -> similar(nodes(f), V), fs)  # one PaddedVector for each filament
+    read_point_data!(io, vs, name)
+end
+
+"""
+    read_point_data!(
+        io::HDF5.File,
+        vs::AbstractVector{<:AbstractVector},
+        name::AbstractString,
+    )
+
+Load point data from VTK HDF file.
+
+Data is read onto the vector of vectors `vs`.
+
+See also [`read_point_data`](@ref) and [`write_point_data`](@ref).
+"""
+function read_point_data!(
+        io::HDF5.File,
+        vs::AbstractVector{<:AbstractVector},
+        name::AbstractString,
+    )
+    # TODO generalise for scalar data
+    V = eltype(eltype(vs))  # usually V == SVector{3, T}
+    N = length(V)  # usually == 3
+    T = eltype(V)
+
+    gdata = HDF5.open_group(io, "/VTKHDF/PointData")
+    dset = HDF5.open_dataset(gdata, name)
+    Ñ, num_points = size(dset) :: Dims{2}
+    @assert N == Ñ
+
+    n = 0
+    for v ∈ vs
+        M = length(v)
+        dspace = HDF5.hyperslab(dset, 1:N, (n + 1):(n + M))  # read part of the dataset
+        vdata = reinterpret(reshape, T, v)
+        memtype = HDF5.datatype(vdata)
+        memspace = HDF5.dataspace(vdata)
+        HDF5.API.h5d_read(dset, memtype, memspace, dspace, dset.xfer, vdata)
+        n += M + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
+    end
+    @assert n == num_points
+
+    close(dset)
+    close(gdata)
+
+    vs
+end
+
+"""
+    read_field_data(
+        io::HDF5.File, name::AbstractString, ::Type{T},
+    ) -> Vector{T}
+
+Read field data from VTK HDF file.
+
+Returns a *vector* of elements of type `T`, because, in VTK, field data is always
+represented as an array (even for single values such as time).
+
+See [`write_field_data`](@ref) for more details.
+"""
+function read_field_data(
+        io::HDF5.File, name::AbstractString, ::Type{T},
+    ) where {T}
+    dset = HDF5.open_dataset(io, "/VTKHDF/FieldData/$name")
+    N = length(dset)
+    out = Vector{T}(undef, N)
+    memtype = HDF5.datatype(out)
+    memspace = HDF5.dataspace(out)
+    dspace = HDF5.dataspace(dset)
+    HDF5.API.h5d_read(dset, memtype, memspace, dspace, dset.xfer, out)
+    close(dset)
+    out
+end
+
+# Specific case of strings
+function read_field_data(
+        io::HDF5.File, name::AbstractString, ::Type{<:AbstractString},
+    )
+    dset = HDF5.open_dataset(io, "/VTKHDF/FieldData/$name")
+    read(dset) :: Vector{String}
 end
