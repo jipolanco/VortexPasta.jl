@@ -52,7 +52,7 @@ end
     info_str = ["one", "two"]
 
     # Write results
-    h5open("ring_collision.h5", "w") do io
+    h5open("ring_collision.hdf", "w") do io
         FilamentIO.init_vtkhdf(io, fs)
         FilamentIO.write_point_data(io, "velocity", vs)
         FilamentIO.write_point_data(io, "streamfunction", ψs)
@@ -61,7 +61,7 @@ end
     end
 
     # Read results back
-    h5open("ring_collision.h5", "r") do io
+    h5open("ring_collision.hdf", "r") do io
         fs_read = @inferred FilamentIO.read_filaments(io, Float64, CubicSplineMethod())
         @test eltype(eltype(fs_read)) === Vec3{Float64}
         @test fs == fs_read

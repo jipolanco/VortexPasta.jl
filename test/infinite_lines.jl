@@ -3,9 +3,11 @@
 using Test
 using StaticArrays
 using Statistics: mean, std
+using HDF5: h5open
 using LinearAlgebra: norm
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
+using VortexPasta.FilamentIO
 using VortexPasta.BiotSavart
 
 # Initialise nearly straight vortex line with helicoidal perturbation.
@@ -18,6 +20,27 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.0, k::Int = 1)
     )
     offset = setindex(zero(S(0.0)), sign * Lz, 3)
     (; x, y, Lz, sign, tlims, S, offset,)
+end
+
+# Check that I/O preserves the end-to-end offset.
+function test_infinite_line_io(fs, vs)
+    method = Filaments.discretisation_method(first(fs))
+    T = eltype(eltype(eltype(fs)))
+    @assert T <: AbstractFloat
+    h5open("infinite.hdf", "w") do io
+        FilamentIO.init_vtkhdf(io, fs)
+        FilamentIO.write_point_data(io, "velocity", vs)
+    end
+    h5open("infinite.hdf", "r") do io
+        fs_read = @inferred FilamentIO.read_filaments(io, T, method)
+        @test fs_read == fs
+        for (f, g) ∈ zip(fs, fs_read)
+            @test end_to_end_offset(f) == end_to_end_offset(g)
+        end
+        vs_read = @inferred FilamentIO.read_point_data(io, "velocity", fs_read)
+        @test vs_read == vs
+    end
+    nothing
 end
 
 function test_infinite_lines(method)
@@ -97,6 +120,10 @@ function test_infinite_lines(method)
         if continuity ≥ 1
             @test vstd / abs(vmean) < 1e-3
         end
+    end
+
+    @testset "FilamentIO" begin
+        test_infinite_line_io(filaments, vs)
     end
 
     nothing
