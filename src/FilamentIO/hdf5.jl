@@ -279,8 +279,8 @@ function read_filaments(
     points = Array{T}(undef, 3, num_points)
     offsets = Array{Int}(undef, num_cells + 1)
 
-    HDF5.read_dataset(dset_points, HDF5.datatype(dset_points), points)
-    HDF5.read_dataset(dset_offset, HDF5.datatype(dset_offset), offsets)
+    read_dataset!(points, dset_points)
+    read_dataset!(offsets, dset_offset)
 
     fs = map(1:num_cells) do i
         _load_filament(T, points, offsets, method, i)
@@ -299,7 +299,7 @@ function _load_filament(
     Xs = reinterpret(Vec3{S}, points)
     a = offsets[i]      # points[:, a + 1] is the first point of this filament
     b = offsets[i + 1]  # points[:, b] is the filament endpoint
-    num_nodes = b - a - 1         # excluding the endpoint
+    num_nodes = b - a - 1  # not counting the endpoint
     Xoffset = Xs[b] - Xs[a + 1]
     f = Filaments.init(ClosedFilament{T}, num_nodes, method; offset = Xoffset)
     @inbounds for j ∈ eachindex(f)
@@ -365,9 +365,7 @@ function read_point_data!(
         M = length(v)
         dspace = HDF5.hyperslab(dset, 1:N, (n + 1):(n + M))  # read part of the dataset
         vdata = reinterpret(reshape, T, v)
-        memtype = HDF5.datatype(vdata)
-        memspace = HDF5.dataspace(vdata)
-        HDF5.API.h5d_read(dset, memtype, memspace, dspace, dset.xfer, vdata)
+        read_dataset!(vdata, dset, dspace)
         n += M + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
     end
     @assert n == num_points
@@ -376,6 +374,17 @@ function read_point_data!(
     close(gdata)
 
     vs
+end
+
+function read_dataset!(
+        out::AbstractArray,
+        dset::HDF5.Dataset,
+        dspace = HDF5.dataspace(dset);  # this can also be a hyperslab
+        memspace = HDF5.dataspace(out),
+    )
+    memtype = HDF5.datatype(out)
+    HDF5.API.h5d_read(dset, memtype, memspace, dspace, dset.xfer, out)
+    out
 end
 
 """
