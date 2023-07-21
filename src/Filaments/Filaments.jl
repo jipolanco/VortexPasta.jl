@@ -309,7 +309,7 @@ Base.@propagate_inbounds Base.getindex(
 
 """
     Filaments.init(
-        ClosedFilament{T}, N::Integer, method::DiscretisationMethod, [args...];
+        ClosedFilament{T}, N::Integer, method::DiscretisationMethod;
         offset = zero(Vec3{T}),
     ) -> ClosedFilament{T}
 
@@ -322,17 +322,19 @@ offset between points `f[i]` and `f[i + N]`. By default the offset is zero,
 meaning that the filament is a closed loop. This can be used for defining
 infinite (so not really closed) filaments living in periodic domains.
 
-Depending on the type of `method`, the returned filament may be a
-[`ClosedLocalFilament`](@ref) or a [`ClosedSplineFilament`](@ref).
-See their respective documentations for possible optional arguments (`args...`).
+Possible discretisation methods are:
+
+- [`CubicSplineMethod`](@ref), which returns a [`ClosedSplineFilament`](@ref);
+
+- [`FiniteDiffMethod`](@ref), which returns a [`ClosedLocalFilament`](@ref).
+
 """
 init(::Type{ClosedFilament}, N::Integer, args...; kws...) =
     init(ClosedFilament{Float64}, N, args...; kws...)
 
 """
     Filaments.init(
-        ClosedFilament, points::AbstractVector{<:Vec3}, method::DiscretisationMethod,
-        [args...];
+        ClosedFilament, points::AbstractVector{<:Vec3}, method::DiscretisationMethod;
         [kws...],
     )
 
@@ -341,9 +343,12 @@ Initialise new filament with the chosen discretisation points.
 Note that [`update_coefficients!`](@ref) does not need to be called after using
 this variant (until node locations change, of course!).
 """
-function init(::Type{ClosedFilament}, positions::AbstractVector{<:Vec3}, args...; kws...)
+function init(
+        ::Type{ClosedFilament}, positions::AbstractVector{<:Vec3}, method::DiscretisationMethod;
+        kws...,
+    )
     T = eltype(eltype(positions))
-    f = init(ClosedFilament{T}, length(positions), args...; kws...)
+    f = init(ClosedFilament{T}, length(positions), method; kws...)
     copy!(nodes(f), positions)
     update_coefficients!(f)
     f

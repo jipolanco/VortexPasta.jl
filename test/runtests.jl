@@ -5,6 +5,7 @@ using VortexPasta
     include("vector_of_vector.jl")
     include("filaments.jl")
     include("refinement.jl")
+    include("hdf5.jl")
     include("ring.jl")
     include("ring_collision.jl")
     include("trefoil.jl")

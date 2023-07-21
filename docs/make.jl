@@ -35,6 +35,7 @@ makedocs(
             "modules/BasicTypes.md",
             "modules/Quadratures.md",
             "modules/Filaments.md",
+            "modules/FilamentIO.md",
             "modules/BiotSavart.md",
             "modules/Timestepping.md",
         ]

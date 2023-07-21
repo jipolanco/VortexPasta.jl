@@ -99,9 +99,10 @@ function _checkbounds(v::PaddedArray, Is...)
     @assert P ≥ N
     Is_head = ntuple(n -> Is[n], Val(N))
     Is_tail = ntuple(n -> Is[N + n], Val(P - N))  # possible additional indices which should be all 1
-    all(zip(axes(v), Is_head)) do (inds, i)
-        _checkbounds(Val(M), inds, i)
-    end && all(isone, Is_tail)
+    for (inds, i) ∈ zip(axes(v), Is_head)
+        _checkbounds(Val(M), inds, i) || return false
+    end
+    all(isone, Is_tail)
 end
 
 _checkbounds(::Val{M}, inds::AbstractUnitRange, i::Integer) where {M} =
@@ -178,6 +179,10 @@ function Base.insert!(v::PaddedVector, i::Integer, x)
 end
 
 Base.popat!(v::PaddedVector, i::Integer) = popat!(parent(v), i + npad(v))
+
+# This is used by HDF5.jl when reading data directly onto a PaddedVector using HDF5.API.h5d_read()
+Base.unsafe_convert(::Type{Ptr{T}}, v::PaddedVector{M, T}) where {M, T} = pointer(v)
+Base.pointer(v::PaddedVector) = pointer(parent(v), npad(v) + 1)  # points to the first non-ghost entry
 
 ## ================================================================================ ##
 ## Periodic padding.
