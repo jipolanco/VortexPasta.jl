@@ -3,11 +3,12 @@ using LinearAlgebra: norm, normalize, ⋅
 using Statistics: mean, std
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
+using VortexPasta.PredefinedCurves: define_curve, Ring
 using Random
 
 function init_ring_filament(N::Int, R = π / 3; noise = 0.0, rng = nothing)
-    S(t) = π .+ R .* Vec3(cospi(t), sinpi(t), zero(t))
-    tlims = (0, 2)
+    S = define_curve(Ring(); transformation = R, translation = π)
+    tlims = (0, 1)
     ζs_base = range(tlims...; length = 2N + 1)[2:2:end]
     dζ = step(ζs_base)
     ζs = collect(ζs_base)
