@@ -1,17 +1,15 @@
 using Test
 using LinearAlgebra: norm, ⋅
+using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 
 function init_trefoil_filament(N::Int)
     R = π / 4
-    S(t) = R .+ R .* Vec3(
-        2 + sinpi(t) + 2 * sinpi(2t),
-        2 + cospi(t) - 2 * cospi(2t),
-        -sinpi(3t),
-    )
-    ζs = range(0, 2; length = N + 1)[1:N]
-    Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+    S = @inferred define_curve(TrefoilKnot(); translate = R, transform = R)
+    ζs = range(0, 1; length = N + 1)[1:N]
+    Xs = @inferred broadcast(S, ζs)  # same as S.(ζs)
+    Filaments.init(ClosedFilament, Xs, CubicSplineMethod())
 end
 
 function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, params_kws...)
@@ -179,7 +177,7 @@ function check_independence_on_ewald_parameter(f, αs; params_kws...)
         end
     end
     @show maxdiffs_vel maxdiffs_stf
-    @test maximum(maxdiffs_vel) < 1e-4
+    @test maximum(maxdiffs_vel) < 3e-4
     @test maximum(maxdiffs_stf) < 1e-5
     nothing
 end

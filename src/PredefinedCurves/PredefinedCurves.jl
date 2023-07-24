@@ -9,13 +9,12 @@ export define_curve
 
 abstract type ParametricCurve end
 
-using LinearAlgebra: I  # default rotation
 using StaticArrays: SVector
 
 """
     define_curve(
         p::ParametricCurve;
-        orientation::Int = 1, transformation = 1, translation = 0,
+        orientation::Int = 1, transform = 1, translate = 0,
     ) -> Function
 
 Return the definition of the parametric curve `p` as a function.
@@ -28,14 +27,14 @@ parameter ``t ∈ [0, 1]``. In particular, closed curves satisfy `S(0) == S(1)`.
 - `orientation`: allows to set the curve orientation. In particular, this determines the
   orientation of the tangent vector along the curve. Should be either `1` or `-1`.
 
-- `transformation`: *linear* coordinate transformation. In the most general case, this is a
-  composition of a rotation and a scaling operation, described by a 3×3 transformation matrix.
+- `transform`: *linear* coordinate transformation. In the most general case, this is a
+  composition of a rotation and a scaling operation, described in 3D by a 3×3 transformation matrix.
   For pure isotropic scaling, this can be a scalar value. In the case of rotations, they can
   be conveniently defined using the
   [Rotations.jl](https://github.com/JuliaGeometry/Rotations.jl) package (see below for some
   examples).
 
-- `translation`: a scalar or a vector describing a translation operation. Note that
+- `translate`: a scalar or a vector describing a translation operation. Note that
   translations are performed *after* linear transformations such as rotations.
 
 ## Examples
@@ -46,7 +45,7 @@ Define a circular ring of radius ``R = 2`` centred at ``x⃗₀ = (0, 0, 1)`` an
 its coordinates over equispaced points.
 
 ```jldoctest parametric_definition
-julia> S = define_curve(Ring(); translation = (0, 0, 1), transformation = 2);
+julia> S = define_curve(Ring(); translate = (0, 0, 1), transform = 2);
 
 julia> ts = range(0, 1; length = 16 + 1)
 0.0:0.0625:1.0
@@ -80,13 +79,13 @@ transformation:
 ```jldoctest parametric_definition
 julia> using LinearAlgebra, StaticArrays
 
-julia> transformation = Diagonal(SVector(2.0, 1.0, 1.0))
+julia> transform = Diagonal(SVector(2.0, 1.0, 1.0))
 3×3 Diagonal{Float64, SVector{3, Float64}} with indices SOneTo(3)×SOneTo(3):
  2.0   ⋅    ⋅
   ⋅   1.0   ⋅
   ⋅    ⋅   1.0
 
-julia> S = define_curve(Ring(); transformation);
+julia> S = define_curve(Ring(); transform);
 
 julia> S.(ts)
 17-element Vector{SVector{3, Float64}}:
@@ -123,13 +122,13 @@ julia> rot = RotY(π / 2)  # rotation of 90° about the Y axis
   0.0          1.0  0.0
  -1.0          0.0  6.12323e-17
 
-julia> transformation = 2 * rot  # compose rotation with ×2 scaling (to get radius = 2)
+julia> transform = 2 * rot  # compose rotation with ×2 scaling (to get radius = 2)
 3×3 SMatrix{3, 3, Float64, 9} with indices SOneTo(3)×SOneTo(3):
   1.22465e-16  0.0  2.0
   0.0          2.0  0.0
  -2.0          0.0  1.22465e-16
 
-julia> S = define_curve(Ring(); transformation);
+julia> S = define_curve(Ring(); transform);
 
 julia> S.(ts)
 17-element Vector{SVector{3, Float64}}:
@@ -173,7 +172,7 @@ julia> rot = rand(rng, QuatRotation)  # uniformly distributed random rotation
  0.517372   0.0380793  -0.854913
  0.496373   0.80043     0.336045
 
-julia> S = define_curve(Ring(); transformation = 2 * rot);
+julia> S = define_curve(Ring(); transform = 2 * rot);
 
 julia> S.(ts)
 17-element Vector{SVector{3, Float64}}:
@@ -198,15 +197,16 @@ julia> S.(ts)
 """
 function define_curve(
         p::ParametricCurve;
-        orientation::Int = 1, translation = 0, transformation = 1,
+        orientation::Int = 1, translate = 0, transform = 1,
     )
     S_base = _definition(p)
     function S(t)
         x⃗ = S_base(orientation * t)
-        translation .+ transformation * x⃗
+        translate .+ transform * x⃗
     end
 end
 
 include("ring.jl")
+include("trefoil.jl")
 
 end

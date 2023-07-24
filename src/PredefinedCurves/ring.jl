@@ -8,7 +8,7 @@ Describes a circular ring in 3D space.
 By default, the ring has radius `1`, it is defined on the XY plane, and its centre is
 located at `(0, 0, 0)`.
 
-These default properties can be modified via the optional `transformation` and `translation`
+These default properties can be modified via the optional `transform` and `translate`
 arguments of the [`define_curve`](@ref) function.
 """
 struct Ring <: ParametricCurve end
