@@ -205,7 +205,7 @@ function reconnect_self!(
 
             if check_nodes(Bool, f₁)
                 update_coefficients!(f₁)
-                g₁ = reconnect_self!(crit, f₁, fs_new; periods)
+                g₁ = reconnect_self!(crit, f₁, fs_new; periods, istart = firstindex(segments(f₁)))
                 return something(g₁, f₁)  # return f₁, or its replacement if f₁ itself reconnected
             end
 

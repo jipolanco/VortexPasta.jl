@@ -4,6 +4,7 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using StaticArrays
 using LinearAlgebra: norm, I, Diagonal
+using JET: @test_opt
 
 # Create a curve which resembles an 8 (or ∞).
 # This specific curve is called the lemniscate of Bernouilli (https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli)
@@ -65,6 +66,7 @@ end
         @testset "Filaments.split!" begin
             i = length(f) ÷ 4
             j = 3i
+            @test_opt ignored_modules=(Base,) Filaments.split!(copy(f), i, j)
             f1, f2 = @inferred Filaments.split!(copy(f), i, j)
             update_coefficients!.((f1, f2))
             @test length(f1) == length(f2) == length(f) ÷ 2
@@ -76,6 +78,7 @@ end
             crit = @inferred ReconnectBasedOnDistance(l_min / 2)
             fc = copy(f)
             fs_all = [fc]
+            @test_opt ignored_modules=(Base,) Filaments.reconnect_self!(crit, fc, fs_all)
             f1 = Filaments.reconnect_self!(crit, fc, fs_all)
             @test f1 !== nothing       # reconnection happened
             @test length(fs_all) == 2  # filament split into two!
