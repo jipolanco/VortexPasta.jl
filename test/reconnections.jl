@@ -1,9 +1,11 @@
 using Test
-using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot, Lemniscate
+using VortexPasta.PredefinedCurves:
+    define_curve, Ring, TrefoilKnot, Lemniscate, PeriodicLine
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using StaticArrays
+using Rotations
 using LinearAlgebra: norm, I
 using JET: @test_opt
 
@@ -23,11 +25,24 @@ function ring_curve(; scale = 1, translate = π * Vec3(1, 1, 1), sign = +1, rota
     (; tlims, S,)
 end
 
+# Here `orientation ∈ 1:3` refers to the direction of the line (x, y or z).
+# Not to be confused with the `orientation` argument of `define_curve`.
 function infinite_line_curve(; origin, L = 2π, sign, orientation::Int)
     tlims = (0, 1)
-    zerovec = zero(Vec3{Float64})
-    S(t) = origin + setindex(zerovec, sign * (t - one(t)/2) * L, orientation)
-    offset = setindex(zerovec, sign * L, orientation)
+    rotate = if orientation == 1
+        RotMatrix(RotY(π / 2))
+    elseif orientation == 2
+        RotMatrix(RotX(-π / 2))
+    elseif orientation == 3
+        RotMatrix(RotZ(0))  # identity matrix (no rotation)
+    end
+    S = define_curve(
+        PeriodicLine();
+        scale = L, orientation = sign, rotate, translate = origin,
+    )
+    offset = S(1) - S(0)
+    offset_alt = setindex(zero(Vec3{Float64}), sign * L, orientation)
+    @assert offset == offset_alt
     (; tlims, S, offset,)
 end
 
