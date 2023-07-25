@@ -177,7 +177,7 @@ function check_independence_on_ewald_parameter(f, αs; params_kws...)
         end
     end
     @show maxdiffs_vel maxdiffs_stf
-    @test maximum(maxdiffs_vel) < 3e-4
+    @test maximum(maxdiffs_vel) < 1e-4
     @test maximum(maxdiffs_stf) < 1e-5
     nothing
 end

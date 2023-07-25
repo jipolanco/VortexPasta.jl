@@ -9,10 +9,12 @@ Before transformations, the trefoil knot is defined by:
 
 ```math
 \begin{aligned}
-    x &= \sin t + 2 \sin 2t \\
-    y &= \cos t - 2 \cos 2t \\
-    z &= -\sin 3t
+    x &= \sin u + 2 \sin 2u \\
+    y &= \cos u - 2 \cos 2u \\
+    z &= -\sin 3u
 \end{aligned}
+
+for ``u ∈ [0, 2π]``.
 ```
 """
 struct TrefoilKnot <: ParametricCurve end
@@ -25,7 +27,7 @@ function _definition(::TrefoilKnot)
         SVector(
             s + 2ss,
             c - 2cc,
-            -3 * sinpi(3u),
+            -sinpi(3u),
         )
     end
 end
