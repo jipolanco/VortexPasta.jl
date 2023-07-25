@@ -220,8 +220,12 @@ function define_curve(
     end
 end
 
+# Closed lines
 include("ring.jl")
 include("trefoil.jl")
 include("lemniscate.jl")
+
+# Periodic unclosed lines
+include("periodic_line.jl")
 
 end

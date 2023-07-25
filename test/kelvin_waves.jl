@@ -5,6 +5,7 @@ using StaticArrays
 using Statistics: mean, std
 using LinearAlgebra: norm, normalize
 using Optim: Optim
+using VortexPasta.PredefinedCurves: define_curve, PeriodicLine
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 using VortexPasta.BiotSavart
@@ -12,13 +13,16 @@ using VortexPasta.Timestepping
 
 # Initialise nearly straight vortex line with sinusoidal perturbation.
 function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
-    tlims = (-0.5, 0.5)
-    S(t) = SVector(
-        x + A * sinpi(4π * k * t / Lz),
-        y,
-        (0.5 + sign * t) * Lz,
+    tlims = (0, 1)
+    xfun(t) = A * sinpi(2 * k * t)
+    p = PeriodicLine(; x = xfun,)
+    S = define_curve(
+        p;
+        scale = SDiagonal(1, 1, Lz),  # make the line 2π-periodic in Z
+        translate = (x, y, Lz / 2),
+        orientation = sign,
     )
-    offset = setindex(zero(S(0.0)), sign * Lz, 3)
+    offset = S(1) - S(0)
     (; x, y, Lz, sign, A, k, tlims, S, offset,)
 end
 

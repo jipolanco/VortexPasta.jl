@@ -14,6 +14,7 @@ PredefinedCurves
 Ring
 TrefoilKnot
 Lemniscate
+PeriodicLine
 ```
 
 ## Functions
