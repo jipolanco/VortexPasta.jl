@@ -23,7 +23,7 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
         orientation = sign,
     )
     offset = S(1) - S(0)
-    @assert offset ≈ SVector(0, 0, Lz)
+    @assert offset ≈ SVector(0, 0, sign * Lz)
     (; x, y, Lz, sign, A, k, tlims, S, offset,)
 end
 
