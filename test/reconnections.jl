@@ -1,9 +1,10 @@
 using Test
+using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using StaticArrays
-using LinearAlgebra: norm, I, Diagonal
+using LinearAlgebra: norm, I
 using JET: @test_opt
 
 # Create a curve which resembles an 8 (or ∞).
@@ -22,26 +23,16 @@ function figure_eight_curve(; a::Real = 1, origin::Vec3 = π * Vec3(1, 1, 1), Az
     (; tlims, S, a, c, Az, origin,)
 end
 
-function trefoil_knot_curve(; a::Real, origin::Vec3 = π * Vec3(1, 1, 1))
-    tlims = (-1, 1)
-    S(t) = origin + a * Vec3(
-        sinpi(t) + 2 * sinpi(2t),
-        cospi(t) - 2 * cospi(2t),
-        -sinpi(3t),
-    )
-    (; tlims, S, a, origin,)
-end
-
-function ring_curve(; R::Real, origin::Vec3 = π * Vec3(1, 1, 1), sign = +1, transform = I)
-    tlims = (0, 2)
-    S(t) = origin + R * transform * Vec3(cospi(sign * t), sinpi(sign * t), zero(t))
-    (; tlims, S, origin, R, offset = zero(Vec3{Float64}))
+function ring_curve(; scale = 1, translate = π * Vec3(1, 1, 1), sign = +1, rotate = I)
+    tlims = (0, 1)
+    S = define_curve(Ring(); translate, scale, orientation = sign, rotate)
+    (; tlims, S,)
 end
 
 function infinite_line_curve(; origin::Vec3, L = 2π, sign, orientation::Int)
-    tlims = (-0.5, 0.5)
+    tlims = (0, 1)
     zerovec = zero(Vec3{Float64})
-    S(t) = origin + setindex(zerovec, sign * t * L, orientation)
+    S(t) = origin + setindex(zerovec, sign * (t - one(t)/2) * L, orientation)
     offset = setindex(zerovec, sign * L, orientation)
     (; tlims, S, offset,)
 end
@@ -95,8 +86,8 @@ end
     end
 
     @testset "Dynamic: trefoil knot" begin
-        curve = trefoil_knot_curve(; a = π / 4,)
-        (; S, tlims,) = curve
+        S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
+        tlims = (0, 1)
         N = 96
         ζs = range(tlims...; length = 2N + 1)[2:2:2N]
 
@@ -157,10 +148,10 @@ end
         R = π / 4
         ϵ = 0.02R
         rings = (
-            ring_curve(; R, origin = Vec3(π - (R + ϵ), π, π), sign = +1),
-            ring_curve(; R, origin = Vec3(π + (R + ϵ), π, π), sign = +1),
+            ring_curve(; scale = R, translate = Vec3(π - (R + ϵ), π, π), sign = +1),
+            ring_curve(; scale = R, translate = Vec3(π + (R + ϵ), π, π), sign = +1),
         )
-        d_min = norm(rings[2].S(1.0) - rings[1].S(0.0))  # minimum distance between the rings
+        d_min = norm(rings[2].S(0.5) - rings[1].S(0.0))  # minimum distance between the rings
         @assert d_min ≈ 2ϵ
 
         fs_orig = map(rings) do ring
@@ -204,8 +195,8 @@ end
         R = π / 4
         ϵ = 0.02R
         rings = (
-            ring_curve(; R, origin = Vec3(π - R / sqrt(2), π, π + ϵ), sign = +1),
-            ring_curve(; R, origin = Vec3(π + R / sqrt(2), π, π - ϵ), sign = +1),
+            ring_curve(; scale = R, translate = Vec3(π - R / sqrt(2), π, π + ϵ), sign = +1),
+            ring_curve(; scale = R, translate = Vec3(π + R / sqrt(2), π, π - ϵ), sign = +1),
         )
 
         fs_orig = map(rings) do ring
@@ -241,8 +232,8 @@ end
             R = π
             ϵ = π / 100
             N = 32
-            transform = Diagonal(SVector(1, 0.5, 1))  # "squeeze" ring along `y` direction
-            ring = ring_curve(; R, origin = π * Vec3(1, 1, 1), transform,)
+            scale = R * SDiagonal(1, 0.5, 1)  # "squeeze" ring along `y` direction
+            ring = ring_curve(; scale, translate = π * Vec3(1, 1, 1),)
             f_orig = let
                 (; S, tlims,) = ring
                 ζs = range(tlims...; length = 2N + 1)[2:2:2N]
@@ -270,8 +261,8 @@ end
             periods = 2π .* (1, 1, 1)
             R = π * 1.2
             N = 64
-            transform = Diagonal(SVector(1, 0.5, 1))  # "squeeze" ring along `y` direction
-            ring = ring_curve(; R, origin = π * Vec3(1, 1, 1), transform,)
+            scale = R * SDiagonal(1, 0.5, 1)  # "squeeze" ring along `y` direction
+            ring = ring_curve(; scale, translate = π * Vec3(1, 1, 1),)
             f_orig = let
                 (; S, tlims,) = ring
                 ζs = range(tlims...; length = 2N + 1)[2:2:2N]
@@ -302,8 +293,7 @@ end
             periods = 2π .* (1, 1, 1)
             R = π * 1.2
             N = 64
-            transform = Diagonal(SVector(1, 1, 1))
-            ring = ring_curve(; R, origin = π * Vec3(1, 1, 1), transform,)
+            ring = ring_curve(; scale = R, translate = π * Vec3(1, 1, 1),)
             f_orig = let
                 (; S, tlims,) = ring
                 ζs = range(tlims...; length = 2N + 1)[2:2:2N]
@@ -337,11 +327,12 @@ end
         R = 0.6π
         lines = [
             infinite_line_curve(; L = 2π, orientation = 1, origin = Vec3(1, 1, 1) * π, sign = +1),
-            ring_curve(; R, origin = Vec3(1, 1, 1) * π, sign = +1,)
+            ring_curve(; scale = R, translate = Vec3(1, 1, 1) * π, sign = +1,)
         ]
         Ns = 10, 12
         fs_orig = map(lines, Ns) do line, N
-            (; S, offset, tlims,) = line
+            (; S, tlims,) = line
+            offset = S(tlims[2]) - S(tlims[1])
             ζs = range(tlims...; length = 2N + 1)[2:2:2N]
             Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod(); offset)
         end
@@ -440,14 +431,14 @@ end
 end
 
 # This can be useful for playing around with the tests.
-if @isdefined(Makie)
+if false && @isdefined(Makie)
     fig = Figure()
     Ls = 2π .* (1, 1, 1)
     ax = Axis3(fig[1, 1]; aspect = :data)
     wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
-    for f ∈ fs_orig
-        plot!(ax, f; refinement = 8, linestyle = :dash, color = (:grey, 0.5), markersize = 8)
-    end
+    # for f ∈ fs_orig
+    #     plot!(ax, f; refinement = 8, linestyle = :dash, color = (:grey, 0.5), markersize = 8)
+    # end
     for f ∈ fs
         p = plot!(ax, f; refinement = 8, linestyle = :solid)
         scatter!(ax, nodes(f).data; color = p.color)
