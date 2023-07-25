@@ -9,12 +9,14 @@ export define_curve
 
 abstract type ParametricCurve end
 
+using LinearAlgebra: LinearAlgebra
 using StaticArrays: SVector
 
 """
     define_curve(
         p::ParametricCurve;
-        orientation::Int = 1, transform = 1, translate = 0,
+        scale = 1, rotate = LinearAlgebra.I, translate = 0,
+        orientation::Int = 1,
     ) -> Function
 
 Return the definition of the parametric curve `p` as a function.
@@ -24,18 +26,28 @@ parameter ``t ∈ [0, 1]``. In particular, closed curves satisfy `S(0) == S(1)`.
 
 ## Optional arguments
 
-- `orientation`: allows to set the curve orientation. In particular, this determines the
-  orientation of the tangent vector along the curve. Should be either `1` or `-1`.
+### Coordinate transformations
 
-- `transform`: *linear* coordinate transformation. In the most general case, this is a
-  composition of a rotation and a scaling operation, described in 3D by a 3×3 transformation matrix.
-  For pure isotropic scaling, this can be a scalar value. In the case of rotations, they can
-  be conveniently defined using the
-  [Rotations.jl](https://github.com/JuliaGeometry/Rotations.jl) package (see below for some
+The original curve can be transformed by (1) scaling, (2) rotation and (3) translation
+operations. Note that transformations are applied in that order.
+
+- `scale`: scales the curve by a given factor. The argument can be a scalar value for
+  isotropic scaling (same scaling in all directions), or a `Diagonal` matrix (3×3 in 3D) for
+  anisotropic scaling. In the second case, one can use the `SDiagonal` type from the
+  StaticArrays.jl package (see below for some examples).
+
+- `rotate`: in 3D, this should be a 3×3 orthogonal matrix describing pure rotation. For
+  convenience, one can use the [Rotations.jl](https://github.com/JuliaGeometry/Rotations.jl)
+  package for defining such rotations using different parametrisations (see below for some
   examples).
 
 - `translate`: a scalar or a vector describing a translation operation. Note that
-  translations are performed *after* linear transformations such as rotations.
+  translations are performed *after* scaling and rotation.
+
+### Curve orientation
+
+- `orientation`: allows to set the curve orientation. In particular, this determines the
+  orientation of the tangent vector along the curve. Should be either `1` or `-1`.
 
 ## Examples
 
@@ -45,7 +57,7 @@ Define a circular ring of radius ``R = 2`` centred at ``x⃗₀ = (0, 0, 1)`` an
 its coordinates over equispaced points.
 
 ```jldoctest parametric_definition
-julia> S = define_curve(Ring(); translate = (0, 0, 1), transform = 2);
+julia> S = define_curve(Ring(); translate = (0, 0, 1), scale = 2);
 
 julia> ts = range(0, 1; length = 16 + 1)
 0.0:0.0625:1.0
@@ -79,13 +91,13 @@ transformation:
 ```jldoctest parametric_definition
 julia> using LinearAlgebra, StaticArrays
 
-julia> transform = Diagonal(SVector(2.0, 1.0, 1.0))
+julia> scale = SDiagonal(2.0, 1.0, 1.0)
 3×3 Diagonal{Float64, SVector{3, Float64}} with indices SOneTo(3)×SOneTo(3):
  2.0   ⋅    ⋅
   ⋅   1.0   ⋅
   ⋅    ⋅   1.0
 
-julia> S = define_curve(Ring(); transform);
+julia> S = define_curve(Ring(); scale);
 
 julia> S.(ts)
 17-element Vector{SVector{3, Float64}}:
@@ -122,33 +134,33 @@ julia> rot = RotY(π / 2)  # rotation of 90° about the Y axis
   0.0          1.0  0.0
  -1.0          0.0  6.12323e-17
 
-julia> transform = 2 * rot  # compose rotation with ×2 scaling (to get radius = 2)
+julia> rot = SMatrix(replace(x -> abs(x) < 1e-16 ? zero(x) : x, rot))  # remove spurious near-zero values
 3×3 SMatrix{3, 3, Float64, 9} with indices SOneTo(3)×SOneTo(3):
-  1.22465e-16  0.0  2.0
-  0.0          2.0  0.0
- -2.0          0.0  1.22465e-16
+  0.0  0.0  1.0
+  0.0  1.0  0.0
+ -1.0  0.0  0.0
 
-julia> S = define_curve(Ring(); transform);
+julia> S = define_curve(Ring(); scale = 2, rotate = rot);
 
 julia> S.(ts)
 17-element Vector{SVector{3, Float64}}:
- [1.2246467991473532e-16, 0.0, -2.0]
- [1.1314261122877003e-16, 0.7653668647301796, -1.8477590650225735]
- [8.659560562354934e-17, 1.4142135623730951, -1.4142135623730951]
- [4.6865204053262986e-17, 1.8477590650225735, -0.7653668647301796]
+ [0.0, 0.0, -2.0]
+ [0.0, 0.7653668647301796, -1.8477590650225735]
+ [0.0, 1.4142135623730951, -1.4142135623730951]
+ [0.0, 1.8477590650225735, -0.7653668647301796]
  [0.0, 2.0, 0.0]
- [-4.6865204053262986e-17, 1.8477590650225735, 0.7653668647301796]
- [-8.659560562354934e-17, 1.4142135623730951, 1.4142135623730951]
- [-1.1314261122877003e-16, 0.7653668647301796, 1.8477590650225735]
- [-1.2246467991473532e-16, 0.0, 2.0]
- [-1.1314261122877003e-16, -0.7653668647301796, 1.8477590650225735]
- [-8.659560562354934e-17, -1.4142135623730951, 1.4142135623730951]
- [-4.6865204053262986e-17, -1.8477590650225735, 0.7653668647301796]
+ [0.0, 1.8477590650225735, 0.7653668647301796]
+ [0.0, 1.4142135623730951, 1.4142135623730951]
+ [0.0, 0.7653668647301796, 1.8477590650225735]
+ [0.0, 0.0, 2.0]
+ [0.0, -0.7653668647301796, 1.8477590650225735]
+ [0.0, -1.4142135623730951, 1.4142135623730951]
+ [0.0, -1.8477590650225735, 0.7653668647301796]
  [0.0, -2.0, 0.0]
- [4.6865204053262986e-17, -1.8477590650225735, -0.7653668647301796]
- [8.659560562354934e-17, -1.4142135623730951, -1.4142135623730951]
- [1.1314261122877003e-16, -0.7653668647301796, -1.8477590650225735]
- [1.2246467991473532e-16, 0.0, -2.0]
+ [0.0, -1.8477590650225735, -0.7653668647301796]
+ [0.0, -1.4142135623730951, -1.4142135623730951]
+ [0.0, -0.7653668647301796, -1.8477590650225735]
+ [0.0, 0.0, -2.0]
 ```
 
 More generally, to rotate about an arbitrary axis `ê = [ex, ey, ez]` by an angle
@@ -172,7 +184,7 @@ julia> rot = rand(rng, QuatRotation)  # uniformly distributed random rotation
  0.517372   0.0380793  -0.854913
  0.496373   0.80043     0.336045
 
-julia> S = define_curve(Ring(); transform = 2 * rot);
+julia> S = define_curve(Ring(); scale = 2, rotate = rot);
 
 julia> S.(ts)
 17-element Vector{SVector{3, Float64}}:
@@ -197,12 +209,14 @@ julia> S.(ts)
 """
 function define_curve(
         p::ParametricCurve;
-        orientation::Int = 1, translate = 0, transform = 1,
+        translate = 0, scale = LinearAlgebra.I, rotate = LinearAlgebra.I,
+        orientation::Int = 1,
     )
     S_base = _definition(p)
+    A = rotate * scale  # linear transformation (we apply scaling first!)
     function S(t)
         x⃗ = S_base(orientation * t)
-        translate .+ transform * x⃗
+        translate .+ A * x⃗
     end
 end
 

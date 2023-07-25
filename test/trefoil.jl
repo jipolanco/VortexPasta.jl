@@ -6,7 +6,7 @@ using VortexPasta.BiotSavart
 
 function init_trefoil_filament(N::Int)
     R = π / 4
-    S = @inferred define_curve(TrefoilKnot(); translate = R, transform = R)
+    S = @inferred define_curve(TrefoilKnot(); translate = R, scale = R)
     ζs = range(0, 1; length = N + 1)[1:N]
     Xs = @inferred broadcast(S, ζs)  # same as S.(ζs)
     Filaments.init(ClosedFilament, Xs, CubicSplineMethod())
