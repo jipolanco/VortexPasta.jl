@@ -13,6 +13,7 @@ PredefinedCurves
 ```@docs
 Ring
 TrefoilKnot
+Lemniscate
 ```
 
 ## Functions

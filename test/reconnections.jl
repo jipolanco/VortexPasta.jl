@@ -1,5 +1,5 @@
 using Test
-using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot
+using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot, Lemniscate
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
@@ -10,17 +10,11 @@ using JET: @test_opt
 # Create a curve which resembles an 8 (or ∞).
 # This specific curve is called the lemniscate of Bernouilli (https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli)
 # We allow a perturbation in the 3rd direction (Az) so that the curve doesn't exactly cross itself.
-function figure_eight_curve(; a::Real = 1, origin::Vec3 = π * Vec3(1, 1, 1), Az = 0)
-    c = a / sqrt(2)  # focal distance (`a` is the half width)
-    # Note: the crossings are located at t = -0.5 and 0.5.
-    tlims = (-1, 1)
-    S(t) = let
-        s, c = sincospi(t)
-        factor = a / (1 + s^2)
-        z = Az * s
-        origin + Vec3(factor * c, factor * s * c, z)
-    end
-    (; tlims, S, a, c, Az, origin,)
+function figure_eight_curve(; a::Real = 1, translate = π * Vec3(1, 1, 1), Az = 0)
+    # Note: the crossings are located at t = 0.25 and 0.75.
+    tlims = (0, 1)
+    S = define_curve(Lemniscate(; Az,); translate, scale = a,)
+    (; tlims, S,)
 end
 
 function ring_curve(; scale = 1, translate = π * Vec3(1, 1, 1), sign = +1, rotate = I)
@@ -29,7 +23,7 @@ function ring_curve(; scale = 1, translate = π * Vec3(1, 1, 1), sign = +1, rota
     (; tlims, S,)
 end
 
-function infinite_line_curve(; origin::Vec3, L = 2π, sign, orientation::Int)
+function infinite_line_curve(; origin, L = 2π, sign, orientation::Int)
     tlims = (0, 1)
     zerovec = zero(Vec3{Float64})
     S(t) = origin + setindex(zerovec, sign * (t - one(t)/2) * L, orientation)
@@ -46,7 +40,7 @@ end
 @testset "Reconnections" begin
     @testset "Static self-reconnection: figure-eight knot" begin
         Az = 0.001
-        curve = figure_eight_curve(; a = π / 4, Az, origin = Vec3(0, 0, 0))
+        curve = figure_eight_curve(; a = π / 4, Az, translate = (0, 0, 0))
         (; S, tlims,) = curve
         N = 32
         ζs = range(tlims...; length = 2N + 1)[2:2:2N]

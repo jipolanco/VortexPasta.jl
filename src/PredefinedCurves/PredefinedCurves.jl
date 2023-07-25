@@ -222,5 +222,6 @@ end
 
 include("ring.jl")
 include("trefoil.jl")
+include("lemniscate.jl")
 
 end
