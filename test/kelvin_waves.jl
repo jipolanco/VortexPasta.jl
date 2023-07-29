@@ -3,7 +3,7 @@
 using Test
 using StaticArrays
 using Statistics: mean, std
-using LinearAlgebra: norm, normalize
+using LinearAlgebra: norm, normalize, ⋅
 using Optim: Optim
 using VortexPasta.PredefinedCurves: define_curve, PeriodicLine
 using VortexPasta.Filaments
@@ -25,6 +25,39 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
     offset = S(1) - S(0)
     @assert offset ≈ SVector(0, 0, sign * Lz)
     (; x, y, Lz, sign, A, k, tlims, S, offset,)
+end
+
+function kinetic_energy_from_streamfunction(
+        ψs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament},
+        Γ::Real, Ls::NTuple{3};
+        quad = nothing,
+    )
+    prefactor = Γ / (2 * prod(Ls))
+    E = zero(prefactor)
+    for (f, ψs) ∈ zip(fs, ψs_all)
+        ts = knots(f)
+        if quad === nothing
+            for i ∈ eachindex(segments(f))
+                ψ⃗ = ψs[i]
+                s⃗′ = f[i, Derivative(1)]
+                δt = (ts[i + 1] - ts[i - 1]) / 2
+                E += (ψ⃗ ⋅ s⃗′) * δt
+            end
+        else
+            Xoff = Filaments.end_to_end_offset(f)
+            ψ_int = Filaments.change_offset(similar(f), zero(Xoff))
+            copy!(nodes(ψ_int), ψs)
+            update_coefficients!(ψ_int; knots = knots(f))
+            for i ∈ eachindex(segments(f))
+                E += integrate(f, i, quad) do ζ
+                    ψ⃗ = ψ_int(i, ζ)
+                    s⃗′ = f(i, ζ, Derivative(1))
+                    ψ⃗ ⋅ s⃗′
+                end
+            end
+        end
+    end
+    E * prefactor
 end
 
 dt_factor(::RK4) = 1.8    # this factor seems to give stability with RK4 (fails with factor = 1.9)
@@ -88,10 +121,16 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
     jprobe = 5
     X_probe = eltype(fs[1])[]
     times = Float64[]
+    energy_time = Float64[]
 
     function callback(iter)
         push!(times, iter.time.t)
         push!(X_probe, iter.fs[1][jprobe])
+        (; fs, ψs,) = iter
+        (; Γ, Ls,) = iter.prob.p.common
+        quad = GaussLegendre(4)  # this doesn't seem to change much the results...
+        E = kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad)
+        push!(energy_time, E)
     end
 
     prob = @inferred VortexFilamentProblem(fs, tspan, params_bs)
@@ -130,6 +169,26 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
     tlast = tspan[2]
     @info "Solving with $scheme..." dt_initial = iter.time.dt tlast/T_kw
     @time solve!(iter)
+
+    # Check that the callback is called at the initial time
+    @test first(times) == first(tspan)
+
+    # Check energy conservation
+    @testset "Energy conservation" begin
+        energy_initial = first(energy_time)  # initial energy
+        energy_last = last(energy_time)
+        energy_std = std(energy_time)
+        @show energy_initial
+        @show energy_std / energy_initial
+        @show energy_last / energy_initial - 1
+        if iseuler
+            @test energy_std / energy_initial < 1e-6
+            @test isapprox(energy_last, energy_initial; rtol = 1e-5)
+        else
+            @test energy_std / energy_initial < 1e-9
+            @test isapprox(energy_last, energy_initial; rtol = 2e-9)
+        end
+    end
 
     # Analyse the trajectory of a single node
     @testset "Node trajectory" begin
