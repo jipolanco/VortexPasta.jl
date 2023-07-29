@@ -23,7 +23,7 @@ function open_or_create_group(parent, name)
 end
 
 """
-    init_vtkhdf(io::HDF5.File, fs::AbstractVector{<:AbstractFilament})
+    init_vtkhdf(io::HDF5.File, fs::AbstractVector{<:AbstractFilament}; refinement = 1)
 
 Initialise a new VTK HDF file with a list of filaments.
 
@@ -54,6 +54,13 @@ instance velocity vectors) to filament nodes.
 
 See also the [VTK documentation](https://examples.vtk.org/site/VTKFileFormats/#hdf-file-formats)
 for details on the VTK HDF format.
+
+## Optional arguments
+
+- `refinement::Int = 1`: allows to output more than 1 point for each filament segment. This
+  is mostly useful for producing nice visualisations. The level of refinement is writen to
+  the `/VTKHDF/RefinementLevel` dataset, which allows to read back the data skipping
+  intra-segment nodes.
 
 ## Typical usage
 
