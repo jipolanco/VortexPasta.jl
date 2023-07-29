@@ -52,8 +52,10 @@ end
     info_str = ["one", "two"]
 
     @testset "→ refinement = $refinement" for refinement ∈ (1, 3)
+        fname = "ring_collision_ref$refinement.hdf"
+
         # Write results
-        write_vtkhdf("ring_collision_ref$refinement.hdf", fs; refinement) do io
+        FilamentIO.write_vtkhdf(fname, fs; refinement) do io
             FilamentIO.write_point_data(io, "velocity", vs)
             FilamentIO.write_point_data(io, "streamfunction", ψs)
             FilamentIO.write_field_data(io, "time", time)
@@ -61,24 +63,12 @@ end
         end
 
         # Read results back
-        h5open("ring_collision_ref$refinement.hdf", "r") do io
-            fs_read = @inferred FilamentIO.read_filaments(io, Float64, CubicSplineMethod())
-            @test eltype(eltype(fs_read)) === Vec3{Float64}
-            if refinement == 1
-                @test fs == fs_read
-            else
-                @test isapprox(fs, fs_read; rtol = 1e-15)
-            end
-
-            fs_read_f32 = @inferred FilamentIO.read_filaments(io, Float32, CubicSplineMethod())
-            @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
-            @test fs ≈ fs_read_f32
-
-            vs_read = @inferred FilamentIO.read_point_data(io, "velocity", fs_read)
-            @test vs == vs_read
-
-            ψs_read = @inferred FilamentIO.read_point_data(io, "streamfunction", fs_read)
-            @test ψs == ψs_read
+        local vs_read, ψs_read
+        fs_read = FilamentIO.read_vtkhdf(
+                fname, Float64, CubicSplineMethod(),
+            ) do io
+            vs_read = @inferred FilamentIO.read_point_data(io, "velocity")
+            ψs_read = @inferred FilamentIO.read_point_data(io, "streamfunction")
 
             # Test reading onto VectorOfVectors
             ψs_alt = similar(ψs)
@@ -94,5 +84,24 @@ end
             info_read = FilamentIO.read_field_data(io, "info", String)
             @test info_str == info_read
         end
+
+        @test vs == vs_read
+        @test ψs == ψs_read
+
+        @test eltype(eltype(fs_read)) === Vec3{Float64}
+        if refinement == 1
+            @test fs == fs_read
+        else
+            @test isapprox(fs, fs_read; rtol = 1e-15)
+        end
+
+        fs_read_f32 = @inferred FilamentIO.read_vtkhdf(fname, Float32, CubicSplineMethod())
+        @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
+        @test fs ≈ fs_read_f32
+
+        # Same without passing a function
+        FilamentIO.write_vtkhdf(fname * ".alt", fs; refinement)
+        fs_read = FilamentIO.read_vtkhdf(fname * ".alt", Float64, CubicSplineMethod())
+        @test fs ≈ fs_read
     end
 end

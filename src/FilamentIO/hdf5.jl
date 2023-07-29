@@ -1,4 +1,5 @@
-export write_vtkhdf, write_point_data, write_field_data
+export write_vtkhdf, read_vtkhdf, write_point_data, write_field_data,
+       read_point_data!
 
 using HDF5: HDF5
 
@@ -7,11 +8,9 @@ using HDF5: HDF5
 ## ================================================================================ ##
 
 struct VTKHDFFile{
-        FileHandler <: HDF5.File,
         Group     <: HDF5.Group,
         Filaments <: AbstractVector{<:AbstractFilament},
     }
-    io         :: FileHandler
     gtop       :: Group  # "/VTKHDF" group
     fs         :: Filaments
     refinement :: Int
@@ -68,8 +67,6 @@ syntax. See further below for some examples.
 ## Typical usage
 
 ```julia
-using HDF5
-
 # Note: the file extension is arbitrary, but ParaView prefers ".hdf" if one wants to use the
 # files for visualisation.
 write_vtkhdf("filaments.hdf", fs; refinement = 2) do io
@@ -203,7 +200,7 @@ function init_vtkhdf(
 
     map(close, points)  # close dataset + dataspace + datatype
 
-    VTKHDFFile(io, gtop, fs, refinement)
+    VTKHDFFile(gtop, fs, refinement)
 end
 
 """
@@ -223,10 +220,8 @@ The data is written to the dataset `/VTKHDF/PointData/\$name`.
 For vector fields (such as velocity), the written dataset has dimensions `(3, Np)` where
 `Np` is the total number of filament nodes (including endpoints).
 The format is exactly the same as for the `Points` dataset as detailed in
-[`init_vtkhdf`](@ref). As also explained there, the `Offsets` dataset can be used to recover
+[`write_vtkhdf`](@ref). As also explained there, the `Offsets` dataset can be used to recover
 the values associated to each filament.
-
-Note that [`init_vtkhdf`](@ref) must be called *before* using this function.
 """
 function write_point_data(
         writer::VTKHDFFile,
@@ -345,29 +340,52 @@ end
 ## ================================================================================ ##
 
 """
-    read_filaments(io::HDF5.File, ::Type{T}, method::DiscretisationMethod) -> Vector{<:AbstractFilament}
+    read_vtkhdf(
+        [func::Function],
+        filename::AbstractString,
+        ::Type{T},
+        method::DiscretisationMethod,
+    ) where {T}
 
 Read filament locations from VTK HDF file.
 
 This function loads filaments based on the datasets `/VTKHDF/Points` and `/VTKHDF/Offsets`
-as written by the [`init_vtkhdf`](@ref) function.
+as written by the [`write_vtkhdf`](@ref) function.
 
 Returns a vector of filaments. The specific type of filament (e.g.
 [`ClosedSplineFilament`](@ref) or [`ClosedLocalFilament`](@ref)) depends on the chosen
 `method`. See [`Filaments.init`](@ref) for possible options.
 
+One can also read other datasets using [`read_point_data`](@ref), [`read_point_data!`](@ref)
+and [`read_field_data`](@ref). See below for some examples.
+
 ## Typical usage
 
 ```
-using HDF5
-h5open("filaments.hdf", "r") do io
-    fs = read_filaments(io, Float64, CubicSplineMethod())  # here `fs` is a list of filaments
-    vs = read_point_data(io, "Velocity", fs)        # here `vs` contains one velocity vector per filament node
+local vs, t  # make sure these variables still exist after the `do` block
+
+# The returned `fs` is a list of filaments.
+fs = read_vtkhdf("filaments.hdf", Float64, CubicSplineMethod()) do io
+    vs = read_point_data(io, "Velocity")            # here `vs` contains one velocity vector per filament node
     t = only(read_field_data(io, "Time", Float64))  # note: field data is always written as an array
     # one can read other fields here...
 end
 ```
 """
+function read_vtkhdf(
+        func::Func, filename::AbstractString, ::Type{T},
+        method::DiscretisationMethod,
+    ) where {Func <: Function, T}
+    HDF5.h5open(filename, "r") do io
+        reader = read_filaments(io, T, method)
+        func(reader)
+        reader.fs
+    end
+end
+
+read_vtkhdf(filename::AbstractString, args...; kws...) =
+    read_vtkhdf(Returns(nothing), filename, args...; kws...)
+
 function read_filaments(
         io::HDF5.File,
         ::Type{T},
@@ -426,9 +444,7 @@ function read_filaments(
         _load_filament(T, points, offsets, method, i)
     end
 
-    close(gtop)
-
-    fs
+    VTKHDFFile(gtop, fs, refinement)
 end
 
 function _recompute_offsets!(offsets, refinement)
@@ -465,9 +481,8 @@ end
 
 """
     read_point_data(
-        io::HDF5.File, name::AbstractString,
-        fs::AbstractVector{<:AbstractFilament},
-        [V = eltype(eltype(fs))],  # default is Vec3{T}
+        reader::VTKHDFFile, name::AbstractString,
+        [V = eltype(eltype(reader.fs))],  # default is Vec3{T}
     ) -> AbstractVector{<:AbstractVector}
 
 Load point data from VTK HDF file.
@@ -476,20 +491,20 @@ Reads data written by [`write_point_data`](@ref).
 The output is a vector of vectors, where each subvector holds the data associated to a
 single filament.
 
-See [`read_filaments`](@ref) for a typical usage example.
+See [`read_vtkhdf`](@ref) for a typical usage example.
 """
 function read_point_data(
-        io::HDF5.File, name::AbstractString,
-        fs::AbstractVector{<:AbstractFilament},
-        ::Type{V} = eltype(eltype(fs)),  # Vec3{T} by default
+        reader::VTKHDFFile, name::AbstractString,
+        ::Type{V} = eltype(eltype(reader.fs)),  # Vec3{T} by default
     ) where {V}
+    (; fs,) = reader
     vs = map(f -> similar(nodes(f), V), fs)  # one PaddedVector for each filament
-    read_point_data!(io, vs, name)
+    read_point_data!(reader, vs, name)
 end
 
 """
     read_point_data!(
-        io::HDF5.File,
+        reader::VTKHDFFile,
         vs::AbstractVector{<:AbstractVector},
         name::AbstractString,
     )
@@ -501,7 +516,7 @@ Data is read onto the vector of vectors `vs`.
 See also [`read_point_data`](@ref) and [`write_point_data`](@ref).
 """
 function read_point_data!(
-        io::HDF5.File,
+        reader::VTKHDFFile,
         vs::AbstractVector{<:AbstractVector},
         name::AbstractString,
     )
@@ -510,8 +525,7 @@ function read_point_data!(
     N = length(V)  # usually == 3
     T = eltype(V)
 
-    gtop = HDF5.open_group(io, "VTKHDF")
-    refinement = HDF5.read_dataset(gtop, "RefinementLevel") :: Int
+    (; gtop, refinement,) = reader
 
     gdata = HDF5.open_group(gtop, "PointData")
     dset = HDF5.open_dataset(gdata, name)
@@ -538,7 +552,6 @@ function read_point_data!(
 
     close(dset)
     close(gdata)
-    close(gtop)
 
     vs
 end
@@ -556,7 +569,7 @@ end
 
 """
     read_field_data(
-        io::HDF5.File, name::AbstractString, ::Type{T},
+        reader::VTKHDFFile, name::AbstractString, ::Type{T},
     ) -> Vector{T}
 
 Read field data from VTK HDF file.
@@ -567,9 +580,9 @@ represented as an array (even for single values such as time).
 See [`write_field_data`](@ref) for more details.
 """
 function read_field_data(
-        io::HDF5.File, name::AbstractString, ::Type{T},
+        reader::VTKHDFFile, name::AbstractString, ::Type{T},
     ) where {T}
-    dset = HDF5.open_dataset(io, "/VTKHDF/FieldData/$name")
+    dset = HDF5.open_dataset(reader.gtop, "FieldData/$name")
     N = length(dset)
     out = Vector{T}(undef, N)
     memtype = HDF5.datatype(out)
@@ -582,8 +595,8 @@ end
 
 # Specific case of strings
 function read_field_data(
-        io::HDF5.File, name::AbstractString, ::Type{<:AbstractString},
+        reader::VTKHDFFile, name::AbstractString, ::Type{<:AbstractString},
     )
-    dset = HDF5.open_dataset(io, "/VTKHDF/FieldData/$name")
+    dset = HDF5.open_dataset(reader.gtop, "FieldData/$name")
     read(dset) :: Vector{String}
 end
