@@ -8,6 +8,12 @@ DocMeta.setdocmeta!(
 )
 
 DocMeta.setdocmeta!(
+    VortexPasta.PredefinedCurves,
+    :DocTestSetup,
+    :(using VortexPasta.PredefinedCurves),
+)
+
+DocMeta.setdocmeta!(
     VortexPasta.BasicTypes,
     :DocTestSetup,
     :(using VortexPasta.BasicTypes),
@@ -31,6 +37,7 @@ makedocs(
         "index.md",
         "Modules" => [
             "modules/PaddedArrays.md",
+            "modules/PredefinedCurves.md",
             "modules/CellLists.md",
             "modules/BasicTypes.md",
             "modules/Quadratures.md",
