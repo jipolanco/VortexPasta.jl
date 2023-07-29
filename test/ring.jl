@@ -30,7 +30,7 @@ vortex_ring_nonlocal_velocity(Γ, R, ℓ) = Γ / (4π * R) * log(R / ℓ)
 # Total self-induced vortex ring velocity.
 vortex_ring_velocity(Γ, R, a; Δ) = Γ / (4π * R) * (log(8R / a) - Δ)
 
-vortex_ring_streamfunction(Γ, R, a; Δ) = Γ / 2π * (log(8R / a) - (2 + Δ))
+vortex_ring_streamfunction(Γ, R, a; Δ) = Γ / 2π * (log(8R / a) - (1 + Δ))
 
 # Test vortex ring without periodic BCs (i.e. setting α = 0 in Ewald's method, disabling long-range part)
 function test_vortex_ring_nonperiodic(ring; noise = 0.0)

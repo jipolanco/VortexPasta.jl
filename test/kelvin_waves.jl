@@ -7,7 +7,6 @@ using LinearAlgebra: norm, normalize, ⋅
 using Optim: Optim
 using VortexPasta.PredefinedCurves: define_curve, PeriodicLine
 using VortexPasta.Filaments
-using VortexPasta.Filaments: Vec3
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 
