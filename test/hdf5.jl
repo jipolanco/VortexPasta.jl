@@ -2,7 +2,6 @@ using VortexPasta.Filaments
 using VortexPasta.FilamentIO
 using VortexPasta.BasicTypes: VectorOfVectors
 using VortexPasta.BiotSavart
-using HDF5: h5open
 using Test
 
 function init_ring_filament(; R, z, sign)
@@ -51,43 +50,58 @@ end
     time = 0.3
     info_str = ["one", "two"]
 
-    # Write results
-    h5open("ring_collision.hdf", "w") do io
-        FilamentIO.init_vtkhdf(io, fs)
-        FilamentIO.write_point_data(io, "velocity", vs)
-        FilamentIO.write_point_data(io, "streamfunction", ψs)
-        FilamentIO.write_field_data(io, "time", time)
-        FilamentIO.write_field_data(io, "info", info_str)
-    end
+    @testset "→ refinement = $refinement" for refinement ∈ (1, 3)
+        fname = "ring_collision_ref$refinement.hdf"
 
-    # Read results back
-    h5open("ring_collision.hdf", "r") do io
-        fs_read = @inferred FilamentIO.read_filaments(io, Float64, CubicSplineMethod())
+        # Write results
+        FilamentIO.write_vtkhdf(fname, fs; refinement) do io
+            FilamentIO.write_point_data(io, "velocity", vs)
+            FilamentIO.write_point_data(io, "streamfunction", ψs)
+            FilamentIO.write_field_data(io, "time", time)
+            FilamentIO.write_field_data(io, "info", info_str)
+        end
+
+        function check_fields(io)
+            vs_read = @inferred FilamentIO.read_point_data(io, "velocity")
+            ψs_read = @inferred FilamentIO.read_point_data(io, "streamfunction")
+
+            @test vs == vs_read
+            @test ψs == ψs_read
+
+            # Test reading onto VectorOfVectors
+            ψs_alt = similar(ψs)
+            @assert ψs_alt != ψs
+            @assert ψs_alt isa VectorOfVectors
+            FilamentIO.read_point_data!(io, ψs_alt, "streamfunction")
+            @test ψs_alt == ψs
+
+            # Test reading field data
+            time_read = @inferred FilamentIO.read_field_data(io, "time", Float64)  # this is a vector!
+            @test time == only(time_read)
+
+            info_read = FilamentIO.read_field_data(io, "info", String)
+            @test info_str == info_read
+        end
+
+        # Read results back
+        fs_read = @inferred FilamentIO.read_vtkhdf(
+            check_fields, fname, Float64, CubicSplineMethod(),
+        )
+
         @test eltype(eltype(fs_read)) === Vec3{Float64}
-        @test fs == fs_read
+        if refinement == 1
+            @test fs == fs_read
+        else
+            @test isapprox(fs, fs_read; rtol = 1e-15)
+        end
 
-        fs_read_f32 = @inferred FilamentIO.read_filaments(io, Float32, CubicSplineMethod())
+        fs_read_f32 = @inferred FilamentIO.read_vtkhdf(fname, Float32, CubicSplineMethod())
         @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
         @test fs ≈ fs_read_f32
 
-        vs_read = @inferred FilamentIO.read_point_data(io, "velocity", fs_read)
-        @test vs == vs_read
-
-        ψs_read = @inferred FilamentIO.read_point_data(io, "streamfunction", fs_read)
-        @test ψs == ψs_read
-
-        # Test reading onto VectorOfVectors
-        ψs_alt = similar(ψs)
-        @assert ψs_alt != ψs
-        @assert ψs_alt isa VectorOfVectors
-        FilamentIO.read_point_data!(io, ψs_alt, "streamfunction")
-        @test ψs_alt == ψs
-
-        # Test reading field data
-        time_read = @inferred FilamentIO.read_field_data(io, "time", Float64)  # this is a vector!
-        @test time == only(time_read)
-
-        info_read = FilamentIO.read_field_data(io, "info", String)
-        @test info_str == info_read
+        # Same without passing a function
+        FilamentIO.write_vtkhdf(fname * ".alt", fs; refinement)
+        fs_read = FilamentIO.read_vtkhdf(fname * ".alt", Float64, CubicSplineMethod())
+        @test fs ≈ fs_read
     end
 end

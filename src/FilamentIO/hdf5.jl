@@ -1,4 +1,5 @@
-export init_vtkhdf, write_point_data
+export write_vtkhdf, read_vtkhdf, write_point_data, write_field_data,
+       read_point_data!
 
 using HDF5: HDF5
 
@@ -6,26 +7,24 @@ using HDF5: HDF5
 ## 1. Writing filament HDF5 files
 ## ================================================================================ ##
 
-# This is to make sure we write the dataset type ("UnstructuredGrid") as ASCII.
-# This is required by VTK/ParaView.
-function datatype_ascii(s::AbstractString)
-    dtype = HDF5.datatype(s)
-    HDF5.API.h5t_set_cset(dtype.id, HDF5.API.H5T_CSET_ASCII)
-    dtype
-end
-
-function open_or_create_group(parent, name)
-    if haskey(parent, name)
-        HDF5.open_group(parent, name)
-    else
-        HDF5.create_group(parent, name)
-    end
+struct VTKHDFFile{
+        Group     <: HDF5.Group,
+        Filaments <: AbstractVector{<:AbstractFilament},
+    }
+    gtop       :: Group  # "/VTKHDF" group
+    fs         :: Filaments
+    refinement :: Int
 end
 
 """
-    init_vtkhdf(io::HDF5.File, fs::AbstractVector{<:AbstractFilament})
+    write_vtkhdf(
+        [func::Function],
+        filename::AbstractString,
+        fs::AbstractVector{<:AbstractFilament};
+        refinement = 1,
+    )
 
-Initialise a new VTK HDF file with a list of filaments.
+Write new VTK HDF file containing a list of filaments.
 
 A VTK HDF file is an HDF5 file organised in such a way that it can be readily visualised in
 tools such as ParaView.
@@ -49,27 +48,70 @@ Some relevant datasets which are written are:
   Once again, note that number of nodes of filament `i` *including the endpoint* is
   `Offsets[i + 1] - Offsets[i]`.
 
-After calling this function, one may use [`write_point_data`](@ref) to attach data (for
-instance velocity vectors) to filament nodes.
-
 See also the [VTK documentation](https://examples.vtk.org/site/VTKFileFormats/#hdf-file-formats)
 for details on the VTK HDF format.
+
+## Attaching extra data
+
+The optional `func` argument can be used to attach other data (such as velocity vectors or
+the current time) to the generated file. This is most conveniently done using the `do` block
+syntax. See further below for some examples.
+
+## Optional arguments
+
+- `refinement::Int = 1`: allows to output more than 1 point for each filament segment. This
+  is mostly useful for producing nice visualisations. The level of refinement is writen to
+  the `/VTKHDF/RefinementLevel` dataset, which allows to read back the data skipping
+  intra-segment nodes.
 
 ## Typical usage
 
 ```julia
-using HDF5
-h5open("filaments.hdf", "w") do io
-    init_vtkhdf(io, fs)                   # here `fs` is a list of filaments
+# Note: the file extension is arbitrary, but ParaView prefers ".hdf" if one wants to use the
+# files for visualisation.
+write_vtkhdf("filaments.hdf", fs; refinement = 2) do io
     write_point_data(io, "Velocity", vs)  # here `vs` contains one velocity vector per filament node
     write_field_data(io, "Time", 0.3)
     # one can add other fields here...
 end
 ```
 """
+function write_vtkhdf(
+        func::Func,
+        filename::AbstractString,
+        fs::AbstractVector{<:AbstractFilament};
+        refinement = 1,
+    ) where {Func <: Function}
+    HDF5.h5open(filename, "w") do io
+        writer = init_vtkhdf(io, fs; refinement)
+        func(writer)
+    end
+    nothing
+end
+
+write_vtkhdf(filename::AbstractString, args...; kws...) =
+    write_vtkhdf(Returns(nothing), filename, args...; kws...)
+
+# This is to make sure we write the dataset type ("UnstructuredGrid") as ASCII.
+# This is required by VTK/ParaView.
+function datatype_ascii(s::AbstractString)
+    dtype = HDF5.datatype(s)
+    HDF5.API.h5t_set_cset(dtype.id, HDF5.API.H5T_CSET_ASCII)
+    dtype
+end
+
+function open_or_create_group(parent, name)
+    if haskey(parent, name)
+        HDF5.open_group(parent, name)
+    else
+        HDF5.create_group(parent, name)
+    end
+end
+
 function init_vtkhdf(
         io::HDF5.File,
-        fs::AbstractVector{<:AbstractFilament},
+        fs::AbstractVector{<:AbstractFilament};
+        refinement::Int = 1,
     )
     gtop = HDF5.create_group(io, "VTKHDF")
     HDF5.attrs(gtop)["Version"] = [1, 0]
@@ -87,39 +129,83 @@ function init_vtkhdf(
     T = eltype(V)
     N = length(V)  # usually == 3
 
-    num_points = sum(f -> length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint
+    num_points = sum(f -> refinement * length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint
     num_cells = length(fs)
 
     gtop["NumberOfCells"] = [num_cells]
     gtop["NumberOfPoints"] = [num_points]
     gtop["NumberOfConnectivityIds"] = [num_points]
+    gtop["RefinementLevel"] = refinement  # this is not a VTK attribute, it's just for our own use
 
-    dset_points = HDF5.create_dataset(gtop, "Points", T, (N, num_points))
-    dset_connec = HDF5.create_dataset(gtop, "Connectivity", Int, (num_points,))
-    dset_offset = HDF5.create_dataset(gtop, "Offsets", Int, (num_cells + 1,))
-    dset_ctypes = HDF5.create_dataset(gtop, "Types", UInt8, (num_cells,))
-
-    let n = 0
-        dset_offset[1] = 0
-        for (i, f) ∈ enumerate(fs)
-            Xs = @views nodes(f)[begin:(end + 1)]
-            Np = length(Xs)
-            dset_points[:, (n + 1):(n + Np)] = reinterpret(reshape, T, Xs)
-            dset_connec[(n + 1):(n + Np)] = n:(n + Np - 1)  # switch to zero-based indexing
-            dset_ctypes[i] = UInt8(4)  # cell type, `4` corresponds to VTK_POLY_LINE
-            n += Np
-            dset_offset[i + 1] = n
-        end
-        @assert n == num_points
+    points = let dtype = HDF5.datatype(T)
+        dspace = HDF5.dataspace((N, num_points))
+        (;
+            dtype, dspace,
+            dset = HDF5.create_dataset(gtop, "Points", dtype, dspace),
+        )
     end
 
-    close(gtop)
-    nothing
+    let dset = HDF5.create_dataset(gtop, "Connectivity", Int, (num_points,))
+        local data = collect(0:(num_points - 1))
+        dtype = HDF5.datatype(data)
+        HDF5.write_dataset(dset, dtype, data)
+        close(dtype)
+        close(dset)
+    end
+
+    let dset = HDF5.create_dataset(gtop, "Offsets", Int, (num_cells + 1,))
+        local data = Vector{Int}(undef, num_cells + 1)
+        data[1] = 0
+        for (i, f) ∈ enumerate(fs)
+            data[i + 1] = data[i] + refinement * length(nodes(f)) + 1
+        end
+        dtype = HDF5.datatype(data)
+        HDF5.write_dataset(dset, dtype, data)
+        close(dtype)
+        close(dset)
+    end
+
+    # Write cell types, `4` corresponds to VTK_POLY_LINE
+    let dset = HDF5.create_dataset(gtop, "Types", UInt8, (num_cells,))
+        local data = fill(UInt8(4), num_cells)
+        HDF5.write_dataset(dset, HDF5.datatype(data), data)
+        close(dset)
+    end
+
+    n = 0
+    for f ∈ fs
+        if refinement == 1
+            Xs = nodes(f)
+            Np = length(Xs) + 1  # include the endpoint
+        else
+            # Reuse Makie recipe code.
+            Xs = Filaments._refine_filament(f, refinement)
+            @assert typeof(Xs) === typeof(nodes(f))
+            @assert Xs[end] ≈ f[end + 1]  # already includes the endpoint
+            Np = length(Xs)
+            @assert Np == refinement * length(nodes(f)) + 1
+        end
+
+        let (; dset, dspace, dtype,) = points
+            memspace = HDF5.dataspace((N, Np))
+            memtype = dtype
+            HDF5.select_hyperslab!(dspace, (1:N, (n + 1):(n + Np)))
+            HDF5.API.h5d_write(dset.id, memtype.id, memspace.id, dspace.id, dset.xfer, Xs)
+            close(memspace)
+        end
+
+        n += Np
+    end
+    @assert n == num_points
+
+    map(close, points)  # close dataset + dataspace + datatype
+
+    VTKHDFFile(gtop, fs, refinement)
 end
 
 """
     write_point_data(
-        io::HDF5.File,
+        io::VTKHDFFile,
         name::AbstractString,
         vs::AbstractVector{<:AbstractVector},
     )
@@ -134,17 +220,16 @@ The data is written to the dataset `/VTKHDF/PointData/\$name`.
 For vector fields (such as velocity), the written dataset has dimensions `(3, Np)` where
 `Np` is the total number of filament nodes (including endpoints).
 The format is exactly the same as for the `Points` dataset as detailed in
-[`init_vtkhdf`](@ref). As also explained there, the `Offsets` dataset can be used to recover
+[`write_vtkhdf`](@ref). As also explained there, the `Offsets` dataset can be used to recover
 the values associated to each filament.
-
-Note that [`init_vtkhdf`](@ref) must be called *before* using this function.
 """
 function write_point_data(
-        io::HDF5.File,
+        writer::VTKHDFFile,
         name::AbstractString,
         vs::AbstractVector{<:AbstractVector},
     )
-    gtop = HDF5.open_group(io, "VTKHDF")
+    (; gtop, refinement,) = writer
+
     gdata = open_or_create_group(gtop, "PointData")
 
     # For now, assume `vs` contains vector data (such as velocities).
@@ -162,29 +247,51 @@ function write_point_data(
     V = eltype(eltype(vs))  # usually V == SVector{3, T}
     T = eltype(V)
     N = length(V)  # usually == 3
-    num_points = sum(v -> length(v) + 1, vs)  # the +1 is to include the endpoint
-    let dset = HDF5.create_dataset(gdata, name, T, (N, num_points))
-        n = 0
-        for v ∈ vs
-            # data = @view v[begin:(end + 1)]
-            # Np = length(data)
-            Np = length(v)
-            dset[:, (n + 1):(n + Np)] = reinterpret(reshape, T, v)
-            dset[:, n + Np + 1] = v[begin]  # assume end point == start point
-            n += Np + 1
-        end
-        @assert n == num_points
-        close(dset)
-    end
+    num_points = sum(v -> refinement * length(v) + 1, vs)  # the +1 is to include the endpoint
+    dtype = HDF5.datatype(T)
+    dspace = HDF5.dataspace((N, num_points))
+    memtype = dtype
+    memspace_vec = HDF5.dataspace((N,))  # this is for writing one vector at a time
 
+    dset = HDF5.create_dataset(gdata, name, dtype, dspace)
+    n = 0
+    for v ∈ vs
+        Np = refinement * length(v)
+        if refinement == 1
+            # Write all data associated to a single filament at once
+            memspace_filament = HDF5.dataspace((N, Np))
+            HDF5.select_hyperslab!(dspace, (1:N, (n + 1):(n + Np)))
+            HDF5.API.h5d_write(dset.id, memtype.id, memspace_filament.id, dspace.id, dset.xfer, v)
+            close(memspace_filament)
+            n += Np
+        else
+            # For now just use linear interpolation
+            for i ∈ eachindex(v), m ∈ 1:refinement
+                α = (m - 1) / refinement
+                u = (1 - α) * v[i] + α * v[i + 1]  # assumes v is padded!!
+                n += 1
+                # Write vectors one by one
+                HDF5.select_hyperslab!(dspace, (1:N, n))
+                HDF5.API.h5d_write(dset.id, memtype.id, memspace_vec.id, dspace.id, dset.xfer, u)
+            end
+        end
+        n += 1
+        HDF5.select_hyperslab!(dspace, (1:N, n))
+        HDF5.API.h5d_write(dset.id, memtype.id, memspace_vec.id, dspace.id, dset.xfer, v[begin])
+    end
+    @assert n == num_points
+    close(dset)
+
+    close(dspace)
+    close(dtype)
+    close(memspace_vec)
     close(gdata)
-    close(gtop)
 
     nothing
 end
 
 """
-    write_field_data(io::HDF5.File, name::AbstractString, data)
+    write_field_data(io::VTKHDFFile, name::AbstractString, data)
 
 Write data as VTK field data to VTK HDF file.
 
@@ -195,12 +302,11 @@ parameters.
 Note that scalar data (such as time) is always written as a single-element vector, since
 otherwise it cannot be parsed by VTK.
 """
-function write_field_data(io::HDF5.File, name::AbstractString, data)
-    gtop = HDF5.open_group(io, "VTKHDF")
+function write_field_data(writer::VTKHDFFile, name::AbstractString, data)
+    (; gtop,) = writer
     gdata = open_or_create_group(gtop, "FieldData")
     _write_field_data(gdata, name, data)
     close(gdata)
-    close(gtop)
     nothing
 end
 
@@ -234,29 +340,52 @@ end
 ## ================================================================================ ##
 
 """
-    read_filaments(io::HDF5.File, ::Type{T}, method::DiscretisationMethod) -> Vector{<:AbstractFilament}
+    read_vtkhdf(
+        [func::Function],
+        filename::AbstractString,
+        ::Type{T},
+        method::DiscretisationMethod,
+    ) where {T}
 
 Read filament locations from VTK HDF file.
 
 This function loads filaments based on the datasets `/VTKHDF/Points` and `/VTKHDF/Offsets`
-as written by the [`init_vtkhdf`](@ref) function.
+as written by the [`write_vtkhdf`](@ref) function.
 
 Returns a vector of filaments. The specific type of filament (e.g.
 [`ClosedSplineFilament`](@ref) or [`ClosedLocalFilament`](@ref)) depends on the chosen
 `method`. See [`Filaments.init`](@ref) for possible options.
 
+One can also read other datasets using [`read_point_data`](@ref), [`read_point_data!`](@ref)
+and [`read_field_data`](@ref). See below for some examples.
+
 ## Typical usage
 
 ```
-using HDF5
-h5open("filaments.hdf", "r") do io
-    fs = read_filaments(io, Float64, CubicSplineMethod())  # here `fs` is a list of filaments
-    vs = read_point_data(io, "Velocity", fs)        # here `vs` contains one velocity vector per filament node
+local vs, t  # make sure these variables still exist after the `do` block
+
+# The returned `fs` is a list of filaments.
+fs = read_vtkhdf("filaments.hdf", Float64, CubicSplineMethod()) do io
+    vs = read_point_data(io, "Velocity")            # here `vs` contains one velocity vector per filament node
     t = only(read_field_data(io, "Time", Float64))  # note: field data is always written as an array
     # one can read other fields here...
 end
 ```
 """
+function read_vtkhdf(
+        func::Func, filename::AbstractString, ::Type{T},
+        method::DiscretisationMethod,
+    ) where {Func <: Function, T}
+    HDF5.h5open(filename, "r") do io
+        reader = read_filaments(io, T, method)
+        func(reader)
+        reader.fs
+    end
+end
+
+read_vtkhdf(filename::AbstractString, args...; kws...) =
+    read_vtkhdf(Returns(nothing), filename, args...; kws...)
+
 function read_filaments(
         io::HDF5.File,
         ::Type{T},
@@ -265,13 +394,24 @@ function read_filaments(
     haskey(io, "VTKHDF") || error("expected a `VTKHDF` group at the top of the file")
     gtop = HDF5.open_group(io, "VTKHDF")
 
+    refinement = HDF5.read_dataset(gtop, "RefinementLevel") :: Int
+
     dset_points = HDF5.open_dataset(gtop, "Points")
     dset_offset = HDF5.open_dataset(gtop, "Offsets")
 
-    Ñ, num_points = size(dset_points) :: Dims{2}
+    Ñ, num_points_refined = size(dset_points) :: Dims{2}
     @assert Ñ == 3
     num_cells = length(dset_offset) - 1
     num_cells > 0 || error("expected at least one filament in the file")
+
+    if refinement == 1
+        num_points = num_points_refined
+    else
+        # We subtract endpoint from each cell before dividing by refinement level
+        num_points, _remainder = divrem(num_points_refined - num_cells, refinement)
+        @assert _remainder == 0  # the division is exact
+        num_points += num_cells  # reinclude the endpoints in final count
+    end
 
     # Read points as an Array{T} even if it was written as an Array{S} with S ≠ T
     # (for instance, if data was written as S = Float64 and we want to read it as T = Float32).
@@ -279,16 +419,47 @@ function read_filaments(
     points = Array{T}(undef, 3, num_points)
     offsets = Array{Int}(undef, num_cells + 1)
 
-    read_dataset!(points, dset_points)
     read_dataset!(offsets, dset_offset)
+
+    if refinement == 1
+        read_dataset!(points, dset_points)
+    else
+        _recompute_offsets!(offsets, refinement)
+        @assert last(offsets) == num_points
+        dspace = HDF5.dataspace(dset_points)
+        n = 0
+        for i ∈ 1:num_cells
+            a = offsets[i] + 1
+            b = offsets[i + 1]
+            out = @view points[:, a:b]
+            Np = size(out, 2)
+            inds_file = range(n + 1; length = Np, step = refinement)
+            HDF5.select_hyperslab!(dspace, (1:Ñ, inds_file))
+            read_dataset!(out, dset_points, dspace)
+            n = last(inds_file)
+        end
+    end
 
     fs = map(1:num_cells) do i
         _load_filament(T, points, offsets, method, i)
     end
 
-    close(gtop)
+    VTKHDFFile(gtop, fs, refinement)
+end
 
-    fs
+function _recompute_offsets!(offsets, refinement)
+    Base.require_one_based_indexing(offsets)
+    num_cells = length(offsets) - 1
+    off_i = offsets[begin]  # offset of previous cell before recomputation
+    for i ∈ 1:num_cells
+        Np_refined = offsets[i + 1] - off_i
+        Np, _remainder = divrem(Np_refined - 1, refinement)
+        @assert _remainder == 0
+        Np += 1  # reinclude the endpoint in final count
+        off_i = offsets[i + 1]
+        offsets[i + 1] = offsets[i] + Np
+    end
+    offsets
 end
 
 # Load filament `i` from the list of points using the given offsets
@@ -310,9 +481,8 @@ end
 
 """
     read_point_data(
-        io::HDF5.File, name::AbstractString,
-        fs::AbstractVector{<:AbstractFilament},
-        [V = eltype(eltype(fs))],  # default is Vec3{T}
+        reader::VTKHDFFile, name::AbstractString,
+        [V = eltype(eltype(reader.fs))],  # default is Vec3{T}
     ) -> AbstractVector{<:AbstractVector}
 
 Load point data from VTK HDF file.
@@ -321,20 +491,20 @@ Reads data written by [`write_point_data`](@ref).
 The output is a vector of vectors, where each subvector holds the data associated to a
 single filament.
 
-See [`read_filaments`](@ref) for a typical usage example.
+See [`read_vtkhdf`](@ref) for a typical usage example.
 """
 function read_point_data(
-        io::HDF5.File, name::AbstractString,
-        fs::AbstractVector{<:AbstractFilament},
-        ::Type{V} = eltype(eltype(fs)),  # Vec3{T} by default
+        reader::VTKHDFFile, name::AbstractString,
+        ::Type{V} = eltype(eltype(reader.fs)),  # Vec3{T} by default
     ) where {V}
+    (; fs,) = reader
     vs = map(f -> similar(nodes(f), V), fs)  # one PaddedVector for each filament
-    read_point_data!(io, vs, name)
+    read_point_data!(reader, vs, name)
 end
 
 """
     read_point_data!(
-        io::HDF5.File,
+        reader::VTKHDFFile,
         vs::AbstractVector{<:AbstractVector},
         name::AbstractString,
     )
@@ -346,7 +516,7 @@ Data is read onto the vector of vectors `vs`.
 See also [`read_point_data`](@ref) and [`write_point_data`](@ref).
 """
 function read_point_data!(
-        io::HDF5.File,
+        reader::VTKHDFFile,
         vs::AbstractVector{<:AbstractVector},
         name::AbstractString,
     )
@@ -355,18 +525,28 @@ function read_point_data!(
     N = length(V)  # usually == 3
     T = eltype(V)
 
-    gdata = HDF5.open_group(io, "/VTKHDF/PointData")
+    (; gtop, refinement,) = reader
+
+    gdata = HDF5.open_group(gtop, "PointData")
     dset = HDF5.open_dataset(gdata, name)
     Ñ, num_points = size(dset) :: Dims{2}
     @assert N == Ñ
 
     n = 0
+    dspace = HDF5.dataspace(dset)
     for v ∈ vs
-        M = length(v)
-        dspace = HDF5.hyperslab(dset, 1:N, (n + 1):(n + M))  # read part of the dataset
+        Np = length(v)  # number of filament nodes (*excluding* the endpoint)
         vdata = reinterpret(reshape, T, v)
-        read_dataset!(vdata, dset, dspace)
-        n += M + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
+        if refinement == 1
+            HDF5.select_hyperslab!(dspace, (1:N, (n + 1):(n + Np)))  # read part of the dataset
+            read_dataset!(vdata, dset, dspace)
+            n += Np + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
+        else
+            inds_file = range(n + 1; length = Np, step = refinement)
+            HDF5.select_hyperslab!(dspace, (1:N, inds_file))
+            read_dataset!(vdata, dset, dspace)
+            n = last(inds_file) + refinement
+        end
     end
     @assert n == num_points
 
@@ -389,7 +569,7 @@ end
 
 """
     read_field_data(
-        io::HDF5.File, name::AbstractString, ::Type{T},
+        reader::VTKHDFFile, name::AbstractString, ::Type{T},
     ) -> Vector{T}
 
 Read field data from VTK HDF file.
@@ -400,9 +580,9 @@ represented as an array (even for single values such as time).
 See [`write_field_data`](@ref) for more details.
 """
 function read_field_data(
-        io::HDF5.File, name::AbstractString, ::Type{T},
+        reader::VTKHDFFile, name::AbstractString, ::Type{T},
     ) where {T}
-    dset = HDF5.open_dataset(io, "/VTKHDF/FieldData/$name")
+    dset = HDF5.open_dataset(reader.gtop, "FieldData/$name")
     N = length(dset)
     out = Vector{T}(undef, N)
     memtype = HDF5.datatype(out)
@@ -415,8 +595,8 @@ end
 
 # Specific case of strings
 function read_field_data(
-        io::HDF5.File, name::AbstractString, ::Type{<:AbstractString},
+        reader::VTKHDFFile, name::AbstractString, ::Type{<:AbstractString},
     )
-    dset = HDF5.open_dataset(io, "/VTKHDF/FieldData/$name")
+    dset = HDF5.open_dataset(reader.gtop, "FieldData/$name")
     read(dset) :: Vector{String}
 end

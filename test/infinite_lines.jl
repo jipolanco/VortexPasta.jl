@@ -3,7 +3,6 @@
 using Test
 using StaticArrays
 using Statistics: mean, std
-using HDF5: h5open
 using LinearAlgebra: norm
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
@@ -27,18 +26,17 @@ function test_infinite_line_io(fs, vs)
     method = Filaments.discretisation_method(first(fs))
     T = eltype(eltype(eltype(fs)))
     @assert T <: AbstractFloat
-    h5open("infinite.hdf", "w") do io
-        FilamentIO.init_vtkhdf(io, fs)
+    FilamentIO.write_vtkhdf("infinite.hdf", fs) do io
         FilamentIO.write_point_data(io, "velocity", vs)
     end
-    h5open("infinite.hdf", "r") do io
-        fs_read = @inferred FilamentIO.read_filaments(io, T, method)
-        @test fs_read == fs
-        for (f, g) ∈ zip(fs, fs_read)
-            @test end_to_end_offset(f) == end_to_end_offset(g)
-        end
-        vs_read = @inferred FilamentIO.read_point_data(io, "velocity", fs_read)
+    function check_velocity(io)
+        vs_read = @inferred FilamentIO.read_point_data(io, "velocity")
         @test vs_read == vs
+    end
+    fs_read = @inferred FilamentIO.read_vtkhdf(check_velocity, "infinite.hdf", T, method)
+    @test fs_read == fs
+    for (f, g) ∈ zip(fs, fs_read)
+        @test end_to_end_offset(f) == end_to_end_offset(g)
     end
     nothing
 end
