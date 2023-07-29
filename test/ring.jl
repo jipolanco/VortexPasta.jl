@@ -17,7 +17,7 @@ function init_ring_filament(N::Int, R = π / 3; noise = 0.0, rng = nothing)
         rng_ = rng === nothing ? MersenneTwister(42) : rng
         ζs .+= noise * dζ * rand(rng_, N)  # `noise` should be ∈ ]-1, 1[
     end
-    f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+    f = @inferred Filaments.init(S, ClosedFilament, ζs, CubicSplineMethod())
     (; f, R,)
 end
 
