@@ -69,7 +69,8 @@ end
 """
 function init_vtkhdf(
         io::HDF5.File,
-        fs::AbstractVector{<:AbstractFilament},
+        fs::AbstractVector{<:AbstractFilament};
+        refinement::Int = 1,
     )
     gtop = HDF5.create_group(io, "VTKHDF")
     HDF5.attrs(gtop)["Version"] = [1, 0]
@@ -87,31 +88,77 @@ function init_vtkhdf(
     T = eltype(V)
     N = length(V)  # usually == 3
 
-    num_points = sum(f -> length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint
+    num_points = sum(f -> refinement * length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint
     num_cells = length(fs)
 
     gtop["NumberOfCells"] = [num_cells]
     gtop["NumberOfPoints"] = [num_points]
     gtop["NumberOfConnectivityIds"] = [num_points]
+    gtop["RefinementLevel"] = refinement  # this is not a VTK attribute, it's just for our own use
 
-    dset_points = HDF5.create_dataset(gtop, "Points", T, (N, num_points))
-    dset_connec = HDF5.create_dataset(gtop, "Connectivity", Int, (num_points,))
-    dset_offset = HDF5.create_dataset(gtop, "Offsets", Int, (num_cells + 1,))
-    dset_ctypes = HDF5.create_dataset(gtop, "Types", UInt8, (num_cells,))
-
-    let n = 0
-        dset_offset[1] = 0
-        for (i, f) ∈ enumerate(fs)
-            Xs = @views nodes(f)[begin:(end + 1)]
-            Np = length(Xs)
-            dset_points[:, (n + 1):(n + Np)] = reinterpret(reshape, T, Xs)
-            dset_connec[(n + 1):(n + Np)] = n:(n + Np - 1)  # switch to zero-based indexing
-            dset_ctypes[i] = UInt8(4)  # cell type, `4` corresponds to VTK_POLY_LINE
-            n += Np
-            dset_offset[i + 1] = n
-        end
-        @assert n == num_points
+    points = let
+        dtype = HDF5.datatype(T) 
+        dspace = HDF5.dataspace((N, num_points))
+        (;
+            dtype, dspace,
+            dset = HDF5.create_dataset(gtop, "Points", dtype, dspace),
+        )
     end
+
+    let dset = HDF5.create_dataset(gtop, "Connectivity", Int, (num_points,))
+        local data = collect(0:(num_points - 1))
+        dtype = HDF5.datatype(data)
+        HDF5.write_dataset(dset, dtype, data)
+        close(dtype)
+        close(dset)
+    end
+
+    let dset = HDF5.create_dataset(gtop, "Offsets", Int, (num_cells + 1,))
+        local data = Vector{Int}(undef, num_cells + 1)
+        data[1] = 0
+        for (i, f) ∈ enumerate(fs)
+            data[i + 1] = data[i] + refinement * length(nodes(f)) + 1
+        end
+        dtype = HDF5.datatype(data)
+        HDF5.write_dataset(dset, dtype, data)
+        close(dtype)
+        close(dset)
+    end
+
+    # Write cell types, `4` corresponds to VTK_POLY_LINE
+    let dset = HDF5.create_dataset(gtop, "Types", UInt8, (num_cells,))
+        local data = fill(UInt8(4), num_cells)
+        HDF5.write_dataset(dset, HDF5.datatype(data), data)
+        close(dset)
+    end
+
+    n = 0
+    for f ∈ fs
+        if refinement == 1
+            Xs = nodes(f)
+            Np = length(Xs) + 1  # include the endpoint
+        else
+            # Reuse Makie recipe code.
+            Xs = Filaments._refine_filament(f, refinement)
+            @assert typeof(Xs) === typeof(nodes(f))
+            @assert Xs[end] ≈ f[end + 1]  # already includes the endpoint
+            Np = length(Xs)
+            @assert Np == refinement * length(nodes(f)) + 1
+        end
+
+        let (; dset, dspace, dtype,) = points
+            memspace = HDF5.dataspace((N, Np))
+            memtype = dtype
+            HDF5.select_hyperslab!(dspace, (1:N, (n + 1):(n + Np)))
+            HDF5.API.h5d_write(dset.id, memtype.id, memspace.id, dspace.id, dset.xfer, Xs)
+            close(memspace)
+        end
+
+        n += Np
+    end
+    @assert n == num_points
+
+    map(close, points)  # close dataset + dataspace + datatype
 
     close(gtop)
     nothing
@@ -145,6 +192,9 @@ function write_point_data(
         vs::AbstractVector{<:AbstractVector},
     )
     gtop = HDF5.open_group(io, "VTKHDF")
+
+    refinement = HDF5.read_dataset(gtop, "RefinementLevel") :: Int
+
     gdata = open_or_create_group(gtop, "PointData")
 
     # For now, assume `vs` contains vector data (such as velocities).
@@ -162,21 +212,44 @@ function write_point_data(
     V = eltype(eltype(vs))  # usually V == SVector{3, T}
     T = eltype(V)
     N = length(V)  # usually == 3
-    num_points = sum(v -> length(v) + 1, vs)  # the +1 is to include the endpoint
-    let dset = HDF5.create_dataset(gdata, name, T, (N, num_points))
-        n = 0
-        for v ∈ vs
-            # data = @view v[begin:(end + 1)]
-            # Np = length(data)
-            Np = length(v)
-            dset[:, (n + 1):(n + Np)] = reinterpret(reshape, T, v)
-            dset[:, n + Np + 1] = v[begin]  # assume end point == start point
-            n += Np + 1
-        end
-        @assert n == num_points
-        close(dset)
-    end
+    num_points = sum(v -> refinement * length(v) + 1, vs)  # the +1 is to include the endpoint
+    dtype = HDF5.datatype(T)
+    dspace = HDF5.dataspace((N, num_points))
+    memtype = dtype
+    memspace_vec = HDF5.dataspace((N,))  # this is for writing one vector at a time
 
+    dset = HDF5.create_dataset(gdata, name, dtype, dspace)
+    n = 0
+    for v ∈ vs
+        Np = refinement * length(v)
+        if refinement == 1
+            # Write all data associated to a single filament at once
+            memspace_filament = HDF5.dataspace((N, Np))
+            HDF5.select_hyperslab!(dspace, (1:N, (n + 1):(n + Np)))
+            HDF5.API.h5d_write(dset.id, memtype.id, memspace_filament.id, dspace.id, dset.xfer, v)
+            close(memspace_filament)
+            n += Np
+        else
+            # For now just use linear interpolation
+            for i ∈ eachindex(v), m ∈ 1:refinement
+                α = (m - 1) / refinement
+                u = (1 - α) * v[i] + α * v[i + 1]  # assumes v is padded!!
+                n += 1
+                # Write vectors one by one
+                HDF5.select_hyperslab!(dspace, (1:N, n))
+                HDF5.API.h5d_write(dset.id, memtype.id, memspace_vec.id, dspace.id, dset.xfer, u)
+            end
+        end
+        n += 1
+        HDF5.select_hyperslab!(dspace, (1:N, n))
+        HDF5.API.h5d_write(dset.id, memtype.id, memspace_vec.id, dspace.id, dset.xfer, v[begin])
+    end
+    @assert n == num_points
+    close(dset)
+
+    close(dspace)
+    close(dtype)
+    close(memspace_vec)
     close(gdata)
     close(gtop)
 
@@ -265,13 +338,24 @@ function read_filaments(
     haskey(io, "VTKHDF") || error("expected a `VTKHDF` group at the top of the file")
     gtop = HDF5.open_group(io, "VTKHDF")
 
+    refinement = HDF5.read_dataset(gtop, "RefinementLevel") :: Int
+
     dset_points = HDF5.open_dataset(gtop, "Points")
     dset_offset = HDF5.open_dataset(gtop, "Offsets")
 
-    Ñ, num_points = size(dset_points) :: Dims{2}
+    Ñ, num_points_refined = size(dset_points) :: Dims{2}
     @assert Ñ == 3
     num_cells = length(dset_offset) - 1
     num_cells > 0 || error("expected at least one filament in the file")
+
+    if refinement == 1
+        num_points = num_points_refined
+    else
+        # We subtract endpoint from each cell before dividing by refinement level
+        num_points, _remainder = divrem(num_points_refined - num_cells, refinement)
+        @assert _remainder == 0  # the division is exact
+        num_points += num_cells  # reinclude the endpoints in final count
+    end
 
     # Read points as an Array{T} even if it was written as an Array{S} with S ≠ T
     # (for instance, if data was written as S = Float64 and we want to read it as T = Float32).
@@ -279,8 +363,26 @@ function read_filaments(
     points = Array{T}(undef, 3, num_points)
     offsets = Array{Int}(undef, num_cells + 1)
 
-    read_dataset!(points, dset_points)
     read_dataset!(offsets, dset_offset)
+
+    if refinement == 1
+        read_dataset!(points, dset_points)
+    else
+        _recompute_offsets!(offsets, refinement)
+        @assert last(offsets) == num_points
+        dspace = HDF5.dataspace(dset_points)
+        n = 0
+        for i ∈ 1:num_cells
+            a = offsets[i] + 1
+            b = offsets[i + 1]
+            out = @view points[:, a:b]
+            Np = size(out, 2)
+            inds_file = range(n + 1; length = Np, step = refinement)
+            HDF5.select_hyperslab!(dspace, (1:Ñ, inds_file))
+            read_dataset!(out, dset_points, dspace)
+            n = last(inds_file)
+        end
+    end
 
     fs = map(1:num_cells) do i
         _load_filament(T, points, offsets, method, i)
@@ -289,6 +391,24 @@ function read_filaments(
     close(gtop)
 
     fs
+end
+
+function _load_with_refinement!()
+end
+
+function _recompute_offsets!(offsets, refinement)
+    Base.require_one_based_indexing(offsets)
+    num_cells = length(offsets) - 1
+    off_i = offsets[begin]  # offset of previous cell before recomputation
+    for i ∈ 1:num_cells
+        Np_refined = offsets[i + 1] - off_i
+        Np, _remainder = divrem(Np_refined - 1, refinement)
+        @assert _remainder == 0
+        Np += 1  # reinclude the endpoint in final count
+        off_i = offsets[i + 1]
+        offsets[i + 1] = offsets[i] + Np
+    end
+    offsets
 end
 
 # Load filament `i` from the list of points using the given offsets
@@ -355,23 +475,35 @@ function read_point_data!(
     N = length(V)  # usually == 3
     T = eltype(V)
 
-    gdata = HDF5.open_group(io, "/VTKHDF/PointData")
+    gtop = HDF5.open_group(io, "VTKHDF")
+    refinement = HDF5.read_dataset(gtop, "RefinementLevel") :: Int
+
+    gdata = HDF5.open_group(gtop, "PointData")
     dset = HDF5.open_dataset(gdata, name)
     Ñ, num_points = size(dset) :: Dims{2}
     @assert N == Ñ
 
     n = 0
+    dspace = HDF5.dataspace(dset)
     for v ∈ vs
-        M = length(v)
-        dspace = HDF5.hyperslab(dset, 1:N, (n + 1):(n + M))  # read part of the dataset
+        Np = length(v)  # number of filament nodes (*excluding* the endpoint)
         vdata = reinterpret(reshape, T, v)
-        read_dataset!(vdata, dset, dspace)
-        n += M + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
+        if refinement == 1
+            HDF5.select_hyperslab!(dspace, (1:N, (n + 1):(n + Np)))  # read part of the dataset
+            read_dataset!(vdata, dset, dspace)
+            n += Np + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
+        else
+            inds_file = range(n + 1; length = Np, step = refinement)
+            HDF5.select_hyperslab!(dspace, (1:N, inds_file))
+            read_dataset!(vdata, dset, dspace)
+            n = last(inds_file) + refinement
+        end
     end
     @assert n == num_points
 
     close(dset)
     close(gdata)
+    close(gtop)
 
     vs
 end
