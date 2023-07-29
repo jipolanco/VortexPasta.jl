@@ -63,7 +63,7 @@ julia> ts = range(0, 1; length = 16 + 1)
 0.0:0.0625:1.0
 
 julia> S.(ts)
-17-element Vector{StaticArraysCore.SVector{3, Float64}}:
+17-element Vector{SVector{3, Float64}}:
  [2.0, 0.0, 1.0]
  [1.8477590650225735, 0.7653668647301796, 1.0]
  [1.4142135623730951, 1.4142135623730951, 1.0]

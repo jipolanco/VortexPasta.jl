@@ -44,7 +44,7 @@ julia> S = define_curve(p; scale = 2π);  # we scale the curve by 2π (this also
 julia> ts = range(0, 1; length = 16 + 1);
 
 julia> S.(ts)
-17-element Vector{StaticArraysCore.SVector{3, Float64}}:
+17-element Vector{SVector{3, Float64}}:
  [0.0, 0.0, -3.141592653589793]
  [0.24044709195373853, 0.0, -2.748893571891069]
  [0.4442882938158367, 0.0, -2.356194490192345]
@@ -77,7 +77,7 @@ julia> using StaticArrays: SDiagonal
 julia> S = define_curve(p; scale = SDiagonal(1, 1, 2π));
 
 julia> S.(ts)
-17-element Vector{StaticArraysCore.SVector{3, Float64}}:
+17-element Vector{SVector{3, Float64}}:
  [0.0, 0.0, -3.141592653589793]
  [0.03826834323650898, 0.0, -2.748893571891069]
  [0.07071067811865477, 0.0, -2.356194490192345]
