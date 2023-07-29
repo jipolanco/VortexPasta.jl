@@ -53,8 +53,7 @@ end
 
     @testset "→ refinement = $refinement" for refinement ∈ (1, 3)
         # Write results
-        h5open("ring_collision_ref$refinement.hdf", "w") do io
-            FilamentIO.init_vtkhdf(io, fs; refinement)
+        write_vtkhdf("ring_collision_ref$refinement.hdf", fs; refinement) do io
             FilamentIO.write_point_data(io, "velocity", vs)
             FilamentIO.write_point_data(io, "streamfunction", ψs)
             FilamentIO.write_field_data(io, "time", time)

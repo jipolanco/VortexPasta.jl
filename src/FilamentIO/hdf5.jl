@@ -1,4 +1,4 @@
-export init_vtkhdf, write_point_data
+export write_vtkhdf, write_point_data, write_field_data
 
 using HDF5: HDF5
 
@@ -6,26 +6,26 @@ using HDF5: HDF5
 ## 1. Writing filament HDF5 files
 ## ================================================================================ ##
 
-# This is to make sure we write the dataset type ("UnstructuredGrid") as ASCII.
-# This is required by VTK/ParaView.
-function datatype_ascii(s::AbstractString)
-    dtype = HDF5.datatype(s)
-    HDF5.API.h5t_set_cset(dtype.id, HDF5.API.H5T_CSET_ASCII)
-    dtype
-end
-
-function open_or_create_group(parent, name)
-    if haskey(parent, name)
-        HDF5.open_group(parent, name)
-    else
-        HDF5.create_group(parent, name)
-    end
+struct VTKHDFFile{
+        FileHandler <: HDF5.File,
+        Group     <: HDF5.Group,
+        Filaments <: AbstractVector{<:AbstractFilament},
+    }
+    io         :: FileHandler
+    gtop       :: Group  # "/VTKHDF" group
+    fs         :: Filaments
+    refinement :: Int
 end
 
 """
-    init_vtkhdf(io::HDF5.File, fs::AbstractVector{<:AbstractFilament}; refinement = 1)
+    write_vtkhdf(
+        [func::Function],
+        filename::AbstractString,
+        fs::AbstractVector{<:AbstractFilament};
+        refinement = 1,
+    )
 
-Initialise a new VTK HDF file with a list of filaments.
+Write new VTK HDF file containing a list of filaments.
 
 A VTK HDF file is an HDF5 file organised in such a way that it can be readily visualised in
 tools such as ParaView.
@@ -49,11 +49,14 @@ Some relevant datasets which are written are:
   Once again, note that number of nodes of filament `i` *including the endpoint* is
   `Offsets[i + 1] - Offsets[i]`.
 
-After calling this function, one may use [`write_point_data`](@ref) to attach data (for
-instance velocity vectors) to filament nodes.
-
 See also the [VTK documentation](https://examples.vtk.org/site/VTKFileFormats/#hdf-file-formats)
 for details on the VTK HDF format.
+
+## Attaching extra data
+
+The optional `func` argument can be used to attach other data (such as velocity vectors or
+the current time) to the generated file. This is most conveniently done using the `do` block
+syntax. See further below for some examples.
 
 ## Optional arguments
 
@@ -66,14 +69,48 @@ for details on the VTK HDF format.
 
 ```julia
 using HDF5
-h5open("filaments.hdf", "w") do io
-    init_vtkhdf(io, fs)                   # here `fs` is a list of filaments
+
+# Note: the file extension is arbitrary, but ParaView prefers ".hdf" if one wants to use the
+# files for visualisation.
+write_vtkhdf("filaments.hdf", fs; refinement = 2) do io
     write_point_data(io, "Velocity", vs)  # here `vs` contains one velocity vector per filament node
     write_field_data(io, "Time", 0.3)
     # one can add other fields here...
 end
 ```
 """
+function write_vtkhdf(
+        func::Func,
+        filename::AbstractString,
+        fs::AbstractVector{<:AbstractFilament};
+        refinement = 1,
+    ) where {Func <: Function}
+    HDF5.h5open(filename, "w") do io
+        writer = init_vtkhdf(io, fs; refinement)
+        func(writer)
+    end
+    nothing
+end
+
+write_vtkhdf(filename::AbstractString, args...; kws...) =
+    write_vtkhdf(Returns(nothing), filename, args...; kws...)
+
+# This is to make sure we write the dataset type ("UnstructuredGrid") as ASCII.
+# This is required by VTK/ParaView.
+function datatype_ascii(s::AbstractString)
+    dtype = HDF5.datatype(s)
+    HDF5.API.h5t_set_cset(dtype.id, HDF5.API.H5T_CSET_ASCII)
+    dtype
+end
+
+function open_or_create_group(parent, name)
+    if haskey(parent, name)
+        HDF5.open_group(parent, name)
+    else
+        HDF5.create_group(parent, name)
+    end
+end
+
 function init_vtkhdf(
         io::HDF5.File,
         fs::AbstractVector{<:AbstractFilament};
@@ -166,13 +203,12 @@ function init_vtkhdf(
 
     map(close, points)  # close dataset + dataspace + datatype
 
-    close(gtop)
-    nothing
+    VTKHDFFile(io, gtop, fs, refinement)
 end
 
 """
     write_point_data(
-        io::HDF5.File,
+        io::VTKHDFFile,
         name::AbstractString,
         vs::AbstractVector{<:AbstractVector},
     )
@@ -193,13 +229,11 @@ the values associated to each filament.
 Note that [`init_vtkhdf`](@ref) must be called *before* using this function.
 """
 function write_point_data(
-        io::HDF5.File,
+        writer::VTKHDFFile,
         name::AbstractString,
         vs::AbstractVector{<:AbstractVector},
     )
-    gtop = HDF5.open_group(io, "VTKHDF")
-
-    refinement = HDF5.read_dataset(gtop, "RefinementLevel") :: Int
+    (; gtop, refinement,) = writer
 
     gdata = open_or_create_group(gtop, "PointData")
 
@@ -257,13 +291,12 @@ function write_point_data(
     close(dtype)
     close(memspace_vec)
     close(gdata)
-    close(gtop)
 
     nothing
 end
 
 """
-    write_field_data(io::HDF5.File, name::AbstractString, data)
+    write_field_data(io::VTKHDFFile, name::AbstractString, data)
 
 Write data as VTK field data to VTK HDF file.
 
@@ -274,12 +307,11 @@ parameters.
 Note that scalar data (such as time) is always written as a single-element vector, since
 otherwise it cannot be parsed by VTK.
 """
-function write_field_data(io::HDF5.File, name::AbstractString, data)
-    gtop = HDF5.open_group(io, "VTKHDF")
+function write_field_data(writer::VTKHDFFile, name::AbstractString, data)
+    (; gtop,) = writer
     gdata = open_or_create_group(gtop, "FieldData")
     _write_field_data(gdata, name, data)
     close(gdata)
-    close(gtop)
     nothing
 end
 

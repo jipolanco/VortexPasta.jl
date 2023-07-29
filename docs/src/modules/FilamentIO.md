@@ -11,7 +11,7 @@ FilamentIO
 ## Writing data
 
 ```@docs
-init_vtkhdf
+write_vtkhdf
 write_point_data
 write_field_data
 ```
