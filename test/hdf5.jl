@@ -2,7 +2,6 @@ using VortexPasta.Filaments
 using VortexPasta.FilamentIO
 using VortexPasta.BasicTypes: VectorOfVectors
 using VortexPasta.BiotSavart
-using HDF5: h5open
 using Test
 
 function init_ring_filament(; R, z, sign)
@@ -62,13 +61,12 @@ end
             FilamentIO.write_field_data(io, "info", info_str)
         end
 
-        # Read results back
-        local vs_read, ψs_read
-        fs_read = FilamentIO.read_vtkhdf(
-                fname, Float64, CubicSplineMethod(),
-            ) do io
+        function check_fields(io)
             vs_read = @inferred FilamentIO.read_point_data(io, "velocity")
             ψs_read = @inferred FilamentIO.read_point_data(io, "streamfunction")
+
+            @test vs == vs_read
+            @test ψs == ψs_read
 
             # Test reading onto VectorOfVectors
             ψs_alt = similar(ψs)
@@ -85,8 +83,10 @@ end
             @test info_str == info_read
         end
 
-        @test vs == vs_read
-        @test ψs == ψs_read
+        # Read results back
+        fs_read = @inferred FilamentIO.read_vtkhdf(
+            check_fields, fname, Float64, CubicSplineMethod(),
+        )
 
         @test eltype(eltype(fs_read)) === Vec3{Float64}
         if refinement == 1
