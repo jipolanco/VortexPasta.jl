@@ -111,9 +111,6 @@ function _local_self_induced(
 end
 
 # TODO
-# - I'm not yet sure whether this is the good LIA term for the streamfunction. In
-#   particular, should one use the same Δ? One way to check this is by looking at energy
-#   conservation of non-reconnecting cases.
 # - Implement variant with no quadratures?
 function _local_self_induced(
         ::Streamfunction, quad::AbstractQuadrature,
@@ -130,6 +127,8 @@ function _local_self_induced(
     # Use local (non-averaged) tangent at point of interest.
     # We want to make sure that the result is exactly tangent to the curve at the node.
     t̂ = f[i, UnitTangent()]
-    β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)
+    # Note: the +1 coefficient seems to provide energy conservation to very high accuracy.
+    # Tested in particular with leapfrogging rings case.
+    β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) + 1 - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)
     β * t̂
 end
