@@ -6,15 +6,15 @@ using VortexPasta.Filaments: Vec3
 using Test
 
 function init_trefoil_filament(N::Int)
-    S(t) = (
-        sinpi(t) + 2 * sinpi(2t),
-        cospi(t) - 2 * cospi(2t),
-        -sinpi(3t),
-    )
-    f = Filaments.init(ClosedFilament, N, CubicSplineMethod())
-    ζs = range(0, 2; length = N + 1)[1:N]
-    f .= S.(ζs)
-    update_coefficients!(f)
+    function S(t)
+        u = 2t
+        (
+            sinpi(u) + 2 * sinpi(2u),
+            cospi(u) - 2 * cospi(2u),
+            -sinpi(3u),
+        )
+    end
+    f = @inferred Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
     f
 end
 

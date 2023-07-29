@@ -36,13 +36,13 @@ julia> θs = range(-1, 1; length = 17)[1:16]
 julia> @. f = Vec3(cospi(θs), sinpi(θs), 0);
 
 julia> f[4]
-3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
+3-element SVector{3, Float64} with indices SOneTo(3):
  -0.3826834323650898
  -0.9238795325112867
   0.0
 
 julia> f[5] = (f[4] + 2 * f[6]) ./ 2
-3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
+3-element SVector{3, Float64} with indices SOneTo(3):
   0.1913417161825449
  -1.38581929876693
   0.0
@@ -58,13 +58,13 @@ Estimate derivatives at discretisation points:
 
 ```jldoctest ClosedLocalFilament
 julia> f[4, Derivative(1)]
-3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
+3-element SVector{3, Float64} with indices SOneTo(3):
   0.975687843883729
  -0.7190396901563083
   0.0
 
 julia> f[4, Derivative(2)]
-3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
+3-element SVector{3, Float64} with indices SOneTo(3):
   0.037089367352557384
  -0.5360868773346441
   0.0
@@ -74,7 +74,7 @@ Estimate coordinates and derivatives in-between discretisation points:
 
 ```jldoctest ClosedLocalFilament
 julia> f(4, 0.32)
-3-element StaticArraysCore.SVector{3, Float64} with indices SOneTo(3):
+3-element SVector{3, Float64} with indices SOneTo(3):
  -0.15995621299009463
  -1.1254976317779821
   0.0

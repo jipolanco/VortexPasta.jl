@@ -10,6 +10,7 @@ using VortexPasta
     include("ring_collision.jl")
     include("trefoil.jl")
     include("infinite_lines.jl")
+    include("leapfrogging.jl")
     include("kelvin_waves.jl")
     include("min_distance.jl")
     include("reconnections.jl")

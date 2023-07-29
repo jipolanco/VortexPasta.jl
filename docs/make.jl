@@ -10,7 +10,10 @@ DocMeta.setdocmeta!(
 DocMeta.setdocmeta!(
     VortexPasta.PredefinedCurves,
     :DocTestSetup,
-    :(using VortexPasta.PredefinedCurves),
+    quote
+        using StaticArrays: SVector
+        using VortexPasta.PredefinedCurves
+    end,
 )
 
 DocMeta.setdocmeta!(
@@ -22,7 +25,11 @@ DocMeta.setdocmeta!(
 DocMeta.setdocmeta!(
     VortexPasta.Filaments,
     :DocTestSetup,
-    :(using VortexPasta.Filaments),
+    quote
+        using StaticArrays: SVector
+        using VortexPasta: VortexPasta
+        using VortexPasta.Filaments
+    end,
 )
 
 # doctest(VortexPasta; fix = true)
