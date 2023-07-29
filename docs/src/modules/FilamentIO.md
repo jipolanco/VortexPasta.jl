@@ -19,7 +19,7 @@ write_field_data
 ## Reading data
 
 ```@docs
-read_filaments
+read_vtkhdf
 read_point_data
 read_point_data!
 read_field_data
