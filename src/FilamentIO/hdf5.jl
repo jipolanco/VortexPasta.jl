@@ -103,8 +103,7 @@ function init_vtkhdf(
     gtop["NumberOfConnectivityIds"] = [num_points]
     gtop["RefinementLevel"] = refinement  # this is not a VTK attribute, it's just for our own use
 
-    points = let
-        dtype = HDF5.datatype(T) 
+    points = let dtype = HDF5.datatype(T)
         dspace = HDF5.dataspace((N, num_points))
         (;
             dtype, dspace,
@@ -398,9 +397,6 @@ function read_filaments(
     close(gtop)
 
     fs
-end
-
-function _load_with_refinement!()
 end
 
 function _recompute_offsets!(offsets, refinement)
