@@ -96,8 +96,12 @@ function PeriodicCellList(
         floor(Int, L / rcut)
     end
 
-    all(≥(2M), ncells) || error(
-        lazy"""number of cells $ncells is too small for periodic padding.
+    # When M = 1, the number of cells in each direction should be at least 3 to avoid
+    # repeating pair interactions (due to periodicity).
+    # More generally, for any M, the number of cells should be at least 2M + 1.
+    all(≥(2M + 1), ncells) || error(
+        lazy"""cell lists: number of cells $ncells is too small for periodic padding.
+               Minimum allowed is 2 * nsubdiv + 1 = $(2M + 1).
                Try reducing the cutoff radius (got rs_cut = $rs_cut_in)."""
     )
 

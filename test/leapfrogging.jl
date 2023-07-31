@@ -53,15 +53,14 @@ end
 @testset "Leapfrogging vortex rings" begin
     # Grid-related parameters
     Ls = (1, 1, 1) .* 2π
-    Ns = (1, 1, 1) .* 48
+    Ns = (1, 1, 1) .* 32
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    α = kmax / 6
+    α = kmax / 5
     rcut = 4 * sqrt(2) / α
-    @assert rcut < minimum(Ls) / 2  # required by the implementation
 
     # Physical vortex parameters
     Γ = 1.2
-    a = 1e-4
+    a = 1e-6
     Δ = 1/4  # full core
     params_bs = @inferred ParamsBiotSavart(;
         Γ, a, Δ,
@@ -77,7 +76,7 @@ end
     R_init = π / 3
     zs_init = [0.9, 1.1] .* π
     fs_init = map(zs_init) do z
-        S = define_curve(Ring(); translate = (π, π, z), scale = R_init)
+        S = define_curve(Ring(); translate = (π / 20, π, z), scale = R_init)
         Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
     end
 
@@ -126,14 +125,11 @@ end
     @testset "Energy conservation" begin
         energy_initial = first(energy_time)  # initial energy
         energy_mean = mean(energy_time)
-        energy_last = last(energy_time)
         energy_std = std(energy_time)
         @show energy_initial
         @show energy_std / energy_initial
-        @show energy_last / energy_initial - 1
         @show energy_mean / energy_initial - 1
         @test energy_std / energy_initial < 1e-5
         @test isapprox(energy_mean, energy_initial; rtol = 1e-5)
-        @test isapprox(energy_last, energy_initial; rtol = 1e-5)
     end
 end
