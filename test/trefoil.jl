@@ -138,7 +138,7 @@ end
 
 function compute_filament_velocity_and_streamfunction(f::AbstractFilament; α, Ls, params_kws...)
     rcut = 4 * sqrt(2) / α
-    @assert rcut < minimum(Ls) / 2
+    @assert rcut < minimum(Ls) / 3  # cell lists requirement
     params = ParamsBiotSavart(; params_kws..., α, Ls, rcut)
     fs = [f]
     cache = init_cache(params, fs)
@@ -185,7 +185,7 @@ end
 @testset "Trefoil" begin
     f = @inferred init_trefoil_filament(30)
     Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
-    Ns = (3, 3, 4) .* 24
+    Ns = (3, 3, 4) .* 30
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
     @testset "Long range" begin
@@ -195,7 +195,7 @@ end
         compare_short_range([f]; params_kws..., α = kmax / 6)
     end
     @testset "Dependence on α" begin
-        αs = [kmax / 5, kmax / 8, kmax / 16]
+        αs = [kmax / 5, kmax / 6, kmax / 7, kmax / 8, kmax / 12, kmax / 16]
         check_independence_on_ewald_parameter(f, αs; params_kws...)
     end
 end
