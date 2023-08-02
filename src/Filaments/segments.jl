@@ -64,6 +64,23 @@ struct Segment{Filament <: AbstractFilament}
 end
 
 """
+    (s::Segment)(ζ, [args...])
+
+Evaluate quantity along a segment.
+
+Here ``0 ≤ ζ ≤ 1`` is a location within the segment.
+
+This is the equivalent of `s.f(s.i, ζ, args...)`. As an example, `s(ζ)` simply computes a
+coordinate within the segment, while `s(ζ, UnitTangent())` computes the unit tangent at that
+coordinate.
+
+See [`AbstractFilament`](@ref) for more details on what can be computed. 
+"""
+function (s::Segment)(ζ::Number, args...)
+    s.f(s.i, ζ, args...)
+end
+
+"""
     midpoint(s::Segment) -> Vec3
 
 Return an estimation of the segment midpoint (prioritising performance over accuracy).
