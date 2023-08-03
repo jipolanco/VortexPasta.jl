@@ -80,8 +80,8 @@ function vortex_ring_squared_radius(f::AbstractFilament)
     # Note: this is the impulse normalised by the vortex circulation Γ and the density ρ.
     # For a vortex ring on the XY plane, this should be equal to (0, 0, A) where A = πR² is
     # the vortex "area".
-    i⃗ = integrate(f, quad) do seg, ζ
-        seg(ζ) × seg(ζ, Derivative(1))
+    i⃗ = integrate(f, quad) do f, i, ζ
+        f(i, ζ) × f(i, ζ, Derivative(1))
     end / 2
     A = i⃗[3]
     # A = norm(i⃗)
@@ -167,6 +167,8 @@ end
         # refinement = RefineBasedOnSegmentLength(0.75 * minimum_knot_increment(fs), 100.0),
         callback,
     );
+
+    ##
 
     # Run simulation
     @time solve!(iter);
