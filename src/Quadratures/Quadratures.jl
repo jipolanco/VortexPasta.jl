@@ -29,31 +29,12 @@ Abstract type defining an ``N``-point quadrature rule.
 """
 abstract type AbstractQuadrature{N} end
 
-function _generate(::Type{Q}) where {N, Q <: AbstractQuadrature{N}}
-    f = _generator(Q)
-    xs, ws = f(N)
-    Xs = ntuple(i -> xs[i], Val(N))
-    Ws = ntuple(i -> ws[i], Val(N))
-    _change_interval(Xs, Ws)
-end
-
 # Convert quadrature rule from the [-1, 1] to the [0, 1] interval.
 function _change_interval(xs, ws)
     ws′ = map(w -> w / 2, ws)
     xs′ = map(x -> (x + 1) / 2, xs)
     xs′, ws′
 end
-
-# We use a generated function to avoid runtime allocations and ensure that rules
-# have static size.
-"""
-    quadrature(q::AbstractQuadrature{N}) -> (xs, ws)
-
-Return ``N``-point quadrature rule valid in ``[0, 1]`` interval.
-
-Quadrature nodes `xs` and and weights `ws` are returned as tuples.
-"""
-@generated quadrature(q::AbstractQuadrature) = _generate(q)
 
 """
     Base.length(q::AbstractQuadrature{N}) -> N
@@ -71,5 +52,28 @@ Base.length(::Type{<:AbstractQuadrature{N}}) where {N} = N
 struct GaussLegendre{N} <: AbstractQuadrature{N} end
 GaussLegendre(N::Int) = GaussLegendre{N}()
 _generator(::Type{<:GaussLegendre}) = gausslegendre
+
+## ================================================================================ ##
+# The following functions must be at the end of the file to avoid world age issues
+# (in particular during precompilation).
+
+function _generate(::Type{Q}) where {N, Q <: AbstractQuadrature{N}}
+    f = _generator(Q)
+    xs, ws = f(N)
+    Xs = ntuple(i -> xs[i], Val(N))
+    Ws = ntuple(i -> ws[i], Val(N))
+    _change_interval(Xs, Ws)
+end
+
+# We use a generated function to avoid runtime allocations and ensure that rules
+# have static size.
+"""
+    quadrature(q::AbstractQuadrature{N}) -> (xs, ws)
+
+Return ``N``-point quadrature rule valid in ``[0, 1]`` interval.
+
+Quadrature nodes `xs` and weights `ws` are returned as tuples.
+"""
+@generated quadrature(q::AbstractQuadrature) = _generate(q)
 
 end
