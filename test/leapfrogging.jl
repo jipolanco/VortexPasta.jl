@@ -3,7 +3,7 @@
 using Test
 using Statistics: mean, std
 using Random
-using LinearAlgebra: norm, normalize, ⋅
+using LinearAlgebra: norm, normalize, ⋅, ×
 using UnicodePlots: lineplot
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
@@ -79,6 +79,21 @@ function total_vortex_length(fs)
     L
 end
 
+function vortex_ring_squared_radius(f::AbstractFilament)
+    quad = GaussLegendre(4)
+    # Note: this is the impulse normalised by the vortex circulation Γ and the density ρ.
+    # For a vortex ring on the XY plane, this should be equal to (0, 0, A) where A = πR² is
+    # the vortex "area".
+    i⃗ = sum(segments(f)) do seg
+        integrate(seg, quad) do ζ
+            seg(ζ) × seg(ζ, Derivative(1))
+        end
+    end / 2
+    A = i⃗[3]
+    # A = norm(i⃗)
+    A / π
+end
+
 @testset "Leapfrogging vortex rings" begin
     ##
     # Grid-related parameters
@@ -119,6 +134,7 @@ end
     times::Vector{Float64} = Float64[]
     energy_time::Vector{Float64} = Float64[]
     line_length::Vector{Float64} = Float64[]
+    sum_of_squared_radii::Vector{Float64} = Float64[]
     output_vtkhdf::Bool = false
 
     function callback(iter)
@@ -136,10 +152,12 @@ end
 
         E = kinetic_energy_from_streamfunction(iter)
         L = total_vortex_length(fs)
+        R²_all = sum(vortex_ring_squared_radius, fs)
 
         # @show nstep, t, dt, E
         push!(energy_time, E)
         push!(line_length, L)
+        push!(sum_of_squared_radii, R²_all)
     end
 
     # Initialise simulation
@@ -152,6 +170,7 @@ end
         dt = 0.025,  # will be changed by the adaptivity
         adaptivity = AdaptBasedOnSegmentLength(1.5),
         refinement = NoRefinement(),
+        # refinement = RefineBasedOnSegmentLength(0.75 * minimum_knot_increment(fs), 100.0),
         callback,
     );
 
@@ -161,23 +180,42 @@ end
     # Check that the callback is called at the initial time
     @test first(times) == first(tspan)
 
-    @testset "Energy conservation" begin
+    @testset "Energy & impulse conservation" begin
         energy_initial = first(energy_time)  # initial energy
         energy_normalised = energy_time ./ energy_initial
-        energy_mean = mean(energy_normalised)
-        energy_std = std(energy_normalised)
+
+        # Impulse of a vortex ring is I = πR² × Γ
+        # First, check that the squared radii are correctly estimated via the impulse.
+        R²_sum_initial = length(fs_init) * R_init^2
+        @test isapprox(R²_sum_initial, first(sum_of_squared_radii); rtol = 1e-5)
+
+        impulse_normalised = sum_of_squared_radii ./ first(sum_of_squared_radii)
+
         let plt = lineplot(times, energy_normalised; xlabel = "Time", ylabel = "Energy")
             println(plt)
         end
         let plt = lineplot(times, line_length; xlabel = "Time", ylabel = "Length")
             println(plt)
         end
+        let plt = lineplot(times, impulse_normalised; xlabel = "Time", ylabel = "Impulse")
+            println(plt)
+        end
+
+        energy_mean = mean(energy_normalised)
+        energy_std = std(energy_normalised)
         @show energy_initial
         @show extrema(energy_normalised)
-        @show energy_std
-        @show energy_mean - 1
+        @show energy_std (energy_mean - 1)
+
         @test energy_std < 1e-5
         @test isapprox(energy_mean, 1; rtol = 1e-5)
+
+        impulse_mean = mean(impulse_normalised)
+        impulse_std = std(impulse_normalised)
+
+        @show impulse_std (impulse_mean - 1)
+        @test impulse_std < 1e-5
+        @test isapprox(impulse_mean, 1; rtol = 1e-5)
     end
 
     ##
