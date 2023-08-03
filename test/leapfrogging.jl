@@ -43,15 +43,13 @@ function kinetic_energy_from_streamfunction(
                 copy!(nodes(ψ_int), ψs)
             end
             update_coefficients!(ψ_int; knots = knots(f))
-            for i ∈ eachindex(segments(f))
-                E += integrate(f, i, quad) do ζ
-                    ψ⃗ = ψ_int(i, ζ)
-                    if interpolate_tangent_component_only
-                        ψ⃗[1]
-                    else
-                        s⃗′ = f(i, ζ, Derivative(1))
-                        ψ⃗ ⋅ s⃗′
-                    end
+            E += integrate(f, quad) do f, i, ζ
+                ψ⃗ = ψ_int(i, ζ)
+                if interpolate_tangent_component_only
+                    ψ⃗[1]
+                else
+                    s⃗′ = f(i, ζ, Derivative(1))
+                    ψ⃗ ⋅ s⃗′
                 end
             end
         end
@@ -70,10 +68,8 @@ function total_vortex_length(fs)
     quad = GaussLegendre(4)
     L = 0.0
     for f ∈ fs
-        for seg ∈ segments(f)
-            L += integrate(seg, quad) do ζ
-                norm(seg(ζ, Derivative(1)))
-            end
+        L += integrate(f, quad) do f, i, ζ
+            norm(f(i, ζ, Derivative(1)))
         end
     end
     L
@@ -84,10 +80,8 @@ function vortex_ring_squared_radius(f::AbstractFilament)
     # Note: this is the impulse normalised by the vortex circulation Γ and the density ρ.
     # For a vortex ring on the XY plane, this should be equal to (0, 0, A) where A = πR² is
     # the vortex "area".
-    i⃗ = sum(segments(f)) do seg
-        integrate(seg, quad) do ζ
-            seg(ζ) × seg(ζ, Derivative(1))
-        end
+    i⃗ = integrate(f, quad) do seg, ζ
+        seg(ζ) × seg(ζ, Derivative(1))
     end / 2
     A = i⃗[3]
     # A = norm(i⃗)
@@ -150,9 +144,9 @@ end
             end
         end
 
-        E = kinetic_energy_from_streamfunction(iter)
-        L = total_vortex_length(fs)
-        R²_all = sum(vortex_ring_squared_radius, fs)
+        E = @inferred kinetic_energy_from_streamfunction(iter)
+        L = @inferred total_vortex_length(fs)
+        R²_all = @inferred sum(vortex_ring_squared_radius, fs)
 
         # @show nstep, t, dt, E
         push!(energy_time, E)
