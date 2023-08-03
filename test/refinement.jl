@@ -87,7 +87,7 @@ end
                 @testset "Node $i/$N" begin
                     fc = copy(f)
                     Filaments.remove_node!(fc, i)
-                    Filaments.update_after_changing_nodes!(fc; removed = true)
+                    Filaments.update_after_changing_nodes!(fc)
                     @test all(i -> fc[i] == fc(i, 0.0), eachindex(fc))
                     @test fc[end + 1] == fc[begin]
                     @test fc[end] == fc[begin - 1]
