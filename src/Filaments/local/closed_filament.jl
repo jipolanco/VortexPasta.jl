@@ -159,7 +159,8 @@ end
 discretisation_method(f::ClosedLocalFilament) = f.discretisation
 interpolation_method(f::ClosedLocalFilament) = interpolation_method(discretisation_method(f))
 
-function _update_coefficients_only!(f::ClosedLocalFilament)
+# Note: `only_derivatives` is not used, it's just there for compatibility with splines.
+function _update_coefficients_only!(f::ClosedLocalFilament; only_derivatives = false)
     (; ts, Xs, Xderivs,) = f
     M = npad(ts)
     @assert M ≥ 1  # minimum padding required for computation of ts
@@ -233,6 +234,30 @@ function _interpolate(
         data
     end
     α * interpolate(method, deriv, t, values_i...)
+end
+
+function insert_node!(f::ClosedLocalFilament, i::Integer, ζ::Real)
+    (; Xs,) = f
+    Xnew = f(i, ζ)
+    insert!(Xs, i + 1, Xnew)
+    Xnew
+end
+
+function remove_node!(f::ClosedLocalFilament, i::Integer)
+    (; ts, Xs,) = f
+    popat!(ts, i)
+    popat!(Xs, i)
+end
+
+# The `removed` argument is just there for compatibility with splines.
+function update_after_changing_nodes!(f::ClosedLocalFilament; removed = true)
+    (; Xs,) = f
+    resize!(f, length(Xs))   # resize all vectors in the filament
+    if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
+        pad_periodic!(Xs, f.Xoffset)
+        update_coefficients!(f)
+    end
+    f
 end
 
 # Coefficients should be updated before refinement to make sure we have the right curvatures

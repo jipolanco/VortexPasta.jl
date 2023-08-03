@@ -146,9 +146,11 @@ end
 discretisation_method(::ClosedSplineFilament) = CubicSplineMethod()
 interpolation_method(::ClosedSplineFilament) = CubicSplineMethod()
 
-function _update_coefficients_only!(f::ClosedSplineFilament)
+function _update_coefficients_only!(f::ClosedSplineFilament; only_derivatives = false)
     (; ts, Xs, cs, cderivs, Xoffset,) = f
-    solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1], Xoffset,)
+    if !only_derivatives
+        solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1], Xoffset,)
+    end
     spline_derivative!(cderivs[1], cs, ts, Val(4))
     spline_derivative!(cderivs[2], cderivs[1], ts, Val(3))
     f
@@ -202,6 +204,24 @@ function remove_node!(f::ClosedSplineFilament, i::Integer)
         pad_periodic!(ts, T)
     end
     nothing
+end
+
+# If knots were not removed but only inserted, one can pass `removed = false` to avoid
+# reevaluating node positions (not needed for node insertion, since the curve is unchanged
+# in that case).
+function update_after_changing_nodes!(f::ClosedSplineFilament; removed = true)
+    (; Xs,) = f
+    resize!(f, length(Xs))   # resize all vectors in the filament
+    check_nodes(Bool, f) || return f  # avoids error if the new number of nodes is too low
+    if removed
+        # Recompute node positions from new coefficients.
+        @inbounds for i ∈ eachindex(f)
+            Xs[i] = f(i, 0.0)
+        end
+    end
+    pad_periodic!(Xs, f.Xoffset)
+    _update_coefficients_only!(f; only_derivatives = true)
+    f
 end
 
 # Coefficients should be updated before refinement, but not after (since we use
