@@ -169,7 +169,7 @@ function refine!(f::AbstractFilament, crit::RefinementCriterion)
 
     if n_add + n_rem > 0
         @assert length(nodes(f)) == N + n_add - n_rem
-        @info "Modified nodes" n_add n_rem
+        # @info "Modified nodes" n_add n_rem
         update_after_changing_nodes!(f)
     end
 
