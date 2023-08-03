@@ -3,6 +3,7 @@ using Random
 using LinearAlgebra
 using StaticArrays
 using ForwardDiff: ForwardDiff
+using VortexPasta.Quadratures: GaussLegendre
 using VortexPasta.Filaments
 
 function test_filament_ring(args)
@@ -131,7 +132,7 @@ function test_filament_ring(args)
 
     @testset "Recompute parametrisation" begin
         fc = copy(f)
-        Filaments.recompute_parametrisation!(fc)  # this function may be removed in the future...
+        Filaments.recompute_parametrisation!(fc, GaussLegendre(4))  # this function may be removed in the future...
         L = -(-(knotlims(f)...))    # lower bound for filament length
         Lc = -(-(knotlims(fc)...))  # better estimation of filament length
         @assert L > 0 && Lc > 0

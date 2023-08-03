@@ -76,18 +76,17 @@ end
 # This function may be removed in the future.
 # The idea is to update the parametrisation of `f` to follow more closely the
 # actual arc lengths of the filament. Not sure if it's worth it...
-function recompute_parametrisation!(f::ClosedFilament)
+function recompute_parametrisation!(f::ClosedFilament, quad::AbstractQuadrature)
     m = interpolation_method(f)
-    _recompute_parametrisation!(m, f)
+    _recompute_parametrisation!(m, f, quad)
 end
 
 # In the case of straight segments (linear interpolation), the parametrisation
 # cannot be improved from its initial estimation.
-_recompute_parametrisation!(::HermiteInterpolation{0}, f::AbstractFilament) = f
+_recompute_parametrisation!(::HermiteInterpolation{0}, f::AbstractFilament, quad) = f
 
-function _recompute_parametrisation!(::Any, f::AbstractFilament)
+function _recompute_parametrisation!(::Any, f::AbstractFilament, quad)
     (; ts,) = f
-    quad = GaussLegendre(4)
     @assert npad(ts) ≥ 1
     tnext = ts[begin]
     for i ∈ eachindex(ts)
