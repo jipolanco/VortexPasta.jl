@@ -52,6 +52,33 @@ See [`insert_node!`](@ref) and [`remove_node!`](@ref).
 """
 function update_after_changing_nodes! end
 
+# Default implementation (specific types of filaments, such as ClosedSplineFilament, can
+# provide an alternative implementation)
+function insert_node!(f::ClosedFilament, i::Integer, ζ::Real)
+    (; Xs,) = f
+    Xnew = f(i, ζ)
+    insert!(Xs, i + 1, Xnew)
+    Xnew
+end
+
+# Default implementation
+function remove_node!(f::ClosedFilament, i::Integer)
+    (; ts, Xs,) = f
+    popat!(ts, i)
+    popat!(Xs, i)
+end
+
+# The `removed` argument is just there for compatibility with splines.
+function update_after_changing_nodes!(f::ClosedFilament)
+    (; Xs,) = f
+    resize!(f, length(Xs))   # resize all vectors in the filament
+    if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
+        pad_periodic!(Xs, f.Xoffset)
+        update_coefficients!(f)
+    end
+    f
+end
+
 """
     RefinementCriterion
 
@@ -142,7 +169,8 @@ function refine!(f::AbstractFilament, crit::RefinementCriterion)
 
     if n_add + n_rem > 0
         @assert length(nodes(f)) == N + n_add - n_rem
-        update_after_changing_nodes!(f; removed = n_rem > 0)
+        @info "Modified nodes" n_add n_rem
+        update_after_changing_nodes!(f)
     end
 
     n_add, n_rem
@@ -225,8 +253,7 @@ RefineBasedOnCurvature(ρℓ_max; kws...) = RefineBasedOnCurvature(ρℓ_max, ρ
 
 function _refinement_action(crit::RefineBasedOnCurvature, f::AbstractFilament, i::Integer)
     (; ρℓ_min, ρℓ_max, ℓ_min, ℓ_max,) = crit
-    ts = knots(f)
-    ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
+    ℓ = norm(f[i + 1] - f[i])
     ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
     # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
     ρℓ = ρ * ℓ
@@ -268,8 +295,7 @@ end
 
 function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)
     (; ℓ_min, ℓ_max,) = crit
-    ts = knots(f)
-    ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
+    ℓ = norm(f[i + 1] - f[i])
     if ℓ > ℓ_max
         :insert
     elseif ℓ < ℓ_min
