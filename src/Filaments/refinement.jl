@@ -225,8 +225,7 @@ RefineBasedOnCurvature(ρℓ_max; kws...) = RefineBasedOnCurvature(ρℓ_max, ρ
 
 function _refinement_action(crit::RefineBasedOnCurvature, f::AbstractFilament, i::Integer)
     (; ρℓ_min, ρℓ_max, ℓ_min, ℓ_max,) = crit
-    ts = knots(f)
-    ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
+    ℓ = norm(f[i + 1] - f[i])
     ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
     # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
     ρℓ = ρ * ℓ
@@ -268,8 +267,7 @@ end
 
 function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)
     (; ℓ_min, ℓ_max,) = crit
-    ts = knots(f)
-    ℓ = ts[i + 1] - ts[i]  # assumes parametrisation corresponds to node distance
+    ℓ = norm(f[i + 1] - f[i])
     if ℓ > ℓ_max
         :insert
     elseif ℓ < ℓ_min
