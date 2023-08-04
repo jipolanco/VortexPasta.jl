@@ -237,14 +237,28 @@ function _interpolate(
 end
 
 function insert_node!(f::ClosedLocalFilament, i::Integer, ζ::Real)
-    (; Xs,) = f
-    Xnew = f(i, ζ)
-    insert!(Xs, i + 1, Xnew)
-    Xnew
+    (; Xs, Xderivs,) = f
+    @assert length(Xderivs) == 2
+
+    s⃗ = f(i, ζ)  # new point to be added
+    insert!(Xs, i + 1, s⃗)  # note: this uses derivatives at nodes (Hermite interpolations), so make sure they are up to date!
+
+    # We also insert new derivatives in case we need to perform Hermite interpolations later
+    # (for instance if we insert other nodes).
+    # Derivatives will be recomputed later when calling `update_after_changing_nodes!`.
+    s⃗′ = f(i, ζ, Derivative(1))
+    s⃗″ = f(i, ζ, Derivative(2))
+    insert!(Xderivs[1], i + 1, s⃗′)
+    insert!(Xderivs[2], i + 1, s⃗″)
+
+    s⃗
 end
 
 function remove_node!(f::ClosedLocalFilament, i::Integer)
     (; ts, Xs,) = f
+    # No need to modify Xderivs, since they will be updated later in
+    # `update_after_changing_nodes!`. This assumes that we won't insert nodes after removing
+    # nodes (i.e. insertions are done before removals).
     popat!(ts, i)
     popat!(Xs, i)
 end

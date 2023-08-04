@@ -71,7 +71,7 @@ abstract type RefinementCriterion end
 
 function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
     (; cache,) = crit
-    (; inds, remove,) = cache
+    (; inds_add, inds_rem,) = cache
     empty!(cache)
     ts = knots(f)
     skipnext = false
@@ -84,12 +84,10 @@ function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
         action = _refinement_action(crit, f, i)
         if action === :insert
             @debug lazy"Inserting node at t = $((ts[i] + ts[i + 1]) / 2)"
-            push!(inds, i)
-            push!(remove, false)
+            push!(inds_add, i)
         elseif action === :remove
             @debug lazy"Removing node at t = $(ts[i + 1])"
-            push!(inds, i + 1)
-            push!(remove, true)
+            push!(inds_rem, i + 1)
             skipnext = true
         end
     end
@@ -116,28 +114,32 @@ function refine!(f::AbstractFilament, crit::RefinementCriterion)
 
     # Determine where to add or remove nodes.
     cache = _nodes_to_refine!(f, crit)
-    (; inds, remove,) = cache
-    n_modify = length(inds)
-    iszero(n_modify) && return (n_modify, n_modify)  # = (n_add = 0, n_rem = 0)
+    (; inds_add, inds_rem,) = cache
+    n_add = length(inds_add)
+    n_rem = length(inds_rem)
+    iszero(n_add + n_rem) && return (n_add, n_rem)
 
-    n_rem = sum(remove)  # note: `remove` is a vector of Bool
-    n_add = n_modify - n_rem
-    @assert n_add ≥ 0
-
-    # Worst case scenario: we add all knots first, then we remove all knots to be removed.
+    # Note: we add all knots first, then we remove all knots to be removed.
     if n_add > 0
         sizehint!(f, N + n_add)
     end
 
-    # We iterate in reverse to avoiding the need to shift indices (assuming `inds` is
+    # 1. Add nodes.
+    # We iterate in reverse to avoiding the need to shift indices (assuming indices are
     # sorted).
-    for n ∈ reverse(eachindex(inds))
-        i, rem = inds[n], remove[n]
-        if rem
-            remove_node!(f, i)
-        else
-            insert_node!(f, i)
+    for i ∈ reverse(inds_add)
+        insert_node!(f, i)
+        # Shift indices to be removed if needed
+        for (n, j) ∈ pairs(inds_rem)
+            if j > i
+                inds_rem[n] += 1
+            end
         end
+    end
+
+    # 2. Remove nodes
+    for i ∈ reverse(inds_rem)
+        remove_node!(f, i)
     end
 
     if n_add + n_rem > 0
@@ -149,14 +151,14 @@ function refine!(f::AbstractFilament, crit::RefinementCriterion)
 end
 
 struct RefinementCache
-    inds   :: Vector{Int}   # indices of nodes or segments to modify
-    remove :: Vector{Bool}  # determine whether nodes should be removed or segments should be refined
-    RefinementCache() = new(Int[], Bool[])
+    inds_rem :: Vector{Int}  # indices of nodes to remove
+    inds_add :: Vector{Int}  # indices of segments to refine
+    RefinementCache() = new(Int[], Int[])
 end
 
 function Base.empty!(c::RefinementCache)
-    empty!(c.inds)
-    empty!(c.remove)
+    empty!(c.inds_rem)
+    empty!(c.inds_add)
     c
 end
 
@@ -172,9 +174,9 @@ struct NoRefinement <: RefinementCriterion end
 
 # Return a fake cache.
 function _getproperty(::NoRefinement, ::Val{:cache})
-    inds = SVector{0, Int}()
-    remove = SVector{0, Float64}()
-    (; inds, remove,)
+    inds_add = SVector{0, Int}()
+    inds_rem = SVector{0, Int}()
+    (; inds_add, inds_rem,)
 end
 
 _nodes_to_refine!(::AbstractFilament, crit::NoRefinement) = crit.cache
