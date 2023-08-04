@@ -209,13 +209,16 @@ end
 
             impulse_normalised = sum_of_squared_radii ./ first(sum_of_squared_radii)
 
-            let plt = lineplot(times, energy_normalised; xlabel = "Time", ylabel = "Energy")
+            let
+                plt = lineplot(times, energy_normalised; xlabel = "Time", ylabel = "Energy", title = "Leapfrogging rings")
                 println(plt)
             end
-            let plt = lineplot(times, line_length; xlabel = "Time", ylabel = "Length")
+            let
+                plt = lineplot(times, line_length; xlabel = "Time", ylabel = "Length")
                 println(plt)
             end
-            let plt = lineplot(times, impulse_normalised; xlabel = "Time", ylabel = "Impulse")
+            let
+                plt = lineplot(times, impulse_normalised; xlabel = "Time", ylabel = "Impulse")
                 println(plt)
             end
 

@@ -6,8 +6,61 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using StaticArrays
 using Rotations
+using UnicodePlots: lineplot
 using LinearAlgebra: norm, I
 using JET: @test_opt
+
+# Note: this is total energy within a unit cell.
+# One should normalise by the cell volume to get energy per unit mass [L²T⁻²].
+function kinetic_energy_from_streamfunction(
+        ψs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament},
+        Γ::Real;
+        quad = nothing,
+    )
+    prefactor = Γ / 2
+    E = zero(prefactor)
+    interpolate_tangent_component_only = true
+    for (f, ψs) ∈ zip(fs, ψs_all)
+        ts = knots(f)
+        if quad === nothing
+            for i ∈ eachindex(segments(f))
+                ψ⃗ = ψs[i]
+                s⃗′ = f[i, Derivative(1)]
+                δt = (ts[i + 1] - ts[i - 1]) / 2
+                E += (ψ⃗ ⋅ s⃗′) * δt
+            end
+        else
+            Xoff = Filaments.end_to_end_offset(f)
+            ψ_int = Filaments.change_offset(similar(f), zero(Xoff))
+            if interpolate_tangent_component_only
+                for i ∈ eachindex(ψs)
+                    ψ_t = ψs[i] ⋅ f[i, UnitTangent()]
+                    ψ_int[i] = (ψ_t, 0, 0)  # we only care about the first component
+                end
+            else
+                copy!(nodes(ψ_int), ψs)
+            end
+            update_coefficients!(ψ_int; knots = knots(f))
+            E += integrate(f, quad) do f, i, ζ
+                ψ⃗ = ψ_int(i, ζ)
+                if interpolate_tangent_component_only
+                    ψ⃗[1]
+                else
+                    s⃗′ = f(i, ζ, Derivative(1))
+                    ψ⃗ ⋅ s⃗′
+                end
+            end
+        end
+    end
+    E * prefactor
+end
+
+function kinetic_energy_from_streamfunction(iter::VortexFilamentSolver)
+    (; fs, ψs,) = iter
+    (; Γ,) = iter.prob.p.common
+    quad = GaussLegendre(4)  # this doesn't seem to change much the results...
+    kinetic_energy_from_streamfunction(ψs, fs, Γ; quad)
+end
 
 # Create a curve which resembles an 8 (or ∞).
 # This specific curve is called the lemniscate of Bernouilli (https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli)
@@ -95,12 +148,10 @@ end
     end
 
     @testset "Dynamic: trefoil knot" begin
+        ##
         S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
-        tlims = (0, 1)
         N = 96
-        ζs = range(tlims...; length = 2N + 1)[2:2:2N]
-
-        f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+        f = Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
         fs = [f]
         l_min = minimum_knot_increment(fs)
 
@@ -129,26 +180,51 @@ end
         iter = @inferred init(
             prob, RK4();
             dt = 1.0,  # will be changed by the adaptivity
-            dtmin = 1e-4,
-            refinement = RefineBasedOnSegmentLength(l_min),
+            dtmin = 1e-5,
+            refinement = RefineBasedOnSegmentLength(0.75 * l_min),
+            # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
             reconnect = ReconnectBasedOnDistance(l_min),
             adaptivity,
         )
 
-        # TODO check that energy decreases?
-        for n = 1:200
+        times = [iter.time.t]
+        energy = [@inferred kinetic_energy_from_streamfunction(iter)]
+
+        # TODO check that energy decreases? (currently, it slightly increases before the
+        # reconnection...)
+        Nf_prev = length(fs)
+        n_reconnect = 0
+        for n = 2:500  # corresponds to the index in `times` array
             Timestepping.step!(iter)
-            (; t,) = iter.time
+            (; t, dt,) = iter.time
+            push!(times, t)
+            push!(energy, kinetic_energy_from_streamfunction(iter))
             Nf = length(fs)
 
-            # Run until the first self-reconnection.
-            if Nf == 2
-                @test 1.5 < t < 1.6
-                break
+            # write_vtkhdf("trefoil_$n.hdf", fs; refinement = 8) do io
+            #     write_point_data(io, "Velocity", iter.vs)
+            # end
+
+            # First self-reconnection.
+            if n_reconnect == 0 && Nf == 2
+                @test 1.7 < t < 1.8  # actually depends on a lot parameters...
+                n_reconnect = n
             end
+
+            Nf_prev = Nf
+
+            t > 1.95 && break
         end
 
-        @test length(fs) == 2
+        @test n_reconnect > 0
+        @test last(energy) < first(energy)
+
+        let
+            plt = lineplot(times, energy; xlabel = "Time", ylabel = "Energy", title = "Trefoil knot")
+            println(plt)
+        end
+
+        ##
     end
 
     @testset "Static: antiparallel rings" begin
