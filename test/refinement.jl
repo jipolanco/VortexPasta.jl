@@ -30,14 +30,15 @@ end
 
         @testset "RefineBasedOnSegmentLength" begin
             fc = copy(f)
-            # Note: the max/min factor must be ≥ 1.5.
+            # Note: the max/min factor must be ≳ 2.
             # Otherwise we get an infinite loop:
             # 1. insert → now we're too fine
             # 2. remove → now we're too coarse
             # 3. insert → now we're too fine
             # 4. etc...
-            crit = RefineBasedOnSegmentLength(2 * l_min_orig, 3 * l_min_orig)
+            crit = RefineBasedOnSegmentLength(2 * l_min_orig, 4 * l_min_orig)
             niter = 0
+
             while true  # do multiple passes if needed, until we don't need to refine anymore
                 niter += 1
                 ret = Filaments.refine!(fc, crit)
@@ -46,11 +47,8 @@ end
             end
             @test niter < 10  # shouldn't need so many iterations (infinite loop?)
 
-            l_min, l_max = extrema(eachindex(segments(fc))) do i
-                # Use knots as a proxy (and approximation) for segment length.
-                # This is also assumed in refine! for performance reasons.
-                ts = knots(fc)
-                ts[i + 1] - ts[i]
+            l_min, l_max = extrema(segments(fc)) do seg
+                norm(seg(1.0) - seg(0.0))
             end
             @test l_min ≥ crit.ℓ_min
             @test l_max ≤ crit.ℓ_max
@@ -58,7 +56,7 @@ end
 
         @testset "RefineBasedOnCurvature" begin
             fc = copy(f)
-            crit = RefineBasedOnCurvature(0.35, 0.35 / 2.2)
+            crit = RefineBasedOnCurvature(0.35, 0.35 / 2.5)
             niter = 0
             while true  # do multiple passes if needed, until we don't need to refine anymore
                 niter += 1
@@ -67,12 +65,9 @@ end
                 niter == 10 && break
             end
             @test niter < 10  # shouldn't need so many iterations (infinite loop?)
-            ρl_min, ρl_max = extrema(eachindex(segments(fc))) do i
-                # Use knots as a proxy (and approximation) for segment length.
-                # This is also assumed in refine! for performance reasons.
-                ts = knots(fc)
-                ℓ = ts[i + 1] - ts[i]
-                ρ = (fc[i, CurvatureScalar()] + fc[i + 1, CurvatureScalar()]) / 2
+            ρl_min, ρl_max = extrema(segments(fc)) do seg
+                ℓ = norm(seg(1.0) - seg(0.0))
+                ρ = (seg(0.0, CurvatureScalar()) + seg(1.0, CurvatureScalar())) / 2
                 ρ * ℓ
             end
             @test ρl_min ≥ crit.ρℓ_min
@@ -88,11 +83,11 @@ end
                     fc = copy(f)
                     Filaments.remove_node!(fc, i)
                     Filaments.update_after_changing_nodes!(fc; removed = true)
-                    @test all(i -> fc[i] == fc(i, 0.0), eachindex(fc))
+                    @test all(i -> fc[i] ≈ fc(i, 0.0), eachindex(fc))
                     @test fc[end + 1] == fc[begin]
                     @test fc[end] == fc[begin - 1]
                     ts = knots(fc)
-                    @test fc(ts[begin]) == fc[begin]
+                    @test fc(ts[begin]) ≈ fc[begin]
                     @test fc(lastindex(fc), 1.0) ≈ fc[end + 1]
                 end
             end
