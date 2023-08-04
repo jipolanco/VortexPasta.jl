@@ -433,6 +433,14 @@ function after_advection!(iter::VortexFilamentSolver)
     fields = (velocity = vs, streamfunction = ψs,)
     rhs!(fields, fs, time.t, iter)
 
+    # This is mainly useful for visualisation (and it's quite cheap).
+    for u ∈ vs
+        Filaments.pad_periodic!(u)
+    end
+    for u ∈ ψs
+        Filaments.pad_periodic!(u)
+    end
+
     callback(iter)
     time.dt_prev = time.dt
     time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
