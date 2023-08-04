@@ -476,6 +476,7 @@ function _load_filament(
     @inbounds for j ∈ eachindex(f)
         f[j] = Xs[a + j]
     end
+    update_coefficients!(f)  # compute interpolations and derivative coefficients
     f
 end
 
@@ -546,6 +547,9 @@ function read_point_data!(
             HDF5.select_hyperslab!(dspace, (1:N, inds_file))
             read_dataset!(vdata, dset, dspace)
             n = last(inds_file) + refinement
+        end
+        if v isa PaddedVector
+            pad_periodic!(v)
         end
     end
     @assert n == num_points

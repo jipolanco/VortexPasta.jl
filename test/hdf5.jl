@@ -1,3 +1,4 @@
+using VortexPasta.PaddedArrays: PaddedVector, pad_periodic!
 using VortexPasta.Filaments
 using VortexPasta.FilamentIO
 using VortexPasta.BasicTypes: VectorOfVectors
@@ -46,6 +47,8 @@ end
     ψs = similar(vs)
     fields = (velocity = vs, streamfunction = ψs)
     @inferred BiotSavart.compute_on_nodes!(fields, cache, fs)
+    foreach(pad_periodic!, vs)
+    foreach(pad_periodic!, ψs)
 
     time = 0.3
     info_str = ["one", "two"]
@@ -68,12 +71,26 @@ end
             @test vs == vs_read
             @test ψs == ψs_read
 
+            # Check that arrays are correctly padded
+            for (u, v) ∈ zip(vs, vs_read)
+                @test v isa PaddedVector
+                @test parent(v) == parent(u)  # this also compares "ghost" entries
+            end
+            for (u, v) ∈ zip(ψs, ψs_read)
+                @test v isa PaddedVector
+                @test parent(v) == parent(u)  # this also compares "ghost" entries
+            end
+
             # Test reading onto VectorOfVectors
             ψs_alt = similar(ψs)
             @assert ψs_alt != ψs
             @assert ψs_alt isa VectorOfVectors
             FilamentIO.read_point_data!(io, ψs_alt, "streamfunction")
             @test ψs_alt == ψs
+            for (u, v) ∈ zip(ψs, ψs_alt)
+                @test v isa PaddedVector
+                @test parent(v) == parent(u)  # this also compares "ghost" entries
+            end
 
             # Test reading field data
             time_read = @inferred FilamentIO.read_field_data(io, "time", Float64)  # this is a vector!
