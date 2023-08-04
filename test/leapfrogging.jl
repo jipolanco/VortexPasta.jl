@@ -129,6 +129,9 @@ end
     energy_time::Vector{Float64} = Float64[]
     line_length::Vector{Float64} = Float64[]
     sum_of_squared_radii::Vector{Float64} = Float64[]
+    temporal_arrays = (
+        times, energy_time, line_length, sum_of_squared_radii,
+    )
     output_vtkhdf::Bool = false
 
     function callback(iter)
@@ -159,60 +162,68 @@ end
     tmax = 5 * R_init^2 / Γ  # enough time for a couple of "jumps"
     tspan = (0.0, tmax)
     prob = @inferred VortexFilamentProblem(fs, tspan, params_bs);
-    iter = @inferred init(
-        prob, RK4();
-        dt = 0.025,  # will be changed by the adaptivity
-        adaptivity = AdaptBasedOnSegmentLength(1.5),
-        refinement = NoRefinement(),
-        # refinement = RefineBasedOnSegmentLength(0.75 * minimum_knot_increment(fs), 100.0),
-        callback,
-    );
 
-    ##
+    @testset "$(typeof(refinement))" for refinement ∈ (
+            NoRefinement(),
+            RefineBasedOnSegmentLength(0.99 * minimum_knot_increment(fs)),
+        )
+        map(empty!, temporal_arrays)
 
-    # Run simulation
-    @time solve!(iter);
+        iter = @inferred init(
+            prob, RK4();
+            dt = 0.025,  # will be changed by the adaptivity
+            adaptivity = AdaptBasedOnSegmentLength(1.5),
+            refinement,
+            callback,
+        );
 
-    # Check that the callback is called at the initial time
-    @test first(times) == first(tspan)
+        # Run simulation
+        @time solve!(iter);
 
-    @testset "Energy & impulse conservation" begin
-        energy_initial = first(energy_time)  # initial energy
-        energy_normalised = energy_time ./ energy_initial
+        # Check that the callback is called at the initial time
+        @test first(times) == first(tspan)
 
-        # Impulse of a vortex ring is I = πR² × Γ
-        # First, check that the squared radii are correctly estimated via the impulse.
-        R²_sum_initial = length(fs_init) * R_init^2
-        @test isapprox(R²_sum_initial, first(sum_of_squared_radii); rtol = 1e-5)
+        @testset "Energy & impulse conservation" begin
+            # With refinement we lose a tiny bit of precision (but still very acceptable!).
+            rtol_energy = refinement === NoRefinement() ? 1e-5 : 1e-4
+            rtol_impulse = 1e-5
 
-        impulse_normalised = sum_of_squared_radii ./ first(sum_of_squared_radii)
+            energy_initial = first(energy_time)  # initial energy
+            energy_normalised = energy_time ./ energy_initial
 
-        let plt = lineplot(times, energy_normalised; xlabel = "Time", ylabel = "Energy")
-            println(plt)
+            # Impulse of a vortex ring is I = πR² × Γ
+            # First, check that the squared radii are correctly estimated via the impulse.
+            R²_sum_initial = length(fs_init) * R_init^2
+            @test isapprox(R²_sum_initial, first(sum_of_squared_radii); rtol = 1e-5)
+
+            impulse_normalised = sum_of_squared_radii ./ first(sum_of_squared_radii)
+
+            let plt = lineplot(times, energy_normalised; xlabel = "Time", ylabel = "Energy")
+                println(plt)
+            end
+            let plt = lineplot(times, line_length; xlabel = "Time", ylabel = "Length")
+                println(plt)
+            end
+            let plt = lineplot(times, impulse_normalised; xlabel = "Time", ylabel = "Impulse")
+                println(plt)
+            end
+
+            energy_mean = mean(energy_normalised)
+            energy_std = std(energy_normalised)
+            @show energy_initial
+            @show extrema(energy_normalised)
+            @show energy_std (energy_mean - 1)
+
+            @test energy_std < rtol_energy
+            @test isapprox(energy_mean, 1; rtol = rtol_energy)
+
+            impulse_mean = mean(impulse_normalised)
+            impulse_std = std(impulse_normalised)
+
+            @show impulse_std (impulse_mean - 1)
+            @test impulse_std < rtol_impulse
+            @test isapprox(impulse_mean, 1; rtol = rtol_impulse)
         end
-        let plt = lineplot(times, line_length; xlabel = "Time", ylabel = "Length")
-            println(plt)
-        end
-        let plt = lineplot(times, impulse_normalised; xlabel = "Time", ylabel = "Impulse")
-            println(plt)
-        end
 
-        energy_mean = mean(energy_normalised)
-        energy_std = std(energy_normalised)
-        @show energy_initial
-        @show extrema(energy_normalised)
-        @show energy_std (energy_mean - 1)
-
-        @test energy_std < 1e-5
-        @test isapprox(energy_mean, 1; rtol = 1e-5)
-
-        impulse_mean = mean(impulse_normalised)
-        impulse_std = std(impulse_normalised)
-
-        @show impulse_std (impulse_mean - 1)
-        @test impulse_std < 1e-5
-        @test isapprox(impulse_mean, 1; rtol = 1e-5)
     end
-
-    ##
 end
