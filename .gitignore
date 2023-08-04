@@ -2,4 +2,5 @@ Manifest.toml
 
 # Simulation and test outputs
 *.hdf
+*.hdf.alt
 *.h5
