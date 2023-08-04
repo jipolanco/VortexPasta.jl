@@ -279,7 +279,8 @@ end
 function refine!(f::AbstractFilament, refinement::RefinementCriterion)
     nref = Filaments.refine!(f, refinement)  # we assume update_coefficients! was already called
     n = 0
-    while nref !== (0, 0)
+    nmax = 1  # maximum number of extra refinement iterations (to avoid infinite loop...)
+    while nref !== (0, 0) && n < nmax
         n += 1
         @debug "Added/removed $nref nodes"
         if !Filaments.check_nodes(Bool, f)
@@ -431,6 +432,14 @@ function after_advection!(iter::VortexFilamentSolver)
     resize_contained_vectors!(ψs, fs)
     fields = (velocity = vs, streamfunction = ψs,)
     rhs!(fields, fs, time.t, iter)
+
+    # This is mainly useful for visualisation (and it's quite cheap).
+    for u ∈ vs
+        Filaments.pad_periodic!(u)
+    end
+    for u ∈ ψs
+        Filaments.pad_periodic!(u)
+    end
 
     callback(iter)
     time.dt_prev = time.dt

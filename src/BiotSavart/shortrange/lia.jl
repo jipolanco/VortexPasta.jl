@@ -55,9 +55,8 @@ function _local_self_induced(
         ::Velocity, quad::Nothing, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real, fit_circle = false,
     )
-    ts = knots(f)
-    ℓ₋ = ts[i] - ts[i - 1]  # assume that the parametrisation roughly corresponds to the vortex arc length
-    ℓ₊ = ts[i + 1] - ts[i]
+    ℓ₋ = norm(f[i] - f[i - 1])
+    ℓ₊ = norm(f[i + 1] - f[i])
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
     if fit_circle
         # Fit circle passing through the 3 points.
@@ -105,7 +104,6 @@ function _local_self_induced(
         f(i, ζ, CurvatureBinormal())
     end
     b⃗ = (b⃗₋ + b⃗₊) ./ (ts[i + 1] - ts[i - 1])  # average on [i - 1, i + 1]
-    # b⃗ = (b⃗₋ ./ (ts[i] - ts[i - 1]) + b⃗₊ ./ (ts[i + 1] - ts[i])) ./ 2
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
     β * b⃗
 end

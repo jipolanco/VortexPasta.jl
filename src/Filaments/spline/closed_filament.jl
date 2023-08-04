@@ -210,17 +210,13 @@ end
 # reevaluating node positions (not needed for node insertion, since the curve is unchanged
 # in that case).
 function update_after_changing_nodes!(f::ClosedSplineFilament; removed = true)
-    (; Xs,) = f
+    (; Xs, cs, ts,) = f
+    @assert length(f) == length(Xs) == length(cs) == length(ts)  # these already have the right size
     resize!(f, length(Xs))   # resize all vectors in the filament
     check_nodes(Bool, f) || return f  # avoids error if the new number of nodes is too low
-    if removed
-        # Recompute node positions from new coefficients.
-        @inbounds for i ∈ eachindex(f)
-            Xs[i] = f(i, 0.0)
-        end
-    end
     pad_periodic!(Xs, f.Xoffset)
-    _update_coefficients_only!(f; only_derivatives = true)
+    # If we removed nodes, recompute spline coefficients (i.e. re-interpolate from remaining nodes).
+    _update_coefficients_only!(f; only_derivatives = !removed)
     f
 end
 
