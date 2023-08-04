@@ -149,7 +149,12 @@ end
 
         E = @inferred kinetic_energy_from_streamfunction(iter)
         L = @inferred total_vortex_length(fs)
-        R²_all = @inferred sum(vortex_ring_squared_radius, fs)
+
+        # R²_all = @inferred sum(vortex_ring_squared_radius, fs)  # inference randomly fails on Julia 1.10-beta1...
+        R²_all = 0.0
+        for f ∈ fs
+            R²_all += @inferred vortex_ring_squared_radius(f)
+        end
 
         # @show nstep, t, dt, E
         push!(energy_time, E)
@@ -158,24 +163,30 @@ end
     end
 
     # Initialise simulation
-    fs = copy.(fs_init);
     tmax = 5 * R_init^2 / Γ  # enough time for a couple of "jumps"
     tspan = (0.0, tmax)
-    prob = @inferred VortexFilamentProblem(fs, tspan, params_bs);
+    prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs);
+
+    ##
 
     @testset "$(typeof(refinement))" for refinement ∈ (
             NoRefinement(),
-            RefineBasedOnSegmentLength(0.99 * minimum_knot_increment(fs)),
+            RefineBasedOnSegmentLength(0.99 * minimum_knot_increment(fs_init)),
         )
+        ##
         map(empty!, temporal_arrays)
 
         iter = @inferred init(
             prob, RK4();
             dt = 0.025,  # will be changed by the adaptivity
+            dtmin = 0.001,
+            alias_u0 = false,  # don't overwrite fs_init
             adaptivity = AdaptBasedOnSegmentLength(1.5),
             refinement,
             callback,
         );
+
+        ##
 
         # Run simulation
         @time solve!(iter);
