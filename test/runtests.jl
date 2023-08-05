@@ -1,18 +1,32 @@
 using Test
-using VortexPasta
+
+# Wraps each test file in a separate module, to avoid definition clashes and to make sure
+# that each file can also be run as a standalone script.
+macro includetest(path::String)
+    modname = Symbol("Mod_" * replace(path, '.' => '_'))
+    escname = esc(modname)
+    ex = quote
+        module $escname
+            $escname.include($path)
+        end
+        using .$modname
+    end
+    ex.head = :toplevel
+    ex
+end
 
 @testset "VortexPasta.jl" begin
-    include("vector_of_vector.jl")
-    include("filaments.jl")
-    include("refinement.jl")
-    include("hdf5.jl")
-    include("ring.jl")
-    include("ring_collision.jl")
-    include("trefoil.jl")
-    include("infinite_lines.jl")
-    include("leapfrogging.jl")
-    include("kelvin_waves.jl")
-    include("min_distance.jl")
-    include("reconnections.jl")
-    include("plots.jl")
+    @includetest "vector_of_vector.jl"
+    @includetest "filaments.jl"
+    @includetest "refinement.jl"
+    @includetest "hdf5.jl"
+    @includetest "ring.jl"
+    @includetest "ring_collision.jl"
+    @includetest "trefoil.jl"
+    @includetest "infinite_lines.jl"
+    @includetest "leapfrogging.jl"
+    @includetest "kelvin_waves.jl"
+    @includetest "min_distance.jl"
+    @includetest "reconnections.jl"
+    @includetest "plots.jl"
 end

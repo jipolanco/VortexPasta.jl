@@ -4,10 +4,11 @@ using VortexPasta.PredefinedCurves:
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
+using VortexPasta.Timestepping: VortexFilamentSolver
 using StaticArrays
 using Rotations
 using UnicodePlots: lineplot
-using LinearAlgebra: norm, I
+using LinearAlgebra: norm, I, ⋅
 using JET: @test_opt
 
 # Note: this is total energy within a unit cell.

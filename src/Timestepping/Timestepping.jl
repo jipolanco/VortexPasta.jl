@@ -418,7 +418,20 @@ function after_advection!(iter::VortexFilamentSolver)
     # Perform reconnections, possibly changing the number of filaments.
     @timeit to "reconnect!" number_of_reconnections = reconnect!(iter)
     @debug lazy"Number of reconnections: $number_of_reconnections"
-    @assert length(fs) == length(vs)
+
+    @assert eachindex(fs) == eachindex(vs)
+
+    # Check if there are filaments to be removed (typically with ≤ 3 discretisation points,
+    # but this depends on the precise discretisation method). Note that filaments may also
+    # be removed during reconnections for the same reason.
+    for i ∈ reverse(eachindex(fs))
+        if !Filaments.check_nodes(Bool, fs[i])
+            # Remove filament and its associated vector of velocities
+            popat!(fs, i)
+            popat!(vs, i)
+        end
+    end
+
     isempty(fs) && error("all vortices disappeared!")  # TODO nicer way to handle this?
 
     # Update velocities and streamfunctions to the next timestep (and first RK step).
