@@ -509,7 +509,8 @@ function should be called to update the coefficients.
 
 By default, this function also updates the parametrisation knots ``t_i``
 according to the current node positions. One can override this by passing a
-`knots` vector as a keyword argument.
+`knots` vector as a keyword argument. In particular, one can pass `knots = knots(f)` to
+keep the parametrisation knots unchanged.
 
 This function will fail if the number of filament nodes is smaller than that
 required by the discretisation method. For instance, closed filaments
@@ -618,7 +619,11 @@ function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ::Nothing =
 end
 
 # In this case, override the computation of knots and copy the input knot vector.
-_update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ts_in::AbstractVector) =
-    copyto!(ts, ts_in)
+function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ts_in::PaddedVector)
+    if ts !== ts_in  # avoid copy if input and output vectors are the same
+        copyto!(ts, ts_in)  # fails if arrays have different dimensions
+    end
+    ts
+end
 
 end

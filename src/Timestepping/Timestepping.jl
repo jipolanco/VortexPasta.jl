@@ -309,8 +309,12 @@ function _advect_filament!(
         Filaments.fold_periodic!(f, L_fold)
     end
     need_to_update_coefs = true
+    # Folding is only done when actually advecting filaments (not within RK substeps)
+    @assert (f === fbase) == (L_fold !== nothing)
     if refinement === nothing
-        Filaments.update_coefficients!(f)
+        # Don't update knots if this is an intermediate RK substep
+        ts = (L_fold === nothing) ? knots(fbase) : nothing
+        Filaments.update_coefficients!(f; knots = ts)
     else
         # Check whether the filament type requires coefficients to be updated before refining.
         # The answer may be different depending on whether we're using spline or finite difference
