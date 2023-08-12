@@ -174,7 +174,7 @@ end
         tspan = (0.0, 1.0)  # ignored
         prob = @inferred VortexFilamentProblem(fs, tspan, params_bs)
         adaptivity = @inferred (
-            AdaptBasedOnSegmentLength(1.0) |
+            AdaptBasedOnSegmentLength(0.5) |
             AdaptBasedOnVelocity(l_min) |
             AdaptBasedOnVelocity(2 * l_min)  # this one doesn't do anything, it's just for testing
         )
@@ -184,7 +184,7 @@ end
             dtmin = 1e-5,
             refinement = RefineBasedOnSegmentLength(0.75 * l_min),
             # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
-            reconnect = ReconnectBasedOnDistance(l_min),
+            reconnect = ReconnectBasedOnDistance(1.25 * l_min),
             adaptivity,
         )
 
@@ -195,7 +195,8 @@ end
         # reconnection...)
         Nf_prev = length(fs)
         n_reconnect = 0
-        for n = 2:500  # corresponds to the index in `times` array
+        t_reconnect = 0.0
+        @time for n = 2:500  # corresponds to the index in `times` array
             Timestepping.step!(iter)
             (; t, dt,) = iter.time
             push!(times, t)
@@ -208,7 +209,7 @@ end
 
             # First self-reconnection.
             if n_reconnect == 0 && Nf == 2
-                @test 1.7 < t < 1.8  # actually depends on a lot parameters...
+                t_reconnect = t
                 n_reconnect = n
             end
 
@@ -217,7 +218,9 @@ end
             t > 1.95 && break
         end
 
+        @show t_reconnect
         @test n_reconnect > 0
+        @test 1.7 < t_reconnect < 1.8  # for now this depends on a lot parameters...
         @test last(energy) < first(energy)
 
         let

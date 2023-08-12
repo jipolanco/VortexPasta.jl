@@ -63,7 +63,8 @@ Base.IndexStyle(::Type{<:PaddedArray{M, T, 1, A}}) where {M, T, A} = IndexStyle(
 Base.parent(v::PaddedArray) = v.data
 Base.size(v::PaddedArray) = ntuple(i -> size(parent(v), i) - 2 * npad(v), Val(ndims(v)))
 
-function Base.copyto!(w::PaddedArray, v::PaddedArray)
+function Base.copyto!(w::PaddedArray{M}, v::PaddedArray{M}) where {M}
+    length(w.data) == length(v.data) || throw(DimensionMismatch("arrays have different sizes"))
     copyto!(w.data, v.data)
     w
 end
