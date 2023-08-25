@@ -45,7 +45,8 @@ default:
         using Pkg
         Pkg.add("Coverage")
         using Coverage
-        coverage = process_folder()
+        coverage = process_folder("src")
+        coverage = append!(coverage, process_folder("ext"))
         cl, tl = get_summary(coverage)
         println(cl/tl*100, "% coverage")
         LCOV.writefile("coverage.lcov", coverage)
