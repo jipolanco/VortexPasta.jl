@@ -290,7 +290,7 @@ include("spline/closed_filament.jl")
 include("quantities.jl")
 include("utils.jl")
 
-include("makie_recipes.jl")
+include("plotting.jl")
 
 """
     Base.getindex(f::AbstractFilament{T}, i::Int) -> Vec3{T}

@@ -1,0 +1,108 @@
+# These are actually defined as a package extension when Makie.jl is also installed.
+# See ext/VortexPastaMakieExt.jl.
+export filamentplot, filamentplot!
+
+"""
+    filamentplot(f::AbstractFilament, [velocities]; kws...)
+    MakieCore.plot(f::AbstractFilament, [velocities]; kws...)
+
+Plot a filament using Makie.jl.
+
+Example usage:
+
+```julia
+using GLMakie
+plot(f; refinement = 4)  # f is a filament
+```
+
+See [`filamentplot!`](@ref) for details and for optional keyword arguments.
+"""
+function filamentplot end
+
+"""
+    filamentplot!([ax,] f::AbstractFilament, [velocities]; kws...)
+    MakieCore.plot!(ax, f::AbstractFilament, [velocities]; kws...)
+
+Plot filament onto existent 3D axis.
+
+The first argument should typically be an `Axis3` or an `LScene`.
+
+Example usage:
+
+```julia
+using GLMakie
+fig = Figure()
+ax = Axis3(fig[1, 1])
+plot!(ax, f)  # f is a filament
+```
+
+## Optional arguments and their defaults
+
+- `refinement::Int = 1`: level of refinement of the curves (must be ≥ 1)
+
+- `color = :black`
+
+- `linewidth = 1.5f0`
+
+- `linestyle = :solid`
+
+- `markercolor = nothing` (`nothing` → same as `color`)
+
+- `marker = :circle`
+
+- `markersize = 10.0f0`
+
+- `arrowscale = 1.0f0` allows to scale vectors (tangents, curvatures, velocities, …)
+
+- `colormap = :viridis`
+
+### Plotting tangent and curvature vectors
+
+Tangent and curvature vectors can be optionally plotted via the `tangents` and
+`curvatures` arguments. A single vector will be plotted for each filament segments.
+By default, vectors are evaluated at filament nodes, but one can also evaluate
+them in-between nodes using the `vectorpos` argument.
+
+- `tangents::Bool = false`: plot unit tangent vectors.
+
+- `curvatures::Bool = false`: plot curvature vectors. Note that the magnitude
+  is the local curvature ``ρ = 1 / R``, where ``R`` is the curvature *radius*.
+
+- `tangentcolor = nothing`
+
+- `curvaturecolor = nothing`
+
+- `vectorpos = 0.0`: relative vector positions within each segment. Must be in ``[0, 1]``.
+
+### Plotting velocities of filament nodes
+
+Similarly, it is possible to plot vector quantities attached to filament nodes,
+such as filament velocities. For this pass a vector of velocities as a
+positional argument after the filament `f`.
+
+Associated keyword arguments:
+
+- `velocitycolor = nothing` colour of velocity vectors
+
+"""
+function filamentplot! end
+
+# TODO move to VortexPastaMakieExt.jl?
+function _refine_filament(f::ClosedFilament, refinement::Int)
+    Xs_nodes = nodes(f)
+    refinement ≥ 1 || error("refinement must be ≥ 1")
+    refinement == 1 && return Xs_nodes[begin:end + 1]
+    N = refinement * length(f) + 1  # the +1 is to close the loop
+    Xs = similar(Xs_nodes, N)
+    n = 0
+    subinds = range(0, 1; length = refinement + 1)[1:refinement]
+    for i ∈ eachindex(f)
+        for ζ ∈ subinds
+            n += 1
+            Xs[n] = f(i, ζ)
+        end
+    end
+    @assert n == refinement * length(f)
+    Xs[n + 1] = f(lastindex(f), 1.0)  # close the loop
+    Xs
+end
