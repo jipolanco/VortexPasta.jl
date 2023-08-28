@@ -54,9 +54,17 @@ default:
 
     # https://docs.gitlab.com/ee/ci/jobs/index.html#custom-collapsible-sections
     - echo -e "\e[0Ksection_start:$(date +%s):apt-get[collapsed=true]\r\e[0KRunning apt-get install python3-pip pipx lcov"
-    - apt-get update -qq && apt-get install -qq python3-pip pipx lcov
+    - apt-get update -qq && apt-get install -qq python3-pip pipx
     - export PIPX_BIN_DIR=~/.local/bin  # make sure that pipx-installed apps are in the path
     - export PATH=$PIPX_BIN_DIR:$PATH
+    # Install lcov 2.0 and its dependencies
+    - >
+      apt-get install libcapture-tiny-perl libdatetime-perl libdevel-cover-perl
+      libdigest-md5-file-perl libfile-spec-native-perl libjson-xs-perl
+      libmemory-usage-perl libtime-hr-perl
+    - curl -L https://github.com/linux-test-project/lcov/releases/download/v2.0/lcov-2.0.tar.gz
+    - tar xvf lcov-2.0.tar.gz
+    - pushd lcov-2.0 && make install && popd
     - echo -e "\e[0Ksection_end:`date +%s`:apt-get\r\e[0K"
 
     # This is needed to convert LCOV coverage files to Cobertura format (used by gitlab)
