@@ -1,22 +1,15 @@
 abstract type TemporalScheme end
 
-"""
-    ExplicitScheme
-
-Abstract type defining an explicit temporal scheme.
-"""
-abstract type ExplicitScheme <: TemporalScheme end
-
 # By default, schemes allow changing the timestep.
-can_change_dt(::ExplicitScheme) = true
+can_change_dt(::TemporalScheme) = true
 
 """
-    TemporalSchemeCache{Scheme <: ExplicitScheme}
+    TemporalSchemeCache{Scheme <: TemporalScheme}
 
 Contains buffers needed by a temporal scheme.
 """
 struct TemporalSchemeCache{
-        Scheme <: ExplicitScheme,
+        Scheme <: TemporalScheme,
         Nf, Nv,
         Filaments <: VectorOfFilaments,
         Velocities <: VectorOfVectors{<:Vec3},
@@ -73,7 +66,4 @@ function update_velocities!(
     _update_velocities!(scheme(cache), rhs!, advect!, cache, iter)
 end
 
-include("Euler.jl")
-include("RK4.jl")
-include("SSPRK33.jl")
-include("DP5.jl")
+include("explicit/explicit.jl")
