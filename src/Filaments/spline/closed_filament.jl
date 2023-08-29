@@ -157,7 +157,18 @@ function _update_coefficients_only!(f::ClosedSplineFilament; only_derivatives = 
 end
 
 (f::ClosedSplineFilament)(node::AtNode, ::Derivative{0} = Derivative(0)) = f[node.i]
-(f::ClosedSplineFilament)(node::AtNode, der::Derivative) = f(node.i, 0.0, der)
+
+# The first derivative is a quadratic spline (order k = 3).
+function (f::ClosedSplineFilament)(node::AtNode, ::Derivative{1})
+    (; ts, cderivs,) = f
+    (; i,) = node
+    cs = cderivs[1]  # spline coefficients associated to first derivative
+    t = ntuple(j -> ts[i - 2 + j], Val(3))  # = (ts[i - 1], ts[i], ts[i + 1])
+    (
+        (t[3] - t[2]) * cs[i - 1] +
+        (t[2] - t[1]) * cs[i]
+    ) / (t[3] - t[1])
+end
 
 # The second derivative at a node is simply equal to the corresponding spline coefficient.
 (f::ClosedSplineFilament)(node::AtNode, ::Derivative{2}) = f.cderivs[2][node.i]
