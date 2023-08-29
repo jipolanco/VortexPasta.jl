@@ -153,7 +153,7 @@ get_dt(iter::VortexFilamentSolver) = iter.time.dt
 get_t(iter::VortexFilamentSolver) = iter.time.t
 
 """
-    init(prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme; dt::Real, kws...) -> VortexFilamentSolver
+    init(prob::VortexFilamentProblem, scheme::TemporalScheme; dt::Real, kws...) -> VortexFilamentSolver
 
 Initialise vortex filament problem.
 
@@ -188,7 +188,7 @@ either [`step!`](@ref) or [`solve!`](@ref).
   recording the time spent on different functions.
 """
 function init(
-        prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme;
+        prob::VortexFilamentProblem, scheme::TemporalScheme;
         alias_u0 = true,   # same as in OrdinaryDiffEq.jl
         dt::Real,
         dtmin::Real = 0.0,

@@ -1,7 +1,7 @@
 export DP5
 
 """
-    DP5 <: ExplicitTemporalScheme
+    DP5 <: ExplicitScheme
 
 Dormand–Prince embedded 4/5 Runge–Kutta method.
 
@@ -9,7 +9,7 @@ For now, the implementation is **experimental** and can be further optimised.
 
 See [Wikipedia](https://en.wikipedia.org/wiki/Dormand%E2%80%93Prince_method) for details.
 """
-struct DP5 <: ExplicitTemporalScheme end
+struct DP5 <: ExplicitScheme end
 
 # TODO
 # - can we reduce the number of buffers?

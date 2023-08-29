@@ -1,11 +1,11 @@
 export Euler
 
 """
-    Euler <: ExplicitTemporalScheme
+    Euler <: ExplicitScheme
 
 Standard first-order Euler scheme.
 """
-struct Euler <: ExplicitTemporalScheme end
+struct Euler <: ExplicitScheme end
 
 # Number of buffers needed to hold "intermediate" filaments and velocities.
 nbuf_filaments(::Euler) = 0

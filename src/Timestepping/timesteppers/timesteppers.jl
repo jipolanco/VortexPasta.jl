@@ -1,20 +1,22 @@
+abstract type TemporalScheme end
+
 """
-    ExplicitTemporalScheme
+    ExplicitScheme
 
 Abstract type defining an explicit temporal scheme.
 """
-abstract type ExplicitTemporalScheme end
+abstract type ExplicitScheme <: TemporalScheme end
 
 # By default, schemes allow changing the timestep.
-can_change_dt(::ExplicitTemporalScheme) = true
+can_change_dt(::ExplicitScheme) = true
 
 """
-    TemporalSchemeCache{Scheme <: ExplicitTemporalScheme}
+    TemporalSchemeCache{Scheme <: ExplicitScheme}
 
 Contains buffers needed by a temporal scheme.
 """
 struct TemporalSchemeCache{
-        Scheme <: ExplicitTemporalScheme,
+        Scheme <: ExplicitScheme,
         Nf, Nv,
         Filaments <: VectorOfFilaments,
         Velocities <: VectorOfVectors{<:Vec3},
@@ -28,7 +30,7 @@ scheme(c::TemporalSchemeCache) = c.scheme
 can_change_dt(c::TemporalSchemeCache) = can_change_dt(scheme(c))
 
 function init_cache(
-        scheme::ExplicitTemporalScheme,
+        scheme::ExplicitScheme,
         fs::VectorOfFilaments, vs::VectorOfVectors,
     )
     Nf = nbuf_filaments(scheme)

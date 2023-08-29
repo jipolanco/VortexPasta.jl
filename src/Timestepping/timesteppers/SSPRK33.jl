@@ -1,14 +1,14 @@
 export SSPRK33
 
 """
-    SSPRK33 <: ExplicitTemporalScheme
+    SSPRK33 <: ExplicitScheme
 
 Three-stage, third-order strong stability preserving (SSP) method.
 
 See [Wikipedia](https://en.wikipedia.org/wiki/List_of_Runge%E2%80%93Kutta_methods#Third-order_Strong_Stability_Preserving_Runge-Kutta_(SSPRK3))
 for details.
 """
-struct SSPRK33 <: ExplicitTemporalScheme end
+struct SSPRK33 <: ExplicitScheme end
 
 # Number of buffers needed to hold "intermediate" filaments and velocities.
 nbuf_filaments(::SSPRK33) = 1

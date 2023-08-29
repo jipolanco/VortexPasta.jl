@@ -48,7 +48,7 @@ AdaptBasedOnVelocity
 ## Internals
 
 ```@docs
-ExplicitTemporalScheme
+ExplicitScheme
 TemporalSchemeCache
 ```
 
