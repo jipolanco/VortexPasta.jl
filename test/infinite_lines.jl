@@ -77,10 +77,17 @@ function test_infinite_lines(method)
     end
 
     @testset "Evaluation on knots" begin
+        f = first(filaments)
+        update_coefficients!(f)
+        disc = Filaments.discretisation_method(f)
         for i ∈ (2, 5, lastindex(f))
-            @test f[i] ≈ f(i, 0.0)  # these can slightly differ because the RHS is computed from interpolation coefficients
-            @test f[i, Derivative(1)] == f(i, 0.0, Derivative(1))
-            @test f[i, Derivative(2)] == f(i, 0.0, Derivative(2))
+            @test f[i] ≈ f(i, 0.0)
+            if Filaments.continuity(disc) ≥ 1
+                @test f[i, Derivative(1)] ≈ f(i, 0.0, Derivative(1))
+            end
+            if Filaments.continuity(disc) ≥ 2
+                @test f[i, Derivative(2)] ≈ f(i, 0.0, Derivative(2))
+            end
         end
     end
 
