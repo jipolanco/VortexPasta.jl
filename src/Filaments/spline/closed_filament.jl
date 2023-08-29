@@ -160,14 +160,15 @@ end
 
 # The first derivative is a quadratic spline (order k = 3).
 function (f::ClosedSplineFilament)(node::AtNode, ::Derivative{1})
-    (; ts, cderivs,) = f
+    (; ts, cderivs, Xoffset,) = f
     (; i,) = node
     cs = cderivs[1]  # spline coefficients associated to first derivative
     t = ntuple(j -> ts[i - 2 + j], Val(3))  # = (ts[i - 1], ts[i], ts[i + 1])
-    (
+    y = (
         (t[3] - t[2]) * cs[i - 1] +
         (t[2] - t[1]) * cs[i]
     ) / (t[3] - t[1])
+    deperiodise_spline(y, Xoffset, ts, t[2], Val(1))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
 end
 
 # The second derivative at a node is simply equal to the corresponding spline coefficient.
