@@ -158,7 +158,9 @@ end
 
 (f::ClosedSplineFilament)(node::AtNode, ::Derivative{0} = Derivative(0)) = f[node.i]
 
-# The first derivative is a quadratic spline (order k = 3).
+# The first derivative is a quadratic spline (order k = 3), and the formula to evaluate it
+# on a knot is quite simple.
+# This should give the same result as f(node.i, 0.0, Derivative(1)), but slightly faster.
 function (f::ClosedSplineFilament)(node::AtNode, ::Derivative{1})
     (; ts, cderivs, Xoffset,) = f
     (; i,) = node
