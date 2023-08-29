@@ -31,6 +31,8 @@ struct FiniteDiffMethod{
     end
 end
 
+continuity(::Type{<:FiniteDiffMethod{M, I}}) where {M, I} = continuity(I)  # returns continuity of interpolation method
+
 @inline FiniteDiffMethod(M::Int, interp = HermiteInterpolation(M)) = FiniteDiffMethod{M}(interp)
 
 interpolation_method(m::FiniteDiffMethod) = m.interp

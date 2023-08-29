@@ -4,6 +4,7 @@ using Test
 using StaticArrays
 using Statistics: mean, std
 using LinearAlgebra: norm, normalize, â‹…
+using UnicodePlots: lineplot
 using Optim: Optim
 using VortexPasta.PredefinedCurves: define_curve, PeriodicLine
 using VortexPasta.Filaments
@@ -171,6 +172,15 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2Ï
 
     # Check that the callback is called at the initial time
     @test first(times) == first(tspan)
+
+    let Enorm = energy_time ./ first(energy_time)
+        plt = lineplot(
+            times, Enorm;
+            xlabel = "Time", ylabel = "Energy",
+            title = "Kelvin waves / $(nameof(typeof(scheme)))",
+        )
+        println(plt)
+    end
 
     # Check energy conservation
     @testset "Energy conservation" begin

@@ -1,17 +1,12 @@
-# TODO
-# - Implement estimation from local spline interpolation (e.g. 5th order / 5 points).
-#   Some tests show that, with "free" boundary conditions, this gives a much
-#   better estimation than finite differences with the same number of points.
-#   (Note that we can't use natural BCs with odd-order splines...)
-#   Not sure about performance though, since spline interpolations need to
-#   solve linear systems (small and banded).
-
 """
     DiscretisationMethod
 
 Abstract type defining a filament discretisation method.
 """
 abstract type DiscretisationMethod end
+
+# This should be implemented by all discretisation methods
+continuity(m::DiscretisationMethod) = continuity(typeof(m))
 
 npad(m::DiscretisationMethod) = npad(typeof(m))
 

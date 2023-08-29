@@ -6,7 +6,7 @@ Abstract type defining a local interpolation method for estimating curve propert
 """
 abstract type LocalInterpolationMethod end
 
-continuity(m::Union{LocalInterpolationMethod, DiscretisationMethod}) = continuity(typeof(m))
+continuity(m::LocalInterpolationMethod) = continuity(typeof(m))
 
 """
     interpolate(
