@@ -13,26 +13,8 @@ Compute local self-induced velocity of filament node `f[i]`.
 
 This corresponds to the LIA term (localised induction approximation).
 
-# Mandatory arguments
-
-- the vortex core size `a` as a keyword argument;
-
-- either the vortex circulation `Γ` as a keyword argument, or the precomputed
-  coefficient `Γ / 4π` as a positional argument.
-
-# Optional arguments
-
-- the optional parameter `Δ` sets the effect of the vorticity profile (see
-  [`ParamsBiotSavart`](@ref) for details);
-
-- a quadrature rule can be passed via `quad`, which can improve the estimation
-  of the LIA term and the stability of the solver (even a 1-point quadrature
-  rule can importantly improve stability!);
-
-- if `quad = nothing`, one may set `fit_circle = true` to estimate the binormal
-  vector by fitting a circle passing through 3 neighbouring nodes (as done in
-  Schwarz PRB 1985), instead of using local derivatives.
-
+This is the same as `local_self_induced(Velocity(), f, i, [prefactor]; kwargs...)`.
+See also [`local_self_induced`](@ref).
 """
 local_self_induced_velocity(args...; kws...) =
     local_self_induced(Velocity(), args...; kws...)
@@ -44,6 +26,41 @@ local_self_induced_streamfunction(args...; kws...) =
 local_self_induced(q::OutputField, f, i; Γ, kws...) =
     local_self_induced(q, f, i, Γ / 4π; kws...)
 
+"""
+    local_self_induced(
+        q::OutputField, f::AbstractFilament, i::Int, [prefactor::Real];
+        a::Real, Δ::Real = 0.25, quad = nothing, [Γ],
+    )
+
+Compute localised induction approximation (LIA) term at node `f[i]`.
+
+Possible output fields to be passed as first argument are `Velocity()` and `Streamfunction()`.
+
+One must pass either the circulation `Γ` as a keyword argument, or a precomputed
+`prefactor` which is usually equal to `Γ / 4π` (both for velocity and streamfunction).
+
+## Mandatory arguments
+
+- the vortex core size `a` as a keyword argument;
+
+- either the vortex circulation `Γ` as a keyword argument, or the precomputed
+  prefactor `Γ / 4π` as a positional argument.
+
+## Optional arguments
+
+- the optional parameter `Δ` sets the effect of the vorticity profile (see
+  [`ParamsBiotSavart`](@ref) for details);
+
+- a quadrature rule can be passed via `quad`, which can improve the estimation
+  of the LIA term and the stability of the solver (even a 1-point quadrature
+  rule can importantly improve stability!);
+
+- if `quad = nothing`, one may set `fit_circle = true` to estimate the binormal
+  vector by fitting a circle passing through 3 neighbouring nodes (as done in
+  Schwarz PRB 1985), instead of using local derivatives. For now, this is only implemented
+  for `q = Velocity()`, and it may be removed in the future.
+
+"""
 function local_self_induced(
         q::OutputField, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real = 0.25, quad = nothing, kws...,

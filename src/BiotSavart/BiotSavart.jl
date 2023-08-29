@@ -270,17 +270,19 @@ end
 function velocity_on_nodes!(
         vs::AbstractVector{<:VectorOfVec},
         cache::BiotSavartCache,
-        fs::VectorOfFilaments,
+        fs::VectorOfFilaments;
+        LIA = Val(true),
     )
     fields = (; velocity = vs,)
-    compute_on_nodes!(fields, cache, fs)
+    compute_on_nodes!(fields, cache, fs; LIA)
 end
 
 """
     compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::BiotSavartCache,
-        fs::AbstractVector{<:AbstractFilament},
+        fs::AbstractVector{<:AbstractFilament};
+        LIA = Val(true),
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
 
 Compute velocity and/or streamfunction on filament nodes.
@@ -305,11 +307,18 @@ fields = (;
 cache = BiotSavart.init_cache(...)
 compute_on_nodes!(fields, cache, fs)
 ```
+
+## Disabling LIA
+
+One may disable computation of the locally-induced velocity and streamfunction (LIA term)
+by passing `LIA = Val(false)`.
+
 """
 function compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::BiotSavartCache,
-        fs::VectorOfFilaments,
+        fs::VectorOfFilaments;
+        LIA = Val(true),
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
     (; to,) = cache
     @assert N > 0
@@ -347,7 +356,7 @@ function compute_on_nodes!(
         @timeit to "Set filaments" set_filaments!(cache.shortrange, fs)
         @timeit to "Biot-Savart integrals" for i ∈ eachindex(fs)
             fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
-            add_short_range_fields!(fields_i, cache.shortrange, fs[i])
+            add_short_range_fields!(fields_i, cache.shortrange, fs[i]; LIA)
         end
     end
 
