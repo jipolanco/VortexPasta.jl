@@ -25,6 +25,7 @@ end
     @includetest "ring_collision.jl"
     @includetest "trefoil.jl"
     @includetest "infinite_lines.jl"
+    @includetest "imex.jl"
     @includetest "leapfrogging.jl"
     @includetest "kelvin_waves.jl"
     @includetest "min_distance.jl"

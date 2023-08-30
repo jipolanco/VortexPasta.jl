@@ -229,23 +229,72 @@ function init(
 end
 
 function _update_values_at_nodes!(
+        ::Val{:full},
         fields::NamedTuple{Names, NTuple{N, V}},
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
     ) where {Names, N, V <: VectorOfVectors}
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(true))
+    fields
+end
+
+# Compute slow component only.
+# This is generally called in IMEX-RK substeps, where only the velocity (and not the
+# streamfunction) is needed.
+# We assume that the "slow" component is everything but LIA term when evolving the
+# Biot-Savart law.
+# This component will be treated explicitly by IMEX schemes.
+function _update_values_at_nodes!(
+        ::Val{:slow},
+        fields::NamedTuple{(:velocity,)},
+        fs::VectorOfFilaments,
+        iter::VortexFilamentSolver,
+    )
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
+    fields
+end
+
+# Compute fast component only.
+# This is generally called in IMEX-RK substeps, where only the velocity (and not the
+# streamfunction) is needed.
+# We assume that the "fast" component is the LIA term when evolving the Biot-Savart law.
+# This component will be treated implicitly by IMEX schemes.
+function _update_values_at_nodes!(
+        ::Val{:fast},
+        fields::NamedTuple{(:velocity,)},
+        fs::VectorOfFilaments,
+        iter::VortexFilamentSolver,
+    )
+    vs_all = fields.velocity
+    params = iter.prob.p  # Biot-Savart parameters
+    (; Γ, a, Δ,) = params.common
+    # Note: we must use the same quadrature as used when using component = Val(:full)
+    (; quad,) = params.shortrange
+    prefactor = Γ / (4π)
+    for (f, vs) ∈ zip(fs, vs_all)
+        for i ∈ eachindex(f, vs)
+            vs[i] = BiotSavart.local_self_induced(
+                BiotSavart.Velocity(), f, i, prefactor;
+                a, Δ, quad,
+            )
+        end
+    end
     fields
 end
 
 # This is the most general variant which should be called by timesteppers.
 # For now we don't use the time, but we might in the future...
-update_values_at_nodes!(fields::NamedTuple, fs, t::Real, iter) =
-    _update_values_at_nodes!(fields, fs, iter)
+function update_values_at_nodes!(
+        fields::NamedTuple, fs, t::Real, iter;
+        component = Val(:full),  # compute slow + fast components by default
+    )
+    _update_values_at_nodes!(component, fields, fs, iter)
+end
 
 # Case where only the velocity is passed (generally used in internal RK substeps).
-function update_values_at_nodes!(vs::VectorOfVectors, args...)
+function update_values_at_nodes!(vs::VectorOfVectors, args...; kws...)
     fields = (velocity = vs,)
-    update_values_at_nodes!(fields, args...)
+    update_values_at_nodes!(fields, args...; kws...)
     vs
 end
 
@@ -448,7 +497,10 @@ function after_advection!(iter::VortexFilamentSolver)
     resize_container!(ψs, fs)
     resize_contained_vectors!(ψs, fs)
     fields = (velocity = vs, streamfunction = ψs,)
-    rhs!(fields, fs, time.t, iter)
+
+    # Note: here we always include the LIA terms, even when using IMEX schemes.
+    # This must be taken into account by IMEX scheme implementations.
+    rhs!(fields, fs, time.t, iter; component = Val(:full))
 
     # This is mainly useful for visualisation (and it's quite cheap).
     for u ∈ vs

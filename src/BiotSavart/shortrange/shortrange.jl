@@ -255,7 +255,7 @@ function add_short_range_fields!(
                 integrate_biot_savart(Velocity(), LongRange(), Segment(f, segment_b), x⃗, params)
             )
             if _LIA
-                v⃗ = v⃗ + local_self_induced_velocity(f, i, one(prefactor); a, Δ, quad,)
+                v⃗ = v⃗ + local_self_induced(Velocity(), f, i, one(prefactor); a, Δ, quad,)
             end
         end
         if ψs !== nothing
@@ -264,7 +264,7 @@ function add_short_range_fields!(
                 integrate_biot_savart(Streamfunction(), LongRange(), Segment(f, segment_b), x⃗, params)
             )
             if _LIA
-                ψ⃗ = ψ⃗ + local_self_induced_streamfunction(f, i, one(prefactor); a, Δ, quad,)
+                ψ⃗ = ψ⃗ + local_self_induced(Streamfunction(), f, i, one(prefactor); a, Δ, quad,)
             end
         end
 
