@@ -4,6 +4,8 @@ using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 
+##
+
 function biot_savart_parameters()
     # Grid-related parameters
     Ls = (1, 1, 1) .* 2π
@@ -22,14 +24,15 @@ function biot_savart_parameters()
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
         backend_long = FINUFFTBackend(),
-        quadrature_short = GaussLegendre(4),
-        quadrature_long = GaussLegendre(4),
+        quadrature_short = GaussLegendre(3),
+        quadrature_long = GaussLegendre(5),
     )
 end
 
 ##
 
 @testset "Local/non-local splitting" begin
+    ##
     params_bs = @inferred biot_savart_parameters()
 
     f_init = Filaments.init(
@@ -40,9 +43,12 @@ end
 
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs);
 
-    iter = @inferred init(prob, RK4(); dt = 0.025)
+    scheme = IMEXEuler()
+    iter = @inferred init(prob, scheme; dt = 0.025)
 
     (; fs, vs, rhs!,) = iter
+
+    ##
 
     # Check that slow component (non-local) + fast component (LIA) == full velocity
     @testset "Velocity splitting" begin

@@ -67,3 +67,4 @@ function update_velocities!(
 end
 
 include("explicit/explicit.jl")
+include("imex/imex.jl")  # implicit-explicit
