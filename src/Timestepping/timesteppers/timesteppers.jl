@@ -23,7 +23,7 @@ scheme(c::TemporalSchemeCache) = c.scheme
 can_change_dt(c::TemporalSchemeCache) = can_change_dt(scheme(c))
 
 function init_cache(
-        scheme::ExplicitScheme,
+        scheme::TemporalScheme,
         fs::VectorOfFilaments, vs::VectorOfVectors,
     )
     Nf = nbuf_filaments(scheme)
