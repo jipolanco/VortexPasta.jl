@@ -36,9 +36,12 @@ function _update_velocities!(
     @. vE = vs - vI  # slow component at stage 2 (note: vE is aliased to vs)
 
     # Solve non-linear equation using fixed-point iterations.
+    # We stop when the difference compared to the previous positions converges to a
+    # constant.
     vdiff_prev = vector_difference(fs, ftmp)
     rtol = 1e-10
-    for _ ∈ 1:10
+    nmax = 20
+    for _ ∈ 1:nmax
         cdt = dt
         # Compute fast component at the latest location
         rhs!(vI, ftmp, t + cdt, iter; component = Val(:fast))
