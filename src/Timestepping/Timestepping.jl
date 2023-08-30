@@ -266,17 +266,20 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     vs_all = fields.velocity
-    params = iter.prob.p  # Biot-Savart parameters
+    (; prob, to,) = iter
+    params = prob.p  # Biot-Savart parameters
     (; Γ, a, Δ,) = params.common
     # Note: we must use the same quadrature as used when using component = Val(:full)
     (; quad,) = params.shortrange
     prefactor = Γ / (4π)
-    for (f, vs) ∈ zip(fs, vs_all)
-        for i ∈ eachindex(f, vs)
-            vs[i] = BiotSavart.local_self_induced(
-                BiotSavart.Velocity(), f, i, prefactor;
-                a, Δ, quad,
-            )
+    @timeit to "LIA term (only)" begin
+        for (f, vs) ∈ zip(fs, vs_all)
+            for i ∈ eachindex(f, vs)
+                vs[i] = BiotSavart.local_self_induced(
+                    BiotSavart.Velocity(), f, i, prefactor;
+                    a, Δ, quad,
+                )
+            end
         end
     end
     fields
