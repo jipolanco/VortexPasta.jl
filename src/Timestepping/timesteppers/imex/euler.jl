@@ -37,7 +37,7 @@ function _update_velocities!(
 
     # Solve non-linear equation using fixed-point iterations.
     vdiff_prev = vector_difference(fs, ftmp)
-    rtol = 1e-8
+    rtol = 1e-10
     for _ ∈ 1:10
         cdt = dt
         # Compute fast component at the latest location

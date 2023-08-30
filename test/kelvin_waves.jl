@@ -64,6 +64,7 @@ dt_factor(::RK4) = 1.8    # this factor seems to give stability with RK4 (fails 
 dt_factor(::DP5) = 1.5    # I'd expect DP5 to allow a larger timestep than RK4, but that doesn't seem to be the case...
 dt_factor(::SSPRK33) = 1.2
 dt_factor(::Euler) = 0.12  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
+dt_factor(::IMEXEuler) = 0.6
 
 function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,)
     Lx = Ly = Lz
@@ -114,8 +115,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
     end
 
     fs = copy.(filaments)
-    iseuler = scheme isa Euler
-    tmax = iseuler ? 0.8 : 1.2  # Euler needs a very small dt, hence we reduce the time...
+    tmax = scheme isa Euler ? 0.8 : 1.2  # explicit Euler needs a very small dt, hence we reduce the time...
     tspan = (0.0, tmax * T_kw)
 
     jprobe = 5
@@ -183,6 +183,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
     end
 
     # Check energy conservation
+    iseuler = scheme isa Euler || scheme isa IMEXEuler  # reduced precision of results
     @testset "Energy conservation" begin
         energy_initial = first(energy_time)  # initial energy
         energy_last = last(energy_time)
@@ -260,12 +261,12 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
         # @show abs(Ax - Ay) / Ay
         # @show abs(ωx - ωy) / ωy
         @test isapprox(Ax, Ay; rtol = 1e-2)
-        @test isapprox(ωx, ωy; rtol = iseuler ? 1e-3 : 1e-5)
+        @test isapprox(ωx, ωy; rtol = iseuler ? 2e-3 : 1e-5)
 
         # Check that we actually recover the KW frequency!
         # @show abs(ωy - ω_kw) / ω_kw
         @test isapprox(ωx, ω_kw; rtol = 2e-3)
-        @test isapprox(ωy, ω_kw; rtol = 2e-3)
+        @test isapprox(ωy, ω_kw; rtol = iseuler ? 3e-3 : 2e-3)
     end
 
     nothing

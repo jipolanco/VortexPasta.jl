@@ -424,7 +424,10 @@ Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
     (; fs, vs, prob, time, dtmin, refinement, advect!, rhs!, to,) = iter
-    time.dt ≥ dtmin || error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
+    t_end = iter.prob.tspan[2]
+    if time.dt < dtmin && time.t + time.dt < t_end
+        error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
+    end
     # Note: the timesteppers assume that iter.vs already contains the velocity
     # induced by the filaments at the current timestep.
     update_velocities!(
