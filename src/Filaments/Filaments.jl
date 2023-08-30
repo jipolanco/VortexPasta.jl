@@ -146,6 +146,8 @@ For convenience, other geometric quantities can be evaluated in a similar way:
 """
 abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 
+Base.IndexStyle(::Type{<:AbstractFilament}) = IndexLinear()
+
 # This is needed since eltype(f) == Vec3{T}
 Base.similar(f::AbstractFilament, ::Type{Vec3{T}}, dims::Dims{1}) where {T} =
     similar(f, T, dims)
