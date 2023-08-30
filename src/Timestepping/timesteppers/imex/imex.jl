@@ -26,4 +26,4 @@ function vector_difference(
     sqrt(sqdiff)
 end
 
-include("euler.jl")
+include("Euler.jl")
