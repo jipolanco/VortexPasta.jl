@@ -99,6 +99,7 @@ dt_factor(::KenCarp4) = 2.8
 
 function test_leapfrogging_rings(
         prob, scheme;
+        R_init,  # initial ring radii
         refinement,
     )
     # Define callback function to be run at each simulation timestep
@@ -155,7 +156,7 @@ function test_leapfrogging_rings(
     @time solve!(iter)
 
     # Check that the callback is called at the initial time
-    @test first(times) == first(tspan)
+    @test first(times) == first(prob.tspan)
 
     iseuler = scheme isa Euler || scheme isa IMEXEuler  # reduced precision of results
     @testset "Energy & impulse conservation" begin
@@ -172,6 +173,7 @@ function test_leapfrogging_rings(
 
         # Impulse of a vortex ring is I = πR² × Γ
         # First, check that the squared radii are correctly estimated via the impulse.
+        fs_init = prob.fs  # initial condition
         R²_sum_initial = length(fs_init) * R_init^2
         @test isapprox(R²_sum_initial, first(sum_of_squared_radii); rtol = 1e-5)
 
@@ -262,10 +264,10 @@ end
     ##
 
     @testset "Scheme: $scheme" for scheme ∈ schemes
-        test_leapfrogging_rings(prob, scheme; refinement)
+        test_leapfrogging_rings(prob, scheme; R_init, refinement)
     end
 
     @testset "RK4 + no refinement" begin
-        test_leapfrogging_rings(prob, RK4(); refinement = NoRefinement())
+        test_leapfrogging_rings(prob, RK4(); R_init, refinement = NoRefinement())
     end
 end
