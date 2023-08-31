@@ -20,10 +20,7 @@ using ..Filaments:
     NoRefinement,
 
     ReconnectionCriterion,
-    NoReconnections,
-
-    update_coefficients_before_refinement,
-    update_coefficients_after_refinement
+    NoReconnections
 
 using ..BiotSavart:
     BiotSavart,
@@ -273,7 +270,7 @@ function _update_values_at_nodes!(
     (; quad,) = params.shortrange
     prefactor = Γ / (4π)
     @timeit to "LIA term (only)" begin
-        for (f, vs) ∈ zip(fs, vs_all)
+        @inbounds for (f, vs) ∈ zip(fs, vs_all)
             for i ∈ eachindex(f, vs)
                 vs[i] = BiotSavart.local_self_induced(
                     BiotSavart.Velocity(), f, i, prefactor;
@@ -338,9 +335,6 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
         if !Filaments.check_nodes(Bool, f)
             return nothing  # filament should be removed (too small / not enough nodes)
         end
-        if update_coefficients_after_refinement(f)
-            Filaments.update_coefficients!(f)
-        end
         nref = Filaments.refine!(f, refinement)
     end
     n
@@ -356,25 +350,20 @@ function _advect_filament_at_end_of_step!(
     for i ∈ eachindex(Xs, vs)
         @inbounds Xs[i] = Xs[i] + dt * vs[i]
     end
+
     if L_fold !== nothing
         Filaments.fold_periodic!(f, L_fold)
     end
-    if refinement === nothing
-        Filaments.update_coefficients!(f)
-    else
-        # Check whether the filament type requires coefficients to be updated before refining.
-        # The answer may be different depending on whether we're using spline or finite difference
-        # discretisations for filaments.
-        if update_coefficients_before_refinement(f)
-            Filaments.update_coefficients!(f)
-        end
-        refinement_steps = refine!(f, refinement)
-        if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
-            return nothing
-        elseif refinement_steps > 0  # refinement was performed
-            resize!(vs, length(f))
-        end
+
+    # Coefficients must be computed before refining
+    Filaments.update_coefficients!(f)
+    refinement_steps = refine!(f, refinement)
+    if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
+        return nothing
+    elseif refinement_steps > 0  # refinement was performed
+        resize!(vs, length(f))
     end
+
     f
 end
 

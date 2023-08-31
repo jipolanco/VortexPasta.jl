@@ -19,9 +19,6 @@ See also [`local_self_induced`](@ref).
 local_self_induced_velocity(args...; kws...) =
     local_self_induced(Velocity(), args...; kws...)
 
-local_self_induced_streamfunction(args...; kws...) =
-    local_self_induced(Streamfunction(), args...; kws...)
-
 # Prefactor was not given as an argument, compute it.
 local_self_induced(q::OutputField, f, i; Γ, kws...) =
     local_self_induced(q, f, i, Γ / 4π; kws...)

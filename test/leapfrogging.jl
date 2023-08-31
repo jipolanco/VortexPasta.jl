@@ -107,9 +107,6 @@ function test_leapfrogging_rings(
     energy_time = Float64[]
     line_length = Float64[]
     sum_of_squared_radii = Float64[]
-    temporal_arrays = (
-        times, energy_time, line_length, sum_of_squared_radii,
-    )
     output_vtkhdf = false
 
     function callback(iter)

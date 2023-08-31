@@ -233,8 +233,3 @@ function update_after_changing_nodes!(f::ClosedSplineFilament; removed = true)
     _update_coefficients_only!(f; only_derivatives = !removed)
     f
 end
-
-# Coefficients should be updated before refinement, but not after (since we use
-# knot insertion + updating of derivatives).
-update_coefficients_before_refinement(::ClosedSplineFilament) = true
-update_coefficients_after_refinement(::ClosedSplineFilament) = false
