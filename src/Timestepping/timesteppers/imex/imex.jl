@@ -14,8 +14,8 @@ discretised using cubic splines.
 abstract type ImplicitExplicitScheme <: TemporalScheme end
 
 function vector_difference(
-        fs::AbstractVector{<:AbstractFilament},
-        gs::AbstractVector{<:AbstractFilament},
+        fs::AbstractVector{<:AbstractVector{<:SVector}},
+        gs::AbstractVector{<:AbstractVector{<:SVector}},
     )
     sqdiff = 0.0
     for (f, g) ∈ zip(fs, gs)
@@ -26,4 +26,30 @@ function vector_difference(
     sqrt(sqdiff)
 end
 
+# Solve nonlinear system using fixed-point iterations (kind of brute-force method).
+# We stop when the difference compared to the previous positions converges to a
+# constant.
+function solve_fixed_point!(
+        ftmp, rhs!::F, advect!::G, iter::AbstractSolver, vtmp, v_explicit;
+        cdt, fbase, aI_ss, nmax = 100, rtol = 1e-12,
+    ) where {F <: Function, G <: Function}
+    t = iter.time.t
+    vdiff_prev = vector_difference(fbase, ftmp)
+    n = 0
+    while n < nmax
+        n += 1
+        # Compute fast component at the latest location
+        rhs!(vtmp, ftmp, t + cdt, iter; component = Val(:fast))
+        @. vtmp = v_explicit + aI_ss * vtmp  # full velocity estimate
+        # Update guess for filament location
+        advect!(ftmp, vtmp, cdt; fbase)
+        vdiff = vector_difference(fbase, ftmp)
+        rdiff = abs(vdiff - vdiff_prev) / vdiff
+        rdiff < rtol && break
+        vdiff_prev = vdiff
+    end
+    ftmp
+end
+
 include("Euler.jl")
+include("KenCarp3.jl")

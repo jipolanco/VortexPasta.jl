@@ -29,7 +29,27 @@ function biot_savart_parameters()
     )
 end
 
+function check_tableaus(scheme::Timestepping.ImplicitExplicitScheme)
+    E = Timestepping.tableau_explicit(scheme)
+    I = Timestepping.tableau_implicit(scheme)
+    # These vectors must be the same in each tableau
+    @test E.bs == I.bs
+    @test E.cs == I.cs
+    for i ∈ axes(E.A, 1)
+        # Sum of each row must be consistent with `cs`.
+        @test sum(E.A[i, :]) == sum(I.A[i, :]) == E.cs[i]
+    end
+    nothing
+end
+
 ##
+
+@testset "Butcher tableaus" begin
+    schemes = (KenCarp3(),)
+    @testset "$scheme" for scheme ∈ schemes
+        check_tableaus(scheme)
+    end
+end
 
 @testset "Local/non-local splitting" begin
     ##
@@ -45,6 +65,7 @@ end
 
     scheme = IMEXEuler()
     iter = @inferred init(prob, scheme; dt = 0.025)
+    iter = @inferred init(prob, scheme; dt = 0.025, alias_u0 = false)
 
     (; fs, vs, rhs!,) = iter
 
