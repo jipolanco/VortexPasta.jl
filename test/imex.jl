@@ -37,7 +37,8 @@ function check_tableaus(scheme::Timestepping.ImplicitExplicitScheme)
     @test E.cs == I.cs
     for i ∈ axes(E.A, 1)
         # Sum of each row must be consistent with `cs`.
-        @test sum(E.A[i, :]) == sum(I.A[i, :]) == E.cs[i]
+        @test sum(E.A[i, :]) ≈ E.cs[i]
+        @test sum(I.A[i, :]) ≈ E.cs[i]
     end
     nothing
 end
@@ -45,7 +46,7 @@ end
 ##
 
 @testset "Butcher tableaus" begin
-    schemes = (KenCarp3(),)
+    schemes = (KenCarp3(), KenCarp4(),)
     @testset "$scheme" for scheme ∈ schemes
         check_tableaus(scheme)
     end

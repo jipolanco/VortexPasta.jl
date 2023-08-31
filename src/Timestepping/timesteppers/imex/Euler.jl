@@ -36,7 +36,7 @@ function _update_velocities!(
 
     solve_fixed_point!(
         ftmp, rhs!, advect!, iter, vI, vE;
-        cdt = dt, fbase = fs, aI_ss = 1,
+        cdt = dt, fbase = fs, aI_diag = 1,
     )
 
     # Final advecting velocity

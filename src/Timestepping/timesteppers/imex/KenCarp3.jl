@@ -3,12 +3,14 @@ export KenCarp3
 """
     KenCarp3 <: ImplicitExplicitScheme
 
-3rd order IMEX Runge–Kutta scheme by Kennedy & Carpenter (Appl. Numer. Math., 2003).
+3rd order, 4 stage IMEX Runge–Kutta scheme by Kennedy & Carpenter (Appl. Numer. Math., 2003).
 """
 struct KenCarp3 <: ImplicitExplicitScheme end
 
+nstages(::KenCarp3) = 4
+
 nbuf_filaments(::KenCarp3) = 1
-nbuf_velocities(::KenCarp3) = 8  # TODO reduce?
+nbuf_velocities(scheme::KenCarp3) = 2 * nstages(scheme)
 
 function _update_velocities!(
         scheme::KenCarp3, rhs!::F, advect!::G, cache, iter::AbstractSolver,
@@ -18,11 +20,12 @@ function _update_velocities!(
 
     t = get_t(iter)
     dt = get_dt(iter)
+    s = nstages(scheme)
 
     ftmp = fc[1]
-    vE = ntuple(i -> vc[0 + i], Val(3))  # explicit velocity at each stage
-    vI = ntuple(i -> vc[3 + i], Val(4))  # implicit velocity at each stage
-    v_explicit = vc[8]
+    vI = ntuple(j -> vc[0 + j], Val(s))      # implicit velocity at each stage
+    vE = ntuple(j -> vc[s + j], Val(s - 1))  # explicit velocity at each stage
+    v_explicit = vc[2s]
 
     tabE = tableau_explicit(scheme)
     tabI = tableau_implicit(scheme)
@@ -30,62 +33,58 @@ function _update_velocities!(
     AE = tabE.A
     AI = tabI.A
 
-    # Parameters for fixed-point iterations.
-    rtol = 1e-12
-    nmax = 100
-
     # Stage 1
-    let s = 1
-        rhs!(vI[s], fs, t, iter; component = Val(:fast))  # compute fast component at stage 1
-        @. vE[s] = vs - vI[s]  # slow component at stage 1 (note: vE is aliased to vs)
+    let i = 1
+        rhs!(vI[i], fs, t, iter; component = Val(:fast))  # compute fast component at stage 1
+        @. vE[i] = vs - vI[i]  # slow component at stage 1
     end
 
     # Stage 2
-    let s = 2, fbase = fs, vtmp = vI[s]
-        cdt = cs[s] * dt
-        advect!(ftmp, vs, cdt; fbase)  # initial guess for locations at stage s
-        @. v_explicit = AE[s, 1] * vE[1] + AI[s, 1] * vI[1]  # known part of the velocity
+    let i = 2, fbase = fs, vtmp = vI[i]
+        cdt = cs[i] * dt
+        advect!(ftmp, vs, cdt; fbase)  # initial guess for locations at stage i
+        @. v_explicit = AE[i, 1] * vE[1] + AI[i, 1] * vI[1]  # known part of the velocity
         solve_fixed_point!(
             ftmp, rhs!, advect!, iter, vtmp, v_explicit;
-            cdt, fbase, aI_ss = AI[s, s],
+            cdt, fbase, aI_diag = AI[i, i],
         )
         # Separately compute both components at the final location
-        rhs!(vI[s], ftmp, t + cdt, iter; component = Val(:fast))
-        rhs!(vE[s], ftmp, t + cdt, iter; component = Val(:slow))
+        rhs!(vI[i], ftmp, t + cdt, iter; component = Val(:fast))
+        rhs!(vE[i], ftmp, t + cdt, iter; component = Val(:slow))
     end
 
     # Stage 3
-    let s = 3, fbase = fs, vtmp = vI[s]
-        cdt = cs[s] * dt
-        advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage s
+    let i = 3, fbase = fs, vtmp = vI[i]
+        cdt = cs[i] * dt
+        advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage i
         @. v_explicit =  # known part of the velocity
-            AE[s, 1] * vE[1] +
-            AE[s, 2] * vE[2] +
-            AI[s, 1] * vI[1] +
-            AI[s, 2] * vI[2]
+            AE[i, 1] * vE[1] +
+            AI[i, 1] * vI[1] +
+            AE[i, 2] * vE[2] +
+            AI[i, 2] * vI[2]
         solve_fixed_point!(
             ftmp, rhs!, advect!, iter, vtmp, v_explicit;
-            cdt, fbase, aI_ss = AI[s, s],
+            cdt, fbase, aI_diag = AI[i, i],
         )
         # Separately compute both components at the final location
-        rhs!(vI[s], ftmp, t + cdt, iter; component = Val(:fast))
-        rhs!(vE[s], ftmp, t + cdt, iter; component = Val(:slow))
+        rhs!(vI[i], ftmp, t + cdt, iter; component = Val(:fast))
+        rhs!(vE[i], ftmp, t + cdt, iter; component = Val(:slow))
     end
 
     # Stage 4
-    let s = 4, fbase = fs, vtmp = vI[s]
-        cdt = cs[s] * dt
-        advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage s
+    let i = 4, fbase = fs, vtmp = vI[i]
+        cdt = cs[i] * dt
+        advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage i
         @. v_explicit =  # known part of the velocity
-            AE[s, 1] * vE[1] +
-            AE[s, 2] * vE[2] +
-            AE[s, 3] * vE[3] +
-            AI[s, 1] * vI[1] +
-            AI[s, 2] * vI[2] +
-            AI[s, 3] * vI[3]
+            AE[i, 1] * vE[1] +
+            AI[i, 1] * vI[1] +
+            AE[i, 2] * vE[2] +
+            AI[i, 2] * vI[2] +
+            AE[i, 3] * vE[3] +
+            AI[i, 3] * vI[3]
         solve_fixed_point!(
             ftmp, rhs!, advect!, iter, vtmp, v_explicit;
-            cdt, fbase, aI_ss = AI[s, s],
+            cdt, fbase, aI_diag = AI[i, i],
         )
         # Since this is the final stage, we compute the full velocity at this stage onto vs
         # (we don't need the separate components)
