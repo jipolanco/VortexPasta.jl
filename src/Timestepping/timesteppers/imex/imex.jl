@@ -33,7 +33,7 @@ function solve_fixed_point!(
         ftmp, rhs!::F, advect!::G, iter::AbstractSolver, vtmp, v_explicit;
         cdt, fbase, aI_diag, nmax = 100, rtol = 1e-12,
     ) where {F <: Function, G <: Function}
-    t = iter.time.t
+    (; t, dt,) = iter.time
     vdiff_prev = vector_difference(fbase, ftmp)
     n = 0
     while n < nmax
@@ -42,7 +42,7 @@ function solve_fixed_point!(
         rhs!(vtmp, ftmp, t + cdt, iter; component = Val(:fast))
         @. vtmp = v_explicit + aI_diag * vtmp  # full velocity estimate
         # Update guess for filament location
-        advect!(ftmp, vtmp, cdt; fbase)
+        advect!(ftmp, vtmp, dt; fbase)
         vdiff = vector_difference(fbase, ftmp)
         rdiff = abs(vdiff - vdiff_prev) / vdiff
         rdiff < rtol && break
