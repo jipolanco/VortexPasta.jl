@@ -346,27 +346,21 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
     n
 end
 
-function _advect_filament!(
+function _advect_filament_at_end_of_step!(
         f::AbstractFilament, vs::VectorOfVelocities, dt::Real;
-        fbase = f, L_fold = nothing, refinement = nothing,
+        L_fold, refinement,
     )
     Xs = nodes(f)
     @assert Filaments.check_nodes(Bool, f)  # filament has enough nodes
-    Xs_base = nodes(fbase)
-    @assert eachindex(Xs) == eachindex(Xs_base) == eachindex(vs)
-    @inbounds for i ∈ eachindex(Xs, Xs_base, vs)
-        Xs[i] = Xs_base[i] + dt * vs[i]
+    @assert eachindex(Xs) == eachindex(vs)
+    for i ∈ eachindex(Xs, vs)
+        @inbounds Xs[i] = Xs[i] + dt * vs[i]
     end
     if L_fold !== nothing
         Filaments.fold_periodic!(f, L_fold)
     end
-    need_to_update_coefs = true
-    # Folding is only done when actually advecting filaments (not within RK substeps)
-    @assert (f === fbase) == (L_fold !== nothing)
     if refinement === nothing
-        # Don't update knots if this is an intermediate RK substep
-        ts = (L_fold === nothing) ? knots(fbase) : nothing
-        Filaments.update_coefficients!(f; knots = ts)
+        Filaments.update_coefficients!(f)
     else
         # Check whether the filament type requires coefficients to be updated before refining.
         # The answer may be different depending on whether we're using spline or finite difference
@@ -380,22 +374,48 @@ function _advect_filament!(
         elseif refinement_steps > 0  # refinement was performed
             resize!(vs, length(f))
         end
-        need_to_update_coefs = false  # already done in `refine!`
     end
     f
 end
 
-function advect_filaments!(fs, vs, dt; fbase = fs, kws...)
-    for i ∈ reverse(eachindex(fs, fbase, vs))
-        ret = _advect_filament!(fs[i], vs[i], dt; fbase = fbase[i], kws...)
+function _advect_filament_from_rk_stage(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
+    Xs = nodes(f)
+    Ys = nodes(fbase)
+    for i ∈ eachindex(Xs, Ys, vs)
+        @inbounds Xs[i] = Ys[i] + dt * vs[i]
+    end
+    # Compute interpolation coefficients making sure that knots are preserved (and not
+    # recomputed from new locations).
+    Filaments.update_coefficients!(f; knots = knots(fbase))
+    nothing
+end
+
+# The possible values of fbase are:
+# - `nothing` (default), used when the filaments `fs` should be actually advected with the
+#   chosen velocity at the end of a timestep;
+# - some list of filaments similar to `fs`, used to advect from `fbase` to `fs` with the
+#   chosen velocity. This is generally done from within RK stages, and in this case things
+#   like filament refinement are not performed.
+advect_filaments!(fs, vs, dt; fbase = nothing, kws...) =
+    _advect_filaments!(fs, fbase, vs, dt; kws...)
+
+# Variant called at the end of a timestep.
+function _advect_filaments!(fs, fbase::Nothing, vs, dt; kws...)
+    for i ∈ reverse(eachindex(fs, vs))
+        ret = _advect_filament_at_end_of_step!(fs[i], vs[i], dt; kws...)
         if ret === nothing
             # This should only happen if the filament was "refined" (well, unrefined in this case).
-            # This only happens after a full timestep (i.e. not in intermediate RK stages),
-            # in which case `fbase` and `fs` are the same.
-            @assert fs === fbase
             popat!(fs, i)
             popat!(vs, i)
         end
+    end
+    fs
+end
+
+# Variant called from within RK stages.
+function _advect_filaments!(fs::T, fbase::T, vs, dt) where {T}
+    for i ∈ eachindex(fs, fbase, vs)
+        @inbounds _advect_filament_from_rk_stage(fs[i], fbase[i], vs[i], dt)
     end
     fs
 end
