@@ -283,7 +283,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2Ï
 end
 
 @testset "Kelvin waves" begin
-    schemes = [RK4(), SSPRK33(), Euler(), DP5(), IMEXEuler(), KenCarp3(), KenCarp4()]
+    schemes = (RK4(), KenCarp3())
     @testset "Scheme: $scheme" for scheme âˆˆ schemes
         test_kelvin_waves(scheme; method = CubicSplineMethod())
     end

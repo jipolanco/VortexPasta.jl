@@ -70,6 +70,17 @@ end
 
     (; fs, vs, rhs!,) = iter
 
+    # This is just to make sure that eachindex(fs[i], vs[i]) returns linear indices.
+    @testset "Ensure linear indexing" begin
+        (; fs, vs,) = iter
+        @test eachindex(fs) isa AbstractUnitRange
+        @test eachindex(vs) isa AbstractUnitRange
+        @test eachindex(fs, vs) isa AbstractUnitRange
+        let f = first(fs), v = first(vs)
+            @test eachindex(f, v) isa AbstractUnitRange
+        end
+    end
+
     ##
 
     # Check that slow component (non-local) + fast component (LIA) == full velocity
