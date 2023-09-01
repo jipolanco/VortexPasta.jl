@@ -173,11 +173,21 @@ end
         end
 
         tspan = (0.0, 1.0)  # ignored
+        @test_opt VortexFilamentProblem(fs, tspan, params_bs)
         prob = @inferred VortexFilamentProblem(fs, tspan, params_bs)
         adaptivity = @inferred (
             AdaptBasedOnSegmentLength(0.5) |
             AdaptBasedOnVelocity(l_min) |
             AdaptBasedOnVelocity(2 * l_min)  # this one doesn't do anything, it's just for testing
+        )
+        @test_opt ignored_modules=(Base, FINUFFT) init(
+            prob, RK4();
+            dt = 1.0,  # will be changed by the adaptivity
+            dtmin = 1e-5,
+            refinement = RefineBasedOnSegmentLength(0.75 * l_min),
+            # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
+            reconnect = ReconnectBasedOnDistance(1.25 * l_min),
+            adaptivity,
         )
         iter = @inferred init(
             prob, RK4();
