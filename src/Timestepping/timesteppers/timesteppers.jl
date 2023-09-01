@@ -70,3 +70,4 @@ end
 
 include("explicit/explicit.jl")
 include("imex/imex.jl")  # implicit-explicit
+include("multirate/multirate.jl")

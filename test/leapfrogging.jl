@@ -93,10 +93,13 @@ dt_factor(::RK4) = 1.5
 dt_factor(::DP5) = 1.5
 dt_factor(::SSPRK33) = 1.0
 dt_factor(::Euler) = 0.08
+
 dt_factor(::IMEXEuler) = 0.7
 dt_factor(::KenCarp3) = 1.4
 dt_factor(::KenCarp4) = 2.8
 dt_factor(::Ascher343) = 1.4
+
+dt_factor(::MultirateMidpoint) = 0.8
 
 function test_leapfrogging_rings(
         prob, scheme;
@@ -257,6 +260,7 @@ end
         IMEXEuler(), KenCarp4(),
         KenCarp3(), Ascher343(),
         Euler(),
+        MultirateMidpoint(),
     )
 
     ##
