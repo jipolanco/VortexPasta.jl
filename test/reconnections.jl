@@ -10,6 +10,7 @@ using Rotations
 using UnicodePlots: lineplot
 using LinearAlgebra: norm, I, ⋅
 using JET: @test_opt
+using FINUFFT: FINUFFT  # for JET only
 
 # Note: this is total energy within a unit cell.
 # One should normalise by the cell volume to get energy per unit mass [L²T⁻²].
@@ -218,7 +219,7 @@ end
             t > 1.95 && break
         end
 
-        @test_opt target_modules=(Timestepping,) step!(iter)
+        @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
 
         @show t_reconnect
         @test n_reconnect > 0

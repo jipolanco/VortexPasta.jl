@@ -509,6 +509,7 @@ function finalise_step!(iter::VortexFilamentSolver)
     for i ∈ reverse(eachindex(fs))
         if !Filaments.check_nodes(Bool, fs[i])
             # Remove filament and its associated vector of velocities
+            # @info lazy"Removing filament with $(length(fs[i])) nodes"
             popat!(fs, i)
             popat!(vs, i)
             popat!(ψs, i)
