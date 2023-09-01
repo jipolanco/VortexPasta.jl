@@ -218,6 +218,8 @@ end
             t > 1.95 && break
         end
 
+        @test_opt target_modules=(Timestepping,) step!(iter)
+
         @show t_reconnect
         @test n_reconnect > 0
         @test 1.7 < t_reconnect < 1.8  # for now this depends on a lot parameters...

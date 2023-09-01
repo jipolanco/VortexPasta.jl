@@ -119,7 +119,9 @@ end
 function estimate_timestep(crit::AdaptBasedOnVelocity, iter::AbstractSolver)
     (; δ,) = crit
     (; vs,)  = iter
-    v²_max = maximum(vs) do vnodes
+    T = eltype(eltype(eltype(vs)))
+    @assert T <: AbstractFloat
+    v²_max = maximum(vs; init = zero(T)) do vnodes
         maximum(v⃗ -> sum(abs2, v⃗), vnodes)  # maximum squared velocity norm among the nodes of a single filament
     end
     v_max = sqrt(v²_max)
