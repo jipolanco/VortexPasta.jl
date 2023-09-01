@@ -1,11 +1,11 @@
 export RK4
 
 """
-    RK4 <: ExplicitTemporalScheme
+    RK4 <: ExplicitScheme
 
 Classic 4-stage Runge–Kutta method.
 """
-struct RK4 <: ExplicitTemporalScheme end
+struct RK4 <: ExplicitScheme end
 
 # Number of buffers needed to hold "intermediate" filaments and velocities.
 nbuf_filaments(::RK4) = 1

@@ -426,8 +426,8 @@ function compute_vorticity_fourier!(cache::LongRangeCache, fs::AbstractVector{<:
         end
     end
     @assert n == Ncharges
-    @timeit to "rescale coordinates" rescale_coordinates!(cache)
-    @timeit to "fold coordinates" fold_coordinates!(cache)
+    rescale_coordinates!(cache)
+    fold_coordinates!(cache)
     @timeit to "transform to Fourier" transform_to_fourier!(cache)
     state.quantity = :vorticity
     state.smoothed = false

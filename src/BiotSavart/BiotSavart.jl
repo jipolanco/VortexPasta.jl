@@ -270,17 +270,19 @@ end
 function velocity_on_nodes!(
         vs::AbstractVector{<:VectorOfVec},
         cache::BiotSavartCache,
-        fs::VectorOfFilaments,
+        fs::VectorOfFilaments;
+        LIA = Val(true),
     )
     fields = (; velocity = vs,)
-    compute_on_nodes!(fields, cache, fs)
+    compute_on_nodes!(fields, cache, fs; LIA)
 end
 
 """
     compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::BiotSavartCache,
-        fs::AbstractVector{<:AbstractFilament},
+        fs::AbstractVector{<:AbstractFilament};
+        LIA = Val(true),
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
 
 Compute velocity and/or streamfunction on filament nodes.
@@ -305,11 +307,20 @@ fields = (;
 cache = BiotSavart.init_cache(...)
 compute_on_nodes!(fields, cache, fs)
 ```
+
+## Disabling LIA
+
+One may disable computation of the locally-induced velocity and streamfunction (LIA term)
+by passing `LIA = Val(false)`.
+
 """
 function compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::BiotSavartCache,
-        fs::VectorOfFilaments,
+        fs::VectorOfFilaments;
+        LIA = Val(true),
+        longrange = Val(true),
+        shortrange = Val(true),
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
     (; to,) = cache
     @assert N > 0
@@ -325,29 +336,35 @@ function compute_on_nodes!(
         _reset_vectors!(us)
     end
 
-    if cache.longrange !== NullLongRangeCache()
+    if cache.longrange !== NullLongRangeCache() && longrange === Val(true)
         @timeit to "Long-range component" begin
             @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange, fs)
-            @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)
+            set_interpolation_points!(cache.longrange, fs)
             if ψs !== nothing
-                @timeit to "Streamfunction/Fourier" to_smoothed_streamfunction!(cache.longrange)
-                @timeit to "Streamfunction/physical" interpolate_to_physical!(cache.longrange)
-                @timeit to "Streamfunction/copy" add_long_range_output!(ψs, cache.longrange)
+                @timeit to "Streamfunction" begin
+                    to_smoothed_streamfunction!(cache.longrange)
+                    interpolate_to_physical!(cache.longrange)
+                    add_long_range_output!(ψs, cache.longrange)
+                end
             end
             if vs !== nothing
                 # Velocity must be computed after streamfunction if both are enabled.
-                @timeit to "Velocity/Fourier" to_smoothed_velocity!(cache.longrange)
-                @timeit to "Velocity/physical" interpolate_to_physical!(cache.longrange)
-                @timeit to "Velocity/copy" add_long_range_output!(vs, cache.longrange)
+                @timeit to "Velocity" begin
+                    to_smoothed_velocity!(cache.longrange)
+                    interpolate_to_physical!(cache.longrange)
+                    add_long_range_output!(vs, cache.longrange)
+                end
             end
         end
     end
 
-    @timeit to "Short-range component" begin
-        @timeit to "Set filaments" set_filaments!(cache.shortrange, fs)
-        @timeit to "Biot-Savart integrals" for i ∈ eachindex(fs)
-            fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
-            add_short_range_fields!(fields_i, cache.shortrange, fs[i])
+    if shortrange === Val(true)
+        @timeit to "Short-range component" begin
+            set_filaments!(cache.shortrange, fs)
+            for i ∈ eachindex(fs)
+                fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
+                add_short_range_fields!(fields_i, cache.shortrange, fs[i]; LIA)
+            end
         end
     end
 

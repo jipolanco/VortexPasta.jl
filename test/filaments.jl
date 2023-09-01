@@ -5,6 +5,8 @@ using StaticArrays
 using ForwardDiff: ForwardDiff
 using VortexPasta.Quadratures: GaussLegendre
 using VortexPasta.Filaments
+using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot
+using VortexPasta.BasicTypes: VectorOfVectors
 
 function test_filament_ring(args)
     f = @inferred Filaments.init(ClosedFilament, args...)
@@ -211,15 +213,37 @@ function test_filament_ring(args)
     nothing
 end
 
-@testset "Filaments: ring" begin
-    N = 32
-    methods = (
-        "FiniteDiff(2) / Hermite(2)" => (N, FiniteDiffMethod(2, HermiteInterpolation(2))),
-        "FiniteDiff(2) / Hermite(1)" => (N, FiniteDiffMethod(2, HermiteInterpolation(1))),
-        "FiniteDiff(2) / Hermite(0)" => (N, FiniteDiffMethod(2, HermiteInterpolation(0))),
-        "CubicSpline" => (N, CubicSplineMethod()),
-    )
-    @testset "$label" for (label, args) ∈ methods
-        test_filament_ring(args)
+# Test broadcasting a vector of filaments with a VectorOfVectors with consistent dimensions.
+# This is quite convenient in timestepping.
+function test_filaments_broadcasting()
+    fs = [
+        Filaments.init(define_curve(Ring()), ClosedFilament, 32, CubicSplineMethod()),
+        Filaments.init(define_curve(TrefoilKnot()), ClosedFilament, 48, CubicSplineMethod()),
+    ]
+    vs = @inferred VectorOfVectors(map(similar ∘ nodes, fs))
+    vv = @. vs + 3 * vs
+    vf = @. vs + 3 * fs
+    fv = @. fs + 3 * vs
+    @test vv isa VectorOfVectors
+    @test vf isa VectorOfVectors
+    @test fv isa VectorOfVectors
+    nothing
+end
+
+@testset "Filaments" begin
+    @testset "Single ring" begin
+        N = 32
+        methods = (
+            "FiniteDiff(2) / Hermite(2)" => (N, FiniteDiffMethod(2, HermiteInterpolation(2))),
+            "FiniteDiff(2) / Hermite(1)" => (N, FiniteDiffMethod(2, HermiteInterpolation(1))),
+            "FiniteDiff(2) / Hermite(0)" => (N, FiniteDiffMethod(2, HermiteInterpolation(0))),
+            "CubicSpline" => (N, CubicSplineMethod()),
+        )
+        @testset "$label" for (label, args) ∈ methods
+            test_filament_ring(args)
+        end
+    end
+    @testset "Broadcasting with VectorOfVectors" begin
+        test_filaments_broadcasting()
     end
 end

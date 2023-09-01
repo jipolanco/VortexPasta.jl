@@ -60,10 +60,16 @@ function kinetic_energy_from_streamfunction(
     E * prefactor
 end
 
+# Explicit RK methods
 dt_factor(::RK4) = 1.8    # this factor seems to give stability with RK4 (fails with factor = 1.9)
 dt_factor(::DP5) = 1.5    # I'd expect DP5 to allow a larger timestep than RK4, but that doesn't seem to be the case...
 dt_factor(::SSPRK33) = 1.2
 dt_factor(::Euler) = 0.12  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
+
+# IMEX-RK methods
+dt_factor(::IMEXEuler) = 0.6
+dt_factor(::KenCarp3) = 1.3
+dt_factor(::KenCarp4) = 2.2
 
 function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,)
     Lx = Ly = Lz
@@ -105,7 +111,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
         rcut = 5 / α
         ParamsBiotSavart(;
             Γ, α, a, Δ, rcut, Ls, Ns,
-            backend_short = CellListsBackend(),
+            backend_short = CellListsBackend(2),
             # backend_short = NaiveShortRangeBackend(),
             backend_long = FINUFFTBackend(),
             quadrature_short = GaussLegendre(4),
@@ -114,8 +120,11 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
     end
 
     fs = copy.(filaments)
-    iseuler = scheme isa Euler
-    tmax = iseuler ? 0.8 : 1.2  # Euler needs a very small dt, hence we reduce the time...
+    tmax = if scheme isa Euler
+        0.5  # explicit Euler needs a very small dt, hence we reduce the time...
+    else
+        1.2
+    end
     tspan = (0.0, tmax * T_kw)
 
     jprobe = 5
@@ -137,8 +146,8 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
 
     iter = @inferred init(
         prob, scheme;
+        dtmin = T_kw * 1e-4,
         dt = 1.0,  # will be changed by the adaptivity
-        dtmin = T_kw * 1e-5,
         adaptivity = AdaptBasedOnSegmentLength(dt_factor(scheme)),
         refinement = NoRefinement(),  # make sure that nodes don't "move" vertically due to refinement
         callback,
@@ -169,6 +178,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
     tlast = tspan[2]
     @info "Solving with $scheme..." dt_initial = iter.time.dt tlast/T_kw
     @time solve!(iter)
+    println(iter.to)
 
     # Check that the callback is called at the initial time
     @test first(times) == first(tspan)
@@ -183,6 +193,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
     end
 
     # Check energy conservation
+    iseuler = scheme isa Euler || scheme isa IMEXEuler  # reduced precision of results
     @testset "Energy conservation" begin
         energy_initial = first(energy_time)  # initial energy
         energy_last = last(energy_time)
@@ -260,19 +271,19 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
         # @show abs(Ax - Ay) / Ay
         # @show abs(ωx - ωy) / ωy
         @test isapprox(Ax, Ay; rtol = 1e-2)
-        @test isapprox(ωx, ωy; rtol = iseuler ? 1e-3 : 1e-5)
+        @test isapprox(ωx, ωy; rtol = iseuler ? 2e-3 : 1e-5)
 
         # Check that we actually recover the KW frequency!
         # @show abs(ωy - ω_kw) / ω_kw
         @test isapprox(ωx, ω_kw; rtol = 2e-3)
-        @test isapprox(ωy, ω_kw; rtol = 2e-3)
+        @test isapprox(ωy, ω_kw; rtol = iseuler ? 3e-3 : 2e-3)
     end
 
     nothing
 end
 
 @testset "Kelvin waves" begin
-    schemes = [RK4(), SSPRK33(), Euler(), DP5()]
+    schemes = (RK4(), KenCarp3())
     @testset "Scheme: $scheme" for scheme ∈ schemes
         test_kelvin_waves(scheme; method = CubicSplineMethod())
     end

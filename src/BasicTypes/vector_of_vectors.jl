@@ -117,5 +117,5 @@ function Base.copyto!(dest::VectorOfVectors, bc_in::Broadcast.Broadcasted{Vector
     dest
 end
 
-_get_single_vector(x::VectorOfVectors, i) = @inbounds x[i]
+_get_single_vector(xs::AbstractVector, i) = @inbounds xs[i]  # includes VectorOfVector
 _get_single_vector(x::Any, i) = x  # this can be the case of a scalar

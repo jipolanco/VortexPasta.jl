@@ -20,10 +20,7 @@ using ..Filaments:
     NoRefinement,
 
     ReconnectionCriterion,
-    NoReconnections,
-
-    update_coefficients_before_refinement,
-    update_coefficients_after_refinement
+    NoReconnections
 
 using ..BiotSavart:
     BiotSavart,
@@ -153,7 +150,7 @@ get_dt(iter::VortexFilamentSolver) = iter.time.dt
 get_t(iter::VortexFilamentSolver) = iter.time.t
 
 """
-    init(prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme; dt::Real, kws...) -> VortexFilamentSolver
+    init(prob::VortexFilamentProblem, scheme::TemporalScheme; dt::Real, kws...) -> VortexFilamentSolver
 
 Initialise vortex filament problem.
 
@@ -188,7 +185,7 @@ either [`step!`](@ref) or [`solve!`](@ref).
   recording the time spent on different functions.
 """
 function init(
-        prob::VortexFilamentProblem, scheme::ExplicitTemporalScheme;
+        prob::VortexFilamentProblem, scheme::TemporalScheme;
         alias_u0 = true,   # same as in OrdinaryDiffEq.jl
         dt::Real,
         dtmin::Real = 0.0,
@@ -229,23 +226,75 @@ function init(
 end
 
 function _update_values_at_nodes!(
+        ::Val{:full},
         fields::NamedTuple{Names, NTuple{N, V}},
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
     ) where {Names, N, V <: VectorOfVectors}
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(true))
+    fields
+end
+
+# Compute slow component only.
+# This is generally called in IMEX-RK substeps, where only the velocity (and not the
+# streamfunction) is needed.
+# We assume that the "slow" component is everything but LIA term when evolving the
+# Biot-Savart law.
+# This component will be treated explicitly by IMEX schemes.
+function _update_values_at_nodes!(
+        ::Val{:slow},
+        fields::NamedTuple{(:velocity,)},
+        fs::VectorOfFilaments,
+        iter::VortexFilamentSolver,
+    )
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
+    fields
+end
+
+# Compute fast component only.
+# This is generally called in IMEX-RK substeps, where only the velocity (and not the
+# streamfunction) is needed.
+# We assume that the "fast" component is the LIA term when evolving the Biot-Savart law.
+# This component will be treated implicitly by IMEX schemes.
+function _update_values_at_nodes!(
+        ::Val{:fast},
+        fields::NamedTuple{(:velocity,)},
+        fs::VectorOfFilaments,
+        iter::VortexFilamentSolver,
+    )
+    vs_all = fields.velocity
+    (; prob, to,) = iter
+    params = prob.p  # Biot-Savart parameters
+    (; Γ, a, Δ,) = params.common
+    # Note: we must use the same quadrature as used when using component = Val(:full)
+    (; quad,) = params.shortrange
+    prefactor = Γ / (4π)
+    @timeit to "LIA term (only)" begin
+        @inbounds for (f, vs) ∈ zip(fs, vs_all)
+            for i ∈ eachindex(f, vs)
+                vs[i] = BiotSavart.local_self_induced(
+                    BiotSavart.Velocity(), f, i, prefactor;
+                    a, Δ, quad,
+                )
+            end
+        end
+    end
     fields
 end
 
 # This is the most general variant which should be called by timesteppers.
 # For now we don't use the time, but we might in the future...
-update_values_at_nodes!(fields::NamedTuple, fs, t::Real, iter) =
-    _update_values_at_nodes!(fields, fs, iter)
+function update_values_at_nodes!(
+        fields::NamedTuple, fs, t::Real, iter;
+        component = Val(:full),  # compute slow + fast components by default
+    )
+    _update_values_at_nodes!(component, fields, fs, iter)
+end
 
 # Case where only the velocity is passed (generally used in internal RK substeps).
-function update_values_at_nodes!(vs::VectorOfVectors, args...)
+function update_values_at_nodes!(vs::VectorOfVectors, args...; kws...)
     fields = (velocity = vs,)
-    update_values_at_nodes!(fields, args...)
+    update_values_at_nodes!(fields, args...; kws...)
     vs
 end
 
@@ -286,64 +335,76 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
         if !Filaments.check_nodes(Bool, f)
             return nothing  # filament should be removed (too small / not enough nodes)
         end
-        if update_coefficients_after_refinement(f)
-            Filaments.update_coefficients!(f)
-        end
         nref = Filaments.refine!(f, refinement)
     end
     n
 end
 
-function _advect_filament!(
+function _advect_filament_at_end_of_step!(
         f::AbstractFilament, vs::VectorOfVelocities, dt::Real;
-        fbase = f, L_fold = nothing, refinement = nothing,
+        L_fold, refinement,
     )
     Xs = nodes(f)
     @assert Filaments.check_nodes(Bool, f)  # filament has enough nodes
-    Xs_base = nodes(fbase)
-    @assert eachindex(Xs) == eachindex(Xs_base) == eachindex(vs)
-    @inbounds for i ∈ eachindex(Xs, Xs_base, vs)
-        Xs[i] = Xs_base[i] + dt * vs[i]
+    @assert eachindex(Xs) == eachindex(vs)
+    for i ∈ eachindex(Xs, vs)
+        @inbounds Xs[i] = Xs[i] + dt * vs[i]
     end
+
     if L_fold !== nothing
         Filaments.fold_periodic!(f, L_fold)
     end
-    need_to_update_coefs = true
-    # Folding is only done when actually advecting filaments (not within RK substeps)
-    @assert (f === fbase) == (L_fold !== nothing)
-    if refinement === nothing
-        # Don't update knots if this is an intermediate RK substep
-        ts = (L_fold === nothing) ? knots(fbase) : nothing
-        Filaments.update_coefficients!(f; knots = ts)
-    else
-        # Check whether the filament type requires coefficients to be updated before refining.
-        # The answer may be different depending on whether we're using spline or finite difference
-        # discretisations for filaments.
-        if update_coefficients_before_refinement(f)
-            Filaments.update_coefficients!(f)
-        end
-        refinement_steps = refine!(f, refinement)
-        if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
-            return nothing
-        elseif refinement_steps > 0  # refinement was performed
-            resize!(vs, length(f))
-        end
-        need_to_update_coefs = false  # already done in `refine!`
+
+    # Coefficients must be computed before refining
+    Filaments.update_coefficients!(f)
+    refinement_steps = refine!(f, refinement)
+    if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
+        return nothing
+    elseif refinement_steps > 0  # refinement was performed
+        resize!(vs, length(f))
     end
+
     f
 end
 
-function advect_filaments!(fs, vs, dt; fbase = fs, kws...)
-    for i ∈ reverse(eachindex(fs, fbase, vs))
-        ret = _advect_filament!(fs[i], vs[i], dt; fbase = fbase[i], kws...)
+function _advect_filament_from_rk_stage(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
+    Xs = nodes(f)
+    Ys = nodes(fbase)
+    for i ∈ eachindex(Xs, Ys, vs)
+        @inbounds Xs[i] = Ys[i] + dt * vs[i]
+    end
+    # Compute interpolation coefficients making sure that knots are preserved (and not
+    # recomputed from new locations).
+    Filaments.update_coefficients!(f; knots = knots(fbase))
+    nothing
+end
+
+# The possible values of fbase are:
+# - `nothing` (default), used when the filaments `fs` should be actually advected with the
+#   chosen velocity at the end of a timestep;
+# - some list of filaments similar to `fs`, used to advect from `fbase` to `fs` with the
+#   chosen velocity. This is generally done from within RK stages, and in this case things
+#   like filament refinement are not performed.
+advect_filaments!(fs, vs, dt; fbase = nothing, kws...) =
+    _advect_filaments!(fs, fbase, vs, dt; kws...)
+
+# Variant called at the end of a timestep.
+function _advect_filaments!(fs, fbase::Nothing, vs, dt; kws...)
+    for i ∈ reverse(eachindex(fs, vs))
+        ret = _advect_filament_at_end_of_step!(fs[i], vs[i], dt; kws...)
         if ret === nothing
             # This should only happen if the filament was "refined" (well, unrefined in this case).
-            # This only happens after a full timestep (i.e. not in intermediate RK stages),
-            # in which case `fbase` and `fs` are the same.
-            @assert fs === fbase
             popat!(fs, i)
             popat!(vs, i)
         end
+    end
+    fs
+end
+
+# Variant called from within RK stages.
+function _advect_filaments!(fs::T, fbase::T, vs, dt) where {T}
+    for i ∈ eachindex(fs, fbase, vs)
+        @inbounds _advect_filament_from_rk_stage(fs[i], fbase[i], vs[i], dt)
     end
     fs
 end
@@ -375,7 +436,10 @@ Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
     (; fs, vs, prob, time, dtmin, refinement, advect!, rhs!, to,) = iter
-    time.dt ≥ dtmin || error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
+    t_end = iter.prob.tspan[2]
+    if time.dt < dtmin && time.t + time.dt < t_end
+        error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
+    end
     # Note: the timesteppers assume that iter.vs already contains the velocity
     # induced by the filaments at the current timestep.
     update_velocities!(
@@ -448,7 +512,10 @@ function after_advection!(iter::VortexFilamentSolver)
     resize_container!(ψs, fs)
     resize_contained_vectors!(ψs, fs)
     fields = (velocity = vs, streamfunction = ψs,)
-    rhs!(fields, fs, time.t, iter)
+
+    # Note: here we always include the LIA terms, even when using IMEX schemes.
+    # This must be taken into account by IMEX scheme implementations.
+    rhs!(fields, fs, time.t, iter; component = Val(:full))
 
     # This is mainly useful for visualisation (and it's quite cheap).
     for u ∈ vs

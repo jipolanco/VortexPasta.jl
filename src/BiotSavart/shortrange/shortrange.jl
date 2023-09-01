@@ -188,11 +188,18 @@ function integrate_biot_savart(
 end
 
 """
-    add_short_range_velocity!(vs::AbstractVector{<:Vec3}, cache::ShortRangeCache, f::AbstractFilament)
+    add_short_range_velocity!(
+        vs::AbstractVector{<:Vec3}, cache::ShortRangeCache, f::AbstractFilament;
+        LIA = Val(true),
+    )
 
 Compute short-range velocity induced on the nodes of filament `f`.
 
 The velocity vector `vs` must have the same length as the number of nodes in `f`.
+
+Setting `LIA = Val(false)` allows to disable computation of the localised induction
+approximation (LIA) term. In that case, that term should be computed separately using
+[`local_self_induced_velocity`](@ref).
 
 Before calling this function, one must first set the list of filaments using
 [`set_filaments!`](@ref).
@@ -201,8 +208,8 @@ function add_short_range_velocity!(
         vs::AbstractVector{<:Vec3},
         cache::ShortRangeCache,
         f::AbstractFilament;
-        LIA::Val{_LIA} = Val(true),  # can be used to disable LIA (for testing only)
-    ) where {_LIA}
+        LIA = Val(true),  # can be used to disable LIA
+    )
     fields = (; velocity = vs,)
     add_short_range_fields!(fields, cache, f; LIA)
 end
@@ -211,7 +218,7 @@ function add_short_range_fields!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::ShortRangeCache,
         f::AbstractFilament;
-        LIA::Val{_LIA} = Val(true),  # can be used to disable LIA (for testing only)
+        LIA::Val{_LIA} = Val(true),  # can be used to disable LIA
     ) where {Names, N, V <: VectorOfVec, _LIA}
     vs = get(fields, :velocity, nothing)
     ψs = get(fields, :streamfunction, nothing)
@@ -248,7 +255,7 @@ function add_short_range_fields!(
                 integrate_biot_savart(Velocity(), LongRange(), Segment(f, segment_b), x⃗, params)
             )
             if _LIA
-                v⃗ = v⃗ + local_self_induced_velocity(f, i, one(prefactor); a, Δ, quad,)
+                v⃗ = v⃗ + local_self_induced(Velocity(), f, i, one(prefactor); a, Δ, quad,)
             end
         end
         if ψs !== nothing
@@ -257,7 +264,7 @@ function add_short_range_fields!(
                 integrate_biot_savart(Streamfunction(), LongRange(), Segment(f, segment_b), x⃗, params)
             )
             if _LIA
-                ψ⃗ = ψ⃗ + local_self_induced_streamfunction(f, i, one(prefactor); a, Δ, quad,)
+                ψ⃗ = ψ⃗ + local_self_induced(Streamfunction(), f, i, one(prefactor); a, Δ, quad,)
             end
         end
 

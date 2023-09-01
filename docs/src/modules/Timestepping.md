@@ -24,16 +24,30 @@ solve!
 step!
 ```
 
-## Timesteppers
+## Temporal schemes
 
 The following timesteppers are exported.
 When possible, names are the same as those used by [DifferentialEquations.jl solvers](https://docs.sciml.ai/DiffEqDocs/stable/solvers/ode_solve/).
+
+### Explicit Runge–Kutta schemes
 
 ```@docs
 Euler
 RK4
 SSPRK33
 DP5
+```
+
+### Implicit-explicit Runge–Kutta (IMEX-RK) schemes
+
+The following schemes treat local interactions implicitly and non-local interactions explicitly.
+This should hopefully allow for larger timesteps than fully explicit schemes.
+
+```@docs
+IMEXEuler
+Ascher343
+KenCarp3
+KenCarp4
 ```
 
 ## Adaptivity
@@ -48,7 +62,7 @@ AdaptBasedOnVelocity
 ## Internals
 
 ```@docs
-ExplicitTemporalScheme
+ExplicitScheme
 TemporalSchemeCache
 ```
 

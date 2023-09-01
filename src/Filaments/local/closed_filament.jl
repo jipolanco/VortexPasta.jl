@@ -273,9 +273,3 @@ function update_after_changing_nodes!(f::ClosedLocalFilament; removed = true)
     end
     f
 end
-
-# Coefficients should be updated before refinement to make sure we have the right curvatures
-# and knots consistent with segment lengths. After refinement it's not needed, since we call
-# update_coefficients! in refine! (see above).
-update_coefficients_before_refinement(::ClosedLocalFilament) = true
-update_coefficients_after_refinement(::ClosedLocalFilament) = false

@@ -1,4 +1,6 @@
 # Test evaluation of some curve properties exactly on spline knots when using cubic splines.
+# The idea is to be able to evaluate the LIA term (proportional to s⃗′ × s⃗″) directly from
+# the cubic spline coefficients `cs`.
 
 using Test
 using VortexPasta.Filaments

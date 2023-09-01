@@ -1,20 +1,17 @@
-"""
-    ExplicitTemporalScheme
+using StaticArrays: SVector, SMatrix  # may be used for RK tableaus
 
-Abstract type defining an explicit temporal scheme.
-"""
-abstract type ExplicitTemporalScheme end
+abstract type TemporalScheme end
 
 # By default, schemes allow changing the timestep.
-can_change_dt(::ExplicitTemporalScheme) = true
+can_change_dt(::TemporalScheme) = true
 
 """
-    TemporalSchemeCache{Scheme <: ExplicitTemporalScheme}
+    TemporalSchemeCache{Scheme <: TemporalScheme}
 
 Contains buffers needed by a temporal scheme.
 """
 struct TemporalSchemeCache{
-        Scheme <: ExplicitTemporalScheme,
+        Scheme <: TemporalScheme,
         Nf, Nv,
         Filaments <: VectorOfFilaments,
         Velocities <: VectorOfVectors{<:Vec3},
@@ -28,7 +25,7 @@ scheme(c::TemporalSchemeCache) = c.scheme
 can_change_dt(c::TemporalSchemeCache) = can_change_dt(scheme(c))
 
 function init_cache(
-        scheme::ExplicitTemporalScheme,
+        scheme::TemporalScheme,
         fs::VectorOfFilaments, vs::VectorOfVectors,
     )
     Nf = nbuf_filaments(scheme)
@@ -71,7 +68,5 @@ function update_velocities!(
     _update_velocities!(scheme(cache), rhs!, advect!, cache, iter)
 end
 
-include("Euler.jl")
-include("RK4.jl")
-include("SSPRK33.jl")
-include("DP5.jl")
+include("explicit/explicit.jl")
+include("imex/imex.jl")  # implicit-explicit
