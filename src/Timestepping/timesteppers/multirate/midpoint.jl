@@ -1,19 +1,21 @@
 export MultirateMidpoint
 
 """
-    MultirateMidpoint() <: MultirateScheme
+    MultirateMidpoint(nsubsteps::Int = 16) <: MultirateScheme
 
 2nd order multirate infinitesimal, generalised additive Runge–Kutta (MRI-GARK) scheme.
 
-See Sandu, SIAM J. Numer. Anal. 57 (2019).
+This is the MRI-GARK-ERK22a method from Sandu, SIAM J. Numer. Anal. 57 (2019).
 """
-struct MultirateMidpoint <: MultirateScheme end
+struct MultirateMidpoint <: MultirateScheme
+    nsubsteps :: Int
+end
 
 nbuf_filaments(::MultirateMidpoint) = 1
 nbuf_velocities(::MultirateMidpoint) = 3
 
 function _update_velocities!(
-        ::MultirateMidpoint, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        scheme::MultirateMidpoint, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
     (; fs, vs,) = iter
     (; fc, vc,) = cache
@@ -28,7 +30,7 @@ function _update_velocities!(
     copy!(ftmp, fs)  # initial locations
     tsub = t  # current time of ftmp
 
-    M = 32  # number of Euler substeps
+    M = scheme.nsubsteps  # number of Euler substeps
 
     # Stage 1
     let i = 1

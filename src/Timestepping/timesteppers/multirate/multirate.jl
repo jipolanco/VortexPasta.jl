@@ -9,4 +9,4 @@ with a smaller timestep than the slowly-evolving motions.
 """
 abstract type MultirateScheme <: TemporalScheme end
 
-include("MultirateMidpoint.jl")
+include("midpoint.jl")
