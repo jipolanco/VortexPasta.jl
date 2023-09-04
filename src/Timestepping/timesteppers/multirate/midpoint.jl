@@ -12,7 +12,7 @@ struct MultirateMidpoint <: MultirateScheme
 end
 
 nbuf_filaments(::MultirateMidpoint) = 1
-nbuf_velocities(::MultirateMidpoint) = 3
+nbuf_velocities(::MultirateMidpoint) = 2
 
 function _update_velocities!(
         scheme::MultirateMidpoint, rhs!::F, advect!::G, cache, iter::AbstractSolver,
@@ -25,7 +25,7 @@ function _update_velocities!(
 
     ftmp = fc[1]
     vS = ntuple(j -> vc[j], Val(2))  # slow velocity at each stage
-    vF = vc[3]
+    vF = vs  # reuse output velocity for storing "fast" velocity
 
     @assert typeof(fs) === typeof(ftmp)  # ensure type stability
     fbase = fs  # initial advection should start from latest filament positions `fs`

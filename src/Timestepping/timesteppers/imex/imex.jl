@@ -31,6 +31,7 @@ function solve_fixed_point!(
         cdt, fbase, aI_diag, nmax = 100, rtol = 1e-12,
     ) where {F <: Function, G <: Function}
     (; t, dt,) = iter.time
+    @assert fbase !== ftmp
     vdiff_prev = vector_difference(fbase, ftmp)
     n = 0
     while n < nmax
