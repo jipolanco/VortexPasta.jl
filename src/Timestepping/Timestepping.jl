@@ -220,7 +220,7 @@ function init(
         advect!, rhs!,
     )
 
-    after_advection!(iter)
+    finalise_step!(iter)
 
     iter
 end
@@ -340,34 +340,7 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
     n
 end
 
-function _advect_filament_at_end_of_step!(
-        f::AbstractFilament, vs::VectorOfVelocities, dt::Real;
-        L_fold, refinement,
-    )
-    Xs = nodes(f)
-    @assert Filaments.check_nodes(Bool, f)  # filament has enough nodes
-    @assert eachindex(Xs) == eachindex(vs)
-    for i ∈ eachindex(Xs, vs)
-        @inbounds Xs[i] = Xs[i] + dt * vs[i]
-    end
-
-    if L_fold !== nothing
-        Filaments.fold_periodic!(f, L_fold)
-    end
-
-    # Coefficients must be computed before refining
-    Filaments.update_coefficients!(f)
-    refinement_steps = refine!(f, refinement)
-    if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
-        return nothing
-    elseif refinement_steps > 0  # refinement was performed
-        resize!(vs, length(f))
-    end
-
-    f
-end
-
-function _advect_filament_from_rk_stage(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
+function _advect_filament!(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
     Xs = nodes(f)
     Ys = nodes(fbase)
     for i ∈ eachindex(Xs, Ys, vs)
@@ -377,6 +350,44 @@ function _advect_filament_from_rk_stage(f::T, fbase::T, vs, dt) where {T <: Abst
     # recomputed from new locations).
     Filaments.update_coefficients!(f; knots = knots(fbase))
     nothing
+end
+
+function _advect_filament!(
+        f::AbstractFilament, fbase::Nothing, vs::VectorOfVelocities, dt::Real,
+    )
+    Xs = nodes(f)
+    for i ∈ eachindex(Xs, vs)
+        @inbounds Xs[i] = Xs[i] + dt * vs[i]
+    end
+    Filaments.update_coefficients!(f)  # note: in this case we recompute the knots
+    nothing
+end
+
+# This should be called right after positions have been updated by the timestepper, but
+# before reconnections happen.
+function after_advection!(fs, vs; kws...)
+    @inbounds for i ∈ reverse(eachindex(fs, vs))
+        ret = _after_advection!(fs[i], vs[i]; kws...)
+        if ret === nothing
+            # This should only happen if the filament was "refined" (well, unrefined in this case).
+            popat!(fs, i)
+            popat!(vs, i)
+        end
+    end
+    fs
+end
+
+function _after_advection!(f::AbstractFilament, vs; L_fold, refinement,)
+    if Filaments.fold_periodic!(f, L_fold)
+        Filaments.update_coefficients!(f)  # only called if nodes were modified by fold_periodic!
+    end
+    refinement_steps = refine!(f, refinement)
+    if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
+        return nothing
+    elseif refinement_steps > 0  # refinement was performed
+        resize!(vs, length(f))
+    end
+    f
 end
 
 # The possible values of fbase are:
@@ -389,14 +400,9 @@ advect_filaments!(fs, vs, dt; fbase = nothing, kws...) =
     _advect_filaments!(fs, fbase, vs, dt; kws...)
 
 # Variant called at the end of a timestep.
-function _advect_filaments!(fs, fbase::Nothing, vs, dt; kws...)
-    for i ∈ reverse(eachindex(fs, vs))
-        ret = _advect_filament_at_end_of_step!(fs[i], vs[i], dt; kws...)
-        if ret === nothing
-            # This should only happen if the filament was "refined" (well, unrefined in this case).
-            popat!(fs, i)
-            popat!(vs, i)
-        end
+function _advect_filaments!(fs, fbase::Nothing, vs, dt)
+    for i ∈ eachindex(fs, vs)
+        @inbounds _advect_filament!(fs[i], nothing, vs[i], dt)
     end
     fs
 end
@@ -404,7 +410,7 @@ end
 # Variant called from within RK stages.
 function _advect_filaments!(fs::T, fbase::T, vs, dt) where {T}
     for i ∈ eachindex(fs, fbase, vs)
-        @inbounds _advect_filament_from_rk_stage(fs[i], fbase[i], vs[i], dt)
+        @inbounds _advect_filament!(fs[i], fbase[i], vs[i], dt)
     end
     fs
 end
@@ -446,10 +452,11 @@ function step!(iter::VortexFilamentSolver)
         rhs!, advect!, iter.cache_timestepper, iter,
     )
     L_fold = periods(prob.p)  # box size (periodicity)
-    advect!(fs, vs, time.dt; L_fold, refinement)
+    advect!(fs, vs, time.dt)
+    after_advection!(fs, vs; L_fold, refinement)
     time.t += time.dt
     time.nstep += 1
-    after_advection!(iter)
+    finalise_step!(iter)
     iter
 end
 
@@ -480,7 +487,7 @@ function reconnect!(iter::VortexFilamentSolver)
 end
 
 # Called whenever filament positions have just been initialised or updated.
-function after_advection!(iter::VortexFilamentSolver)
+function finalise_step!(iter::VortexFilamentSolver)
     (; vs, ψs, fs, time, callback, adaptivity, rhs!, to,) = iter
 
     # Perform reconnections, possibly changing the number of filaments.
