@@ -365,19 +365,23 @@ end
 
 # This should be called right after positions have been updated by the timestepper, but
 # before reconnections happen.
-function after_advection!(fs, vs; kws...)
-    @inbounds for i ∈ reverse(eachindex(fs, vs))
-        ret = _after_advection!(fs[i], vs[i]; kws...)
+# Here `fields` is a tuple containing the fields associated to each filament node.
+# Usually this is `(vs, ψs)`, which contain the velocities and streamfunction values at all
+# filament nodes.
+function after_advection!(fs, fields::Tuple; kws...)
+    @inbounds for i ∈ reverse(eachindex(fs))
+        fields_i = map(vs -> @inbounds(vs[i]), fields)  # typically this is (vs[i], ψs[i])
+        ret = _after_advection!(fs[i], fields_i; kws...)
         if ret === nothing
             # This should only happen if the filament was "refined" (well, unrefined in this case).
             popat!(fs, i)
-            popat!(vs, i)
+            map(vs -> popat!(vs, i), fields)
         end
     end
     fs
 end
 
-function _after_advection!(f::AbstractFilament, vs; L_fold, refinement,)
+function _after_advection!(f::AbstractFilament, fields::Tuple; L_fold, refinement,)
     if Filaments.fold_periodic!(f, L_fold)
         Filaments.update_coefficients!(f)  # only called if nodes were modified by fold_periodic!
     end
@@ -385,7 +389,7 @@ function _after_advection!(f::AbstractFilament, vs; L_fold, refinement,)
     if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
         return nothing
     elseif refinement_steps > 0  # refinement was performed
-        resize!(vs, length(f))
+        map(vs -> resize!(vs, length(f)), fields)
     end
     f
 end
@@ -441,7 +445,7 @@ end
 Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
-    (; fs, vs, prob, time, dtmin, refinement, advect!, rhs!, to,) = iter
+    (; fs, vs, ψs, prob, time, dtmin, refinement, advect!, rhs!, to,) = iter
     t_end = iter.prob.tspan[2]
     if time.dt < dtmin && time.t + time.dt < t_end
         error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
@@ -453,36 +457,38 @@ function step!(iter::VortexFilamentSolver)
     )
     L_fold = periods(prob.p)  # box size (periodicity)
     advect!(fs, vs, time.dt)
-    after_advection!(fs, vs; L_fold, refinement)
+    after_advection!(fs, (vs, ψs); L_fold, refinement)
     time.t += time.dt
     time.nstep += 1
     finalise_step!(iter)
     iter
 end
 
-@inline function reconnect_callback((fs, vs), f, i, mode::Symbol)
+# Here fields is usually (vs, ψs)
+@inline function reconnect_callback((fs, fields), f, i, mode::Symbol)
     if mode === :removed
         @debug lazy"Filament was removed at index $i"
-        @assert i ≤ lastindex(vs) == lastindex(fs) + 1
-        popat!(vs, i)
+        # @assert i ≤ lastindex(fields[1]) == lastindex(fs) + 1
+        map(vs -> popat!(vs, i), fields)
     elseif mode === :appended
         @debug lazy"Filament was appended at index $i"
         @assert f === fs[i]
-        @assert i == lastindex(vs) + 1
-        push!(vs, similar(first(vs), length(f)))
+        # @assert i == lastindex(fields[1]) + 1
+        map(vs -> push!(vs, similar(first(vs), length(f))), fields)
     elseif mode === :modified
         @debug lazy"Filament was modified at index $i"
         @assert f === fs[i]
-        @assert i ≤ lastindex(fs) == lastindex(vs)
-        resize!(vs[i], length(f))
+        # @assert i ≤ lastindex(fs) == lastindex(fields[1])
+        map(vs -> resize!(vs[i], length(f)), fields)
     end
     nothing
 end
 
 function reconnect!(iter::VortexFilamentSolver)
-    (; vs, fs, reconnect,) = iter
+    (; vs, ψs, fs, reconnect,) = iter
+    fields = (vs, ψs)
     Filaments.reconnect!(reconnect, fs) do f, i, mode
-        reconnect_callback((fs, vs), f, i, mode)
+        reconnect_callback((fs, fields), f, i, mode)
     end :: Int  # returns the number of reconnections
 end
 
@@ -512,12 +518,7 @@ function finalise_step!(iter::VortexFilamentSolver)
     # Update velocities and streamfunctions to the next timestep (and first RK step).
     # Note that we only compute the streamfunction at full steps, and not in the middle of
     # RK substeps.
-    # At this point, the size of the velocity vectors `vs` is expected to be correct (as it
-    # is updated during timestepping), but that's not the case for the streamfunction, so we
-    # resize it if needed.
     # TODO make computation of ψ optional?
-    resize_container!(ψs, fs)
-    resize_contained_vectors!(ψs, fs)
     fields = (velocity = vs, streamfunction = ψs,)
 
     # Note: here we always include the LIA terms, even when using IMEX schemes.
