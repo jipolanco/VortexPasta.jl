@@ -15,7 +15,7 @@ struct SanduMRI33a <: MultirateScheme
 end
 
 nbuf_filaments(::SanduMRI33a) = 2
-nbuf_velocities(::SanduMRI33a) = 4
+nbuf_velocities(::SanduMRI33a) = 3
 
 function _update_velocities!(
         scheme::SanduMRI33a, rhs!::F, advect!::G, cache, iter::AbstractSolver,
@@ -29,7 +29,6 @@ function _update_velocities!(
     ftmp = fc[1]
     fmid = fc[2]   # for midpoint method used for the fast component
     vS = ntuple(j -> vc[j], Val(3))  # slow velocity at each stage
-    vslow = vc[4]  # total slow velocity
 
     tsub = t
     Mfast = scheme.nsubsteps
@@ -58,7 +57,8 @@ function _update_velocities!(
 
     ts = (t, t + cdt, t + 2cdt, t + dt)
 
-    # Stage 1
+    # Stage 1. Note that the "slow" velocity is constant throughout this stage (we don't
+    # need to introduce the normalised time τ).
     let i = 1, vslow = vS[1], fbase = ftmp
         # Solve auxiliary ODE in [t, t + dt/3].
         @assert tsub ≈ ts[i]
@@ -72,7 +72,6 @@ function _update_velocities!(
             rhs!(vs, fmid, tsub + hfast/2, iter; component = Val(:fast))
             @. vs = vs + vslow
             advect!(ftmp, vs, hfast; fbase)
-
 
             tsub += hfast
         end
@@ -97,7 +96,7 @@ function _update_velocities!(
 
             # Midpoint stage 2/2
             rhs!(vs, fmid, tsub + hfast/2, iter; component = Val(:fast))
-            τ = (tsub + hfast/2 - ts[i]) / cdt
+            τ += hfast / (2 * cdt)
             @. vs = vs + (
                 (Γ₀[i, 1] + τ * Γ₁[i, 1]) * vS[1]
               + (Γ₀[i, 2] + τ * Γ₁[i, 2]) * vS[2]
@@ -128,7 +127,7 @@ function _update_velocities!(
 
             # Midpoint stage 2/2
             rhs!(vs, fmid, tsub + hfast/2, iter; component = Val(:fast))
-            τ = (tsub + hfast/2 - ts[i]) / cdt
+            τ += hfast / (2 * cdt)
             @. vs = vs + (
                 (Γ₀[i, 1] + τ * Γ₁[i, 1]) * vS[1]
               + (Γ₀[i, 2] + τ * Γ₁[i, 2]) * vS[2]
@@ -149,13 +148,4 @@ function _update_velocities!(
     end
 
     vs
-end
-
-function _inner_midpoint!(advect!::F, rhs!::G, fs, fbuf, vs, vslow, t, h, iter) where {F, G}
-    @. vs = vs + vslow  # total velocity at this stage
-    advect!(fbuf, vs, h/2; fbase = fs)
-    rhs!(vs, fbuf, t + h/2, iter; component = Val(:fast))
-    @. vs = vs + vslow
-    advect!(fs, vs, h; fbase = fs)
-    fs
 end
