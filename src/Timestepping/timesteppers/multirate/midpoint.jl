@@ -1,9 +1,12 @@
 export MultirateMidpoint
 
 """
-    MultirateMidpoint(nsubsteps::Int = 16) <: MultirateScheme
+    MultirateMidpoint(nsubsteps::Int) <: MultirateScheme
 
-2nd order multirate infinitesimal, generalised additive Runge–Kutta (MRI-GARK) scheme.
+2nd order, two-stage multirate infinitesimal, generalised additive Runge–Kutta (MRI-GARK) scheme.
+
+Uses a first order Euler method for the fast component, with `nsubsteps` Euler substeps for
+each RK stage.
 
 This is the MRI-GARK-ERK22a method from Sandu, SIAM J. Numer. Anal. 57 (2019).
 """
@@ -12,7 +15,7 @@ struct MultirateMidpoint <: MultirateScheme
 end
 
 nbuf_filaments(::MultirateMidpoint) = 1
-nbuf_velocities(::MultirateMidpoint) = 2
+nbuf_velocities(::MultirateMidpoint) = 1
 
 function _update_velocities!(
         scheme::MultirateMidpoint, rhs!::F, advect!::G, cache, iter::AbstractSolver,
@@ -24,8 +27,7 @@ function _update_velocities!(
     dt = get_dt(iter)
 
     ftmp = fc[1]
-    vS = ntuple(j -> vc[j], Val(2))  # "slow" velocity at each stage
-    vF = vs  # reuse memory for "fast" velocity
+    vslow = vc[1]  # "slow" velocity at each stage
 
     tsub = t    # current time of ftmp
     M = scheme.nsubsteps  # number of Euler substeps
@@ -38,23 +40,28 @@ function _update_velocities!(
 
         # Initial advection: we start from `fs` and use the total velocity at the
         # beginning of the timestep.
-        rhs!(vS[2], fs, t, iter; component = Val(:fast))  # compute fast component at beginning of step (reusing vS[2])
-        @. vS[1] = vF - vS[2]  # slow component at stage 1 (note: vF === vs)
-        advect!(ftmp, vF, h; fbase = fs)
+        rhs!(vslow, fs, t, iter; component = Val(:fast))  # compute fast component at beginning of step (reusing vslow[2])
+        @. vslow = vs - vslow  # slow component at stage 1
+        let fbase = fs
+            advect!(ftmp, vs, h; fbase)
+        end
         tsub += h
 
         # Next advections: update "fast" velocity and advect from `ftmp`.
         for m ∈ 2:M
-            rhs!(vF, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
-            @. vF = vF + vS[1] # total velocity at this step
-            advect!(ftmp, vF, h; fbase = ftmp)
+            rhs!(vs, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
+            let fbase = ftmp
+                @. vs = vs + vslow  # total velocity at this step
+                advect!(ftmp, vs, h; fbase)
+            end
             tsub += h
         end
         @assert tsub ≈ t + dt/2
 
-        # Now vF contains the fast component at the final time of the auxiliary ODE.
+        # Now vs contains the fast component at the final time of the auxiliary ODE.
         # We want the slow component at that time.
-        rhs!(vS[2], ftmp, tsub, iter; component = Val(:slow))
+        rhs!(vs, ftmp, tsub, iter; component = Val(:slow))
+        @. vslow = 2 * vs - vslow  # total slow velocity for stage 2
     end
 
     # Stage 2
@@ -62,11 +69,12 @@ function _update_velocities!(
         # Solve auxiliary ODE in [t + dt/2, t + dt].
         @assert tsub ≈ t + dt/2
         h = (dt/2) / M
-        @. vS[2] = 2 * vS[2] - vS[1]  # total slow velocity in this range
         for m ∈ 1:M
-            rhs!(vF, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
-            @. vF = vF + vS[2]  # fast + slow velocity
-            advect!(ftmp, vF, h; fbase = ftmp)
+            rhs!(vs, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
+            let fbase = ftmp
+                @. vs = vs + vslow  # total velocity at this step
+                advect!(ftmp, vs, h; fbase)
+            end
             tsub += h
         end
         @assert tsub ≈ t + dt
