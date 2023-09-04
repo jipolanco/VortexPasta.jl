@@ -93,6 +93,7 @@ dt_factor(::RK4) = 1.5
 dt_factor(::DP5) = 1.5
 dt_factor(::SSPRK33) = 1.0
 dt_factor(::Euler) = 0.08
+dt_factor(::Midpoint) = 0.4
 
 dt_factor(::IMEXEuler) = 0.7
 dt_factor(::KenCarp3) = 1.4
@@ -156,6 +157,8 @@ function test_leapfrogging_rings(
     # Run simulation
     @time solve!(iter)
 
+    println(iter.to)
+
     # Check that the callback is called at the initial time
     @test first(times) == first(prob.tspan)
 
@@ -167,6 +170,9 @@ function test_leapfrogging_rings(
         if iseuler
             rtol_energy *= 100
             rtol_impulse *= 200
+        elseif scheme isa Midpoint
+            rtol_energy *= 2
+            rtol_impulse *= 2
         end
 
         energy_initial = first(energy_time)  # initial energy
@@ -259,8 +265,8 @@ end
         RK4(), DP5(), SSPRK33(),
         IMEXEuler(), KenCarp4(),
         KenCarp3(), Ascher343(),
-        Euler(),
         MultirateMidpoint(32),
+        Euler(), Midpoint(),
     )
 
     ##

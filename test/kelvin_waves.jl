@@ -65,6 +65,7 @@ dt_factor(::RK4) = 1.8    # this factor seems to give stability with RK4 (fails 
 dt_factor(::DP5) = 1.5    # I'd expect DP5 to allow a larger timestep than RK4, but that doesn't seem to be the case...
 dt_factor(::SSPRK33) = 1.2
 dt_factor(::Euler) = 0.12  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
+dt_factor(::Midpoint) = 0.4
 
 # IMEX-RK methods
 dt_factor(::IMEXEuler) = 0.6

@@ -33,6 +33,7 @@ When possible, names are the same as those used by [DifferentialEquations.jl sol
 
 ```@docs
 Euler
+Midpoint
 RK4
 SSPRK33
 DP5
