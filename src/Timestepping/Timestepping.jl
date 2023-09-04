@@ -511,6 +511,7 @@ function finalise_step!(iter::VortexFilamentSolver)
             # Remove filament and its associated vector of velocities
             popat!(fs, i)
             popat!(vs, i)
+            popat!(ψs, i)
         end
     end
 
