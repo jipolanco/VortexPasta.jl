@@ -10,3 +10,4 @@ with a smaller timestep than the slowly-evolving motions.
 abstract type MultirateScheme <: TemporalScheme end
 
 include("midpoint.jl")
+include("MRI-GARK-ERK33a.jl")

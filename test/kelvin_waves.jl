@@ -72,6 +72,8 @@ dt_factor(::IMEXEuler) = 0.6
 dt_factor(::KenCarp3) = 1.3
 dt_factor(::KenCarp4) = 2.2
 
+dt_factor(::SanduMRI33a) = 4.0
+
 function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,)
     Lx = Ly = Lz
     lines = [
@@ -284,7 +286,10 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
 end
 
 @testset "Kelvin waves" begin
-    schemes = (RK4(), KenCarp3())
+    schemes = (
+        RK4(), KenCarp3(),
+        SanduMRI33a(4),  # 4 substeps seems to be enough!
+    )
     @testset "Scheme: $scheme" for scheme ∈ schemes
         test_kelvin_waves(scheme; method = CubicSplineMethod())
     end
