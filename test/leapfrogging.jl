@@ -260,7 +260,7 @@ end
         IMEXEuler(), KenCarp4(),
         KenCarp3(), Ascher343(),
         Euler(),
-        MultirateMidpoint(),
+        MultirateMidpoint(32),
     )
 
     ##

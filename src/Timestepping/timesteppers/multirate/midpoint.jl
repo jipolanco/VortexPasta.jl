@@ -24,29 +24,31 @@ function _update_velocities!(
     dt = get_dt(iter)
 
     ftmp = fc[1]
-    vS = ntuple(j -> vc[j], Val(2))  # slow velocity at each stage
-    vF = vs  # reuse output velocity for storing "fast" velocity
+    vS = ntuple(j -> vc[j], Val(2))  # "slow" velocity at each stage
+    vF = vs  # reuse memory for "fast" velocity
 
-    @assert typeof(fs) === typeof(ftmp)  # ensure type stability
-    fbase = fs  # initial advection should start from latest filament positions `fs`
     tsub = t    # current time of ftmp
-
     M = scheme.nsubsteps  # number of Euler substeps
 
     # Stage 1
     let i = 1
-        rhs!(vF, fs, t, iter; component = Val(:fast))  # compute fast component at beginning of step
-        @. vS[1] = vs - vF  # slow component at stage 1
-
         # Solve auxiliary ODE in [t, t + dt/2].
         # Use Euler scheme with very small timestep.
         h = (dt/2) / M
-        for m ∈ 1:M
+
+        # Initial advection: we start from `fs` and use the total velocity at the
+        # beginning of the timestep.
+        rhs!(vS[2], fs, t, iter; component = Val(:fast))  # compute fast component at beginning of step (reusing vS[2])
+        @. vS[1] = vF - vS[2]  # slow component at stage 1 (note: vF === vs)
+        advect!(ftmp, vF, h; fbase = fs)
+        tsub += h
+
+        # Next advections: update "fast" velocity and advect from `ftmp`.
+        for m ∈ 2:M
+            rhs!(vF, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
             @. vF = vF + vS[1] # total velocity at this step
+            advect!(ftmp, vF, h; fbase = ftmp)
             tsub += h
-            advect!(ftmp, vF, h; fbase)
-            fbase = ftmp  # next advections will start from latest advection
-            rhs!(vF, ftmp, tsub, iter; component = Val(:fast))
         end
         @assert tsub ≈ t + dt/2
 
@@ -56,16 +58,16 @@ function _update_velocities!(
     end
 
     # Stage 2
-    let i = 2, v_slow = vS[2]
+    let i = 2
         # Solve auxiliary ODE in [t + dt/2, t + dt].
         @assert tsub ≈ t + dt/2
         h = (dt/2) / M
-        @. v_slow = 2 * vS[2] - vS[1]
+        @. vS[2] = 2 * vS[2] - vS[1]  # total slow velocity in this range
         for m ∈ 1:M
-            @. vF = vF + v_slow
-            tsub += h
+            rhs!(vF, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
+            @. vF = vF + vS[2]  # fast + slow velocity
             advect!(ftmp, vF, h; fbase = ftmp)
-            rhs!(vF, ftmp, tsub, iter; component = Val(:fast))  # TODO last evaluation is not needed!
+            tsub += h
         end
         @assert tsub ≈ t + dt
     end
