@@ -19,6 +19,14 @@ struct TemporalSchemeCache{
     scheme :: Scheme
     fc     :: NTuple{Nf, Filaments}
     vc     :: NTuple{Nv, Velocities}
+
+    function TemporalSchemeCache(scheme, fc::NTuple{Nf}, vc::NTuple{Nv}) where {Nf, Nv}
+        @assert nbuf_filaments(scheme) == Nf
+        @assert nbuf_velocities(scheme) == Nv
+        new{
+            typeof(scheme), Nf, Nv, eltype(fc), eltype(vc),
+        }(scheme, fc, vc)
+    end
 end
 
 scheme(c::TemporalSchemeCache) = c.scheme
@@ -32,10 +40,7 @@ function init_cache(
     Nv = nbuf_velocities(scheme)
     fc = ntuple(_ -> similar(fs), Val(Nf))
     vc = ntuple(_ -> similar(vs), Val(Nv))
-    TemporalSchemeCache{
-        typeof(scheme), Nf, Nv,
-        typeof(fs), typeof(vs),  # needed in case tuples are empty (case of Euler)
-    }(scheme, fc, vc)
+    TemporalSchemeCache(scheme, fc, vc)
 end
 
 function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
