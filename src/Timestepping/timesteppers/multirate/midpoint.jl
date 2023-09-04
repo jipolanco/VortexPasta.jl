@@ -27,10 +27,9 @@ function _update_velocities!(
     vS = ntuple(j -> vc[j], Val(2))  # slow velocity at each stage
     vF = vc[3]
 
-    for (f, g) ∈ zip(ftmp, fs)
-        copyto!(f, g)
-    end
-    tsub = t  # current time of ftmp
+    @assert typeof(fs) === typeof(ftmp)  # ensure type stability
+    fbase = fs  # initial advection should start from latest filament positions `fs`
+    tsub = t    # current time of ftmp
 
     M = scheme.nsubsteps  # number of Euler substeps
 
@@ -45,7 +44,8 @@ function _update_velocities!(
         for m ∈ 1:M
             @. vF = vF + vS[1] # total velocity at this step
             tsub += h
-            advect!(ftmp, vF, h; fbase = ftmp)
+            advect!(ftmp, vF, h; fbase)
+            fbase = ftmp  # next advections will start from latest advection
             rhs!(vF, ftmp, tsub, iter; component = Val(:fast))
         end
         @assert tsub ≈ t + dt/2
