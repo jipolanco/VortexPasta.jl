@@ -13,7 +13,7 @@ Contains buffers needed by a temporal scheme.
 struct TemporalSchemeCache{
         Scheme <: TemporalScheme,
         Nf, Nv,
-        Filaments <: VectorOfFilaments,
+        Filaments <: VectorOfVectors{<:Vec3, <:AbstractFilament},
         Velocities <: VectorOfVectors{<:Vec3},
     }
     scheme :: Scheme
@@ -26,11 +26,11 @@ can_change_dt(c::TemporalSchemeCache) = can_change_dt(scheme(c))
 
 function init_cache(
         scheme::TemporalScheme,
-        fs::VectorOfFilaments, vs::VectorOfVectors,
+        fs::VectorOfVectors, vs::VectorOfVectors,
     )
     Nf = nbuf_filaments(scheme)
     Nv = nbuf_velocities(scheme)
-    fc = ntuple(_ -> map(similar, fs), Val(Nf))
+    fc = ntuple(_ -> similar(fs), Val(Nf))
     vc = ntuple(_ -> similar(vs), Val(Nv))
     TemporalSchemeCache{
         typeof(scheme), Nf, Nv,

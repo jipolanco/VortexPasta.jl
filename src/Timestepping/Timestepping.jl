@@ -117,7 +117,7 @@ Some useful fields are:
 """
 struct VortexFilamentSolver{
         Problem <: VortexFilamentProblem,
-        Filaments <: VectorOfFilaments,
+        Filaments <: VectorOfVectors{<:Vec3, <:AbstractFilament},
         Velocities <: VectorOfVectors{<:Vec3},
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
@@ -163,8 +163,8 @@ either [`step!`](@ref) or [`solve!`](@ref).
 
 # Optional keyword arguments
 
-- `alias_u0 = true`: if `true` (default), the solver is allowed to modify the
-  initial vortex filaments.
+- `alias_u0 = false`: if `true`, the solver is allowed to modify the initial vortex
+  filaments.
 
 - `refinement = NoRefinement()`: criterion used for adaptive refinement of vortex
   filaments. See [`RefinementCriterion`](@ref) for a list of possible criteria.
@@ -186,7 +186,7 @@ either [`step!`](@ref) or [`solve!`](@ref).
 """
 function init(
         prob::VortexFilamentProblem, scheme::TemporalScheme;
-        alias_u0 = true,   # same as in OrdinaryDiffEq.jl
+        alias_u0 = false,   # same as in OrdinaryDiffEq.jl
         dt::Real,
         dtmin::Real = 0.0,
         refinement::RefinementCriterion = NoRefinement(),
@@ -195,11 +195,12 @@ function init(
         callback::F = identity,
         timer = TimerOutput("VortexFilament"),
     ) where {F <: Function}
-    (; fs, tspan,) = prob
+    (; tspan,) = prob
+    fs = VectorOfVectors(prob.fs)
     vs_data = [similar(nodes(f)) for f ∈ fs] :: AllFilamentVelocities
     vs = VectorOfVectors(vs_data)
     ψs = similar(vs)
-    fs_sol = alias_u0 ? fs : copy.(fs)
+    fs_sol = alias_u0 ? fs : copy(fs)
     cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
 
