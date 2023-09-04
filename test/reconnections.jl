@@ -154,8 +154,8 @@ end
         S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
         N = 96
         f = Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
-        fs = [f]
-        l_min = minimum_knot_increment(fs)
+        fs_init = [f]
+        l_min = minimum_knot_increment(fs_init)
 
         params_bs = let
             Ls = (1, 1, 1) .* 2π
@@ -173,8 +173,8 @@ end
         end
 
         tspan = (0.0, 1.0)  # ignored
-        @test_opt VortexFilamentProblem(fs, tspan, params_bs)
-        prob = @inferred VortexFilamentProblem(fs, tspan, params_bs)
+        @test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
+        prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
         adaptivity = @inferred (
             AdaptBasedOnSegmentLength(0.5) |
             AdaptBasedOnVelocity(l_min) |
@@ -198,6 +198,7 @@ end
             reconnect = ReconnectBasedOnDistance(1.25 * l_min),
             adaptivity,
         )
+        (; fs,) = iter
 
         times = [iter.time.t]
         energy = [@inferred kinetic_energy_from_streamfunction(iter)]
