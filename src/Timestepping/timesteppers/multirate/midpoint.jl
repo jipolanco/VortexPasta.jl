@@ -27,7 +27,9 @@ function _update_velocities!(
     vS = ntuple(j -> vc[j], Val(2))  # slow velocity at each stage
     vF = vc[3]
 
-    copy!(ftmp, fs)  # initial locations
+    for (f, g) ∈ zip(ftmp, fs)
+        copyto!(f, g)
+    end
     tsub = t  # current time of ftmp
 
     M = scheme.nsubsteps  # number of Euler substeps
