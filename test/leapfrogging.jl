@@ -12,6 +12,9 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Timestepping: VortexFilamentSolver
 
+using JET: @test_opt
+using FINUFFT: FINUFFT  # for JET only
+
 # Note: this is total energy within a unit cell.
 # One should normalise by the cell volume to get energy per unit mass [L²T⁻²].
 function kinetic_energy_from_streamfunction(
@@ -113,28 +116,25 @@ function test_leapfrogging_rings(
     energy_time = Float64[]
     line_length = Float64[]
     sum_of_squared_radii = Float64[]
-    output_vtkhdf = false
 
     function callback(iter)
-        (; fs, vs, ψs,) = iter
-        (; t, dt, nstep,) = iter.time
+        local (; fs, vs, ψs,) = iter
+        local (; t, dt, nstep,) = iter.time
         push!(times, t)
 
         # This can be useful for visualisation
-        if output_vtkhdf
-            write_vtkhdf("leapfrogging_$nstep.hdf", fs) do io
-                write_point_data(io, "Velocity", vs)
-                write_point_data(io, "Streamfunction", ψs)
-            end
-        end
+        # write_vtkhdf("leapfrogging_$nstep.hdf", fs) do io
+        #     write_point_data(io, "Velocity", vs)
+        #     write_point_data(io, "Streamfunction", ψs)
+        # end
 
-        E = @inferred kinetic_energy_from_streamfunction(iter)
-        L = @inferred total_vortex_length(fs)
+        E = kinetic_energy_from_streamfunction(iter)
+        L = total_vortex_length(fs)
 
         # R²_all = @inferred sum(vortex_ring_squared_radius, fs)  # inference randomly fails on Julia 1.10-beta1...
         R²_all = 0.0
         for f ∈ fs
-            R²_all += @inferred vortex_ring_squared_radius(f)
+            R²_all += vortex_ring_squared_radius(f)
         end
 
         # @show nstep, t, dt, E
@@ -143,6 +143,7 @@ function test_leapfrogging_rings(
         push!(sum_of_squared_radii, R²_all)
     end
 
+    @test_opt ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
     iter = @inferred init(
         prob, scheme;
         dt = 0.025,  # will be changed by the adaptivity
@@ -152,6 +153,8 @@ function test_leapfrogging_rings(
         refinement,
         callback,
     )
+
+    @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
 
     @info "Solving with $scheme..." dt_initial = iter.time.dt prob.tspan
 
