@@ -51,8 +51,8 @@ Estimate derivatives at discretisation points:
 ```jldoctest ClosedSplineFilament
 julia> f[4, Derivative(1)]
 3-element SVector{3, Float64} with indices SOneTo(3):
-  0.9090457394297016
- -0.727333461100651
+  0.9090457394297018
+ -0.7273334611006509
   0.0
 
 julia> f[4, Derivative(2)]

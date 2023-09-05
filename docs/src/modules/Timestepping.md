@@ -32,6 +32,7 @@ When possible, names are the same as those used by [DifferentialEquations.jl sol
 ### Explicit Runge–Kutta schemes
 
 ```@docs
+ExplicitScheme
 Euler
 Midpoint
 RK4
@@ -45,6 +46,7 @@ The following schemes treat local interactions implicitly and non-local interact
 This should hopefully allow for larger timesteps than fully explicit schemes.
 
 ```@docs
+ImplicitExplicitScheme
 IMEXEuler
 Ascher343
 KenCarp3
@@ -79,7 +81,6 @@ AdaptBasedOnVelocity
 ## Internals
 
 ```@docs
-ExplicitScheme
 TemporalSchemeCache
 ```
 
