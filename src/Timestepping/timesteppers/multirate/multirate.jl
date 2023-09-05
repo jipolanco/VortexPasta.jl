@@ -35,6 +35,37 @@ function _MRI_inner_add_forcing_term!(
     vs
 end
 
+# Run a single MRI-GARK stage.
+# This corresponds to solving an auxiliary ODE in the range (ts[i], ts[i + 1]).
+function _MRI_stage!(
+        ::Val{i}, rhs!::F, advect!::G, ftmp, vS::NTuple, ts, iter,
+        vs, cache_inner, Mfast, hfast, Γs,
+    ) where {i, F, G}
+    tsub = ts[i]
+    cdt = ts[i + 1] - ts[i]
+    vslow = ntuple(j -> vS[j], Val(i))
+    function rhs_inner!(vs, fs, t, iter)
+        rhs!(vs, fs, t, iter; component = Val(:fast))
+        if i === 1
+            @. vs = vs + vS[1]  # the first stage is always very simple
+        else
+            τ = (t - ts[i]) / cdt  # normalised time in [0, 1]
+            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
+        end
+    end
+    for _ ∈ 1:Mfast
+        rhs_inner!(vs, ftmp, tsub, iter)
+        update_velocities!(
+            rhs_inner!, advect!, cache_inner, iter;
+            resize_cache = false, t = tsub, dt = hfast, fs = ftmp, vs = vs,
+        )
+        advect!(ftmp, vs, hfast; fbase = ftmp)
+        tsub += hfast
+    end
+    @assert tsub ≈ ts[i + 1]
+    nothing
+end
+
 include("midpoint.jl")
 include("MRI-GARK-ERK33a.jl")
 include("MRI-GARK-ERK45a.jl")
