@@ -16,12 +16,9 @@ nbuf_velocities(::SSPRK33) = 1
 
 function _update_velocities!(
         ::SSPRK33, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        t = get_t(iter), dt = get_dt(iter), fs = iter.fs, vs = iter.vs,
     ) where {F <: Function, G <: Function}
-    (; fs, vs,) = iter
     (; fc, vc,) = cache
-
-    t = get_t(iter)
-    dt = get_dt(iter)
 
     ftmp = fc[1]
     vtmp = vc[1]

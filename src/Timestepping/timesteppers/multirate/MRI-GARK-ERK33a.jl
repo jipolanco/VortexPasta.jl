@@ -16,8 +16,10 @@ end
 
 nstages(::SanduMRI33a) = 3
 
-nbuf_filaments(::SanduMRI33a) = 2
-nbuf_velocities(::SanduMRI33a) = 3
+inner_method(::SanduMRI33a) = Midpoint()
+
+nbuf_filaments(::SanduMRI33a) = 1 + nbuf_filaments(inner_method(scheme))
+nbuf_velocities(scheme::SanduMRI33a) = nstages(scheme) + nbuf_velocities(inner_method(scheme))
 
 function _update_velocities!(
         scheme::SanduMRI33a, rhs!::F, advect!::G, cache, iter::AbstractSolver,
@@ -25,14 +27,20 @@ function _update_velocities!(
     (; fs, vs,) = iter
     (; fc, vc,) = cache
 
-    cache_inner = TemporalSchemeCache(Midpoint(), (fc[2],), ())
-
     t = get_t(iter)
     dt = get_dt(iter)
 
     s = nstages(scheme)
     ftmp = fc[1]
     vS = ntuple(j -> vc[j], Val(s))  # slow velocity at each stage
+
+    cache_inner = let met = inner_method(scheme)
+        TemporalSchemeCache(
+            inner_method(scheme),
+            ntuple(j -> fc[1 + j], Val(nbuf_filaments(met))),
+            ntuple(j -> vc[s + j], Val(nbuf_velocities(met))),
+        )
+    end
 
     tsub = t
     Mfast = scheme.nsubsteps

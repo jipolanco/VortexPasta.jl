@@ -67,10 +67,13 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
 end
 
 function update_velocities!(
-        rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver,
+        rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver;
+        resize_cache = true, kws...,
     ) where {F <: Function, G <: Function}
-    resize!(cache, iter.fs)  # in case the number of nodes (or filaments) has changed
-    _update_velocities!(scheme(cache), rhs!, advect!, cache, iter)
+    if resize_cache
+        resize!(cache, iter.fs)  # in case the number of nodes (or filaments) has changed
+    end
+    _update_velocities!(scheme(cache), rhs!, advect!, cache, iter; kws...)
 end
 
 include("explicit/explicit.jl")
