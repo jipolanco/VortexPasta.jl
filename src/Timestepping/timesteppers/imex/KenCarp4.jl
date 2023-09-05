@@ -139,11 +139,14 @@ function _update_velocities!(
 
     # Final advecting velocity
     @. vs =
-        bs[1] * (vE[1] + vI[1]) +
-        bs[2] * (vE[2] + vI[2]) +
-        bs[3] * (vE[3] + vI[3]) +
-        bs[4] * (vE[4] + vI[4]) +
-        bs[5] * (vE[5] + vI[5]) +
+        # FIXME inference fails when factorising the expression
+        # Maybe it's a problem with broadcasting of VectorOfVector's?
+        # bs[1] * (vE[1] + vI[1]) +
+        bs[1] * vE[1] + bs[1] * vI[1] +
+        bs[2] * vE[2] + bs[2] * vI[2] +
+        bs[3] * vE[3] + bs[3] * vI[3] +
+        bs[4] * vE[4] + bs[4] * vI[4] +
+        bs[5] * vE[5] + bs[5] * vI[5] +
         bs[6] * vs  # vs actually contains the full velocity at stage 4
 
     vs
