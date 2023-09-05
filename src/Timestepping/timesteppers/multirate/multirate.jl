@@ -5,9 +5,17 @@ Abstract type defining a multirate scheme.
 
 The idea is to treat different terms of the evolution equations with different timesteps
 (and possibly different integration schemes). Concretely, the fast dynamics is integrated
-with a smaller timestep than the slowly-evolving motions.
+with a smaller timestep (and a different *inner* scheme) than the slowly-evolving motions.
+
+In general, for a multirate scheme of order ``n``, it is recommended that the inner scheme
+has order ``n - 1``, and this is the default choice in the implemented schemes. For
+instance, the 3rd order [`SanduMRI33a`](@ref) scheme uses by default the explicit 2nd order
+[`Midpoint`](@ref) scheme for the fast dynamics. In practice, using higher orders for the
+inner scheme doesn't seem to lead to any gains.
 """
 abstract type MultirateScheme <: TemporalScheme end
+
+inner_scheme(scheme::MultirateScheme) = scheme.inner
 
 # Adds "forcing" term (from slow dynamics) to the RHS of the ODE for the fast dynamics.
 # The idea is to sum all terms by looping over all values just once. We do this using

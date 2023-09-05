@@ -17,8 +17,6 @@ end
 
 MultirateMidpoint(M::Integer) = MultirateMidpoint(Euler(), M)
 
-inner_scheme(scheme::MultirateMidpoint) = scheme.inner
-
 nbuf_filaments(scheme::MultirateMidpoint) = 1 + nbuf_filaments(inner_scheme(scheme))
 nbuf_velocities(scheme::MultirateMidpoint) = 1 + nbuf_velocities(inner_scheme(scheme))
 

@@ -18,7 +18,6 @@ end
 SanduMRI33a(M::Integer) = SanduMRI33a(Midpoint(), M)
 
 nstages(::SanduMRI33a) = 3
-inner_scheme(scheme::SanduMRI33a) = scheme.inner
 
 nbuf_filaments(scheme::SanduMRI33a) = 1 + nbuf_filaments(inner_scheme(scheme))
 nbuf_velocities(scheme::SanduMRI33a) = nstages(scheme) + nbuf_velocities(inner_scheme(scheme))

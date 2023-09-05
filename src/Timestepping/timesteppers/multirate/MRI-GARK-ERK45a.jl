@@ -18,7 +18,6 @@ end
 SanduMRI45a(M::Integer) = SanduMRI45a(SSPRK33(), M)
 
 nstages(::SanduMRI45a) = 5
-inner_scheme(scheme::SanduMRI45a) = scheme.inner
 
 nbuf_filaments(scheme::SanduMRI45a) = 1 + nbuf_filaments(inner_scheme(scheme))
 nbuf_velocities(scheme::SanduMRI45a) = nstages(scheme) + nbuf_velocities(inner_scheme(scheme))
