@@ -5,8 +5,8 @@ export MultirateMidpoint
 
 2nd order, two-stage multirate infinitesimal, generalised additive Runge–Kutta (MRI-GARK) scheme.
 
-Uses a first order Euler method for the fast component, with `nsubsteps` fast steps for
-each RK stage.
+Uses a first order Euler method for the fast component, with `nsubsteps` inner steps for
+each outer RK stage.
 
 This is the MRI-GARK-ERK22a method from Sandu, SIAM J. Numer. Anal. 57 (2019).
 """

@@ -5,8 +5,8 @@ export SanduMRI33a
 
 3rd order, 3-stage multirate infinitesimal, generalised additive Runge–Kutta (MRI-GARK) scheme.
 
-Uses a second order midpoint method for the fast component, with `nsubsteps` fast steps for
-each "slow" RK stage.
+Uses a second order midpoint method for the fast component, with `nsubsteps` inner steps for
+each outer RK stage.
 
 This is the MRI-GARK-ERK33a method from Sandu, SIAM J. Numer. Anal. 57 (2019).
 """
@@ -58,6 +58,7 @@ function _update_velocities!(
         0, -(2δ + 1)/2, 0,
         0, 0, δ,
     )
+    Γs = (Γ₀, Γ₁)
 
     ts = (t, t + cdt, t + 2cdt, t + dt)
 
@@ -88,23 +89,18 @@ function _update_velocities!(
     let i = 2
         # Solve auxiliary ODE in [t + dt/3, t + 2dt/3].
         @assert tsub ≈ ts[i]
+        vslow = ntuple(j -> vS[j], Val(i))
         for m ∈ 1:Mfast
             # Midpoint stage 1/2
             rhs!(vs, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
             τ = (tsub - ts[i]) / cdt  # normalised time in [0, 1]
-            @. vs = vs + (
-                (Γ₀[i, 1] + τ * Γ₁[i, 1]) * vS[1]
-              + (Γ₀[i, 2] + τ * Γ₁[i, 2]) * vS[2]
-            )
+            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
             advect!(fmid, vs, hfast/2; fbase)
 
             # Midpoint stage 2/2
             rhs!(vs, fmid, tsub + hfast/2, iter; component = Val(:fast))
             τ += hfast / (2 * cdt)
-            @. vs = vs + (
-                (Γ₀[i, 1] + τ * Γ₁[i, 1]) * vS[1]
-              + (Γ₀[i, 2] + τ * Γ₁[i, 2]) * vS[2]
-            )
+            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
             advect!(ftmp, vs, hfast; fbase)
 
             tsub += hfast
@@ -118,25 +114,18 @@ function _update_velocities!(
     let i = 3
         # Solve auxiliary ODE in [t + 2dt/3, t + dt].
         @assert tsub ≈ ts[i]
+        vslow = ntuple(j -> vS[j], Val(i))
         for m ∈ 1:Mfast
             # Midpoint stage 1/2
             rhs!(vs, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
             τ = (tsub - ts[i]) / cdt  # normalised time in [0, 1]
-            @. vs = vs + (  # total slow velocity
-                (Γ₀[i, 1] + τ * Γ₁[i, 1]) * vS[1]
-              + (Γ₀[i, 2] + τ * Γ₁[i, 2]) * vS[2]
-              + (Γ₀[i, 3] + τ * Γ₁[i, 3]) * vS[3]
-            )
+            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
             advect!(fmid, vs, hfast/2; fbase)
 
             # Midpoint stage 2/2
             rhs!(vs, fmid, tsub + hfast/2, iter; component = Val(:fast))
             τ += hfast / (2 * cdt)
-            @. vs = vs + (
-                (Γ₀[i, 1] + τ * Γ₁[i, 1]) * vS[1]
-              + (Γ₀[i, 2] + τ * Γ₁[i, 2]) * vS[2]
-              + (Γ₀[i, 3] + τ * Γ₁[i, 3]) * vS[3]
-            )
+            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
             advect!(ftmp, vs, hfast; fbase)
 
             tsub += hfast

@@ -524,8 +524,8 @@ function finalise_step!(iter::VortexFilamentSolver)
     # TODO make computation of ψ optional?
     fields = (velocity = vs, streamfunction = ψs,)
 
-    # Note: here we always include the LIA terms, even when using IMEX schemes.
-    # This must be taken into account by IMEX scheme implementations.
+    # Note: here we always include the LIA terms, even when using IMEX or multirate schemes.
+    # This must be taken into account by scheme implementations.
     rhs!(fields, fs, time.t, iter; component = Val(:full))
 
     # This is mainly useful for visualisation (and it's quite cheap).
