@@ -15,7 +15,7 @@ nbuf_filaments(::SSPRK33) = 1
 nbuf_velocities(::SSPRK33) = 1
 
 function _update_velocities!(
-        ::SSPRK33, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        ::SSPRK33, rhs!::F, advect!::G, cache, iter::AbstractSolver;
         t = get_t(iter), dt = get_dt(iter), fs = iter.fs, vs = iter.vs,
     ) where {F <: Function, G <: Function}
     (; fc, vc,) = cache
@@ -32,7 +32,7 @@ function _update_velocities!(
     advect!(ftmp, vs, dt/4; fbase = fs)  # same as advecting with vs/2 and dt/2
     rhs!(vtmp, ftmp, t + dt/2, iter)
 
-    # Final advecting velocity: v = (v[1] + 2 * v[2] + 4 * v[3]) / 6
+    # Final advecting velocity: v = (v[1] + v[2] + 4 * v[3]) / 6
     @. vs = (vs + 4 * vtmp) / 6
 
     vs

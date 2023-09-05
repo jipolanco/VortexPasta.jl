@@ -1,25 +1,27 @@
 export SanduMRI33a
 
 """
-    SanduMRI33a(nsubsteps::Int) <: MultirateScheme
+    SanduMRI33a([inner = Midpoint()], M::Int) <: MultirateScheme
 
 3rd order, 3-stage multirate infinitesimal, generalised additive Runge–Kutta (MRI-GARK) scheme.
 
-Uses a second order midpoint method for the fast component, with `nsubsteps` inner steps for
-each outer RK stage.
+Uses the explicit RK scheme `inner` for the fast component (by default a 2nd order midpoint
+scheme), with `M` inner steps for each outer RK stage.
 
 This is the MRI-GARK-ERK33a method from Sandu, SIAM J. Numer. Anal. 57 (2019).
 """
-struct SanduMRI33a <: MultirateScheme
+struct SanduMRI33a{InnerScheme <: ExplicitScheme} <: MultirateScheme
+    inner     :: InnerScheme
     nsubsteps :: Int
 end
 
+SanduMRI33a(M::Integer) = SanduMRI33a(Midpoint(), M)
+
 nstages(::SanduMRI33a) = 3
+inner_scheme(scheme::SanduMRI33a) = scheme.inner
 
-inner_method(::SanduMRI33a) = Midpoint()
-
-nbuf_filaments(::SanduMRI33a) = 1 + nbuf_filaments(inner_method(scheme))
-nbuf_velocities(scheme::SanduMRI33a) = nstages(scheme) + nbuf_velocities(inner_method(scheme))
+nbuf_filaments(scheme::SanduMRI33a) = 1 + nbuf_filaments(inner_scheme(scheme))
+nbuf_velocities(scheme::SanduMRI33a) = nstages(scheme) + nbuf_velocities(inner_scheme(scheme))
 
 function _update_velocities!(
         scheme::SanduMRI33a, rhs!::F, advect!::G, cache, iter::AbstractSolver,
@@ -34,11 +36,11 @@ function _update_velocities!(
     ftmp = fc[1]
     vS = ntuple(j -> vc[j], Val(s))  # slow velocity at each stage
 
-    cache_inner = let met = inner_method(scheme)
+    cache_inner = let scheme = inner_scheme(scheme)
         TemporalSchemeCache(
-            inner_method(scheme),
-            ntuple(j -> fc[1 + j], Val(nbuf_filaments(met))),
-            ntuple(j -> vc[s + j], Val(nbuf_velocities(met))),
+            scheme,
+            ntuple(j -> fc[1 + j], Val(nbuf_filaments(scheme))),
+            ntuple(j -> vc[s + j], Val(nbuf_velocities(scheme))),
         )
     end
 
@@ -81,10 +83,10 @@ function _update_velocities!(
             @. vs = vs + vS[1]  # add slow component
         end
         for m ∈ 1:Mfast
+            rhs_inner!(vs, ftmp, tsub, iter)
             update_velocities!(
                 rhs_inner!, advect!, cache_inner, iter;
-                resize_cache = false,
-                t = tsub, dt = hfast, fs = ftmp, vs = vs,
+                resize_cache = false, t = tsub, dt = hfast, fs = ftmp, vs = vs,
             )
             advect!(ftmp, vs, hfast; fbase)
             tsub += hfast
@@ -96,7 +98,7 @@ function _update_velocities!(
 
     # Stage 2
     let i = 2
-        # Solve auxiliary ODE in [t + dt/3, t + 2dt/3].
+        # Solve auxiliary ODE in [t + (i - 1) * dt/s, t + i * dt/s].
         @assert tsub ≈ ts[i]
         vslow = ntuple(j -> vS[j], Val(i))
         function rhs_inner!(vs, fs, t, iter)
@@ -105,10 +107,10 @@ function _update_velocities!(
             _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
         end
         for m ∈ 1:Mfast
+            rhs_inner!(vs, ftmp, tsub, iter)
             update_velocities!(
                 rhs_inner!, advect!, cache_inner, iter;
-                resize_cache = false,
-                t = tsub, dt = hfast, fs = ftmp, vs = vs,
+                resize_cache = false, t = tsub, dt = hfast, fs = ftmp, vs = vs,
             )
             advect!(ftmp, vs, hfast; fbase)
             tsub += hfast
@@ -120,7 +122,7 @@ function _update_velocities!(
 
     # Stage 3
     let i = 3
-        # Solve auxiliary ODE in [t + 2dt/3, t + dt].
+        # Solve auxiliary ODE in [t + (i - 1) * dt/s, t + i * dt/s].
         @assert tsub ≈ ts[i]
         vslow = ntuple(j -> vS[j], Val(i))
         function rhs_inner!(vs, fs, t, iter)
@@ -129,10 +131,10 @@ function _update_velocities!(
             _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
         end
         for m ∈ 1:Mfast
+            rhs_inner!(vs, ftmp, tsub, iter)
             update_velocities!(
                 rhs_inner!, advect!, cache_inner, iter;
-                resize_cache = false,
-                t = tsub, dt = hfast, fs = ftmp, vs = vs,
+                resize_cache = false, t = tsub, dt = hfast, fs = ftmp, vs = vs,
             )
             advect!(ftmp, vs, hfast; fbase)
             tsub += hfast

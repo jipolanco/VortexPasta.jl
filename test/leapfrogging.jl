@@ -15,8 +15,7 @@ using VortexPasta.Timestepping: VortexFilamentSolver
 # Note: this is total energy within a unit cell.
 # One should normalise by the cell volume to get energy per unit mass [L²T⁻²].
 function kinetic_energy_from_streamfunction(
-        ψs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament},
-        Γ::Real;
+        ψs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament}, Γ::Real;
         quad = nothing,
     )
     prefactor = Γ / 2
@@ -102,6 +101,7 @@ dt_factor(::Ascher343) = 1.4
 
 dt_factor(::MultirateMidpoint) = 0.8
 dt_factor(::SanduMRI33a) = 4.0
+dt_factor(::SanduMRI45a) = 4.0
 
 function test_leapfrogging_rings(
         prob, scheme;
@@ -220,6 +220,8 @@ function test_leapfrogging_rings(
         @test impulse_std < rtol_impulse
         @test isapprox(impulse_mean, 1; rtol = rtol_impulse)
     end
+
+    nothing
 end
 
 @testset "Leapfrogging vortex rings" begin
@@ -267,8 +269,9 @@ end
         IMEXEuler(), KenCarp4(),
         KenCarp3(), Ascher343(),
         Euler(), Midpoint(),
-        MultirateMidpoint(32),
-        SanduMRI33a(20),
+        MultirateMidpoint(Euler(), 32),
+        SanduMRI33a(Midpoint(), 12),
+        SanduMRI45a(SSPRK33(), 6),
     )
 
     ##
