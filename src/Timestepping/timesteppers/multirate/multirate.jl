@@ -11,3 +11,4 @@ abstract type MultirateScheme <: TemporalScheme end
 
 include("midpoint.jl")
 include("MRI-GARK-ERK33a.jl")
+include("MRI-GARK-ERK45a.jl")
