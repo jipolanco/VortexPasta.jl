@@ -51,6 +51,22 @@ KenCarp3
 KenCarp4
 ```
 
+### Multirate Runge–Kutta schemes
+
+These schemes are completely explicit, but use different timesteps (and
+different RK schemes) for the slow and fast dynamics. They are represented by
+an *outer* scheme of order ``n`` with a "large" timestep ``Δt`` for the slowly
+evolving terms (which are also expensive to compute), coupled to an *inner*
+scheme (typically of order ``n - 1``) with a "small" timestep ``Δt/M``.
+The implemented schemes are those described in [Sandu, SIAM J. Numer. Anal. 57 (2019)](https://doi.org/10.1137/18M1205492).
+
+```@docs
+MultirateScheme
+MultirateMidpoint
+SanduMRI33a
+SanduMRI45a
+```
+
 ## Adaptivity
 
 ```@docs
