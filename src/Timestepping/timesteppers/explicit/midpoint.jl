@@ -11,14 +11,11 @@ nbuf_filaments(::Midpoint) = 1
 nbuf_velocities(::Midpoint) = 0
 
 function _update_velocities!(
-        ::Midpoint, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        ::Midpoint, rhs!::F, advect!::G, cache, iter::AbstractSolver;
+        t = get_t(iter), dt = get_dt(iter),
+        fs = iter.fs, vs = iter.vs,
     ) where {F <: Function, G <: Function}
-    (; fs, vs,) = iter
     (; fc,) = cache
-
-    t = get_t(iter)
-    dt = get_dt(iter)
-
     ftmp = fc[1]
 
     # Stage 2

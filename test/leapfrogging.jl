@@ -268,7 +268,7 @@ end
         KenCarp3(), Ascher343(),
         Euler(), Midpoint(),
         MultirateMidpoint(32),
-        SanduMRI33a(12),
+        SanduMRI33a(20),
     )
 
     ##

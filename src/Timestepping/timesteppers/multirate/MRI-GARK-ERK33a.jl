@@ -25,12 +25,13 @@ function _update_velocities!(
     (; fs, vs,) = iter
     (; fc, vc,) = cache
 
+    cache_inner = TemporalSchemeCache(Midpoint(), (fc[2],), ())
+
     t = get_t(iter)
     dt = get_dt(iter)
 
     s = nstages(scheme)
     ftmp = fc[1]
-    fmid = fc[2]   # for midpoint method used for the fast component
     vS = ntuple(j -> vc[j], Val(s))  # slow velocity at each stage
 
     tsub = t
@@ -67,17 +68,17 @@ function _update_velocities!(
     let i = 1
         # Solve auxiliary ODE in [t, t + dt/3].
         @assert tsub ≈ ts[i]
+        function rhs_inner!(vs, fs, t, iter)
+            rhs!(vs, fs, t, iter; component = Val(:fast))  # compute fast component
+            @. vs = vs + vS[1]  # add slow component
+        end
         for m ∈ 1:Mfast
-            # Midpoint stage 1/2
-            rhs!(vs, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
-            @. vs = vs + vS[1]  # total velocity at this stage
-            advect!(fmid, vs, hfast/2; fbase)
-
-            # Midpoint stage 2/2
-            rhs!(vs, fmid, tsub + hfast/2, iter; component = Val(:fast))
-            @. vs = vs + vS[1]
+            update_velocities!(
+                rhs_inner!, advect!, cache_inner, iter;
+                resize_cache = false,
+                t = tsub, dt = hfast, fs = ftmp, vs = vs,
+            )
             advect!(ftmp, vs, hfast; fbase)
-
             tsub += hfast
         end
 
@@ -90,19 +91,18 @@ function _update_velocities!(
         # Solve auxiliary ODE in [t + dt/3, t + 2dt/3].
         @assert tsub ≈ ts[i]
         vslow = ntuple(j -> vS[j], Val(i))
+        function rhs_inner!(vs, fs, t, iter)
+            rhs!(vs, fs, t, iter; component = Val(:fast))
+            τ = (t - ts[i]) / cdt  # normalised time in [0, 1]
+            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
+        end
         for m ∈ 1:Mfast
-            # Midpoint stage 1/2
-            rhs!(vs, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
-            τ = (tsub - ts[i]) / cdt  # normalised time in [0, 1]
-            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
-            advect!(fmid, vs, hfast/2; fbase)
-
-            # Midpoint stage 2/2
-            rhs!(vs, fmid, tsub + hfast/2, iter; component = Val(:fast))
-            τ += hfast / (2 * cdt)
-            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
+            update_velocities!(
+                rhs_inner!, advect!, cache_inner, iter;
+                resize_cache = false,
+                t = tsub, dt = hfast, fs = ftmp, vs = vs,
+            )
             advect!(ftmp, vs, hfast; fbase)
-
             tsub += hfast
         end
 
@@ -115,19 +115,18 @@ function _update_velocities!(
         # Solve auxiliary ODE in [t + 2dt/3, t + dt].
         @assert tsub ≈ ts[i]
         vslow = ntuple(j -> vS[j], Val(i))
+        function rhs_inner!(vs, fs, t, iter)
+            rhs!(vs, fs, t, iter; component = Val(:fast))
+            τ = (t - ts[i]) / cdt  # normalised time in [0, 1]
+            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
+        end
         for m ∈ 1:Mfast
-            # Midpoint stage 1/2
-            rhs!(vs, ftmp, tsub, iter; component = Val(:fast))  # fast velocity at beginning of substep
-            τ = (tsub - ts[i]) / cdt  # normalised time in [0, 1]
-            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
-            advect!(fmid, vs, hfast/2; fbase)
-
-            # Midpoint stage 2/2
-            rhs!(vs, fmid, tsub + hfast/2, iter; component = Val(:fast))
-            τ += hfast / (2 * cdt)
-            _MRI_inner_add_forcing_term!(vs, vslow, Γs, τ)
+            update_velocities!(
+                rhs_inner!, advect!, cache_inner, iter;
+                resize_cache = false,
+                t = tsub, dt = hfast, fs = ftmp, vs = vs,
+            )
             advect!(ftmp, vs, hfast; fbase)
-
             tsub += hfast
         end
     end
