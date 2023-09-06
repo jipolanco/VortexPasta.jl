@@ -49,6 +49,32 @@ function solve_fixed_point!(
     ftmp
 end
 
+# Compute explicit part of the velocity at stage `i` of IMEX-RK scheme.
+# This basically computes
+#
+#   v_explicit = sum(AE[i, j] * vE[j] + AI[i, j] * vI[j]) for j ∈ 1:(i - 1)
+#
+# in an efficient way, by constructing a lazy broadcast expression and then iterating over
+# all arrays just once. In fact, it is the same as doing:
+#
+#   @. v_explicit = AE[i, 1] * vE[1] + AI[i, 1] * vI[i, 1] +
+#                   AE[i, 2] * vE[2] + AI[i, 2] * vI[i, 2] +
+#                   [...]                                  +
+#                   AE[i, i - 1] * vE[i - 1] + AI[i, i - 1] * vI[i, i - 1]
+#
+function _imex_explicit_rhs!(::Val{i}, v_explicit, (AE, AI), (vE, vI)) where {i}
+    bcs = ntuple(Val(i - 1)) do j
+        Base.broadcasted(
+            +,
+            Base.broadcasted(*, AE[i, j], vE[j]),
+            Base.broadcasted(*, AI[i, j], vI[j]),
+        )
+    end
+    bc = Base.broadcasted(+, bcs...)
+    Base.materialize!(v_explicit, bc)
+    v_explicit
+end
+
 include("Euler.jl")
 include("KenCarp3.jl")
 include("KenCarp4.jl")
