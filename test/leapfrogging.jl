@@ -278,7 +278,8 @@ end
         RK4(), DP5(), SSPRK33(),
         IMEXEuler(), KenCarp4(),
         KenCarp3(), Ascher343(),
-        Euler(), Midpoint(),
+        # Euler(),  # too slow!
+        Midpoint(),
         MultirateMidpoint(32),
         SanduMRI33a(12),
         SanduMRI45a(6),
