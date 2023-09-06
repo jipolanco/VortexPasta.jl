@@ -279,9 +279,9 @@ end
         IMEXEuler(), KenCarp4(),
         KenCarp3(), Ascher343(),
         Euler(), Midpoint(),
-        MultirateMidpoint(Euler(), 32),
-        SanduMRI33a(Midpoint(), 12),
-        SanduMRI45a(SSPRK33(), 6),
+        MultirateMidpoint(32),
+        SanduMRI33a(12),
+        SanduMRI45a(6),
     )
 
     ##
