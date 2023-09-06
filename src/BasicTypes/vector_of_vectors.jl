@@ -127,6 +127,6 @@ end
     (_get_single_vector(arg, i), _extract_vectors(i, args...)...)
 @inline _extract_vectors(i) = ()
 
-@inline _get_single_vector(bc_in::Broadcast.Broadcasted, i) = _extract_vectors(bc_in, i)
+@inline _get_single_vector(bc::Broadcast.Broadcasted, i) = _extract_vectors(bc, i)
 @inline _get_single_vector(xs::AbstractVector, i) = @inbounds xs[i]  # includes VectorOfVectors
 @inline _get_single_vector(x::Any, i) = x  # this can be the case of a scalar

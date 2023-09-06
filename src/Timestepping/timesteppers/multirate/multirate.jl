@@ -17,6 +17,10 @@ abstract type MultirateScheme <: TemporalScheme end
 
 inner_scheme(scheme::MultirateScheme) = scheme.inner
 
+function Base.show(io::IO, scheme::MultirateScheme)
+    print(io, nameof(typeof(scheme)), '(', scheme.inner, ", ", scheme.nsubsteps, ')')
+end
+
 # Adds "forcing" term (from slow dynamics) to the RHS of the ODE for the fast dynamics.
 # The idea is to sum all terms by looping over all values just once. We do this using
 # broadcasting, by first building a lazy Broadcasted object which can be then evaluated.

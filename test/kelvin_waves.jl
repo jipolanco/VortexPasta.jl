@@ -206,7 +206,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2Ï
         plt = lineplot(
             times, Enorm;
             xlabel = "Time", ylabel = "Energy",
-            title = "Kelvin waves / $(nameof(typeof(scheme)))",
+            title = "Kelvin waves / $scheme",
         )
         println(plt)
     end

@@ -53,18 +53,7 @@ function _update_velocities!(
     copy!(ftmp, fs)        # initial condition for stage 1
 
     # Coupling coefficients (divided by Δc = 1/3)
-    δ = -0.5
-    Γ₀ = 3 * SMatrix{3, 3}(
-        1/3, (-6δ - 7)/12, 0,          # column 1
-        0, (6δ + 11)/12, (6δ - 5)/12,  # column 2
-        0, 0, (3 - 2δ)/4,              # column 3
-    )
-    Γ₁ = 3 * SMatrix{3, 3}(
-        0, (2δ + 1)/2, 1/2,
-        0, -(2δ + 1)/2, 0,
-        0, 0, δ,
-    )
-    Γs = (Γ₀, Γ₁)
+    Γs = coupling_coefficients(scheme)
 
     ts = (t, t + cdt, t + 2cdt, t + dt)
 
@@ -92,4 +81,21 @@ function _update_velocities!(
     end
 
     vs
+end
+
+function coupling_coefficients(::SanduMRI33a)
+    δ = -1/2
+    # Note: the sum of each row is 1 (only satisfied for δ = -1/2!!).
+    Γ₀ = 3 * SMatrix{3, 3}(
+        1/3, (-6δ - 7)/12, 0,            # column 1
+        0,   (6δ + 11)/12, (6δ - 5)/12,  # column 2
+        0,   0,            (3 - 2δ)/4,   # column 3
+    )
+    # Note: the sum of each row is 0 (only satisfied for δ = -1/2!!).
+    Γ₁ = 3 * SMatrix{3, 3}(
+        0, (2δ + 1)/2, 1/2,
+        0, -(2δ + 1)/2, 0,
+        0, 0, δ,
+    )
+    (Γ₀, Γ₁)
 end

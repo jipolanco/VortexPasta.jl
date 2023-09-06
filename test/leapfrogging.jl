@@ -194,7 +194,7 @@ function test_leapfrogging_rings(
             plt = lineplot(
                 times, energy_normalised;
                 xlabel = "Time", ylabel = "Energy",
-                title = "Leapfrogging rings / $(nameof(typeof(scheme)))",
+                title = "Leapfrogging rings / $scheme",
             )
             println(plt)
         end
