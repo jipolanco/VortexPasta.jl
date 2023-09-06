@@ -144,12 +144,19 @@ function test_leapfrogging_rings(
     end
 
     @test_opt ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
+
+    l_min = minimum_knot_increment(prob.fs)
+    adaptivity =
+        AdaptBasedOnSegmentLength(dt_factor(scheme)) |
+        AdaptBasedOnVelocity(10 * l_min) |  # usually inactive; just for testing
+        AdaptBasedOnVelocity(20 * l_min)    # usually inactive; just for testing
+
     iter = @inferred init(
         prob, scheme;
         dt = 0.025,  # will be changed by the adaptivity
         dtmin = 0.001,
         alias_u0 = false,  # don't overwrite fs_init
-        adaptivity = AdaptBasedOnSegmentLength(dt_factor(scheme)),
+        adaptivity,
         refinement,
         callback,
     )
