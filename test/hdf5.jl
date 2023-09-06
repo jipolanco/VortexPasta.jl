@@ -58,15 +58,15 @@ end
 
         # Write results
         FilamentIO.write_vtkhdf(fname, fs; refinement) do io
-            FilamentIO.write_point_data(io, "velocity", vs)
-            FilamentIO.write_point_data(io, "streamfunction", ψs)
-            FilamentIO.write_field_data(io, "time", time)
-            FilamentIO.write_field_data(io, "info", info_str)
+            io["velocity"] = vs
+            io["streamfunction"] = ψs
+            io["time"] = time
+            io["info"] = info_str
         end
 
         function check_fields(io)
-            vs_read = @inferred FilamentIO.read_point_data(io, "velocity")
-            ψs_read = @inferred FilamentIO.read_point_data(io, "streamfunction")
+            vs_read = @inferred read(io, "velocity", PointData())
+            ψs_read = @inferred read(io, "streamfunction", PointData())
 
             @test vs == vs_read
             @test ψs == ψs_read
@@ -85,7 +85,7 @@ end
             ψs_alt = similar(ψs)
             @assert ψs_alt != ψs
             @assert ψs_alt isa VectorOfVectors
-            FilamentIO.read_point_data!(io, ψs_alt, "streamfunction")
+            read!(io, ψs_alt, "streamfunction")
             @test ψs_alt == ψs
             for (u, v) ∈ zip(ψs, ψs_alt)
                 @test v isa PaddedVector
@@ -93,10 +93,10 @@ end
             end
 
             # Test reading field data
-            time_read = @inferred FilamentIO.read_field_data(io, "time", Float64)  # this is a vector!
+            time_read = @inferred read(io, "time", FieldData(), Float64)  # this is a vector!
             @test time == only(time_read)
 
-            info_read = FilamentIO.read_field_data(io, "info", String)
+            info_read = read(io, "info", FieldData(), String)
             @test info_str == info_read
         end
 

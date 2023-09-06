@@ -154,7 +154,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
         local quad = nothing  # this doesn't seem to change much the results...
         E = kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad)
         # write_vtkhdf("kw_$nstep.hdf", fs; refinement = 4) do io
-        #     write_point_data(io, "Streamfunction", ψs)
+        #     io["Streamfunction"] = ψs
         # end
         push!(energy_time, E)
     end

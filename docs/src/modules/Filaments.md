@@ -28,8 +28,8 @@ end_to_end_offset
 minimum_knot_increment
 maximum_knot_increment
 nodes
-Base.getindex
-Base.setindex!
+Base.getindex(f::AbstractFilament, i::Int)
+Base.setindex!(f::AbstractFilament, v, i::Int)
 update_coefficients!
 fold_periodic!
 normalise_derivatives

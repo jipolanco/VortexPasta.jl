@@ -27,10 +27,10 @@ function test_infinite_line_io(fs, vs)
     T = eltype(eltype(eltype(fs)))
     @assert T <: AbstractFloat
     FilamentIO.write_vtkhdf("infinite.hdf", fs) do io
-        FilamentIO.write_point_data(io, "velocity", vs)
+        io["velocity"] = vs
     end
     function check_velocity(io)
-        vs_read = @inferred FilamentIO.read_point_data(io, "velocity")
+        vs_read = @inferred read(io, "velocity", FilamentIO.PointData())
         @test vs_read == vs
     end
     fs_read = @inferred FilamentIO.read_vtkhdf(check_velocity, "infinite.hdf", T, method)
