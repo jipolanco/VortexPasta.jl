@@ -65,6 +65,7 @@ Base.size(x::VectorOfVectors) = (length(x),)
 Base.similar(x::VectorOfVectors, ::Type{T}) where {T} =
     VectorOfVectors(map(v -> similar(v, T), x.u))
 Base.similar(x::VectorOfVectors{T}) where {T} = similar(x, T)
+Base.fill!(x::VectorOfVectors, value) = (foreach(y -> fill!(y, value), x); x)
 
 Base.IndexStyle(::Type{<:VectorOfVectors}) = IndexLinear()
 Base.IteratorSize(::Type{<:VectorOfVectors}) = Base.HasLength()
@@ -107,15 +108,25 @@ find_vov(bc::Broadcast.Broadcasted) = find_vov(bc.args...)
 find_vov(u::VectorOfVectors, args...) = u
 find_vov(::Any, args...) = find_vov(args...)
 
+# This custom implementation is there to make sure that broadcasting is done without
+# unnecessary allocations.
 function Base.copyto!(dest::VectorOfVectors, bc_in::Broadcast.Broadcasted{VectorOfVectorsStyle})
-    bc = Broadcast.flatten(bc_in)
-    for i ∈ eachindex(bc)
-        # This is to make sure that broadcasting is done without unnecessary allocations.
-        args = map(w -> _get_single_vector(w, i), bc.args)
-        broadcast!(bc.f, dest[i], args...)
+    for i ∈ eachindex(bc_in)
+        bc = _extract_vectors(bc_in, i)
+        Broadcast.materialize!(dest[i], bc)
     end
     dest
 end
 
-_get_single_vector(xs::AbstractVector, i) = @inbounds xs[i]  # includes VectorOfVector
-_get_single_vector(x::Any, i) = x  # this can be the case of a scalar
+@inline function _extract_vectors(bc::Broadcast.Broadcasted, i)
+    args = _extract_vectors(i, bc.args...)
+    Base.broadcasted(bc.f, args...)
+end
+
+@inline _extract_vectors(i, arg, args...) =
+    (_get_single_vector(arg, i), _extract_vectors(i, args...)...)
+@inline _extract_vectors(i) = ()
+
+@inline _get_single_vector(bc::Broadcast.Broadcasted, i) = _extract_vectors(bc, i)
+@inline _get_single_vector(xs::AbstractVector, i) = @inbounds xs[i]  # includes VectorOfVectors
+@inline _get_single_vector(x::Any, i) = x  # this can be the case of a scalar

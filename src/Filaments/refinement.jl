@@ -183,7 +183,7 @@ _nodes_to_refine!(::AbstractFilament, crit::NoRefinement) = crit.cache
 
 """
     RefineBasedOnCurvature <: RefinementCriterion
-    RefineBasedOnCurvature(ρℓ_max::Real, ρℓ_min = ρℓ_max / 2.5; ℓ_max = Inf)
+    RefineBasedOnCurvature(ρℓ_max::Real, ρℓ_min = ρℓ_max / 2.5; ℓ_min = 0.0, ℓ_max = Inf)
 
 Curvature-based refinement criterion.
 
@@ -209,9 +209,10 @@ removing nodes when repeatedly calling [`refine!`](@ref).
 For safety, two adjacent nodes will never be removed in a single call to `refine!`.
 
 Note that, when filaments are nearly straight, this may lead to the removal of most nodes.
-To limit this, set the keyword argument `ℓ_max` to some finite value
-determining the maximum length of a segment.
-This setting will be roughly respected when removing nodes.
+To limit this, set the keyword argument `ℓ_max` to some finite value determining the maximum
+length of a segment.
+Similarly, the keyword argument `ℓ_min` sets a lower limit for the distance between
+neighbouring nodes.
 """
 struct RefineBasedOnCurvature <: RefinementCriterion
     ρℓ_max :: Float64

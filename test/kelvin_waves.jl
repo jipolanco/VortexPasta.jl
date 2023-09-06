@@ -11,6 +11,9 @@ using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 
+using JET: @test_opt
+using FINUFFT: FINUFFT  # for JET only
+
 # Initialise nearly straight vortex line with sinusoidal perturbation.
 function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
     tlims = (0, 1)
@@ -27,37 +30,42 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
     (; x, y, Lz, sign, A, k, tlims, S, offset,)
 end
 
-function kinetic_energy_from_streamfunction(
-        ψs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament},
-        Γ::Real, Ls::NTuple{3};
-        quad = nothing,
-    )
+function _kinetic_energy_from_streamfunction(::Nothing, ψs_all, fs, Γ, Ls)
     prefactor = Γ / (2 * prod(Ls))
     E = zero(prefactor)
     for (f, ψs) ∈ zip(fs, ψs_all)
         ts = knots(f)
-        if quad === nothing
-            for i ∈ eachindex(segments(f))
-                ψ⃗ = ψs[i]
-                s⃗′ = f[i, Derivative(1)]
-                δt = (ts[i + 1] - ts[i - 1]) / 2
-                E += (ψ⃗ ⋅ s⃗′) * δt
-            end
-        else
-            Xoff = Filaments.end_to_end_offset(f)
-            ψ_int = Filaments.change_offset(similar(f), zero(Xoff))
-            copy!(nodes(ψ_int), ψs)
-            update_coefficients!(ψ_int; knots = knots(f))
-            for i ∈ eachindex(segments(f))
-                E += integrate(f, i, quad) do ζ
-                    ψ⃗ = ψ_int(i, ζ)
-                    s⃗′ = f(i, ζ, Derivative(1))
-                    ψ⃗ ⋅ s⃗′
-                end
+        for i ∈ eachindex(segments(f))
+            ψ⃗ = ψs[i]
+            s⃗′ = f[i, Derivative(1)]
+            δt = (ts[i + 1] - ts[i - 1]) / 2
+            E += (ψ⃗ ⋅ s⃗′) * δt
+        end
+    end
+    prefactor * E
+end
+
+function _kinetic_energy_from_streamfunction(quad, ψs_all, fs, Γ, Ls)
+    prefactor = Γ / (2 * prod(Ls))
+    E = zero(prefactor)
+    for (f, ψs) ∈ zip(fs, ψs_all)
+        Xoff = Filaments.end_to_end_offset(f)
+        ψ_int = Filaments.change_offset(similar(f), zero(Xoff))
+        copy!(nodes(ψ_int), ψs)
+        update_coefficients!(ψ_int; knots = knots(f))
+        for i ∈ eachindex(segments(f))
+            E += integrate(f, i, quad) do ζ
+                ψ⃗ = ψ_int(i, ζ)
+                s⃗′ = f(i, ζ, Derivative(1))
+                ψ⃗ ⋅ s⃗′
             end
         end
     end
-    E * prefactor
+    prefactor * E
+end
+
+function kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad = nothing)
+    _kinetic_energy_from_streamfunction(quad, ψs, fs, Γ, Ls)
 end
 
 # Explicit RK methods
@@ -65,11 +73,16 @@ dt_factor(::RK4) = 1.8    # this factor seems to give stability with RK4 (fails 
 dt_factor(::DP5) = 1.5    # I'd expect DP5 to allow a larger timestep than RK4, but that doesn't seem to be the case...
 dt_factor(::SSPRK33) = 1.2
 dt_factor(::Euler) = 0.12  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
+dt_factor(::Midpoint) = 0.4
 
 # IMEX-RK methods
 dt_factor(::IMEXEuler) = 0.6
 dt_factor(::KenCarp3) = 1.3
 dt_factor(::KenCarp4) = 2.2
+
+dt_factor(::MultirateMidpoint) = 4.0
+dt_factor(::SanduMRI33a) = 4.0
+dt_factor(::SanduMRI45a) = 5.0
 
 function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,)
     Lx = Ly = Lz
@@ -133,12 +146,16 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
     energy_time = Float64[]
 
     function callback(iter)
-        push!(times, iter.time.t)
+        (; t, nstep,) = iter.time
+        push!(times, t)
         push!(X_probe, iter.fs[1][jprobe])
-        (; fs, ψs,) = iter
-        (; Γ, Ls,) = iter.prob.p.common
-        quad = GaussLegendre(4)  # this doesn't seem to change much the results...
+        local (; fs, ψs,) = iter
+        local (; Γ, Ls,) = iter.prob.p.common
+        local quad = nothing  # this doesn't seem to change much the results...
         E = kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad)
+        # write_vtkhdf("kw_$nstep.hdf", fs; refinement = 4) do io
+        #     write_point_data(io, "Streamfunction", ψs)
+        # end
         push!(energy_time, E)
     end
 
@@ -153,7 +170,9 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
         callback,
     )
 
-    (; fs, vs,) = iter  # `vs` already contains the initial velocities
+    @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+
+    (; fs, vs, ψs,) = iter  # `vs` already contains the initial velocities
 
     # Analyse just one of the filaments.
     line = lines[1]
@@ -187,7 +206,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
         plt = lineplot(
             times, Enorm;
             xlabel = "Time", ylabel = "Energy",
-            title = "Kelvin waves / $(nameof(typeof(scheme)))",
+            title = "Kelvin waves / $scheme",
         )
         println(plt)
     end
@@ -283,7 +302,11 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
 end
 
 @testset "Kelvin waves" begin
-    schemes = (RK4(), KenCarp3())
+    schemes = (
+        RK4(), KenCarp3(),
+        SanduMRI33a(4),  # 4 substeps seems to be enough!
+        # SanduMRI45a(2),  # 2 substeps seems to be enough!
+    )
     @testset "Scheme: $scheme" for scheme ∈ schemes
         test_kelvin_waves(scheme; method = CubicSplineMethod())
     end

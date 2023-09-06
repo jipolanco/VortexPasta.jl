@@ -143,7 +143,8 @@ function test_filament_ring(args)
 
     @testset "Fold periodic" begin
         Ls = (2π, 3π, 4π)
-        forig = Filaments.fold_periodic!(copy(f), Ls)
+        forig = copy(f)
+        Filaments.fold_periodic!(forig, Ls)
         fc = copy(forig)
         for i ∈ eachindex(fc)
             fc[i] += 2 * Vec3(Ls)

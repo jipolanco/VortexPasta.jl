@@ -1,7 +1,7 @@
 using ..BasicTypes: Infinity
 
 """
-    fold_periodic!(Xs::AbstractVector{<:Vec3}, Ls::NTuple{3, Real})
+    fold_periodic!(Xs::AbstractVector{<:Vec3}, Ls::NTuple{3, Real}) -> Bool
 
 Fold a set of coordinates onto the main unit cell.
 
@@ -14,31 +14,37 @@ folding required by long-range computations.
 To avoid creating discontinuities in the filament, what this function actually
 does is to make sure that the *average* among all filament nodes is in the main
 unit cell.
+
+Returns `true` if coordinates were modified, `false` otherwise.
 """
 function fold_periodic!(Xs::AbstractVector{<:Vec3}, periods::NTuple{3, Real})
     Xmean = sum(Xs) ./ length(Xs)
     noffsets = map(_count_periodic_offsets, Xmean, periods)
     if all(==(0), noffsets)  # Xmean is already in the main unit cell
-        return Xs
+        return false
     end
     δx⃗ = oftype(Xmean, noffsets .* periods)
     for (i, x⃗) ∈ pairs(Xs)
         Xs[i] = x⃗ + δx⃗
     end
-    Xs
+    true
 end
 
 """
-    fold_periodic!(f::AbstractFilament, Ls)
+    fold_periodic!(f::AbstractFilament, Ls) -> Bool
 
 Fold filament nodes onto the main unit cell.
 
-Curve coefficients may need to be updated afterwards using [`update_coefficients!`](@ref).
+Returns `true` if coordinates were modified, `false` otherwise.
+
+If `true`, coefficients may need to be updated afterwards using [`update_coefficients!`](@ref).
 """
 function fold_periodic!(f::AbstractFilament, periods::NTuple{3, Real})
-    fold_periodic!(nodes(f), periods)
-    pad_periodic!(nodes(f))
-    f
+    modified = fold_periodic!(nodes(f), periods) :: Bool
+    if modified
+        pad_periodic!(nodes(f))
+    end
+    modified
 end
 
 function _count_periodic_offsets(x::Real, L::Real)

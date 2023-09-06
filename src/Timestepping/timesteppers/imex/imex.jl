@@ -4,12 +4,9 @@
 Abstract type defining an implicit-explicit (a.k.a. IMEX) temporal scheme.
 
 The defined IMEX schemes treat the localised induction approximation (LIA) term as implicit.
-This allows to increase the timestep, as it is the LIA term which imposes a small timestep
-in fully explicit schemes. Moreover, since this term is quite cheap to compute (compared to
+This may allow to increase the timestep, as it is the LIA term which imposes a small timestep
+in VFM simulations. Moreover, since this term is quite cheap to compute (compared to
 non-local interactions), treating it implicitly is not very expensive.
-
-Note that, for now, IMEX schemes are only guaranteed to work when vortex filaments are
-discretised using cubic splines.
 """
 abstract type ImplicitExplicitScheme <: TemporalScheme end
 
@@ -34,6 +31,7 @@ function solve_fixed_point!(
         cdt, fbase, aI_diag, nmax = 100, rtol = 1e-12,
     ) where {F <: Function, G <: Function}
     (; t, dt,) = iter.time
+    @assert fbase !== ftmp
     vdiff_prev = vector_difference(fbase, ftmp)
     n = 0
     while n < nmax
@@ -49,6 +47,32 @@ function solve_fixed_point!(
         vdiff_prev = vdiff
     end
     ftmp
+end
+
+# Compute explicit part of the velocity at stage `i` of IMEX-RK scheme.
+# This basically computes
+#
+#   v_explicit = sum(AE[i, j] * vE[j] + AI[i, j] * vI[j]) for j ∈ 1:(i - 1)
+#
+# in an efficient way, by constructing a lazy broadcast expression and then iterating over
+# all arrays just once. In fact, it is the same as doing:
+#
+#   @. v_explicit = AE[i, 1] * vE[1] + AI[i, 1] * vI[i, 1] +
+#                   AE[i, 2] * vE[2] + AI[i, 2] * vI[i, 2] +
+#                   [...]                                  +
+#                   AE[i, i - 1] * vE[i - 1] + AI[i, i - 1] * vI[i, i - 1]
+#
+function _imex_explicit_rhs!(::Val{i}, v_explicit, (AE, AI), (vE, vI)) where {i}
+    bcs = ntuple(Val(i - 1)) do j
+        Base.broadcasted(
+            +,
+            Base.broadcasted(*, AE[i, j], vE[j]),
+            Base.broadcasted(*, AI[i, j], vI[j]),
+        )
+    end
+    bc = Base.broadcasted(+, bcs...)
+    Base.materialize!(v_explicit, bc)
+    v_explicit
 end
 
 include("Euler.jl")

@@ -117,7 +117,7 @@ Some useful fields are:
 """
 struct VortexFilamentSolver{
         Problem <: VortexFilamentProblem,
-        Filaments <: VectorOfFilaments,
+        Filaments <: VectorOfVectors{<:Vec3, <:AbstractFilament},
         Velocities <: VectorOfVectors{<:Vec3},
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
@@ -163,8 +163,8 @@ either [`step!`](@ref) or [`solve!`](@ref).
 
 # Optional keyword arguments
 
-- `alias_u0 = true`: if `true` (default), the solver is allowed to modify the
-  initial vortex filaments.
+- `alias_u0 = false`: if `true`, the solver is allowed to modify the initial vortex
+  filaments.
 
 - `refinement = NoRefinement()`: criterion used for adaptive refinement of vortex
   filaments. See [`RefinementCriterion`](@ref) for a list of possible criteria.
@@ -186,7 +186,7 @@ either [`step!`](@ref) or [`solve!`](@ref).
 """
 function init(
         prob::VortexFilamentProblem, scheme::TemporalScheme;
-        alias_u0 = true,   # same as in OrdinaryDiffEq.jl
+        alias_u0 = false,   # same as in OrdinaryDiffEq.jl
         dt::Real,
         dtmin::Real = 0.0,
         refinement::RefinementCriterion = NoRefinement(),
@@ -195,11 +195,12 @@ function init(
         callback::F = identity,
         timer = TimerOutput("VortexFilament"),
     ) where {F <: Function}
-    (; fs, tspan,) = prob
+    (; tspan,) = prob
+    fs = VectorOfVectors(prob.fs)
     vs_data = [similar(nodes(f)) for f ∈ fs] :: AllFilamentVelocities
     vs = VectorOfVectors(vs_data)
     ψs = similar(vs)
-    fs_sol = alias_u0 ? fs : copy.(fs)
+    fs_sol = alias_u0 ? fs : copy(fs)
     cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
 
@@ -220,7 +221,7 @@ function init(
         advect!, rhs!,
     )
 
-    after_advection!(iter)
+    finalise_step!(iter)
 
     iter
 end
@@ -340,34 +341,7 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
     n
 end
 
-function _advect_filament_at_end_of_step!(
-        f::AbstractFilament, vs::VectorOfVelocities, dt::Real;
-        L_fold, refinement,
-    )
-    Xs = nodes(f)
-    @assert Filaments.check_nodes(Bool, f)  # filament has enough nodes
-    @assert eachindex(Xs) == eachindex(vs)
-    for i ∈ eachindex(Xs, vs)
-        @inbounds Xs[i] = Xs[i] + dt * vs[i]
-    end
-
-    if L_fold !== nothing
-        Filaments.fold_periodic!(f, L_fold)
-    end
-
-    # Coefficients must be computed before refining
-    Filaments.update_coefficients!(f)
-    refinement_steps = refine!(f, refinement)
-    if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
-        return nothing
-    elseif refinement_steps > 0  # refinement was performed
-        resize!(vs, length(f))
-    end
-
-    f
-end
-
-function _advect_filament_from_rk_stage(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
+function _advect_filament!(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
     Xs = nodes(f)
     Ys = nodes(fbase)
     for i ∈ eachindex(Xs, Ys, vs)
@@ -377,6 +351,48 @@ function _advect_filament_from_rk_stage(f::T, fbase::T, vs, dt) where {T <: Abst
     # recomputed from new locations).
     Filaments.update_coefficients!(f; knots = knots(fbase))
     nothing
+end
+
+function _advect_filament!(
+        f::AbstractFilament, fbase::Nothing, vs::VectorOfVelocities, dt::Real,
+    )
+    Xs = nodes(f)
+    for i ∈ eachindex(Xs, vs)
+        @inbounds Xs[i] = Xs[i] + dt * vs[i]
+    end
+    Filaments.update_coefficients!(f)  # note: in this case we recompute the knots
+    nothing
+end
+
+# This should be called right after positions have been updated by the timestepper, but
+# before reconnections happen.
+# Here `fields` is a tuple containing the fields associated to each filament node.
+# Usually this is `(vs, ψs)`, which contain the velocities and streamfunction values at all
+# filament nodes.
+function after_advection!(fs, fields::Tuple; kws...)
+    @inbounds for i ∈ reverse(eachindex(fs))
+        fields_i = map(vs -> @inbounds(vs[i]), fields)  # typically this is (vs[i], ψs[i])
+        ret = _after_advection!(fs[i], fields_i; kws...)
+        if ret === nothing
+            # This should only happen if the filament was "refined" (well, unrefined in this case).
+            popat!(fs, i)
+            map(vs -> popat!(vs, i), fields)
+        end
+    end
+    fs
+end
+
+function _after_advection!(f::AbstractFilament, fields::Tuple; L_fold, refinement,)
+    if Filaments.fold_periodic!(f, L_fold)
+        Filaments.update_coefficients!(f)  # only called if nodes were modified by fold_periodic!
+    end
+    refinement_steps = refine!(f, refinement)
+    if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
+        return nothing
+    elseif refinement_steps > 0  # refinement was performed
+        map(vs -> resize!(vs, length(f)), fields)
+    end
+    f
 end
 
 # The possible values of fbase are:
@@ -389,14 +405,9 @@ advect_filaments!(fs, vs, dt; fbase = nothing, kws...) =
     _advect_filaments!(fs, fbase, vs, dt; kws...)
 
 # Variant called at the end of a timestep.
-function _advect_filaments!(fs, fbase::Nothing, vs, dt; kws...)
-    for i ∈ reverse(eachindex(fs, vs))
-        ret = _advect_filament_at_end_of_step!(fs[i], vs[i], dt; kws...)
-        if ret === nothing
-            # This should only happen if the filament was "refined" (well, unrefined in this case).
-            popat!(fs, i)
-            popat!(vs, i)
-        end
+function _advect_filaments!(fs, fbase::Nothing, vs, dt)
+    for i ∈ eachindex(fs, vs)
+        @inbounds _advect_filament!(fs[i], nothing, vs[i], dt)
     end
     fs
 end
@@ -404,7 +415,7 @@ end
 # Variant called from within RK stages.
 function _advect_filaments!(fs::T, fbase::T, vs, dt) where {T}
     for i ∈ eachindex(fs, fbase, vs)
-        @inbounds _advect_filament_from_rk_stage(fs[i], fbase[i], vs[i], dt)
+        @inbounds _advect_filament!(fs[i], fbase[i], vs[i], dt)
     end
     fs
 end
@@ -435,7 +446,7 @@ end
 Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
-    (; fs, vs, prob, time, dtmin, refinement, advect!, rhs!, to,) = iter
+    (; fs, vs, ψs, prob, time, dtmin, refinement, advect!, rhs!, to,) = iter
     t_end = iter.prob.tspan[2]
     if time.dt < dtmin && time.t + time.dt < t_end
         error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
@@ -446,41 +457,44 @@ function step!(iter::VortexFilamentSolver)
         rhs!, advect!, iter.cache_timestepper, iter,
     )
     L_fold = periods(prob.p)  # box size (periodicity)
-    advect!(fs, vs, time.dt; L_fold, refinement)
+    advect!(fs, vs, time.dt)
+    after_advection!(fs, (vs, ψs); L_fold, refinement)
     time.t += time.dt
     time.nstep += 1
-    after_advection!(iter)
+    finalise_step!(iter)
     iter
 end
 
-@inline function reconnect_callback((fs, vs), f, i, mode::Symbol)
+# Here fields is usually (vs, ψs)
+@inline function reconnect_callback((fs, fields), f, i, mode::Symbol)
     if mode === :removed
         @debug lazy"Filament was removed at index $i"
-        @assert i ≤ lastindex(vs) == lastindex(fs) + 1
-        popat!(vs, i)
+        # @assert i ≤ lastindex(fields[1]) == lastindex(fs) + 1
+        map(vs -> popat!(vs, i), fields)
     elseif mode === :appended
         @debug lazy"Filament was appended at index $i"
         @assert f === fs[i]
-        @assert i == lastindex(vs) + 1
-        push!(vs, similar(first(vs), length(f)))
+        # @assert i == lastindex(fields[1]) + 1
+        map(vs -> push!(vs, similar(first(vs), length(f))), fields)
     elseif mode === :modified
         @debug lazy"Filament was modified at index $i"
         @assert f === fs[i]
-        @assert i ≤ lastindex(fs) == lastindex(vs)
-        resize!(vs[i], length(f))
+        # @assert i ≤ lastindex(fs) == lastindex(fields[1])
+        map(vs -> resize!(vs[i], length(f)), fields)
     end
     nothing
 end
 
 function reconnect!(iter::VortexFilamentSolver)
-    (; vs, fs, reconnect,) = iter
+    (; vs, ψs, fs, reconnect,) = iter
+    fields = (vs, ψs)
     Filaments.reconnect!(reconnect, fs) do f, i, mode
-        reconnect_callback((fs, vs), f, i, mode)
+        reconnect_callback((fs, fields), f, i, mode)
     end :: Int  # returns the number of reconnections
 end
 
 # Called whenever filament positions have just been initialised or updated.
-function after_advection!(iter::VortexFilamentSolver)
+function finalise_step!(iter::VortexFilamentSolver)
     (; vs, ψs, fs, time, callback, adaptivity, rhs!, to,) = iter
 
     # Perform reconnections, possibly changing the number of filaments.
@@ -495,8 +509,10 @@ function after_advection!(iter::VortexFilamentSolver)
     for i ∈ reverse(eachindex(fs))
         if !Filaments.check_nodes(Bool, fs[i])
             # Remove filament and its associated vector of velocities
+            # @info lazy"Removing filament with $(length(fs[i])) nodes"
             popat!(fs, i)
             popat!(vs, i)
+            popat!(ψs, i)
         end
     end
 
@@ -505,16 +521,11 @@ function after_advection!(iter::VortexFilamentSolver)
     # Update velocities and streamfunctions to the next timestep (and first RK step).
     # Note that we only compute the streamfunction at full steps, and not in the middle of
     # RK substeps.
-    # At this point, the size of the velocity vectors `vs` is expected to be correct (as it
-    # is updated during timestepping), but that's not the case for the streamfunction, so we
-    # resize it if needed.
     # TODO make computation of ψ optional?
-    resize_container!(ψs, fs)
-    resize_contained_vectors!(ψs, fs)
     fields = (velocity = vs, streamfunction = ψs,)
 
-    # Note: here we always include the LIA terms, even when using IMEX schemes.
-    # This must be taken into account by IMEX scheme implementations.
+    # Note: here we always include the LIA terms, even when using IMEX or multirate schemes.
+    # This must be taken into account by scheme implementations.
     rhs!(fields, fs, time.t, iter; component = Val(:full))
 
     # This is mainly useful for visualisation (and it's quite cheap).

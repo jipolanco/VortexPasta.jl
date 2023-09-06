@@ -1,7 +1,15 @@
 using VortexPasta.BasicTypes: VectorOfVectors
+using JET: @test_opt
 using Test
 
+function broadcast_factorised!(ws, us, vs)
+    fill!(ws, 0)
+    @. ws = 3 * (us + vs) + 2 * us
+    ws
+end
+
 @testset "VectorOfVectors" begin
+    ##
     data = [rand(n) for n ∈ 1:4]
     us = @inferred VectorOfVectors(data)
 
@@ -49,5 +57,11 @@ using Test
         @test typeof(ws) === typeof(us)
         @. ws = vs + us
         @test ws == vs + us
+
+        # Check that there are no inference issues and no unwanted allocations.
+        @test_opt broadcast_factorised!(ws, us, vs)
+        broadcast_factorised!(ws, us, vs)  # run once just to be sure that everything is compiled
+        @test 0 == @allocated broadcast_factorised!(ws, us, vs)
     end
+    ##
 end

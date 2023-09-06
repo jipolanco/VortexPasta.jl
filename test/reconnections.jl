@@ -10,6 +10,7 @@ using Rotations
 using UnicodePlots: lineplot
 using LinearAlgebra: norm, I, ⋅
 using JET: @test_opt
+using FINUFFT: FINUFFT  # for JET only
 
 # Note: this is total energy within a unit cell.
 # One should normalise by the cell volume to get energy per unit mass [L²T⁻²].
@@ -106,6 +107,95 @@ function no_jumps(f::AbstractFilament, lmax)
     maximum(norm, diff(Xs)) < lmax
 end
 
+trefoil_scheme_dt(::Any) = trefoil_scheme_dt(RK4())  # default
+trefoil_scheme_dt(::RK4) = 1
+
+function test_trefoil_knot_reconnection(scheme = RK4())
+    S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
+    N = 96
+    f = Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
+    fs_init = [f]
+    l_min = minimum_knot_increment(fs_init)
+
+    params_bs = let
+        Ls = (1, 1, 1) .* 2π
+        Ns = (1, 1, 1) .* 32
+        kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
+        α = kmax / 5
+        rcut = 4 / α
+        ParamsBiotSavart(;
+            Γ = 2.0, α, a = 1e-6, Δ = 1/4, rcut, Ls, Ns,
+            backend_short = NaiveShortRangeBackend(),
+            backend_long = FINUFFTBackend(),
+            quadrature_short = GaussLegendre(4),
+            quadrature_long = GaussLegendre(4),
+        )
+    end
+
+    tspan = (0.0, 1.0)  # ignored
+    @test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
+    prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
+    reconnect = ReconnectBasedOnDistance(1.5 * l_min)
+    iter = @inferred init(
+        prob, scheme;
+        dt = 0.005 * trefoil_scheme_dt(scheme),
+        refinement = RefineBasedOnSegmentLength(0.75 * l_min),
+        # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
+        reconnect,
+        adaptivity = NoAdaptivity(),
+    )
+    (; fs,) = iter
+
+    times = [iter.time.t]
+    energy = [@inferred kinetic_energy_from_streamfunction(iter)]
+
+    # TODO check that energy decreases? (currently, it slightly increases before the
+    # reconnection...)
+    Nf_prev = length(fs)
+    n_reconnect = 0
+    t_reconnect = 0.0
+    @time for n = 2:500  # corresponds to the index in `times` array
+        Timestepping.step!(iter)
+        (; t, dt,) = iter.time
+        push!(times, t)
+        push!(energy, kinetic_energy_from_streamfunction(iter))
+        Nf = length(fs)
+
+        # let s = nameof(typeof(scheme))
+        #     write_vtkhdf("trefoil_$(s)_$(n).hdf", fs; refinement = 8) do io
+        #         write_point_data(io, "Velocity", iter.vs)
+        #     end
+        # end
+
+        # First self-reconnection.
+        if n_reconnect == 0 && Nf == 2
+            t_reconnect = t
+            n_reconnect = n
+        end
+
+        Nf_prev = Nf
+
+        t > 1.95 && break
+    end
+
+    @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+
+    @show t_reconnect
+    @test n_reconnect > 0
+    @test 1.65 < t_reconnect < 1.75  # for now this depends on a lot parameters...
+    @test last(energy) < first(energy)
+
+    let
+        plt = lineplot(
+            times, energy;
+            xlabel = "Time", ylabel = "Energy", title = "Trefoil knot / $scheme",
+        )
+        println(plt)
+    end
+
+    nothing
+end
+
 @testset "Reconnections" begin
     @testset "Static self-reconnection: figure-eight knot" begin
         Az = 0.001
@@ -149,86 +239,10 @@ end
     end
 
     @testset "Dynamic: trefoil knot" begin
-        ##
-        S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
-        N = 96
-        f = Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
-        fs = [f]
-        l_min = minimum_knot_increment(fs)
-
-        params_bs = let
-            Ls = (1, 1, 1) .* 2π
-            Ns = (1, 1, 1) .* 32
-            kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
-            α = kmax / 5
-            rcut = 4 / α
-            ParamsBiotSavart(;
-                Γ = 2.0, α, a = 1e-6, Δ = 1/4, rcut, Ls, Ns,
-                backend_short = NaiveShortRangeBackend(),
-                backend_long = FINUFFTBackend(),
-                quadrature_short = GaussLegendre(4),
-                quadrature_long = GaussLegendre(4),
-            )
+        schemes = (RK4(), SanduMRI33a(8))
+        @testset "Scheme: $scheme" for scheme ∈ schemes
+            test_trefoil_knot_reconnection(scheme)
         end
-
-        tspan = (0.0, 1.0)  # ignored
-        prob = @inferred VortexFilamentProblem(fs, tspan, params_bs)
-        adaptivity = @inferred (
-            AdaptBasedOnSegmentLength(0.5) |
-            AdaptBasedOnVelocity(l_min) |
-            AdaptBasedOnVelocity(2 * l_min)  # this one doesn't do anything, it's just for testing
-        )
-        iter = @inferred init(
-            prob, RK4();
-            dt = 1.0,  # will be changed by the adaptivity
-            dtmin = 1e-5,
-            refinement = RefineBasedOnSegmentLength(0.75 * l_min),
-            # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
-            reconnect = ReconnectBasedOnDistance(1.25 * l_min),
-            adaptivity,
-        )
-
-        times = [iter.time.t]
-        energy = [@inferred kinetic_energy_from_streamfunction(iter)]
-
-        # TODO check that energy decreases? (currently, it slightly increases before the
-        # reconnection...)
-        Nf_prev = length(fs)
-        n_reconnect = 0
-        t_reconnect = 0.0
-        @time for n = 2:500  # corresponds to the index in `times` array
-            Timestepping.step!(iter)
-            (; t, dt,) = iter.time
-            push!(times, t)
-            push!(energy, kinetic_energy_from_streamfunction(iter))
-            Nf = length(fs)
-
-            # write_vtkhdf("trefoil_$n.hdf", fs; refinement = 8) do io
-            #     write_point_data(io, "Velocity", iter.vs)
-            # end
-
-            # First self-reconnection.
-            if n_reconnect == 0 && Nf == 2
-                t_reconnect = t
-                n_reconnect = n
-            end
-
-            Nf_prev = Nf
-
-            t > 1.95 && break
-        end
-
-        @show t_reconnect
-        @test n_reconnect > 0
-        @test 1.7 < t_reconnect < 1.8  # for now this depends on a lot parameters...
-        @test last(energy) < first(energy)
-
-        let
-            plt = lineplot(times, energy; xlabel = "Time", ylabel = "Energy", title = "Trefoil knot")
-            println(plt)
-        end
-
-        ##
     end
 
     @testset "Static: antiparallel rings" begin

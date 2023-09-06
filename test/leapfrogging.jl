@@ -12,11 +12,13 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Timestepping: VortexFilamentSolver
 
+using JET: @test_opt
+using FINUFFT: FINUFFT  # for JET only
+
 # Note: this is total energy within a unit cell.
 # One should normalise by the cell volume to get energy per unit mass [L²T⁻²].
 function kinetic_energy_from_streamfunction(
-        ψs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament},
-        Γ::Real;
+        ψs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament}, Γ::Real;
         quad = nothing,
     )
     prefactor = Γ / 2
@@ -93,10 +95,16 @@ dt_factor(::RK4) = 1.5
 dt_factor(::DP5) = 1.5
 dt_factor(::SSPRK33) = 1.0
 dt_factor(::Euler) = 0.08
+dt_factor(::Midpoint) = 0.4
+
 dt_factor(::IMEXEuler) = 0.7
 dt_factor(::KenCarp3) = 1.4
 dt_factor(::KenCarp4) = 2.8
 dt_factor(::Ascher343) = 1.4
+
+dt_factor(::MultirateMidpoint) = 0.8
+dt_factor(::SanduMRI33a) = 4.0
+dt_factor(::SanduMRI45a) = 4.0
 
 function test_leapfrogging_rings(
         prob, scheme;
@@ -108,28 +116,25 @@ function test_leapfrogging_rings(
     energy_time = Float64[]
     line_length = Float64[]
     sum_of_squared_radii = Float64[]
-    output_vtkhdf = false
 
     function callback(iter)
-        (; fs, vs, ψs,) = iter
-        (; t, dt, nstep,) = iter.time
+        local (; fs, vs, ψs,) = iter
+        local (; t, dt, nstep,) = iter.time
         push!(times, t)
 
         # This can be useful for visualisation
-        if output_vtkhdf
-            write_vtkhdf("leapfrogging_$nstep.hdf", fs) do io
-                write_point_data(io, "Velocity", vs)
-                write_point_data(io, "Streamfunction", ψs)
-            end
-        end
+        # write_vtkhdf("leapfrogging_$nstep.hdf", fs) do io
+        #     write_point_data(io, "Velocity", vs)
+        #     write_point_data(io, "Streamfunction", ψs)
+        # end
 
-        E = @inferred kinetic_energy_from_streamfunction(iter)
-        L = @inferred total_vortex_length(fs)
+        E = kinetic_energy_from_streamfunction(iter)
+        L = total_vortex_length(fs)
 
         # R²_all = @inferred sum(vortex_ring_squared_radius, fs)  # inference randomly fails on Julia 1.10-beta1...
         R²_all = 0.0
         for f ∈ fs
-            R²_all += @inferred vortex_ring_squared_radius(f)
+            R²_all += vortex_ring_squared_radius(f)
         end
 
         # @show nstep, t, dt, E
@@ -138,20 +143,32 @@ function test_leapfrogging_rings(
         push!(sum_of_squared_radii, R²_all)
     end
 
+    @test_opt ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
+
+    l_min = minimum_knot_increment(prob.fs)
+    adaptivity =
+        AdaptBasedOnSegmentLength(dt_factor(scheme)) |
+        AdaptBasedOnVelocity(10 * l_min) |  # usually inactive; just for testing
+        AdaptBasedOnVelocity(20 * l_min)    # usually inactive; just for testing
+
     iter = @inferred init(
         prob, scheme;
         dt = 0.025,  # will be changed by the adaptivity
         dtmin = 0.001,
         alias_u0 = false,  # don't overwrite fs_init
-        adaptivity = AdaptBasedOnSegmentLength(dt_factor(scheme)),
+        adaptivity,
         refinement,
         callback,
     )
+
+    @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
 
     @info "Solving with $scheme..." dt_initial = iter.time.dt prob.tspan
 
     # Run simulation
     @time solve!(iter)
+
+    println(iter.to)
 
     # Check that the callback is called at the initial time
     @test first(times) == first(prob.tspan)
@@ -164,6 +181,9 @@ function test_leapfrogging_rings(
         if iseuler
             rtol_energy *= 100
             rtol_impulse *= 200
+        elseif scheme isa Midpoint
+            rtol_energy *= 2
+            rtol_impulse *= 2
         end
 
         energy_initial = first(energy_time)  # initial energy
@@ -181,7 +201,7 @@ function test_leapfrogging_rings(
             plt = lineplot(
                 times, energy_normalised;
                 xlabel = "Time", ylabel = "Energy",
-                title = "Leapfrogging rings / $(nameof(typeof(scheme)))",
+                title = "Leapfrogging rings / $scheme",
             )
             println(plt)
         end
@@ -210,6 +230,8 @@ function test_leapfrogging_rings(
         @test impulse_std < rtol_impulse
         @test isapprox(impulse_mean, 1; rtol = rtol_impulse)
     end
+
+    nothing
 end
 
 @testset "Leapfrogging vortex rings" begin
@@ -256,7 +278,11 @@ end
         RK4(), DP5(), SSPRK33(),
         IMEXEuler(), KenCarp4(),
         KenCarp3(), Ascher343(),
-        Euler(),
+        # Euler(),  # too slow!
+        Midpoint(),
+        MultirateMidpoint(32),
+        SanduMRI33a(12),
+        SanduMRI45a(6),
     )
 
     ##

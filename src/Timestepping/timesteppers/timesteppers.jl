@@ -13,12 +13,20 @@ Contains buffers needed by a temporal scheme.
 struct TemporalSchemeCache{
         Scheme <: TemporalScheme,
         Nf, Nv,
-        Filaments <: VectorOfFilaments,
+        Filaments <: VectorOfVectors{<:Vec3, <:AbstractFilament},
         Velocities <: VectorOfVectors{<:Vec3},
     }
     scheme :: Scheme
     fc     :: NTuple{Nf, Filaments}
     vc     :: NTuple{Nv, Velocities}
+
+    function TemporalSchemeCache(scheme, fc::NTuple{Nf}, vc::NTuple{Nv}) where {Nf, Nv}
+        @assert nbuf_filaments(scheme) == Nf
+        @assert nbuf_velocities(scheme) == Nv
+        new{
+            typeof(scheme), Nf, Nv, eltype(fc), eltype(vc),
+        }(scheme, fc, vc)
+    end
 end
 
 scheme(c::TemporalSchemeCache) = c.scheme
@@ -26,16 +34,13 @@ can_change_dt(c::TemporalSchemeCache) = can_change_dt(scheme(c))
 
 function init_cache(
         scheme::TemporalScheme,
-        fs::VectorOfFilaments, vs::VectorOfVectors,
+        fs::VectorOfVectors, vs::VectorOfVectors,
     )
     Nf = nbuf_filaments(scheme)
     Nv = nbuf_velocities(scheme)
-    fc = ntuple(_ -> map(similar, fs), Val(Nf))
+    fc = ntuple(_ -> similar(fs), Val(Nf))
     vc = ntuple(_ -> similar(vs), Val(Nv))
-    TemporalSchemeCache{
-        typeof(scheme), Nf, Nv,
-        typeof(fs), typeof(vs),  # needed in case tuples are empty (case of Euler)
-    }(scheme, fc, vc)
+    TemporalSchemeCache(scheme, fc, vc)
 end
 
 function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
@@ -62,11 +67,15 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
 end
 
 function update_velocities!(
-        rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver,
+        rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver;
+        resize_cache = true, kws...,
     ) where {F <: Function, G <: Function}
-    resize!(cache, iter.fs)  # in case the number of nodes (or filaments) has changed
-    _update_velocities!(scheme(cache), rhs!, advect!, cache, iter)
+    if resize_cache
+        resize!(cache, iter.fs)  # in case the number of nodes (or filaments) has changed
+    end
+    _update_velocities!(scheme(cache), rhs!, advect!, cache, iter; kws...)
 end
 
 include("explicit/explicit.jl")
 include("imex/imex.jl")  # implicit-explicit
+include("multirate/multirate.jl")
