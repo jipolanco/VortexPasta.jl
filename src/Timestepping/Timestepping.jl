@@ -233,7 +233,6 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     ) where {Names, N, V <: VectorOfVectors}
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(true))
-    fields
 end
 
 # Compute slow component only.
@@ -249,7 +248,6 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
-    fields
 end
 
 # Compute fast component only.
@@ -263,24 +261,7 @@ function _update_values_at_nodes!(
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
     )
-    vs_all = fields.velocity
-    (; prob, to,) = iter
-    params = prob.p  # Biot-Savart parameters
-    (; Γ, a, Δ,) = params.common
-    # Note: we must use the same quadrature as used when using component = Val(:full)
-    (; quad,) = params.shortrange
-    prefactor = Γ / (4π)
-    @timeit to "LIA term (only)" begin
-        @inbounds for (f, vs) ∈ zip(fs, vs_all)
-            for i ∈ eachindex(f, vs)
-                vs[i] = BiotSavart.local_self_induced(
-                    BiotSavart.Velocity(), f, i, prefactor;
-                    a, Δ, quad,
-                )
-            end
-        end
-    end
-    fields
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
 end
 
 # This is the most general variant which should be called by timesteppers.

@@ -220,19 +220,15 @@ function add_short_range_fields!(
         f::AbstractFilament;
         LIA::Val{_LIA} = Val(true),  # can be used to disable LIA
     ) where {Names, N, V <: VectorOfVec, _LIA}
-    vs = get(fields, :velocity, nothing)
-    ψs = get(fields, :streamfunction, nothing)
-    vecs = filter(!isnothing, (vs, ψs))
-    nfields = length(vecs)
-    @assert nfields == N > 0
+    ps = _fields_to_pairs(fields)
 
     (; params,) = cache
     (; quad,) = params
     (; Γ, a, Δ,) = params.common
-    prefactor = Γ / 4π
+    prefactor = Γ / (4π)
 
     Xs = nodes(f)
-    foreach(vecs) do us
+    for (_, us) ∈ ps
         eachindex(us) == eachindex(Xs) || throw(DimensionMismatch(
             "vector has wrong length"
         ))
@@ -249,23 +245,15 @@ function add_short_range_fields!(
         # Note that the integral with the long-range kernel is *not* singular (since it's a
         # smoothing kernel), so there's no problem with evaluating this integral.
         # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the prefactor later.
-        if vs !== nothing
-            v⃗ = -(
-                integrate_biot_savart(Velocity(), LongRange(), Segment(f, segment_a), x⃗, params) +
-                integrate_biot_savart(Velocity(), LongRange(), Segment(f, segment_b), x⃗, params)
+        vecs_i = map(ps) do (quantity, _)
+            u⃗ = -(
+                integrate_biot_savart(quantity, LongRange(), Segment(f, segment_a), x⃗, params) +
+                integrate_biot_savart(quantity, LongRange(), Segment(f, segment_b), x⃗, params)
             )
             if _LIA
-                v⃗ = v⃗ + local_self_induced(Velocity(), f, i, one(prefactor); a, Δ, quad,)
+                u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad,)
             end
-        end
-        if ψs !== nothing
-            ψ⃗ = -(
-                integrate_biot_savart(Streamfunction(), LongRange(), Segment(f, segment_a), x⃗, params) +
-                integrate_biot_savart(Streamfunction(), LongRange(), Segment(f, segment_b), x⃗, params)
-            )
-            if _LIA
-                ψ⃗ = ψ⃗ + local_self_induced(Streamfunction(), f, i, one(prefactor); a, Δ, quad,)
-            end
+            quantity => u⃗
         end
 
         # Then integrate short-range effect of nearby segments.
@@ -278,11 +266,9 @@ function add_short_range_fields!(
                 @assert x⃗ === g[i]
             else
                 # Usual case: non-singular region.
-                if vs !== nothing
-                    v⃗ = v⃗ + integrate_biot_savart(Velocity(), ShortRange(), seg, x⃗, params)
-                end
-                if ψs !== nothing
-                    ψ⃗ = ψ⃗ + integrate_biot_savart(Streamfunction(), ShortRange(), seg, x⃗, params)
+                vecs_i = map(vecs_i) do (quantity, u⃗)
+                    u⃗ = u⃗ + integrate_biot_savart(quantity, ShortRange(), seg, x⃗, params)
+                    quantity => u⃗
                 end
             end
         end
@@ -290,11 +276,11 @@ function add_short_range_fields!(
         segment_a = segment_b
         segment_b += 1
 
-        if vs !== nothing
-            vs[i] = vs[i] + v⃗ * prefactor
-        end
-        if ψs !== nothing
-            ψs[i] = ψs[i] + ψ⃗ * prefactor
+        # Add computed vectors (velocity and/or streamfunction) to corresponding arrays.
+        map(ps, vecs_i) do (quantity_p, us), (quantity_i, u⃗)
+            @inline
+            @assert quantity_p === quantity_i
+            us[i] = us[i] + prefactor * u⃗
         end
     end
 

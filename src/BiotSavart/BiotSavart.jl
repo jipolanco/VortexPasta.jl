@@ -277,6 +277,40 @@ function velocity_on_nodes!(
     compute_on_nodes!(fields, cache, fs; LIA)
 end
 
+# Extracts and resets output fields (velocity and/or streamfunction).
+function _setup_fields!(fields::NamedTuple, fs)
+    N = length(fields)
+    @assert N > 0
+    vs = get(fields, :velocity, nothing)
+    ψs = get(fields, :streamfunction, nothing)
+    vecs = filter(!isnothing, (vs, ψs))
+    nfields = length(vecs)
+    nfields == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
+    for us ∈ vecs
+        eachindex(us) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of vector"))
+        _reset_vectors!(us)
+    end
+    (; vs, ψs,)
+end
+
+# Returns a tuple (Streamfunction() => ψs, Velocity() => vs) if both fields are available.
+# Otherwise, it returns a subset of this which only includes the available fields.
+function _fields_to_pairs(fields::NamedTuple{Names}) where {Names}
+    N = length(fields)
+    @assert N > 0
+    vs = get(fields, :velocity, nothing)
+    ψs = get(fields, :streamfunction, nothing)
+    ps = (
+        _make_field_pair(Velocity(), vs)...,
+        _make_field_pair(Streamfunction(), ψs)...,
+    )
+    length(ps) == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
+    ps
+end
+
+_make_field_pair(key, ::Nothing) = ()
+_make_field_pair(key, vs) = (key => vs,)
+
 """
     compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
@@ -308,11 +342,12 @@ cache = BiotSavart.init_cache(...)
 compute_on_nodes!(fields, cache, fs)
 ```
 
-## Disabling LIA
+## Disabling LIA / computing *only* LIA
 
 One may disable computation of the locally-induced velocity and streamfunction (LIA term)
-by passing `LIA = Val(false)`.
-
+by passing `LIA = Val(false)`. Conversely, one can pass `LIA = Val(:only)` to compute *only*
+the LIA term. This can be useful for splitting the induced filament
+velocities/streamfunctions onto local and non-local parts.
 """
 function compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
@@ -322,19 +357,12 @@ function compute_on_nodes!(
         longrange = Val(true),
         shortrange = Val(true),
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    (; to,) = cache
-    @assert N > 0
-    vs = get(fields, :velocity, nothing)
-    ψs = get(fields, :streamfunction, nothing)
-    vecs = filter(!isnothing, (vs, ψs))
-    nfields = length(vecs)
-    nfields == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
-
-    for us ∈ vecs
-        eachindex(us) == eachindex(fs) ||
-            throw(DimensionMismatch("wrong dimensions of vector"))
-        _reset_vectors!(us)
+    if LIA === Val(:only)
+        return _compute_LIA_on_nodes!(fields, cache, fs)
     end
+
+    (; to,) = cache
+    (; vs, ψs,) = _setup_fields!(fields, fs)
 
     if cache.longrange !== NullLongRangeCache() && longrange === Val(true)
         @timeit to "Long-range component" begin
@@ -368,6 +396,32 @@ function compute_on_nodes!(
         end
     end
 
+    fields
+end
+
+function _compute_LIA_on_nodes!(
+        fields::NamedTuple{Names, NTuple{N, V}},
+        cache::BiotSavartCache,
+        fs::VectorOfFilaments;
+    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+    (; to,) = cache
+    (; params,) = cache.shortrange
+    # Note: we must use the same quadrature as used when computing the globally induced terms
+    (; quad,) = params
+    (; Γ, a, Δ,) = params.common
+    ps = _fields_to_pairs(fields)  # e.g. (Velocity() => vs, Streamfunction() => ψs)
+    prefactor = Γ / (4π)
+    @timeit to "LIA term (only)" begin
+        @inbounds for (n, f) ∈ pairs(fs), i ∈ eachindex(f)
+            for (quantity, values) ∈ ps
+                # Here `quantity` is either Velocity() or Streamfunction()
+                values[n][i] = BiotSavart.local_self_induced(
+                    quantity, f, i, prefactor;
+                    a, Δ, quad,
+                )
+            end
+        end
+    end
     fields
 end
 
