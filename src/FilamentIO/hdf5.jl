@@ -1,5 +1,4 @@
-export write_vtkhdf, read_vtkhdf, write_point_data, write_field_data,
-       read_point_data!
+export write_vtkhdf, read_vtkhdf, PointData, FieldData
 
 using HDF5: HDF5
 
@@ -15,6 +14,9 @@ struct VTKHDFFile{
     fs         :: Filaments
     refinement :: Int
 end
+
+struct PointData end
+struct FieldData end
 
 """
     write_vtkhdf(
@@ -70,8 +72,8 @@ syntax. See further below for some examples.
 # Note: the file extension is arbitrary, but ParaView prefers ".hdf" if one wants to use the
 # files for visualisation.
 write_vtkhdf("filaments.hdf", fs; refinement = 2) do io
-    write_point_data(io, "Velocity", vs)  # here `vs` contains one velocity vector per filament node
-    write_field_data(io, "Time", 0.3)
+    io["Velocity"] = vs  # adds velocity as VTK point data, assuming vs is a VectorOfVectors
+    io["Time"] = 0.3     # adds time as VTK field data, since it's a scalar
     # one can add other fields here...
 end
 ```
@@ -204,13 +206,11 @@ function init_vtkhdf(
 end
 
 """
-    write_point_data(
-        io::VTKHDFFile,
-        name::AbstractString,
-        vs::AbstractVector{<:AbstractVector},
-    )
+    Base.setindex!(io::VTKHDFFile, vs::AbstractVector{<:AbstractVector}, name::AbstractString)
 
 Attach data to filament nodes.
+
+One generally wants to use the syntax `io[name] = vs` which calls this function.
 
 This can be used to write fields defined at filament nodes (for instance, the velocity of
 each node).
@@ -223,10 +223,10 @@ The format is exactly the same as for the `Points` dataset as detailed in
 [`write_vtkhdf`](@ref). As also explained there, the `Offsets` dataset can be used to recover
 the values associated to each filament.
 """
-function write_point_data(
+function Base.setindex!(
         writer::VTKHDFFile,
-        name::AbstractString,
         vs::AbstractVector{<:AbstractVector},
+        name::AbstractString,
     )
     (; gtop, refinement,) = writer
 
@@ -291,7 +291,7 @@ function write_point_data(
 end
 
 """
-    write_field_data(io::VTKHDFFile, name::AbstractString, data)
+    Base.setindex!(io::VTKHDFFile, data, name::AbstractString)
 
 Write data as VTK field data to VTK HDF file.
 
@@ -301,8 +301,10 @@ parameters.
 
 Note that scalar data (such as time) is always written as a single-element vector, since
 otherwise it cannot be parsed by VTK.
+
+This function interprets everything that is not a vector of vectors as field data.
 """
-function write_field_data(writer::VTKHDFFile, name::AbstractString, data)
+function Base.setindex!(writer::VTKHDFFile, data, name::AbstractString)
     (; gtop,) = writer
     gdata = open_or_create_group(gtop, "FieldData")
     _write_field_data(gdata, name, data)
@@ -356,21 +358,30 @@ Returns a vector of filaments. The specific type of filament (e.g.
 [`ClosedSplineFilament`](@ref) or [`ClosedLocalFilament`](@ref)) depends on the chosen
 `method`. See [`Filaments.init`](@ref) for possible options.
 
-One can also read other datasets using [`read_point_data`](@ref), [`read_point_data!`](@ref)
-and [`read_field_data`](@ref). See below for some examples.
+One can also read other datasets using `read` and `read!`, as shown and explained below.
 
 ## Typical usage
 
-```
+```julia
 local vs, t  # make sure these variables still exist after the `do` block
 
 # The returned `fs` is a list of filaments.
 fs = read_vtkhdf("filaments.hdf", Float64, CubicSplineMethod()) do io
-    vs = read_point_data(io, "Velocity")            # here `vs` contains one velocity vector per filament node
-    t = only(read_field_data(io, "Time", Float64))  # note: field data is always written as an array
+    vs = read(io, "Velocity", PointData())            # here `vs` contains one velocity vector per filament node
+    t = only(read(io, "Time", FieldData(), Float64))  # note: field data is always written as an array
     # one can read other fields here...
 end
 ```
+
+The available reading functions are:
+
+- `read(io, name::AbstractString, ::PointData)` for reading point data (e.g. a velocity field);
+
+- `read(io, name::AbstractString, ::FieldData, ::Type{T})` for reading field data (i.e. data
+  not attached to filament nodes, such as the current time);
+
+- `read!(io, vs::AbstractVector{<:AbstractVector}, name::AbstractString)` for reading point
+  data onto a preallocated vector of vectors.
 """
 function read_vtkhdf(
         func::Func, filename::AbstractString, ::Type{T},
@@ -480,43 +491,16 @@ function _load_filament(
     f
 end
 
-"""
-    read_point_data(
-        reader::VTKHDFFile, name::AbstractString,
-        [V = eltype(eltype(reader.fs))],  # default is Vec3{T}
-    ) -> AbstractVector{<:AbstractVector}
-
-Load point data from VTK HDF file.
-
-Reads data written by [`write_point_data`](@ref).
-The output is a vector of vectors, where each subvector holds the data associated to a
-single filament.
-
-See [`read_vtkhdf`](@ref) for a typical usage example.
-"""
-function read_point_data(
-        reader::VTKHDFFile, name::AbstractString,
+function Base.read(
+        reader::VTKHDFFile, name::AbstractString, ::PointData,
         ::Type{V} = eltype(eltype(reader.fs)),  # Vec3{T} by default
     ) where {V}
     (; fs,) = reader
     vs = map(f -> similar(nodes(f), V), fs)  # one PaddedVector for each filament
-    read_point_data!(reader, vs, name)
+    read!(reader, vs, name)
 end
 
-"""
-    read_point_data!(
-        reader::VTKHDFFile,
-        vs::AbstractVector{<:AbstractVector},
-        name::AbstractString,
-    )
-
-Load point data from VTK HDF file.
-
-Data is read onto the vector of vectors `vs`.
-
-See also [`read_point_data`](@ref) and [`write_point_data`](@ref).
-"""
-function read_point_data!(
+function Base.read!(
         reader::VTKHDFFile,
         vs::AbstractVector{<:AbstractVector},
         name::AbstractString,
@@ -571,20 +555,8 @@ function read_dataset!(
     out
 end
 
-"""
-    read_field_data(
-        reader::VTKHDFFile, name::AbstractString, ::Type{T},
-    ) -> Vector{T}
-
-Read field data from VTK HDF file.
-
-Returns a *vector* of elements of type `T`, because, in VTK, field data is always
-represented as an array (even for single values such as time).
-
-See [`write_field_data`](@ref) for more details.
-"""
-function read_field_data(
-        reader::VTKHDFFile, name::AbstractString, ::Type{T},
+function Base.read(
+        reader::VTKHDFFile, name::AbstractString, ::FieldData, ::Type{T},
     ) where {T}
     dset = HDF5.open_dataset(reader.gtop, "FieldData/$name")
     N = length(dset)
@@ -598,8 +570,8 @@ function read_field_data(
 end
 
 # Specific case of strings
-function read_field_data(
-        reader::VTKHDFFile, name::AbstractString, ::Type{<:AbstractString},
+function Base.read(
+        reader::VTKHDFFile, name::AbstractString, ::FieldData, ::Type{<:AbstractString},
     )
     dset = HDF5.open_dataset(reader.gtop, "FieldData/$name")
     read(dset) :: Vector{String}

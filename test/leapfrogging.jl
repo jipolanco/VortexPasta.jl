@@ -124,8 +124,8 @@ function test_leapfrogging_rings(
 
         # This can be useful for visualisation
         # write_vtkhdf("leapfrogging_$nstep.hdf", fs) do io
-        #     write_point_data(io, "Velocity", vs)
-        #     write_point_data(io, "Streamfunction", ψs)
+        #     io["Velocity"] = vs
+        #     io["Streamfunction"] = ψs
         # end
 
         E = kinetic_energy_from_streamfunction(iter)

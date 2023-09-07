@@ -12,17 +12,14 @@ FilamentIO
 
 ```@docs
 write_vtkhdf
-write_point_data
-write_field_data
+Base.setindex!(io::VTKHDFFile, vs::AbstractVector{<:AbstractVector}, name::AbstractString)
+Base.setindex!(io::VTKHDFFile, data, name::AbstractString)
 ```
 
 ## Reading data
 
 ```@docs
 read_vtkhdf
-read_point_data
-read_point_data!
-read_field_data
 ```
 
 ## Index

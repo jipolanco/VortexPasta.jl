@@ -163,7 +163,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
 
         # let s = nameof(typeof(scheme))
         #     write_vtkhdf("trefoil_$(s)_$(n).hdf", fs; refinement = 8) do io
-        #         write_point_data(io, "Velocity", iter.vs)
+        #         io["Velocity"] = iter.vs
         #     end
         # end
 
