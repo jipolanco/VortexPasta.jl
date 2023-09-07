@@ -24,6 +24,9 @@ function _update_velocities!(
 
     ftmp = fc[1]
 
+    rhs_implicit! = imex_rhs_implicit(rhs!)
+    rhs_full! = imex_rhs_full(rhs!)
+
     # Initial guess for locations at stage 2
     advect!(ftmp, vs, dt; fbase = fs)
 
@@ -31,17 +34,17 @@ function _update_velocities!(
     # timestep). We compute and subtract the fast component to obtain the slow component.
     vE = vs     # explicit (slow) component
     vI = vc[1]  # implicit (fast) component
-    rhs!(vI, fs, t, iter; component = Val(:fast))
+    rhs_implicit!(vI, fs, t, iter)
     @. vE = vs - vI  # slow component at stage 1 (note: vE is aliased to vs)
 
     solve_fixed_point!(
-        ftmp, rhs!, advect!, iter, vI, vE;
+        ftmp, rhs_implicit!, advect!, iter, vI, vE;
         cdt = dt, fbase = fs, aI_diag = 1,
     )
 
     # Final advecting velocity
     t_final = t + dt
-    rhs!(vs, ftmp, t_final, iter; component = Val(:full))
+    rhs_full!(vs, ftmp, t_final, iter)
 
     vs
 end

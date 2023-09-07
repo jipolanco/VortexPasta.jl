@@ -33,9 +33,13 @@ function _update_velocities!(
     AE = tabE.A
     AI = tabI.A
 
+    rhs_implicit! = imex_rhs_implicit(rhs!)
+    rhs_explicit! = imex_rhs_explicit(rhs!)
+    rhs_full! = imex_rhs_full(rhs!)
+
     # Stage 1
     let i = 1
-        rhs!(vI[i], fs, t, iter; component = Val(:fast))  # compute fast component at stage 1
+        rhs_implicit!(vI[i], fs, t, iter)  # compute fast component at stage 1
         @. vE[i] = vs - vI[i]  # slow component at stage 1
     end
 
@@ -45,12 +49,12 @@ function _update_velocities!(
         advect!(ftmp, vs, cdt; fbase)  # initial guess for locations at stage i
         _imex_explicit_rhs!(Val(i), v_explicit, (AE, AI), (vE, vI))  # known part of the velocity
         solve_fixed_point!(
-            ftmp, rhs!, advect!, iter, vtmp, v_explicit;
+            ftmp, rhs_implicit!, advect!, iter, vtmp, v_explicit;
             cdt, fbase, aI_diag = AI[i, i],
         )
         # Separately compute both components at the final location
-        rhs!(vI[i], ftmp, t + cdt, iter; component = Val(:fast))
-        rhs!(vE[i], ftmp, t + cdt, iter; component = Val(:slow))
+        rhs_implicit!(vI[i], ftmp, t + cdt, iter)
+        rhs_explicit!(vE[i], ftmp, t + cdt, iter)
     end
 
     # Stage 3
@@ -59,12 +63,12 @@ function _update_velocities!(
         advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage i
         _imex_explicit_rhs!(Val(i), v_explicit, (AE, AI), (vE, vI))  # known part of the velocity
         solve_fixed_point!(
-            ftmp, rhs!, advect!, iter, vtmp, v_explicit;
+            ftmp, rhs_implicit!, advect!, iter, vtmp, v_explicit;
             cdt, fbase, aI_diag = AI[i, i],
         )
         # Separately compute both components at the final location
-        rhs!(vI[i], ftmp, t + cdt, iter; component = Val(:fast))
-        rhs!(vE[i], ftmp, t + cdt, iter; component = Val(:slow))
+        rhs_implicit!(vI[i], ftmp, t + cdt, iter)
+        rhs_explicit!(vE[i], ftmp, t + cdt, iter)
     end
 
     # Stage 4
@@ -73,12 +77,12 @@ function _update_velocities!(
         advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage i
         _imex_explicit_rhs!(Val(i), v_explicit, (AE, AI), (vE, vI))  # known part of the velocity
         solve_fixed_point!(
-            ftmp, rhs!, advect!, iter, vtmp, v_explicit;
+            ftmp, rhs_implicit!, advect!, iter, vtmp, v_explicit;
             cdt, fbase, aI_diag = AI[i, i],
         )
         # Separately compute both components at the final location
-        rhs!(vI[i], ftmp, t + cdt, iter; component = Val(:fast))
-        rhs!(vE[i], ftmp, t + cdt, iter; component = Val(:slow))
+        rhs_implicit!(vI[i], ftmp, t + cdt, iter)
+        rhs_explicit!(vE[i], ftmp, t + cdt, iter)
     end
 
     # Stage 5
@@ -87,12 +91,12 @@ function _update_velocities!(
         advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage i
         _imex_explicit_rhs!(Val(i), v_explicit, (AE, AI), (vE, vI))  # known part of the velocity
         solve_fixed_point!(
-            ftmp, rhs!, advect!, iter, vtmp, v_explicit;
+            ftmp, rhs_implicit!, advect!, iter, vtmp, v_explicit;
             cdt, fbase, aI_diag = AI[i, i],
         )
         # Separately compute both components at the final location
-        rhs!(vI[i], ftmp, t + cdt, iter; component = Val(:fast))
-        rhs!(vE[i], ftmp, t + cdt, iter; component = Val(:slow))
+        rhs_implicit!(vI[i], ftmp, t + cdt, iter)
+        rhs_explicit!(vE[i], ftmp, t + cdt, iter)
     end
 
     # Stage 6
@@ -101,12 +105,12 @@ function _update_velocities!(
         advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage i
         _imex_explicit_rhs!(Val(i), v_explicit, (AE, AI), (vE, vI))  # known part of the velocity
         solve_fixed_point!(
-            ftmp, rhs!, advect!, iter, vtmp, v_explicit;
+            ftmp, rhs_implicit!, advect!, iter, vtmp, v_explicit;
             cdt, fbase, aI_diag = AI[i, i],
         )
         # Since this is the final stage, we compute the full velocity at this stage onto vs
         # (we don't need the separate components)
-        rhs!(vs, ftmp, t + cdt, iter; component = Val(:full))
+        rhs_full!(vs, ftmp, t + cdt, iter)
     end
 
     # Final advecting velocity
