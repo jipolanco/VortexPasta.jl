@@ -77,6 +77,7 @@ dt_factor(::Midpoint) = 0.4
 
 # IMEX-RK methods
 dt_factor(::IMEXEuler) = 0.6
+dt_factor(::Ascher343) = 1.3
 dt_factor(::KenCarp3) = 1.3
 dt_factor(::KenCarp4) = 2.2
 

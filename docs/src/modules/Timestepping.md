@@ -69,6 +69,16 @@ SanduMRI33a
 SanduMRI45a
 ```
 
+### Implicit schemes
+
+These implicit schemes are mainly meant to be used as inner schemes when using
+multirate methods.
+
+```@docs
+ExplicitScheme
+CrankNicolson
+```
+
 ## Adaptivity
 
 ```@docs

@@ -10,7 +10,7 @@ scheme), with `M` inner steps for each outer RK stage.
 
 This is the MRI-GARK-ERK33a method from Sandu, SIAM J. Numer. Anal. 57 (2019).
 """
-struct SanduMRI33a{InnerScheme <: ExplicitScheme} <: MultirateScheme
+struct SanduMRI33a{InnerScheme <: TemporalScheme} <: MultirateScheme
     inner     :: InnerScheme
     nsubsteps :: Int
 end
