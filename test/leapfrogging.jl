@@ -97,7 +97,6 @@ dt_factor(::SSPRK33) = 1.0
 dt_factor(::Euler) = 0.08
 dt_factor(::Midpoint) = 0.4
 
-dt_factor(::IMEXEuler) = 0.7
 dt_factor(::KenCarp3) = 1.4
 dt_factor(::KenCarp4) = 2.8
 dt_factor(::Ascher343) = 1.4
@@ -105,6 +104,11 @@ dt_factor(::Ascher343) = 1.4
 dt_factor(::MultirateMidpoint) = 0.8
 dt_factor(::SanduMRI33a) = 4.0
 dt_factor(::SanduMRI45a) = 4.0
+
+# NOTE: this factor ensures stability, but *not* accuracy of IMEXEuler. The factor should
+# actually be ~0.1 to get similar results to other schemes. With 0.7, one can clearly see
+# the difference in results from the plots of the total vortex length.
+dt_factor(::IMEXEuler) = 0.7
 
 function test_leapfrogging_rings(
         prob, scheme;
@@ -282,6 +286,7 @@ end
         Midpoint(),
         MultirateMidpoint(32),
         SanduMRI33a(12),
+        SanduMRI33a(CrankNicolson(), 1),  # one inner iteration is enough!! (not counting the fixed point iterations...)
         SanduMRI45a(6),
     )
 

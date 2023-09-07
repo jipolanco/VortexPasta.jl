@@ -35,32 +35,6 @@ function imex_rhs_full(rhs!::F) where {F}
     (args...) -> rhs!(args...; component = Val(:full))
 end
 
-# Solve nonlinear system using fixed-point iterations (kind of brute-force method).
-# We stop when the difference compared to the previous positions converges to a
-# constant.
-function solve_fixed_point!(
-        ftmp, rhs!::F, advect!::G, iter::AbstractSolver, vtmp, v_explicit;
-        cdt, fbase, aI_diag, nmax = 100, rtol = 1e-12,
-    ) where {F <: Function, G <: Function}
-    (; t, dt,) = iter.time
-    @assert fbase !== ftmp
-    vdiff_prev = vector_difference(fbase, ftmp)
-    n = 0
-    while n < nmax
-        n += 1
-        # Compute fast component at the latest location
-        rhs!(vtmp, ftmp, t + cdt, iter)
-        @. vtmp = v_explicit + aI_diag * vtmp  # full velocity estimate
-        # Update guess for filament location
-        advect!(ftmp, vtmp, dt; fbase)
-        vdiff = vector_difference(fbase, ftmp)
-        rdiff = abs(vdiff - vdiff_prev) / vdiff
-        rdiff < rtol && break
-        vdiff_prev = vdiff
-    end
-    ftmp
-end
-
 # Compute explicit part of the velocity at stage `i` of IMEX-RK scheme.
 # This basically computes
 #

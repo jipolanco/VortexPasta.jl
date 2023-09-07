@@ -10,7 +10,7 @@ outer RK stage.
 
 This is the MRI-GARK-ERK45 method from Sandu, SIAM J. Numer. Anal. 57 (2019).
 """
-struct SanduMRI45a{InnerScheme <: ExplicitScheme} <: MultirateScheme
+struct SanduMRI45a{InnerScheme <: TemporalScheme} <: MultirateScheme
     inner     :: InnerScheme
     nsubsteps :: Int
 end

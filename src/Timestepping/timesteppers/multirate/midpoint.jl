@@ -10,7 +10,7 @@ scheme), with `M` inner steps for each outer RK stage.
 
 This is the MRI-GARK-ERK22a method from Sandu, SIAM J. Numer. Anal. 57 (2019).
 """
-struct MultirateMidpoint{InnerScheme <: ExplicitScheme} <: MultirateScheme
+struct MultirateMidpoint{InnerScheme <: TemporalScheme} <: MultirateScheme
     inner     :: InnerScheme
     nsubsteps :: Int
 end
