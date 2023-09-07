@@ -245,15 +245,17 @@ function add_short_range_fields!(
         # Note that the integral with the long-range kernel is *not* singular (since it's a
         # smoothing kernel), so there's no problem with evaluating this integral.
         # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the prefactor later.
-        vecs_i = map(ps) do (quantity, _)
-            u⃗ = -(
-                integrate_biot_savart(quantity, LongRange(), Segment(f, segment_a), x⃗, params) +
-                integrate_biot_savart(quantity, LongRange(), Segment(f, segment_b), x⃗, params)
-            )
-            if _LIA
-                u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad,)
+        vecs_i = let sa = Segment(f, segment_a), sb = Segment(f, segment_b)
+            map(ps) do (quantity, _)
+                u⃗ = -(
+                    integrate_biot_savart(quantity, LongRange(), sa, x⃗, params) +
+                    integrate_biot_savart(quantity, LongRange(), sb, x⃗, params)
+                )
+                if _LIA
+                    u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad,)
+                end
+                quantity => u⃗
             end
-            quantity => u⃗
         end
 
         # Then integrate short-range effect of nearby segments.
