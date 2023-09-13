@@ -122,6 +122,7 @@ eachindex(::SegmentIterator)
 ```@docs
 Segment
 midpoint
+Filaments.segment_length
 ```
 
 ## Plotting

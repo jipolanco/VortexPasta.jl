@@ -17,6 +17,8 @@ include("FilamentIO/FilamentIO.jl")
 include("BiotSavart/BiotSavart.jl")
 include("Timestepping/Timestepping.jl")
 
+include("Diagnostics/Diagnostics.jl")
+
 ## Precompilation
 using PrecompileTools: @setup_workload, @compile_workload
 
@@ -25,6 +27,7 @@ using PrecompileTools: @setup_workload, @compile_workload
     using .Filaments
     using .BiotSavart
     using .Timestepping
+    using .Diagnostics
 
     ## Set-up a vortex filament simulation
     # Grid-related parameters
@@ -38,6 +41,11 @@ using PrecompileTools: @setup_workload, @compile_workload
     Γ = 1.2
     a = 1e-6
     Δ = 1/4  # full core
+
+    function callback(iter)
+        E = Diagnostics.kinetic_energy_from_streamfunction(iter)
+        nothing
+    end
 
     @compile_workload begin
         params_bs = ParamsBiotSavart(;
@@ -63,6 +71,7 @@ using PrecompileTools: @setup_workload, @compile_workload
             dt = 0.001,
             adaptivity = AdaptBasedOnSegmentLength(1.0),
             refinement = RefineBasedOnSegmentLength(0.75 * l_min),
+            callback,
         )
         solve!(iter)
     end
