@@ -52,6 +52,7 @@ makedocs(
             "modules/FilamentIO.md",
             "modules/BiotSavart.md",
             "modules/Timestepping.md",
+            "modules/Diagnostics.md",
         ]
     ]
 )
