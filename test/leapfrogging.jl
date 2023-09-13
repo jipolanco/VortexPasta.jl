@@ -11,60 +11,10 @@ using VortexPasta.FilamentIO
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Timestepping: VortexFilamentSolver
+using VortexPasta.Diagnostics
 
 using JET: @test_opt
 using FINUFFT: FINUFFT  # for JET only
-
-# Note: this is total energy within a unit cell.
-# One should normalise by the cell volume to get energy per unit mass [L²T⁻²].
-function kinetic_energy_from_streamfunction(
-        ψs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament}, Γ::Real;
-        quad = nothing,
-    )
-    prefactor = Γ / 2
-    E = zero(prefactor)
-    interpolate_tangent_component_only = true
-    for (f, ψs) ∈ zip(fs, ψs_all)
-        ts = knots(f)
-        if quad === nothing
-            for i ∈ eachindex(segments(f))
-                ψ⃗ = ψs[i]
-                s⃗′ = f[i, Derivative(1)]
-                δt = (ts[i + 1] - ts[i - 1]) / 2
-                E += (ψ⃗ ⋅ s⃗′) * δt
-            end
-        else
-            Xoff = Filaments.end_to_end_offset(f)
-            ψ_int = Filaments.change_offset(similar(f), zero(Xoff))
-            if interpolate_tangent_component_only
-                for i ∈ eachindex(ψs)
-                    ψ_t = ψs[i] ⋅ f[i, UnitTangent()]
-                    ψ_int[i] = (ψ_t, 0, 0)  # we only care about the first component
-                end
-            else
-                copy!(nodes(ψ_int), ψs)
-            end
-            update_coefficients!(ψ_int; knots = knots(f))
-            E += integrate(f, quad) do f, i, ζ
-                ψ⃗ = ψ_int(i, ζ)
-                if interpolate_tangent_component_only
-                    ψ⃗[1]
-                else
-                    s⃗′ = f(i, ζ, Derivative(1))
-                    ψ⃗ ⋅ s⃗′
-                end
-            end
-        end
-    end
-    E * prefactor
-end
-
-function kinetic_energy_from_streamfunction(iter::VortexFilamentSolver)
-    (; fs, ψs,) = iter
-    (; Γ,) = iter.prob.p.common
-    quad = GaussLegendre(4)  # this doesn't seem to change much the results...
-    kinetic_energy_from_streamfunction(ψs, fs, Γ; quad)
-end
 
 function total_vortex_length(fs)
     quad = GaussLegendre(4)
@@ -132,7 +82,7 @@ function test_leapfrogging_rings(
         #     io["Streamfunction"] = ψs
         # end
 
-        E = kinetic_energy_from_streamfunction(iter)
+        E = kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(4))
         L = total_vortex_length(fs)
 
         # R²_all = @inferred sum(vortex_ring_squared_radius, fs)  # inference randomly fails on Julia 1.10-beta1...
