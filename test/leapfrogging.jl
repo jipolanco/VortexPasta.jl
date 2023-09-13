@@ -219,6 +219,22 @@ end
     tspan = (0.0, tmax)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
 
+    # Test diagnostics with/out quadratures here
+    @testset "Diagnostics" begin
+        rtol = 2e-3
+        iter = init(prob, Midpoint(); dt = 0.01)
+        @test isapprox(
+            @inferred(Diagnostics.kinetic_energy_from_streamfunction(iter; quad = nothing)),
+            @inferred(Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2)));
+            rtol,
+        )
+        @test isapprox(
+            @inferred(Diagnostics.filament_length(iter; quad = nothing)),
+            @inferred(Diagnostics.filament_length(iter; quad = GaussLegendre(2)));
+            rtol,
+        )
+    end
+
     refinement = RefineBasedOnSegmentLength(0.99 * minimum_knot_increment(fs_init))
     schemes = (
         RK4(), DP5(), SSPRK33(),
