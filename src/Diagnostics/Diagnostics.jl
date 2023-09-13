@@ -8,8 +8,11 @@ module Diagnostics
 
 export kinetic_energy_from_streamfunction
 
-using ..Filaments: Filaments, knots, segments, Derivative, integrate
+using ..Filaments: Filaments, Derivative, Vec3, knots, segments, integrate
 using LinearAlgebra: ⋅
+
+const SingleFilamentData = AbstractVector{<:Vec3}
+const SetOfFilamentsData = AbstractVector{<:SingleFilamentData}
 
 @doc raw"""
     kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad = nothing)
@@ -56,37 +59,47 @@ function kinetic_energy_from_streamfunction(iter; kws...)
     kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; kws...)
 end
 
-# No quadratures (cheaper)
-function _kinetic_energy_from_streamfunction(::Nothing, ψs, fs, Γ, Ls)
+# Case of a set of filaments
+function _kinetic_energy_from_streamfunction(
+        quad, ψs::SetOfFilamentsData, fs::SetOfFilamentsData, Γ, args...,
+    )
+    sum(eachindex(fs, ψs)) do i
+        _kinetic_energy_from_streamfunction(quad, ψs[i], fs[i], Γ, args...)
+    end
+end
+
+# Case of a single filament
+# 1. No quadratures (cheaper)
+function _kinetic_energy_from_streamfunction(
+        ::Nothing, ψf::SingleFilamentData, f::SingleFilamentData, Γ, Ls,
+    )
     prefactor = Γ / (2 * prod(Ls))
     E = zero(prefactor)
-    for (f, ψf) ∈ zip(fs, ψs)
-        ts = knots(f)
-        for i ∈ eachindex(f, ψf)
-            ψ⃗ = ψf[i]
-            s⃗′ = f[i, Derivative(1)]
-            δt = (ts[i + 1] - ts[i - 1]) / 2
-            E += (ψ⃗ ⋅ s⃗′) * δt
-        end
+    ts = knots(f)
+    for i ∈ eachindex(f, ψf)
+        ψ⃗ = ψf[i]
+        s⃗′ = f[i, Derivative(1)]
+        δt = (ts[i + 1] - ts[i - 1]) / 2
+        E += (ψ⃗ ⋅ s⃗′) * δt
     end
     prefactor * E
 end
 
 # With quadratures (requires interpolation + allocations)
-function _kinetic_energy_from_streamfunction(quad, ψs, fs, Γ, Ls)
+function _kinetic_energy_from_streamfunction(
+        quad, ψf::SingleFilamentData, f::SingleFilamentData, Γ, Ls,
+    )
     prefactor = Γ / (2 * prod(Ls))
     E = zero(prefactor)
-    for (f, ψf) ∈ zip(fs, ψs)
-        Xoff = Filaments.end_to_end_offset(f)
-        ψ_int = Filaments.change_offset(similar(f), zero(Xoff))
-        copy!(Filaments.nodes(ψ_int), ψf)
-        Filaments.update_coefficients!(ψ_int; knots = knots(f))
-        for i ∈ eachindex(segments(f))
-            E += integrate(f, i, quad) do ζ
-                ψ⃗ = ψ_int(i, ζ)
-                s⃗′ = f(i, ζ, Derivative(1))
-                ψ⃗ ⋅ s⃗′
-            end
+    Xoff = Filaments.end_to_end_offset(f)
+    ψ_int = Filaments.change_offset(similar(f), zero(Xoff))
+    copy!(Filaments.nodes(ψ_int), ψf)
+    Filaments.update_coefficients!(ψ_int; knots = knots(f))
+    for i ∈ eachindex(segments(f))
+        E += integrate(f, i, quad) do ζ
+            ψ⃗ = ψ_int(i, ζ)
+            s⃗′ = f(i, ζ, Derivative(1))
+            ψ⃗ ⋅ s⃗′
         end
     end
     prefactor * E
