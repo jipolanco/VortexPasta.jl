@@ -16,17 +16,6 @@ using VortexPasta.Diagnostics
 using JET: @test_opt
 using FINUFFT: FINUFFT  # for JET only
 
-function total_vortex_length(fs)
-    quad = GaussLegendre(4)
-    L = 0.0
-    for f ∈ fs
-        L += integrate(f, quad) do f, i, ζ
-            norm(f(i, ζ, Derivative(1)))
-        end
-    end
-    L
-end
-
 function vortex_ring_squared_radius(f::AbstractFilament)
     quad = GaussLegendre(4)
     # Note: this is the impulse normalised by the vortex circulation Γ and the density ρ.
@@ -82,8 +71,9 @@ function test_leapfrogging_rings(
         #     io["Streamfunction"] = ψs
         # end
 
-        E = kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(4))
-        L = total_vortex_length(fs)
+        quad = GaussLegendre(4)
+        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad)
+        L = Diagnostics.filament_length(fs; quad)
 
         # R²_all = @inferred sum(vortex_ring_squared_radius, fs)  # inference randomly fails on Julia 1.10-beta1...
         R²_all = 0.0

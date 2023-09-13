@@ -47,9 +47,10 @@ end
 
 # Case of a set of filaments
 function _kinetic_energy_from_streamfunction(
-        quad, ψs::SetOfFilamentsData, fs::SetOfFilamentsData, Γ, args...,
+        quad, ψs::SetOfFilamentsData, fs::VectorOfFilaments, Γ, args...,
     )
-    sum(eachindex(fs, ψs)) do i
+    T = float(typeof(Γ))
+    sum(eachindex(fs, ψs); init = zero(T)) do i
         _kinetic_energy_from_streamfunction(quad, ψs[i], fs[i], Γ, args...)
     end
 end
@@ -57,7 +58,7 @@ end
 # Case of a single filament
 # 1. No quadratures (cheaper)
 function _kinetic_energy_from_streamfunction(
-        ::Nothing, ψf::SingleFilamentData, f::SingleFilamentData, Γ, Ls,
+        ::Nothing, ψf::SingleFilamentData, f::AbstractFilament, Γ, Ls,
     )
     prefactor = Γ / (2 * prod(Ls))
     E = zero(prefactor)

@@ -6,12 +6,18 @@ simulation data.
 """
 module Diagnostics
 
-using ..Filaments: Filaments, Derivative, Vec3, knots, segments, integrate
+using ..Filaments:
+    Filaments,
+    AbstractFilament, Derivative, Vec3,
+    knots, segments, integrate
+
 using LinearAlgebra: ⋅
 
+const VectorOfFilaments = AbstractVector{<:AbstractFilament}
 const SingleFilamentData = AbstractVector{<:Vec3}
 const SetOfFilamentsData = AbstractVector{<:SingleFilamentData}
 
 include("energy.jl")
+include("filament_length.jl")
 
 end

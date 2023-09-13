@@ -80,13 +80,32 @@ function (s::Segment)(ζ::Number, args...)
     s.f(s.i, ζ, args...)
 end
 
+startpoint(s::Segment) = @inbounds s.f[s.i]
+endpoint(s::Segment) = @inbounds s.f[s.i + 1]
+
 """
     midpoint(s::Segment) -> Vec3
 
 Return an estimation of the segment midpoint (prioritising performance over accuracy).
 """
 @inline function midpoint(s::Segment)
-    (; f, i,) = s
-    # f(i, 0.5)  # "exact" midpoint
-    @inbounds (f[i] .+ f[i + 1]) ./ 2  # approximation, usually faster
+    # s.f(s.i, 0.5)  # "exact" midpoint
+    (startpoint(s) + endpoint(s)) ./ 2  # approximation, usually faster
+end
+
+"""
+    Filaments.segment_length(s::Segment; quad = nothing)
+
+Estimate length of a filament segment.
+
+One may pass a quadrature rule as `quad` for better accuracy.
+"""
+segment_length(s::Segment; quad = nothing) = _segment_length(quad, s)
+
+_segment_length(::Nothing, s::Segment) = norm(startpoint(s) - endpoint(s))
+
+function _segment_length(quad::AbstractQuadrature, s::Segment)
+    integrate(s, quad) do ζ
+        norm(s(ζ, Derivative(1)))
+    end
 end
