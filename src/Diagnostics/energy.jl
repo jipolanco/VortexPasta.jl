@@ -4,7 +4,7 @@ export kinetic_energy_from_streamfunction
     kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad = nothing)
     kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; quad = nothing)
 
-Compute kinetic energy per unit mass (units ``L²T⁻²``) from streamfunction values at
+Compute kinetic energy per unit mass (units ``L^2 T^{-2}``) from streamfunction values at
 filament nodes in a periodic domain.
 
 The kinetic energy per unit mass associated to a set of vortex filaments is defined as:

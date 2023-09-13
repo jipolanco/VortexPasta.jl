@@ -17,7 +17,7 @@ function filament_length end
 
 filament_length(iter; kws...) = filament_length(iter.fs; kws...)
 
-function filament_length(fs::AbstractVector{<:AbstractFilament}; kws...)
+function filament_length(fs::VectorOfFilaments; kws...)
     T = eltype(eltype(eltype(fs)))
     @assert T <: AbstractFloat
     L = zero(T)

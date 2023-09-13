@@ -21,9 +21,7 @@ function vortex_ring_squared_radius(f::AbstractFilament)
     # Note: this is the impulse normalised by the vortex circulation Γ and the density ρ.
     # For a vortex ring on the XY plane, this should be equal to (0, 0, A) where A = πR² is
     # the vortex "area".
-    i⃗ = integrate(f, quad) do f, i, ζ
-        f(i, ζ) × f(i, ζ, Derivative(1))
-    end / 2
+    i⃗ = Diagnostics.vortex_impulse(f; quad)
     A = i⃗[3]
     # A = norm(i⃗)
     A / π
@@ -57,6 +55,7 @@ function test_leapfrogging_rings(
     # Define callback function to be run at each simulation timestep
     times = Float64[]
     energy_time = Float64[]
+    impulse_time = Vec3{Float64}[]  # not used, just for inference tests (JET)
     line_length = Float64[]
     sum_of_squared_radii = Float64[]
 
@@ -73,7 +72,8 @@ function test_leapfrogging_rings(
 
         quad = GaussLegendre(4)
         E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad)
-        L = Diagnostics.filament_length(fs; quad)
+        L = Diagnostics.filament_length(iter; quad)
+        p⃗ = Diagnostics.vortex_impulse(iter; quad)
 
         # R²_all = @inferred sum(vortex_ring_squared_radius, fs)  # inference randomly fails on Julia 1.10-beta1...
         R²_all = 0.0
@@ -84,6 +84,7 @@ function test_leapfrogging_rings(
         # @show nstep, t, dt, E
         push!(energy_time, E)
         push!(line_length, L)
+        push!(impulse_time, p⃗)
         push!(sum_of_squared_radii, R²_all)
     end
 
@@ -231,6 +232,11 @@ end
         @test isapprox(
             @inferred(Diagnostics.filament_length(iter; quad = nothing)),
             @inferred(Diagnostics.filament_length(iter; quad = GaussLegendre(2)));
+            rtol,
+        )
+        @test isapprox(
+            @inferred(Diagnostics.vortex_impulse(iter; quad = nothing)),
+            @inferred(Diagnostics.vortex_impulse(iter; quad = GaussLegendre(2)));
             rtol,
         )
     end
