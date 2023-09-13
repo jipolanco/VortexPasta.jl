@@ -13,7 +13,7 @@ using VortexPasta.Timestepping
 using VortexPasta.Timestepping: VortexFilamentSolver
 using VortexPasta.Diagnostics
 
-using JET: @test_opt
+using JET: JET
 using FINUFFT: FINUFFT  # for JET only
 
 function vortex_ring_squared_radius(f::AbstractFilament)
@@ -87,7 +87,8 @@ function test_leapfrogging_rings(
         push!(sum_of_squared_radii, R²_all)
     end
 
-    @test_opt ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
+    JET.@test_opt ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
+    JET.@test_call ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
 
     l_min = minimum_knot_increment(prob.fs)
     adaptivity =
@@ -105,7 +106,8 @@ function test_leapfrogging_rings(
         callback,
     )
 
-    @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+    JET.@test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+    JET.@test_call ignored_modules=(Base, FINUFFT) step!(iter)
 
     @info "Solving with $scheme..." dt_initial = iter.time.dt prob.tspan
 

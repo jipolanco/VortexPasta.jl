@@ -18,8 +18,8 @@ end
 @inline deperiodise_separation(r::Real, ::Infinity, ::Infinity) = r
 
 # We convert SVector to tuple to make sure that no heap allocations are performed.
-@inline deperiodise_separation(r⃗::Vec3, args...) = oftype(r⃗, deperiodise_separation(Tuple(r⃗), args...))
-@inline deperiodise_separation(rs::Tuple, args...) = map(deperiodise_separation, rs, args...) :: Tuple
+@inline deperiodise_separation(r⃗::Vec3, args...)::Vec3 = oftype(r⃗, deperiodise_separation(Tuple(r⃗), args...))
+@inline deperiodise_separation(rs::Tuple, args...)::Tuple = map(deperiodise_separation, rs, args...)
 
 """
     find_min_distance(
