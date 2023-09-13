@@ -10,6 +10,7 @@ using VortexPasta.PredefinedCurves: define_curve, PeriodicLine
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
+using VortexPasta.Diagnostics
 
 using JET: @test_opt
 using FINUFFT: FINUFFT  # for JET only
@@ -28,44 +29,6 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
     offset = S(1) - S(0)
     @assert offset ≈ SVector(0, 0, sign * Lz)
     (; x, y, Lz, sign, A, k, tlims, S, offset,)
-end
-
-function _kinetic_energy_from_streamfunction(::Nothing, ψs_all, fs, Γ, Ls)
-    prefactor = Γ / (2 * prod(Ls))
-    E = zero(prefactor)
-    for (f, ψs) ∈ zip(fs, ψs_all)
-        ts = knots(f)
-        for i ∈ eachindex(segments(f))
-            ψ⃗ = ψs[i]
-            s⃗′ = f[i, Derivative(1)]
-            δt = (ts[i + 1] - ts[i - 1]) / 2
-            E += (ψ⃗ ⋅ s⃗′) * δt
-        end
-    end
-    prefactor * E
-end
-
-function _kinetic_energy_from_streamfunction(quad, ψs_all, fs, Γ, Ls)
-    prefactor = Γ / (2 * prod(Ls))
-    E = zero(prefactor)
-    for (f, ψs) ∈ zip(fs, ψs_all)
-        Xoff = Filaments.end_to_end_offset(f)
-        ψ_int = Filaments.change_offset(similar(f), zero(Xoff))
-        copy!(nodes(ψ_int), ψs)
-        update_coefficients!(ψ_int; knots = knots(f))
-        for i ∈ eachindex(segments(f))
-            E += integrate(f, i, quad) do ζ
-                ψ⃗ = ψ_int(i, ζ)
-                s⃗′ = f(i, ζ, Derivative(1))
-                ψ⃗ ⋅ s⃗′
-            end
-        end
-    end
-    prefactor * E
-end
-
-function kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad = nothing)
-    _kinetic_energy_from_streamfunction(quad, ψs, fs, Γ, Ls)
 end
 
 # Explicit RK methods
@@ -153,7 +116,8 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
         local (; fs, ψs,) = iter
         local (; Γ, Ls,) = iter.prob.p.common
         local quad = nothing  # this doesn't seem to change much the results...
-        E = kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad)
+        E = Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad)
+        # @show (nstep, t, E)
         # write_vtkhdf("kw_$nstep.hdf", fs; refinement = 4) do io
         #     io["Streamfunction"] = ψs
         # end
