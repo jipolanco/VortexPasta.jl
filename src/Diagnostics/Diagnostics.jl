@@ -21,7 +21,7 @@ filament nodes in a periodic domain.
 The kinetic energy per unit mass associated to a set of vortex filaments is defined as:
 
 ```math
-E = \frac{Γ}{2V} ∮ 𝛙(𝐬) ⋅ \mathrm{d}𝐬
+E = \frac{Γ}{2V} ∮ \bm{ψ}(\bm{s}) ⋅ \mathrm{d}\bm{s}
 ```
 
 where ``Γ`` is the vortex circulation and ``V`` is the volume of a periodic cell.
@@ -62,7 +62,7 @@ function _kinetic_energy_from_streamfunction(::Nothing, ψs, fs, Γ, Ls)
     E = zero(prefactor)
     for (f, ψf) ∈ zip(fs, ψs)
         ts = knots(f)
-        for i ∈ eachindex(segments(f))
+        for i ∈ eachindex(f, ψf)
             ψ⃗ = ψf[i]
             s⃗′ = f[i, Derivative(1)]
             δt = (ts[i + 1] - ts[i - 1]) / 2
