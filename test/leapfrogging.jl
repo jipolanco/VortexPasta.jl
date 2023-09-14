@@ -245,7 +245,7 @@ end
             E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2))
             # The energy spectrum doesn't include small-scale energy, so its integral
             # underestimates the total energy.
-            @test sum(Ek) * Δk < E
+            @test E/10 < sum(Ek) * Δk < E
             # plt = lineplot(ks[2:end], Ek[2:end]; xscale = log10, yscale = log10)
             # println(plt)
         end
