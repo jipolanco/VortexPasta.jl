@@ -50,9 +50,11 @@ function _kinetic_energy_from_streamfunction(
         quad, ψs::SetOfFilamentsData, fs::VectorOfFilaments, Γ, args...,
     )
     T = float(typeof(Γ))
-    sum(eachindex(fs, ψs); init = zero(T)) do i
-        _kinetic_energy_from_streamfunction(quad, ψs[i], fs[i], Γ, args...)
+    E = zero(T)
+    for i ∈ eachindex(fs, ψs)
+        E += _kinetic_energy_from_streamfunction(quad, ψs[i], fs[i], Γ, args...)
     end
+    E
 end
 
 # Case of a single filament
