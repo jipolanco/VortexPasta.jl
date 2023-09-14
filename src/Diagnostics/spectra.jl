@@ -2,6 +2,7 @@ export energy_spectrum, energy_spectrum!
 
 """
     energy_spectrum(cache::LongRangeCache; unfilter = Val(true))      -> (ks, Ek)
+    energy_spectrum(cache::BiotSavartCache; unfilter = Val(true))     -> (ks, Ek)
     energy_spectrum(iter::VortexFilamentSolver; unfilter = Val(true)) -> (ks, Ek)
 
 Compute kinetic energy spectrum associated to vortex filament state.
@@ -15,6 +16,7 @@ function energy_spectrum end
 
 """
     energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache; unfilter = Val(true))
+    energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, cache::BiotSavartCache; unfilter = Val(true))
     energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, iter::VortexFilamentSolver; unfilter = Val(true))
 
 Compute kinetic energy spectrum associated to vortex filament state.
@@ -50,6 +52,8 @@ function energy_spectrum(cache::LongRangeCache; kws...)
     energy_spectrum!(Ek, ks_spectrum, cache; kws...)
     ks_spectrum, Ek
 end
+
+energy_spectrum(cache::BiotSavartCache; kws...) = energy_spectrum(cache.longrange; kws...)
 
 function energy_spectrum!(
         Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache;
@@ -94,3 +98,6 @@ function energy_spectrum!(
     end
     Ek
 end
+
+energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, cache::BiotSavartCache; kws...) =
+    energy_spectrum!(Ek, ks, cache.longrange; kws...)

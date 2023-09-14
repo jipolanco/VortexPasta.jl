@@ -23,6 +23,5 @@ end
 function Diagnostics.energy_spectrum!(
         Ek::AbstractVector, ks::AbstractVector, iter::VortexFilamentSolver; kws...,
     )
-    cache = iter.cache_bs.longrange
-    Diagnostics.energy_spectrum!(Ek, ks, cache; kws...)
+    Diagnostics.energy_spectrum!(Ek, ks, iter.cache_bs; kws...)
 end
