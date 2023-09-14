@@ -524,4 +524,6 @@ function finalise_step!(iter::VortexFilamentSolver)
     iter
 end
 
+include("diagnostics.jl")
+
 end

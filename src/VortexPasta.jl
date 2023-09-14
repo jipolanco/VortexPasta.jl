@@ -15,9 +15,9 @@ include("Filaments/Filaments.jl")
 include("FilamentIO/FilamentIO.jl")
 
 include("BiotSavart/BiotSavart.jl")
-include("Timestepping/Timestepping.jl")
-
 include("Diagnostics/Diagnostics.jl")
+
+include("Timestepping/Timestepping.jl")
 
 ## Precompilation
 using PrecompileTools: @setup_workload, @compile_workload

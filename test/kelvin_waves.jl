@@ -135,6 +135,15 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
         callback,
     )
 
+    let
+        ks, Ek = @inferred Diagnostics.energy_spectrum(iter)
+        Δk = step(ks)
+        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2))
+        @test E/10 < sum(Ek) * Δk < E
+        # plt = lineplot(ks[2:end], Ek[2:end]; xscale = log10, yscale = log10)
+        # println(plt)
+    end
+
     @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
 
     (; fs, vs, ψs,) = iter  # `vs` already contains the initial velocities

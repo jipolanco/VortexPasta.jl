@@ -11,6 +11,8 @@ using ..Filaments:
     AbstractFilament, Derivative, Vec3,
     knots, segments, integrate
 
+using ..BiotSavart: BiotSavartCache, LongRangeCache
+
 using LinearAlgebra: ⋅, ×
 
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
@@ -20,5 +22,6 @@ const SetOfFilamentsData = AbstractVector{<:SingleFilamentData}
 include("energy.jl")
 include("filament_length.jl")
 include("vortex_impulse.jl")
+include("spectra.jl")
 
 end

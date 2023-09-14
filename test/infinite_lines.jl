@@ -3,11 +3,13 @@
 using Test
 using StaticArrays
 using Statistics: mean, std
-using LinearAlgebra: norm
+using LinearAlgebra: norm, cholesky
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 using VortexPasta.FilamentIO
 using VortexPasta.BiotSavart
+using VortexPasta.Diagnostics
+using UnicodePlots: lineplot, lineplot!
 
 # Initialise nearly straight vortex line with helicoidal perturbation.
 function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.0, k::Int = 1)
@@ -19,6 +21,16 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.0, k::Int = 1)
     )
     offset = setindex(zero(S(0.0)), sign * Lz, 3)
     (; x, y, Lz, sign, tlims, S, offset,)
+end
+
+function estimate_power_law_exponent(xs_in, ys_in)
+    xs = log.(xs_in)
+    Y = log.(ys_in)
+    Base.require_one_based_indexing(xs)
+    # Fit line using ordinary least squares
+    X = hcat(fill!(similar(xs), 1), xs)
+    βs = cholesky(X'X) \ (X'Y)
+    (exp(βs[1]), βs[2])  # (prefactor, exponent)
 end
 
 # Check that I/O preserves the end-to-end offset.
@@ -133,6 +145,25 @@ function test_infinite_lines(method)
         if continuity ≥ 1
             @test vstd / abs(vmean) < 1e-3
         end
+    end
+
+    @testset "Energy spectrum" begin
+        ks, Ek = Diagnostics.energy_spectrum(cache)
+        @views plt = lineplot(
+            ks[2:end], Ek[2:end];
+            xscale = log10, yscale = log10,
+            title = "Infinite lines", xlabel = "k", ylabel = "E(k)",
+            name = "Spectrum",
+        )
+        @views let ks = ks[4:end]
+            lineplot!(plt, ks, 0.08 ./ ks; name = "~ k^{-1}")
+        end
+        @views let inds = (lastindex(ks) ÷ 4):lastindex(ks)
+            C, α = estimate_power_law_exponent(ks[inds], Ek[inds])
+            @test isapprox(α, -1; rtol = 1e-2)  # approximately k^{-1}
+            lineplot!(plt, ks[inds], @.(C * ks[inds]^α); name = "Fit")
+        end
+        println(plt)
     end
 
     @testset "FilamentIO" begin
