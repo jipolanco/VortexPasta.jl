@@ -51,8 +51,6 @@ function energy_spectrum(cache::LongRangeCache; kws...)
     ks_spectrum, Ek
 end
 
-energy_spectrum(iter; kws...) = energy_spectrum(iter.cache_bs.longrange; kws...)
-
 function energy_spectrum!(
         Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache;
         unfilter::Val{UNFILTER} = Val(true),  # undo Ewald smoothing filter
@@ -95,9 +93,4 @@ function energy_spectrum!(
         Ek[n] += factor * u²
     end
     Ek
-end
-
-function energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, iter; kws...)
-    cache = iter.cache_bs.longrange
-    energy_spectrum!(Ek, ks, cache; kws...)
 end

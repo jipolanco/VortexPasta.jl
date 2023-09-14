@@ -39,12 +39,6 @@ function kinetic_energy_from_streamfunction(ψs::AbstractVector, args...; quad =
     _kinetic_energy_from_streamfunction(quad, ψs, args...)
 end
 
-function kinetic_energy_from_streamfunction(iter; kws...)
-    (; ψs, fs,) = iter
-    (; Γ, Ls,) = iter.prob.p.common
-    kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; kws...)
-end
-
 # Case of a set of filaments
 function _kinetic_energy_from_streamfunction(
         quad, ψs::SetOfFilamentsData, fs::VectorOfFilaments, Γ, args...,

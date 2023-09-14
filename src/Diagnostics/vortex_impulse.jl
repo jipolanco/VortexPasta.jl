@@ -22,8 +22,6 @@ to its direction of propagation, i.e. normal to the plane where the ring lives).
 """
 function vortex_impulse end
 
-vortex_impulse(iter; kws...) = vortex_impulse(iter.fs; kws...)
-
 function vortex_impulse(fs::VectorOfFilaments; kws...)
     T = eltype(eltype(fs))
     @assert T <: Vec3
