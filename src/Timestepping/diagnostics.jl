@@ -17,7 +17,7 @@ function Diagnostics.vortex_impulse(iter::VortexFilamentSolver; kws...)
 end
 
 function Diagnostics.energy_spectrum(iter::VortexFilamentSolver; kws...)
-    Diagnostics.energy_spectrum(iter.cache_bs.longrange; kws...)
+    Diagnostics.energy_spectrum(iter.cache_bs; kws...)
 end
 
 function Diagnostics.energy_spectrum!(
