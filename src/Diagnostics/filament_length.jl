@@ -6,7 +6,7 @@ export filament_length
 
 Estimate length of one or more filaments.
 
-Here `f` can be a [`Filament`](@ref) or a vector of filaments.
+Here `f` can be an [`AbstractFilament`](@ref) or a vector of filaments.
 One can also pass a `VortexFilamentSolver`, in which case the total filament length will be
 returned.
 

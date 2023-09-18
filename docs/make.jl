@@ -1,4 +1,5 @@
 using Documenter
+using Documenter: Remotes
 using VortexPasta
 
 DocMeta.setdocmeta!(
@@ -34,10 +35,38 @@ DocMeta.setdocmeta!(
 
 # doctest(VortexPasta; fix = true)
 
-makedocs(
+struct Gitlab <: Remotes.Remote
+    url :: String
+end
+
+Remotes.repourl(remote::Gitlab) = remote.url
+
+# Example:
+# https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl/-/blob/master/src/Filaments/integrate.jl#L23-35
+function Remotes.fileurl(remote::Gitlab, ref, filename, linerange)
+    io = IOBuffer()
+    print(io, Remotes.repourl(remote), "/-/blob/", ref, '/', filename)
+    if linerange !== nothing
+        a, b = first(linerange), last(linerange)
+        print(io, "#L", a)
+        if a != b
+            print(io, "-", b)
+        end
+    end
+    String(take!(io))
+end
+
+repo = Gitlab("https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl")
+
+makedocs(;
     sitename = "VortexPasta",
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
+        repolink = Remotes.repourl(repo),
+        edit_link = "master",
+        size_threshold_ignore = [
+            "modules/Filaments.md",  # this page has too much content so it's relatively large
+        ],
     ),
     modules = [VortexPasta],
     pages = [
@@ -54,7 +83,8 @@ makedocs(
             "modules/Timestepping.md",
             "modules/Diagnostics.md",
         ]
-    ]
+    ],
+    repo,
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.
