@@ -33,7 +33,7 @@ argument of [`define_curve`](@ref). See below for some examples.
 
 Define a ``2π``-periodic curve with a sinusoidal perturbation along X:
 
-```jldoctest PeriodicLine
+```jldoctest PeriodicLine; filter = r"(\d*)\.(\d{14})\d+" => s"\1.\2***"
 julia> xfun(t) = 0.1 * sinpi(2t)  # this function satisfies having period T = 1
 xfun (generic function with 1 method)
 
@@ -71,7 +71,7 @@ directions, including the direction of the perturbation.
 Instead, if one wanted to keep the original perturbation while extending the curve period
 from ``1`` to ``2π``, one would need to apply scaling only along the Z direction:
 
-```jldoctest PeriodicLine
+```jldoctest PeriodicLine; filter = r"(\d*)\.(\d{14})\d+" => s"\1.\2***"
 julia> using StaticArrays: SDiagonal
 
 julia> S = define_curve(p; scale = SDiagonal(1, 1, 2π));

@@ -12,7 +12,7 @@ abstract type ParametricCurve end
 using LinearAlgebra: LinearAlgebra
 using StaticArrays: SVector
 
-"""
+@doc raw"""
     define_curve(
         p::ParametricCurve;
         scale = 1, rotate = LinearAlgebra.I, translate = 0,
@@ -56,7 +56,7 @@ operations. Note that transformations are applied in that order.
 Define a circular ring of radius ``R = 2`` centred at ``x⃗₀ = (0, 0, 1)`` and evaluate
 its coordinates over equispaced points.
 
-```jldoctest parametric_definition
+```jldoctest parametric_definition; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
 julia> S = define_curve(Ring(); translate = (0, 0, 1), scale = 2);
 
 julia> ts = range(0, 1; length = 16 + 1)
@@ -88,7 +88,7 @@ julia> S.(ts)
 If one wants an ellipse instead of a circle, one can simply apply an anisotropic scaling
 transformation:
 
-```jldoctest parametric_definition
+```jldoctest parametric_definition; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
 julia> using LinearAlgebra, StaticArrays
 
 julia> scale = SDiagonal(2.0, 1.0, 1.0)
@@ -125,7 +125,7 @@ julia> S.(ts)
 If we wanted a circular ring defined on the YZ plane instead of the default XZ plane, we can
 achieve this by rotating the original curve by 90° about the Y axis.
 
-```jldoctest parametric_definition
+```jldoctest parametric_definition; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
 julia> using Rotations: RotY  # there's also RotX and RotZ
 
 julia> rot = RotY(π / 2)  # rotation of 90° about the Y axis
@@ -171,7 +171,7 @@ More generally, to rotate about an arbitrary axis `ê = [ex, ey, ez]` by an ang
 In addition, the Rotations.jl package allows to easily generate random and uniformly
 distributed rotations:
 
-```jldoctest parametric_definition
+```jldoctest parametric_definition; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
 julia> using Rotations: QuatRotation  # parametrise rotations using quaternions
 
 julia> using Random: MersenneTwister

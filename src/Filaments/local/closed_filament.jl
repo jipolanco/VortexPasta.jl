@@ -27,7 +27,7 @@ See also [`Filaments.init`](@ref).
 
 Initialise filament with set of discretisation points:
 
-```jldoctest ClosedLocalFilament
+```jldoctest ClosedLocalFilament; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
 julia> f = Filaments.init(ClosedFilament, 16, FiniteDiffMethod(2, HermiteInterpolation(2)));
 
 julia> θs = range(-1, 1; length = 17)[1:16]
@@ -56,7 +56,7 @@ derivatives.
 
 Estimate derivatives at discretisation points:
 
-```jldoctest ClosedLocalFilament
+```jldoctest ClosedLocalFilament; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
 julia> f[4, Derivative(1)]
 3-element SVector{3, Float64} with indices SOneTo(3):
   0.975687843883729
@@ -72,7 +72,7 @@ julia> f[4, Derivative(2)]
 
 Estimate coordinates and derivatives in-between discretisation points:
 
-```jldoctest ClosedLocalFilament
+```jldoctest ClosedLocalFilament; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
 julia> f(4, 0.32)
 3-element SVector{3, Float64} with indices SOneTo(3):
  -0.15995621299009463
