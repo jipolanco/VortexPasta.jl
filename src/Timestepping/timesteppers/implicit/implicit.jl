@@ -5,7 +5,7 @@ Abstract type representing an implicit (possibly multi-stage) scheme.
 
 These kinds of schemes are mainly meant to be used as inner schemes (for resolving
 fast-evolving dynamics which are also cheap to compute) when using
-[`MultirateSchemes`](@ref).
+[`MultirateScheme`](@ref).
 """
 abstract type ImplicitScheme <: TemporalScheme end
 

@@ -75,7 +75,7 @@ These implicit schemes are mainly meant to be used as inner schemes when using
 multirate methods.
 
 ```@docs
-ExplicitScheme
+ImplicitScheme
 CrankNicolson
 ```
 

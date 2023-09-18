@@ -5,3 +5,6 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 VortexPasta = "3d0f1e53-df37-477e-a492-0d33e6039c24"
+
+[compat]
+Documenter = "1"
