@@ -1,6 +1,7 @@
 using Documenter
 using Documenter: Remotes
 using VortexPasta
+using Rotations  # loading this here seems to fix doctest issues on Gitlab
 
 DocMeta.setdocmeta!(
     VortexPasta.PaddedArrays,
@@ -13,6 +14,7 @@ DocMeta.setdocmeta!(
     :DocTestSetup,
     quote
         using StaticArrays: SVector
+        using Rotations
         using VortexPasta.PredefinedCurves
     end,
 )
