@@ -139,7 +139,7 @@ pages:
       '
     - julia --project=docs --color=yes docs/make.jl  # make documentation
     - mv docs/build public     # move to the directory picked up by Gitlab pages
-    - mv lcov_html public/coverage  # artifact from test:1.9
+    - '[[ -d lcov_html ]] && mv lcov_html public/coverage'  # artifact from test:1.9
   artifacts:
     paths:
       - public
