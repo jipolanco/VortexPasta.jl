@@ -86,6 +86,7 @@ makedocs(;
             "modules/Diagnostics.md",
         ]
     ],
+    warnonly = [:missing_docs],  # TODO remove
     repo,
 )
 
