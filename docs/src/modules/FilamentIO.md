@@ -12,8 +12,8 @@ FilamentIO
 
 ```@docs
 write_vtkhdf
-Base.setindex!(io::VTKHDFFile, vs::AbstractVector{<:AbstractVector}, name::AbstractString)
-Base.setindex!(io::VTKHDFFile, data, name::AbstractString)
+Base.setindex!(io::FilamentIO.VTKHDFFile, vs::AbstractVector{<:AbstractVector}, name::AbstractString)
+Base.setindex!(io::FilamentIO.VTKHDFFile, data, name::AbstractString)
 ```
 
 ## Reading data
