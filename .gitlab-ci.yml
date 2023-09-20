@@ -163,7 +163,7 @@ pages:
         mv -v docs/build public
         if [[ -d lcov_html ]]; then
           mv -v lcov_html public/coverage
-        end
+        fi
       fi
 
 # WARNING: This template is using the `julia` images from [Docker
