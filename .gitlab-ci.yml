@@ -25,11 +25,11 @@ default:
 # Below is the template to run your tests in Julia
 .test_template: &test_definition
   stage: test
-  # Uncomment below (and adjust as needed) to run the tests for specific references
-  # only, such as the default branch, a `development` branch, and so on:
-  # rules:
-  #   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  #   - if: $CI_COMMIT_BRANCH == "development"
+  rules:
+    # Only run tests if source files were modified
+    - changes:
+      - src/**
+      - test/**
   script:
     - |
       julia --project -e '
