@@ -21,10 +21,10 @@
   rules:
     # Only run tests if source files were modified, or if we're on the main branch
     - changes:
-      paths:
-        - src/**
-        - test/**
-      compare_to: master
+        paths:
+          - src/**
+          - test/**
+        compare_to: master
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - |
