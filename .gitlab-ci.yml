@@ -23,7 +23,7 @@ default:
     - export JULIA_DEPOT_PATH=.julia
 
 # Below is the template to run your tests in Julia
-.test_template: &test_definition
+.test_template:
   stage: test
   rules:
     # Only run tests if source files were modified
@@ -105,7 +105,7 @@ default:
 # images comes from Docker hub
 test:1.9:
   image: julia:1.9
-  <<: *test_definition
+  extends: .test_template
 
 # Maybe you would like to test your package against the development branch:
 # test:1.1-dev (not sure there is such an image in docker, so not tested yet):
@@ -122,12 +122,9 @@ test:1.9:
 # - Copying and pasting the default `Simplecov` regex example provided, i.e.,
 #   `\(\d+.\d+\%\) covered` in the `test coverage parsing` textfield.
 
-# Example documentation deployment
-pages:
+docs:
   image: julia:1.9
-  dependencies:
-    - test:1.9  # use artifacts from test:1.9 (lcov_html)
-  stage: deploy
+  stage: test
   script:
     - apt-get update -qq && apt-get install -qq git  # needed by Documenter
     - |
@@ -138,13 +135,9 @@ pages:
         Pkg.build()
       '
     - julia --project=docs --color=yes docs/make.jl  # make documentation
-    - mv docs/build public     # move to the directory picked up by Gitlab pages
-    - '[[ -d lcov_html ]] && mv lcov_html public/coverage'  # artifact from test:1.9
   artifacts:
     paths:
-      - public
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      - docs/build
   cache:
     key: julia-cache
     paths:
@@ -152,6 +145,26 @@ pages:
       - .julia/compiled
       - .julia/packages
       - .julia/registries
+
+pages:
+  image: julia:1.9
+  stage: deploy
+  dependencies:
+    - test:1.9  # use coverage from test:1.9 (lcov_html)
+    - docs
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  artifacts:
+    paths:
+      - public
+  script:
+    - |
+      if [[ -d docs/build ]]; then
+        mv -v docs/build public
+        if [[ -d lcov_html ]]; then
+          mv -v lcov_html public/coverage
+        end
+      fi
 
 # WARNING: This template is using the `julia` images from [Docker
 # Hub][3]. One can use custom Julia images and/or the official ones found
