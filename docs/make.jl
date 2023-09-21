@@ -69,6 +69,7 @@ makedocs(;
         size_threshold_ignore = [
             "modules/Filaments.md",  # this page has too much content so it's relatively large
         ],
+        mathengine = KaTeX(),
     ),
     modules = [VortexPasta],
     pages = [
