@@ -1,6 +1,10 @@
 using Documenter
 using Documenter: Remotes
+using Literate: Literate
+
 using VortexPasta
+using VortexPasta.Filaments  # for references in tutorials
+
 using Rotations  # loading this here seems to fix doctest issues on Gitlab
 
 DocMeta.setdocmeta!(
@@ -60,6 +64,14 @@ end
 
 repo = Gitlab("https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl")
 
+##
+
+Literate.markdown(
+    "literate/tutorials/01-vortex_ring.jl",
+    "src/tutorials/";
+    documenter = true,
+)
+
 makedocs(;
     sitename = "VortexPasta",
     format = Documenter.HTML(
@@ -74,6 +86,9 @@ makedocs(;
     modules = [VortexPasta],
     pages = [
         "index.md",
+        "Tutorials" => [
+            "tutorials/01-vortex_ring.md",
+        ],
         "Modules" => [
             "modules/PaddedArrays.md",
             "modules/PredefinedCurves.md",
@@ -90,6 +105,8 @@ makedocs(;
     warnonly = [:missing_docs],  # TODO remove
     repo,
 )
+
+##
 
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
