@@ -177,9 +177,9 @@ function _plot_velocities!(
     p
 end
 
-_arrow_kwargs(; arrowscale,) = (;
-    arrowsize = (0.15, 0.15, 0.25),
-    linewidth = 0.04,
+_arrow_kwargs(; arrowscale, arrowwidth = 0.04,) = (;
+    arrowsize = (0.15, 0.15, 0.25) .* arrowscale,
+    linewidth = arrowwidth * arrowscale,
     lengthscale = arrowscale,
 )
 
