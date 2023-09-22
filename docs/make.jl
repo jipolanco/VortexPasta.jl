@@ -4,7 +4,10 @@ using DocumenterCitations
 using Literate: Literate
 
 using VortexPasta
-using VortexPasta.Filaments  # for references in tutorials
+
+# We load a few submodules to make @ref's work in Literate-geneerated files.
+using VortexPasta.Filaments
+using VortexPasta.BiotSavart
 
 using Rotations  # loading this here seems to fix doctest issues on Gitlab
 
@@ -90,6 +93,7 @@ makedocs(;
     modules = [VortexPasta],
     pages = [
         "index.md",
+        "methods.md",
         "Tutorials" => [
             "tutorials/01-vortex_ring.md",
         ],

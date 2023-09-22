@@ -156,11 +156,36 @@ fig
 # ```math
 # v_{\text{ring}} = \frac{Γ}{4πR} \left[ \ln \left(\frac{8R}{a}\right) - Δ \right],
 # ```
-# where ``a`` is the radius of the vortex core (assumed to be much smaller than ``R``), and
-# ``Δ`` is a coefficient which depends on the actual vorticity profile at the core.
+# where ``a`` is the radius of the vortex core -- assumed to be much smaller than ``R`` --
+# and ``Δ`` is a coefficient which depends on the actual vorticity profile at the core.
 #
-# Some typical cases are:
+# !!! note "Some typical values of Δ"
 #
-# - ``Δ = 1/2`` for a **hollow vortex** (``ω(r) = ω₀ \, δ(r - a)``);
-# - ``Δ = 1/4`` for a **uniform vorticity distribution** (``ω(r) = ω₀`` for ``r < a``).
-
+#     - ``Δ = 1/2`` for a **hollow vortex**: ``ω(r) = ω₀ \, δ(r - a)``;
+#     - ``Δ = 1/4`` for a **uniform vorticity distribution**: ``ω(r) = ω₀`` for ``r < a``.
+#
+# This velocity can be derived by computing the Biot--Savart integral along the circular
+# vortex ring and excluding a very small region (proportional to ``a``) from the integral,
+# in the vicinity of the point of interest, thus avoiding the singularity.
+#
+# In VortexPasta, the velocity induced by one or more vortex filaments is computed by the
+# [`VortexPasta.BiotSavart`](@ref) submodule.
+# The basic steps for computing the velocity induced by a set of vortices on itself is:
+#
+# 1. Set physical and numerical parameters ([`ParamsBiotSavart`](@ref)),
+# 2. initialise a "cache" containing arrays and data needed for computations
+#    ([`BiotSavart.init_cache`](@ref)),
+# 3. compute filament velocities from their positions ([`velocity_on_nodes!`](@ref)).
+#
+# ### Physical and numerical parameters in periodic domains
+#
+# Relevant physical parameters are of two types:
+#
+# - vortex properties: circulation ``Γ``, core radius ``a`` and core parameter ``Δ``;
+# - domain size ``L``, i.e. unit cell size in periodic domains.
+#   Can be a single value (e.g. `Ls = 2π`) for a cubic domain, or a tuple of values (e.g.
+#   `Ls = (2π, 4π, 6π)`) if one wants different domain sizes in each direction.
+#
+# These parameters are all mandatory.
+# Moreover, there are a few numerical parameters as detailed in [`ParamsBiotSavart`](@ref).
+# The two mandatory ones
