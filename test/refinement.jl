@@ -14,7 +14,7 @@ end
 
 @testset "Refinement: trefoil knot" begin
     methods = (
-        FiniteDiffMethod(2),
+        FiniteDiffMethod(),
         CubicSplineMethod(),
     )
     N = 64

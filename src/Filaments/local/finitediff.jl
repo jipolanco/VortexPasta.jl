@@ -3,11 +3,11 @@ export
 
 @doc raw"""
     FiniteDiffMethod{M} <: LocalDiscretisationMethod{M}
-    FiniteDiffMethod(M::Int, [interpolation = HermiteInterpolation(M)])
+    FiniteDiffMethod([M = 2], [interpolation = HermiteInterpolation(M)])
 
 Estimation of curve derivatives at filament nodes using finite differences.
 
-For now, only the case `M = 2` is implemented (4th order / 5-point finite differences),
+For now, only the case `M = 2` (default) is implemented (4th order / 5-point finite differences),
 following the method used by Baggaley & Barenghi[^1] based on a paper by Gamet et al.[^2].
 
 `FiniteDiffMethod` also requires specifying an interpolation scheme for evaluating
@@ -34,6 +34,7 @@ end
 continuity(::Type{<:FiniteDiffMethod{M, I}}) where {M, I} = continuity(I)  # returns continuity of interpolation method
 
 @inline FiniteDiffMethod(M::Int, interp = HermiteInterpolation(M)) = FiniteDiffMethod{M}(interp)
+@inline FiniteDiffMethod() = FiniteDiffMethod(2)
 
 interpolation_method(m::FiniteDiffMethod) = m.interp
 
