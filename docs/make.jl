@@ -1,5 +1,6 @@
 using Documenter
 using Documenter: Remotes
+using DocumenterCitations
 using Literate: Literate
 
 using VortexPasta
@@ -66,6 +67,8 @@ repo = Gitlab("https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl")
 
 ##
 
+bib = CitationBibliography("src/biblio.bib"; style = :authoryear)
+
 Literate.markdown(
     "literate/tutorials/01-vortex_ring.jl",
     "src/tutorials/";
@@ -79,6 +82,7 @@ makedocs(;
         repolink = Remotes.repourl(repo),
         edit_link = "master",
         size_threshold_ignore = [
+            # "tutorials/01-vortex_ring.md",
             "modules/Filaments.md",  # this page has too much content so it's relatively large
         ],
         mathengine = KaTeX(),
@@ -100,9 +104,11 @@ makedocs(;
             "modules/BiotSavart.md",
             "modules/Timestepping.md",
             "modules/Diagnostics.md",
-        ]
+        ],
+        "References" => "references.md",
     ],
-    warnonly = [:missing_docs],  # TODO remove
+    warnonly = [:missing_docs],  # TODO can we remove this?
+    plugins = [bib],
     repo,
 )
 

@@ -105,7 +105,7 @@ using LinearAlgebra: norm, ⋅  # the dot product ̇`⋅` can be obtained via \c
 @show t̂ ⋅ ρ⃗ norm(t̂) norm(ρ⃗)
 nothing  # hide
 
-# ### Plotting a filament
+# ### Plotting the filament
 
 # We can readily plot our vortex ring using Makie.
 # For convenience, VortexPasta overloads the Makie `plot` and `plot!` functions to be able
@@ -148,3 +148,19 @@ plot!(
 fig
 
 # See [`filamentplot!`](@ref) for more details and for other possible options.
+
+# ## Computing the vortex ring velocity
+#
+# An isolated vortex ring of radius ``R`` and circulation ``Γ`` is known to translate with a
+# velocity [Saffman1993](@cite):
+# ```math
+# v_{\text{ring}} = \frac{Γ}{4πR} \left[ \ln \left(\frac{8R}{a}\right) - Δ \right],
+# ```
+# where ``a`` is the radius of the vortex core (assumed to be much smaller than ``R``), and
+# ``Δ`` is a coefficient which depends on the actual vorticity profile at the core.
+#
+# Some typical cases are:
+#
+# - ``Δ = 1/2`` for a **hollow vortex** (``ω(r) = ω₀ \, δ(r - a)``);
+# - ``Δ = 1/4`` for a **uniform vorticity distribution** (``ω(r) = ω₀`` for ``r < a``).
+
