@@ -84,12 +84,13 @@ More precisely, the long-range vorticity is given by the convolution
 ``\bm{ω}^> = H ∗ \bm{ω}``, where ``H(\bm{r}) = (α / \sqrt{π})^3 \, e^{-α^2 r^2}``
 is a 3D Gaussian kernel.
 Intuitively, this means that the long-range velocity ``\bm{v}^>`` corresponds to the velocity induced by a coarse-grained version of the vortex filaments.
-In this view, vortices are not "infinitesimal" anymore, but are closer to what we are used to see in classical viscous fluids.
+In this view, vortices are not "infinitesimal" anymore, but are closer to the
+smooth vortices which we are used to see in classical viscous fluids.
 In periodic domains, such a smooth vorticity field can be accurately and efficiently expanded in Fourier series, and the curl operator can be readily inverted in Fourier space to obtain the coarse-grained velocity field ``\bm{v}^>``.
 
 #### 1. Estimating the vorticity in Fourier space
 
-To do this, we first expand the (*actual*) vorticity field in Fourier series:
+The idea is to first expand the (*actual*) vorticity field in Fourier series:
 
 ```math
 \bm{ω}(\bm{x}) = Γ ∮_{\mathcal{C}} δ(\bm{x} - \bm{s}) \, \mathrm{d}\bm{s}
@@ -114,9 +115,9 @@ To estimate this integral, we discretise the curves defining the support ``\math
 ```
 
 The weights are related to the length of the discrete segments and to the quadrature rule used to estimate the integrals over segments (more details soon...).
-The important point here is that, since the discrete points are not generally on an equispaced grid, one cannot directly use the fast Fourier transform (FFT) to efficiently obtain these coefficients.
+The important point here is that, since the discrete points are generally not on an equispaced grid, one cannot directly use the fast Fourier transform (FFT) to efficiently evaluate these coefficients.
 Nevertheless, they can be efficiently and accurately estimated using the [non-uniform FFT](https://en.wikipedia.org/wiki/Non-uniform_discrete_Fourier_transform#Nonuniform_fast_Fourier_transform) (NUFFT) algorithm.
-More precisely, this corresponds to a [type-1 NUFFT](https://finufft.readthedocs.io/en/latest/math.html), from non-uniform points in physical space to uniform wavenumbers ``\bm{k}`` in Fourier space.
+More precisely, this corresponds to a [type-1 NUFFT](https://finufft.readthedocs.io/en/latest/math.html), which converts from non-uniform sources in physical space to uniform wavenumbers ``\bm{k}`` in Fourier space.
 
 #### 2. Coarse-grained vorticity and velocity in Fourier space
 
@@ -168,6 +169,6 @@ This operation can be written as:
 for a set of locations ``\bm{s}_j ∈ \mathcal{C}``.
 Note that in practice this sum is truncated to the chosen ``k_{\text{max}}``.
 
-This operation can be efficiently computed using a type-2 NUFFT (from uniform wavenumbers ``\bm{k}`` to non-uniform locations ``\bm{x}``), which can be understood as an interpolation on the chosen points.
+This operation can be efficiently computed using a type-2 NUFFT (from uniform wavenumbers ``\bm{k}`` to non-uniform locations ``\bm{x}``), which can be understood as an interpolation of the coarse-grained velocity field on the chosen points.
 
 ## Estimating line integrals
