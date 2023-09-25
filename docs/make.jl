@@ -76,8 +76,8 @@ bib = CitationBibliography(
 )
 
 Literate.markdown(
-    "literate/tutorials/01-vortex_ring.jl",
-    "src/tutorials/";
+    joinpath(@__DIR__, "literate", "tutorials", "01-vortex_ring.jl"),
+    joinpath(@__DIR__, "src", "tutorials");
     documenter = true,
 )
 
