@@ -12,29 +12,7 @@ That is, they induce a rotating velocity field about them whose intensity is qua
 In the case of helium-4, superfluidity takes place at temperatures below about 2.17 K,
 and the thickness of quantum vortices is about 1 Å (``10^{-10}`` m).
 Their atomic-scale thickness justifies treating quantum vortices as infinitesimal lines when describing the macroscopic flow induced by them.
-
-### The vortex filament model
-
-The **vortex filament model** (VFM) describes the motion of thin vortex lines in three-dimensional space.
-Each vortex line induces a velocity field about it given by the [Biot--Savart law](https://en.wikipedia.org/wiki/Biot%E2%80%93Savart_law):
-```math
-\bm{v}(\bm{x}) =
-\frac{Γ}{4π} ∮_{\mathcal{C}} \frac{(\bm{s} - \bm{x}) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{x}|^3}
-```
-where ``Γ`` is the vortex circulation (equal to ``κ`` for quantum vortices),
-and ``\bm{s}`` is a point along the vortex line.
-The above equation derives from the vorticity field:
-```math
-\bm{ω}(\bm{x}) ≡ \bm{\nabla} × \bm{v}(\bm{x})
-= Γ ∮_{\mathcal{C}} δ(\bm{s} - \bm{x}) \, \mathrm{d}\bm{s}
-```
-where ``δ`` is Dirac delta function.
-That is, the vorticity field is singular and localised at the locations of quantum vortices.
-
-The Biot--Savart law describes in particular the motion induced by vortex filaments on themselves and on surrounding vortex lines.
-The VFM thus describes the collective motion of a set of mutually-interacting vortex filaments which obey the Biot--Savart law.
-Note that the Biot--Savart integral is singular when evaluated at a vortex location ``\bm{s}' ∈ \mathcal{C}``, and the integral must be desingularised by taking into account the finite thickness of the vortex core.
-The VFM also accounts for *vortex reconnections*, which occur when two vortex segments are sufficiently close to each other and which change the topology of the vortex system.
+This is precisely the idea of the [vortex filament model](@ref VFM) which is implemented in this package.
 
 ### Numerical considerations
 

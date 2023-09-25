@@ -12,6 +12,7 @@ using VortexPasta.BiotSavart
 # For some reason we need to explicitly load these packages here to avoid failures with
 # doctests and @example blocks on Gitlab.
 using Rotations
+using StaticArrays
 using SpecialFunctions
 using GLMakie
 using CairoMakie
@@ -93,7 +94,6 @@ makedocs(;
         repolink = Remotes.repourl(repo),
         edit_link = "master",
         size_threshold_ignore = [
-            # "tutorials/01-vortex_ring.md",
             "modules/Filaments.md",  # this page has too much content so it's relatively large
         ],
         mathengine = KaTeX(),
@@ -101,7 +101,8 @@ makedocs(;
     modules = [VortexPasta],
     pages = [
         "index.md",
-        "Numerical considerations" => [
+        "Methods" => [
+            "methods/VFM.md",
             "methods/Ewald.md",
         ],
         "Tutorials" => [

@@ -3,6 +3,8 @@
 The main originality of the VortexPasta solver is that it adapts the [Ewald summation](https://en.wikipedia.org/wiki/Ewald_summation) method to accelerate the computation of the Biot--Savart law along vortex filaments.
 See for example [Arnold2005](@citet) for a nice introduction to Ewald methods applied to the electrostatic interaction between point charges.
 
+## Splitting the Biot--Savart integral
+
 The basic idea of the method is to split the Biot--Savart integral into short- and long-range parts:
 ```math
 \begin{align*}
@@ -11,11 +13,10 @@ The basic idea of the method is to split the Biot--Savart integral into short- a
     \frac{(\bm{s} - \bm{x}) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{x}|^3}
     \\
     &= \frac{Γ}{4π} ∮_{\mathcal{C}}
-    \left[ \textcolor{#D62728}{g^{<}(|\bm{s} - \bm{x}|)} + \textcolor{#1F77B4}{g^{>}(|\bm{s} - \bm{x}|)} \right]
+    \Big[ g^{<}(|\bm{s} - \bm{x}|) + g^{>}(|\bm{s} - \bm{x}|) \Big]
     \frac{(\bm{s} - \bm{x}) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{x}|^3}
     \\
-    &= \textcolor{#D62728}{\bm{v}^{<}(\bm{x})} +
-       \textcolor{#1F77B4}{\bm{v}^{>}(\bm{x})}
+    &= \bm{v}^{<}(\bm{x}) + \bm{v}^{>}(\bm{x})
 \end{align*}
 ```
 where the *short-range* and *long-range* scalar functions ``g^<(r)`` and ``g^>(r)`` have the properties:
@@ -66,8 +67,11 @@ fig
 For small ``αr``, the long-range splitting function goes to zero as ``r^3``, consistently with its Taylor expansion, ``g^>(r) = \frac{4}{3 \sqrt{π}} (αr)^3 + \mathcal{O}(r^5)``.
 This means that, as we wanted, ``g^>(r) / r^2`` is non-singular and smooth at ``r = 0``.
 
-As for the short-range splitting function, it is dominant for small ``αr``, while it decays exponentially to 0 for large ``αr``.
-In particular, for ``r ≳ 6/α``, its value decays below about ``10^{-15}``, meaning that it is safe to set the cut-off distance ``r_\text{cut}`` around this value.
+## Computation of the short-range velocity
+
+As seen in the figure above, the short-range splitting function is dominant for
+small ``αr``, while it decays exponentially to 0 for large ``αr``.
+In particular, for ``r ≳ 5/α``, its value decays below about ``10^{-10}``, meaning that it is safe to set the cut-off distance ``r_\text{cut}`` around this value.
 
 ## Computation of the long-range velocity
 
