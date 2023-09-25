@@ -1,8 +1,4 @@
-# Numerical methods
-
-This page summarises some numerical aspects which should be taken into account when choosing solver parameters.
-
-## Ewald summation for Biot--Savart
+# Ewald summation for Biot--Savart
 
 The main originality of the VortexPasta solver is that it adapts the [Ewald summation](https://en.wikipedia.org/wiki/Ewald_summation) method to accelerate the computation of the Biot--Savart law along vortex filaments.
 See for example [Arnold2005](@citet) for a nice introduction to Ewald methods applied to the electrostatic interaction between point charges.
@@ -73,7 +69,7 @@ This means that, as we wanted, ``g^>(r) / r^2`` is non-singular and smooth at ``
 As for the short-range splitting function, it is dominant for small ``αr``, while it decays exponentially to 0 for large ``αr``.
 In particular, for ``r ≳ 6/α``, its value decays below about ``10^{-15}``, meaning that it is safe to set the cut-off distance ``r_\text{cut}`` around this value.
 
-### Computation of the long-range velocity
+## Computation of the long-range velocity
 
 The long-range velocity ``\bm{v}^>`` has a simple physical interpretation.
 Indeed, it can be shown, by differentiating the splitting functions defined above,
@@ -88,7 +84,7 @@ In this view, vortices are not "infinitesimal" anymore, but are closer to the
 smooth vortices which we are used to see in classical viscous fluids.
 In periodic domains, such a smooth vorticity field can be accurately and efficiently expanded in Fourier series, and the curl operator can be readily inverted in Fourier space to obtain the coarse-grained velocity field ``\bm{v}^>``.
 
-#### 1. Estimating the vorticity in Fourier space
+### 1. Estimating the vorticity in Fourier space
 
 The idea is to first expand the (*actual*) vorticity field in Fourier series:
 
@@ -119,7 +115,7 @@ The important point here is that, since the discrete points are generally not on
 Nevertheless, they can be efficiently and accurately estimated using the [non-uniform FFT](https://en.wikipedia.org/wiki/Non-uniform_discrete_Fourier_transform#Nonuniform_fast_Fourier_transform) (NUFFT) algorithm.
 More precisely, this corresponds to a [type-1 NUFFT](https://finufft.readthedocs.io/en/latest/math.html), which converts from non-uniform sources in physical space to uniform wavenumbers ``\bm{k}`` in Fourier space.
 
-#### 2. Coarse-grained vorticity and velocity in Fourier space
+### 2. Coarse-grained vorticity and velocity in Fourier space
 
 Once we have obtained the ``\hat{\bm{ω}}(\bm{k})`` coefficients, obtaining the Fourier coefficients for the coarse-grained vorticity and coarse-grained velocity is straightforward.
 The former is obtained by convolution with a Gaussian, which is simply a product in Fourier space:
@@ -146,18 +142,18 @@ Similarly, the curl operator can be easily inverted in Fourier space to get the 
     This condition is automatically satisfied when dealing with closed vortex filaments.
     This may however not be the case for infinite filaments (for instance, putting a single straight infinite filament in the domain is ill-defined).
 
-#### 3. Notes on required resolution
+### 3. Notes on required resolution
 
 Above we have assumed that we can evaluate Fourier coefficients for any wavenumber ``\bm{k}``.
 In fact, for practical reasons, we cannot evaluate all coefficients ``\hat{\bm{ω}}(\bm{k})`` for every possible ``\bm{k}``, and we need to set the number of wavenumbers ``N`` to compute in each direction (this is the parameter one tunes in NUFFT implementations).
 In other words, we need to truncate the estimations at some maximum wavenumber, namely the Nyquist frequency, which is related to ``N`` by ``k_\text{max} = π N / L``.
 
 Similarly to the cut-off distance in physical space, one can expect that the appropriate value of ``k_\text{max}`` (which is an inverse length scale) to get good accuracy should be proportional to the Ewald splitting parameter ``α``.
-A rule of thumb is to choose a wavenumber at which the Gaussian factor ``\exp \! \left(-k_{\text{max}}^2 / 4α^2 \right)`` matches the desired accuracy.
+A rule of thumb is to choose a wavenumber at which the Gaussian factor ``e^{-k_{\text{max}}^2 / 4α^2}`` matches the desired accuracy.
 For instance, at ``k_{\text{max}} = 8α``, this factor has dropped to about ``10^{-7}``.
 Of course, one can vary the ``k_\text{max} / α`` ratio depending on the wanted accuracy.
 
-#### 4. Physical velocity at filament locations
+### 4. Physical velocity at filament locations
 
 The last step is to evaluate, from the coarse-grained velocity ``\hat{\bm{v}}^>(\bm{k})`` in Fourier space, the *physical* coarse-grained velocity ``\bm{v}^>(\bm{s})`` on vortex filament locations ``\bm{s}`` (which, once again, are generally not on a regular grid).
 This operation can be written as:

@@ -101,7 +101,9 @@ makedocs(;
     modules = [VortexPasta],
     pages = [
         "index.md",
-        "methods.md",
+        "Numerical considerations" => [
+            "methods/Ewald.md",
+        ],
         "Tutorials" => [
             "tutorials/01-vortex_ring.md",
         ],
