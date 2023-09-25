@@ -1,7 +1,9 @@
 """
     CellLists
 
-Module implementing the cell lists algorithm over N-dimensional periodic domains.
+Module implementing the cell lists algorithm over ``N``-dimensional periodic domains.
+
+See the [Wikipedia article](https://en.wikipedia.org/wiki/Cell_lists) for some details.
 """
 module CellLists
 
@@ -21,7 +23,7 @@ using Static: StaticInt, static, dynamic
 Construct a cell list for dealing with pair interactions.
 
 Above, `N` is the number of spatial dimensions, and `T` is the type of each element.
-In the simplest cases, `T` can simply describe a coordinate in N-dimensional space
+In the simplest cases, `T` can simply describe a coordinate in ``N``-dimensional space
 (e.g. `T = SVector{N, Float64}`). One can also deal with more complicated elements which
 include more information. As an example, see further below for how to deal with filament
 segments in 3D space.

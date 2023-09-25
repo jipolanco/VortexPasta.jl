@@ -101,12 +101,12 @@ makedocs(;
     modules = [VortexPasta],
     pages = [
         "index.md",
+        "Tutorials" => [
+            "tutorials/01-vortex_ring.md",
+        ],
         "Methods" => [
             "methods/VFM.md",
             "methods/Ewald.md",
-        ],
-        "Tutorials" => [
-            "tutorials/01-vortex_ring.md",
         ],
         "Modules" => [
             "modules/PaddedArrays.md",

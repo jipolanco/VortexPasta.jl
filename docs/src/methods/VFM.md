@@ -1,4 +1,4 @@
-# [The vortex filament model](@id VFM)
+# [The vortex filament model](@id methods-VFM)
 
 The standard **vortex filament model** (VFM) describes the motion of thin vortex lines in three-dimensional space.
 
@@ -32,7 +32,7 @@ The VFM thus describes the collective motion of a set of mutually-interacting vo
 Note that the Biot--Savart integral is singular when evaluated at a vortex location ``\bm{s}' ∈ \mathcal{C}``, and the integral must be desingularised by taking into account the finite thickness of the vortex core.
 The VFM also accounts for *vortex reconnections*, which occur when two vortex segments are sufficiently close to each other and which change the topology of the vortex system.
 
-## Desingularisation
+## [Desingularisation](@id VFM-desingularisation)
 
 In the VFM, one usually wants to evaluate the Biot--Savart law at locations ``\bm{x} = \bm{s}_0`` on the vortex.
 It is clear that the Biot--Savart integral, as written above, is singular when evaluated at a point ``\bm{s}_0`` on the curve.
@@ -41,17 +41,21 @@ The divergence of the Biot--Savart integral is of course unphysical, and is rela
 The standard way of accounting for the radius ``a`` of the vortex core is to split the integral into local and non-local parts:
 
 ```math
-\bm{v}(\bm{s}_0) =
-\frac{Γ}{4π} ∫_{\mathcal{C}_0} \frac{(\bm{s} - \bm{s}_0) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{s_0}|^3}
+\newcommand{\vvec}{\bm{v}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\sj}{\svec_0}
+\vvec(\sj) =
+\frac{Γ}{4π} ∫_{\mathcal{C}_0} \frac{(\svec - \sj) \times \dd\svec}{|\svec - \sj|^3}
 +
-\frac{Γ}{4π} ∫_{\mathcal{C} ∖ \mathcal{C}_0} \frac{(\bm{s} - \bm{s}_0) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{s_0}|^3}
-= \bm{v}_{\text{local}}(\bm{s}_0) + \bm{v}_{\text{non-local}}(\bm{s}_0)
+\frac{Γ}{4π} ∫_{\mathcal{C} ∖ \mathcal{C}_0} \frac{(\svec - \sj) \times \dd\svec}{|\svec - \sj|^3}
+= \vvec_{\text{local}}(\sj) + \vvec_{\text{non-local}}(\sj)
 ```
 
 Here ``\mathcal{C}_0`` denotes a portion of the set of curves ``\mathcal{C}`` which is in the neighbourhood of the point of interest ``\bm{s}_0``.
 
 To illustrate this, the figure below shows a [trefoil knot](https://en.wikipedia.org/wiki/Trefoil_knot) curve, or rather its projection on the XY plane.
-Note that here we represent a *discretised* version of the curve, where the number of degrees of freedom is finite and controlled by the positions of the markers (see [Generate figures](@ref) below for the code used to generate this figure).
+Note that here we represent a *discretised* version of the curve, where the number of degrees of freedom is finite and controlled by the positions of the markers (see [Generate figures](@ref VFM-generate-figures) below for the code used to generate this figure).
 
 ![](trefoil_local.svg)
 
@@ -59,8 +63,8 @@ Here, to evaluate the velocity induced by the trefoil vortex on its point ``\bm{
 The non-local part is far from the singularity, so there is no need to modify the Biot--Savart integral as written above.
 As for the local part, we can approximate it using a Taylor expansion of the Biot--Savart integral about ``\bm{s}_i`` and truncating the integral at a small distance ``ϵ ∝ a`` from the singularity.
 
-More explicitly, from a Taylor expansion of ``\bm{s}`` close to ``\bm{s}_i = \bm{s}(ξ_i)``,
-one can show that the Biot--Savart integrand has the Taylor expansion
+More explicitly, from a Taylor expansion of ``\bm{s}(ξ)`` close to ``\bm{s}_i = \bm{s}(ξ_i)``,
+one can show that the Biot--Savart integrand is approximately
 
 ```math
 \frac{[\bm{s}(ξ) - \bm{s}_i] × \bm{s}'(ξ)}{|\bm{s}(ξ) - \bm{s}_i|^3}
@@ -81,7 +85,7 @@ Now, if one integrates e.g. from ``\bm{s}(ξ_i + ϵ)`` to ``\bm{s}_{i + 1} = \bm
 ```
 
 where ``ℓ^+ = ξ_{i + 1} - ξ_i`` is the length of the curve segment ``\bm{s}_i → \bm{s}_{i + 1}`` (see figure).
-Doing something similar for the segment ``\bm{s}_{i - 1} → \bm{s}(ξ_i - ϵ)``, we obtain the local velocity:
+Doing something similar for the segment ``\bm{s}_{i - 1} → \bm{s}(ξ_i - ϵ)`` and adding both contributions, we obtain the local velocity:
 
 ```math
 \bm{v}_{\text{local}}(\bm{s}_i)
@@ -92,7 +96,9 @@ Doing something similar for the segment ``\bm{s}_{i - 1} → \bm{s}(ξ_i - ϵ)``
 where we have taken the cut-off distance to be ``ϵ = \frac{e^Δ a}{2}`` [Saffman1993; §11.2](@cite).
 Here ``Δ`` is a coefficient which depends on the form of the vorticity profile within the vortex core (see the [vortex ring tutorial](@ref Computing-the-vortex-ring-velocity)).
 
-## Generate figures
+In the code, the local velocity is sometimes referred to as the LIA (*local induction approximation*) term, as it has been historically used as a fast (and incomplete) approximation to the full Biot--Savart integral.
+
+## [Generate figures](@id VFM-generate-figures)
 
 ### Trefoil knot figure
 

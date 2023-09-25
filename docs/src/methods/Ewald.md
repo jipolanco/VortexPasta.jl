@@ -1,4 +1,4 @@
-# Ewald summation for Biot--Savart
+# [Ewald summation for Biot--Savart](@id methods-Ewald)
 
 The main originality of the VortexPasta solver is that it adapts the [Ewald summation](https://en.wikipedia.org/wiki/Ewald_summation) method to accelerate the computation of the Biot--Savart law along vortex filaments.
 See for example [Arnold2005](@citet) for a nice introduction to Ewald methods applied to the electrostatic interaction between point charges.
@@ -24,7 +24,7 @@ where the *short-range* and *long-range* scalar functions ``g^<(r)`` and ``g^>(r
 2. ``g^<(r)`` decays exponentially with ``r``, so that long-range interactions can be neglected beyond some cut-off distance ``r_\text{cut}`` when computing the short-range velocity ``\bm{v}^<``;
 3. ``g^>(r) / r^2`` is non-singular and smooth at ``r = 0``, which implies that ``g^>(r)`` must *quickly* tend to 0 as ``r → 0``. In periodic domains, this enables the use of the fast Fourier transform (FFT) to efficiently estimate long-range interactions.
 
-One can show that the following pair of functions obeys all these properties:
+The traditional choice of splitting functions satisfying all these properties is:
 ```math
 \begin{align*}
     g^<(r) &= \operatorname{erfc}(αr) + \frac{2αr}{\sqrt{π}} e^{-α^2 r^2}
@@ -40,40 +40,32 @@ In practice this is the case as long as other numerical parameters are well chos
 The two splitting functions are plotted below.
 In the horizontal axis, the scale ``r`` is non-dimensionalised by the splitting parameter ``α``.
 
-```@example
-using SpecialFunctions: erf, erfc
-using CairoMakie
-CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
-Makie.set_theme!()  # hide
-rs = 2.0.^(-4:0.1:3)
-gs(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)  # short-range
-gl(αr) =  erf(αr) - 2αr / sqrt(π) * exp(-αr^2)  # long-range
-xticks = LogTicks(-4:1:3)
-yticks = LogTicks(-16:4:0)
-fig = Figure(resolution = (600, 400), fontsize = 18)
-ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
-ylims!(ax, 1e-17, 4)
-lines!(ax, rs, gs.(rs); label = L"g^<(r)")
-lines!(ax, rs, gl.(rs); label = L"g^>(r)")
-let rs = 2.0.^(range(-4, -1; length = 3)), color = :grey20  # plot ~r^3 slope
-    ys = @. 0.2 * rs^3
-    lines!(ax, rs, ys; linestyle = :dash, color)
-    text!(ax, rs[2], ys[2]; text = L"r^3", align = (:left, :top), color)
-end
-axislegend(ax; position = (0, 0), labelsize = 20)
-fig
-```
+![](splitting_functions.svg)
 
 For small ``αr``, the long-range splitting function goes to zero as ``r^3``, consistently with its Taylor expansion, ``g^>(r) = \frac{4}{3 \sqrt{π}} (αr)^3 + \mathcal{O}(r^5)``.
 This means that, as we wanted, ``g^>(r) / r^2`` is non-singular and smooth at ``r = 0``.
 
-## Computation of the short-range velocity
+## Short-range velocity
 
 As seen in the figure above, the short-range splitting function is dominant for
 small ``αr``, while it decays exponentially to 0 for large ``αr``.
 In particular, for ``r ≳ 5/α``, its value decays below about ``10^{-10}``, meaning that it is safe to set the cut-off distance ``r_\text{cut}`` around this value.
 
-## Computation of the long-range velocity
+Therefore, the short-range velocity is obtained as
+
+```math
+\bm{v}^<(\bm{x}) =
+\frac{\Gamma}{4π} ∫_{|\bm{s} - \bm{x}| < r_\text{cut}}
+g^<(|\bm{s} - \bm{x}|)
+\frac{(\bm{s} - \bm{x}) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{x}|^3}
+```
+
+i.e. the integral is performed over vortex points which are sufficiently close to the point of interest ``\bm{x}``.
+Moreover, integrals are estimated using [numerical integration](@ref Numerical-integration).
+
+Note that one can use a [cell lists algorithm](@ref CellLists) to further speed-up the search for nearby points.
+
+## Long-range velocity
 
 The long-range velocity ``\bm{v}^>`` has a simple physical interpretation.
 Indeed, it can be shown, by differentiating the splitting functions defined above,
@@ -95,10 +87,11 @@ The idea is to first expand the (*actual*) vorticity field in Fourier series:
 ```math
 \bm{ω}(\bm{x}) = Γ ∮_{\mathcal{C}} δ(\bm{x} - \bm{s}) \, \mathrm{d}\bm{s}
 = ∑_{\bm{k}} \hat{\bm{ω}}(\bm{k}) \, e^{i \bm{k} ⋅ \bm{x}}
-\quad\text{for } \bm{k} = \frac{2π \bm{n}}{L}, \bm{n} ∈ \mathbb{Z}^3
+\quad\text{for } \bm{k} ∈ \bm{K}.
 ```
 
-Here ``L`` is the domain period (assumed the same in all directions for simplicity).
+Here ``L`` is the domain period (assumed the same in all directions for simplicity),
+and ``\bm{K} = \left\{ \frac{2π \bm{n}}{L}, \bm{n} ∈ \mathbb{Z}^3 \right\}`` is the set of wavenumbers associated to the Fourier series expansion.
 The Fourier coefficients ``\hat{\bm{ω}}(\bm{k})`` are given by
 
 ```math
@@ -107,14 +100,14 @@ The Fourier coefficients ``\hat{\bm{ω}}(\bm{k})`` are given by
 = \frac{Γ}{L^3} ∮_{\mathcal{C}} e^{-i \bm{k} ⋅ \bm{s}} \, \mathrm{d}\bm{s}
 ```
 
-To estimate this integral, we discretise the curves defining the support ``\mathcal{C}`` of the vortex filaments, leading to a weighted sum over discrete points ``\bm{x}_j``:
+To estimate this integral, we discretise the curves defining the support ``\mathcal{C}`` of the vortex filaments, leading to a weighted sum over discrete points ``\bm{x}_i``:
 
 ```math
 \hat{\bm{ω}}(\bm{k})
-≈ \frac{Γ}{L^3} ∑_{j} \bm{w}_j \, e^{-i \bm{k} ⋅ \bm{x}_j}
+≈ \frac{Γ}{L^3} ∑_{j} \bm{w}_i \, e^{-i \bm{k} ⋅ \bm{x}_i}
 ```
 
-The weights are related to the length of the discrete segments and to the quadrature rule used to estimate the integrals over segments (more details soon...).
+The weights are related to the length of the discrete segments and to the quadrature rule used to estimate the integrals over segments (see the [Numerical integration](@ref) section).
 The important point here is that, since the discrete points are generally not on an equispaced grid, one cannot directly use the fast Fourier transform (FFT) to efficiently evaluate these coefficients.
 Nevertheless, they can be efficiently and accurately estimated using the [non-uniform FFT](https://en.wikipedia.org/wiki/Non-uniform_discrete_Fourier_transform#Nonuniform_fast_Fourier_transform) (NUFFT) algorithm.
 More precisely, this corresponds to a [type-1 NUFFT](https://finufft.readthedocs.io/en/latest/math.html), which converts from non-uniform sources in physical space to uniform wavenumbers ``\bm{k}`` in Fourier space.
@@ -163,12 +156,183 @@ The last step is to evaluate, from the coarse-grained velocity ``\hat{\bm{v}}^>(
 This operation can be written as:
 
 ```math
-\bm{v}^>(\bm{s}_j) = ∑_{\bm{k}} \hat{\bm{v}}^>(\bm{k}) \, e^{i \bm{k} ⋅ \bm{s}_j}
+\bm{v}^>(\bm{s}_i) = ∑_{\bm{k}} \hat{\bm{v}}^>(\bm{k}) \, e^{i \bm{k} ⋅ \bm{s}_i}
 ```
 
-for a set of locations ``\bm{s}_j ∈ \mathcal{C}``.
+for a set of locations ``\bm{s}_i ∈ \mathcal{C}``.
 Note that in practice this sum is truncated to the chosen ``k_{\text{max}}``.
 
 This operation can be efficiently computed using a type-2 NUFFT (from uniform wavenumbers ``\bm{k}`` to non-uniform locations ``\bm{x}``), which can be understood as an interpolation of the coarse-grained velocity field on the chosen points.
 
-## Estimating line integrals
+From the above steps, we can directly write the large-scale velocity at ``\bm{s}_i`` from the geometry of vortex lines:
+
+```math
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\sj}{\svec_i}
+\newcommand{\kvec}{\bm{k}}
+\begin{align*}
+\bm{v}^>(\sj) &=
+∑_{\kvec ≠ \bm{0}}
+\frac{i}{k^2} \, e^{-k^2 / 4α^2} \kvec × \hat{\bm{ω}}(\kvec) \, e^{i \kvec ⋅ \sj}
+\\
+&=
+\frac{iΓ}{L^3} ∑_{\kvec ≠ \bm{0}} \frac{e^{-k^2 / 4α^2}}{k^2} ∮_{\mathcal{C}} e^{i \kvec ⋅ (\sj - \svec)} \, \dd \svec
+\\
+&=
+\frac{Γ}{L^3} ∑_{\kvec ≠ \bm{0}} \frac{e^{-k^2 / 4α^2}}{k^2} ∮_{\mathcal{C}} \sin[\kvec ⋅ (\svec - \sj)] \, \dd \svec
+\end{align*}
+```
+
+which is analogous to the term for long-range electrostatic forces in e.g. [Arnold2005; Eq. (17)](@citet).
+
+## [Desingularisation](@id Ewald-desingularisation)
+
+As discussed in the [VFM page](@ref VFM-desingularisation), the Biot--Savart integral must be desingularised if the velocity is to be evaluated on a point ``\bm{x} = \bm{s}_i`` belonging itself to the curve.
+
+In this case, the actual velocity that we want to compute is
+
+```math
+\newcommand{\vvec}{\bm{v}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\sj}{\svec_i}
+\begin{align*}
+\vvec(\sj)
+&= \vvec_{\text{local}}(\sj) + \vvec_{\text{non-local}}(\sj)
+\\
+&= \vvec_{\text{local}}(\sj) +
+\Big[ \vvec^<_{\text{non-local}}(\sj) + \vvec^>_{\text{non-local}}(\sj) \Big]
+\end{align*}
+```
+
+which basically means that both short-range and long-range components should skip the computation of their respective integrals in the vicinity of ``\bm{s}_i``, and that the [expression for the local velocity](@ref VFM-desingularisation) should be used instead.
+
+!!! note
+
+    The terms *local*/*non-local* and *short*/*long*-range are completely orthogonal and **should not be confused**!
+    The first pair of terms refer to the VFM while the second pair refers to Ewald summation.
+    For example, as discussed right below, it is possible (and it makes sense) to compute the *local long-range* velocity component.
+
+For the short-range component, it is straightforward to skip the local part of the modified Biot--Savart integral: one just integrates over segments within the cut-off distance, but excluding the two segments which are in direct contact with ``\bm{s}_i`` (the ``\mathcal{C}_i`` region represented in the trefoil figure of the [VFM page](@ref VFM-desingularisation)).
+
+In the case of the long-range component special care is needed, as the procedure detailed above computes the full (coarse-grained) Biot--Savart integral, including the "singular" region.
+As discussed above, the modified long-range integral is actually not singular, so this is not a problem.
+But it means that we now need to subtract the *local* long-range velocity:
+
+```math
+\newcommand{\vvec}{\bm{v}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\sj}{\svec_i}
+\vvec^>_{\text{local}}(\sj)
+= \frac{Γ}{4π} ∫_{\mathcal{C}_i} g^>(|\svec - \sj|) \frac{(\svec - \sj) × \dd \svec}{|\svec - \sj|^3}
+```
+
+which can be numerically computed using the same method as for the *non-local* short-range velocity.
+
+To summarise, in practice the velocity on a vortex position ``\bm{s}_i`` is computed as
+
+```math
+\newcommand{\vvec}{\bm{v}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\sj}{\svec_i}
+\vvec(\sj)
+= \vvec_{\text{local}}(\sj)
++ \vvec^<_{\text{non-local}}(\sj)
+- \vvec^>_{\text{local}}(\sj)
++ \vvec^>(\sj)
+```
+
+where the first term is computed using an analytical expression based on Taylor expansions,
+the second and third terms are estimated by numerical integration (using quadratures),
+and the fourth term is indirectly computed using (non-uniform) fast Fourier transforms.
+
+## Numerical integration
+
+Both the short-range and long-range computations use quadrature rules to approximate line integrals using numerical integration.
+The general strategy that has been implemented is to perform integrals segment-by-segment, and to use a quadrature rule of few points for each segment.
+
+To be more explicit, say that we have a single closed vortex line (for example the [trefoil in the VFM page](@ref VFM-desingularisation)) and that we want to compute the short-range non-local velocity induced by the vortex on ``\bm{s}_i``:
+
+```math
+\newcommand{\vvec}{\bm{v}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\sj}{\svec_i}
+\newcommand{\sdiff}{\svec - \sj}
+\newcommand{\sdiffx}{\svec(ξ) - \sj}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\Ccal}{\mathcal{C}}
+\newcommand{\Cj}{\Ccal_i}
+\begin{align*}
+\vvec^<(\sj)
+&= \frac{Γ}{4π} ∫_{\Ccal ∖ \Cj} g^<(|\sdiff|) \frac{(\sdiff) × \dd\svec}{|\sdiff|^3}
+\\
+&= \frac{Γ}{4π}
+  ∑_{j = 1}^N
+  ∫_{ξ_j}^{ξ_{j + 1}} g^<(|\sdiffx|) \frac{(\sdiffx) × \svec'(ξ)}{|\sdiffx|^3} \, \dd\svec(ξ),
+  \quad j ∉ \{i - 1, i\}
+\end{align*}
+```
+
+Here ``N`` is the number of discretisation points of the curve.
+So the integral is split onto ``N - 2`` line integrals (because we exclude the two segments in contact with ``\bm{s}_i``).
+The next step is to approximate each of these integrals using a quadrature rule:
+
+```math
+\newcommand{\vvec}{\bm{v}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\sj}{\svec_i}
+\newcommand{\sdiff}{\svec - \sj}
+\newcommand{\sdiffx}{\svec(ξ) - \sj}
+\newcommand{\sdiffm}{\svec(ξ_m) - \sj}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\Ccal}{\mathcal{C}}
+\newcommand{\Cj}{\Ccal_i}
+
+∫_{ξ_j}^{ξ_{j + 1}} f(ξ) \, \dd\svec(ξ)
+≈ ∑_{m = 1}^M w_m f(ξ_m),
+```
+
+where ``w_m`` and ``ξ_m ∈ [ξ_j, ξ_{j + 1}]`` are appropriately-chosen quadrature weights and points, respectively.
+In practice, we use [Gauss--Legendre quadratures](https://en.wikipedia.org/wiki/Gaussian_quadrature#Gauss%E2%80%93Legendre_quadrature) with few (typically ~4) points per segment.
+
+## [Summary: parameter selection](@id Ewald-parameters)
+
+In summary, this method introduces several parameters which must be tuned for accuracy and performance.
+In fact, most of these parameters are related and should not be treated independently.
+
+TODO:
+
+- α, N, kmax, rcut, (L)
+
+- quadratures
+
+## [Generate figures](@id Ewald-generate-figures)
+
+Below is the code used to generate the plots shown in this page.
+
+```@example
+using SpecialFunctions: erf, erfc
+using CairoMakie
+CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
+Makie.set_theme!()  # hide
+rs = 2.0.^(-4:0.1:3)
+gs(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)  # short-range
+gl(αr) =  erf(αr) - 2αr / sqrt(π) * exp(-αr^2)  # long-range
+xticks = LogTicks(-4:1:3)
+yticks = LogTicks(-16:4:0)
+fig = Figure(resolution = (600, 400), fontsize = 18)
+ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
+ylims!(ax, 1e-17, 4)
+lines!(ax, rs, gs.(rs); label = L"g^<(r)")
+lines!(ax, rs, gl.(rs); label = L"g^>(r)")
+let rs = 2.0.^(range(-4, -1; length = 3)), color = :grey20  # plot ~r^3 slope
+    ys = @. 0.2 * rs^3
+    lines!(ax, rs, ys; linestyle = :dash, color)
+    text!(ax, rs[2], ys[2]; text = L"r^3", align = (:left, :top), color)
+end
+axislegend(ax; position = (0, 0), labelsize = 20)
+save("splitting_functions.svg", fig)
+nothing
+```
+

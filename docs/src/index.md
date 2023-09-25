@@ -12,7 +12,7 @@ That is, they induce a rotating velocity field about them whose intensity is qua
 In the case of helium-4, superfluidity takes place at temperatures below about 2.17 K,
 and the thickness of quantum vortices is about 1 Å (``10^{-10}`` m).
 Their atomic-scale thickness justifies treating quantum vortices as infinitesimal lines when describing the macroscopic flow induced by them.
-This is precisely the idea of the [vortex filament model](@ref VFM) which is implemented in this package.
+This is precisely the idea of the [vortex filament model](@ref methods-VFM) which is implemented in this package.
 
 ### Numerical considerations
 
@@ -23,7 +23,7 @@ A naive implementation, where all such pair interactions are computed one by one
 For this reason, simulating fully turbulent flows is prohibitively costly with naive methods.
 
 The VortexPasta.jl solver provides an efficient and accurate implementation of the VFM, specifically intended for vortex flows in **periodic domains**.
-Its efficiency comes from the use of a splitting technique, derived from the
+Its efficiency comes from the use of a [splitting technique](@ref methods-Ewald) derived from the
 [Ewald summation](https://en.wikipedia.org/wiki/Ewald_summation) method, which splits the Biot--Savart integral into a *short-range* and a *long-range* parts.
 This kind of methods is routinely used in the context of molecular dynamics simulations to compute electrostatic Coulomb interactions between point charges.
 In the modified short-range integral, pair interactions decay exponentially with ``r``, which means that one can effectively ignore interactions beyond some cut-off distance ``r_{\text{cut}}``.
