@@ -73,7 +73,7 @@ This means that, as we wanted, ``g^>(r) / r^2`` is non-singular and smooth at ``
 As for the short-range splitting function, it is dominant for small ``αr``, while it decays exponentially to 0 for large ``αr``.
 In particular, for ``r ≳ 6/α``, its value decays below about ``10^{-15}``, meaning that it is safe to set the cut-off distance ``r_\text{cut}`` around this value.
 
-### Computation of long-range velocity
+### Computation of the long-range velocity
 
 The long-range velocity ``\bm{v}^>`` has a simple physical interpretation.
 Indeed, it can be shown, by differentiating the splitting functions defined above,
@@ -139,7 +139,7 @@ Similarly, the curl operator can be easily inverted in Fourier space to get the 
 
 !!! warning "Zero mean vorticity condition"
 
-    The velocity is well-defined only if ``\hat{\bm{ω}}(\bm{0}) = \bm{0}``, that is, if the mean vorticity of the vortex filament system is zero.
+    The velocity is well defined only if ``\hat{\bm{ω}}(\bm{0}) = \bm{0}``, that is, if the mean vorticity of the vortex filament system is zero.
     Otherwise we get division by zero, which is related to the fact that we're dealing with an infinitely periodic system and energy diverges with a non-zero mean vorticity.
 
     This condition is automatically satisfied when dealing with closed vortex filaments.
@@ -148,7 +148,7 @@ Similarly, the curl operator can be easily inverted in Fourier space to get the 
 #### 3. Notes on required resolution
 
 Above we have assumed that we can evaluate Fourier coefficients for any wavenumber ``\bm{k}``.
-In fact, for practical reasons, we cannot evaluate all coefficients ``\hat{\bm{ω}}(\bm{k})`` for every possible ``\bm{k}``, and we need to set the number of wavenumbers ``N`` to compute in each direction (this is a parameter of NUFFT algorithms).
+In fact, for practical reasons, we cannot evaluate all coefficients ``\hat{\bm{ω}}(\bm{k})`` for every possible ``\bm{k}``, and we need to set the number of wavenumbers ``N`` to compute in each direction (this is the parameter one tunes in NUFFT implementations).
 In other words, we need to truncate the estimations at some maximum wavenumber, namely the Nyquist frequency, which is related to ``N`` by ``k_\text{max} = π N / L``.
 
 Similarly to the cut-off distance in physical space, one can expect that the appropriate value of ``k_\text{max}`` (which is an inverse length scale) to get good accuracy should be proportional to the Ewald splitting parameter ``α``.

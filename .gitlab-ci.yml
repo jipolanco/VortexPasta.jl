@@ -20,12 +20,12 @@
     - .julia-cache
   rules:
     # Only run tests if source files were modified, or if we're on the main branch
-    - changes:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
         paths:
           - src/**
           - test/**
-        compare_to: master
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - |
       julia --project -e '
@@ -99,6 +99,9 @@ test:1.9:
 docs:
   image: julia:1.9
   stage: test
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH       # run on master branch
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'  # run on merge requests
   script:
     - apt-get update -qq && apt-get install -qq git  # needed by Documenter
     - |
