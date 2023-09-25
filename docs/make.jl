@@ -70,7 +70,10 @@ repo = Gitlab("https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl")
 
 ##
 
-bib = CitationBibliography("src/biblio.bib"; style = :authoryear)
+bib = CitationBibliography(
+    joinpath(@__DIR__, "src", "biblio.bib");
+    style = :authoryear,
+)
 
 Literate.markdown(
     "literate/tutorials/01-vortex_ring.jl",
