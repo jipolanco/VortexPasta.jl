@@ -264,7 +264,7 @@ end
         vs::AbstractVector{<:AbstractVector{<:Vec3}},
         cache::BiotSavartCache,
         fs::AbstractVector{<:AbstractFilament},
-    )
+    ) -> vs
 
 Compute velocity induced by vortex filaments on filament nodes.
 
@@ -277,8 +277,17 @@ In that case, `vs` must be a vector of vectors, which will contain the velocitie
 all filament nodes. The length of `vs[i]` must be equal to the number of nodes
 in the filament `fs[i]`.
 
-For convenience, if the system contains a single vortex filament, one can also
-pass a single velocity vector `v` and a single filament `f`.
+The vector of velocities where the output will be written may be initialised using one of the
+following lines (all are exactly equivalent):
+
+```julia
+vs = map(similar ∘ nodes, fs)
+vs = [similar(nodes(f)) for f ∈ fs]
+vs = similar.(nodes.(fs))
+```
+
+which initialise a velocity vector for each node of each filament (see also
+[`nodes`](@ref)).
 """
 function velocity_on_nodes! end
 
@@ -297,6 +306,7 @@ function velocity_on_nodes!(
     )
     fields = (; velocity = vs,)
     compute_on_nodes!(fields, cache, fs; LIA)
+    vs
 end
 
 # Extracts and resets output fields (velocity and/or streamfunction).
