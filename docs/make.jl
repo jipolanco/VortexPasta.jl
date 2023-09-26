@@ -87,6 +87,8 @@ Literate.markdown(
     documenter = true,
 )
 
+Makie.set_theme!()  # reset theme from a possible previous run
+
 makedocs(;
     sitename = "VortexPasta",
     format = Documenter.HTML(
@@ -104,7 +106,7 @@ makedocs(;
         "Tutorials" => [
             "tutorials/01-vortex_ring.md",
         ],
-        "Methods" => [
+        "Explanations" => [
             "methods/VFM.md",
             "methods/Ewald.md",
         ],

@@ -139,7 +139,7 @@ Similarly, the curl operator can be easily inverted in Fourier space to get the 
     This condition is automatically satisfied when dealing with closed vortex filaments.
     This may however not be the case for infinite filaments (for instance, putting a single straight infinite filament in the domain is ill-defined).
 
-### 3. Notes on required resolution
+### [3. Notes on required resolution](@id Ewald-notes-kmax)
 
 Above we have assumed that we can evaluate Fourier coefficients for any wavenumber ``\bm{k}``.
 In fact, for practical reasons, we cannot evaluate all coefficients ``\hat{\bm{ω}}(\bm{k})`` for every possible ``\bm{k}``, and we need to set the number of wavenumbers ``N`` to compute in each direction (this is the parameter one tunes in NUFFT implementations).
@@ -147,8 +147,10 @@ In other words, we need to truncate the estimations at some maximum wavenumber, 
 
 Similarly to the cut-off distance in physical space, one can expect that the appropriate value of ``k_\text{max}`` (which is an inverse length scale) to get good accuracy should be proportional to the Ewald splitting parameter ``α``.
 A rule of thumb is to choose a wavenumber at which the Gaussian factor ``e^{-k_{\text{max}}^2 / 4α^2}`` matches the desired accuracy.
-For instance, at ``k_{\text{max}} = 8α``, this factor has dropped to about ``10^{-7}``.
+For instance, at ``k_{\text{max}} = 8α``, this factor has dropped to about ``10^{-7}`` (see figure below).
 Of course, one can vary the ``k_\text{max} / α`` ratio depending on the wanted accuracy.
+
+![](gaussian_kalpha.svg)
 
 ### 4. Physical velocity at filament locations
 
@@ -177,10 +179,10 @@ From the above steps, we can directly write the large-scale velocity at ``\bm{s}
 \frac{i}{k^2} \, e^{-k^2 / 4α^2} \kvec × \hat{\bm{ω}}(\kvec) \, e^{i \kvec ⋅ \sj}
 \\
 &=
-\frac{iΓ}{L^3} ∑_{\kvec ≠ \bm{0}} \frac{e^{-k^2 / 4α^2}}{k^2} ∮_{\mathcal{C}} e^{i \kvec ⋅ (\sj - \svec)} \, \dd \svec
+\frac{iΓ}{L^3} ∑_{\kvec ≠ \bm{0}} \frac{e^{-k^2 / 4α^2}}{k^2} ∮_{\mathcal{C}} e^{i \kvec ⋅ (\sj - \svec)} \, \kvec × \dd \svec
 \\
 &=
-\frac{Γ}{L^3} ∑_{\kvec ≠ \bm{0}} \frac{e^{-k^2 / 4α^2}}{k^2} ∮_{\mathcal{C}} \sin[\kvec ⋅ (\svec - \sj)] \, \dd \svec
+\frac{Γ}{L^3} ∑_{\kvec ≠ \bm{0}} \frac{e^{-k^2 / 4α^2}}{k^2} ∮_{\mathcal{C}} \sin[\kvec ⋅ (\svec - \sj)] \, \kvec × \dd \svec
 \end{align*}
 ```
 
@@ -268,14 +270,14 @@ To be more explicit, say that we have a single closed vortex line (for example t
 &= \frac{Γ}{4π} ∫_{\Ccal ∖ \Cj} g^<(|\sdiff|) \frac{(\sdiff) × \dd\svec}{|\sdiff|^3}
 \\
 &= \frac{Γ}{4π}
-  ∑_{j = 1}^N
-  ∫_{ξ_j}^{ξ_{j + 1}} g^<(|\sdiffx|) \frac{(\sdiffx) × \svec'(ξ)}{|\sdiffx|^3} \, \dd\svec(ξ),
+  ∑_{j = 1}^N\vphantom{∑}'
+  ∫_{ξ_j}^{ξ_{j + 1}} g^<(|\sdiffx|) \frac{(\sdiffx) × \svec'(ξ)}{|\sdiffx|^3} \, \dd ξ,
   \quad j ∉ \{i - 1, i\}
 \end{align*}
 ```
 
-Here ``N`` is the number of discretisation points of the curve.
-So the integral is split onto ``N - 2`` line integrals (because we exclude the two segments in contact with ``\bm{s}_i``).
+Here ``N`` is the number of discretisation points of the curve, and the prime over the summation symbol indicates that the indices ``j ∈ \{i - 1, i\}`` (corresponding to the two segments in contact with ``\bm{s}_i``) should be excluded.
+So the integral is split onto ``N - 2`` line integrals.
 The next step is to approximate each of these integrals using a quadrature rule:
 
 ```math
@@ -296,20 +298,48 @@ The next step is to approximate each of these integrals using a quadrature rule:
 where ``w_m`` and ``ξ_m ∈ [ξ_j, ξ_{j + 1}]`` are appropriately-chosen quadrature weights and points, respectively.
 In practice, we use [Gauss--Legendre quadratures](https://en.wikipedia.org/wiki/Gaussian_quadrature#Gauss%E2%80%93Legendre_quadrature) with few (typically ~4) points per segment.
 
-## [Summary: parameter selection](@id Ewald-parameters)
+## [Parameter selection](@id Ewald-parameters)
 
-In summary, this method introduces several parameters which must be tuned for accuracy and performance.
-In fact, most of these parameters are related and should not be treated independently.
+As detailed above, this method introduces a few parameters which must be tuned for accuracy and performance.
+In fact, **most of these parameters are related** and should not be treated independently.
+For instance, the physical- and Fourier-space cut-offs ``r_\text{cut}`` and ``k_\text{max}`` are clearly related to the Ewald splitting parameter ``α``.
 
-TODO:
+In practice, one recommended way of setting the parameters is as follows:
 
-- α, N, kmax, rcut, (L)
+1. Start by setting the **physical domain period** ``L``.
+   It is convenient and standard practice to choose ``L = 2π``, which means that the corresponding wavenumbers ``\bm{k}`` in long-range computations will be integers (in general, ``k = 2πn/L`` with ``n = 0, ± 1, ± 2, \ldots``).
+   But in principle one can choose any positive value of ``L``.
 
-- quadratures
+1. Set the **number of Fourier modes** ``N`` in each direction.
+   Choosing ``N`` also sets the **maximum resolved wavenumber** ``k_{\text{max}} = πN/L`` as well as the **physical grid spacing** ``δ = L/N`` associated to the long-range fields.
+   The value of ``N`` should be tuned to have a good balance between the time spent on short-range and long-range computations.
+
+1. We can now set the **Ewald splitting parameter** ``α`` as proportional to ``k_{\text{max}}``, following the [discussion above](@ref Ewald-notes-kmax).
+   For instance, setting ``α = k_{\text{max}} / 8`` should correspond to a relative truncation error of about ``10^{-7}``.
+
+1. Finally, we set the short-range cut-off distance ``r_{\text{cut}}`` as inversely proportional to ``α``.
+   As discussed in [Short-range velocity](@ref), choosing ``r_{\text{cut}} = 5/α`` should correspond to a relative truncation error of about ``10^{-10}``.
+
+For simplicity here we have assumed that the domain size ``L`` and the resolution ``N`` are the same in all directions, but things are easy to generalise to different ``L`` and ``N`` per direction.
+In all cases, one usually wants the physical grid spacing ``δ = L/N`` (or equivalently the maximum resolved wavenumber ``k_{\text{max}}``) to be the same in all directions.
+
+!!! note "Size of FFTs"
+
+    It may also be a good idea to "round" the chosen value of ``N`` so that the FFTs performed in long-range computations have sizes described by powers of 2 or 3 (for which the FFT is most efficient).
+    Note that, to reduce aliasing errors, the NUFFT oversamples the data from ``N`` to ``Ñ = σN > N``, and this ``Ñ`` is the actual size of the performed FFTs.
+    As an example, the default [`FINUFFTBackend`](@ref) in VortexPasta uses an oversampling of ``σ = 5/4``.
+    Therefore, choosing ``N = 102 ≈ 5/4 × 128`` leads to FFTs of size ``Ñ = 128 = 2^7``, which is what we want.
+
+Another parameter to choose is the **size of the quadrature rules** for numerical integration.
+Using Gauss--Legendre quadratures, integrals seem to converge quite fast using a small number of quadrature nodes per filament segment.
+Typically, using 4 nodes seems to be more than enough.
+However, this still deserves further testing, as we expect there to be a relation between the number of quadrature nodes, the typical length of filament nodes (i.e. how finely are filaments discretised) and the Ewald splitting parameter ``α``.
 
 ## [Generate figures](@id Ewald-generate-figures)
 
 Below is the code used to generate the plots shown in this page.
+
+### Splitting functions
 
 ```@example
 using SpecialFunctions: erf, erfc
@@ -336,3 +366,21 @@ save("splitting_functions.svg", fig)
 nothing
 ```
 
+### Effect of long-range cut-off wavenumber
+
+```@example
+using CairoMakie
+CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
+Makie.set_theme!()  # hide
+ks_α = range(0, 12.2; step = 0.1)
+xticks = 0:12
+yticks = LogTicks(-16:2:0)
+ys = @. exp(-ks_α^2 / 4)
+lines(
+    ks_α, ys;
+    axis = (yscale = log10, xticks, yticks, xlabel = L"k/α", ylabel = L"\exp \, \left[ -k^2 / 4α^2 \right]",),
+    figure = (fontsize = 20, resolution = (600, 400),),
+)
+save("gaussian_kalpha.svg", current_figure())
+nothing
+```
