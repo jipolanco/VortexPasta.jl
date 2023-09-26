@@ -52,9 +52,24 @@ plot!(ax, f)  # f is a filament
 
 - `markersize = 10.0f0`
 
-- `arrowscale = 1.0f0` allows to scale vectors (tangents, curvatures, velocities, …)
-
 - `colormap = :viridis`
+
+### Arrow arguments
+
+The following are used when plotting arrows (tangents, curvatures, velocities, …):
+
+- `arrowscale = 1.0f0` allows to scale vectors (controls their *length*).
+  Corresponds to `lengthscale` in `Makie.arrows`;
+
+- `arrowsize = MakieCore.Automatic()` controls the head size.
+  It has the same name in `Makie.arrows`.
+  It should be a tuple `(sx, sy, sz)`, where the first 2 set the width of the cone, and `sz`
+  its height;
+
+- `arrowwidth = MakieCore.Automatic()` sets the linewidth of the arrow.
+  Corresponds to `linewidth` in `Makie.arrows`.
+
+See also the [Makie docs on arrows](https://docs.makie.org/stable/reference/plots/arrows/index.html).
 
 ### Plotting tangent and curvature vectors
 
