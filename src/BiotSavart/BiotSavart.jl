@@ -68,7 +68,7 @@ The type parameter `T` corresponds to the precision used in computations
 
 # Construction
 
-    ParamsBiotSavart([T = Float64]; Γ, α, Ls, Ns, optional_kws...)
+    ParamsBiotSavart([T = Float64]; Γ, a, α, Ls, Ns, optional_kws...)
 
 where the optional parameter `T` sets the numerical precision.
 
@@ -164,6 +164,28 @@ struct ParamsBiotSavart{
         lr = ParamsLongRange(backend_long, quadrature_long, common, Ns)
         new{T, typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
     end
+end
+
+function Base.show(io::IO, p::ParamsBiotSavart)
+    (; common, shortrange, longrange,) = p
+    (; Γ, a, Δ, Ls, α,) = common
+    σ = 1 / (α * sqrt(2))
+    rcut_L = shortrange.rcut / minimum(Ls)
+    print(io, "ParamsBiotSavart with:")
+    print(io, "\n - Physical parameters:")
+    print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
+    print(io, "\n   * Vortex core radius:         a  = ", a)
+    print(io, "\n   * Vortex core parameter:      Δ  = ", Δ)
+    print(io, "\n   * Domain period:              Ls = ", Ls)
+    print(io, "\n - Numerical parameters:")
+    print(io, "\n   * Ewald splitting parameter:  α  = ", α, " (σ = 1/α√2 = ", σ, ")")
+    print(io, "\n   * Short-range backend:        ", shortrange.backend)
+    print(io, "\n   * Short-range cut-off radius: ", shortrange.rcut, " (r_cut/L = ", rcut_L, ")")
+    print(io, "\n   * Short-range quadrature:     ", shortrange.quad)
+    print(io, "\n   * Long-range backend:         ", longrange.backend)
+    print(io, "\n   * Long-range resolution:      Ns = ", longrange.Ns)
+    print(io, "\n   * Long-range quadrature:      ", longrange.quad)
+    nothing
 end
 
 # Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.

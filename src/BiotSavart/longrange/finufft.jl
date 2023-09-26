@@ -69,6 +69,12 @@ struct FINUFFTBackend{KwArgs <: NamedTuple} <: LongRangeBackend
     end
 end
 
+function Base.show(io::IO, backend::FINUFFTBackend)
+    (; tol, kws,) = backend
+    (; nthreads, upsampfac,) = kws
+    print(io, "FINUFFTBackend(tol = $tol, upsampfac = $upsampfac, nthreads = $nthreads)")
+end
+
 expected_period(::FINUFFTBackend) = 2π
 folding_limits(::FINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
 
