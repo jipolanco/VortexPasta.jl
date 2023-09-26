@@ -14,6 +14,11 @@
 # The code in this tutorial should be executed in the same local environment where those
 # packages were installed.
 #
+# ```@contents
+# Pages = ["01-vortex_ring.md"]
+# Depth = 2:3
+# ```
+#
 # ## Initialising a vortex ring
 #
 # The first thing to do is to define a circular vortex ring.
@@ -31,6 +36,7 @@
 
 using VortexPasta
 using VortexPasta.Filaments
+using VortexPasta.Filaments: Vec3
 
 R = 0.5  # radius of the circular ring
 N = 16   # number of discretisation points
@@ -93,8 +99,8 @@ nothing  # hide
 # the unit tangent or the curvature vector (see [Geometric quantities](@ref) for definitions
 # and a list of possible quantities):
 
-t̂ = f[i, UnitTangent()]       # `t̂` can be obtained via t\hat<tab>
-ρ⃗ = f[i, CurvatureVector()]   # `ρ⃗` can be obtained via \rho<tab>\vec<tab>
+t̂ = f[i, UnitTangent()]       # "t̂" can be typed by t\hat<tab>
+ρ⃗ = f[i, CurvatureVector()]   # "ρ⃗" can be typed by \rho<tab>\vec<tab>
 @show t̂ ρ⃗
 nothing  # hide
 
@@ -142,7 +148,7 @@ plot!(
     refinement = 8,
     tangents = true, tangentcolor = :Yellow,         # plot tangent vectors
     curvatures = true, curvaturecolor = :LightBlue,  # plot curvature vectors
-    arrowscale = 0.16,  # rescale vectors
+    arrowwidth = 0.015, arrowscale = 0.14, arrowsize = (0.05, 0.05, 0.08),  # arrow properties
     vectorpos = 0.5,    # plot vectors at the midpoint in-between nodes
 )
 fig
@@ -177,15 +183,147 @@ fig
 #    ([`BiotSavart.init_cache`](@ref)),
 # 3. compute filament velocities from their positions ([`velocity_on_nodes!`](@ref)).
 #
-# ### Physical and numerical parameters in periodic domains
+# ### Physical and numerical parameters
 #
-# Relevant physical parameters are of two types:
+# Before being able to estimate the vortex ring velocity, we need to set the parameters
+# needed to estimate Biot--Savart integrals.
+# All of the required and optional parameters are described in [`ParamsBiotSavart`](@ref).
 #
-# - vortex properties: circulation ``Γ``, core radius ``a`` and core parameter ``Δ``;
-# - domain size ``L``, i.e. unit cell size in periodic domains.
-#   Can be a single value (e.g. `Ls = 2π`) for a cubic domain, or a tuple of values (e.g.
-#   `Ls = (2π, 4π, 6π)`) if one wants different domain sizes in each direction.
+# Relevant **physical parameters** are of two types:
 #
-# These parameters are all mandatory.
-# Moreover, there are a few numerical parameters as detailed in [`ParamsBiotSavart`](@ref).
-# The two mandatory ones
+# - **vortex properties**: circulation ``Γ``, core radius ``a`` and core parameter ``Δ``;
+# - **domain size** (or period) ``L``.
+
+Γ = 1e-3   # vortex circulation                              || "Γ" can be typed by \Gamma<tab>
+a = 1e-8   # vortex core size
+Δ = 1/2    # vortex core parameter (1/2 for a hollow vortex) || "Δ" can be typed by \Delta<tab>
+L = 2π     # domain period (same in all directions in this case)
+nothing  # hide
+
+# Note that here we work with nondimensional quantities, but we could try to relate these
+# physical parameters to actual properties of, say, liquid helium-4.
+# In this case, the vortex core size is ``a ≈ 10^{-8}\,\text{cm}`` and the quantum of
+# circulation is ``Γ = κ = h/m ≈ 0.997 × 10^{-3}\,\text{cm}^2/\text{s}``, where ``h`` is
+# Planck's constant and ``m`` the mass of a helium atom.
+# So the above parameters are quite relevant to ``^4\text{He}`` if one interprets lengths
+# in centimetres and times in seconds.
+#
+# There are also important **numerical parameters** which need to be set.
+# See the [Parameter selection](@ref Ewald-parameters) section for an advice on how to set
+# them.
+#
+# Following that page, we start by setting the resolution ``N`` of the numerical grid used
+# for long-range computations, and we set the other parameters based on that:
+
+N = round(Int, 64 * 4/5)  # we prefer if the FFT size is a power of 2, here Ñ = σN = 64
+kmax = π * N / L          # this is the maximum resolved wavenumber (the Nyquist frequency)
+α = kmax / 8              # Ewald splitting parameter || "α" can be typed by "\alpha<tab>"
+rcut = 5 / α              # cut-off distance for short-range computations
+rcut / L                  # note: the cut-off distance should be less than half the period L
+
+# Additionally, we can optionally set the parameters for numerical integration.
+# These are the quadrature rules used to approximate line integrals within each filament
+# segment (see [Numerical integration](@ref)).
+# We can separately set the quadrature rule used for short-range and long-range computations:
+
+quadrature_short = GaussLegendre(4)  # use 4-point Gauss–Legendre quadrature
+quadrature_long  = GaussLegendre(4)
+nothing  # hide
+
+# See [`GaussLegendre`](@ref) or the [Wikipedia
+# page](https://en.wikipedia.org/wiki/Gaussian_quadrature#Gauss%E2%80%93Legendre_quadrature) for more details.
+#
+# Finally, we put all these parameters together in a [`ParamsBiotSavart`](@ref) object:
+
+using VortexPasta.BiotSavart
+params = ParamsBiotSavart(;
+    Γ, α, Δ, a,
+    Ls = (L, L, L),  # same domain size in all directions
+    Ns = (N, N, N),  # same long-range resolution in all directions
+    rcut,
+    quadrature_short,
+    quadrature_long,
+)
+
+# Note that there are a few parameters, namely the short-range and long-range backends,
+# which haven't been discussed yet.
+# These correspond to different ways of computing both components.
+# We leave them here at their default values.
+# See [`CellListsBackend`](@ref) and [`FINUFFTBackend`](@ref) for details on the defaults
+# and their parameters.
+
+# ### Computing the velocity on filament nodes
+#
+# The last thing to do before launching computations is to create a "cache" where all data
+# (arrays, …) required for computations are kept.
+# This is in part to avoid making large allocations every time we wish to compute
+# Biot--Savart integrals, which would be quite bad for performance.
+# Luckily, creating a cache is very simple:
+
+fs = [f]  # note: we need to work with a *vector* of filaments
+cache = BiotSavart.init_cache(params, fs)
+nothing  # hide
+
+# We can now estimate the velocity of all filament nodes using [`velocity_on_nodes!`](@ref).
+# But first we need to allocate the output, which will contain all velocities:
+
+vs = map(similar ∘ nodes, fs)
+@show summary(vs) summary(vs[1])
+nothing  # hide
+
+# Note that this is a 1-element vector (because we only have 1 filament).
+# Moreover, the element `vs[1]` is a vector of [`Vec3`](@ref) (3-element vectors,
+# specifically velocity vectors in this case), in which the element
+# `vs[1][i]` will be the velocity of the filament node `fs[1][i]`.
+#
+# To actually fill `vs` with the velocities of the filament nodes, we need to call
+# [`velocity_on_nodes!`](@ref):
+
+velocity_on_nodes!(vs, cache, fs)
+vs[1]  # prints the velocities of all nodes of the first (and only) filament
+
+# We can compute the mean velocity and check that it varies very little along the filament:
+
+using Statistics: mean, std
+v_mean = mean(vs[1])
+v_std = std(vs[1])
+@show v_mean v_std
+nothing  # hide
+
+# We have done our first Biot--Savart calculation!
+# We can see that all nodes have practically zero velocity in the ``x`` and ``y``
+# directions, while they all have approximately the same velocity in the ``z`` direction.
+# Good news, this is exactly what we expect for a vortex ring!
+#
+# To visualise things, it is easy to plot the filament with the node velocities:
+
+fig = Figure()
+ax = Axis3(fig[1, 1]; aspect = :data)
+zlims!(ax, 0.5, 1.5)
+plot!(
+    ax, fs[1], vs[1];
+    refinement = 4, arrowsize = (0.03, 0.03, 0.04), arrowwidth = 0.01, arrowscale = 30,
+)
+fig
+
+# ### Comparison with analytical expression
+#
+# We can finally compare the filament velocity with the analytical vortex ring velocity
+# according to the expression at the [start of this section](@ref
+# Computing-the-vortex-ring-velocity):
+
+v_ring = Γ / (4π * R) * (log(8R / a) - Δ)
+vz = v_mean[3]
+relative_difference = (v_ring - vz) / v_ring
+@show v_ring vz relative_difference
+
+# We can see that we're very close, and that the relative difference between the two is of
+# less than 0.1%.
+# This is already very nice, but note that some of the difference may be explained by
+# **periodicity effects**.
+# Indeed, the vortex ring is not alone, but it is also affected by its infinite periodic
+# images.
+# One can show that the images have the tendency to slow the vortex down, which is
+# consistent with our results (since `vz < v_ring`).
+# Of course, the effect here is negligible, but it should become more noticeable for larger
+# vortex rings (i.e. with diameter ``2R`` close to the domain size ``L``).
