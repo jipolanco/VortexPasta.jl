@@ -282,18 +282,27 @@ nothing  # hide
 velocity_on_nodes!(vs, cache, fs)
 vs[1]  # prints the velocities of all nodes of the first (and only) filament
 
-# We can compute the mean velocity and check that it varies very little along the filament:
-
-using Statistics: mean, std
-v_mean = mean(vs[1])
-v_std = std(vs[1])
-@show v_mean v_std
-nothing  # hide
-
 # We have done our first Biot--Savart calculation!
 # We can see that all nodes have practically zero velocity in the ``x`` and ``y``
 # directions, while they all have approximately the same velocity in the ``z`` direction.
 # Good news, this is exactly what we expect for a vortex ring!
+#
+# We can compute the mean velocity and quantify the velocity variation along the filament:
+
+using Statistics: mean, std
+v_mean = mean(vs[1])
+v_std = std(vs[1])
+v_std_normalised = v_std / norm(v_mean)  # normalised standard deviation
+@show v_mean v_std v_std_normalised
+nothing  # hide
+
+# Note that there are some (very small) fluctuations of the velocity about the mean.
+# As discussed and verified further below, this is explained by periodicity effects, as the
+# vortex ring is affected by its periodic images.
+# Furthermore, different points along the ring are at different distances from the images,
+# and therefore the velocity induced by the images varies slightly as we move along the
+# vortex ring.
+# In other words, periodicity introduces a slight anisotropy on the behaviour of the vortex ring.
 #
 # To visualise things, it is easy to plot the filament with the node velocities:
 
@@ -316,14 +325,92 @@ v_ring = Γ / (4π * R) * (log(8R / a) - Δ)
 vz = v_mean[3]
 relative_difference = (v_ring - vz) / v_ring
 @show v_ring vz relative_difference
+nothing  # hide
 
 # We can see that we're very close, and that the relative difference between the two is of
 # less than 0.1%.
 # This is already very nice, but note that some of the difference may be explained by
 # **periodicity effects**.
-# Indeed, the vortex ring is not alone, but it is also affected by its infinite periodic
-# images.
+# Indeed, the vortex ring is not alone, but it is also affected by its periodic images.
+#
+# We can visualise this by plotting the ring and its nearest 26 periodic images (actually
+# there's an infinity of them!):
+
+fig = Figure()
+ax = Axis3(fig[1, 1]; aspect = :data)
+hidespines!(ax)
+hidexdecorations!(ax; label = false)
+hideydecorations!(ax; label = false)
+hidezdecorations!(ax; label = false)
+fimage = copy(f)
+plot!(ax, f; refinement = 4, markersize = 0, color = :OrangeRed, linewidth = 2)
+for I ∈ CartesianIndices((-1:1, -1:1, -1:1))
+    widths = (L, L, L)
+    offset = Vec3(Tuple(I) .* widths)
+    box = Rect(offset..., widths...)
+    wireframe!(ax, box; color = (:white, 0.5), linewidth = 0.2)  # plot cube
+    iszero(I) && continue  # don't replot the "original" filament
+    fimage .= f .+ Ref(offset)
+    update_coefficients!(fimage)  # updates interpolation coefficients
+    plot!(ax, fimage; refinement = 4, markersize = 0, color = :LightBlue, linewidth = 1)
+end
+fig
+
 # One can show that the images have the tendency to slow the vortex down, which is
 # consistent with our results (since `vz < v_ring`).
 # Of course, the effect here is negligible, but it should become more noticeable for larger
 # vortex rings (i.e. with diameter ``2R`` close to the domain size ``L``).
+
+# ### Side note: disabling periodicity
+#
+# It is actually possible to disable the periodic boundary conditions, effectively leading
+# to an open domain with a unique vortex ring.
+#
+# In VortexPasta.jl, disabling periodicity amounts to disabling the long-range part of Ewald
+# summation, so that **all** scales are computed by the "short"-range component.
+# The cut-off distance is therefore infinity, and it makes no sense to use cell lists to
+# accelerate the computations.
+# Other methods exist (and are now standard) to accelerate this kind of computation, but
+# these are not implemented here.
+# So, while it is possible to disable periodicity, this should only be used for testing or
+# for small calculations.
+#
+# To disable periodicity, one should pass `α = Zero()` and `Ls = Infinity()` to
+# [`ParamsBiotSavart`](@ref):
+
+params_inf = ParamsBiotSavart(;
+    Γ, α = Zero(), Δ, a,
+    Ls = Infinity(),
+    quadrature_short,
+    quadrature_long,
+)
+
+# Here [`Zero`](@ref) and [`Infinity`](@ref) are custom types that, as one may expect,
+# represent ``0`` and ``+∞``.
+#
+# We can now compute the vortex ring velocity in the absence of periodic effects:
+
+cache_inf = BiotSavart.init_cache(params_inf, fs)
+vs_inf = map(similar, vs)
+velocity_on_nodes!(vs_inf, cache_inf, fs)
+v_mean_inf = mean(vs_inf[1])
+v_std_inf = std(vs_inf[1])
+v_std_normalised_inf = v_std_inf / norm(v_mean_inf)
+@show v_mean_inf v_std_inf v_std_normalised_inf
+nothing  # hide
+
+# Interestingly, the velocity fluctuations along the filament are orders of magnitude
+# smaller than in the periodic case.
+# This is consistent with what was explained on the anisotropy introduced by periodicity,
+# which means that not all points on the filament "feel" the effect of the periodic images
+# in the same way.
+#
+# Besides, the mean velocity is approximately the same as in the periodic case.
+# In fact, we can see that it's even closer to the analytical velocity:
+
+vz_inf = v_mean_inf[3]
+relative_difference_inf = (v_ring - vz_inf) / v_ring
+
+# The relative difference is close to 0.01%!
+# Once again, this clearly shows the (negligible) effect of periodic images on the effective
+# vortex ring velocity.
