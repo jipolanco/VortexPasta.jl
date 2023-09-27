@@ -140,6 +140,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2Ï
 
     # This tests `show(::IO, iter)`.
     @test startswith(repr(iter), "VortexFilamentSolver with fields:\n")
+    @test startswith(repr(iter.time), "TimeInfo:\n")
 
     let
         ks, Ek = @inferred Diagnostics.energy_spectrum(iter)

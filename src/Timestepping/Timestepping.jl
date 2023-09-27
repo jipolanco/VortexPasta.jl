@@ -122,6 +122,15 @@ Some useful fields are:
     dt_prev :: Float64
 end
 
+function Base.show(io::IO, time::TimeInfo)
+    (; nstep, t, dt, dt_prev,) = time
+    print(io, "TimeInfo:")
+    print(io, "\n - nstep   = ", nstep)
+    print(io, "\n - t       = ", t)
+    print(io, "\n - dt      = ", dt)
+    print(io, "\n - dt_prev = ", dt_prev)
+end
+
 function Base.summary(io::IO, time::TimeInfo)
     (; nstep, t, dt, dt_prev,) = time
     print(io, "TimeInfo(nstep = $nstep, t = $t, dt = $dt, dt_prev = $dt_prev)")
