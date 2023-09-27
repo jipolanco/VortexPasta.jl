@@ -20,6 +20,10 @@ using SpecialFunctions
 using GLMakie
 using CairoMakie
 
+# These seem to be needed for GLMakie on Gitlab
+using JpegTurbo
+using ImageMagick
+
 DocMeta.setdocmeta!(
     VortexPasta.PaddedArrays,
     :DocTestSetup,
