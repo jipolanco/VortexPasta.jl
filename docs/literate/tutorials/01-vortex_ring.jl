@@ -433,3 +433,39 @@ relative_difference_inf = (v_ring - vz_inf) / v_ring
 # (in our case, the initial vortex ring we already defined); (2) the time span of the
 # simulation; and (3) parameters for Biot--Savart computations (which we already defined as well):
 
+using VortexPasta.Timestepping
+T = L / 2vz       # time it should take for the ring to cross half the periodic box
+tspan = (0.0, T)  # time span; this basically determines when to stop the simulation
+prob = VortexFilamentProblem(fs, tspan, params)
+
+# The second step is to "initialise" the problem, which means choosing a [temporal
+# scheme](@ref Temporal-schemes), an initial timestep, as well as optional parameters
+# related for instance to [temporal adaptivity](@ref Adaptivity), [spatial refinement](@ref
+# Refinement) of the filaments, or [vortex reconnections](@ref Reconnections).
+#
+# For now, we use the explicit [`RK4`](@ref) timestepping scheme, set a constant timestep
+# `dt`, and leave the defaults for everything else:
+
+l_min = minimum_knot_increment(fs)   # this is an estimate for the minimum distance between discretisation points
+dt = 20 * l_min^2 / (Γ * log(l_min / a))
+iter = init(prob, RK4(); dt)
+
+# Note that the maximum possible timestep to avoid numerical instability is mainly limited
+# by the filament resolution ``ℓ_{\text{min}}``.
+# More precisely, the limit is the frequency of spurious oscillations associated to that
+# length scale.
+# These correspond to Kelvin waves, whose frequency roughly scales as
+# ``ω(ℓ) ∼ Γ \ln (ℓ / a) / ℓ^2``.
+#
+# We now run the simulation until ``t = T = L / 2 v_{\text{ring}}``:
+
+solve!(iter)      # run the simulation until t = T
+iter.time.t / T  # check that the current time is t == T
+
+# We can check that, as expected, the ring has crossed half the periodic box:
+
+displacement = @. (iter.fs - prob.fs) / L
+displacement[1]  # prints displacement of the first (and only) filament
+
+# As we can see, the filament nodes have basically only moved in the ``z`` direction by
+# almost exactly ``L / 2``.
