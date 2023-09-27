@@ -12,6 +12,7 @@ end
     ##
     data = [rand(n) for n ∈ 1:4]
     us = @inferred VectorOfVectors(data)
+    @test data === @inferred parent(us)
 
     @test length(us) == 4
     @test eachindex(us) === Base.OneTo(4)
@@ -21,6 +22,15 @@ end
     @test Base.IteratorSize(us) === Base.HasLength()
     @test Base.IteratorEltype(us) === Base.HasEltype()
     @test isdefined(similar(us), 1)
+
+    @testset "convert" begin
+        # Converting a VectorOfVectors onto a VectorOfVectors simply returns the same object.
+        @test us === @inferred convert(VectorOfVectors, us)
+        # Converting another kind of vector to VectorOfVectors preserves the data (doesn't
+        # make a copy).
+        @test us === @inferred convert(VectorOfVectors, data)
+        @test data === parent(convert(VectorOfVectors, data))
+    end
 
     @testset "push! | pop! | popat!" begin
         ws = copy(us)

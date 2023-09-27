@@ -60,6 +60,7 @@ struct VectorOfVectors{T, V <: AbstractVector{T}} <: AbstractVector{V}
     u :: Vector{V}
 end
 
+Base.parent(x::VectorOfVectors) = x.u
 Base.length(x::VectorOfVectors) = length(x.u)
 Base.size(x::VectorOfVectors) = (length(x),)
 Base.similar(x::VectorOfVectors, ::Type{T}) where {T} =
@@ -72,6 +73,9 @@ Base.IteratorSize(::Type{<:VectorOfVectors}) = Base.HasLength()
 
 @propagate_inbounds Base.getindex(x::VectorOfVectors, i) = x.u[i]
 @propagate_inbounds Base.setindex!(x::VectorOfVectors, v, i) = x.u[i] = v
+
+Base.convert(::Type{VectorOfVectors}, data::AbstractVector) = VectorOfVectors(data)
+Base.convert(::Type{VectorOfVectors}, x::VectorOfVectors) = x
 
 # This is called when doing copy(us).
 # The idea is to recursively copy each vector, kind of like `deepcopy`, instead of storing
