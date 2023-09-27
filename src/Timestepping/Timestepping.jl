@@ -61,7 +61,7 @@ Arguments:
 See [`init`](@ref) for initialising a solver from a `VortexFilamentProblem`.
 """
 struct VortexFilamentProblem{
-        Filaments <: VectorOfFilaments,
+        Filaments <: VectorOfVectors{<:Vec3, <:AbstractFilament},
         Params <: ParamsBiotSavart,
     } <: AbstractProblem
     fs    :: Filaments
@@ -69,27 +69,35 @@ struct VortexFilamentProblem{
     p     :: Params
 end
 
+VortexFilamentProblem(fs::VectorOfFilaments, tspan::NTuple{2}, p::ParamsBiotSavart) =
+    VortexFilamentProblem(
+        convert(VectorOfVectors, fs),
+        convert(NTuple{2, Float64}, tspan),
+        p,
+    )
+
 function Base.show(io::IO, prob::VortexFilamentProblem)
     (; fs, tspan, p,) = prob
     print(io, "VortexFilamentProblem with fields:")
     print(io, "\n - `p`: ")
     summary(io, p)
     print(io, "\n - `tspan`: ", tspan)
-    print(io, "\n - `fs`: ", length(fs), "-element ")
-    _typeof_summary(io, fs)
+    _print_summary(io, fs; pre = "\n - `fs`: ")
 end
 
 # This generates a summarised (shorter) version of typeof(fs).
-function _typeof_summary(io::IO, fs::VectorOfFilaments)
-    V = typeof(fs)  # e.g. Vector{ClosedSplineFilament{...}}
-    E = eltype(fs)  # e.g. ClosedSplineFilament{Float64, 3, ...}
-    Estr = string(E)
-    F, T = let m = match(r"(\w+){(\w+),.*}", Estr)  # e.g. F = "ClosedSplineFilament", T = "Float64"
-        @assert m !== nothing
-        m[1], m[2]
-    end
-    vprint = replace(string(V), Estr => "$F{$T, …}")
-    print(io, vprint)
+function _typeof_summary(io::IO, fs::VectorOfVectors)
+    V = eltype(fs)  # e.g. ClosedSplineFilament{Float64, 3, ...}
+    T = eltype(V)   # e.g. Vec3{Float64}
+    print(io, "VectorOfVectors{$T}")
+end
+
+function _print_summary(io::IO, fs::VectorOfVectors; pre = nothing, post = nothing)
+    pre === nothing || print(io, pre)
+    print(io, length(fs), "-element ")
+    _typeof_summary(io, fs)
+    post === nothing || print(io, post)
+    nothing
 end
 
 """
@@ -112,6 +120,11 @@ Some useful fields are:
     t       :: Float64
     dt      :: Float64
     dt_prev :: Float64
+end
+
+function Base.summary(io::IO, time::TimeInfo)
+    (; nstep, t, dt, dt_prev,) = time
+    print(io, "TimeInfo(nstep = $nstep, t = $t, dt = $dt, dt_prev = $dt_prev)")
 end
 
 """
@@ -169,6 +182,29 @@ struct VortexFilamentSolver{
     rhs!     :: RHSFunction     # function for estimating filament velocities (and sometimes streamfunction) from their positions
 end
 
+function Base.show(io::IO, iter::VortexFilamentSolver)
+    print(io, "VortexFilamentSolver with fields:")
+    print(io, "\n - `prob`: ", nameof(typeof(iter.prob)))
+    _print_summary(io, iter.fs; pre = "\n - `fs`: ", post =  " -- vortex filaments")
+    _print_summary(io, iter.vs; pre = "\n - `vs`: ", post = " -- velocity at nodes")
+    _print_summary(io, iter.ψs; pre = "\n - `ψs`: ", post = " -- streamfunction at nodes")
+    print(io, "\n - `time`: ")
+    summary(io, iter.time)
+    print(io, "\n - `dtmin`: ", iter.dtmin)
+    print(io, "\n - `refinement`: ", iter.refinement)
+    print(io, "\n - `adaptivity`: ", iter.adaptivity)
+    print(io, "\n - `reconnect`: ", iter.reconnect)
+    print(io, "\n - `cache_bs`: ")
+    summary(io, iter.cache_bs)
+    print(io, "\n - `cache_timestepper`: ")
+    summary(io, iter.cache_timestepper)
+    print(io, "\n - `callback`: Function")
+    print(io, "\n - `advect!`: Function")
+    print(io, "\n - `rhs!`: Function")
+    print(io, "\n - `to`: ")
+    summary(io, iter.to)
+end
+
 get_dt(iter::VortexFilamentSolver) = iter.time.dt
 get_t(iter::VortexFilamentSolver) = iter.time.t
 
@@ -219,9 +255,9 @@ function init(
         timer = TimerOutput("VortexFilament"),
     ) where {F <: Function}
     (; tspan,) = prob
-    fs = VectorOfVectors(prob.fs)
-    vs_data = [similar(nodes(f)) for f ∈ fs] :: AllFilamentVelocities
-    vs = VectorOfVectors(vs_data)
+    fs = convert(VectorOfVectors, prob.fs)
+    vs_data = map(similar ∘ nodes, fs) :: AllFilamentVelocities
+    vs = convert(VectorOfVectors, vs_data)
     ψs = similar(vs)
     fs_sol = alias_u0 ? fs : copy(fs)
     cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)

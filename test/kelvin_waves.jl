@@ -126,7 +126,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2Ï
 
     prob = @inferred VortexFilamentProblem(fs, tspan, params_bs)
 
-    # Test `show(::IO, prob)`
+    # This tests `show(::IO, prob)`.
     @test startswith(repr(prob), "VortexFilamentProblem with fields:\n")
 
     iter = @inferred init(
@@ -137,6 +137,9 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2Ï
         refinement = NoRefinement(),  # make sure that nodes don't "move" vertically due to refinement
         callback,
     )
+
+    # This tests `show(::IO, iter)`.
+    @test startswith(repr(iter), "VortexFilamentSolver with fields:\n")
 
     let
         ks, Ek = @inferred Diagnostics.energy_spectrum(iter)

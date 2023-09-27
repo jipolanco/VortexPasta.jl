@@ -248,6 +248,8 @@ struct BiotSavartCache{
     to         :: Timer
 end
 
+Base.summary(io::IO, c::BiotSavartCache) = print(io, "BiotSavartCache")
+
 """
     init_cache(
         p::ParamsBiotSavart, fs::AbstractVector{<:AbstractFilament};
