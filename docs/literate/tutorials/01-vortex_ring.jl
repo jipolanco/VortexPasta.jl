@@ -38,8 +38,8 @@ using VortexPasta
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 
-R = 0.5  # radius of the circular ring
-N = 16   # number of discretisation points
+R = 1.25  # radius of the circular ring
+N = 16    # number of discretisation points
 x⃗₀ = Vec3(3.0, 3.0, 1.0)  # ring centre
 θs = range(0, 2π; length = N + 1)[1:N]  # discretisation angles (we exclude θ = 2π)
 points = [x⃗₀ + R * Vec3(cos(θ), sin(θ), 0) for θ ∈ θs]
@@ -108,7 +108,7 @@ nothing  # hide
 # approximately ``1/R`` (where ``R`` is the vortex ring radius):
 
 using LinearAlgebra: norm, ⋅  # the dot product ̇`⋅` can be obtained via \cdot<tab>
-@show t̂ ⋅ ρ⃗ norm(t̂) norm(ρ⃗)
+@show t̂ ⋅ ρ⃗ norm(t̂) norm(ρ⃗) 1/R
 nothing  # hide
 
 # ### Plotting the filament
@@ -119,14 +119,13 @@ nothing  # hide
 
 using GLMakie
 set_theme!(theme_black())
-
 fig = Figure()                         # create an empty figure
 ax = Axis3(fig[1, 1]; aspect = :data)  # add an Axis3 for plotting in 3D
 zlims!(ax, 0.5, 1.5)                   # set axis limits in the z direction
 plot!(ax, f)                           # plot filament onto axis
 fig                                    # display the figure
 
-# Note that, by default, the plot simply shows the `N` filament nodes (circular markers)
+# Note that, by default, the plot simply shows the ``N`` filament nodes (circular markers)
 # joined by straight lines.
 # To see how points are actually interpolated in-between nodes we can use the `refinement`
 # keyword argument:
@@ -134,7 +133,7 @@ fig                                    # display the figure
 fig = Figure()
 ax = Axis3(fig[1, 1]; aspect = :data)
 zlims!(ax, 0.5, 1.5)
-plot!(ax, f; refinement = 8)
+plot!(ax, f; refinement = 4)
 fig
 
 # It is also possible to plot other quantities such as the estimated tangent and curvature
@@ -145,10 +144,10 @@ ax = Axis3(fig[1, 1]; aspect = :data)
 zlims!(ax, 0.5, 1.5)
 plot!(
     ax, f;
-    refinement = 8,
+    refinement = 4, linewidth = 4, markersize = 20,
     tangents = true, tangentcolor = :Yellow,         # plot tangent vectors
     curvatures = true, curvaturecolor = :LightBlue,  # plot curvature vectors
-    arrowwidth = 0.015, arrowscale = 0.14, arrowsize = (0.05, 0.05, 0.08),  # arrow properties
+    arrowwidth = 0.03, arrowscale = 0.6, arrowsize = (1, 1, 1.2) .* 0.1,  # arrow properties
     vectorpos = 0.5,    # plot vectors at the midpoint in-between nodes
 )
 fig
@@ -194,7 +193,7 @@ fig
 # - **vortex properties**: circulation ``Γ``, core radius ``a`` and core parameter ``Δ``;
 # - **domain size** (or period) ``L``.
 
-Γ = 1e-3   # vortex circulation                              || "Γ" can be typed by \Gamma<tab>
+Γ = 1.0    # vortex circulation                              || "Γ" can be typed by \Gamma<tab>
 a = 1e-8   # vortex core size
 Δ = 1/2    # vortex core parameter (1/2 for a hollow vortex) || "Δ" can be typed by \Delta<tab>
 L = 2π     # domain period (same in all directions in this case)
@@ -205,8 +204,8 @@ nothing  # hide
 # In this case, the vortex core size is ``a ≈ 10^{-8}\,\text{cm}`` and the quantum of
 # circulation is ``Γ = κ = h/m ≈ 0.997 × 10^{-3}\,\text{cm}^2/\text{s}``, where ``h`` is
 # Planck's constant and ``m`` the mass of a helium atom.
-# So the above parameters are quite relevant to ``^4\text{He}`` if one interprets lengths
-# in centimetres and times in seconds.
+# So the above parameters can be relevant to ``^4\text{He}`` if one interprets lengths
+# in centimetres and the time unit is about 1000 seconds.
 #
 # There are also important **numerical parameters** which need to be set.
 # See the [Parameter selection](@ref Ewald-parameters) section for an advice on how to set
@@ -260,7 +259,7 @@ params = ParamsBiotSavart(;
 # Biot--Savart integrals, which would be quite bad for performance.
 # Luckily, creating a cache is very simple:
 
-fs = [f]  # note: we need to work with a *vector* of filaments
+fs = [f]  # note: we need to pass a *vector* of filaments
 cache = BiotSavart.init_cache(params, fs)
 nothing  # hide
 
@@ -276,7 +275,7 @@ nothing  # hide
 # specifically velocity vectors in this case), in which the element
 # `vs[1][i]` will be the velocity of the filament node `fs[1][i]`.
 #
-# To actually fill `vs` with the velocities of the filament nodes, we need to call
+# To actually fill `vs` with the velocities of the filament nodes, we call
 # [`velocity_on_nodes!`](@ref):
 
 velocity_on_nodes!(vs, cache, fs)
@@ -311,7 +310,8 @@ ax = Axis3(fig[1, 1]; aspect = :data)
 zlims!(ax, 0.5, 1.5)
 plot!(
     ax, fs[1], vs[1];
-    refinement = 4, arrowsize = (0.03, 0.03, 0.04), arrowwidth = 0.01, arrowscale = 30,
+    refinement = 4,
+    arrowscale = 0.2, arrowwidth = 0.02, arrowsize = (0.08, 0.08, 0.10),
 )
 fig
 
@@ -327,11 +327,12 @@ relative_difference = (v_ring - vz) / v_ring
 @show v_ring vz relative_difference
 nothing  # hide
 
-# We can see that we're very close, and that the relative difference between the two is of
-# less than 0.1%.
-# This is already very nice, but note that some of the difference may be explained by
-# **periodicity effects**.
-# Indeed, the vortex ring is not alone, but it is also affected by its periodic images.
+# We can see that we're quite close, and that the relative difference between the two is of
+# about 1%.
+# This is already nice, but note that most of the difference may be explained by
+# **periodicity effects**, as shown in more detail in the [next section](@ref
+# ring-disabling-periodicity).
+# Indeed, the vortex ring is not alone, but is also affected by its periodic images.
 #
 # We can visualise this by plotting the ring and its nearest 26 periodic images (actually
 # there's an infinity of them!):
@@ -358,10 +359,15 @@ fig
 
 # One can show that the images have the tendency to slow the vortex down, which is
 # consistent with our results (since `vz < v_ring`).
-# Of course, the effect here is negligible, but it should become more noticeable for larger
-# vortex rings (i.e. with diameter ``2R`` close to the domain size ``L``).
+# The effect here is quite small even though the ring diameter ``2R`` is comparable to the
+# domain period ``L``:
 
-# ### Side note: disabling periodicity
+2R/L
+
+# We can expect the periodicity effect on the ring to be even weaker for smaller ring
+# radius.
+
+# ### [Side note: disabling periodicity](@id ring-disabling-periodicity)
 #
 # It is actually possible to disable the periodic boundary conditions, effectively leading
 # to an open domain with a unique vortex ring.
@@ -412,7 +418,7 @@ vz_inf = v_mean_inf[3]
 relative_difference_inf = (v_ring - vz_inf) / v_ring
 
 # The relative difference is close to 0.01%!
-# Once again, this clearly shows the (negligible) effect of periodic images on the effective
+# Once again, this clearly shows that periodic images have a minor on the effective
 # vortex ring velocity.
 
 # ## Making the ring move
@@ -429,6 +435,8 @@ relative_difference_inf = (v_ring - vz_inf) / v_ring
 # The syntax is somewhat inspired from the popular
 # [DifferentialEquations.jl](https://docs.sciml.ai/DiffEqDocs/stable/) ecosystem.
 #
+# ### A basic simulation
+#
 # We start by defining a [`VortexFilamentProblem`](@ref), which takes (1) an initial condition
 # (in our case, the initial vortex ring we already defined); (2) the time span of the
 # simulation; and (3) parameters for Biot--Savart computations (which we already defined as well):
@@ -438,16 +446,17 @@ T = L / 2vz       # time it should take for the ring to cross half the periodic 
 tspan = (0.0, T)  # time span; this basically determines when to stop the simulation
 prob = VortexFilamentProblem(fs, tspan, params)
 
-# The second step is to "initialise" the problem, which means choosing a [temporal
-# scheme](@ref Temporal-schemes), an initial timestep, as well as optional parameters
-# related for instance to [temporal adaptivity](@ref Adaptivity), [spatial refinement](@ref
-# Refinement) of the filaments, or [vortex reconnections](@ref Reconnections).
+# The second step is to "initialise" the problem using [`init`](@ref init(::VortexFilamentProblem)).
+# This means choosing a [temporal scheme](@ref Temporal-schemes), an initial timestep, as
+# well as optional parameters related for instance to [temporal adaptivity](@ref
+# Adaptivity), [spatial refinement](@ref Refinement) of the filaments, or [vortex
+# reconnections](@ref Reconnections).
 #
 # For now, we use the explicit [`RK4`](@ref) timestepping scheme, set a constant timestep
 # `dt`, and leave the defaults for everything else:
 
 l_min = minimum_knot_increment(fs)   # this is an estimate for the minimum distance between discretisation points
-dt = 20 * l_min^2 / (Γ * log(l_min / a))
+dt = 8 * l_min^2 / (Γ * log(l_min / a))
 iter = init(prob, RK4(); dt)
 
 # Note that the maximum possible timestep to avoid numerical instability is mainly limited
@@ -457,9 +466,15 @@ iter = init(prob, RK4(); dt)
 # These correspond to Kelvin waves, whose frequency roughly scales as
 # ``ω(ℓ) ∼ Γ \ln (ℓ / a) / ℓ^2``.
 #
-# We now run the simulation until ``t = T = L / 2 v_{\text{ring}}``:
+# !!! note "Adaptive timestepping"
+#
+#     One can use adaptive timestepping with the [`AdaptBasedOnSegmentLength`](@ref)
+#     criterion, which automatically updates the timestep based on the current minimal
+#     distance between filament nodes.
+#
+# We now call [`solve!`](@ref) to run the simulation until ``t = T = L / 2 v_{\text{ring}}``:
 
-solve!(iter)      # run the simulation until t = T
+solve!(iter)     # run the simulation until t = T
 iter.time.t / T  # check that the current time is t == T
 
 # We can check that, as expected, the ring has crossed half the periodic box:
@@ -469,3 +484,113 @@ displacement[1]  # prints displacement of the first (and only) filament
 
 # As we can see, the filament nodes have basically only moved in the ``z`` direction by
 # almost exactly ``L / 2``.
+#
+# ### Accessing the instantaneous simulation state
+#
+# Above we have simply run a simulation from start to finish, without caring of what
+# happened in-between.
+# In reality, one usually wants to be able to do things with the intermediate states, for
+# instance, to track the evolution of the total vortex length, the energy, or simply to
+# make nice movies.
+#
+# There are two ways of doing this:
+#
+# 1. using the "integrator" interface (same idea as in [DifferentialEquations.jl](https://docs.sciml.ai/DiffEqDocs/stable/basics/integrator/));
+# 2. using callbacks (a basic version of what exists in [DifferentialEquations.jl](https://docs.sciml.ai/DiffEqDocs/stable/features/callback_functions/#Using-Callbacks)).
+#
+# #### 1. Using the integrator interface
+#
+# This option is actually quite intuitive.
+# The idea is to explicitly iterate timestep by timestep (typically using a `for` or `while`
+# loop) until we decide it's time to stop.
+# At each iteration we perform a simulation timestep (going from ``t_n`` to ``t_{n + 1} =
+# t_n + Δt``), and then we can do whatever we want with the instantaneous solution contained
+# in `iter`.
+#
+# Note that, in this case, the time span defined in the [`VortexFilamentProblem`](@ref) is
+# completely ignored, meaning that we can stop the simulation whenever we want.
+#
+# To use this interface, we create the solver in the same way as before, and then we
+# advance the solver one timestep at a time using [`step!`](@ref).
+# For instance, we can choose to stop when we have performed 20 timesteps:
+
+iter = init(prob, RK4(); dt)
+while iter.time.nstep ≤ 20
+    ## Print the time and the mean location of the vortex ring every 5 solver iterations.
+    local dt  # avoid "soft scope" warning
+    (; nstep, t, dt,) = iter.time
+    if nstep % 5 == 0
+        Xavg = mean(iter.fs[1])
+        println("- step = $nstep, t = $t, dt = $dt")
+        println("  Average ring location: ", Xavg)
+    end
+    step!(iter)  # run a single timestep
+end
+
+# #### 2. Using callbacks
+#
+# We can do the same using a callback.
+# This is a function which gets called at each solver iteration with the current state of
+# the solver.
+#
+# The idea is to create such a function which receives a single `iter` argument.
+# Then we tell [`init`](@ref) to use this function as a callback, and use [`solve!`](@ref)
+# as we did earlier to run the simulation until the end time:
+
+## Prints the time and the mean location of the vortex ring every 5 solver iterations.
+function print_solver_info(iter)
+    (; nstep, t, dt,) = iter.time
+    if nstep % 5 == 0
+        Xavg = mean(iter.fs[1])
+        println("- step = $nstep, t = $t, dt = $dt")
+        println("  Average ring location: ", Xavg)
+    end
+end
+iter = init(prob, RK4(); dt, callback = print_solver_info)
+solve!(iter)
+nothing  # hide
+
+# Note that the callback is also called once when the solver is initialised (when `nstep =
+# 0`).
+#
+# ### Making an animation
+#
+# We can use either of the two methods above to create a video of the moving vortex.
+#
+# Here we will use Makie to create the animation.
+# See the [Makie docs on animations](https://docs.makie.org/stable/explanations/animation/)
+# for more details.
+#
+# In this example we will use the integrator interface.
+# We start by initialising the solver and creating a plot with to the initial condition:
+
+iter = init(prob, RK4(); dt)
+
+f_obs = Observable(iter.fs[1])   # variable to be updated over time
+t_obs = Observable(iter.time.t)  # variable to be updated over time
+
+fig = Figure()
+ax = Axis3(fig[1, 1]; aspect = :data, title = @lift("Time: $($t_obs)"))
+hidespines!(ax)
+box = Rect(0, 0, 0, L, L, L)  # periodic domain limits
+wireframe!(ax, box; color = (:white, 0.5), linewidth = 0.5)
+plot!(ax, f_obs; markersize = 0, refinement = 4, linewidth = 2)
+fig
+
+# Note that we have wrapped the vortex ring filament `iter.fs[1]` in an
+# [`Observable`](https://docs.makie.org/stable/explanations/nodes/index.html#observables_interaction).
+# The plot will be automatically updated every time we modify this `Observable` object.
+
+record(fig, "vortex_ring.mp4") do io  # hide
+recordframe!(io)  # hide
+while iter.time.t < 3T
+    step!(iter)            # run a single timestep
+    notify(f_obs)          # tell Makie that filament positions have been updated
+    t_obs[] = iter.time.t  # update displayed time
+    yield()                # allows to see the updated plot (not needed if using `record`)
+    recordframe!(io)  # hide
+end
+end  # hide
+nothing  # hide
+
+# ![](vortex_ring.mp4)

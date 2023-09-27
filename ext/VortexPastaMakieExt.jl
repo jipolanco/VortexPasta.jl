@@ -6,8 +6,12 @@ using MakieCore: MakieCore
 using Observables: Observable, @map
 using LinearAlgebra: normalize
 
-MakieCore.plot(f::AbstractFilament, args...; kws...) = filamentplot(f, args...; kws...)
-MakieCore.plot!(ax, f::AbstractFilament, args...; kws...) = filamentplot!(ax, f, args...; kws...)
+const MaybeObservable{T} = Union{Observable{T}, T}
+
+MakieCore.plot(f::MaybeObservable{<:AbstractFilament}, args...; kws...) =
+    filamentplot(f, args...; kws...)
+MakieCore.plot!(ax, f::MaybeObservable{<:AbstractFilament}, args...; kws...) =
+    filamentplot!(ax, f, args...; kws...)
 
 # This macro defines the functions `filamentplot` and `filamentplot!` and the type FilamentPlot,
 # among other things.

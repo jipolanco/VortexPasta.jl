@@ -36,7 +36,7 @@ using ..BiotSavart:
 # See https://docs.sciml.ai/CommonSolve/stable/
 import CommonSolve: init, solve!, step!
 
-using TimerOutputs: TimerOutput, @timeit
+using TimerOutputs: TimerOutputs, TimerOutput, @timeit
 
 abstract type AbstractProblem end
 abstract type AbstractSolver end
@@ -207,12 +207,14 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     summary(io, iter.cache_bs)
     print(io, "\n - `cache_timestepper`: ")
     summary(io, iter.cache_timestepper)
-    print(io, "\n - `callback`: Function")
+    print(io, "\n - `callback`: Function (`", _printable_function(iter.callback), "`)")
     print(io, "\n - `advect!`: Function")
     print(io, "\n - `rhs!`: Function")
     print(io, "\n - `to`: ")
     summary(io, iter.to)
 end
+
+_printable_function(f::TimerOutputs.InstrumentedFunction) = f.func
 
 get_dt(iter::VortexFilamentSolver) = iter.time.dt
 get_t(iter::VortexFilamentSolver) = iter.time.t
