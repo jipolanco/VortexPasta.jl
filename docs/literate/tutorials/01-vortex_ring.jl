@@ -402,7 +402,7 @@ nothing  # hide
 # Interestingly, the velocity fluctuations along the filament are orders of magnitude
 # smaller than in the periodic case.
 # This is consistent with what was explained on the anisotropy introduced by periodicity,
-# which means that not all points on the filament "feel" the effect of the periodic images
+# in the sense that not all points on the filament "feel" the effect of the periodic images
 # in the same way.
 #
 # Besides, the mean velocity is approximately the same as in the periodic case.
@@ -414,3 +414,22 @@ relative_difference_inf = (v_ring - vz_inf) / v_ring
 # The relative difference is close to 0.01%!
 # Once again, this clearly shows the (negligible) effect of periodic images on the effective
 # vortex ring velocity.
+
+# ## Making the ring move
+#
+# Up to now we have shown how to compute the velocity self-induced by a vortex filament on
+# its discretisation points.
+# We now want to use this velocity to advect the vortex filament over time.
+# In the case of a vortex ring, its displacement is very simple and boring (the vortex ring
+# moves with constant velocity), but this case is still useful for instance for testing the
+# stability of timestepping schemes.
+#
+# For running temporal simulations, we want to use the [`VortexPasta.Timestepping`](@ref)
+# submodule.
+# The syntax is somewhat inspired from the popular
+# [DifferentialEquations.jl](https://docs.sciml.ai/DiffEqDocs/stable/) ecosystem.
+#
+# We start by defining a [`VortexFilamentProblem`](@ref), which takes (1) an initial condition
+# (in our case, the initial vortex ring we already defined); (2) the time span of the
+# simulation; and (3) parameters for Biot--Savart computations (which we already defined as well):
+

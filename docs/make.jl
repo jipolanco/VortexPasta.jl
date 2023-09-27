@@ -7,7 +7,9 @@ using VortexPasta
 
 # We load a few submodules to make @ref's work in Literate-generated files.
 using VortexPasta.Filaments
+using VortexPasta.Filaments: Vec3
 using VortexPasta.BiotSavart
+using VortexPasta.Timestepping
 
 # For some reason we need to explicitly load these packages here to avoid failures with
 # doctests and @example blocks on Gitlab.
