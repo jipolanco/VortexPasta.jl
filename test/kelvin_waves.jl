@@ -126,6 +126,9 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2Ï
 
     prob = @inferred VortexFilamentProblem(fs, tspan, params_bs)
 
+    # Test `show(::IO, prob)`
+    @test startswith(repr(prob), "VortexFilamentProblem with fields:\n")
+
     iter = @inferred init(
         prob, scheme;
         dtmin = T_kw * 1e-4,

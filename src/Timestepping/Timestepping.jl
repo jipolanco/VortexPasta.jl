@@ -46,7 +46,7 @@ include("adaptivity.jl")
 
 """
     VortexFilamentProblem
-    VortexFilamentProblem(fs::AbstractVector{<:AbstractFilament}, tspan, p::ParamsBiotSavart)
+    VortexFilamentProblem(fs::AbstractVector{<:AbstractFilament}, tspan::NTuple{2}, p::ParamsBiotSavart)
 
 Define a vortex filament problem.
 
@@ -67,6 +67,29 @@ struct VortexFilamentProblem{
     fs    :: Filaments
     tspan :: NTuple{2, Float64}
     p     :: Params
+end
+
+function Base.show(io::IO, prob::VortexFilamentProblem)
+    (; fs, tspan, p,) = prob
+    print(io, "VortexFilamentProblem with fields:")
+    print(io, "\n - `p`: ")
+    summary(io, p)
+    print(io, "\n - `tspan`: ", tspan)
+    print(io, "\n - `fs`: ", length(fs), "-element ")
+    _typeof_summary(io, fs)
+end
+
+# This generates a summarised (shorter) version of typeof(fs).
+function _typeof_summary(io::IO, fs::VectorOfFilaments)
+    V = typeof(fs)  # e.g. Vector{ClosedSplineFilament{...}}
+    E = eltype(fs)  # e.g. ClosedSplineFilament{Float64, 3, ...}
+    Estr = string(E)
+    F, T = let m = match(r"(\w+){(\w+),.*}", Estr)  # e.g. F = "ClosedSplineFilament", T = "Float64"
+        @assert m !== nothing
+        m[1], m[2]
+    end
+    vprint = replace(string(V), Estr => "$F{$T, …}")
+    print(io, vprint)
 end
 
 """

@@ -188,6 +188,12 @@ function Base.show(io::IO, p::ParamsBiotSavart)
     nothing
 end
 
+function Base.summary(io::IO, p::ParamsBiotSavart{T}) where {T}
+    # Print a few physical parameters (and α)
+    (; Γ, a, Δ, α,) = p.common
+    print(io, "ParamsBiotSavart{$T}(Γ = $Γ, a = $a, Δ = $Δ, α = $α, …)")
+end
+
 # Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.
 is_open_domain(Ls::Tuple) = is_open_domain(Ls...)
 is_open_domain(::Infinity, etc...) = true
