@@ -10,6 +10,7 @@ using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
+using VortexPasta.FilamentIO
 
 # For some reason we need to explicitly load these packages here to avoid failures with
 # doctests and @example blocks on Gitlab.

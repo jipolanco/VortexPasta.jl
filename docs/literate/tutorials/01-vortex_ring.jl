@@ -119,6 +119,7 @@ nothing  # hide
 
 using GLMakie
 set_theme!(theme_black())
+GLMakie.activate!()  # hide
 fig = Figure()                         # create an empty figure
 ax = Axis3(fig[1, 1]; aspect = :data)  # add an Axis3 for plotting in 3D
 zlims!(ax, 0.5, 1.5)                   # set axis limits in the z direction
@@ -556,7 +557,6 @@ nothing  # hide
 # ### Making an animation
 #
 # We can use either of the two methods above to create a video of the moving vortex.
-#
 # Here we will use Makie to create the animation.
 # See the [Makie docs on animations](https://docs.makie.org/stable/explanations/animation/)
 # for more details.
@@ -579,7 +579,7 @@ fig
 
 # Note that we have wrapped the vortex ring filament `iter.fs[1]` in an
 # [`Observable`](https://docs.makie.org/stable/explanations/nodes/index.html#observables_interaction).
-# The plot will be automatically updated every time we modify this `Observable` object.
+# The plot will be automatically updated each time we modify this `Observable` object:
 
 record(fig, "vortex_ring.mp4") do io  # hide
 recordframe!(io)  # hide
@@ -594,3 +594,138 @@ end  # hide
 nothing  # hide
 
 # ![](vortex_ring.mp4)
+
+# ## Saving state to disk
+#
+# It is often useful to be able to save the solver state to disk, for instance to be able to
+# restart a simulation from that state or to analyse the data.
+# In VortexPasta this is possible using the [`VortexPasta.FilamentIO`](@ref) submodule,
+# which defines functions for writing (and reading back) vortex filament data.
+#
+# Data is written in the HDF5 format, which is a binary format that can be easily explored
+# using command-line tools or the HDF5 interfaces available in many different programming
+# languages.
+#
+# More precisely, data is written to [VTK HDF
+# files](https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#hdf-file-formats),
+# which are HDF5 files with a specific organisation that can be readily understood by
+# visualisation tools such as ParaView.
+# In other words, simulation outputs can be readily visualised without the need to convert
+# them or to have a "translation" file explaining how to visualise the binary data.
+#
+# !!! note "VTK HDF file extension"
+#
+#     ParaView doesn't recognise the `.h5` file extension as a VTK HDF file.
+#     For this reason, it is recommended to use `.hdf` if one wants to visualise the data.
+#
+# ### Writing filament data and reading it back
+#
+# Writing filament data is done via the [`write_vtkhdf`](@ref) function:
+
+using VortexPasta.FilamentIO
+write_vtkhdf("vortex_ring_initial.hdf", fs)  # write filament locations to disk
+
+# This creates an HDF5 file with the following structure:
+#
+# ```bash
+# $ h5ls -r vortex_ring_initial.hdf
+# /                        Group
+# /VTKHDF                  Group
+# /VTKHDF/Connectivity     Dataset {17}
+# /VTKHDF/NumberOfCells    Dataset {1}
+# /VTKHDF/NumberOfConnectivityIds Dataset {1}
+# /VTKHDF/NumberOfPoints   Dataset {1}
+# /VTKHDF/Offsets          Dataset {2}
+# /VTKHDF/Points           Dataset {17, 3}
+# /VTKHDF/RefinementLevel  Dataset {SCALAR}
+# /VTKHDF/Types            Dataset {1}
+# ```
+#
+# Note that everything is written to the `VTKHDF` group.
+# In this case, we have a single cell which corresponds to our vortex ring (one cell = one
+# vortex filament).
+# The important datasets here are `Points`, which contains the discretisation points of all
+# filaments, and `Offsets`, which allows to identify which point corresponds to which
+# vortex.
+# See [`write_vtkhdf`](@ref) for more details.
+#
+# The generated files can be read back using [`read_vtkhdf`](@ref):
+
+fs_read = read_vtkhdf("vortex_ring_initial.hdf", Float64, CubicSplineMethod())
+fs_read == fs
+
+# ### Visualising VTK HDF files
+#
+# Opening this file in ParaView should produce something like this:
+#
+# ![](paraview_vortex_ring.png)
+#
+# Things look quite rough since, by default, we only export the discretisation points, which
+# ParaView connects by straight lines.
+# As with Makie plots, we can make things look nicer by passing the `refinement` argument:
+
+write_vtkhdf("vortex_ring_initial_refined.hdf", fs; refinement = 4)
+
+# ![](paraview_vortex_ring_ref4.png)
+
+# ### Attaching more data
+#
+# It can also be useful to include other data associated to the filaments, such as the
+# velocity of the discretisation points.
+#
+# As an example, we can save the positions, velocities, streamfunction and time values
+# corresponding to the final state of our last simulation:
+
+write_vtkhdf("vortex_ring_final.hdf", iter.fs; refinement = 4) do io
+    io["velocity"] = iter.vs
+    io["streamfunction"] = iter.ψs
+    io["time"] = iter.time.t
+end
+
+# The HDF5 file structure now looks like:
+#
+# ```bash
+# $ h5ls -r vortex_ring_final.hdf
+# /                        Group
+# /VTKHDF                  Group
+# /VTKHDF/Connectivity     Dataset {65}
+# /VTKHDF/FieldData        Group
+# /VTKHDF/FieldData/time   Dataset {1}
+# /VTKHDF/NumberOfCells    Dataset {1}
+# /VTKHDF/NumberOfConnectivityIds Dataset {1}
+# /VTKHDF/NumberOfPoints   Dataset {1}
+# /VTKHDF/Offsets          Dataset {2}
+# /VTKHDF/PointData        Group
+# /VTKHDF/PointData/streamfunction Dataset {65, 3}
+# /VTKHDF/PointData/velocity Dataset {65, 3}
+# /VTKHDF/Points           Dataset {65, 3}
+# /VTKHDF/RefinementLevel  Dataset {SCALAR}
+# /VTKHDF/Types            Dataset {1}
+# ```
+#
+# Note that a `PointData` group has been created with two datasets: `streamfunction` and
+# `velocity`.
+# These correspond to data attached to the filaments, and have the same dimensions as the
+# `Points` dataset.
+# These can be readily visualised in ParaView.
+# Besides, a `FieldData` group has been created with the `time` dataset.
+# In VTK, "field data" corresponds to values that are not directly attached to the geometry,
+# such as scalar quantities in this case.
+#
+# Loading the attached data is done in a similar way (see [`read_vtkhdf`](@ref) for
+# details):
+
+vs_read = map(similar ∘ nodes, fs)
+ψs_read = map(similar ∘ nodes, fs)
+fs_read = read_vtkhdf("vortex_ring_final.hdf", Float64, CubicSplineMethod()) do io
+    read!(io, vs_read, "velocity")
+    read!(io, ψs_read, "streamfunction")
+    local t_read = read(io, "time", FieldData(), Float64)  # note: this is read as an array
+    @show t_read
+end
+@show (fs_read ≈ iter.fs) (vs_read == iter.vs) (ψs_read == iter.ψs)
+nothing  # hide
+
+# Note that, when reading "refined" datasets, only the original discretisation points and
+# data on them are read back.
+# The points and data added in-between nodes for refinement purposes are discarded.
