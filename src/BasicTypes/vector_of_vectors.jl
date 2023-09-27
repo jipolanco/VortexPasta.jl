@@ -108,9 +108,10 @@ function Base.similar(bc::Broadcast.Broadcasted{VectorOfVectorsStyle}, ::Type{El
 end
 
 # Find the first VectorOfVectors among the broadcasted arguments.
-find_vov(bc::Broadcast.Broadcasted) = find_vov(bc.args...)
+find_vov(bc::Broadcast.Broadcasted, args...) = find_vov(bc.args..., args...)
 find_vov(u::VectorOfVectors, args...) = u
 find_vov(::Any, args...) = find_vov(args...)
+find_vov() = nothing  # this is never reached unless there's a bug somewhere...
 
 # This custom implementation is there to make sure that broadcasting is done without
 # unnecessary allocations.
