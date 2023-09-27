@@ -581,9 +581,10 @@ fig
 # [`Observable`](https://docs.makie.org/stable/explanations/nodes/index.html#observables_interaction).
 # The plot will be automatically updated each time we modify this `Observable` object:
 
-record(fig, "vortex_ring.mp4") do io  # hide
+using CairoMakie  # hide
+record(fig, "vortex_ring.mp4"; backend = CairoMakie) do io  # hide
 recordframe!(io)  # hide
-while iter.time.t < 3T
+while iter.time.t < 2T
     step!(iter)            # run a single timestep
     notify(f_obs)          # tell Makie that filament positions have been updated
     t_obs[] = iter.time.t  # update displayed time
