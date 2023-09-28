@@ -129,7 +129,7 @@ function init_vtkhdf(
 
     V = eltype(eltype(fs))  # usually V == SVector{3, T}
     T = eltype(V)
-    N = length(V)  # usually == 3
+    N = length(V)  # usually == 3 (works when V <: StaticArray)
 
     num_points = sum(f -> refinement * length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint
     num_cells = length(fs)
@@ -300,7 +300,7 @@ function _write_data_on_filaments(
     @assert V === eltype(eltype(vs))
     T = eltype(V)
     @assert T <: Number
-    N = length(V)  # usually == 3
+    N = length(V)  # usually == 3 (works when V <: StaticArray)
     num_points = sum(v -> refinement * length(v) + 1, vs)  # the +1 is to include the endpoint
     dtype = HDF5.datatype(T)
     dspace = HDF5.dataspace((N, num_points))
@@ -564,18 +564,53 @@ function Base.read!(
         vs::AbstractVector{<:AbstractVector},
         name::AbstractString,
     )
-    # TODO generalise for scalar data
-    V = eltype(eltype(vs))  # usually V == SVector{3, T}
-    N = length(V)  # usually == 3
-    T = eltype(V)
-
     (; gtop, refinement,) = reader
-
     gdata = HDF5.open_group(gtop, "PointData")
     dset = HDF5.open_dataset(gdata, name)
+    T = eltype(eltype(vs))  # typically <:AbstractFloat or SVector{3, <:AbstractFloat}
+    _read_data_on_filaments!(T, dset, vs, refinement)
+    close(dset)
+    close(gdata)
+    vs
+end
+
+# Read data on filament nodes -- case of scalar data (e.g. local curvature magnitude)
+function _read_data_on_filaments!(
+        ::Type{T}, dset, vs::AbstractVector{<:AbstractVector}, refinement,
+    ) where {T <: Number}
+    @assert T === eltype(eltype(vs))
+    num_points, = size(dset) :: Dims{1}
+    n = 0
+    dspace = HDF5.dataspace(dset)
+    for v ∈ vs
+        Np = length(v)  # number of filament nodes (*excluding* the endpoint)
+        vdata = reinterpret(reshape, T, v)
+        if refinement == 1
+            HDF5.select_hyperslab!(dspace, ((n + 1):(n + Np),))  # read part of the dataset
+            read_dataset!(vdata, dset, dspace)
+            n += Np + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
+        else
+            inds_file = range(n + 1; length = Np, step = refinement)
+            HDF5.select_hyperslab!(dspace, (inds_file,))
+            read_dataset!(vdata, dset, dspace)
+            n = last(inds_file) + refinement
+        end
+        maybe_pad_periodic!(v)
+    end
+    @assert n == num_points
+    nothing
+end
+
+# Write data on filament nodes -- case of vector data (e.g. velocity)
+function _read_data_on_filaments!(
+        ::Type{V}, dset, vs::AbstractVector{<:AbstractVector}, refinement,
+    ) where {V <: AbstractVector}
+    @assert V === eltype(eltype(vs))
+    N = length(V)  # usually == 3 (works when V <: StaticArray)
+    T = eltype(V)
+    @assert T <: Number
     Ñ, num_points = size(dset) :: Dims{2}
     @assert N == Ñ
-
     n = 0
     dspace = HDF5.dataspace(dset)
     for v ∈ vs
@@ -591,17 +626,15 @@ function Base.read!(
             read_dataset!(vdata, dset, dspace)
             n = last(inds_file) + refinement
         end
-        if v isa PaddedVector
-            pad_periodic!(v)
-        end
+        maybe_pad_periodic!(v)
     end
     @assert n == num_points
-
-    close(dset)
-    close(gdata)
-
-    vs
+    nothing
 end
+
+# Periodically pad output vector if it's a PaddedVector.
+maybe_pad_periodic!(v::PaddedVector) = pad_periodic!(v)
+maybe_pad_periodic!(v::AbstractVector) = v
 
 function read_dataset!(
         out::AbstractArray,
