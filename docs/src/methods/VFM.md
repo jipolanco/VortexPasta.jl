@@ -234,8 +234,8 @@ Under the approximation that the local segments are much smaller than the vortex
 ```
 
 where we have defined ``ℓ^* = 2\sqrt{ℓ^- ℓ^+}``.
-In the case of the velocity, ``\bm{s}_i' × \bm{s}_i'' = \hat{\bm{z}} / R``, where ``\hat{\bm{z}}`` is the direction orthogonal to the plane where the ring lives.
-As a reminder, ``\bm{s}_i'`` is the local unit tangent vector.
+In the expression for the velocity, ``\bm{s}_i' × \bm{s}_i'' = \hat{\bm{z}} / R``, where ``\hat{\bm{z}}`` is the direction orthogonal to the plane where the ring lives.
+As a reminder, ``\bm{s}_i'`` is the local unit tangent vector, while the second derivative ``\bm{s}_i''`` corresponds to the curvature vector (oriented towards the "interior" of the curve) and whose magnitude is ``1/R``.
 
 Adding the local integrals obtained by desingularisation leads to:
 
