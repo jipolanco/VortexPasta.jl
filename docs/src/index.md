@@ -2,7 +2,14 @@
 
 A vortex filament solver for the simulation of quantum vortex flows.
 
+```@contents
+Pages = ["index.md"]
+Depth = 2:3
+```
+
 ## Introduction
+
+### Physical context
 
 [Quantum vortices](https://en.wikipedia.org/wiki/Quantum_vortex) are one of the most important features of superfluids such as low-temperature liquid helium or Bose--Einstein condensates.
 These are *topological defects* -- which in three dimensions take the form of spatial curves -- where the velocity of the superfluid is singular.
@@ -12,7 +19,7 @@ That is, they induce a rotating velocity field about them whose intensity is qua
 In the case of helium-4, superfluidity takes place at temperatures below about 2.17 K,
 and the thickness of quantum vortices is about 1 Å (``10^{-10}`` m).
 Their atomic-scale thickness justifies treating quantum vortices as infinitesimal lines when describing the macroscopic flow induced by them.
-This is precisely the idea of the [vortex filament model](@ref methods-VFM) which is implemented in this package.
+This is precisely the idea of the [vortex filament model (VFM)](@ref methods-VFM) which is implemented in this package.
 
 ### Numerical considerations
 
@@ -144,9 +151,9 @@ Status `~/Work/Projects/Vortices/Codes/VortexPasta/docs/simulation/Project.toml`
     to your `~/.julia/config/startup.jl` file and then restart Julia.
 
 
-## Running simulations and analysis
+## Running the code
 
-TODO: refer to the first tutorial?
+See the [vortex ring tutorial](@ref tutorial-vortex-ring) for a basic example on how to prepare and run vortex filament simulations.
 
 
 [^1]: Alternatively, one can start Julia *without* the `--project` flag, and then `] activate .` in package mode, as described in the [official docs](https://pkgdocs.julialang.org/dev/getting-started/#Getting-Started-with-Environments).

@@ -5,3 +5,5 @@
 [![coverage report](https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl/badges/master/coverage.svg)](https://jipolanco.pages.in2p3.fr/VortexPasta.jl/coverage)
 
 A vortex filament solver for the simulation of quantum vortex flows.
+
+See the [documentation](https://jipolanco.pages.in2p3.fr/VortexPasta.jl/) for an introduction, installation instructions, examples and much more.

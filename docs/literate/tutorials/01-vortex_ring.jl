@@ -1,4 +1,4 @@
-# # Getting started
+# # [Getting started](@id tutorial-vortex-ring)
 #
 # The following tutorial goes through the simulation of a **single vortex ring** propagating
 # due to its self-induced propulsion.
