@@ -4,6 +4,11 @@ The standard **vortex filament model** (VFM) describes the motion of thin vortex
 
 Vortex lines are assumed to be very thin with respect to the scales of interest, such that they can be effectively described as spatial curves.
 
+```@contents
+Pages = ["VFM.md"]
+Depth = 2:3
+```
+
 ## [The Biot--Savart law](@id BiotSavart)
 
 In the VFM, each vortex line induces a velocity field about it given by the [Biot--Savart law](https://en.wikipedia.org/wiki/Biot%E2%80%93Savart_law):
@@ -89,14 +94,199 @@ Doing something similar for the segment ``\bm{s}_{i - 1} → \bm{s}(ξ_i - ϵ)``
 
 ```math
 \bm{v}_{\text{local}}(\bm{s}_i)
-= \frac{Γ}{4π} \bm{s}_i' × \bm{s}_i'' \ln \frac{\sqrt{ℓ^- ℓ^+}}{ϵ}
-= \frac{Γ}{4π} \bm{s}_i' × \bm{s}_i'' \left[ \ln \frac{2\sqrt{ℓ^- ℓ^+}}{a} - Δ \right],
+= \frac{Γ}{4π} \bm{s}_i' × \bm{s}_i'' \ln \left( \frac{\sqrt{ℓ^- ℓ^+}}{ϵ} \right)
+= \frac{Γ}{4π} \bm{s}_i' × \bm{s}_i'' \left[ \ln \left( \frac{2\sqrt{ℓ^- ℓ^+}}{a} \right) - Δ \right],
 ```
 
 where we have taken the cut-off distance to be ``ϵ = \frac{e^Δ a}{2}`` [Saffman1993; §11.2](@cite).
 Here ``Δ`` is a coefficient which depends on the form of the vorticity profile within the vortex core (see the [vortex ring tutorial](@ref Computing-the-vortex-ring-velocity)).
 
 In the code, the local velocity is sometimes referred to as the LIA (*local induction approximation*) term, as it has been historically used as a fast (and incomplete) approximation to the full Biot--Savart integral.
+
+## Streamfunction and energy
+
+Everything that has been discussed until now applies to the velocity derived from the Biot--Savart law.
+Sometimes we may also be interested in the **streamfunction vector** ``\bm{ψ}``.
+In particular, the streamfunction values on vortex lines can be used to estimate the total energy of the vortex filament system.
+
+### [The Biot--Savart law for the streamfunction](@id Biot-Savart-streamfunction)
+
+In three dimensions, the streamfunction is a vector field which is directly related to the velocity and vorticity by
+
+```math
+\bm{v} = \bm{∇} × \bm{ψ} \quad \Rightarrow \quad \bm{ω} = \bm{∇} × \bm{v} = -∇²\bm{ψ}
+```
+
+That is, if one knows the vorticity field ``\bm{ω}``, then the streamfunction is the solution of a [Poisson equation](https://en.wikipedia.org/wiki/Poisson's_equation) with the vorticity as source term.
+The solution can be written in terms of the Green's function ``G(\bm{r}) = 1/(4πr)`` associated to the 3D Poisson equation:
+
+```math
+\newcommand{\xvec}{\bm{x}}
+\newcommand{\yvec}{\bm{y}}
+\newcommand{\vort}{\bm{ω}}
+\newcommand{\dd}{\mathrm{d}}
+\bm{ψ}(\xvec) = (G ∗ \vort)(\xvec)
+= ∫ G(\xvec - \yvec) \vort(\yvec) \, \dd^3\yvec
+= \frac{1}{4π} ∫ \frac{\vort(\yvec)}{|\xvec - \yvec|} \, \dd^3\yvec
+```
+
+Using the fact that the vorticity has the form ``\bm{ω}(\bm{x}) = Γ ∮_{\mathcal{C}} δ(\bm{s} - \bm{x}) \, \mathrm{d}\bm{s}`` leads to the **Biot--Savart law for the streamfunction**:
+
+```math
+\newcommand{\xvec}{\bm{x}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\vort}{\bm{ω}}
+\newcommand{\dd}{\mathrm{d}}
+\bm{ψ}(\xvec)
+= Γ ∮_{\mathcal{C}} G(\xvec - \svec) \, \dd\svec
+= \frac{Γ}{4π} ∮_{\mathcal{C}} \frac{\dd\svec}{|\xvec - \svec|}
+```
+
+Note that the usual Biot--Savart law for the velocity can be recovered by taking the curl of the above expression:
+
+```math
+\newcommand{\xvec}{\bm{x}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\vvec}{\bm{v}}
+\newcommand{\vort}{\bm{ω}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\curl}{\bm{∇} ×}
+\vvec(\xvec)
+= \curl \bm{ψ}(\xvec)
+= Γ ∮_{\mathcal{C}} \bm{∇} G(\xvec - \svec) × \dd\svec
+= -\frac{Γ}{4π} ∮_{\mathcal{C}} \frac{(\xvec - \svec) × \dd\svec}{|\xvec - \svec|^3}
+```
+
+where we have used ``\bm{∇} G(\bm{r}) = -\bm{r} / (4π r^3)``.
+
+### Connection with kinetic energy
+
+The kinetic energy per unit mass of the system is given by
+
+```math
+\newcommand{\xvec}{\bm{x}}
+\newcommand{\dd}{\mathrm{d}}
+E
+= \frac{1}{2V} ∫ \bm{v}(\xvec) ⋅ \bm{v}(\xvec) \, \dd^3\xvec
+= \frac{1}{2V} ∫ \bm{ψ}(\xvec) ⋅ \bm{ω}(\xvec) \, \dd^3\xvec
+```
+
+where the second equality is obtained using integration by parts and assuming we're in a periodic domain, and ``V`` is the volume of one periodic unit cell.
+As before, using ``\bm{ω}(\bm{x}) = Γ ∮_{\mathcal{C}} δ(\bm{s} - \bm{x}) \, \mathrm{d}\bm{s}`` leads to
+
+```math
+\newcommand{\svec}{\bm{s}}
+\newcommand{\dd}{\mathrm{d}}
+E = \frac{Γ}{2V} ∮_{\mathcal{C}} \bm{ψ}(\svec) ⋅ \dd\svec
+```
+
+That is, the energy is simply the line integral of the tangential component of the streamfunction along vortex filaments.
+
+### Desingularisation of the streamfunction integral
+
+As for the velocity, the Biot--Savart integral for the streamfunction is singular when evaluated on a vortex line.
+We can use the same approach to desingularise it, by splitting the integral onto a local and a non-local part.
+
+Using the same notation as [for the velocity](@ref VFM-desingularisation),
+a leading-order Taylor expansion of the integrand leads to:
+
+```math
+\bm{ψ}_i^+
+≈ \frac{Γ}{2π} \frac{\bm{s}_i'}{2} ∫_{ξ_i + ϵ'}^{ξ_{i + 1}} \frac{\mathrm{d}ξ}{ξ - ξ_i}
+= \frac{Γ}{2π} \frac{\bm{s}_i'}{2} \ln \left( \frac{ℓ^+}{ϵ'} \right)
+```
+
+and then to:
+
+```math
+\bm{ψ}_{\text{local}}(\bm{s}_i)
+= \frac{Γ \bm{s}_i'}{2π} \ln \left( \frac{\sqrt{ℓ^- ℓ^+}}{ϵ'} \right)
+```
+
+Note that, here, the cut-off distance ``ϵ'`` is not necessarily the same as for
+the velocity.
+In fact, if one considers a system of non-colliding vortex rings, one can show that, for the system to be Hamiltonian, one needs to take ``ϵ' = \frac{e^{Δ - 1} a}{2}`` (as verified in the [example](@ref VFM-ring) below).
+This finally leads to:
+
+```math
+\bm{ψ}_{\text{local}}(\bm{s}_i)
+= \frac{Γ \bm{s}_i'}{2π} \left[ \ln \left( \frac{2 \sqrt{ℓ^- ℓ^+}}{a} \right) - (Δ - 1) \right]
+```
+
+## [Example: vortex ring](@id VFM-ring)
+
+For a circular vortex ring of radius ``R``, one can analytically compute the non-local Biot--Savart integrals.
+Under the approximation that the local segments are much smaller than the vortex radius (``ℓ^- ∼ ℓ^+ ≪ R``), one obtains:
+
+```math
+\newcommand{\vvec}{\bm{v}}
+\newcommand{\psivec}{\bm{ψ}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\sj}{\svec_i}
+\begin{align*}
+\vvec_{\text{non-local}}(\sj)
+&= \frac{Γ}{4π} \sj' × \sj'' \ln \left( \frac{8R}{ℓ^*} \right)
+\\
+\psivec_{\text{non-local}}(\sj)
+&= \frac{Γ}{2π} \sj' \left[ \ln \left( \frac{8R}{ℓ^*} \right) - 2 \right]
+\end{align*}
+```
+
+where we have defined ``ℓ^* = 2\sqrt{ℓ^- ℓ^+}``.
+In the case of the velocity, ``\bm{s}_i' × \bm{s}_i'' = \hat{\bm{z}} / R``, where ``\hat{\bm{z}}`` is the direction orthogonal to the plane where the ring lives.
+As a reminder, ``\bm{s}_i'`` is the local unit tangent vector.
+
+Adding the local integrals obtained by desingularisation leads to:
+
+```math
+\newcommand{\vvec}{\bm{v}}
+\newcommand{\psivec}{\bm{ψ}}
+\newcommand{\svec}{\bm{s}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\sj}{\svec_i}
+\begin{align*}
+\vvec(\sj)
+&= \frac{Γ \hat{\bm{z}}}{4πR} \left[ \ln \left( \frac{8R}{a} \right) - Δ \right]
+\\
+\psivec(\sj)
+&= \frac{Γ \sj'}{2π} \left[ \ln \left( \frac{8R}{a} \right) - (Δ + 1) \right]
+\end{align*}
+```
+
+The first expression obtained is the well-known self-induced velocity of a thin vortex ring.
+
+From the second expression, we can easily obtain the energy per unit mass associated to the vortex ring:
+
+```math
+E = \frac{Γ^2 R}{2V} \left[ \ln \left( \frac{8R}{a} \right) - (Δ + 1) \right]
+```
+
+We can finally check that, with the desingularisation procedure described
+in the previous sections, the vortex ring obeys Hamilton's equation ``v = ∂E/∂p`` [Roberts1970](@cite).
+Here ``\bm{p}`` is the vortex impulse per unit mass [Saffman1993](@cite):
+
+```math
+\bm{p} = \frac{Γ}{2} ∮_{\mathcal{C}} \bm{s} × \mathrm{d}\bm{s}
+```
+
+For a vortex ring, ``\bm{p} = Γ π R^2 \hat{\bm{z}}``, that is, the impulse is directly related to the area of the vortex.
+
+Noting that
+
+```math
+\frac{∂E}{∂R} = \frac{Γ^2}{2} \left[ \ln \left( \frac{8R}{a} \right) - Δ \right]
+\quad \text{and} \quad
+\frac{∂\bm{p}}{∂R} = 2ΓπR \hat{\bm{z}},
+```
+
+we finally obtain that
+
+```math
+\frac{∂E}{∂p}
+= \frac{Γ}{4πR} \left[ \ln \left( \frac{8R}{a} \right) - Δ \right]
+= v_{\text{ring}}
+```
 
 ## [Generate figures](@id VFM-generate-figures)
 

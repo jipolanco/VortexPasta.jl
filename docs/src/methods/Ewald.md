@@ -3,6 +3,11 @@
 The main originality of the VortexPasta solver is that it adapts the [Ewald summation](https://en.wikipedia.org/wiki/Ewald_summation) method to accelerate the computation of the Biot--Savart law along vortex filaments.
 See for example [Arnold2005](@citet) for a nice introduction to Ewald methods applied to the electrostatic interaction between point charges.
 
+```@contents
+Pages = ["Ewald.md"]
+Depth = 2:3
+```
+
 ## Splitting the Biot--Savart integral
 
 The basic idea of the method is to split the Biot--Savart integral into short- and long-range parts:
@@ -39,10 +44,14 @@ In practice this is the case as long as other numerical parameters are well chos
 
 The two splitting functions are plotted below.
 In the horizontal axis, the scale ``r`` is non-dimensionalised by the splitting parameter ``α``.
+Note that the long-range splitting function is smooth at ``r = 0`` and has the Taylor expansion
+``g^>(r) = \frac{4}{3 \sqrt{π}} (αr)^3 + \mathcal{O}(r^5)``.
+Also plotted are the two error functions.
+Note in particular that, for small ``r``, ``\operatorname{erf}(αr) = 2αr/\sqrt{π} + \mathcal{O}(r^3)``.
 
 ![](splitting_functions.svg)
 
-For small ``αr``, the long-range splitting function goes to zero as ``r^3``, consistently with its Taylor expansion, ``g^>(r) = \frac{4}{3 \sqrt{π}} (αr)^3 + \mathcal{O}(r^5)``.
+For small ``αr``, the long-range splitting function goes to zero as ``r^3``, consistently with its Taylor expansion.
 This means that, as we wanted, ``g^>(r) / r^2`` is non-singular and smooth at ``r = 0``.
 
 ## Short-range velocity
@@ -335,6 +344,34 @@ Using Gauss--Legendre quadratures, integrals seem to converge quite fast using a
 Typically, using 4 nodes seems to be more than enough.
 However, this still deserves further testing, as we expect there to be a relation between the number of quadrature nodes, the typical length of filament nodes (i.e. how finely are filaments discretised) and the Ewald splitting parameter ``α``.
 
+## Ewald method for the streamfunction
+
+As in the case of the velocity, the [Biot--Savart integral for the streamfunction](@ref Biot-Savart-streamfunction) decays slowly with the distance ``r = |\bm{x} - \bm{s}|``, and its computation can be accelerated using Ewald summation.
+In fact, the Ewald summation method exposed above for the velocity is derived from that for the streamfunction, which is simpler and closer to the way the Ewald method is usually introduced in electrostatics (where the electrostatic potential is the analogue of the streamfunction).
+
+In the case of the streamfunction, the idea of Ewald summation is to split the singular and slowly-decaying Green's function ``G(\bm{r})`` onto a smooth long-range component ``G^>(\bm{r})`` and a short-range fast-decaying component ``G^<(\bm{r})``.
+The standard way of doing this is via the identity:
+
+```math
+G(\bm{r}) = \frac{1}{4πr}
+= \frac{\operatorname{erfc}(αr)}{4πr} + \frac{\operatorname{erf}(αr)}{4πr}
+= G^<(\bm{r}) + G^>(\bm{r}),
+```
+
+where ``\operatorname{erf}`` and ``\operatorname{erfc}`` are respectively the error function and the complementary error function already introduced [above](@ref Splitting-the-Biot–Savart-integral), and ``α`` is the same **Ewald splitting parameter** introduced in that section.
+
+This leads to modified Biot--Savart integrals for the short-range and long-range streamfunction.
+For example, the short-range integral is given by:
+
+```math
+\bm{ψ}^<(\bm{x}) =
+(G^< ∗ \bm{ω})(\bm{x}) =
+\frac{Γ}{4π} ∮_{\mathcal{C}}
+\frac{\operatorname{erfc}(α |\bm{x} - \bm{s}|)}{|\bm{x} - \bm{s}|} \, \mathrm{d}\bm{s}
+```
+
+Taking the curl of those integrals eventually leads to the ``g^<(\bm{r})`` and ``g^>(\bm{r})`` splitting functions that we used for the velocity.
+
 ## [Generate figures](@id Ewald-generate-figures)
 
 Below is the code used to generate the plots shown in this page.
@@ -354,12 +391,19 @@ yticks = LogTicks(-16:4:0)
 fig = Figure(resolution = (600, 400), fontsize = 18)
 ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
 ylims!(ax, 1e-17, 4)
-lines!(ax, rs, gs.(rs); label = L"g^<(r)")
-lines!(ax, rs, gl.(rs); label = L"g^>(r)")
+ls = lines!(ax, rs, gs.(rs); label = L"g^<(r)")
+ll = lines!(ax, rs, gl.(rs); label = L"g^>(r)")
+lines!(ax, rs, erfc.(rs); label = L"\mathrm{erfc}(αr)", linestyle = :dot, color = ls.color)
+lines!(ax, rs, erf.(rs); label = L"\mathrm{erf}(αr)", linestyle = :dot, color = ll.color)
 let rs = 2.0.^(range(-4, -1; length = 3)), color = :grey20  # plot ~r^3 slope
     ys = @. 0.2 * rs^3
     lines!(ax, rs, ys; linestyle = :dash, color)
     text!(ax, rs[2], ys[2]; text = L"r^3", align = (:left, :top), color)
+end
+let rs = 2.0.^(range(-4, -2; length = 3)), color = :grey20  # plot ~r^1 slope
+    ys = @. 0.5 * (2 / sqrt(π)) * rs
+    lines!(ax, rs, ys; linestyle = :dash, color)
+    text!(ax, rs[2], ys[2]; text = L"r", align = (:left, :top), color)
 end
 axislegend(ax; position = (0, 0), labelsize = 20)
 save("splitting_functions.svg", fig)
