@@ -58,29 +58,8 @@ DocMeta.setdocmeta!(
 
 # doctest(VortexPasta; fix = true)
 
-struct Gitlab <: Remotes.Remote
-    url :: String
-end
-
-Remotes.repourl(remote::Gitlab) = remote.url
-
-# Example:
-# https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl/-/blob/master/src/Filaments/integrate.jl#L23-35
-function Remotes.fileurl(remote::Gitlab, ref, filename, linerange)
-    io = IOBuffer()
-    print(io, Remotes.repourl(remote), "/-/blob/", ref, '/', filename)
-    if linerange !== nothing
-        a, b = first(linerange), last(linerange)
-        print(io, "#L", a)
-        if a != b
-            print(io, "-", b)
-        end
-    end
-    String(take!(io))
-end
-
 function make_all()
-    repo = Gitlab("https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl")
+    repo = Remotes.GitLab("https://gitlab.in2p3.fr", "jipolanco", "VortexPasta.jl")
 
     bib = CitationBibliography(
         joinpath(@__DIR__, "src", "biblio.bib");
