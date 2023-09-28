@@ -119,7 +119,7 @@ nothing  # hide
 
 using GLMakie
 set_theme!(theme_black())
-GLMakie.activate!(; visible = false,)  # hide
+GLMakie.activate!()  # hide
 fig = Figure()                         # create an empty figure
 ax = Axis3(fig[1, 1]; aspect = :data)  # add an Axis3 for plotting in 3D
 zlims!(ax, 0.5, 1.5)                   # set axis limits in the z direction
@@ -347,9 +347,9 @@ hidezdecorations!(ax; label = false)
 fimage = copy(f)
 plot!(ax, f; refinement = 4, markersize = 0, color = :OrangeRed, linewidth = 2)
 for I ∈ CartesianIndices((-1:1, -1:1, -1:1))
-    widths = (L, L, L)
-    offset = Vec3(Tuple(I) .* widths)
-    box = Rect(offset..., widths...)
+    local widths = (L, L, L)
+    local offset = Vec3(Tuple(I) .* widths)
+    local box = Rect(offset..., widths...)
     wireframe!(ax, box; color = (:white, 0.5), linewidth = 0.2)  # plot cube
     iszero(I) && continue  # don't replot the "original" filament
     fimage .= f .+ Ref(offset)
@@ -588,7 +588,7 @@ while iter.time.t < 2T
     step!(iter)            # run a single timestep
     notify(f_obs)          # tell Makie that filament positions have been updated
     t_obs[] = iter.time.t  # update displayed time
-    yield()                # allows to see the updated plot (not needed if using `record`)
+    yield()                # allows to see the updated plot
     recordframe!(io)  # hide
 end
 end  # hide
