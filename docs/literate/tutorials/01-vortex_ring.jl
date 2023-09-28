@@ -615,7 +615,7 @@ nothing  # hide
 #
 # !!! note "VTK HDF file extension"
 #
-#     ParaView doesn't recognise the `.h5` file extension as a VTK HDF file.
+#     ParaView doesn't recognise the usual `.h5` file extension as a VTK HDF file.
 #     For this reason, it is recommended to use `.hdf` if one wants to visualise the data.
 #
 # ### Writing filament data and reading it back
