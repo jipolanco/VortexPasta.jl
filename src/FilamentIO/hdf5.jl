@@ -129,7 +129,7 @@ function init_vtkhdf(
 
     V = eltype(eltype(fs))  # usually V == SVector{3, T}
     T = eltype(V)
-    N = length(V)  # usually == 3
+    N = length(V)  # usually == 3 (works when V <: StaticArray)
 
     num_points = sum(f -> refinement * length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint
     num_cells = length(fs)
@@ -205,6 +205,9 @@ function init_vtkhdf(
     VTKHDFFile(gtop, fs, refinement)
 end
 
+vtk_attribute_type(::Type{<:Number}) = "Scalars"          # usually <:AbstractFloat
+vtk_attribute_type(::Type{<:AbstractVector}) = "Vectors"  # usually Vec3
+
 """
     Base.setindex!(io::VTKHDFFile, vs::AbstractVector{<:AbstractVector}, name::AbstractString)
 
@@ -229,12 +232,9 @@ function Base.setindex!(
         name::AbstractString,
     )
     (; gtop, refinement,) = writer
-
     gdata = open_or_create_group(gtop, "PointData")
-
-    # For now, assume `vs` contains vector data (such as velocities).
-    # This can be easily generalised later.
-    attrname = "Vectors"
+    T = eltype(eltype(vs))  # usually <:Real or Vec3{<:Real}
+    attrname = vtk_attribute_type(T)  # "Scalars", "Vectors", ...
     names = if haskey(HDF5.attrs(gdata), attrname)
         names_prev = HDF5.attrs(gdata)[attrname] :: Vector{String}
         vcat(names_prev, name) :: Vector{String}
@@ -242,16 +242,70 @@ function Base.setindex!(
         String[name]
     end
     HDF5.attrs(gdata)[attrname] = names  # overwrite attribute if it already existed
+    _write_data_on_filaments(T, gdata, vs, name, refinement)
+    close(gdata)
+    nothing
+end
 
-    # Write actual data
-    V = eltype(eltype(vs))  # usually V == SVector{3, T}
+# Write data on filament nodes -- case of scalar data (e.g. local curvature magnitude)
+function _write_data_on_filaments(
+        ::Type{T}, gdata, vs::AbstractVector{<:AbstractVector}, name, refinement,
+    ) where {T <: Number}
+    @assert T === eltype(eltype(vs))
+    num_points = sum(v -> refinement * length(v) + 1, vs)  # the +1 is to include the endpoint
+    dtype = HDF5.datatype(T)
+    dspace = HDF5.dataspace((num_points,))
+    memtype = dtype
+    memspace_node = HDF5.dataspace(T)  # this is for writing a scalar on a single point
+
+    dset = HDF5.create_dataset(gdata, name, dtype, dspace)
+    n = 0
+    for v ∈ vs
+        Np = refinement * length(v)
+        if refinement == 1
+            # Write all data associated to a single filament at once
+            memspace_filament = HDF5.dataspace((Np,))
+            HDF5.select_hyperslab!(dspace, ((n + 1):(n + Np),))
+            HDF5.API.h5d_write(dset.id, memtype.id, memspace_filament.id, dspace.id, dset.xfer, v)
+            close(memspace_filament)
+            n += Np
+        else
+            # For now just use linear interpolation
+            for i ∈ eachindex(v), m ∈ 1:refinement
+                u = _interpolate_on_segment(v, i, m, refinement)
+                n += 1
+                # Write values one by one
+                HDF5.select_hyperslab!(dspace, (n,))
+                HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, Ref(u))
+            end
+        end
+        n += 1
+        HDF5.select_hyperslab!(dspace, (n,))
+        HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, v)
+    end
+    @assert n == num_points
+    close(dset)
+
+    close(dspace)
+    close(dtype)
+    close(memspace_node)
+
+    nothing
+end
+
+# Write data on filament nodes -- case of vector data (e.g. velocity)
+function _write_data_on_filaments(
+        ::Type{V}, gdata, vs::AbstractVector{<:AbstractVector}, name, refinement,
+    ) where {V <: AbstractVector}
+    @assert V === eltype(eltype(vs))
     T = eltype(V)
-    N = length(V)  # usually == 3
+    @assert T <: Number
+    N = length(V)  # usually == 3 (works when V <: StaticArray)
     num_points = sum(v -> refinement * length(v) + 1, vs)  # the +1 is to include the endpoint
     dtype = HDF5.datatype(T)
     dspace = HDF5.dataspace((N, num_points))
     memtype = dtype
-    memspace_vec = HDF5.dataspace((N,))  # this is for writing one vector at a time
+    memspace_node = HDF5.dataspace((N,))  # this is for writing a vector on a single point
 
     dset = HDF5.create_dataset(gdata, name, dtype, dspace)
     n = 0
@@ -267,27 +321,32 @@ function Base.setindex!(
         else
             # For now just use linear interpolation
             for i ∈ eachindex(v), m ∈ 1:refinement
-                α = (m - 1) / refinement
-                u = (1 - α) * v[i] + α * v[i + 1]  # assumes v is padded!!
+                u = _interpolate_on_segment(v, i, m, refinement)
                 n += 1
                 # Write vectors one by one
                 HDF5.select_hyperslab!(dspace, (1:N, n))
-                HDF5.API.h5d_write(dset.id, memtype.id, memspace_vec.id, dspace.id, dset.xfer, u)
+                HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, u)
             end
         end
         n += 1
         HDF5.select_hyperslab!(dspace, (1:N, n))
-        HDF5.API.h5d_write(dset.id, memtype.id, memspace_vec.id, dspace.id, dset.xfer, v[begin])
+        HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, v[begin])
     end
     @assert n == num_points
     close(dset)
 
     close(dspace)
     close(dtype)
-    close(memspace_vec)
-    close(gdata)
+    close(memspace_node)
 
     nothing
+end
+
+# Interpolate value on segment. For now we simply use linear interpolation (it's just for
+# visualisation anyways).
+function _interpolate_on_segment(v, i, m, M)
+    α = (m - 1) / M
+    (1 - α) * v[i] + α * v[i + 1]  # assumes v is padded!!
 end
 
 """
@@ -505,18 +564,53 @@ function Base.read!(
         vs::AbstractVector{<:AbstractVector},
         name::AbstractString,
     )
-    # TODO generalise for scalar data
-    V = eltype(eltype(vs))  # usually V == SVector{3, T}
-    N = length(V)  # usually == 3
-    T = eltype(V)
-
     (; gtop, refinement,) = reader
-
     gdata = HDF5.open_group(gtop, "PointData")
     dset = HDF5.open_dataset(gdata, name)
+    T = eltype(eltype(vs))  # typically <:AbstractFloat or SVector{3, <:AbstractFloat}
+    _read_data_on_filaments!(T, dset, vs, refinement)
+    close(dset)
+    close(gdata)
+    vs
+end
+
+# Read data on filament nodes -- case of scalar data (e.g. local curvature magnitude)
+function _read_data_on_filaments!(
+        ::Type{T}, dset, vs::AbstractVector{<:AbstractVector}, refinement,
+    ) where {T <: Number}
+    @assert T === eltype(eltype(vs))
+    num_points, = size(dset) :: Dims{1}
+    n = 0
+    dspace = HDF5.dataspace(dset)
+    for v ∈ vs
+        Np = length(v)  # number of filament nodes (*excluding* the endpoint)
+        vdata = reinterpret(reshape, T, v)
+        if refinement == 1
+            HDF5.select_hyperslab!(dspace, ((n + 1):(n + Np),))  # read part of the dataset
+            read_dataset!(vdata, dset, dspace)
+            n += Np + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
+        else
+            inds_file = range(n + 1; length = Np, step = refinement)
+            HDF5.select_hyperslab!(dspace, (inds_file,))
+            read_dataset!(vdata, dset, dspace)
+            n = last(inds_file) + refinement
+        end
+        maybe_pad_periodic!(v)
+    end
+    @assert n == num_points
+    nothing
+end
+
+# Write data on filament nodes -- case of vector data (e.g. velocity)
+function _read_data_on_filaments!(
+        ::Type{V}, dset, vs::AbstractVector{<:AbstractVector}, refinement,
+    ) where {V <: AbstractVector}
+    @assert V === eltype(eltype(vs))
+    N = length(V)  # usually == 3 (works when V <: StaticArray)
+    T = eltype(V)
+    @assert T <: Number
     Ñ, num_points = size(dset) :: Dims{2}
     @assert N == Ñ
-
     n = 0
     dspace = HDF5.dataspace(dset)
     for v ∈ vs
@@ -532,17 +626,15 @@ function Base.read!(
             read_dataset!(vdata, dset, dspace)
             n = last(inds_file) + refinement
         end
-        if v isa PaddedVector
-            pad_periodic!(v)
-        end
+        maybe_pad_periodic!(v)
     end
     @assert n == num_points
-
-    close(dset)
-    close(gdata)
-
-    vs
+    nothing
 end
+
+# Periodically pad output vector if it's a PaddedVector.
+maybe_pad_periodic!(v::PaddedVector) = pad_periodic!(v)
+maybe_pad_periodic!(v::AbstractVector) = v
 
 function read_dataset!(
         out::AbstractArray,
