@@ -68,7 +68,7 @@ The type parameter `T` corresponds to the precision used in computations
 
 # Construction
 
-    ParamsBiotSavart([T = Float64]; Γ, α, Ls, Ns, optional_kws...)
+    ParamsBiotSavart([T = Float64]; Γ, a, α, Ls, Ns, optional_kws...)
 
 where the optional parameter `T` sets the numerical precision.
 
@@ -166,6 +166,34 @@ struct ParamsBiotSavart{
     end
 end
 
+function Base.show(io::IO, p::ParamsBiotSavart)
+    (; common, shortrange, longrange,) = p
+    (; Γ, a, Δ, Ls, α,) = common
+    σ = 1 / (α * sqrt(2))
+    rcut_L = shortrange.rcut / minimum(Ls)
+    print(io, "ParamsBiotSavart with:")
+    print(io, "\n - Physical parameters:")
+    print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
+    print(io, "\n   * Vortex core radius:         a  = ", a)
+    print(io, "\n   * Vortex core parameter:      Δ  = ", Δ)
+    print(io, "\n   * Domain period:              Ls = ", Ls)
+    print(io, "\n - Numerical parameters:")
+    print(io, "\n   * Ewald splitting parameter:  α  = ", α, " (σ = 1/α√2 = ", σ, ")")
+    print(io, "\n   * Short-range backend:        ", shortrange.backend)
+    print(io, "\n   * Short-range cut-off radius: ", shortrange.rcut, " (r_cut/L = ", rcut_L, ")")
+    print(io, "\n   * Short-range quadrature:     ", shortrange.quad)
+    print(io, "\n   * Long-range backend:         ", longrange.backend)
+    print(io, "\n   * Long-range resolution:      Ns = ", longrange.Ns)
+    print(io, "\n   * Long-range quadrature:      ", longrange.quad)
+    nothing
+end
+
+function Base.summary(io::IO, p::ParamsBiotSavart{T}) where {T}
+    # Print a few physical parameters (and α)
+    (; Γ, a, Δ, α,) = p.common
+    print(io, "ParamsBiotSavart{$T}(Γ = $Γ, a = $a, Δ = $Δ, α = $α, …)")
+end
+
 # Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.
 is_open_domain(Ls::Tuple) = is_open_domain(Ls...)
 is_open_domain(::Infinity, etc...) = true
@@ -220,6 +248,8 @@ struct BiotSavartCache{
     to         :: Timer
 end
 
+Base.summary(io::IO, c::BiotSavartCache) = print(io, "BiotSavartCache")
+
 """
     init_cache(
         p::ParamsBiotSavart, fs::AbstractVector{<:AbstractFilament};
@@ -242,7 +272,7 @@ end
         vs::AbstractVector{<:AbstractVector{<:Vec3}},
         cache::BiotSavartCache,
         fs::AbstractVector{<:AbstractFilament},
-    )
+    ) -> vs
 
 Compute velocity induced by vortex filaments on filament nodes.
 
@@ -255,8 +285,17 @@ In that case, `vs` must be a vector of vectors, which will contain the velocitie
 all filament nodes. The length of `vs[i]` must be equal to the number of nodes
 in the filament `fs[i]`.
 
-For convenience, if the system contains a single vortex filament, one can also
-pass a single velocity vector `v` and a single filament `f`.
+The vector of velocities where the output will be written may be initialised using one of the
+following lines (all are exactly equivalent):
+
+```julia
+vs = map(similar ∘ nodes, fs)
+vs = [similar(nodes(f)) for f ∈ fs]
+vs = similar.(nodes.(fs))
+```
+
+which initialise a velocity vector for each node of each filament (see also
+[`nodes`](@ref)).
 """
 function velocity_on_nodes! end
 
@@ -275,6 +314,7 @@ function velocity_on_nodes!(
     )
     fields = (; velocity = vs,)
     compute_on_nodes!(fields, cache, fs; LIA)
+    vs
 end
 
 # Extracts and resets output fields (velocity and/or streamfunction).

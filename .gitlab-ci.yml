@@ -20,12 +20,12 @@
     - .julia-cache
   rules:
     # Only run tests if source files were modified, or if we're on the main branch
-    - changes:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes:
         paths:
           - src/**
           - test/**
-        compare_to: master
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - |
       julia --project -e '
@@ -99,16 +99,27 @@ test:1.9:
 docs:
   image: julia:1.9
   stage: test
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH       # run on master branch
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'  # run on merge requests
   script:
-    - apt-get update -qq && apt-get install -qq git  # needed by Documenter
+    - apt-get update -qq
+    - apt-get install -qq git  # needed by Documenter
+
+    # This is to be able to render GLMakie figures on the server
+    # See https://github.com/MakieOrg/Makie.jl/blob/master/.github/workflows/glmakie.yaml
+    - apt-get install -qq xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev xsettingsd x11-xserver-utils
+
     - |
-      julia --project=docs -e '
+      DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e '
         using Pkg
         Pkg.develop(path = ".")
         Pkg.instantiate()
         Pkg.build()
       '
-    - julia --project=docs --color=yes docs/make.jl  # make documentation
+
+    - DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs --color=yes docs/make.jl
+
   artifacts:
     paths:
       - docs/build

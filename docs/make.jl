@@ -1,7 +1,28 @@
 using Documenter
 using Documenter: Remotes
+using DocumenterCitations
+using Literate: Literate
+
 using VortexPasta
-using Rotations  # loading this here seems to fix doctest issues on Gitlab
+
+# We load a few submodules to make @ref's work in Literate-generated files.
+using VortexPasta.Filaments
+using VortexPasta.Filaments: Vec3
+using VortexPasta.BiotSavart
+using VortexPasta.Timestepping
+using VortexPasta.FilamentIO
+
+# For some reason we need to explicitly load these packages here to avoid failures with
+# doctests and @example blocks on Gitlab.
+using Rotations
+using StaticArrays
+using SpecialFunctions
+using GLMakie
+using CairoMakie
+
+# These seem to be needed for GLMakie on Gitlab
+using JpegTurbo
+using ImageMagick
 
 DocMeta.setdocmeta!(
     VortexPasta.PaddedArrays,
@@ -58,38 +79,64 @@ function Remotes.fileurl(remote::Gitlab, ref, filename, linerange)
     String(take!(io))
 end
 
-repo = Gitlab("https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl")
+function make_all()
+    repo = Gitlab("https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl")
 
-makedocs(;
-    sitename = "VortexPasta",
-    format = Documenter.HTML(
-        prettyurls = get(ENV, "CI", nothing) == "true",
-        repolink = Remotes.repourl(repo),
-        edit_link = "master",
-        size_threshold_ignore = [
-            "modules/Filaments.md",  # this page has too much content so it's relatively large
+    bib = CitationBibliography(
+        joinpath(@__DIR__, "src", "biblio.bib");
+        style = :authoryear,
+    )
+
+    Literate.markdown(
+        joinpath(@__DIR__, "literate", "tutorials", "01-vortex_ring.jl"),
+        joinpath(@__DIR__, "src", "tutorials");
+        documenter = true,
+    )
+
+    Makie.set_theme!()  # reset theme from a possible previous run
+
+    makedocs(;
+        sitename = "VortexPasta",
+        format = Documenter.HTML(
+            prettyurls = get(ENV, "CI", nothing) == "true",
+            repolink = Remotes.repourl(repo),
+            edit_link = "master",
+            size_threshold_ignore = [
+                "modules/Filaments.md",  # this page has too much content so it's relatively large
+            ],
+            mathengine = KaTeX(),
+        ),
+        modules = [VortexPasta],
+        pages = [
+            "index.md",
+            "Tutorials" => [
+                "tutorials/01-vortex_ring.md",
+            ],
+            "Explanations" => [
+                "methods/VFM.md",
+                "methods/Ewald.md",
+            ],
+            "Modules" => [
+                "modules/PaddedArrays.md",
+                "modules/PredefinedCurves.md",
+                "modules/CellLists.md",
+                "modules/BasicTypes.md",
+                "modules/Quadratures.md",
+                "modules/Filaments.md",
+                "modules/FilamentIO.md",
+                "modules/BiotSavart.md",
+                "modules/Timestepping.md",
+                "modules/Diagnostics.md",
+            ],
+            "References" => "references.md",
         ],
-        mathengine = KaTeX(),
-    ),
-    modules = [VortexPasta],
-    pages = [
-        "index.md",
-        "Modules" => [
-            "modules/PaddedArrays.md",
-            "modules/PredefinedCurves.md",
-            "modules/CellLists.md",
-            "modules/BasicTypes.md",
-            "modules/Quadratures.md",
-            "modules/Filaments.md",
-            "modules/FilamentIO.md",
-            "modules/BiotSavart.md",
-            "modules/Timestepping.md",
-            "modules/Diagnostics.md",
-        ]
-    ],
-    warnonly = [:missing_docs],  # TODO remove
-    repo,
-)
+        warnonly = [:missing_docs],  # TODO can we remove this?
+        plugins = [bib],
+        repo,
+    )
+end
+
+make_all()
 
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual

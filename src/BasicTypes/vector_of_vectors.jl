@@ -60,6 +60,7 @@ struct VectorOfVectors{T, V <: AbstractVector{T}} <: AbstractVector{V}
     u :: Vector{V}
 end
 
+Base.parent(x::VectorOfVectors) = x.u
 Base.length(x::VectorOfVectors) = length(x.u)
 Base.size(x::VectorOfVectors) = (length(x),)
 Base.similar(x::VectorOfVectors, ::Type{T}) where {T} =
@@ -72,6 +73,9 @@ Base.IteratorSize(::Type{<:VectorOfVectors}) = Base.HasLength()
 
 @propagate_inbounds Base.getindex(x::VectorOfVectors, i) = x.u[i]
 @propagate_inbounds Base.setindex!(x::VectorOfVectors, v, i) = x.u[i] = v
+
+Base.convert(::Type{VectorOfVectors}, data::AbstractVector) = VectorOfVectors(data)
+Base.convert(::Type{VectorOfVectors}, x::VectorOfVectors) = x
 
 # This is called when doing copy(us).
 # The idea is to recursively copy each vector, kind of like `deepcopy`, instead of storing
@@ -104,9 +108,10 @@ function Base.similar(bc::Broadcast.Broadcasted{VectorOfVectorsStyle}, ::Type{El
 end
 
 # Find the first VectorOfVectors among the broadcasted arguments.
-find_vov(bc::Broadcast.Broadcasted) = find_vov(bc.args...)
+find_vov(bc::Broadcast.Broadcasted, args...) = find_vov(bc.args..., args...)
 find_vov(u::VectorOfVectors, args...) = u
 find_vov(::Any, args...) = find_vov(args...)
+find_vov() = nothing  # this is never reached unless there's a bug somewhere...
 
 # This custom implementation is there to make sure that broadcasting is done without
 # unnecessary allocations.

@@ -3,12 +3,12 @@ export
 
 @doc raw"""
     FiniteDiffMethod{M} <: LocalDiscretisationMethod{M}
-    FiniteDiffMethod(M::Int, [interpolation = HermiteInterpolation(M)])
+    FiniteDiffMethod([M = 2], [interpolation = HermiteInterpolation(M)])
 
 Estimation of curve derivatives at filament nodes using finite differences.
 
-For now, only the case `M = 2` is implemented (4th order / 5-point finite differences),
-following the method used by Baggaley & Barenghi[^1] based on a paper by Gamet et al.[^2].
+For now, only the case `M = 2` (default) is implemented (4th order / 5-point finite differences),
+following the method used by [Baggaley2011](@citet) based on a paper by [Gamet1999](@citet).
 
 `FiniteDiffMethod` also requires specifying an interpolation scheme for evaluating
 coordinates and derivatives in-between discretisation points.
@@ -16,9 +16,10 @@ By default, Hermite interpolations of continuity ``C^M`` are used.
 For the case `M = 2`, that means quintic Hermite interpolations, which match the first two
 derivatives estimated by finite differences at the discretisation points.
 
-[^1]: A. W. Baggaley & C. F. Barenghi, [Phys. Rev. B **83**, 134509 (2011)](http://dx.doi.org/10.1103/PhysRevB.83.134509).
+# References
 
-[^2]: L. Gamet, F. Ducros, F. Nicoud & T. Poinsot, [Int. J. Numer. Meth. Fluids **29**, 2 (1999)](http://dx.doi.org/10.1002/(SICI)1097-0363(19990130)29:2<159::AID-FLD781>3.0.CO;2-9).
+- [Baggaley2011](@cite) Baggaley & Barenghi, Phys. Rev. B **83**, 134509 (2011)
+- [Gamet1999](@cite) Gamet *et al.*, Int. J. Numer. Meth. Fluids **29**, 2 (1999)
 """
 struct FiniteDiffMethod{
         M,
@@ -34,6 +35,7 @@ end
 continuity(::Type{<:FiniteDiffMethod{M, I}}) where {M, I} = continuity(I)  # returns continuity of interpolation method
 
 @inline FiniteDiffMethod(M::Int, interp = HermiteInterpolation(M)) = FiniteDiffMethod{M}(interp)
+@inline FiniteDiffMethod() = FiniteDiffMethod(2)
 
 interpolation_method(m::FiniteDiffMethod) = m.interp
 

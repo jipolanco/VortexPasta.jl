@@ -29,6 +29,8 @@ struct TemporalSchemeCache{
     end
 end
 
+Base.summary(io::IO, c::TemporalSchemeCache) = print(io, "TemporalSchemeCache(", scheme(c), ")")
+
 scheme(c::TemporalSchemeCache) = c.scheme
 can_change_dt(c::TemporalSchemeCache) = can_change_dt(scheme(c))
 
