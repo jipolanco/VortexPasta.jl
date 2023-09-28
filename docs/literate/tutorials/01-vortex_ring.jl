@@ -494,10 +494,9 @@ displacement[1]  # prints displacement of the first (and only) filament
 # instance, to track the evolution of the total vortex length, the energy, or simply to
 # make nice movies.
 #
-# There are two ways of doing this:
-#
-# 1. using the "integrator" interface (same idea as in [DifferentialEquations.jl](https://docs.sciml.ai/DiffEqDocs/stable/basics/integrator/));
-# 2. using callbacks (a basic version of what exists in [DifferentialEquations.jl](https://docs.sciml.ai/DiffEqDocs/stable/features/callback_functions/#Using-Callbacks)).
+# There are two ways of doing this, both inspired by DifferentialEquations.jl (see
+# [here](https://docs.sciml.ai/DiffEqDocs/stable/basics/integrator/) and
+# [here](https://docs.sciml.ai/DiffEqDocs/stable/features/callback_functions/#Using-Callbacks)):
 #
 # #### 1. Using the integrator interface
 #
