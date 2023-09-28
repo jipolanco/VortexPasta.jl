@@ -3,12 +3,25 @@ using VortexPasta.Filaments
 using VortexPasta.FilamentIO
 using VortexPasta.BasicTypes: VectorOfVectors
 using VortexPasta.BiotSavart
+using LinearAlgebra: ⋅
 using Test
 
 function init_ring_filament(; R, z, sign)
     tlims = (0.0, 2.0)
     S(t) = Vec3(π + R * cospi(sign * t), π + R * sinpi(sign * t), z)
     (; R, z, sign, tlims, S,)
+end
+
+function tangent_streamfunction(fs, ψs_all::VectorOfVectors)
+    T = eltype(eltype(eltype(ψs_all)))  # there are many layers of containers...
+    @assert T <: Number
+    ψt_all = similar(ψs_all, T)  # ψs needs to be a VectorOfVectors
+    for (f, ψs, ψt) ∈ zip(fs, ψs_all, ψt_all)
+        for i ∈ eachindex(f, ψs, ψt)
+            ψt[i] = ψs[i] ⋅ f[i, UnitTangent()]
+        end
+    end
+    ψt_all
 end
 
 @testset "FilamentIO: HDF5" begin
@@ -47,8 +60,11 @@ end
     ψs = similar(vs)
     fields = (velocity = vs, streamfunction = ψs)
     @inferred BiotSavart.compute_on_nodes!(fields, cache, fs)
+
+    ψt = tangent_streamfunction(fs, ψs)
     foreach(pad_periodic!, vs)
     foreach(pad_periodic!, ψs)
+    foreach(pad_periodic!, ψt)
 
     time = 0.3
     info_str = ["one", "two"]
@@ -60,25 +76,26 @@ end
         FilamentIO.write_vtkhdf(fname, fs; refinement) do io
             io["velocity"] = vs
             io["streamfunction"] = ψs
+            io["streamfunction_t"] = ψt
             io["time"] = time
             io["info"] = info_str
         end
 
         function check_fields(io)
-            vs_read = @inferred read(io, "velocity", PointData())
-            ψs_read = @inferred read(io, "streamfunction", PointData())
+            vs_read = @inferred read(io, "velocity", PointData(), Vec3{Float64})
+            ψs_read = @inferred read(io, "streamfunction", PointData(), Vec3{Float64})
+            ψt_read = @inferred read(io, "streamfunction_t", PointData(), Float64)
 
             @test vs == vs_read
             @test ψs == ψs_read
+            @test ψt == ψt_read
 
             # Check that arrays are correctly padded
-            for (u, v) ∈ zip(vs, vs_read)
-                @test v isa PaddedVector
-                @test parent(v) == parent(u)  # this also compares "ghost" entries
-            end
-            for (u, v) ∈ zip(ψs, ψs_read)
-                @test v isa PaddedVector
-                @test parent(v) == parent(u)  # this also compares "ghost" entries
+            for (us, vs) ∈ (vs => vs_read, ψs => ψs_read, ψt => ψt_read)
+                for (u, v) ∈ zip(us, vs)
+                    @test v isa PaddedVector
+                    @test parent(v) == parent(u)  # this also compares "ghost" entries
+                end
             end
 
             # Test reading onto VectorOfVectors
