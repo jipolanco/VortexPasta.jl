@@ -33,7 +33,7 @@ for ``t ∈ [0, 1]``.
 
 Define a circular ring of radius 2:
 
-```jldoctest PredefinedRing; filter = r"(\d*)\.(\d{14})\d+" => s"\1.\2***"
+```jldoctest PredefinedRing; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
 julia> p = Ring();
 
 julia> S = define_curve(p; scale = 2);  # scale the curve by 2 (to get radius = 2)
@@ -63,7 +63,7 @@ julia> S.(ts)
 
 Define a circular ring of radius 4 with a radial perturbation of 10%:
 
-```jldoctest PredefinedRing; filter = r"(\d*)\.(\d{14})\d+" => s"\1.\2***"
+```jldoctest PredefinedRing; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
 julia> rfun(t) = 0.1 * cospi(4t);  # this is a mode m = 2 perturbation with 10% amplitude
 
 julia> p = Ring(r = rfun);
