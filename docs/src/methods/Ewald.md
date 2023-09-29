@@ -51,6 +51,40 @@ Note in particular that, for small ``r``, ``\operatorname{erf}(αr) = 2αr/\sqrt
 
 ![](splitting_functions.svg)
 
+!!! details "Code for this figure"
+
+    ```@example
+    using SpecialFunctions: erf, erfc
+    using CairoMakie
+    CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
+    Makie.set_theme!()  # hide
+    rs = 2.0.^(-4:0.1:3)
+    gs(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)  # short-range
+    gl(αr) =  erf(αr) - 2αr / sqrt(π) * exp(-αr^2)  # long-range
+    xticks = LogTicks(-4:1:3)
+    yticks = LogTicks(-16:4:0)
+    fig = Figure(resolution = (600, 400), fontsize = 18)
+    ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
+    ylims!(ax, 1e-17, 4)
+    ls = lines!(ax, rs, gs.(rs); label = L"g^<(r)")
+    ll = lines!(ax, rs, gl.(rs); label = L"g^>(r)")
+    lines!(ax, rs, erfc.(rs); label = L"\mathrm{erfc}(αr)", linestyle = :dot, color = ls.color)
+    lines!(ax, rs, erf.(rs); label = L"\mathrm{erf}(αr)", linestyle = :dot, color = ll.color)
+    let rs = 2.0.^(range(-4, -1; length = 3)), color = :grey20  # plot ~r^3 slope
+        ys = @. 0.2 * rs^3
+        lines!(ax, rs, ys; linestyle = :dash, color)
+        text!(ax, rs[2], ys[2]; text = L"r^3", align = (:left, :top), color)
+    end
+    let rs = 2.0.^(range(-4, -2; length = 3)), color = :grey20  # plot ~r^1 slope
+        ys = @. 0.5 * (2 / sqrt(π)) * rs
+        lines!(ax, rs, ys; linestyle = :dash, color)
+        text!(ax, rs[2], ys[2]; text = L"r", align = (:left, :top), color)
+    end
+    axislegend(ax; position = (0, 0), labelsize = 20)
+    save("splitting_functions.svg", fig)
+    nothing  # hide
+    ```
+
 For small ``αr``, the long-range splitting function goes to zero as ``r^3``, consistently with its Taylor expansion.
 This means that, as we wanted, ``g^>(r) / r^2`` is non-singular and smooth at ``r = 0``.
 
@@ -160,6 +194,25 @@ For instance, at ``k_{\text{max}} = 8α``, this factor has dropped to about ``10
 Of course, one can vary the ``k_\text{max} / α`` ratio depending on the wanted accuracy.
 
 ![](gaussian_kalpha.svg)
+
+!!! details "Code for this figure"
+
+    ```@example
+    using CairoMakie
+    CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
+    Makie.set_theme!()  # hide
+    ks_α = range(0, 12.2; step = 0.1)
+    xticks = 0:12
+    yticks = LogTicks(-16:2:0)
+    ys = @. exp(-ks_α^2 / 4)
+    lines(
+        ks_α, ys;
+        axis = (yscale = log10, xticks, yticks, xlabel = L"k/α", ylabel = L"\exp \, \left[ -k^2 / 4α^2 \right]",),
+        figure = (fontsize = 20, resolution = (600, 400),),
+    )
+    save("gaussian_kalpha.svg", current_figure())
+    nothing  # hide
+    ```
 
 ### 4. Physical velocity at filament locations
 
@@ -371,60 +424,3 @@ For example, the short-range integral is given by:
 ```
 
 Taking the curl of those integrals eventually leads to the ``g^<(\bm{r})`` and ``g^>(\bm{r})`` splitting functions that we used for the velocity.
-
-## [Generate figures](@id Ewald-generate-figures)
-
-Below is the code used to generate the plots shown in this page.
-
-### Splitting functions
-
-```@example
-using SpecialFunctions: erf, erfc
-using CairoMakie
-CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
-Makie.set_theme!()  # hide
-rs = 2.0.^(-4:0.1:3)
-gs(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)  # short-range
-gl(αr) =  erf(αr) - 2αr / sqrt(π) * exp(-αr^2)  # long-range
-xticks = LogTicks(-4:1:3)
-yticks = LogTicks(-16:4:0)
-fig = Figure(resolution = (600, 400), fontsize = 18)
-ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
-ylims!(ax, 1e-17, 4)
-ls = lines!(ax, rs, gs.(rs); label = L"g^<(r)")
-ll = lines!(ax, rs, gl.(rs); label = L"g^>(r)")
-lines!(ax, rs, erfc.(rs); label = L"\mathrm{erfc}(αr)", linestyle = :dot, color = ls.color)
-lines!(ax, rs, erf.(rs); label = L"\mathrm{erf}(αr)", linestyle = :dot, color = ll.color)
-let rs = 2.0.^(range(-4, -1; length = 3)), color = :grey20  # plot ~r^3 slope
-    ys = @. 0.2 * rs^3
-    lines!(ax, rs, ys; linestyle = :dash, color)
-    text!(ax, rs[2], ys[2]; text = L"r^3", align = (:left, :top), color)
-end
-let rs = 2.0.^(range(-4, -2; length = 3)), color = :grey20  # plot ~r^1 slope
-    ys = @. 0.5 * (2 / sqrt(π)) * rs
-    lines!(ax, rs, ys; linestyle = :dash, color)
-    text!(ax, rs[2], ys[2]; text = L"r", align = (:left, :top), color)
-end
-axislegend(ax; position = (0, 0), labelsize = 20)
-save("splitting_functions.svg", fig)
-nothing
-```
-
-### Effect of long-range cut-off wavenumber
-
-```@example
-using CairoMakie
-CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
-Makie.set_theme!()  # hide
-ks_α = range(0, 12.2; step = 0.1)
-xticks = 0:12
-yticks = LogTicks(-16:2:0)
-ys = @. exp(-ks_α^2 / 4)
-lines(
-    ks_α, ys;
-    axis = (yscale = log10, xticks, yticks, xlabel = L"k/α", ylabel = L"\exp \, \left[ -k^2 / 4α^2 \right]",),
-    figure = (fontsize = 20, resolution = (600, 400),),
-)
-save("gaussian_kalpha.svg", current_figure())
-nothing
-```

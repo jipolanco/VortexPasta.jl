@@ -456,8 +456,8 @@ prob = VortexFilamentProblem(fs, tspan, params)
 # For now, we use the explicit [`RK4`](@ref) timestepping scheme, set a constant timestep
 # `dt`, and leave the defaults for everything else:
 
-l_min = minimum_knot_increment(fs)   # this is an estimate for the minimum distance between discretisation points
-dt = 8 * l_min^2 / (Γ * log(l_min / a))
+l_min = minimum_knot_increment(fs)       # this is an estimate for the minimum distance between discretisation points
+dt = 8 * l_min^2 / (Γ * log(l_min / a))  # we set the timestep to be proportional to some characteristic "fast" timescale
 iter = init(prob, RK4(); dt)
 
 # Note that the maximum possible timestep to avoid numerical instability is mainly limited
@@ -512,7 +512,8 @@ displacement[1]  # prints displacement of the first (and only) filament
 #
 # To use this interface, we create the solver in the same way as before, and then we
 # advance the solver one timestep at a time using [`step!`](@ref).
-# For instance, we can choose to stop when we have performed 20 timesteps:
+# For instance, we can choose to stop when we have performed 20 timesteps.
+# And every 5 timestep we print some information:
 
 iter = init(prob, RK4(); dt)
 while iter.time.nstep ≤ 20
@@ -580,17 +581,22 @@ fig
 # [`Observable`](https://docs.makie.org/stable/explanations/nodes/index.html#observables_interaction).
 # The plot will be automatically updated each time we modify this `Observable` object:
 
-record(fig, "vortex_ring.mp4") do io  # hide
-recordframe!(io)  # hide
-while iter.time.t < 2T
-    step!(iter)            # run a single timestep
-    notify(f_obs)          # tell Makie that filament positions have been updated
-    t_obs[] = iter.time.t  # update displayed time
-    yield()                # allows to see the updated plot
-    recordframe!(io)  # hide
+record(fig, "vortex_ring.mp4") do io
+    recordframe!(io)           # add initial frame (initial condition) to movie
+    while iter.time.t < 2T
+        step!(iter)            # run a single timestep
+        notify(f_obs)          # tell Makie that filament positions have been updated
+        t_obs[] = iter.time.t  # update displayed time
+        yield()                # allows to see the updated plot
+        recordframe!(io)       # add current frame to movie
+    end
 end
-end  # hide
 nothing  # hide
+
+# Note that here we have used [`record`](https://docs.makie.org/stable/api/#record) and
+# [`recordframe!`](https://docs.makie.org/stable/api/#recordframe!) to generate a movie file,
+# but these are not needed if one just wants to see things moving in real time as the
+# simulation runs.
 
 # ![](vortex_ring.mp4)
 
@@ -604,7 +610,6 @@ nothing  # hide
 # Data is written in the HDF5 format, which is a binary format that can be easily explored
 # using command-line tools or the HDF5 interfaces available in many different programming
 # languages.
-#
 # More precisely, data is written to [VTK HDF
 # files](https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#hdf-file-formats),
 # which are HDF5 files with a specific organisation that can be readily understood by
@@ -640,9 +645,9 @@ write_vtkhdf("vortex_ring_initial.hdf", fs)  # write filament locations to disk
 # /VTKHDF/Types            Dataset {1}
 # ```
 #
-# Note that everything is written to the `VTKHDF` group.
-# In this case, we have a single cell which corresponds to our vortex ring (one cell = one
-# vortex filament).
+# Note that everything is written to a `VTKHDF` group.
+# In this case, we have a single cell which corresponds to our vortex ring (one VTK cell
+# corresponds to one vortex filament).
 # The important datasets here are `Points`, which contains the discretisation points of all
 # filaments, and `Offsets`, which allows to identify which point corresponds to which
 # vortex.

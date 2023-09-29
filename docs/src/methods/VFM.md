@@ -60,9 +60,98 @@ The standard way of accounting for the radius ``a`` of the vortex core is to spl
 Here ``\mathcal{C}_0`` denotes a portion of the set of curves ``\mathcal{C}`` which is in the neighbourhood of the point of interest ``\bm{s}_0``.
 
 To illustrate this, the figure below shows a [trefoil knot](https://en.wikipedia.org/wiki/Trefoil_knot) curve, or rather its projection on the XY plane.
-Note that here we represent a *discretised* version of the curve, where the number of degrees of freedom is finite and controlled by the positions of the markers (see [Generate figures](@ref VFM-generate-figures) below for the code used to generate this figure).
+Note that here we represent a *discretised* version of the curve, where the number of degrees of freedom is finite and controlled by the positions of the markers.
 
 ![](trefoil_local.svg)
+
+!!! details "Code for this figure"
+
+    ```@example
+    using CairoMakie
+    CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)
+    Makie.set_theme!()
+
+    using VortexPasta.Filaments
+    using VortexPasta.Filaments: Vec3
+    using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
+
+    trefoil = define_curve(TrefoilKnot())
+    N = 32
+    i = (N ÷ 2) + 3
+    refinement = 8
+    colours = Makie.wong_colors()
+    f = Filaments.init(trefoil, ClosedFilament, N, CubicSplineMethod())
+
+    fig = Figure(Text = (fontsize = 24,))
+    ax = Axis(fig[1, 1]; aspect = DataAspect(), xlabel = "x", ylabel = "y")
+    hidexdecorations!(ax; label = false, ticklabels = false, ticks = false)
+    hideydecorations!(ax; label = false, ticklabels = false, ticks = false)
+
+    # Plot complete filament in grey
+    let color = (:grey, 0.6)
+        plot!(ax, f; refinement, color, linewidth = 1.5)
+        text!(
+            ax, f(i ÷ 2 + 1, 0.6);
+            text = L"\bar{\mathcal{C}}_{\!i}", align = (:right, :bottom), color,
+            fontsize = 28,
+        )
+    end
+
+    # Plot point of interest and local segment around it
+    let color = colours[2], arrowcol = colours[3]
+        # Plot nodes (i - 1):(i + 1)
+        scatter!(ax, getindex.(Ref(f), (i - 1):(i + 1)); color)
+        text!(
+            ax, f[i - 1] + Vec3(0.08, 0.0, 0.0);
+            text = L"\mathbf{s}_{i - 1}", align = (:left, :center), color,
+        )
+        text!(
+            ax, f[i] + Vec3(0.08, 0.0, 0.0);
+            text = L"\mathbf{s}_i", align = (:left, :center), color,
+        )
+        text!(
+            ax, f[i + 1] + Vec3(-0.08, 0.08, 0.0);
+            text = L"\mathbf{s}_{i + 1}", align = (:right, :center), color,
+        )
+
+        # Plot local segments
+        let ζs = range(0, 1; length = refinement + 1)
+            lines!(ax, f.(i - 1, ζs); color, linewidth = 3)
+            lines!(ax, f.(i, ζs); color, linewidth = 3)
+            text!(
+                f(i - 1, 0.5);
+                text = L"ℓ^{-}", align = (:right, :bottom), color,
+            )
+            text!(
+                f(i, 0.6) + Vec3(-0.08, 0, 0);
+                text = L"ℓ^{+}", align = (:right, :center), color,
+            )
+            text!(
+                ax, f(i - 1, 0.7) + Vec3(0.2, 0.0, 0.0);
+                text = L"\mathcal{C}_{\!i}", align = (:left, :top), color,
+                fontsize = 28,
+            )
+        end
+
+        # Plot tangent and curvature vectors (assuming this is a 2D plot...)
+        s⃗ = f[i]
+        t̂ = f[i, UnitTangent()]
+        ρ⃗ = f[i, CurvatureVector()]
+        arrows!(ax, [s⃗[1]], [s⃗[2]], [t̂[1]], [t̂[2]]; color = arrowcol)
+        arrows!(ax, [s⃗[1]], [s⃗[2]], [ρ⃗[1]], [ρ⃗[2]]; color = arrowcol)
+        text!(
+            ax, s⃗ + t̂ + Vec3(0.05, 0.0, 0.0);
+            text = L"\mathbf{s}′", align = (:left, :center), color = arrowcol,
+        )
+        text!(
+            ax, s⃗ + ρ⃗ + Vec3(0.0, 0.04, 0.0);
+            text = L"\mathbf{s}″", align = (:center, :bottom), color = arrowcol,
+        )
+    end
+
+    save("trefoil_local.svg", fig)
+    nothing  # hide
+    ```
 
 Here, to evaluate the velocity induced by the trefoil vortex on its point ``\bm{s}_i``, we split the curve into a local part ``\mathcal{C}_i`` (orange) and a non-local part ``\bar{\mathcal{C}}_i = \mathcal{C} ∖ \mathcal{C}_i`` (grey).
 The non-local part is far from the singularity, so there is no need to modify the Biot--Savart integral as written above.
@@ -286,97 +375,6 @@ we finally obtain that
 \frac{∂E}{∂p}
 = \frac{Γ}{4πR} \left[ \ln \left( \frac{8R}{a} \right) - Δ \right]
 = v_{\text{ring}}
-```
-
-## [Generate figures](@id VFM-generate-figures)
-
-### Trefoil knot figure
-
-```@example
-using CairoMakie
-CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)
-Makie.set_theme!()
-
-using VortexPasta.Filaments
-using VortexPasta.Filaments: Vec3
-using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
-
-trefoil = define_curve(TrefoilKnot())
-N = 32
-i = (N ÷ 2) + 3
-refinement = 8
-colours = Makie.wong_colors()
-f = Filaments.init(trefoil, ClosedFilament, N, CubicSplineMethod())
-
-fig = Figure(Text = (fontsize = 24,))
-ax = Axis(fig[1, 1]; aspect = DataAspect(), xlabel = "x", ylabel = "y")
-hidexdecorations!(ax; label = false, ticklabels = false, ticks = false)
-hideydecorations!(ax; label = false, ticklabels = false, ticks = false)
-
-# Plot complete filament in grey
-let color = (:grey, 0.6)
-    plot!(ax, f; refinement, color, linewidth = 1.5)
-    text!(
-        ax, f(i ÷ 2 + 1, 0.6);
-        text = L"\bar{\mathcal{C}}_{\!i}", align = (:right, :bottom), color,
-        fontsize = 28,
-    )
-end
-
-# Plot point of interest and local segment around it
-let color = colours[2], arrowcol = colours[3]
-    # Plot nodes (i - 1):(i + 1)
-    scatter!(ax, getindex.(Ref(f), (i - 1):(i + 1)); color)
-    text!(
-        ax, f[i - 1] + Vec3(0.08, 0.0, 0.0);
-        text = L"\mathbf{s}_{i - 1}", align = (:left, :center), color,
-    )
-    text!(
-        ax, f[i] + Vec3(0.08, 0.0, 0.0);
-        text = L"\mathbf{s}_i", align = (:left, :center), color,
-    )
-    text!(
-        ax, f[i + 1] + Vec3(-0.08, 0.08, 0.0);
-        text = L"\mathbf{s}_{i + 1}", align = (:right, :center), color,
-    )
-
-    # Plot local segments
-    let ζs = range(0, 1; length = refinement + 1)
-        lines!(ax, f.(i - 1, ζs); color, linewidth = 3)
-        lines!(ax, f.(i, ζs); color, linewidth = 3)
-        text!(
-            f(i - 1, 0.5);
-            text = L"ℓ^{-}", align = (:right, :bottom), color,
-        )
-        text!(
-            f(i, 0.6) + Vec3(-0.08, 0, 0);
-            text = L"ℓ^{+}", align = (:right, :center), color,
-        )
-        text!(
-            ax, f(i - 1, 0.7) + Vec3(0.2, 0.0, 0.0);
-            text = L"\mathcal{C}_{\!i}", align = (:left, :top), color,
-            fontsize = 28,
-        )
-    end
-
-    # Plot tangent and curvature vectors (assuming this is a 2D plot...)
-    s⃗ = f[i]
-    t̂ = f[i, UnitTangent()]
-    ρ⃗ = f[i, CurvatureVector()]
-    arrows!(ax, [s⃗[1]], [s⃗[2]], [t̂[1]], [t̂[2]]; color = arrowcol)
-    arrows!(ax, [s⃗[1]], [s⃗[2]], [ρ⃗[1]], [ρ⃗[2]]; color = arrowcol)
-    text!(
-        ax, s⃗ + t̂ + Vec3(0.05, 0.0, 0.0);
-        text = L"\mathbf{s}′", align = (:left, :center), color = arrowcol,
-    )
-    text!(
-        ax, s⃗ + ρ⃗ + Vec3(0.0, 0.04, 0.0);
-        text = L"\mathbf{s}″", align = (:center, :bottom), color = arrowcol,
-    )
-end
-
-save("trefoil_local.svg", fig)
-nothing
 ```
 
 ## References
