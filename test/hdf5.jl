@@ -69,9 +69,9 @@ end
     # Try writing data which is *not* backed by a PaddedVector.
     # When refinement is enabled, values on the last segment should be obtained by
     # interpolation using the last and first data points, since there's no padding.
-    ψt_alt = VectorOfVectors(map(ψ -> Vector{Float64}(undef, length(ψ)), ψs))
-    tangent_streamfunction!(ψt_alt, fs, ψs)
-    @test ψt == ψt_alt
+    ψt_vec = VectorOfVectors(map(ψ -> Vector{Float64}(undef, length(ψ)), ψs)) :: AbstractVector{<:Vector}
+    tangent_streamfunction!(ψt_vec, fs, ψs)
+    @test ψt == ψt_vec
 
     time = 0.3
     info_str = ["one", "two"]
@@ -84,7 +84,7 @@ end
             io["velocity"] = vs
             io["streamfunction"] = ψs
             io["streamfunction_t"] = ψt
-            io["streamfunction_t_alt"] = ψt_alt
+            io["streamfunction_t_vec"] = ψt_vec
             io["time"] = time
             io["info"] = info_str
         end
@@ -97,8 +97,8 @@ end
             # This is mainly interesting when refinement > 1, so that we're checking also
             # interpolated values in-between nodes.
             local ψt_read = read(gbase["PointData/streamfunction_t"]) :: Vector{Float64}
-            local ψt_alt_read = read(gbase["PointData/streamfunction_t_alt"]) :: Vector{Float64}
-            @test ψt_read == ψt_alt_read
+            local ψt_vec_read = read(gbase["PointData/streamfunction_t_vec"]) :: Vector{Float64}
+            @test ψt_read == ψt_vec_read
         end
 
         function check_fields(io)
@@ -128,6 +128,13 @@ end
                 @test v isa PaddedVector
                 @test parent(v) == parent(u)  # this also compares "ghost" entries
             end
+
+            # Test reading onto non-PaddedVectors
+            ψt_vec_read = similar(ψt_vec)
+            @assert ψt_vec_read isa VectorOfVectors
+            @assert eltype(ψt_vec_read) <: Vector
+            read!(io, ψt_vec_read, "streamfunction_t_vec")
+            @test ψt_vec_read == ψt_vec
 
             # Test reading field data
             time_read = @inferred read(io, "time", FieldData(), Float64)  # this is a vector!
