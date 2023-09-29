@@ -4,6 +4,7 @@ using Statistics: mean, std
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
+using VortexPasta.Diagnostics: Diagnostics
 using Random
 
 function init_ring_filament(N::Int, R = π / 3; noise = 0.0, rng = nothing)
@@ -36,10 +37,10 @@ vortex_ring_streamfunction(Γ, R, a; Δ) = Γ / 2π * (log(8R / a) - (1 + Δ))
 function test_vortex_ring_nonperiodic(ring; noise = 0.0)
     (; R, f,) = ring
     Γ = 2.4
+    a = 1e-6
+    Δ = 1/4
     ps = (;
-        Γ,
-        a = 1e-6,
-        Δ = 1/4,
+        Γ, a, Δ,
         Ls = Infinity(),
         α = Zero(),
         backend_short = NaiveShortRangeBackend(),
@@ -96,7 +97,14 @@ function test_vortex_ring_nonperiodic(ring; noise = 0.0)
         @test isapprox(ψ_mean, ψ_expected; rtol = 1e-3)
     end
 
-    # TODO test ring energy?
+    # Estimate normalised energy
+    @testset "Normalised energy" begin
+        Ls = 1  # sets domain volume to 1 for energy estimation
+        E_expected = (Γ^2 * R/2) * (log(8R / a) - (Δ + 1))
+        E_estimated = Diagnostics.kinetic_energy_from_streamfunction(ψs, f, Γ, Ls)
+        @show (E_expected - E_estimated) / E_expected
+        @test isapprox(E_expected, E_estimated; rtol = 1e-3)
+    end
 
     # Check velocity excluding LIA (i.e. only non-local integration)
     @testset "Non-local velocity" begin

@@ -18,7 +18,7 @@ The line is defined by:
 ```math
 \begin{aligned}
     x(t) &= x(t) \\
-    y(t) &= x(t) \\
+    y(t) &= y(t) \\
     z(t) &= t - 1/2
 \end{aligned}
 ```
