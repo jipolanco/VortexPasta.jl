@@ -346,8 +346,11 @@ end
 # visualisation anyways).
 function _interpolate_on_segment(v, i, m, M)
     α = (m - 1) / M
-    (1 - α) * v[i] + α * v[i + 1]  # assumes v is padded!!
+    (1 - α) * v[i] + α * _vnext(v, i)
 end
+
+_vnext(v::PaddedVector, i) = v[i + 1]
+_vnext(v::AbstractVector, i) = v[i == lastindex(v) ? firstindex(v) : (i + 1)]
 
 """
     Base.setindex!(io::VTKHDFFile, data, name::AbstractString)

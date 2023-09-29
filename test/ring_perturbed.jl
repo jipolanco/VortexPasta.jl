@@ -6,6 +6,7 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics: Diagnostics
 using UnicodePlots: lineplot
+using LinearAlgebra: ⋅
 
 @testset "Perturbed vortex ring" begin
     R = π / 4
@@ -57,6 +58,21 @@ using UnicodePlots: lineplot
         if @isdefined(Makie)
             fobs[] = iter.fs[1]  # update filament positions
             yield()
+        end
+        local (; fs, ψs, vs,) = iter
+        if @isdefined(write_vtkhdf)  # requires loading VortexPasta.FilamentIO
+            write_vtkhdf("ring_perturbed_$nstep.hdf", fs; refinement = 4) do io
+                io["velocity"] = vs
+                io["streamfunction"] = ψs
+                ψt = similar(ψs, Float64)
+                for (f, ψs, ψt) ∈ zip(fs, ψs, ψt)
+                    for i ∈ eachindex(f, ψs, ψt)
+                        ψt[i] = f[i, UnitTangent()] ⋅ ψs[i]
+                    end
+                    ψt[end + 1] = ψt[begin]  # assume it's a PaddedVector
+                end
+                io["streamfunction_t"] = ψt
+            end
         end
         nothing
     end
