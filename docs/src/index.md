@@ -14,7 +14,7 @@ Depth = 2:3
 [Quantum vortices](https://en.wikipedia.org/wiki/Quantum_vortex) are one of the most important features of superfluids such as low-temperature liquid helium or Bose--Einstein condensates.
 These are *topological defects* -- which in three dimensions take the form of spatial curves -- where the velocity of the superfluid is singular.
 The main property of quantum vortices is that they have a *quantised circulation*.
-That is, they induce a rotating velocity field about them whose intensity is quantised in terms of the quantum of circulation ``κ = h/m`` where ``h`` is [Planck's constant](https://en.wikipedia.org/wiki/Planck_constant) and ``m`` is the mass of one boson (e.g. the mass of a ⁴He atom).
+That is, they induce a rotating velocity field around them whose intensity is quantised in terms of the quantum of circulation ``κ = h/m`` where ``h`` is [Planck's constant](https://en.wikipedia.org/wiki/Planck_constant) and ``m`` is the mass of one boson (e.g. the mass of a ⁴He atom).
 
 In the case of helium-4, superfluidity takes place at temperatures below about 2.17 K,
 and the thickness of quantum vortices is about 1 Å (``10^{-10}`` m).

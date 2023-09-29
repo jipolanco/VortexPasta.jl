@@ -11,7 +11,7 @@ Depth = 2:3
 
 ## [The Biot--Savart law](@id BiotSavart)
 
-In the VFM, each vortex line induces a velocity field about it given by the [Biot--Savart law](https://en.wikipedia.org/wiki/Biot%E2%80%93Savart_law):
+In the VFM, each vortex line induces a velocity field around it given by the [Biot--Savart law](https://en.wikipedia.org/wiki/Biot%E2%80%93Savart_law):
 
 ```math
 \bm{v}(\bm{x}) =

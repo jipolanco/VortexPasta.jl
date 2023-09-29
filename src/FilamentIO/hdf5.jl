@@ -270,7 +270,6 @@ function _write_data_on_filaments(
             close(memspace_filament)
             n += Np
         else
-            # For now just use linear interpolation
             for i ∈ eachindex(v), m ∈ 1:refinement
                 u = _interpolate_on_segment(v, i, m, refinement)
                 n += 1
@@ -279,6 +278,7 @@ function _write_data_on_filaments(
                 HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, Ref(u))
             end
         end
+        # Close the loop: this writes v[begin]
         n += 1
         HDF5.select_hyperslab!(dspace, (n,))
         HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, v)
@@ -319,7 +319,6 @@ function _write_data_on_filaments(
             close(memspace_filament)
             n += Np
         else
-            # For now just use linear interpolation
             for i ∈ eachindex(v), m ∈ 1:refinement
                 u = _interpolate_on_segment(v, i, m, refinement)
                 n += 1
@@ -328,6 +327,7 @@ function _write_data_on_filaments(
                 HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, u)
             end
         end
+        # Close the loop: this writes v[begin]
         n += 1
         HDF5.select_hyperslab!(dspace, (1:N, n))
         HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, v[begin])
