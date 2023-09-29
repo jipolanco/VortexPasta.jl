@@ -149,7 +149,7 @@ interpolation_method(::ClosedSplineFilament) = CubicSplineMethod()
 function _update_coefficients_only!(f::ClosedSplineFilament; only_derivatives = false)
     (; ts, Xs, cs, cderivs, Xoffset,) = f
     if !only_derivatives
-        solve_cubic_spline_coefficients!(cs, ts, Xs; buf = cderivs[1], Xoffset,)
+        solve_cubic_spline_coefficients!(cs, ts, Xs; Xoffset,)
     end
     spline_derivative!(cderivs[1], cs, ts, Val(4))
     spline_derivative!(cderivs[2], cderivs[1], ts, Val(3))

@@ -2,6 +2,7 @@ export
     CubicSplineMethod
 
 using Base.Cartesian: @ntuple, @nexprs
+using Bumper: Bumper
 
 """
     CubicSplineMethod <: GlobalDiscretisationMethod
@@ -37,14 +38,19 @@ end
 # Obtain coefficients `cs` of periodic cubic spline from positions `Xs` and knots `ts`.
 function solve_cubic_spline_coefficients!(
         cs::PaddedVector, ts::PaddedVector{3}, Xs::PaddedVector;
-        buf::PaddedVector = similar(Xs), Xoffset = zero(eltype(Xs)),
+        Xoffset = zero(eltype(Xs)),
     )
     periodise_coordinates!(cs, Xs, ts, Xoffset)  # useful if Xoffset ≠ 0
-    # TODO can we do something cleaner, like preallocating the right type of buffer and avoiding unsafe stuff?
-    GC.@preserve buf begin
-        unsafe = Val(true)
-        bufs = _thomas_buffers(ts, buf, unsafe)
-        _solve_periodic_cubic_spline_coefficients_thomas!(ts, cs, bufs)
+    n = length(ts)
+    T = eltype(ts)
+    # Use Bumper to allocate buffer arrays "for free" (not managed by Julia's GC).
+    buf = Bumper.default_buffer()
+    Bumper.@no_escape buf begin
+        bufs_thomas = (
+            bc = Bumper.alloc(SVector{2, T}, buf, n),
+            us = Bumper.alloc(T, buf, n),
+        )
+        _solve_periodic_cubic_spline_coefficients_thomas!(ts, cs, bufs_thomas)
     end
     pad_periodic!(cs)
     cs
