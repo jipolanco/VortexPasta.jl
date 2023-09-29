@@ -4,6 +4,7 @@ using VortexPasta.FilamentIO
 using VortexPasta.BasicTypes: VectorOfVectors
 using VortexPasta.BiotSavart
 using LinearAlgebra: ⋅
+using HDF5: HDF5
 using Test
 
 function init_ring_filament(; R, z, sign)
@@ -12,10 +13,7 @@ function init_ring_filament(; R, z, sign)
     (; R, z, sign, tlims, S,)
 end
 
-function tangent_streamfunction(fs, ψs_all::VectorOfVectors)
-    T = eltype(eltype(eltype(ψs_all)))  # there are many layers of containers...
-    @assert T <: Number
-    ψt_all = similar(ψs_all, T)  # ψs needs to be a VectorOfVectors
+function tangent_streamfunction!(ψt_all, fs, ψs_all::VectorOfVectors)
     for (f, ψs, ψt) ∈ zip(fs, ψs_all, ψt_all)
         for i ∈ eachindex(f, ψs, ψt)
             ψt[i] = ψs[i] ⋅ f[i, UnitTangent()]
@@ -61,10 +59,19 @@ end
     fields = (velocity = vs, streamfunction = ψs)
     @inferred BiotSavart.compute_on_nodes!(fields, cache, fs)
 
-    ψt = tangent_streamfunction(fs, ψs)
+    ψt = similar(ψs, Float64) :: AbstractVector{<:PaddedVector}
+    tangent_streamfunction!(ψt, fs, ψs)
+
     foreach(pad_periodic!, vs)
     foreach(pad_periodic!, ψs)
     foreach(pad_periodic!, ψt)
+
+    # Try writing data which is *not* backed by a PaddedVector.
+    # When refinement is enabled, values on the last segment should be obtained by
+    # interpolation using the last and first data points, since there's no padding.
+    ψt_alt = VectorOfVectors(map(ψ -> Vector{Float64}(undef, length(ψ)), ψs))
+    tangent_streamfunction!(ψt_alt, fs, ψs)
+    @test ψt == ψt_alt
 
     time = 0.3
     info_str = ["one", "two"]
@@ -77,8 +84,21 @@ end
             io["velocity"] = vs
             io["streamfunction"] = ψs
             io["streamfunction_t"] = ψt
+            io["streamfunction_t_alt"] = ψt_alt
             io["time"] = time
             io["info"] = info_str
+        end
+
+        HDF5.h5open(fname, "r") do ff
+            gbase = HDF5.open_group(ff, "VTKHDF")
+            ref = read(gbase["RefinementLevel"]) :: Int
+            @test ref == refinement
+            # Check that both datasets are equal in the file.
+            # This is mainly interesting when refinement > 1, so that we're checking also
+            # interpolated values in-between nodes.
+            local ψt_read = read(gbase["PointData/streamfunction_t"]) :: Vector{Float64}
+            local ψt_alt_read = read(gbase["PointData/streamfunction_t_alt"]) :: Vector{Float64}
+            @test ψt_read == ψt_alt_read
         end
 
         function check_fields(io)
