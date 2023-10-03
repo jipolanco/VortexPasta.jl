@@ -140,9 +140,11 @@ For convenience, other geometric quantities can be evaluated in a similar way:
     derivatives almost represent the **unit tangent vector** to the filament, and
     second derivatives are a rough approximation of the local **curvature vector**.
 
-    One should use [`normalise_derivatives`](@ref) if one wants a
-    more accurate estimation, which takes into account the differences between
-    ``t`` and ``ξ``.
+    One should use for example [`UnitTangent`](@ref) or [`CurvatureVector`](@ref) if one
+    wants the derivatives with respect to the arc length ``ξ`` (which are more geometrically
+    meaningful, and guaranteed to be orthogonal to each other).
+    There is also [`normalise_derivatives`](@ref) which can be more efficient when one
+    already has the derivatives with respect to ``t``.
 """
 abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
 
