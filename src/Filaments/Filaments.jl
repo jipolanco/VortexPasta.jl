@@ -660,7 +660,8 @@ function redistribute_nodes!(f::AbstractFilament)
     ta, tb = knotlims(f)
     N = length(f)
     ts = range(ta, tb; length = N + 1)  # should include the endpoint for `update_coefficients!`
-    for i ∈ eachindex(f)
+    @assert eachindex(f) == eachindex(ts)[Base.OneTo(N)]
+    @inbounds for i ∈ eachindex(f)
         # We interpolate at ts[i] from the old interpolation coefficients to get the new
         # node location f[i].
         # This assumes nodes and interpolation coefficients are stored in different places.
