@@ -241,6 +241,29 @@ function test_filaments_broadcasting()
     nothing
 end
 
+function test_init_from_vector_field()
+    function taylor_green_vorticity(x, y, z)
+        sx, cx = sincos(x)
+        sy, cy = sincos(y)
+        sz, cz = sincos(z)
+        Vec3(
+            -cx * sy * sz,
+            -sx * cy * sz,
+            2 * sx * sy * cz,
+        )
+    end
+    taylor_green_vorticity(x⃗) = taylor_green_vorticity(x⃗...)
+    x₀ = Vec3(π + π / 3, π + π / 2, π + 0.2)
+    f = @inferred Filaments.from_vector_field(
+        ClosedFilament, taylor_green_vorticity, x₀, 0.18, CubicSplineMethod(),
+    )
+    # Check that the filament is actually tangent to the vector field to a very good
+    # approximation.
+    err = Filaments.distance_to_field(taylor_green_vorticity, f)
+    @test err < 1e-7
+    nothing
+end
+
 @testset "Filaments" begin
     @testset "Single ring" begin
         N = 32
@@ -253,6 +276,9 @@ end
         @testset "$label" for (label, args) ∈ methods
             test_filament_ring(args)
         end
+    end
+    @testset "From vector field" begin
+        test_init_from_vector_field()
     end
     @testset "Broadcasting with VectorOfVectors" begin
         test_filaments_broadcasting()
