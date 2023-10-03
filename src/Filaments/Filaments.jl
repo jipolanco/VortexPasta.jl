@@ -30,6 +30,7 @@ export
     segments,
     integrate,
     update_coefficients!,
+    redistribute_nodes!,
     normalise_derivatives,
     normalise_derivatives!
 
@@ -628,6 +629,43 @@ function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ts_in::Padd
         copyto!(ts, ts_in)  # fails if arrays have different dimensions
     end
     ts
+end
+
+# Similar to above but for a non-PaddedVector, so we need to apply periodic padding on the
+# output.
+function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ts_in::AbstractVector)
+    @assert !(ts_in isa PaddedVector)
+    length(ts_in) == length(ts) + 1 ||
+        throw(DimensionMismatch("input knots should include the endpoint"))
+    L = ts_in[end] - ts[begin]  # knot period
+    copyto!(ts, @view(ts_in[begin:end - 1]))
+    pad_periodic!(ts, L)
+    ts
+end
+
+"""
+    redistribute_nodes!(f::AbstractFilament) -> f
+
+Redistribute nodes of the filament so that they are (approximately) equally spaced.
+
+More precisely, this function repositions the filament nodes such that the knot spacing
+``t_{i + 1} - t_{i}`` associated to them is constant.
+In other words, the new locations satisfy `f[i] = f((i - 1) * Δt)` where ``Δt = t_{N + 1} / N`` is
+the knot spacing, ``N`` is the number of nodes, and the index ``N + 1`` refers to the
+filament endpoint (which is equal to the starting point for a closed filament).
+"""
+function redistribute_nodes!(f::AbstractFilament)
+    ta, tb = knotlims(f)
+    N = length(f)
+    ts = range(ta, tb; length = N + 1)  # should include the endpoint for `update_coefficients!`
+    for i ∈ eachindex(f)
+        # We interpolate at ts[i] from the old interpolation coefficients to get the new
+        # node location f[i].
+        # This assumes nodes and interpolation coefficients are stored in different places.
+        f[i] = f(ts[i])
+    end
+    update_coefficients!(f; knots = ts)
+    f
 end
 
 end
