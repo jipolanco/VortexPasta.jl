@@ -57,15 +57,15 @@ end
 
 Abstract type representing a curve in 3D space.
 
-The curve coordinates are parametrised as ``\bm{X}(t)`` with ``t ∈ ℝ``.
+The curve coordinates are parametrised as ``\bm{s}(t)`` with ``t ∈ ℝ``.
 
 The curve is discretised by a set of *nodes* (or discretisation points)
-``\bm{X}(t_i) = \bm{X}_i`` for ``i ∈ \{1, 2, …, N\}``.
+``\bm{s}(t_i) = \bm{s}_i`` for ``i ∈ \{1, 2, …, N\}``.
 
 See [`ClosedSplineFilament`](@ref) for a concrete implementation of `AbstractFilament`.
 
 An `AbstractFilament` is treated as an `AbstractVector` of length `N`, in which
-each element is a discretisation point ``\bm{X}_i``. Therefore, one can use the
+each element is a discretisation point ``\bm{s}_i``. Therefore, one can use the
 usual indexing notation to retrieve and to modify discretisation points. See
 [`ClosedSplineFilament`](@ref) for some examples.
 
@@ -82,15 +82,15 @@ while round brackets `f(...)` to evaluate in-between nodes.
 
 ### Values on discretisation points
 
-Coordinates ``\bm{X}_i`` of discretisation points can be simply obtained by
+Coordinates ``\bm{s}_i`` of discretisation points can be simply obtained by
 indexing the filament object:
 
-    X = f[i]
+    s⃗ = f[i]
 
 Derivatives at discretisation points can be similarly obtained by doing:
 
-    X′ = f[i, Derivative(1)]
-    X″ = f[i, Derivative(2)]
+    s⃗′ = f[i, Derivative(1)]
+    s⃗″ = f[i, Derivative(2)]
 
 (Note that this also works with `Derivative(0)`, in which case it's the same as `f[i]`.)
 
@@ -110,16 +110,16 @@ Two options are proposed:
   [`knots`](@ref) to obtain the parametrisation knots), then one can evaluate
   using a value of `t`:
 
-      X  = f(t)
-      X′ = f(t, Derivative(1))
-      X″ = f(t, Derivative(2))
+      s⃗  = f(t)
+      s⃗′ = f(t, Derivative(1))
+      s⃗″ = f(t, Derivative(2))
 
 - alternatively, if one knows the index `i` associated to the segment of
   interest, then one can do
 
-      X  = f(i, ζ)
-      X′ = f(i, ζ, Derivative(1))
-      X″ = f(i, ζ, Derivative(2))
+      s⃗  = f(i, ζ)
+      s⃗′ = f(i, ζ, Derivative(1))
+      s⃗″ = f(i, ζ, Derivative(2))
 
   where `ζ` must be in ``[0, 1]``, and the two limits correspond to knots ``t_i`` and ``t_{i + 1}``.
   This is convenient if one wants to evaluate, say, right in the middle between
@@ -187,14 +187,16 @@ function discretisation_method end
 """
     nodes(f::AbstractFilament{T}) -> AbstractVector{T}
 
-Return the nodes (or discretisation points) ``\\bm{X}_i`` of the filament.
+Return the nodes (or discretisation points) ``\\bm{s}_i`` of the filament.
 """
 nodes(f::AbstractFilament) = f.Xs
 
-"""
+@doc raw"""
     knots(f::AbstractFilament{T}) -> AbstractVector{T}
 
 Return parametrisation knots ``t_i`` of the filament.
+
+Filaments are parametrised by ``\bm{s}(t)`` for ``t ∈ [0, T]``.
 """
 knots(f::AbstractFilament) = f.ts
 
@@ -262,7 +264,7 @@ end_to_end_offset(f::ClosedFilament) = f.Xoffset
 """
     Base.setindex!(f::AbstractFilament{T}, v, i::Int) -> Vec3{T}
 
-Set coordinates of discretisation point ``\\bm{X}_i``.
+Set coordinates of discretisation point ``\\bm{s}_i``.
 """
 Base.@propagate_inbounds Base.setindex!(f::AbstractFilament, v, i::Int) = nodes(f)[i] = v
 
@@ -302,9 +304,9 @@ include("plotting.jl")
     Base.getindex(f::AbstractFilament{T}, i::Int, ::Derivative{n}) -> Vec3{T}
     Base.getindex(f::AbstractFilament{T}, i::Int, ::GeometricQuantity)
 
-Return coordinates of discretisation point ``\\bm{X}_i``.
+Return coordinates of discretisation point ``\\bm{s}_i``.
 
-One may also obtain derivatives and other geometric quantities at point ``\\bm{X}_i``
+One may also obtain derivatives and other geometric quantities at point ``\\bm{s}_i``
 by passing an optional [`Derivative`](@ref) or [`GeometricQuantity`](@ref).
 """
 Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]
@@ -572,24 +574,24 @@ function _check_nodes(::Type{T}, Xs::PaddedVector) where {T}
 end
 
 """
-    normalise_derivatives(Ẋ::Vec3, Ẍ::Vec3) -> (X′, X″)
-    normalise_derivatives((Ẋ, Ẍ)::NTuple)   -> (X′, X″)
+    normalise_derivatives(ṡ::Vec3, s̈::Vec3) -> (s⃗′, s⃗″)
+    normalise_derivatives((ṡ, s̈)::NTuple)   -> (s⃗′, s⃗″)
 
 Return derivatives with respect to the arc length ``ξ``, from derivatives with
 respect to the parameter ``t``.
 
 The returned derivatives satisfy:
 
-- ``\\bm{X}' ≡ t̂`` is the **unit tangent** vector;
+- ``\\bm{s}' ≡ t̂`` is the **unit tangent** vector;
 
-- ``\\bm{X}'' ≡ ρ n̂`` is the **curvature** vector, where ``n̂`` is the normal unit
+- ``\\bm{s}'' ≡ ρ n̂`` is the **curvature** vector, where ``n̂`` is the normal unit
   vector (with ``t̂ ⋅ n̂ = 0``) and ``ρ = R^{-1}`` is the curvature (and R the
   curvature radius).
 """
 function normalise_derivatives(Ẋ::Vec3, Ẍ::Vec3)
-    t̂ = normalize(Ẋ)  # unit tangent vector (= X′)
-    X″ = (Ẍ - (Ẍ ⋅ t̂) * t̂) ./ sum(abs2, Ẋ)  # curvature vector
-    t̂, X″
+    s′ = normalize(Ẋ)  # unit tangent vector
+    s″ = (Ẍ - (Ẍ ⋅ s′) * s′) ./ sum(abs2, Ẋ)  # curvature vector
+    s′, s″
 end
 
 normalise_derivatives(derivs::NTuple{2, Vec3}) = normalise_derivatives(derivs...)
@@ -649,7 +651,7 @@ end
 Redistribute nodes of the filament so that they are (approximately) equally spaced.
 
 More precisely, this function repositions the filament nodes such that the knot spacing
-``t_{i + 1} - t_{i}`` associated to them is constant.
+``t_{i + 1} - t_{i}`` is constant.
 In other words, the new locations satisfy `f[i] = f((i - 1) * Δt)` where ``Δt = t_{N + 1} / N`` is
 the knot spacing, ``N`` is the number of nodes, and the index ``N + 1`` refers to the
 filament endpoint (which is equal to the starting point for a closed filament).
