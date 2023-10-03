@@ -16,11 +16,16 @@ AbstractFilament
 ClosedFilament
 ```
 
-## Functions
+## Initialisation
 
 ```@docs
 Filaments.init
-change_offset
+Filaments.from_vector_field
+```
+
+## Obtaining information
+
+```@docs
 discretisation_method
 knots
 knotlims
@@ -28,16 +33,28 @@ end_to_end_offset
 minimum_knot_increment
 maximum_knot_increment
 nodes
+Filaments.distance_to_field
+```
+
+## Modifying filaments
+
+```@docs
+update_coefficients!
+change_offset
+fold_periodic!
+redistribute_nodes!
+```
+
+## Other functions
+
+```@docs
 Base.getindex(f::AbstractFilament, i::Int)
 Base.setindex!(f::AbstractFilament, v, i::Int)
-update_coefficients!
-fold_periodic!
 normalise_derivatives
 normalise_derivatives!
 integrate
 find_min_distance
 check_nodes
-redistribute_nodes!
 ```
 
 ## Refinement
