@@ -37,6 +37,7 @@ normalise_derivatives!
 integrate
 find_min_distance
 check_nodes
+redistribute_nodes!
 ```
 
 ## Refinement

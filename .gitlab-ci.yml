@@ -22,10 +22,6 @@
     # Only run tests if source files were modified, or if we're on the main branch
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-      changes:
-        paths:
-          - src/**
-          - test/**
   script:
     - |
       julia --project -e '

@@ -45,6 +45,16 @@ function test_filament_ring(args)
         end
     end
 
+    @testset "Redistribute nodes" begin
+        g = redistribute_nodes!(copy(f))
+        # Check that endpoints and knot range have not been changed
+        @test g[begin] ≈ f[begin]
+        @test g[end + 1] ≈ f[end + 1]
+        @test knotlims(g) == knotlims(f)
+        # Check that the parametrisation is equidistant (can be described by a `range`).
+        @test knots(g) ≈ range(ts[begin], ts[end + 1]; length = N + 1)[1:N]
+    end
+
     @testset "Check interpolations" begin
         i = 1  # near the border, to check padding as well
         @test f(i, 0.0) == f(ts[i]) ≈ f[i, Derivative(0)] == f[i]
