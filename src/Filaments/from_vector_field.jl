@@ -33,7 +33,8 @@ One may use [`Filaments.distance_to_field`](@ref) to verify the result of this f
 
 ## Optional keyword arguments
 
-- `max_steps::Int = 1000`: maximum number of steps before
+- `max_steps::Int = 1000`: maximum number of steps before we stop iterating. This is also
+  the maximum possible length of the returned filament.
 
 # Extended help
 
