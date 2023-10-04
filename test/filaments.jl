@@ -241,7 +241,7 @@ function test_filaments_broadcasting()
     nothing
 end
 
-function test_init_from_vector_field()
+function test_init_from_vector_field(method = CubicSplineMethod())
     function taylor_green_vorticity(x, y, z)
         sx, cx = sincos(x)
         sy, cy = sincos(y)
@@ -255,7 +255,7 @@ function test_init_from_vector_field()
     taylor_green_vorticity(x⃗) = taylor_green_vorticity(x⃗...)
     x₀ = Vec3{Float32}(π + π / 3, π + π / 2, π + 0.2)
     f = @inferred Filaments.from_vector_field(
-        ClosedFilament, taylor_green_vorticity, x₀, 0.18, CubicSplineMethod(),
+        ClosedFilament, taylor_green_vorticity, x₀, 0.18, method,
     )
     @test eltype(f) === typeof(x₀)
     # Check that the filament is actually tangent to the vector field to a very good
@@ -280,7 +280,10 @@ end
         end
     end
     @testset "From vector field" begin
-        test_init_from_vector_field()
+        methods = (CubicSplineMethod(), FiniteDiffMethod())
+        @testset "$method" for method ∈ methods
+            test_init_from_vector_field(method)
+        end
     end
     @testset "Broadcasting with VectorOfVectors" begin
         test_filaments_broadcasting()
