@@ -285,6 +285,7 @@ include("integrate.jl")
 include("min_distance.jl")
 include("refinement.jl")
 include("reconnections.jl")
+include("from_vector_field.jl")
 
 include("local/interpolation.jl")
 include("local/interp_hermite.jl")
@@ -387,6 +388,9 @@ Two variants of this method are provided:
   resulting filament, and the function chooses an equispaced list of ``τ`` values.
 
 The element type `T` can be omitted, in which case the default `T = Float64` is used.
+
+See also [`from_vector_field`](@ref) to initialise a filament from an analytical vector
+field.
 
 ## Examples
 
