@@ -132,17 +132,19 @@ struct ClosedLocalFilament{
 end
 
 function ClosedLocalFilament(
-        N::Integer, discretisation::LocalDiscretisationMethod, ::Type{T};
+        Xs::PaddedVector{M, Vec3{T}}, discretisation::LocalDiscretisationMethod;
         offset = zero(Vec3{T}),
-    ) where {T}
-    M = npad(discretisation)
-    ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
-    Xs = similar(ts, Vec3{T})
+    ) where {M, T}
+    @assert M == npad(discretisation)
+    ts = similar(Xs, T)
     cs = similar(Xs)
     cderivs = (similar(Xs), similar(Xs))
     Xoffset = convert(Vec3{T}, offset)
     ClosedLocalFilament(discretisation, ts, Xs, cs, cderivs, Xoffset)
 end
+
+_init_closed_filament(Xs, disc::LocalDiscretisationMethod; kws...) =
+    ClosedLocalFilament(Xs, disc; kws...)
 
 function change_offset(f::ClosedLocalFilament{T}, offset::Vec3) where {T}
     Xoffset = convert(Vec3{T}, offset)
@@ -151,16 +153,9 @@ end
 
 allvectors(f::ClosedLocalFilament) = (f.ts, f.Xs, f.cs, f.cderivs...)
 
-function init(
-        ::Type{ClosedFilament{T}}, N::Integer, disc::LocalDiscretisationMethod;
-        kws...,
-    ) where {T}
-    ClosedLocalFilament(N, disc, T; kws...)
-end
-
 function Base.similar(f::ClosedLocalFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
-    N, = dims
-    ClosedLocalFilament(N, discretisation_method(f), T; offset = f.Xoffset)
+    Xs = similar(nodes(f), Vec3{T}, dims)
+    ClosedLocalFilament(Xs, discretisation_method(f); offset = f.Xoffset)
 end
 
 discretisation_method(f::ClosedLocalFilament) = f.discretisation

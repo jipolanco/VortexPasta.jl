@@ -96,7 +96,7 @@ arc length between points ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
 """
 struct ClosedSplineFilament{
         T <: AbstractFloat,
-        M,  # padding (fixed to 3?)
+        M,  # padding (fixed to `npad(CubicSplineMethod)` == 3)
         Knots <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
     } <: ClosedFilament{T}
@@ -116,17 +116,18 @@ struct ClosedSplineFilament{
     Xoffset :: Vec3{T}
 end
 
-function ClosedSplineFilament(N::Integer, ::Type{T}; offset = zero(Vec3{T})) where {T}
-    M = 3  # padding needed for cubic splines
-    ts = PaddedVector{M}(Vector{T}(undef, N + 2M))
-    Xs = similar(ts, Vec3{T})
+function ClosedSplineFilament(
+        Xs::PaddedVector{M, Vec3{T}}; offset = zero(Vec3{T})
+    ) where {M, T}
+    @assert M == npad(discretisation_method(ClosedSplineFilament))
+    ts = similar(Xs, T)
     cs = similar(Xs)
-    ċs = similar(Xs)
-    c̈s = similar(Xs)
-    cderivs = (ċs, c̈s)
+    cderivs = (similar(Xs), similar(Xs))
     Xoffset = convert(Vec3{T}, offset)
     ClosedSplineFilament(ts, Xs, cs, cderivs, Xoffset)
 end
+
+_init_closed_filament(Xs, ::CubicSplineMethod; kws...) = ClosedSplineFilament(Xs; kws...)
 
 function change_offset(f::ClosedSplineFilament{T}, offset::Vec3) where {T}
     Xoffset = convert(Vec3{T}, offset)
@@ -135,14 +136,12 @@ end
 
 allvectors(f::ClosedSplineFilament) = (f.ts, f.Xs, f.cs, f.cderivs...)
 
-init(::Type{ClosedFilament{T}}, N::Integer, ::CubicSplineMethod; kws...) where {T} =
-    ClosedSplineFilament(N, T; kws...)
-
 function Base.similar(f::ClosedSplineFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
-    N, = dims
-    ClosedSplineFilament(N, T; offset = f.Xoffset)
+    Xs = similar(nodes(f), Vec3{T}, dims)
+    ClosedSplineFilament(Xs; offset = f.Xoffset)
 end
 
+discretisation_method(::Type{<:ClosedSplineFilament}) = CubicSplineMethod()
 discretisation_method(::ClosedSplineFilament) = CubicSplineMethod()
 interpolation_method(::ClosedSplineFilament) = CubicSplineMethod()
 

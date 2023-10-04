@@ -13,6 +13,8 @@ In the case of closed curves, periodic cubic splines are used.
 """
 struct CubicSplineMethod <: GlobalDiscretisationMethod end
 
+npad(::Type{<:CubicSplineMethod}) = 3  # padding needed for cubic splines
+
 # Cubic splines are C² at the knots.
 continuity(::Type{CubicSplineMethod}) = 2
 
