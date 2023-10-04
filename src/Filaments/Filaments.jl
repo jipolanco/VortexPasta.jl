@@ -344,6 +344,15 @@ init(::Type{ClosedFilament}, N::Integer, args...; kws...) =
 init(func::Func, ::Type{ClosedFilament}, args...) where {Func} =
     init(func, ClosedFilament{Float64}, args...)
 
+function init(
+        ::Type{ClosedFilament{T}}, N::Integer, method::DiscretisationMethod;
+        kws...,
+    ) where {T}
+    M = npad(method)
+    Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))
+    _init_closed_filament(Xs, method; kws...)
+end
+
 """
     Filaments.init(
         ClosedFilament, points::AbstractVector{<:Vec3}, method::DiscretisationMethod;
@@ -356,14 +365,23 @@ Note that [`update_coefficients!`](@ref) does not need to be called after using
 this variant (until node locations change, of course!).
 """
 function init(
-        ::Type{ClosedFilament}, positions::AbstractVector{<:Vec3}, method::DiscretisationMethod;
+        ::Type{FilamentType}, positions::AbstractVector{<:Vec3}, method::DiscretisationMethod;
         kws...,
-    )
-    T = eltype(eltype(positions))
-    f = init(ClosedFilament{T}, length(positions), method; kws...)
-    copy!(nodes(f), positions)
+    ) where {FilamentType <: AbstractFilament}
+    M = npad(method)
+    N = length(positions)
+    Xs = PaddedVector{M}(similar(positions, N + 2M))
+    copyto!(Xs, positions)
+    init(FilamentType, Xs, method; kws...)  # calls variant below (which takes a PaddedVector)
+end
+
+function init(
+        ::Type{ClosedFilament}, Xs::PaddedVector{M, <:Vec3}, method::DiscretisationMethod;
+        kws...,
+    ) where {M}
+    @assert M == npad(method)
+    f = _init_closed_filament(Xs, method; kws...)
     update_coefficients!(f)
-    f
 end
 
 """

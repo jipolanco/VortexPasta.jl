@@ -61,7 +61,7 @@ After the filament nodes have been obtained, this function calls
 uniform way along the filament.
 """
 function from_vector_field(
-        ::Type{ClosedFilament}, vecfield::F, s⃗₀, dτ, method::DiscretisationMethod; kws...,
+        ::Type{ClosedFilament}, vecfield::F, s⃗₀::Vec3, dτ, method::DiscretisationMethod; kws...,
     ) where {F <: Function}
     xs = [s⃗₀]
     _from_vector_field!(vecfield, xs, dτ; kws...)

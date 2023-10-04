@@ -2,11 +2,13 @@ using Test
 using Random
 using LinearAlgebra
 using StaticArrays
+using StructArrays: StructArray, StructVector
 using ForwardDiff: ForwardDiff
 using VortexPasta.Quadratures: GaussLegendre
 using VortexPasta.Filaments
 using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot
 using VortexPasta.BasicTypes: VectorOfVectors
+using VortexPasta.PaddedArrays: PaddedVector
 
 function test_filament_ring(args)
     f = @inferred Filaments.init(ClosedFilament, args...)
@@ -266,6 +268,24 @@ function test_init_from_vector_field(method = CubicSplineMethod())
     nothing
 end
 
+# Test nodes backed by a StructVector{Vec3{T}}.
+function test_nodes_structvector(method = CubicSplineMethod())
+    N = 16
+    θs_pi = range(0, 2; length = N + 1)[1:N]
+    T = Float32
+    xs = StructArray([Vec3{T}(cospi(t), sinpi(t), 0) for t ∈ θs_pi])
+    f = @inferred Filaments.init(ClosedFilament, xs, method)
+    @test nodes(f) isa PaddedVector{M, Vec3{T}} where {M}
+    @test parent(nodes(f)) isa StructVector{Vec3{T}}
+    let g = @inferred similar(f)
+        @test parent(nodes(g)) isa StructVector{Vec3{T}}
+    end
+    let g = @inferred similar(f, Float64)
+        @test parent(nodes(g)) isa StructVector{Vec3{Float64}}
+    end
+    nothing
+end
+
 @testset "Filaments" begin
     @testset "Single ring" begin
         N = 32
@@ -283,6 +303,12 @@ end
         methods = (CubicSplineMethod(), FiniteDiffMethod())
         @testset "$method" for method ∈ methods
             test_init_from_vector_field(method)
+        end
+    end
+    @testset "StructVector nodes" begin
+        methods = (CubicSplineMethod(), FiniteDiffMethod())
+        @testset "$method" for method ∈ methods
+            test_nodes_structvector(method)
         end
     end
     @testset "Broadcasting with VectorOfVectors" begin
