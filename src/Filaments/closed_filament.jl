@@ -1,11 +1,144 @@
 export ClosedFilament
 
-"""
-    ClosedFilament{T} <: AbstractFilament{T}
+@doc raw"""
+    ClosedFilament{T, D <: DiscretisationMethod} <: AbstractFilament{T}
 
-Abstract type representing a *closed* curve (a loop) in 3D space.
+Describes a closed curve (a loop) in 3D space.
+
+It can also be used to represent infinite but unclosed curves described by a periodic function
+(such as an infinite straight line or a sinusoidal curve).
+
+`ClosedFilament`s should be generally constructed using [`Filaments.init`](@ref).
+
+# Extended help
+
+## Examples
+
+The following examples use the [`CubicSplineMethod`](@ref) for representing filament curves,
+but other methods are also available.
+
+Initialise filament from a set of discretisation points:
+
+```jldoctest ClosedFilament; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
+julia> f = Filaments.init(ClosedFilament, 16, CubicSplineMethod());
+
+julia> θs = range(-1, 1; length = 17)[1:16]
+-1.0:0.125:0.875
+
+julia> @. f = Vec3(cospi(θs), sinpi(θs), 0);
+
+julia> f[4]
+3-element SVector{3, Float64} with indices SOneTo(3):
+ -0.3826834323650898
+ -0.9238795325112867
+  0.0
+
+julia> f[5] = (f[4] + 2 * f[6]) ./ 2
+3-element SVector{3, Float64} with indices SOneTo(3):
+  0.1913417161825449
+ -1.38581929876693
+  0.0
+
+julia> update_coefficients!(f);
+```
+
+Note that [`update_coefficients!`](@ref) should be called whenever filament
+coordinates are changed, before doing other operations such as estimating
+derivatives.
+
+Estimate derivatives at discretisation points:
+
+```jldoctest ClosedFilament; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
+julia> f[4, Derivative(1)]
+3-element SVector{3, Float64} with indices SOneTo(3):
+  0.9090457394297018
+ -0.7273334611006509
+  0.0
+
+julia> f[4, Derivative(2)]
+3-element SVector{3, Float64} with indices SOneTo(3):
+  0.20911715113294102
+ -2.09047051482799
+  0.0
+```
+
+Estimate coordinates and derivatives in-between discretisation points:
+
+```jldoctest ClosedFilament; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
+julia> f(4, 0.32)
+3-element SVector{3, Float64} with indices SOneTo(3):
+ -0.16753415613203387
+ -1.1324592487590195
+  0.0
+
+julia> Ẋ, Ẍ = f(4, 0.32, Derivative(1)), f(4, 0.32, Derivative(2))
+([0.8947546127964856, -0.9527970723463657, 0.0], [-0.3303413370703831, 0.17798009799460934, 0.0])
+
+julia> X′, X″ = f(4, 0.32, UnitTangent()), f(4, 0.32, CurvatureVector())
+([0.6845546705034081, -0.7289615237390588, 0.0], [-0.050762951240829336, -0.047670575508846375, 0.0])
+```
+
+## Curve parametrisation
+
+The parametrisation knots ``t_i`` are directly obtained from the interpolation point
+positions.
+A standard choice, which is used here, is for the knot increments to
+approximate the arc length between two interpolation points:
+
+```math
+ℓ_{i} ≡ t_{i + 1} - t_{i} = |\bm{X}_{i + 1} - \bm{X}_i|,
+```
+
+which is a zero-th order approximation (and a lower bound) for the actual
+arc length between points ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
+
 """
-abstract type ClosedFilament{T} <: AbstractFilament{T} end
+struct ClosedFilament{
+        T,
+        Discretisation <: DiscretisationMethod,
+        M,  # padding (for dealing with periodicity)
+        Knots <: PaddedVector{M, T},
+        Points <: PaddedVector{M, Vec3{T}},
+    } <: AbstractFilament{T}
+
+    method :: Discretisation
+
+    # Parametrisation knots tᵢ.
+    ts :: Knots
+
+    # Discretisation points s⃗ᵢ.
+    Xs :: Points
+
+    # TODO move `cs` and `cderivs` to separate type dependent on the discretisation?
+
+    # Interpolation coefficients associated to the curve (depends on the discretisation
+    # method).
+    cs :: Points
+
+    # Interpolation coefficients associated to first and second derivatives (depends on the
+    # discretisation method).
+    cderivs :: NTuple{2, Points}
+
+    # End-to-end offset.
+    Xoffset :: Vec3{T}
+end
+
+function ClosedFilament(
+        Xs::PaddedVector{M, Vec3{T}}, method::DiscretisationMethod;
+        offset = zero(Vec3{T})
+    ) where {M, T}
+    @assert M == npad(method)
+    ts = similar(Xs, T)
+    cs = similar(Xs)
+    cderivs = (similar(Xs), similar(Xs))
+    Xoffset = convert(Vec3{T}, offset)
+    ClosedFilament(method, ts, Xs, cs, cderivs, Xoffset)
+end
+
+discretisation_method(::Type{<:ClosedFilament{T, D}}) where {T, D} = D()
+discretisation_method(f::ClosedFilament) = discretisation_method(typeof(f))
+
+interpolation_method(f::ClosedFilament) = interpolation_method(discretisation_method(f))
 
 init(::Type{ClosedFilament}, N::Integer, args...; kws...) =
     init(ClosedFilament{Float64}, N, args...; kws...)
@@ -19,7 +152,7 @@ function init(
     ) where {T}
     M = npad(method)
     Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))
-    _init_closed_filament(Xs, method; kws...)
+    ClosedFilament(Xs, method; kws...)
 end
 
 function init(
@@ -27,7 +160,7 @@ function init(
         kws...,
     ) where {M}
     @assert M == npad(method)
-    f = _init_closed_filament(Xs, method; kws...)
+    f = ClosedFilament(Xs, method; kws...)
     update_coefficients!(f)
 end
 
@@ -68,7 +201,7 @@ S (generic function with 1 method)
 julia> N = 16;
 
 julia> f = Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
-16-element ClosedSplineFilament{SVector{3, Float64}, CubicSplineMethod}:
+16-element ClosedFilament{SVector{3, Float64}, CubicSplineMethod}:
  [0.9807852804032304, 0.19509032201612825, 0.0]
  [0.8314696123025452, 0.5555702330196022, 0.0]
  [0.5555702330196023, 0.8314696123025452, 0.0]
@@ -94,7 +227,7 @@ julia> τs = range(0, 1; length = N + 1)[1:N]  # make sure the location τ = 1 i
 0.0:0.0625:0.9375
 
 julia> f = Filaments.init(S, ClosedFilament, τs, CubicSplineMethod())
-16-element ClosedSplineFilament{SVector{3, Float64}, CubicSplineMethod}:
+16-element ClosedFilament{SVector{3, Float64}, CubicSplineMethod}:
  [1.0, 0.0, 0.0]
  [0.9238795325112867, 0.3826834323650898, 0.0]
  [0.7071067811865476, 0.7071067811865475, 0.0]
@@ -121,7 +254,7 @@ julia> using VortexPasta.PredefinedCurves
 julia> trefoil = define_curve(TrefoilKnot());
 
 julia> f = Filaments.init(trefoil, ClosedFilament, N, CubicSplineMethod())
-16-element ClosedSplineFilament{SVector{3, Float64}, CubicSplineMethod}:
+16-element ClosedFilament{SVector{3, Float64}, CubicSplineMethod}:
  [0.9604571867463079, -0.866973784619343, -0.5555702330196022]
  [2.4033292980421757, 0.06610274757236567, -0.9807852804032304]
  [2.679228677325119, 1.3209370977497819, -0.19509032201612828]
@@ -191,7 +324,18 @@ This function is allocation-free. It returns a new filament which shares the sam
 arrays as `f`, and only differs in the offset. Modifying nodes of the returned
 filament also modifies nodes of `f`.
 """
-function change_offset end
+function change_offset(f::ClosedFilament{T}, offset::Vec3) where {T}
+    Xoffset = convert(Vec3{T}, offset)
+    ClosedFilament(f.method, f.ts, f.Xs, f.cs, f.cderivs, Xoffset)
+end
+
+allvectors(f::ClosedFilament) = (f.ts, f.Xs, f.cs, f.cderivs...)
+
+function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
+    Xs = similar(nodes(f), Vec3{T}, dims)
+    method = discretisation_method(f)
+    ClosedFilament(Xs, method; offset = f.Xoffset)
+end
 
 function update_coefficients!(f::ClosedFilament; knots = nothing)
     (; ts, Xs,) = f
@@ -212,3 +356,45 @@ function update_coefficients!(f::ClosedFilament; knots = nothing)
 
     f
 end
+
+function _update_coefficients_only!(f::ClosedFilament; kws...)
+    # Dispatch to the implementation associated to the chosen discretisation method.
+    method = discretisation_method(f)
+    _update_coefficients_only!(method, f; kws...)
+end
+
+## Evaluation of values and derivatives on discretisation points (nodes)
+(f::ClosedFilament)(node::AtNode, ::Derivative{0} = Derivative(0)) = f[node.i]
+
+# We let the different discretisation methods provide (possibly optimised) implementations
+# for derivatives at nodes:
+(f::ClosedFilament)(node::AtNode, d::Derivative) =
+    _derivative_at_node(d, discretisation_method(f), f::ClosedFilament, node::AtNode)
+
+## Interpolation of values and derivatives in-between nodes
+
+# 1. If we know the interpolation segment (here ζ ∈ [0, 1])
+function (f::ClosedFilament)(i::Int, ζ::Number, d::Derivative = Derivative(0))
+    _interpolate(interpolation_method(f), f, i, ζ, d)
+end
+
+# 2. If we don't know the interpolation segment (here `t` is the curve parameter).
+function (f::ClosedFilament)(
+        t::Number, d::Derivative = Derivative(0);
+        ileft::Union{Nothing, Int} = nothing,
+    )
+    _interpolate(interpolation_method(f), f, t, d; ileft)
+end
+
+## Knot insertion and removal.
+#  We allow the different discretisation methods to implement their own versions (for
+#  example, using standard knot insertion algorithms for splines).
+
+insert_node!(f::ClosedFilament, i::Integer, ζ::Real) =
+    _insert_node!(discretisation_method(f), f, i, ζ)
+
+remove_node!(f::ClosedFilament, i::Integer) =
+    _remove_node!(discretisation_method(f), f, i)
+
+update_after_changing_nodes!(f::ClosedFilament; removed = true) =
+    _update_after_changing_nodes!(discretisation_method(f), f; removed)

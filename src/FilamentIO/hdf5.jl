@@ -416,9 +416,8 @@ Read filament locations from VTK HDF file.
 This function loads filaments based on the datasets `/VTKHDF/Points` and `/VTKHDF/Offsets`
 as written by the [`write_vtkhdf`](@ref) function.
 
-Returns a vector of filaments. The specific type of filament (e.g.
-[`ClosedSplineFilament`](@ref) or [`ClosedLocalFilament`](@ref)) depends on the chosen
-`method`. See [`Filaments.init`](@ref) for possible options.
+Returns a vector of filaments, where each filament is discretised according to the chosen `method`.
+See [`Filaments.init`](@ref) for possible options.
 
 One can also read other datasets using `read` and `read!`, as shown and explained below.
 

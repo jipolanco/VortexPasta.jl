@@ -105,7 +105,6 @@ CurvatureBinormal
 ```@docs
 LocalDiscretisationMethod
 FiniteDiffMethod
-ClosedLocalFilament
 ```
 
 ### Local interpolations
@@ -121,7 +120,6 @@ interpolate
 ```@docs
 GlobalDiscretisationMethod
 CubicSplineMethod
-ClosedSplineFilament
 ```
 
 ## Segments
