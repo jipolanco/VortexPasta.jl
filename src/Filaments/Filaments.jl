@@ -61,12 +61,12 @@ The curve coordinates are parametrised as ``\bm{s}(t)`` with ``t ∈ ℝ``.
 The curve is discretised by a set of *nodes* (or discretisation points)
 ``\bm{s}(t_i) = \bm{s}_i`` for ``i ∈ \{1, 2, …, N\}``.
 
-See [`ClosedSplineFilament`](@ref) for a concrete implementation of `AbstractFilament`.
+See [`ClosedFilament`](@ref) for a concrete implementation of `AbstractFilament`.
 
 An `AbstractFilament` is treated as an `AbstractVector` of length `N`, in which
 each element is a discretisation point ``\bm{s}_i``. Therefore, one can use the
 usual indexing notation to retrieve and to modify discretisation points. See
-[`ClosedSplineFilament`](@ref) for some examples.
+[`ClosedFilament`](@ref) for some examples.
 
 # Extended help
 
@@ -305,11 +305,8 @@ offset between points `f[i]` and `f[i + N]`. By default the offset is zero,
 meaning that the filament is a closed loop. This can be used for defining
 infinite (so not really closed) filaments living in periodic domains.
 
-Possible discretisation methods are:
-
-- [`CubicSplineMethod`](@ref), which returns a [`ClosedSplineFilament`](@ref);
-
-- [`FiniteDiffMethod`](@ref), which returns a [`ClosedLocalFilament`](@ref).
+Possible discretisation methods include [`CubicSplineMethod`](@ref) and
+[`FiniteDiffMethod`](@ref).
 
 """
 function init end
