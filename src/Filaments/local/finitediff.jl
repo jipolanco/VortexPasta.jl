@@ -30,6 +30,10 @@ struct FiniteDiffMethod{
     function FiniteDiffMethod{M}(interp) where {M}
         new{M, typeof(interp)}(interp)
     end
+
+    function FiniteDiffMethod{M, I}() where {M, I}
+        new{M, I}(I())
+    end
 end
 
 continuity(::Type{<:FiniteDiffMethod{M, I}}) where {M, I} = continuity(I)  # returns continuity of interpolation method

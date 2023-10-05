@@ -6,6 +6,7 @@ using StructArrays: StructArray, StructVector
 using ForwardDiff: ForwardDiff
 using VortexPasta.Quadratures: GaussLegendre
 using VortexPasta.Filaments
+using VortexPasta.Filaments: discretisation_method
 using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot
 using VortexPasta.BasicTypes: VectorOfVectors
 using VortexPasta.PaddedArrays: PaddedVector
@@ -217,7 +218,8 @@ function test_filament_ring(args)
                     ρ = fc(i, 0.5, CurvatureScalar())
                     ρℓ_max = max(ρℓ_max, ρ * ℓ)
                 end
-                factor = fc isa ClosedSplineFilament ? 1 : 2
+                method = @inferred discretisation_method(fc)
+                factor = method isa CubicSplineMethod ? 1 : 2
                 @test ρℓ_max < factor * 0.2  # criterion is satisfied (only roughly for FiniteDiff)
             end
         end

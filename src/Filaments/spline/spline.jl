@@ -12,6 +12,7 @@ Represents curves using cubic splines.
 In the case of closed curves, periodic cubic splines are used.
 """
 struct CubicSplineMethod <: GlobalDiscretisationMethod end
+interpolation_method(::CubicSplineMethod) = CubicSplineMethod()  # for compatibility with local methods (finite diff)
 
 npad(::Type{<:CubicSplineMethod}) = 3  # padding needed for cubic splines
 
