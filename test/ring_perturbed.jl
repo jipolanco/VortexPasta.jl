@@ -16,6 +16,7 @@ using LinearAlgebra: ⋅
     p = @inferred Ring(r = r_perturb, z = z_perturb)
     S = @inferred define_curve(p; scale = R, translate = (π, π, 0))
     f = @inferred Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
+    Filaments.redistribute_nodes!(f)
 
     Ls = (1, 1, 1) .* 2π
     Ns = (1, 1, 1) .* 32
@@ -30,8 +31,8 @@ using LinearAlgebra: ⋅
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
         backend_long = FINUFFTBackend(),
-        quadrature_short = GaussLegendre(4),
-        quadrature_long = GaussLegendre(4),
+        quadrature_short = GaussLegendre(2),
+        quadrature_long = GaussLegendre(2),
     )
 
     if @isdefined(Makie)
@@ -53,7 +54,9 @@ using LinearAlgebra: ⋅
             empty!(times)
             empty!(energy_time)
         end
-        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(4))
+        E = Diagnostics.kinetic_energy_from_streamfunction(
+            iter; quad = GaussLegendre(2),
+        )
         # @show nstep, t, E
         push!(times, t)
         push!(energy_time, E)
@@ -87,7 +90,7 @@ using LinearAlgebra: ⋅
     Emean = mean(energy_time)
     Estd = std(energy_time)
     @show Estd / Emean
-    @test Estd / Emean < 4e-4
+    @test Estd / Emean < 1e-4
 
     if @isdefined(Makie)
         lines(times, energy_time)
