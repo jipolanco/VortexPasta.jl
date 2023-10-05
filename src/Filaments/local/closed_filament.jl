@@ -30,6 +30,9 @@ function _derivative_at_node(
     coefs[n + 1][node.i]
 end
 
+_interpolate(m::FiniteDiffMethod, args...; kws...) =
+    _interpolate(interpolation_method(m), args...; kws...)
+
 function _interpolate(
         m::HermiteInterpolation, f::ClosedFilament, t_in::Number, d::Derivative = Derivative(0);
         ileft::Union{Nothing, Int} = nothing,

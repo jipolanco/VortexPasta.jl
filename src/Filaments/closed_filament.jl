@@ -375,7 +375,7 @@ end
 
 # 1. If we know the interpolation segment (here ζ ∈ [0, 1])
 function (f::ClosedFilament)(i::Int, ζ::Number, d::Derivative = Derivative(0))
-    _interpolate(interpolation_method(f), f, i, ζ, d)
+    _interpolate(discretisation_method(f), f, i, ζ, d)
 end
 
 # 2. If we don't know the interpolation segment (here `t` is the curve parameter).
@@ -383,7 +383,7 @@ function (f::ClosedFilament)(
         t::Number, d::Derivative = Derivative(0);
         ileft::Union{Nothing, Int} = nothing,
     )
-    _interpolate(interpolation_method(f), f, t, d; ileft)
+    _interpolate(discretisation_method(f), f, t, d; ileft)
 end
 
 ## Knot insertion and removal.
