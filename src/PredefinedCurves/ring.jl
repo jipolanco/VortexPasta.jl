@@ -1,15 +1,16 @@
 export Ring
 
 @doc raw"""
-    Ring(; r = Returns(0))
+    Ring(; r = Returns(0), z = Returns(0))
 
 Describes a circular ring in 3D space.
 
 By default, the ring has radius ``R = 1``, it is defined on the XY plane, and its centre is
 located at `(0, 0, 0)`.
 
-The circular ring can be optionally perturbed in the radial direction using a user-defined
-function ``r(t)``, which must be periodic with period 1.
+The circular ring can be optionally perturbed in the radial and orthogonal (Z) directions using
+user-defined functions ``r(t)`` and ``z(t)`` respectively.
+These functions must be periodic with period 1.
 For example, one can pass `r(t) = 0.1 * cos(2πmt)` for a mode ``m`` sinusoidal
 perturbation (associated to a wavelength ``λ = 2πR/m``) whose amplitude is 10% of the ring
 radius.
@@ -21,9 +22,9 @@ arguments of the [`define_curve`](@ref) function.
 
 ```math
 \begin{aligned}
-    x(t) &= (1 + r(t)) cos(2πt) \\
-    y(t) &= (1 + r(t)) sin(2πt) \\
-    z(t) &= 0
+    x(t) &= (1 + r(t)) \, \cos(2πt) \\
+    y(t) &= (1 + r(t)) \, \sin(2πt) \\
+    z(t) &= z(t)
 \end{aligned}
 ```
 
@@ -91,16 +92,17 @@ julia> S.(ts)
  [4.4, 0.0, 0.0]
 ```
 """
-@kwdef struct Ring{FunR <: Function} <: ParametricCurve
+@kwdef struct Ring{FunR <: Function, FunZ <: Function} <: ParametricCurve
     r :: FunR = Returns(0)
+    z :: FunZ = Returns(0)
 end
 
 function _definition(p::Ring)
-    (; r,) = p
+    (; r, z,) = p
     function S(t)
         u = 2 * t  # note: π * u ∈ [0, 2π]
         s, c = sincospi(u)
         R = 1 + r(t)
-        SVector(R * c, R * s, 0)
+        SVector(R * c, R * s, z(t))
     end
 end

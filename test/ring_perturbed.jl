@@ -10,9 +10,11 @@ using LinearAlgebra: ⋅
 
 @testset "Perturbed vortex ring" begin
     R = π / 4
-    N = 32
-    r_perturb(t) = 0.1 * sinpi(6t)  # mode m = 3
-    S = @inferred define_curve(Ring(r = r_perturb); scale = R, translate = (π, π, 0))
+    N = 48
+    r_perturb(t) = 0.10 * sinpi(6t)  # mode m = 3
+    z_perturb(t) = 0.02 * sinpi(8t)  # mode m = 4
+    p = @inferred Ring(r = r_perturb, z = z_perturb)
+    S = @inferred define_curve(p; scale = R, translate = (π, π, 0))
     f = @inferred Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
 
     Ls = (1, 1, 1) .* 2π
@@ -79,7 +81,7 @@ using LinearAlgebra: ⋅
 
     tspan = (0.0, 15 * R^2 / Γ)
     prob = @inferred VortexFilamentProblem([f], tspan, params_bs)
-    iter = init(prob, SanduMRI33a(RK4(), 2); dt = 0.10, callback)
+    iter = init(prob, SanduMRI33a(RK4(), 4); dt = 0.04, callback)
     @time solve!(iter)
 
     Emean = mean(energy_time)
@@ -89,6 +91,7 @@ using LinearAlgebra: ⋅
 
     if @isdefined(Makie)
         lines(times, energy_time)
+        display(current_figure())
     else
         plt = lineplot(
             times, energy_time;
