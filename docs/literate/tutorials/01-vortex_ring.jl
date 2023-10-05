@@ -19,7 +19,7 @@
 # Depth = 2:3
 # ```
 #
-# ## Initialising a vortex ring
+# ## Defining a vortex ring
 #
 # The first thing to do is to define a circular vortex ring.
 # In VortexPasta, curves are initialised using the [`Filaments.init`](@ref) function defined
@@ -30,6 +30,8 @@
 # In VortexPasta, a point in 3D space is represented by the [`Vec3`](@ref
 # VortexPasta.BasicTypes.Vec3) type (which is nothing else than an `SVector` from the
 # [StaticArrays.jl](https://github.com/JuliaArrays/StaticArrays.jl) package).
+#
+# ### [Initialising the ring](@id tutorial-vortex-ring-init-filament)
 #
 # Let's define a set of points discretising a circular ring of radius ``R`` living on the
 # plane ``z = 1`` and centred at ``\bm{x}_0 = [3, 3, 1]``:
