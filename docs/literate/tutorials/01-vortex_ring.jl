@@ -120,6 +120,7 @@ nothing  # hide
 using GLMakie
 set_theme!(theme_black())
 GLMakie.activate!()  # hide
+Makie.inline!(true)  # hide
 fig = Figure()                         # create an empty figure
 ax = Axis3(fig[1, 1]; aspect = :data)  # add an Axis3 for plotting in 3D
 zlims!(ax, 0.5, 1.5)                   # set axis limits in the z direction
