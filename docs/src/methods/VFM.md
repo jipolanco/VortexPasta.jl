@@ -248,7 +248,7 @@ Note that the usual Biot--Savart law for the velocity can be recovered by taking
 
 where we have used ``\bm{∇} G(\bm{r}) = -\bm{r} / (4π r^3)``.
 
-### Connection with kinetic energy
+### [Connection with kinetic energy](@id VFM-energy)
 
 The kinetic energy per unit mass of the system is given by
 

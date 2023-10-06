@@ -60,8 +60,7 @@ function test_leapfrogging_rings(
     sum_of_squared_radii = Float64[]
 
     function callback(iter)
-        local (; fs, vs, ψs,) = iter
-        local (; t, dt, nstep,) = iter.time
+        local (; fs, vs, ψs, t, dt, nstep,) = iter
         push!(times, t)
 
         # This can be useful for visualisation
@@ -203,6 +202,10 @@ end
         quadrature_long = GaussLegendre(4),
     )
 
+    # Check overloaded getproperty and propertynames for ParamsBiotSavart.
+    @test α == @inferred (p -> p.α)(params_bs)
+    @test :α ∈ @inferred propertynames(params_bs)
+
     # Initialise filaments
     N = 32
     R_init = π / 3
@@ -219,6 +222,15 @@ end
     tmax = 5 * R_init^2 / Γ  # enough time for a couple of "jumps"
     tspan = (0.0, tmax)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
+
+    @testset "VortexFilamentSolver" begin
+        iter = @inferred init(prob, Midpoint(); dt = 0.01)
+        @test iter isa VortexFilamentSolver
+
+        # Check overloaded getproperty and propertynames for VortexFilamentSolver.
+        @test iter.time.dt === @inferred (p -> p.dt)(iter)
+        @test :dt ∈ @inferred propertynames(iter)
+    end
 
     # Test diagnostics with/out quadratures here
     @testset "Diagnostics" begin

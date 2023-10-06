@@ -11,6 +11,8 @@ using VortexPasta.Filaments: Vec3
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.FilamentIO
+using VortexPasta.PredefinedCurves
+using VortexPasta.Diagnostics
 
 # For some reason we need to explicitly load these packages here to avoid failures with
 # doctests and @example blocks on Gitlab.
@@ -87,13 +89,23 @@ function make_all()
         style = :authoryear,
     )
 
-    Literate.markdown(
-        joinpath(@__DIR__, "literate", "tutorials", "01-vortex_ring.jl"),
-        joinpath(@__DIR__, "src", "tutorials");
-        documenter = true,
-    )
+    tutorials = String[
+        "01-vortex_ring.jl",
+        "02-kelvin_waves.jl",
+    ]
+
+    for name ∈ tutorials
+        Literate.markdown(
+            joinpath(@__DIR__, "literate", "tutorials", name),
+            joinpath(@__DIR__, "src", "tutorials");
+            documenter = true,
+        )
+    end
 
     Makie.set_theme!()  # reset theme from a possible previous run
+    tutorials_gen = map(tutorials) do name
+        joinpath("tutorials", replace(name, r"\.jl$" => ".md"))
+    end
 
     makedocs(;
         sitename = "VortexPasta",
@@ -109,9 +121,7 @@ function make_all()
         modules = [VortexPasta],
         pages = [
             "index.md",
-            "Tutorials" => [
-                "tutorials/01-vortex_ring.md",
-            ],
+            "Tutorials" => tutorials_gen,
             "Explanations" => [
                 "methods/VFM.md",
                 "methods/Ewald.md",

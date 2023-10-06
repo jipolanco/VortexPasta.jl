@@ -214,6 +214,21 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     summary(io, iter.to)
 end
 
+# This is for convenience: allows doing e.g. `iter.t` instead of `iter.time.t` to get the
+# current time.
+@inline function Base.getproperty(iter::VortexFilamentSolver, name::Symbol)
+    time = getfield(iter, :time)
+    if hasproperty(time, name)
+        getproperty(time, name)
+    else
+        getfield(iter, name)
+    end
+end
+
+function Base.propertynames(iter::VortexFilamentSolver, private::Bool = false)
+    (fieldnames(typeof(iter))..., propertynames(iter.time, private)...)
+end
+
 _printable_function(f::TimerOutputs.InstrumentedFunction) = f.func
 
 get_dt(iter::VortexFilamentSolver) = iter.time.dt
