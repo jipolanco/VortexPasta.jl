@@ -478,8 +478,8 @@ iter = init(prob, RK4(); dt)
 #
 # We now call [`solve!`](@ref) to run the simulation until ``t = T = L / 2 v_{\text{ring}}``:
 
-solve!(iter)     # run the simulation until t = T
-iter.time.t / T  # check that the current time is t == T
+solve!(iter)  # run the simulation until t = T
+iter.t / T    # check that the current time is t == T
 
 # We can check that, as expected, the ring has crossed half the periodic box:
 
@@ -519,10 +519,10 @@ displacement[1]  # prints displacement of the first (and only) filament
 # And every 5 timestep we print some information:
 
 iter = init(prob, RK4(); dt)
-while iter.time.nstep ≤ 20
+while iter.nstep ≤ 20
     ## Print the time and the mean location of the vortex ring every 5 solver iterations.
     local dt  # avoid "soft scope" warning
-    (; nstep, t, dt,) = iter.time
+    (; nstep, t, dt,) = iter
     if nstep % 5 == 0
         Xavg = mean(iter.fs[1])
         println("- step = $nstep, t = $t, dt = $dt")
@@ -543,7 +543,7 @@ end
 
 ## Prints the time and the mean location of the vortex ring every 5 solver iterations.
 function print_solver_info(iter)
-    (; nstep, t, dt,) = iter.time
+    (; nstep, t, dt,) = iter
     if nstep % 5 == 0
         Xavg = mean(iter.fs[1])
         println("- step = $nstep, t = $t, dt = $dt")
@@ -569,8 +569,8 @@ nothing  # hide
 
 iter = init(prob, RK4(); dt)
 
-f_obs = Observable(iter.fs[1])   # variable to be updated over time
-t_obs = Observable(iter.time.t)  # variable to be updated over time
+f_obs = Observable(iter.fs[1])  # variable to be updated over time
+t_obs = Observable(iter.t)      # variable to be updated over time
 
 fig = Figure()
 ax = Axis3(fig[1, 1]; aspect = :data, title = @lift("Time: $($t_obs)"))
@@ -585,13 +585,13 @@ fig
 # The plot will be automatically updated each time we modify this `Observable` object:
 
 record(fig, "vortex_ring.mp4") do io
-    recordframe!(io)           # add initial frame (initial condition) to movie
-    while iter.time.t < 2T
-        step!(iter)            # run a single timestep
-        notify(f_obs)          # tell Makie that filament positions have been updated
-        t_obs[] = iter.time.t  # update displayed time
-        yield()                # allows to see the updated plot
-        recordframe!(io)       # add current frame to movie
+    recordframe!(io)      # add initial frame (initial condition) to movie
+    while iter.t < 2T
+        step!(iter)       # run a single timestep
+        notify(f_obs)     # tell Makie that filament positions have been updated
+        t_obs[] = iter.t  # update displayed time
+        yield()           # allows to see the updated plot
+        recordframe!(io)  # add current frame to movie
     end
 end
 nothing  # hide
@@ -686,7 +686,7 @@ write_vtkhdf("vortex_ring_initial_refined.hdf", fs; refinement = 4)
 write_vtkhdf("vortex_ring_final.hdf", iter.fs; refinement = 4) do io
     io["velocity"] = iter.vs
     io["streamfunction"] = iter.ψs
-    io["time"] = iter.time.t
+    io["time"] = iter.t
 end
 
 # The HDF5 file structure now looks like:

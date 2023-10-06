@@ -313,7 +313,7 @@ X_probe::Vector{Vec3{Float64}} = Vec3{Float64}[]  # will contain positions of a 
 energy::Vector{Float64} = Float64[]
 
 function callback(iter)
-    (; nstep, t,) = iter.time
+    (; nstep, t,) = iter
     if nstep == 0  # make sure vectors are empty at the beginning of the simulation
         empty!(times)
         empty!(X_probe)

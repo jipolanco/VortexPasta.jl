@@ -235,6 +235,10 @@ ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)
     end
 end
 
+function Base.propertynames(p::ParamsBiotSavart, private::Bool = false)
+    (fieldnames(typeof(p))..., propertynames(p.common, private)...)
+end
+
 """
     BiotSavartCache
 

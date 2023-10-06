@@ -110,7 +110,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2Ï
     energy_time = Float64[]
 
     function callback(iter)
-        (; t, nstep,) = iter.time
+        (; t, nstep,) = iter
         push!(times, t)
         push!(X_probe, iter.fs[1][jprobe])
         local (; fs, Ïˆs,) = iter
