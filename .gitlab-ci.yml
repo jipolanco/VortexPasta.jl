@@ -85,6 +85,7 @@
       - coverage.lcov
       - coverage.xml
       - lcov_html
+    expire_in: 1 week
 
 # Name a test and select an appropriate image.
 # images comes from Docker hub
@@ -119,6 +120,7 @@ docs:
   artifacts:
     paths:
       - docs/build
+    expire_in: 1 week
   extends:
     - .julia-cache
 
@@ -133,6 +135,7 @@ pages:
   artifacts:
     paths:
       - public
+    expire_in: 1 week
   script:
     - |
       if [[ -d docs/build ]]; then
