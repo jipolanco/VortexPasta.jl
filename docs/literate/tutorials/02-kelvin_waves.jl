@@ -298,8 +298,8 @@ using VortexPasta.Timestepping
 tspan = (0.0, 3.2 * T_kw)
 prob = VortexFilamentProblem(fs, tspan, params)
 
-# We now create a callback which will update the figure at every step.
-# We will also store the times and the position of a single filament node to be able to
+# We now create a callback which will be used to store some data for further analysis.
+# We will store the times and the position over time of a single filament node to be able to
 # visualise and analyse the oscillations.
 # Moreover, we will store the system energy to verify that energy is conserved over time
 # (see [VFM notes](@ref VFM-energy) for detains on how it is computed).
@@ -385,7 +385,7 @@ fig
 # The oscillations above suggest circular trajectories, as we can check in the following
 # figure:
 
-scatterlines(xpos, ypos; axis = (aspect = DataAspect(), xlabel = L"x(t)", ylabel = L"y(t)"))
+lines(xpos, ypos; color = tnorm, axis = (aspect = DataAspect(), xlabel = L"x(t)", ylabel = L"y(t)"))
 
 # ## Measuring performance
 #
