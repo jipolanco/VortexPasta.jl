@@ -140,6 +140,7 @@ function make_all()
             ],
             "References" => "references.md",
         ],
+        pagesonly = true,
         warnonly = [:missing_docs],  # TODO can we remove this?
         plugins = [bib],
         repo,
