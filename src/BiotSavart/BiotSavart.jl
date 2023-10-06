@@ -225,6 +225,16 @@ _convert_periods(L::Real) = (L, L, L)
 
 ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)
 
+# This is for convenience: doing p.α is equivalent to p.common.α.
+@inline function Base.getproperty(p::ParamsBiotSavart, name::Symbol)
+    common = getfield(p, :common)
+    if hasproperty(common, name)
+        getproperty(common, name)
+    else
+        getfield(p, name)
+    end
+end
+
 """
     BiotSavartCache
 
