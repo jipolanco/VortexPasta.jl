@@ -12,6 +12,7 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.FilamentIO
 using VortexPasta.PredefinedCurves
+using VortexPasta.Diagnostics
 
 # For some reason we need to explicitly load these packages here to avoid failures with
 # doctests and @example blocks on Gitlab.
