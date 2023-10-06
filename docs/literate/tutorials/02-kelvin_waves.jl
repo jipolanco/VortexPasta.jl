@@ -394,7 +394,7 @@ scatterlines(xpos, ypos; axis = (aspect = DataAspect(), xlabel = L"x(t)", ylabel
 # to estimate the time spent (and memory allocated) in different stages of the computation.
 #
 # Accessing timing information is very simple, as it is all included in the `to` field of
-# the [`VortexFilamentSolver`](@ref):
+# the [`VortexFilamentSolver`](@ref Timestepping.VortexFilamentSolver):
 
 show(IOContext(stdout, :displaysize => (40, 100)), iter.to)  # hide
 iter.to
