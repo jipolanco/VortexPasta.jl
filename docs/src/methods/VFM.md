@@ -271,6 +271,17 @@ E = \frac{Γ}{2V} ∮_{\mathcal{C}} \bm{ψ}(\svec) ⋅ \dd\svec
 
 That is, the energy is simply the line integral of the tangential component of the streamfunction along vortex filaments.
 
+Note that, if one uses the expression for ``\bm{ψ}(\bm{x})`` from the previous section, one can directly write the total energy from the configuration of the vortex lines:
+
+```math
+\newcommand{\svec}{\bm{s}}
+\newcommand{\dd}{\mathrm{d}}
+E = \frac{Γ^2}{8πV} ∮_{\mathcal{C}} ∮_{\mathcal{C}}' \frac{\dd \svec ⋅ \dd \svec_1}{|\svec - \svec_1|}
+```
+
+where the prime over the integral is to account for the desingularisation of the streamfunction integral (see section below).
+
+
 ### Desingularisation of the streamfunction integral
 
 As for the velocity, the Biot--Savart integral for the streamfunction is singular when evaluated on a vortex line.

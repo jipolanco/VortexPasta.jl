@@ -400,7 +400,7 @@ show(IOContext(stdout, :displaysize => (40, 100)), iter.to)  # hide
 iter.to
 nothing  # hide
 
-# We can see that, in this case, nearly half the time is spent in the long-range
+# We can see that, in this case, about half the time (very roughly) is spent in the long-range
 # computations, while the other half is spent on short-range computations and the LIA
 # (local) term.
 # Note that the LIA term is computed much more times than the other components.
