@@ -113,6 +113,9 @@ function make_all()
             prettyurls = get(ENV, "CI", nothing) == "true",
             repolink = Remotes.repourl(repo),
             edit_link = "master",
+            assets = [
+                "assets/fonts.css",
+            ],
             size_threshold_ignore = [
                 "modules/Filaments.md",  # this page has too much content so it's relatively large
             ],
