@@ -65,8 +65,8 @@ using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 
 N = 64  # number of discretisation points per line
-m = 2   # perturbation mode
-L = 2π  # domain period
+m = 2    # perturbation mode
+L = 2π   # domain period
 x⃗₀ = Vec3(L/4, L/4, L/2)  # line "origin"
 ϵ = 0.01
 ts = range(0, 1; length = N + 1)[1:N]  # important: we exclude the endpoint (t = 1)
@@ -80,9 +80,16 @@ using GLMakie
 set_theme!()  # hide
 GLMakie.activate!()  # hide
 
-## Give a colour to a filament based on its orientation wrt Z.
-filament_colour(f::AbstractFilament) = f[begin, Derivative(1)][3] > 0 ? :dodgerblue : :orangered
-filament_colour(f::Observable) = lift(filament_colour, f)  # useful if we're doing animations
+## Give a colour to a filament based on its local orientation wrt Z.
+function filament_colour(f::AbstractFilament, refinement)
+    cs = Float32[]
+    ζs = range(0, 1; length = refinement + 1)[1:refinement]  # for interpolation
+    for seg ∈ segments(f), ζ ∈ ζs
+        colour = seg(ζ, UnitTangent())[3]  # in [-1, 1]
+        push!(cs, colour)
+    end
+    cs
+end
 
 ## Plot a list of filaments
 function plot_filaments(fs::AbstractVector)
@@ -95,7 +102,12 @@ function plot_filaments(fs::AbstractVector)
     hidespines!(ax)
     wireframe!(ax, Rect(0, 0, 0, L, L, L); color = (:black, 0.5), linewidth = 0.2)
     for f ∈ fs
-        plot!(ax, f; refinement = 4, color = filament_colour(f), markersize = 4)
+        refinement = 4
+        color = filament_colour(f, refinement)
+        plot!(
+            ax, f;
+            refinement, color, colormap = :RdBu_9, colorrange = (-1, 1), markersize = 4,
+        )
     end
     fig
 end
@@ -166,8 +178,11 @@ plot_filaments([f, f′])
 # There is another convenient way of defining such curves, using the
 # [`VortexPasta.PredefinedCurves`](@ref) module which provides definitions of parametric
 # functions for commonly-used curves.
+# As we will see in the next section, this is particularly convenient when we want to
+# create multiple vortices which share the same geometry, but which have for instance
+# different orientations or different spatial locations in the domain.
 #
-# In this case we want to use the [`PeriodicLine`](@ref) definitions, which allow one to
+# Here we want to use the [`PeriodicLine`](@ref) definitions, which allow one to
 # pass arbitrary functions as perturbations.
 # Note that curve definitions in `PredefinedCurves` are normalised.
 # In particular, the period of `PeriodicLine` is 1, and the perturbation that we give it
@@ -182,7 +197,7 @@ nothing  # hide
 # generate points.
 # This is done using the [`define_curve`](@ref) function, which allows in particular to
 # rescale the curve (we want a period of ``L = 2π`` instead of ``1``).
-# We would also like to shift the origin to ``\bm{x}_0``.
+# We would also like the curve to be centred at ``\bm{x}_0``.
 
 S = define_curve(p; scale = L, translate = x⃗₀)
 @show S(0.0) S(0.5) S(1.0)
@@ -203,7 +218,7 @@ plot_filaments(f)
 # circulation along the domain boundaries (or equivalently, a non-zero mean vorticity),
 # which violates the periodicity condition.
 #
-# Note that the mean vorticity in the periodic domain is given by
+# The mean vorticity in the periodic domain is given by
 #
 # ```math
 # ⟨ \bm{ω} ⟩
@@ -230,18 +245,19 @@ end
 # all vortices are equally spaced on the XY plane.
 # Let's create these four vortices:
 
-using Rotations: RotX
 funcs = [
     ## "Positive" vortices
     define_curve(p; scale = L, translate = (0.25L, 0.25L, 0.5L)),
     define_curve(p; scale = L, translate = (0.75L, 0.75L, 0.5L)),
-    ## "Negative" vortices: we rotate by 180° about X axis to flip the line orientation.
-    define_curve(p; scale = L, translate = (0.25L, 0.75L, 0.5L), rotate = RotX(π)),
-    define_curve(p; scale = L, translate = (0.75L, 0.25L, 0.5L), rotate = RotX(π)),
+    ## "Negative" vortices: we use the `orientation` keyword to flip their orientation.
+    define_curve(p; scale = L, translate = (0.25L, 0.75L, 0.5L), orientation = -1),
+    define_curve(p; scale = L, translate = (0.75L, 0.25L, 0.5L), orientation = -1),
 ]
 fs = map(S -> Filaments.init(S, ClosedFilament, N, CubicSplineMethod()), funcs)
 plot_filaments(fs)
 
+# Here the colours represent the local orientation of the curve tangent with respect to the
+# ``z`` axis.
 # We can check that, when we sum the contributions of all filaments, the mean vorticity is
 # zero:
 
@@ -263,8 +279,8 @@ end
 # We start by setting the parameters for Biot--Savart computations:
 
 using VortexPasta.BiotSavart
-N = round(Int, 32 * 4/5)  # resolution of long-range grid
-kmax = π * N / L          # maximum resolved wavenumber (Nyquist frequency) for long-range part
+M = round(Int, 32 * 4/5)  # resolution of long-range grid
+kmax = π * M / L          # maximum resolved wavenumber (Nyquist frequency) for long-range part
 α = kmax / 8              # Ewald splitting parameter
 
 params = ParamsBiotSavart(;
@@ -273,7 +289,7 @@ params = ParamsBiotSavart(;
     Δ = 1/4,    # vortex core parameter (1/4 for a constant vorticity distribution)
     α = α,      # Ewald splitting parameter
     Ls = (L, L, L),  # same domain size in all directions
-    Ns = (N, N, N),  # same long-range resolution in all directions
+    Ns = (M, M, M),  # same long-range resolution in all directions
     rcut = 5 / α,    # cut-off distance for short-range computations
     quadrature_short = GaussLegendre(2),  # quadrature for short-range computations
     quadrature_long = GaussLegendre(2),   # quadrature for long-range computations
@@ -295,7 +311,7 @@ T_kw = 2π / ω_kw              # expected Kelvin wave period
 # We create a [`VortexFilamentProblem`](@ref) to simulate a few Kelvin wave periods:
 
 using VortexPasta.Timestepping
-tspan = (0.0, 3.2 * T_kw)
+tspan = (0.0, 4 * T_kw)
 prob = VortexFilamentProblem(fs, tspan, params)
 
 # We now create a callback which will be used to store some data for further analysis.
@@ -385,7 +401,11 @@ fig
 # The oscillations above suggest circular trajectories, as we can check in the following
 # figure:
 
-lines(xpos, ypos; color = tnorm, axis = (aspect = DataAspect(), xlabel = L"x(t)", ylabel = L"y(t)"))
+scatterlines(
+    xpos, ypos;
+    color = tnorm,
+    axis = (aspect = DataAspect(), xlabel = L"x(t)", ylabel = L"y(t)"),
+)
 
 # ## Measuring performance
 #
@@ -400,10 +420,141 @@ show(IOContext(stdout, :displaysize => (40, 100)), iter.to)  # hide
 iter.to
 nothing  # hide
 
-# We can see that, in this case, about half the time (very roughly) is spent in the long-range
+# We can see that, in this case, roughly half the time is spent in the long-range
 # computations, while the other half is spent on short-range computations and the LIA
 # (local) term.
-# Note that the LIA term is computed much more times than the other components.
-# This is because we used a multirate timestepping scheme ([`SanduMRI33a`](@ref)) which
-# takes advantage of the fact that this term is cheap to compute (and represents the fast
-# dynamics).
+# Note that the LIA term is computed many more times than the other components.
+# This is because we used a multirate timestepping scheme ([`SanduMRI33a`](@ref)), which
+# allows for larger timesteps by taking advantage of the fact that this term is cheap to
+# compute (and represents the fast dynamics).
+
+# ## Fourier analysis
+#
+# ### Spatial analysis
+#
+# The idea is to identify the spatial fluctuations of a single vortex with respect to the
+# unperturbed filament.
+# For this, we first write the perturbations in complex representation as a function of the ``z``
+# coordinate, i.e. ``r(z) = x(z) + i y(z)``.
+#
+# We want to apply the FFT to these two functions.
+# For this, we need all points of the vortex filament to be equispaced in ``z``:
+
+f = iter.fs[1]               # vortex to analyse
+zs = getindex.(nodes(f), 3)  # z locations
+N = length(zs)
+zs_expected = range(zs[begin], zs[end]; length = N)  # equispaced locations
+isapprox(zs, zs_expected; rtol = 1e-6)  # check that z locations are approximately equispaced
+
+# Now that we have verified this, we define the complex function ``r(z) = x(z) + i y(z)``
+# and we perform a complex-to-complex FFT to obtain ``\hat{r}(k)``:
+
+xs = getindex.(nodes(f), 1)  # x locations
+ys = getindex.(nodes(f), 2)  # y locations
+rs = @. xs + im * ys
+
+using FFTW: fft, fft!, fftfreq
+rhat = fft(rs)
+@. rhat = rhat / N  # normalise FFT
+@show rhat[1]       # the zero frequency gives the mean location
+rhat[1] ≈ π/2 + π/2 * im  # we expect the mean location to be (π/2, π/2)
+
+# The associated wavenumbers are multiples of ``2π/Δz = 2πN/L``:
+
+Δz = L / N
+@assert isapprox(Δz, zs[2] - zs[1]; rtol = 1e-4)
+ks = fftfreq(N, 2π / Δz)
+ks'  # should be integers if L = 2π
+
+# Note that this includes positive and negative wavenumbers.
+# More precisely, `ks[2:N÷2]` contains the positive wavenumbers, and `ks[N÷2+1:end]`
+# contains the corresponding negative wavenumbers.
+#
+# We now want to compute the wave action spectrum ``n(k) = |\hat{r}(k)|^2 + |\hat{r}(-k)|^2``,
+# which is related to the amplitude of the oscillations at the scale ``λ = 2π/k``.
+
+function wave_action_spectrum(ks::AbstractVector, rhat::AbstractVector)
+    @assert ks[2] == -ks[end]  # contains positive and negative wavenumbers
+    @assert length(ks) == length(rhat)
+    N = length(ks)
+    if iseven(N)
+        Nh = N ÷ 2
+        @assert ks[Nh + 1] == -(ks[Nh] + 1)  # wavenumbers change sign after index Nh
+    else
+        Nh = N ÷ 2 + 1
+        @assert ks[Nh + 1] == -ks[Nh]  # wavenumbers change sign after index Nh
+    end
+    ks_pos = ks[2:Nh]  # only positive wavenumbers
+    nk = similar(ks_pos)
+    for j ∈ eachindex(ks_pos)
+        local k = ks_pos[j]
+        i⁺ = 1 + j      # index of coefficient corresponding to wavenumber +k
+        i⁻ = N + 1 - j  # index of coefficient corresponding to wavenumber -k
+        @assert ks[i⁺] == -ks[i⁻] == k  # verification
+        nk[j] = abs2(rhat[i⁺]) + abs2(rhat[i⁻])
+    end
+    ks_pos, nk
+end
+
+ks_pos, nk = wave_action_spectrum(ks, rhat)
+nk_normalised = nk ./ ((ϵ * L)^2 / 2)
+sum(nk_normalised)  # we expect the sum to be 1
+
+# We can finally plot the final state:
+
+fig = Figure()
+ax = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"2 \, n(k) / A^2", xlabelsize = 20, ylabelsize = 20)
+scatterlines!(ax, ks_pos, nk_normalised)
+xlims!(ax, 0.8 * ks_pos[begin], nothing)
+ylims!(ax, 1e-30, 1e1)
+vlines!(ax, ks_pos[m]; linestyle = :dash, color = :orangered)
+fig
+
+# We see that the wave action spectrum is strongly peaked at the wavenumber ``k = 2πm/L``
+# (dashed vertical line) corresponding to the perturbation mode ``m`` we chose at the
+# beginning (the other peaks are spurious and about 6 orders of magnitude smaller than the
+# main peak).
+# We also see that the sum ``∑_k n(k)`` (which is basically just the value of the main peak
+# in this case) is equal to ``A^2/2``, where ``A = ϵL`` is the amplitude of the initial
+# perturbation.
+#
+# The main conclusion is that, when we perturb a single Kelvin wave mode as we did here,
+# that original mode is exactly preserved over time (except for negligible spurious
+# effects).
+
+# ## Temporal analysis
+#
+# We can do something similar to analyse the *temporal* oscillations of the filament.
+# For example, we can take the same temporal data we analysed before, corresponding to the
+# position of a single filament node:
+
+xt = getindex.(X_probe, 1)  # x positions of a single node over time
+yt = getindex.(X_probe, 2)  # y positions of a single node over time
+zt = getindex.(X_probe, 3)  # z positions of a single node over time
+std(zt) / mean(zt)    # ideally, the z positions shouldn't change over time
+
+# Similarly to before, we now write ``r(t) = x(t) + i y(t)`` and perform an FFT:
+
+inds_t = eachindex(times)[begin:end - 1]  # don't consider the last time to make sure the timestep Δt is constant
+rt = @views @. xt[inds_t] + im * yt[inds_t]
+Nt = length(rt)           # number of time snapshots
+Δt = times[2] - times[1]  # timestep
+@assert times[begin:end-1] ≈ range(times[begin], times[end-1]; length = Nt)  # check that times are equispaced
+rhat = fft(rt)
+@. rhat .= rhat ./ Nt  # normalise FFT
+ωs = fftfreq(Nt, 2π / Δt)
+
+ωs_pos, nω = wave_action_spectrum(ωs, rhat)
+ωs_normalised = ωs_pos ./ ω_kw  # normalise by expected KW frequency
+
+fig = Figure()
+ax = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"ω / ω_{\text{kw}}", ylabel = L"n(ω)", xlabelsize = 20, ylabelsize = 20)
+scatterlines!(ax, ωs_normalised, nω)
+xlims!(ax, 0.8 * ωs_normalised[begin], 1.2 * ωs_normalised[end])
+vlines!(ax, 1.0; linestyle = :dash, color = :orangered)
+fig
+
+# We see that the temporal spectrum is strongly peaked near the analytical Kelvin wave
+# frequency (dashed vertical line).
+# Note that the trajectory is not perfectly periodic in time (the ending time doesn't
+# exactly match the start time), which can explain non-zero values far from the peak.

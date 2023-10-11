@@ -25,6 +25,7 @@ MakieCore.@recipe(FilamentPlot) do scene
         cycle = [:color],  # this gives the default colour cycle (see e.g. docs for Makie.lines)
         color = :black,
         colormap = :viridis,
+        colorrange = MakieCore.Automatic(),
         markercolor = nothing,  # defaults to `color`
         tangents = false,
         curvatures = false,
@@ -59,30 +60,35 @@ function MakieCore.plot!(p::FilamentPlot)
     MakieCore.lines!(
         p, Xs_line;
         color = p.color, linewidth = p.linewidth, linestyle = p.linestyle,
-        colormap = p.colormap,
+        colormap = p.colormap, colorrange = p.colorrange,
     )
     MakieCore.scatter!(
         p, Xs_nodes;
         color = @map(something(&p.markercolor, &p.color)),
         marker = p.marker, markersize = p.markersize,
-        colormap = p.colormap,
+        colormap = p.colormap, colorrange = p.colorrange,
     )
     arrow_attrs = @map (&p.arrowscale, &p.arrowwidth, &p.arrowsize)  # new observable from the 3 observables
     let
         tangentcolor = @map something(&p.tangentcolor, &p.color)
         @map _plot_tangents!(
-            p, f, &p.tangents, &p.vectorpos, &tangentcolor, &p.colormap, &arrow_attrs,
+            p, f, &p.tangents, &p.vectorpos, &arrow_attrs;
+            color = &tangentcolor, colormap = &p.colormap, colorrange = &p.colorrange,
         )
     end
     let
         curvaturecolor = @map something(&p.curvaturecolor, &p.color)
         @map _plot_curvatures!(
-            p, f, &p.curvatures, &p.vectorpos, &curvaturecolor, &p.colormap, &arrow_attrs,
+            p, f, &p.curvatures, &p.vectorpos, &arrow_attrs;
+            color = &curvaturecolor, colormap = &p.colormap, colorrange = &p.colorrange,
         )
     end
     if v !== nothing
         velocitycolor = @map something(&p.velocitycolor, &p.color)
-        @map _plot_velocities!(p, f, v, &velocitycolor, &p.colormap, &arrow_attrs)
+        @map _plot_velocities!(
+            p, f, v, &arrow_attrs;
+            color = &velocitycolor, colormap = &p.colormap, colorrange = &p.colorrange,
+        )
     end
     p
 end
@@ -111,12 +117,13 @@ end
 
 function _plot_tangents!(
         p::FilamentPlot, f::Observable{<:AbstractFilament}, tangents::Bool,
-        vectorpos::Real, color, colormap, arrow_attrs::Tuple,
+        vectorpos::Real, arrow_attrs::Tuple;
+        kwargs...,
     )
     tangents || return p
     data = @map _tangents_for_arrows(&f, vectorpos)
     args = ntuple(i -> @map((&data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
-    _plot_arrows!(p, arrow_attrs, args...; color, colormap)
+    _plot_arrows!(p, arrow_attrs, args...; kwargs...)
     p
 end
 
@@ -138,15 +145,13 @@ end
 
 function _plot_curvatures!(
         p::FilamentPlot, f::Observable{<:AbstractFilament}, curvatures::Bool,
-        vectorpos::Real,
-        color,
-        colormap,
-        arrow_attrs::Tuple,
+        vectorpos::Real, arrow_attrs::Tuple;
+        kwargs...,
     )
     curvatures || return p
     data = @map _curvatures_for_arrows(&f, vectorpos)
     args = ntuple(i -> @map((&data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
-    _plot_arrows!(p, arrow_attrs, args...; color, colormap)
+    _plot_arrows!(p, arrow_attrs, args...; kwargs...)
     p
 end
 
@@ -164,12 +169,12 @@ end
 
 function _plot_velocities!(
         p::FilamentPlot, f::Observable{<:AbstractFilament},
-        v::Observable{<:AbstractVector}, color, colormap,
-        arrow_attrs::Tuple,
+        v::Observable{<:AbstractVector}, arrow_attrs::Tuple;
+        kwargs...,
     )
     data = @map _velocities_for_arrows(&f, &v)
     args = ntuple(i -> @map((&data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
-    _plot_arrows!(p, arrow_attrs, args...; color, colormap)
+    _plot_arrows!(p, arrow_attrs, args...; kwargs...)
     p
 end
 

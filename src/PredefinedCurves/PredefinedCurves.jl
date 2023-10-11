@@ -215,7 +215,8 @@ function define_curve(
     S_base = _definition(p)
     A = rotate * scale  # linear transformation (we apply scaling first!)
     function S(t)
-        x⃗ = S_base(orientation * t)
+        τ = ifelse(orientation > 0, t, 1 - t)
+        x⃗ = S_base(τ)
         translate .+ A * x⃗
     end
 end

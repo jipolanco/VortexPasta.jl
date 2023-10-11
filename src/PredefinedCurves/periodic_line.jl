@@ -1,7 +1,7 @@
 export PeriodicLine
 
 @doc raw"""
-    PeriodicLine(; x = Returns(0), y = Returns(0),)
+    PeriodicLine(; x = Returns(0), y = Returns(0), r = Returns(0))
 
 Describes an infinite (but unclosed) line which repeats itself periodically.
 
@@ -12,13 +12,15 @@ the Z direction.
 
 The line can be perturbed along the X and/or Y directions using user-defined functions
 ``x(t)`` and ``y(t)`` which must be periodic with period ``T = 1``.
+Alternative, one can pass a complex function ``r(t) = x(t) + im * y(t)``, which may be more
+convenient in some cases.
 
 The line is defined by:
 
 ```math
 \begin{aligned}
-    x(t) &= x(t) \\
-    y(t) &= y(t) \\
+    x(t) &= x(t) + ℜ[r(t)] \\
+    y(t) &= y(t) + ℑ[r(t)] \\
     z(t) &= t - 1/2
 \end{aligned}
 ```
@@ -99,17 +101,19 @@ julia> S.(ts)
 
 Now the perturbation amplitude is ``0.1`` as we wanted.
 """
-@kwdef struct PeriodicLine{FunX <: Function, FunY <: Function} <: ParametricCurve
+@kwdef struct PeriodicLine{FunX <: Function, FunY <: Function, FunR <: Function} <: ParametricCurve
     x :: FunX = Returns(0)
     y :: FunY = Returns(0)
+    r :: FunR = Returns(0)
 end
 
 function _definition(p::PeriodicLine)
-    (; x, y,) = p
+    (; x, y, r,) = p
     function (t)
+        rt = r(t)
         SVector(
-            x(t),
-            y(t),
+            x(t) + real(rt),
+            y(t) + imag(rt),
             t - 1/2,
         )
     end

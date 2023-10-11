@@ -59,11 +59,7 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
 
     N = 42
     filaments = map(lines) do line
-        (; tlims, S, offset,) = line
-        dζ = (tlims[2] - tlims[1]) / N
-        ζs = range(tlims[1] + dζ / 2, tlims[2]; step = dζ)
-        @assert length(ζs) == N && last(ζs) ≈ tlims[2] - dζ / 2
-        Filaments.init(ClosedFilament, S.(ζs), method; offset)
+        Filaments.init(line.S, ClosedFilament, N, method)
     end
 
     Γ = 2.0

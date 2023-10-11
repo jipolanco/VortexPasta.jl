@@ -89,12 +89,12 @@
 
 # Name a test and select an appropriate image.
 # images comes from Docker hub
-test:1.9:
-  image: julia:1.9
+test:julia-latest:
+  image: julia:1.10-rc
   extends: .test_template
 
 docs:
-  image: julia:1.9
+  image: julia:1.10-rc
   stage: test
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH       # run on master branch
@@ -110,6 +110,7 @@ docs:
     - |
       DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e '
         using Pkg
+        Pkg.Registry.update()
         Pkg.develop(path = ".")
         Pkg.instantiate()
         Pkg.build()
@@ -125,10 +126,10 @@ docs:
     - .julia-cache
 
 pages:
-  image: julia:1.9
+  image: julia:1.10-rc
   stage: deploy
   dependencies:
-    - test:1.9  # use coverage from test:1.9 (lcov_html)
+    - test:julia-latest  # use coverage from test:julia-latest (lcov_html)
     - docs
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
