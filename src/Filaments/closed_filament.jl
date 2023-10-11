@@ -82,26 +82,28 @@ julia> X′, X″ = f(4, 0.32, UnitTangent()), f(4, 0.32, CurvatureVector())
 
 The parametrisation knots ``t_i`` are directly obtained from the interpolation point
 positions.
-A standard choice, which is used here, is for the knot increments to
+A standard choice, which is used here by default, is for the knot increments to
 approximate the arc length between two interpolation points:
 
 ```math
-ℓ_{i} ≡ t_{i + 1} - t_{i} = |\bm{X}_{i + 1} - \bm{X}_i|,
+ℓ_{i} ≡ t_{i + 1} - t_{i} = |\bm{s}_{i + 1} - \bm{s}_i|,
 ```
 
 which is a zero-th order approximation (and a lower bound) for the actual
-arc length between points ``\bm{X}_i`` and ``\bm{X}_{i + 1}``.
+arc length between points ``\bm{s}_i`` and ``\bm{s}_{i + 1}``.
 
 """
 struct ClosedFilament{
         T,
         Discretisation <: DiscretisationMethod,
+        Parametrisation <: Function,
         M,  # padding (for dealing with periodicity)
         Knots <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
     } <: AbstractFilament{T}
 
     method :: Discretisation
+    parametrisation :: Parametrisation  # parametrisation function
 
     # Parametrisation knots tᵢ.
     ts :: Knots
@@ -124,16 +126,19 @@ struct ClosedFilament{
 end
 
 function ClosedFilament(
-        Xs::PaddedVector{M, Vec3{T}}, method::DiscretisationMethod;
+        parametrisation::F, Xs::PaddedVector{M, Vec3{T}}, method::DiscretisationMethod;
         offset = zero(Vec3{T})
-    ) where {M, T}
+    ) where {F <: Function, M, T}
     @assert M == npad(method)
     ts = similar(Xs, T)
     cs = similar(Xs)
     cderivs = (similar(Xs), similar(Xs))
     Xoffset = convert(Vec3{T}, offset)
-    ClosedFilament(method, ts, Xs, cs, cderivs, Xoffset)
+    ClosedFilament(method, parametrisation, ts, Xs, cs, cderivs, Xoffset)
 end
+
+ClosedFilament(Xs::PaddedVector, method::DiscretisationMethod; kws...) =
+    ClosedFilament(default_parametrisation, Xs, method; kws...)
 
 discretisation_method(::Type{<:ClosedFilament{T, D}}) where {T, D} = D()
 discretisation_method(f::ClosedFilament) = discretisation_method(typeof(f))
@@ -143,24 +148,24 @@ interpolation_method(f::ClosedFilament) = interpolation_method(discretisation_me
 init(::Type{ClosedFilament}, N::Integer, args...; kws...) =
     init(ClosedFilament{Float64}, N, args...; kws...)
 
-init(func::Func, ::Type{ClosedFilament}, args...) where {Func} =
-    init(func, ClosedFilament{Float64}, args...)
+init(func::Func, ::Type{ClosedFilament}, args...; kws...) where {Func} =
+    init(func, ClosedFilament{Float64}, args...; kws...)
 
 function init(
         ::Type{ClosedFilament{T}}, N::Integer, method::DiscretisationMethod;
-        kws...,
-    ) where {T}
+        parametrisation::F = default_parametrisation, kws...,
+    ) where {T, F}
     M = npad(method)
     Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))
-    ClosedFilament(Xs, method; kws...)
+    ClosedFilament(parametrisation, Xs, method; kws...)
 end
 
 function init(
         ::Type{<:ClosedFilament}, Xs::PaddedVector{M, <:Vec3}, method::DiscretisationMethod;
-        kws...,
-    ) where {M}
+        parametrisation::F = default_parametrisation, kws...,
+    ) where {M, F}
     @assert M == npad(method)
-    f = ClosedFilament(Xs, method; kws...)
+    f = ClosedFilament(parametrisation, Xs, method; kws...)
     update_coefficients!(f)
 end
 
@@ -275,10 +280,11 @@ julia> f = Filaments.init(trefoil, ClosedFilament, N, CubicSplineMethod())
 """
 function init(
         S::Func, ::Type{ClosedFilament{T}},
-        τs::AbstractVector, method::DiscretisationMethod,
+        τs::AbstractVector, method::DiscretisationMethod;
+        kws...,
     ) where {Func <: Function, T}
     offset = S(1) .- S(0)
-    f = init(ClosedFilament{T}, length(τs), method; offset)
+    f = init(ClosedFilament{T}, length(τs), method; offset, kws...)
     @assert eachindex(f) == eachindex(τs)
     for (i, τ) ∈ pairs(τs)
         f[i] = S(τ)
@@ -288,10 +294,11 @@ function init(
 end
 
 function init(
-        S::Func, ::Type{ClosedFilament{T}}, N::Integer, args...,
+        S::Func, ::Type{ClosedFilament{T}}, N::Integer, args...;
+        kws...,
     ) where {Func, T}
     τs = range(0, 1; length = 2N + 1)[2:2:2N]
-    init(S, ClosedFilament{T}, τs, args...)
+    init(S, ClosedFilament{T}, τs, args...; kws...)
 end
 
 function knotlims(f::ClosedFilament)
@@ -326,7 +333,7 @@ filament also modifies nodes of `f`.
 """
 function change_offset(f::ClosedFilament{T}, offset::Vec3) where {T}
     Xoffset = convert(Vec3{T}, offset)
-    ClosedFilament(f.method, f.ts, f.Xs, f.cs, f.cderivs, Xoffset)
+    ClosedFilament(f.method, f.parametrisation, f.ts, f.Xs, f.cs, f.cderivs, Xoffset)
 end
 
 allvectors(f::ClosedFilament) = (f.ts, f.Xs, f.cs, f.cderivs...)
@@ -334,11 +341,11 @@ allvectors(f::ClosedFilament) = (f.ts, f.Xs, f.cs, f.cderivs...)
 function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
     Xs = similar(nodes(f), Vec3{T}, dims)
     method = discretisation_method(f)
-    ClosedFilament(Xs, method; offset = f.Xoffset)
+    ClosedFilament(f.parametrisation, Xs, method; offset = f.Xoffset)
 end
 
 function update_coefficients!(f::ClosedFilament; knots = nothing)
-    (; ts, Xs,) = f
+    (; parametrisation, ts, Xs,) = f
     Xoffset = end_to_end_offset(f)
     M = npad(Xs)
     check_nodes(f)
@@ -349,7 +356,7 @@ function update_coefficients!(f::ClosedFilament; knots = nothing)
     # 2. Compute parametrisation knots `ts`.
     @assert M == npad(ts)
     @assert M ≥ 1  # minimum padding required for computation of ts
-    _update_knots_periodic!(ts, Xs, knots)
+    _update_knots_periodic!(parametrisation, ts, Xs, knots)
 
     # 3. Estimate coefficients needed for derivatives and interpolations.
     _update_coefficients_only!(f)

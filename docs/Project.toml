@@ -2,6 +2,7 @@
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 ImageMagick = "6218d12a-5da1-5696-b52f-db25d2ecc6d1"
 JpegTurbo = "b835a17e-a41a-41e7-81f0-2f016b05efe0"

@@ -54,6 +54,8 @@ plot!(ax, f)  # f is a filament
 
 - `colormap = :viridis`
 
+- `colorrange = MakieCore.Automatic()`
+
 ### Arrow arguments
 
 The following are used when plotting arrows (tangents, curvatures, velocities, …):

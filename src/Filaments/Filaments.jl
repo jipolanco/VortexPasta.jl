@@ -290,10 +290,13 @@ Base.@propagate_inbounds Base.getindex(
     f::AbstractFilament, i::Int, d::Union{Derivative, GeometricQuantity},
 ) = f(AtNode(i), d)
 
-"""
+default_parametrisation(Xs::PaddedVector, i::Int) = Xs[i]
+
+@doc raw"""
     Filaments.init(
         ClosedFilament{T}, N::Integer, method::DiscretisationMethod;
         offset = zero(Vec3{T}),
+        parametrisation = Filaments.default_parametrisation,
     ) -> ClosedFilament{T}
 
 Allocate data for a closed filament with `N` discretisation points.
@@ -307,6 +310,31 @@ infinite (so not really closed) filaments living in periodic domains.
 
 Possible discretisation methods include [`CubicSplineMethod`](@ref) and
 [`FiniteDiffMethod`](@ref).
+
+# Customising the filament parametrisation
+
+By default the filament is parametrised as ``\bm{s}(t)`` such that the parameter ``t``
+roughly corresponds to the arc length ``ξ``.
+More precisely, the discrete values ``t_i`` at the discretisation points are defined from
+the distances between discretisation points:
+
+```math
+t_{i + 1} = t_{i} + |\bm{s}_{i + 1} - \bm{s}_i|, \quad t_1 = 0.
+```
+
+One can use the `parametrisation` keyword argument to change this.
+This must be a function `parametrisation(Xs, i)` which takes the vector `Xs` of
+discretisation points and the index `i` of the current point.
+The default parametrisation function is simply `parametrisation(Xs, i) = Xs[i]`, which
+corresponds to the definition above.
+
+For instance, to parametrise filaments according to the ``z`` increments between
+discretisation points, one can pass `parametrisation(Xs, i) = Xs[i].z`.
+
+!!! warning
+
+    Changing the filament parametrisation is **experimental**.
+    This feature may change/disappear in the future.
 
 """
 function init end
@@ -422,20 +450,27 @@ function normalise_derivatives!(Ẋ::AbstractVector, Ẍ::AbstractVector)
 end
 
 # Update filament parametrisation knots `ts` from node coordinates `Xs`.
-function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ::Nothing = nothing)
+function _update_knots_periodic!(
+        parametrisation::F, ts::PaddedVector, Xs::PaddedVector, ::Nothing = nothing,
+    ) where {F <: Function}
     @assert eachindex(ts) == eachindex(Xs)
     ts[begin] = 0
     inds = eachindex(ts)
     @assert npad(ts) == npad(Xs) ≥ 1
+    yi = parametrisation(Xs, first(inds))
     @inbounds for i ∈ inds
-        ts[i + 1] = ts[i] + norm(Xs[i + 1] - Xs[i])
+        yj = parametrisation(Xs, i + 1)
+        ts[i + 1] = ts[i] + norm(yj - yi)
+        yi = yj
     end
     L = ts[end + 1] - ts[begin]  # knot period
     pad_periodic!(ts, L)
 end
 
 # In this case, override the computation of knots and copy the input knot vector.
-function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ts_in::PaddedVector)
+function _update_knots_periodic!(
+        ::F, ts::PaddedVector, Xs::PaddedVector, ts_in::PaddedVector,
+    ) where {F}
     if ts !== ts_in  # avoid copy if input and output vectors are the same
         copyto!(ts, ts_in)  # fails if arrays have different dimensions
     end
@@ -444,7 +479,9 @@ end
 
 # Similar to above but for a non-PaddedVector, so we need to apply periodic padding on the
 # output.
-function _update_knots_periodic!(ts::PaddedVector, Xs::PaddedVector, ts_in::AbstractVector)
+function _update_knots_periodic!(
+        ::F, ts::PaddedVector, Xs::PaddedVector, ts_in::AbstractVector,
+    ) where {F}
     @assert !(ts_in isa PaddedVector)
     length(ts_in) == length(ts) + 1 ||
         throw(DimensionMismatch("input knots should include the endpoint"))
