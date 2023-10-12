@@ -17,6 +17,7 @@ interval, as opposed to the standard ``[-1, 1]`` interval.
 module Quadratures
 
 export
+    NoQuadrature,
     GaussLegendre,
     quadrature
 
@@ -52,6 +53,11 @@ Base.length(::Type{<:AbstractQuadrature{N}}) where {N} = N
 struct GaussLegendre{N} <: AbstractQuadrature{N} end
 GaussLegendre(N::Int) = GaussLegendre{N}()
 _generator(::Type{<:GaussLegendre}) = gausslegendre
+
+struct NoQuadrature <: AbstractQuadrature{1} end
+
+# Does this definition make sense? Maybe just for easily switching to NoQuadrature.
+_generator(::Type{<:NoQuadrature}) = () -> ((-1.0,), (2.0,))  # corresponds to evaluating at the beginning of the interval [-1, 1]
 
 ## ================================================================================ ##
 # The following functions must be at the end of the file to avoid world age issues
