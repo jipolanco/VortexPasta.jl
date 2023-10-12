@@ -1,4 +1,4 @@
-"""
+@doc raw"""
     integrate(integrand::Function, f::AbstractFilament, i::Int, quad::AbstractQuadrature)
     integrate(integrand::Function, s::Segment, quad::AbstractQuadrature)
 
@@ -11,18 +11,27 @@ to the position of a point within the segment.
 
 # Examples
 
-Estimate arc length of segment ``[i, i + 1]``, given by ``ℓ = ∫_{t_{i}}^{t_{i + 1}} |∂_t \\bm{X}(t)| \\, \\mathrm{d}t``:
+Estimate arc length of segment ``[i, i + 1]``, given by ``ℓ = ∫_{t_{i}}^{t_{i + 1}} |∂_t \bm{X}(t)| \, \mathrm{d}t``:
 
 ```julia
 quad = GaussLegendre(4)  # quadrature rule
-ℓ = integrate(f, i, quad) do ζ
+ℓ = integrate(f, i, quad) do f, i, ζ
     norm(f(i, ζ, Derivative(1)))  # = |∂ₜ𝐗|
+end
+```
+
+Alternatively:
+```julia
+quad = GaussLegendre(4)  # quadrature rule
+s = Segment(f, i)
+ℓ = integrate(s, quad) do s, ζ
+    norm(s(ζ, Derivative(1)))  # = |∂ₜ𝐗|
 end
 ```
 """
 function integrate(
         integrand::F, f::AbstractFilament, i::Int, quad::AbstractQuadrature;
-        _args = (),  # used internally
+        _args = (f, i),  # integrand arguments; used internally
     ) where {F}
     ζs, ws = quadrature(quad)
     ts = knots(f)
@@ -35,8 +44,7 @@ function integrate(
 end
 
 function integrate(integrand::F, s::Segment, quad::AbstractQuadrature) where {F}
-    (; f, i,) = s
-    integrate(integrand, f, i, quad)
+    integrate(integrand, s.f, s.i, quad; _args = (s,))
 end
 
 """
@@ -73,7 +81,6 @@ end
 """
 function integrate(integrand::F, f::AbstractFilament, quad::AbstractQuadrature) where {F}
     sum(segments(f)) do seg
-        args = (seg.f, seg.i)
-        integrate(integrand, args..., quad; _args = args)
+        integrate(integrand, seg.f, seg.i, quad)
     end
 end

@@ -79,7 +79,7 @@ function _kinetic_energy_from_streamfunction(
     copy!(Filaments.nodes(ψ_int), ψf)
     Filaments.update_coefficients!(ψ_int; knots = knots(f))
     for i ∈ eachindex(segments(f))
-        E += integrate(f, i, quad) do ζ
+        E += integrate(f, i, quad) do f, i, ζ
             ψ⃗ = ψ_int(i, ζ)
             s⃗′ = f(i, ζ, Derivative(1))
             ψ⃗ ⋅ s⃗′

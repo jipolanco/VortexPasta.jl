@@ -97,7 +97,7 @@ function _recompute_parametrisation!(::Any, f::AbstractFilament, quad)
     tnext = ts[begin]
     for i ∈ eachindex(ts)
         # Estimate arc length from ts[i] to ts[i + 1]
-        ℓ = integrate(f, i, quad) do ζ
+        ℓ = integrate(f, i, quad) do f, i, ζ
             norm(f(i, ζ, Derivative(1)))  # = ∂X/∂t
         end
         @assert ℓ ≥ ts[i + 1] - ts[i]

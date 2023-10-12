@@ -38,7 +38,7 @@ function _vortex_impulse(quad, f::AbstractFilament)
     T = eltype(f)
     p⃗ = zero(T)
     for seg ∈ segments(f)
-        p⃗ = p⃗ + integrate(seg, quad) do ζ
+        p⃗ = p⃗ + integrate(seg, quad) do seg, ζ
             s⃗ = seg(ζ)
             s⃗′ = seg(ζ, Derivative(1))
             s⃗ × s⃗′

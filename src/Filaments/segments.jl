@@ -105,7 +105,7 @@ segment_length(s::Segment; quad = nothing) = _segment_length(quad, s)
 _segment_length(::Nothing, s::Segment) = norm(startpoint(s) - endpoint(s))
 
 function _segment_length(quad::AbstractQuadrature, s::Segment)
-    integrate(s, quad) do ζ
+    integrate(s, quad) do s, ζ
         norm(s(ζ, Derivative(1)))
     end
 end
