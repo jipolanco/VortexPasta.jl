@@ -84,3 +84,32 @@ function integrate(integrand::F, f::AbstractFilament, quad::AbstractQuadrature) 
         integrate(integrand, seg.f, seg.i, quad)
     end
 end
+
+## ====================================================================================== ##
+#  No quadrature case: the idea is to only evaluate quantities on filament nodes,
+#  avoiding any interpolation.
+## ====================================================================================== ##
+
+# This is an internal type which is just used to replace the interpolation syntax
+# f(i, ζ, args...) by the on-node evaluation syntax f[i, args...].
+# Technically this is only correct when ζ = 0, but this is not checked.
+struct NoQuadFilament{F <: AbstractFilament}
+    f :: F
+end
+
+(u::NoQuadFilament)(i::Int, ζ::Number, args...) = u.f[i, args...]
+
+function integrate(
+        integrand::F, f::AbstractFilament, i::Int, ::NoQuadrature;
+        _args = (),
+    ) where {F}
+    ts = knots(f)
+    args = _noquad_replace_args(_args...)  # replaces any AbstractFilament by a NoQuadFilament
+    Δt = ts[i + 1] - ts[i]
+    ζ = 0  # unused but needed
+    Δt * integrand(args..., ζ)
+end
+
+_noquad_replace_args(f::AbstractFilament, args...) = (NoQuadFilament(f), _noquad_replace_args(args...)...)
+_noquad_replace_args(x::Any, args...) = (x, _noquad_replace_args(args...)...)
+_noquad_replace_args() = ()
