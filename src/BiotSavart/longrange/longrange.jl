@@ -409,21 +409,9 @@ function compute_vorticity_fourier!(cache::LongRangeCache, fs::AbstractVector{<:
     Ncharges = _count_charges(quad, fs)
     reset_fields!(cache)
     set_num_points!(cache, Ncharges)
-    ζs, ws = quadrature(quad)
     n = 0
-    @timeit to "add point charges" @inbounds for f ∈ fs
-        ts = knots(f)
-        for i ∈ eachindex(segments(f))
-            Δt = ts[i + 1] - ts[i]
-            for (ζ, w) ∈ zip(ζs, ws)
-                X = f(i, ζ)
-                Ẋ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
-                # Note: the vortex circulation Γ is included in the Ewald operator and
-                # doesn't need to be included here.
-                q = w * Δt
-                add_pointcharge!(cache, X, q * Ẋ, n += 1)
-            end
-        end
+    @timeit to "add point charges" for f ∈ fs
+        n = _add_point_charges!(cache, f, n, quad)
     end
     @assert n == Ncharges
     rescale_coordinates!(cache)
@@ -432,6 +420,34 @@ function compute_vorticity_fourier!(cache::LongRangeCache, fs::AbstractVector{<:
     state.quantity = :vorticity
     state.smoothed = false
     uhat
+end
+
+function _add_point_charges!(cache, f, n, quad::AbstractQuadrature)
+    ζs, ws = quadrature(quad)
+    ts = knots(f)
+    @inbounds for i ∈ eachindex(segments(f))
+        Δt = ts[i + 1] - ts[i]
+        for (ζ, w) ∈ zip(ζs, ws)
+            X = f(i, ζ)
+            Ẋ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
+            # Note: the vortex circulation Γ is included in the Ewald operator and
+            # doesn't need to be included here.
+            q = w * Δt
+            add_pointcharge!(cache, X, q * Ẋ, n += 1)
+        end
+    end
+    n
+end
+
+function _add_point_charges!(cache, f, n, quad::NoQuadrature)
+    ts = knots(f)
+    @inbounds for i ∈ eachindex(segments(f))
+        Δt = Quadratures.increment(quad, ts, i)
+        X = f[i]
+        Ẋ = f[i, Derivative(1)]
+        add_pointcharge!(cache, X, Δt * Ẋ, n += 1)
+    end
+    n
 end
 
 function set_interpolation_points!(

@@ -154,6 +154,23 @@ ewald_screening_function(::Streamfunction, ::LongRange,   ::Zero) = Zero()
 biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3
 biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r
 
+long_range_bs_integrand_at_zero(::Velocity, α, s⃗′) = zero(s⃗′)
+
+# This corresponds to `erf(αr)/r * s⃗′` evaluated at r = 0 (see Taylor expansion of `erf`).
+long_range_bs_integrand_at_zero(::Streamfunction, α, s⃗′) = 2 * α / sqrt(π) * s⃗′
+
+@inline function modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
+    if component === LongRange() && iszero(r²)
+        # In this case the result of `biot_savart_integrand` is `NaN`, but the actual
+        # integrand when multiplied by the splitting function is well defined.
+        return long_range_bs_integrand_at_zero(quantity, α, s⃗′)
+    end
+    r = sqrt(r²)
+    g = ewald_screening_function(quantity, component, α * r)
+    w⃗ = biot_savart_integrand(quantity, s⃗′, r⃗, r)
+    oftype(s⃗′, g * w⃗)  # we assume w⃗ is a vector...
+end
+
 # Compute Biot-Savart integral over a single filament segment.
 # Note: this doesn't include the prefactor Γ/4π.
 function integrate_biot_savart(
@@ -169,20 +186,17 @@ function integrate_biot_savart(
     rc² = rcut * rcut
     integrate(seg, quad) do seg, ζ
         s⃗ = seg(ζ)
-        ∂ₜs⃗ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
         r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
         r² = sum(abs2, r⃗)
-        # Note: the short-range backend may allow some pair interactions beyond the cutoff.
-        # This is in particular the case for cell lists.
-        # We want to avoid extra computations in that case.
         if component === ShortRange() && r² > rc²
-            zero(r⃗)
-        else
-            r = sqrt(r²)
-            g = ewald_screening_function(quantity, component, α * r)
-            w⃗ = biot_savart_integrand(quantity, ∂ₜs⃗, r⃗, r)
-            oftype(r⃗, g * w⃗)  # we assume w⃗ is a vector...
+            # The short-range backend may allow some pair interactions beyond the cutoff.
+            # This is in particular the case when using cell lists.
+            # We want to avoid extra computations in that case.
+            return zero(r⃗)
         end
+        s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
+        @assert typeof(r⃗) === typeof(s⃗′)  # should be true for type stability reasons...
+        modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
     end
 end
 
