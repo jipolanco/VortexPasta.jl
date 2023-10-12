@@ -126,10 +126,26 @@ Julia will automatically detect the presence of the `Project.toml` file in the c
 ### Installing VortexPasta.jl
 
 It is recommended to install VortexPasta.jl in a local environment, for example in the same environment as in the previous example (which already includes GLMakie).
-Since it is not currently registered in a Julia package registry, it should be installed as:
+
+To install it, one should first add the "VortexRegistry" package registry, which contains information on how to install VortexPasta.jl:
 
 ```julia-repl
-(simulation) pkg> add git@gitlab.in2p3.fr:jipolanco/VortexPasta.jl.git
+(simulation) pkg> registry add git@gitlab.in2p3.fr:jipolanco/VortexRegistry.jl.git
+```
+
+!!! warning
+
+    If this command asks for an SSH key location and then fails with a `GitError`, [you may need to set](https://github.com/GunnarFarneback/LocalRegistry.jl/blob/master/docs/ssh_keys.md#2-using-an-external-git-binary-with-julias-package-manager) the [`JULIA_PKG_USE_CLI_GIT`](https://docs.julialang.org/en/v1/manual/environment-variables/#JULIA_PKG_USE_CLI_GIT) environment variable to `true`.
+    For instance, add the line
+    ```julia
+    ENV["JULIA_PKG_USE_CLI_GIT"] = "true"
+    ```
+    to your `~/.julia/config/startup.jl` file and then restart Julia.
+
+Now we can easily install VortexPasta.jl:
+
+```julia-repl
+(simulation) pkg> add VortexPasta
 ```
 
 As before, this will install all dependencies and precompile VortexPasta.jl and other installed packages.
@@ -139,18 +155,20 @@ Now the status of the local environment should look something like:
 (simulation) pkg> status
 Status `~/Work/Projects/Vortices/Codes/VortexPasta/docs/simulation/Project.toml`
   [e9467ef8] GLMakie v0.8.9
-  [3d0f1e53] VortexPasta v0.1.0 `git@gitlab.in2p3.fr:jipolanco/VortexPasta.jl.git#master`
+  [3d0f1e53] VortexPasta v0.2.1
 ```
 
-!!! warning
+### Installing VortexPasta.jl in development mode
 
-    If the `add` command asks for an SSH key location and then fails with a `GitError`, [you may need to set](https://github.com/GunnarFarneback/LocalRegistry.jl/blob/master/docs/ssh_keys.md#2-using-an-external-git-binary-with-julias-package-manager) the [`JULIA_PKG_USE_CLI_GIT`](https://docs.julialang.org/en/v1/manual/environment-variables/#JULIA_PKG_USE_CLI_GIT) environment variable to `true`.
-    For instance, add the line
-    ```julia
-    ENV["JULIA_PKG_USE_CLI_GIT"] = "true"
-    ```
-    to your `~/.julia/config/startup.jl` file and then restart Julia.
+The above procedure installs VortexPasta.jl in a read-only directory somewhere in `~/.julia`.
+If, instead, we would like to make modifications to VortexPasta.jl, we should install it in "development" mode using `dev` (or `develop`) instead of `add`:
 
+```julia-repl
+(simulation) pkg> dev VortexPasta
+```
+
+This will install the development version of VortexPasta.jl to `~/.julia/dev/VortexPasta`.
+Any modifications to the code there will be visible when running scripts or code in the local environment.
 
 ## Running the code
 

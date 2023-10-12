@@ -6,7 +6,9 @@
 # Here we will:
 #
 # - learn how to define infinite but unclosed filaments;
-# - look at diagnostics such as the energy over time.
+# - look at diagnostics such as the energy over time;
+# - perform spatial and temporal Fourier analysis to detect relevant wavenumbers and
+#   frequencies associated to Kelvin waves.
 #
 # It is recommended to first follow the [vortex ring tutorial](@ref tutorial-vortex-ring)
 # before following this tutorial.
