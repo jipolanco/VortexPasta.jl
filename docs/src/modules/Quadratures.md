@@ -19,6 +19,7 @@ quadrature
 ```@docs
 AbstractQuadrature
 GaussLegendre
+NoQuadrature
 ```
 
 ## Functions

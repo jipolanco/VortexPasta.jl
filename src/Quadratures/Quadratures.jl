@@ -46,7 +46,7 @@ Base.length(q::AbstractQuadrature) = length(typeof(q))
 Base.length(::Type{<:AbstractQuadrature{N}}) where {N} = N
 
 """
-    GaussLegendre{N} <: AbstractQuadrature{N}
+    GaussLegendre(N) <: AbstractQuadrature{N}
 
 ``N``-point Gauss–Legendre quadrature.
 """
@@ -54,10 +54,17 @@ struct GaussLegendre{N} <: AbstractQuadrature{N} end
 GaussLegendre(N::Int) = GaussLegendre{N}()
 _generator(::Type{<:GaussLegendre}) = gausslegendre
 
-struct NoQuadrature <: AbstractQuadrature{1} end
+"""
+    NoQuadrature() <: AbstractQuadrature{1}
 
-# TODO do we need this?
-_generator(::Type{<:NoQuadrature}) = () -> ((-1.0,), (2.0,))  # corresponds to evaluating at the beginning of the interval [-1, 1]
+Inexpensive 1-point quadrature rule.
+
+When integrating, evaluates approximated values at the segment midpoint.
+However, unlike a 1-point Gauss–Legendre quadrature, midpoint values are interpolated using
+a basic linear interpolation.
+In other words, segments are assumed to be straight.
+"""
+struct NoQuadrature <: AbstractQuadrature{1} end
 
 ## ================================================================================ ##
 # The following functions must be at the end of the file to avoid world age issues
