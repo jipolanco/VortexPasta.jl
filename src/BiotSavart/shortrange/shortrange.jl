@@ -166,11 +166,10 @@ function integrate_biot_savart(
     )
     (; common, quad, rcut,) = params
     (; Ls, α,) = common
-    (; f, i,) = seg
     rc² = rcut * rcut
-    integrate(seg, quad) do ζ
-        s⃗ = f(i, ζ)
-        ∂ₜs⃗ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
+    integrate(seg, quad) do seg, ζ
+        s⃗ = seg(ζ)
+        ∂ₜs⃗ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
         r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
         r² = sum(abs2, r⃗)
         # Note: the short-range backend may allow some pair interactions beyond the cutoff.

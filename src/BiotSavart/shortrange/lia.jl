@@ -104,18 +104,18 @@ function _local_self_induced(
         fit_circle = false,  # ignored
     )
     ts = knots(f)
-    ℓ₋ = integrate(f, i - 1, quad) do ζ
-        norm(f(i - 1, ζ, Derivative(1)))
+    ℓ₋ = integrate(f, i - 1, quad) do f, j, ζ
+        norm(f(j, ζ, Derivative(1)))
     end
-    ℓ₊ = integrate(f, i, quad) do ζ
-        norm(f(i, ζ, Derivative(1)))
+    ℓ₊ = integrate(f, i, quad) do f, j, ζ
+        norm(f(j, ζ, Derivative(1)))
     end
     # Estimate the scaled binormal vector b⃗ = ρ b̂, where ρ is the curvature and b̂ = t̂ × n̂.
-    b⃗₋ = integrate(f, i - 1, quad) do ζ
-        f(i - 1, ζ, CurvatureBinormal())
+    b⃗₋ = integrate(f, i - 1, quad) do f, j, ζ
+        f(j, ζ, CurvatureBinormal())
     end
-    b⃗₊ = integrate(f, i, quad) do ζ
-        f(i, ζ, CurvatureBinormal())
+    b⃗₊ = integrate(f, i, quad) do f, j, ζ
+        f(j, ζ, CurvatureBinormal())
     end
     b⃗ = (b⃗₋ + b⃗₊) ./ (ts[i + 1] - ts[i - 1])  # average on [i - 1, i + 1]
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
@@ -130,11 +130,11 @@ function _local_self_induced(
         a::Real, Δ::Real,
         fit_circle = false,  # ignored
     )
-    ℓ₋ = integrate(f, i - 1, quad) do ζ
-        norm(f(i - 1, ζ, Derivative(1)))
+    ℓ₋ = integrate(f, i - 1, quad) do f, j, ζ
+        norm(f(j, ζ, Derivative(1)))
     end
-    ℓ₊ = integrate(f, i, quad) do ζ
-        norm(f(i, ζ, Derivative(1)))
+    ℓ₊ = integrate(f, i, quad) do f, j, ζ
+        norm(f(j, ζ, Derivative(1)))
     end
     # Use local (non-averaged) tangent at point of interest.
     # We want to make sure that the result is exactly tangent to the curve at the node.
