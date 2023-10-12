@@ -48,7 +48,11 @@ dt_factor(::MultirateMidpoint) = 4.0
 dt_factor(::SanduMRI33a) = 4.0
 dt_factor(::SanduMRI45a) = 5.0
 
-function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,)
+function test_kelvin_waves(
+        scheme = RK4();
+        method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,
+        quad = GaussLegendre(4),
+    )
     Lx = Ly = Lz
     lines = [
         init_vortex_line(; x = 0.25Lx, y = 0.25Ly, Lz, sign = +1, A = +A, k,),
@@ -87,8 +91,8 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
             backend_short = CellListsBackend(2),
             # backend_short = NaiveShortRangeBackend(),
             backend_long = FINUFFTBackend(),
-            quadrature_short = GaussLegendre(4),
-            quadrature_long = GaussLegendre(4),
+            quadrature_short = quad,
+            quadrature_long = quad,
         )
     end
 
@@ -271,8 +275,9 @@ function test_kelvin_waves(scheme = RK4(); method = CubicSplineMethod(), Lz = 2�
 
         # Check that we actually recover the KW frequency!
         # @show abs(ωy - ω_kw) / ω_kw
-        @test isapprox(ωx, ω_kw; rtol = 2e-3)
-        @test isapprox(ωy, ω_kw; rtol = iseuler ? 3e-3 : 2e-3)
+        nquad = length(quad)
+        @test isapprox(ωx, ω_kw; rtol = 2e-3 * 4 / nquad)
+        @test isapprox(ωy, ω_kw; rtol = (iseuler ? 3e-3 : 2e-3) * 4 / nquad)
     end
 
     nothing
@@ -286,6 +291,9 @@ end
     )
     @testset "Scheme: $scheme" for scheme ∈ schemes
         test_kelvin_waves(scheme; method = CubicSplineMethod())
+    end
+    @testset "NoQuadrature()" begin
+        test_kelvin_waves(SanduMRI33a(RK4(), 8); quad = NoQuadrature())
     end
     @testset "RK4 + FiniteDiff(2)" begin
         test_kelvin_waves(RK4(); method = FiniteDiffMethod(2, HermiteInterpolation(2)))

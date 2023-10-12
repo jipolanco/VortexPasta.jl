@@ -176,7 +176,7 @@ N = 32  # number of discretisation points
 @testset "Vortex ring (N = $N, noise = $noise)" for noise ∈ (0.0, 0.2)
     ring = init_ring_filament(N; noise)
     @testset "Non-periodic" begin
-        # Note: GaussLegendre(1) and NoQuadrature() should give nearly (exactly?) the same results
+        # Note: GaussLegendre(1) and NoQuadrature() should give nearly the same results.
         quads = (GaussLegendre(4), GaussLegendre(1), NoQuadrature())
         @testset "Quadrature: $quad" for quad ∈ quads
             test_vortex_ring_nonperiodic(ring; quad)
