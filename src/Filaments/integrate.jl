@@ -97,7 +97,7 @@ end
 # When integrating, we consider that we evaluate in the middle of each segment (at ζ = 1/2).
 # Moreover, the location and the derivative at that point are approximated from the
 # locations at the two extremities of the segment.
-struct NoQuadFilament{F <: AbstractFilament}
+struct NoQuadFilament{T, F <: AbstractFilament{T}} <: AbstractFilament{T}
     f :: F
 end
 
@@ -112,19 +112,20 @@ end
     (u.f[i + 1] - u.f[i]) ./ (ts[i + 1] - ts[i])
 end
 
-@propagate_inbounds (u::NoQuadFilament)(i, ζ::Number, d) = u.f[i, d]  # not sure if this is used...
+# Not sure if this is used...
+@propagate_inbounds (u::NoQuadFilament)(i, ζ::Number, d) = (u.f[i, d] + u.f[i + 1, d]) ./ 2
 
 function integrate(
         integrand::F, f::AbstractFilament, i::Int, quad::NoQuadrature;
-        _args = (),
+        _args = (NoQuadFilament(f), i),
     ) where {F}
     ts = knots(f)
-    args = _noquad_replace_args(_args...)  # replaces any AbstractFilament by a NoQuadFilament
+    args = _noquad_replace_args(_args...)  # replaces filaments by NoQuadFilament
     Δt = ts[i + 1] - ts[i]
-    ζ = 0.5  # unused
+    ζ = 0.5  # generally unused
     Δt * integrand(args..., ζ)
 end
 
-_noquad_replace_args(f::AbstractFilament, args...) = (NoQuadFilament(f), _noquad_replace_args(args...)...)
-_noquad_replace_args(x::Any, args...) = (x, _noquad_replace_args(args...)...)
-_noquad_replace_args() = ()
+# These are the only 2 possible options for _args:
+_noquad_replace_args(f::NoQuadFilament, i::Int) = (f, i)
+_noquad_replace_args(s::Segment) = (Segment(NoQuadFilament(s.f), s.i),)  # replace AbstractFilament by NoQuadFilament
