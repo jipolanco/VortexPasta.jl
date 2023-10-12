@@ -19,7 +19,7 @@ function init_ring_filament(N::Int, R = π / 3; noise = 0.0, rng = nothing)
         ζs .+= noise * dζ * rand(rng_, N)  # `noise` should be ∈ ]-1, 1[
     end
     f = @inferred Filaments.init(S, ClosedFilament, ζs, CubicSplineMethod())
-    (; f, R,)
+    (; f, R, noise,)
 end
 
 # Non-local self-induced velocity of a vortex ring.
@@ -34,8 +34,8 @@ vortex_ring_velocity(Γ, R, a; Δ) = Γ / (4π * R) * (log(8R / a) - Δ)
 vortex_ring_streamfunction(Γ, R, a; Δ) = Γ / 2π * (log(8R / a) - (1 + Δ))
 
 # Test vortex ring without periodic BCs (i.e. setting α = 0 in Ewald's method, disabling long-range part)
-function test_vortex_ring_nonperiodic(ring; noise = 0.0)
-    (; R, f,) = ring
+function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
+    (; R, f, noise,) = ring
     Γ = 2.4
     a = 1e-6
     Δ = 1/4
@@ -44,8 +44,9 @@ function test_vortex_ring_nonperiodic(ring; noise = 0.0)
         Ls = Infinity(),
         α = Zero(),
         backend_short = NaiveShortRangeBackend(),
-        quadrature_short = GaussLegendre(4),
+        quadrature_short = quad,
     )
+    nquad = length(quad)  # number of quadrature points per segment
 
     fs = [f]
     params = @inferred ParamsBiotSavart(; ps...)
@@ -74,7 +75,8 @@ function test_vortex_ring_nonperiodic(ring; noise = 0.0)
         # @test all(std(vs) .< U * 1e-12)
         U_expected = vortex_ring_velocity(ps.Γ, R, ps.a; Δ = ps.Δ)
         @show (U - U_expected) / U_expected
-        @test isapprox(U, U_expected; rtol = 1e-4)  # the tolerance will mainly depend on the vortex resolution N
+        rtol = nquad == 1 ? 5e-3 : 1e-4
+        @test isapprox(U, U_expected; rtol)  # the tolerance will mainly depend on the vortex resolution N
     end
 
     @testset "Total streamfunction" begin
@@ -94,7 +96,8 @@ function test_vortex_ring_nonperiodic(ring; noise = 0.0)
         # @test std(ψs_para) < 2 * eps(ψ_mean)  # ψ ⋅ s⃗ along the curve doesn't vary
         ψ_expected = vortex_ring_streamfunction(ps.Γ, R, ps.a; Δ = ps.Δ)
         @show (ψ_mean - ψ_expected) / ψ_expected
-        @test isapprox(ψ_mean, ψ_expected; rtol = 1e-3)
+        rtol = 4e-3 / nquad
+        @test isapprox(ψ_mean, ψ_expected; rtol)
     end
 
     # Estimate normalised energy
@@ -103,7 +106,8 @@ function test_vortex_ring_nonperiodic(ring; noise = 0.0)
         E_expected = (Γ^2 * R/2) * (log(8R / a) - (Δ + 1))
         E_estimated = Diagnostics.kinetic_energy_from_streamfunction(ψs, f, Γ, Ls)
         @show (E_expected - E_estimated) / E_expected
-        @test isapprox(E_expected, E_estimated; rtol = 1e-3)
+        rtol = 4e-3 / nquad
+        @test isapprox(E_expected, E_estimated; rtol)
     end
 
     # Check velocity excluding LIA (i.e. only non-local integration)
@@ -117,7 +121,7 @@ function test_vortex_ring_nonperiodic(ring; noise = 0.0)
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
         U_nonlocal = norm(vs[i])
         @show (U_nonlocal - U_nonlocal_expected) / U_nonlocal_expected
-        rtol = max(1e-3, noise / 400)
+        rtol = max(16e-3 / nquad^2, noise / 400)
         @test isapprox(U_nonlocal, U_nonlocal_expected; rtol)
     end
 
@@ -125,8 +129,8 @@ function test_vortex_ring_nonperiodic(ring; noise = 0.0)
 end
 
 # Check convergence of LIA using quadratures for better accuracy.
-function test_local_induced_approximation(ring; noise)
-    (; R, f,) = ring
+function test_local_induced_approximation(ring)
+    (; R, f, noise,) = ring
     i = firstindex(f)
     ps = (;
         a = 1e-6,
@@ -172,10 +176,14 @@ N = 32  # number of discretisation points
 @testset "Vortex ring (N = $N, noise = $noise)" for noise ∈ (0.0, 0.2)
     ring = init_ring_filament(N; noise)
     @testset "Non-periodic" begin
-        test_vortex_ring_nonperiodic(ring; noise)
+        # Note: GaussLegendre(1) and NoQuadrature() should give nearly (exactly?) the same results
+        quads = (GaussLegendre(4), GaussLegendre(1), NoQuadrature())
+        @testset "Quadrature: $quad" for quad ∈ quads
+            test_vortex_ring_nonperiodic(ring; quad)
+        end
     end
     @testset "LIA" begin
-        test_local_induced_approximation(ring; noise)
+        test_local_induced_approximation(ring)
     end
 end
 

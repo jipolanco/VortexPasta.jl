@@ -265,7 +265,7 @@ function add_short_range_fields!(
                     integrate_biot_savart(quantity, LongRange(), sb, x⃗, params)
                 )
                 if _LIA
-                    u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad,)
+                    u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad)
                 end
                 quantity => u⃗
             end

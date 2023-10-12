@@ -439,13 +439,11 @@ function _add_point_charges!(cache, f, n, quad::AbstractQuadrature)
     n
 end
 
-function _add_point_charges!(cache, f, n, quad::NoQuadrature)
-    ts = knots(f)
+function _add_point_charges!(cache, f, n, ::NoQuadrature)
     @inbounds for i ∈ eachindex(segments(f))
-        Δt = Quadratures.increment(quad, ts, i)
-        X = f[i]
-        Ẋ = f[i, Derivative(1)]
-        add_pointcharge!(cache, X, Δt * Ẋ, n += 1)
+        X = (f[i] + f[i + 1]) ./ 2
+        Ẋ_dt = f[i + 1] - f[i]
+        add_pointcharge!(cache, X, Ẋ_dt, n += 1)
     end
     n
 end

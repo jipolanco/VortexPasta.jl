@@ -1,3 +1,5 @@
+using Base: @propagate_inbounds
+
 @doc raw"""
     integrate(integrand::Function, f::AbstractFilament, i::Int, quad::AbstractQuadrature)
     integrate(integrand::Function, s::Segment, quad::AbstractQuadrature)
@@ -92,12 +94,25 @@ end
 
 # This is an internal type which is just used to replace the interpolation syntax
 # f(i, ζ, args...) by the on-node evaluation syntax f[i, args...].
-# Technically this is only correct when ζ = 0, but this is not checked.
+# When integrating, we consider that we evaluate in the middle of each segment (at ζ = 1/2).
+# Moreover, the location and the derivative at that point are approximated from the
+# locations at the two extremities of the segment.
 struct NoQuadFilament{F <: AbstractFilament}
     f :: F
 end
 
-(u::NoQuadFilament)(i::Int, ζ::Number, args...) = u.f[i, args...]
+@propagate_inbounds (u::NoQuadFilament)(i::Int, ζ::Number) =
+    u(i, ζ, Derivative(0))
+
+@propagate_inbounds (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{0}) =
+    (u.f[i] + u.f[i + 1]) ./ 2
+
+@propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{1})
+    ts = knots(u.f)
+    (u.f[i + 1] - u.f[i]) ./ (ts[i + 1] - ts[i])
+end
+
+@propagate_inbounds (u::NoQuadFilament)(i, ζ::Number, d) = u.f[i, d]  # not sure if this is used...
 
 function integrate(
         integrand::F, f::AbstractFilament, i::Int, quad::NoQuadrature;
@@ -105,8 +120,8 @@ function integrate(
     ) where {F}
     ts = knots(f)
     args = _noquad_replace_args(_args...)  # replaces any AbstractFilament by a NoQuadFilament
-    Δt = Quadratures.increment(quad, ts, i)
-    ζ = 0  # unused but needed
+    Δt = ts[i + 1] - ts[i]
+    ζ = 0.5  # unused
     Δt * integrand(args..., ζ)
 end
 
