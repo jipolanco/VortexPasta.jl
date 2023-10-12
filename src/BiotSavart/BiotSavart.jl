@@ -8,7 +8,7 @@ module BiotSavart
 
 export
     ParamsBiotSavart,
-    GaussLegendre,
+    GaussLegendre, NoQuadrature,
     Zero, Infinity, ∞,
     Velocity, Streamfunction,
     init_cache,
@@ -20,7 +20,7 @@ using ..BasicTypes:
     Vec3, Derivative, Zero, Infinity, ∞
 
 using ..Quadratures:
-    quadrature, GaussLegendre, AbstractQuadrature
+    quadrature, NoQuadrature, GaussLegendre, AbstractQuadrature
 
 using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, CurvatureBinormal,

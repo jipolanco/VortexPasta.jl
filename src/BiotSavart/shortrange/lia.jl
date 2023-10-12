@@ -62,11 +62,14 @@ function local_self_induced(
         q::OutputField, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real = 0.25, quad = nothing, kws...,
     )
-    _local_self_induced(q, quad, f, i, prefactor; a, Δ, kws...)
+    _local_self_induced(q, to_quadrature(quad), f, i, prefactor; a, Δ, kws...)
 end
 
+to_quadrature(quad::AbstractQuadrature) = quad
+to_quadrature(::Nothing) = NoQuadrature()
+
 function _local_self_induced(
-        ::Velocity, quad::Nothing, f::AbstractFilament, i::Int, prefactor::Real;
+        ::Velocity, ::NoQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real, fit_circle = false,
     )
     ℓ₋ = norm(f[i] - f[i - 1])
@@ -122,8 +125,19 @@ function _local_self_induced(
     β * b⃗
 end
 
-# TODO
-# - Implement variant with no quadratures?
+function _local_self_induced(
+        ::Streamfunction, ::NoQuadrature,
+        f::AbstractFilament, i::Int, prefactor::Real;
+        a::Real, Δ::Real,
+        fit_circle = false,  # ignored
+    )
+    ℓ₋ = norm(f[i] - f[i - 1])
+    ℓ₊ = norm(f[i + 1] - f[i])
+    t̂ = f[i, UnitTangent()]
+    β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) + 1 - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)
+    β * t̂
+end
+
 function _local_self_induced(
         ::Streamfunction, quad::AbstractQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
