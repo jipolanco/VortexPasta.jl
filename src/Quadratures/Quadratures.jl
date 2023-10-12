@@ -56,7 +56,10 @@ _generator(::Type{<:GaussLegendre}) = gausslegendre
 
 struct NoQuadrature <: AbstractQuadrature{1} end
 
-# Does this definition make sense? Maybe just for easily switching to NoQuadrature.
+# This is the integration increment `dt`.
+Base.@propagate_inbounds increment(::NoQuadrature, ts, i) = (ts[i + 1] - ts[i - 1]) / 2
+
+# TODO do we need this?
 _generator(::Type{<:NoQuadrature}) = () -> ((-1.0,), (2.0,))  # corresponds to evaluating at the beginning of the interval [-1, 1]
 
 ## ================================================================================ ##

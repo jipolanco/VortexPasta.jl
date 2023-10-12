@@ -20,7 +20,7 @@ using ..BasicTypes:
     Vec3, Derivative, Zero, Infinity, ∞
 
 using ..Quadratures:
-    quadrature, NoQuadrature, GaussLegendre, AbstractQuadrature
+    Quadratures, quadrature, NoQuadrature, GaussLegendre, AbstractQuadrature
 
 using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, CurvatureBinormal,

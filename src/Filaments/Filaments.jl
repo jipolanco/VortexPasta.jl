@@ -33,7 +33,7 @@ export
     normalise_derivatives,
     normalise_derivatives!
 
-using ..Quadratures: AbstractQuadrature, GaussLegendre, NoQuadrature, quadrature
+using ..Quadratures: Quadratures, AbstractQuadrature, GaussLegendre, NoQuadrature, quadrature
 using ..BasicTypes: Vec3, Derivative
 using ..PredefinedCurves: PredefinedCurves  # just for documentation
 

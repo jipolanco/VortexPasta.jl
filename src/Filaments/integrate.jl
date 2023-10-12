@@ -100,12 +100,12 @@ end
 (u::NoQuadFilament)(i::Int, ζ::Number, args...) = u.f[i, args...]
 
 function integrate(
-        integrand::F, f::AbstractFilament, i::Int, ::NoQuadrature;
+        integrand::F, f::AbstractFilament, i::Int, quad::NoQuadrature;
         _args = (),
     ) where {F}
     ts = knots(f)
     args = _noquad_replace_args(_args...)  # replaces any AbstractFilament by a NoQuadFilament
-    Δt = ts[i + 1] - ts[i]
+    Δt = Quadratures.increment(quad, ts, i)
     ζ = 0  # unused but needed
     Δt * integrand(args..., ζ)
 end
