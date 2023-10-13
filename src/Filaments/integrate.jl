@@ -1,3 +1,5 @@
+using Base: @propagate_inbounds
+
 @doc raw"""
     integrate(integrand::Function, f::AbstractFilament, i::Int, quad::AbstractQuadrature)
     integrate(integrand::Function, s::Segment, quad::AbstractQuadrature)
@@ -84,3 +86,55 @@ function integrate(integrand::F, f::AbstractFilament, quad::AbstractQuadrature) 
         integrate(integrand, seg.f, seg.i, quad)
     end
 end
+
+## ====================================================================================== ##
+#  No quadrature case: the idea is to only evaluate quantities on filament nodes,
+#  avoiding any interpolation.
+## ====================================================================================== ##
+
+# This is an internal type which is just used to replace the interpolation syntax
+# f(i, ζ, args...) by the on-node evaluation syntax f[i, args...].
+# When integrating, we consider that we evaluate in the middle of each segment (at ζ = 1/2).
+# Moreover, the location and the derivative at that point are approximated from the
+# locations at the two extremities of the segment, according to a straight-segment
+# approximation.
+struct NoQuadFilament{T, F <: AbstractFilament{T}} <: AbstractFilament{T}
+    f :: F
+end
+
+@propagate_inbounds (u::NoQuadFilament)(i::Int, ζ::Number) =
+    u(i, ζ, Derivative(0))
+
+@propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{0})
+    (; f,) = u
+    # Note: precision could be improved by shifting the "straight" segment in the direction
+    # opposite to the curvature vector.
+    # See McGreivy et al, Phys. Plasmas 28, 082111 (2021) [https://doi.org/10.1063/5.0058014].
+    # However estimating curvatures increases the computation cost, and we want to keep
+    # NoQuadrature as cheap as possible.
+    (f[i] + f[i + 1]) ./ 2
+end
+
+@propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{1})
+    (; f,) = u
+    ts = knots(f)
+    (f[i + 1] - f[i]) ./ (ts[i + 1] - ts[i])
+end
+
+# Not sure if this is used...
+@propagate_inbounds (u::NoQuadFilament)(i, ζ::Number, d) = (u.f[i, d] + u.f[i + 1, d]) ./ 2
+
+function integrate(
+        integrand::F, f::AbstractFilament, i::Int, quad::NoQuadrature;
+        _args = (NoQuadFilament(f), i),
+    ) where {F}
+    ts = knots(f)
+    args = _noquad_replace_args(_args...)  # replaces filaments by NoQuadFilament
+    Δt = ts[i + 1] - ts[i]
+    ζ = 0.5  # generally unused
+    Δt * integrand(args..., ζ)
+end
+
+# These are the only 2 possible options for _args:
+_noquad_replace_args(f::NoQuadFilament, i::Int) = (f, i)
+_noquad_replace_args(s::Segment) = (Segment(NoQuadFilament(s.f), s.i),)  # replace AbstractFilament by NoQuadFilament

@@ -157,15 +157,14 @@ end
 
 # Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
 # (In theory it shouldn't depend at all...)
-function check_independence_on_ewald_parameter(f, αs; params_kws...)
+function check_independence_on_ewald_parameter(f, αs; quad = GaussLegendre(2), params_kws...)
     fields_all = map(αs) do α
         compute_filament_velocity_and_streamfunction(
             f;
             α,
             backend_short = CellListsBackend(2),
-            # Use high-order quadratures to make sure that errors don't come from there.
-            quadrature_short = GaussLegendre(6),
-            quadrature_long = GaussLegendre(6),
+            quadrature_short = quad,
+            quadrature_long = quad,
             params_kws...,
         )
     end
@@ -200,7 +199,10 @@ end
     end
     @testset "Dependence on α" begin
         αs = [kmax / 5, kmax / 6, kmax / 7, kmax / 8, kmax / 12, kmax / 16]
-        check_independence_on_ewald_parameter(f, αs; params_kws...)
+        quadratures = (GaussLegendre(3), NoQuadrature())
+        @testset "$quad" for quad ∈ quadratures
+            check_independence_on_ewald_parameter(f, αs; quad, params_kws...)
+        end
     end
 end
 
