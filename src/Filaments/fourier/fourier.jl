@@ -2,7 +2,6 @@ export FourierMethod
 
 using FFTW: FFTW
 using LinearAlgebra: mul!, ldiv!
-using Bumper: Bumper
 
 """
     FourierMethod <: GlobalDiscretisationMethod
@@ -61,6 +60,8 @@ mutable struct FourierCoefs{
     plan          :: Plan
 end
 
+fftw_flags() = (; flags = FFTW.PRESERVE_INPUT,)
+
 function init_coefficients(method::FourierMethod, Xs::PaddedVector, Nderiv::Val)
     M = npad(Xs)
     @assert M ≥ npad(method)
@@ -69,7 +70,7 @@ function init_coefficients(method::FourierMethod, Xs::PaddedVector, Nderiv::Val)
     T = _typeof_number(eltype(Xs))
     ubuf = Vector{T}(undef, length(Xs))
     vbuf = Vector{Complex{T}}(undef, 0)
-    plan = FFTW.plan_rfft(ubuf; flags = FFTW.PRESERVE_INPUT)
+    plan = FFTW.plan_rfft(ubuf; fftw_flags()...)
     FourierCoefs(method, cs, cderivs, ubuf, vbuf, plan)
 end
 
@@ -103,7 +104,7 @@ function _update_coefficients_only!(
     resize!(ubuf, N)
     resize!(vbuf, Nk)
     if length(coefs.plan) != N
-        coefs.plan = FFTW.plan_rfft(ubuf; flags = FFTW.PRESERVE_INPUT)
+        coefs.plan = FFTW.plan_rfft(ubuf; fftw_flags()...)
     end
     plan = coefs.plan
     @inbounds for i ∈ 1:3
