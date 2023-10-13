@@ -11,9 +11,9 @@ Filaments
 ## Types
 
 ```@docs
-DiscretisationMethod
 AbstractFilament
 ClosedFilament
+DiscretisationMethod
 ```
 
 ## Initialisation

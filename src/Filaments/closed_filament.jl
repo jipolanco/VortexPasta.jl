@@ -95,14 +95,14 @@ arc length between points ``\bm{s}_i`` and ``\bm{s}_{i + 1}``.
 """
 struct ClosedFilament{
         T,
-        Discretisation <: DiscretisationMethod,
+        Method,
         Parametrisation <: Function,
         M,  # padding (for dealing with periodicity)
         Knots <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
+        Coefs <: DiscretisationCoefs{Method},
     } <: AbstractFilament{T}
 
-    method :: Discretisation
     parametrisation :: Parametrisation  # parametrisation function
 
     # Parametrisation knots tᵢ.
@@ -111,15 +111,8 @@ struct ClosedFilament{
     # Discretisation points s⃗ᵢ.
     Xs :: Points
 
-    # TODO move `cs` and `cderivs` to separate type dependent on the discretisation?
-
-    # Interpolation coefficients associated to the curve (depends on the discretisation
-    # method).
-    cs :: Points
-
-    # Interpolation coefficients associated to first and second derivatives (depends on the
-    # discretisation method).
-    cderivs :: NTuple{2, Points}
+    # Discretisation and interpolation coefficients.
+    coefs :: Coefs
 
     # End-to-end offset.
     Xoffset :: Vec3{T}
@@ -131,10 +124,10 @@ function ClosedFilament(
     ) where {F <: Function, M, T}
     @assert M == npad(method)
     ts = similar(Xs, T)
-    cs = similar(Xs)
-    cderivs = (similar(Xs), similar(Xs))
+    nderivs = 2
+    coefs = init_coefficients(method, Xs, Val(nderivs))
     Xoffset = convert(Vec3{T}, offset)
-    ClosedFilament(method, parametrisation, ts, Xs, cs, cderivs, Xoffset)
+    ClosedFilament(parametrisation, ts, Xs, coefs, Xoffset)
 end
 
 ClosedFilament(Xs::PaddedVector, method::DiscretisationMethod; kws...) =
@@ -333,10 +326,10 @@ filament also modifies nodes of `f`.
 """
 function change_offset(f::ClosedFilament{T}, offset::Vec3) where {T}
     Xoffset = convert(Vec3{T}, offset)
-    ClosedFilament(f.method, f.parametrisation, f.ts, f.Xs, f.cs, f.cderivs, Xoffset)
+    ClosedFilament(f.parametrisation, f.ts, f.Xs, f.coefs, Xoffset)
 end
 
-allvectors(f::ClosedFilament) = (f.ts, f.Xs, f.cs, f.cderivs...)
+allvectors(f::ClosedFilament) = (f.ts, f.Xs, allvectors(f.coefs)...)
 
 function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
     Xs = similar(nodes(f), Vec3{T}, dims)

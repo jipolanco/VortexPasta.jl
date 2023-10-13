@@ -109,3 +109,27 @@ end
     C = -(A + B + D + E)
     (A, B, C, D, E)
 end
+
+struct FiniteDiffCoefs{
+        Method <: FiniteDiffMethod,
+        N,  # number of derivatives included (usually 2)
+        Points <: AbstractVector,
+    } <: DiscretisationCoefs{Method, N}
+    method :: Method
+
+    # Interpolation coefficients associated to the curve.
+    # For finite differences, this is simply the node locations.
+    cs :: Points
+
+    # Interpolation coefficients associated to first and second derivatives.
+    # For finite differences, this is simply the derivatives at nodes.
+    cderivs :: NTuple{N, Points}
+end
+
+function init_coefficients(method::FiniteDiffMethod, Xs::AbstractVector, Nderiv::Val)
+    cs = similar(Xs)
+    cderivs = ntuple(_ -> similar(Xs), Nderiv)
+    FiniteDiffCoefs(method, cs, cderivs)
+end
+
+allvectors(x::FiniteDiffCoefs) = (x.cs, x.cderivs...)
