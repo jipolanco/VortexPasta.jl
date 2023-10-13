@@ -295,6 +295,9 @@ end
     @testset "NoQuadrature()" begin
         test_kelvin_waves(SanduMRI33a(RK4(), 8); quad = NoQuadrature())
     end
+    @testset "FourierMethod()" begin
+        test_kelvin_waves(SanduMRI33a(RK4(), 1); method = FourierMethod())
+    end
     @testset "RK4 + FiniteDiff(2)" begin
         test_kelvin_waves(RK4(); method = FiniteDiffMethod(2, HermiteInterpolation(2)))
     end
