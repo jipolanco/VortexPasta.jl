@@ -18,7 +18,8 @@ using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
     s⃗″ = @inferred f[i, Derivative(2)]
 
     # Compute quantities directly from spline coefficients.
-    (; ts, cs, cderivs,) = f
+    (; ts,) = f
+    (; cs, cderivs,) = f.coefs
     cs′, cs″ = cderivs
 
     # A linear spline (order k = 2) evaluated on a knot is simply equal to the spline
