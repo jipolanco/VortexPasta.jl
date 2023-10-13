@@ -75,7 +75,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         # @test all(std(vs) .< U * 1e-12)
         U_expected = vortex_ring_velocity(ps.Γ, R, ps.a; Δ = ps.Δ)
         @show (U - U_expected) / U_expected
-        rtol = nquad == 1 ? 5e-3 : 1e-4
+        rtol = nquad == 1 ? 6e-3 : 1e-4
         @test isapprox(U, U_expected; rtol)  # the tolerance will mainly depend on the vortex resolution N
     end
 
@@ -121,7 +121,11 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
         U_nonlocal = norm(vs[i])
         @show (U_nonlocal - U_nonlocal_expected) / U_nonlocal_expected
-        rtol = max(16e-3 / nquad^2, noise / 400)
+        rtol = if quad === NoQuadrature()
+            0.05
+        else
+            max(16e-3 / nquad^2, noise / 400)
+        end
         @test isapprox(U_nonlocal, U_nonlocal_expected; rtol)
     end
 

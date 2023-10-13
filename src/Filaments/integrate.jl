@@ -96,7 +96,8 @@ end
 # f(i, ζ, args...) by the on-node evaluation syntax f[i, args...].
 # When integrating, we consider that we evaluate in the middle of each segment (at ζ = 1/2).
 # Moreover, the location and the derivative at that point are approximated from the
-# locations at the two extremities of the segment.
+# locations at the two extremities of the segment, according to a straight-segment
+# approximation.
 struct NoQuadFilament{T, F <: AbstractFilament{T}} <: AbstractFilament{T}
     f :: F
 end
@@ -104,12 +105,20 @@ end
 @propagate_inbounds (u::NoQuadFilament)(i::Int, ζ::Number) =
     u(i, ζ, Derivative(0))
 
-@propagate_inbounds (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{0}) =
-    (u.f[i] + u.f[i + 1]) ./ 2
+@propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{0})
+    (; f,) = u
+    # Note: precision could be improved by shifting the "straight" segment in the direction
+    # opposite to the curvature vector.
+    # See McGreivy et al, Phys. Plasmas 28, 082111 (2021) [https://doi.org/10.1063/5.0058014].
+    # However estimating curvatures increases the computation cost, and we want to keep
+    # NoQuadrature as cheap as possible.
+    (f[i] + f[i + 1]) ./ 2
+end
 
 @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{1})
-    ts = knots(u.f)
-    (u.f[i + 1] - u.f[i]) ./ (ts[i + 1] - ts[i])
+    (; f,) = u
+    ts = knots(f)
+    (f[i + 1] - f[i]) ./ (ts[i + 1] - ts[i])
 end
 
 # Not sure if this is used...
