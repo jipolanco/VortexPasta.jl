@@ -267,6 +267,8 @@ include("interpolation/hermite.jl")
 include("local/finitediff.jl")
 include("local/closed_filament.jl")
 
+include("fourier/fourier.jl")
+
 include("spline/spline.jl")
 include("spline/closed_filament.jl")
 

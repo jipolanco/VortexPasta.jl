@@ -156,3 +156,52 @@ end
         (6t - 24t2 + 20t3) / 2 * Xs″[2]
     )
 end
+
+## ================================================================================ ##
+
+function _interpolate(
+        m::HermiteInterpolation, f::ClosedFilament, t_in::Number, d::Derivative = Derivative(0);
+        ileft::Union{Nothing, Int} = nothing,
+    )
+    (; ts,) = f
+    i, t = _find_knot_segment(ileft, knotlims(f), ts, t_in)
+    ζ = (t - ts[i]) / (ts[i + 1] - ts[i])
+    y = _interpolate(m, f, i, ζ, d)
+    _deperiodise_hermite(d, y, f, t, t_in)
+end
+
+function _interpolate(
+        method::HermiteInterpolation{M}, f::ClosedFilament,
+        i::Int, t::Number, deriv::Derivative{N},
+    ) where {M, N}
+    (; cs, cderivs,) = f.coefs
+    ts = knots(f)
+    checkbounds(f, i)
+    @assert npad(cs) ≥ 1
+    @assert all(X -> npad(X) ≥ 1, cderivs)
+    @inbounds ℓ_i = ts[i + 1] - ts[i]
+    @assert M ≤ 2
+    α = 1 / (ℓ_i^N)  # normalise returned derivative by ℓ^N
+    values_full = (cs, cderivs...)
+    ℓ_norm = Ref(one(ℓ_i))
+    values_i = ntuple(Val(M + 1)) do m
+        @inline
+        X = values_full[m]
+        @inbounds data = (X[i], X[i + 1]) .* ℓ_norm  # normalise m-th derivative by ℓ^m
+        ℓ_norm[] *= ℓ_i
+        data
+    end
+    α * interpolate(method, deriv, t, values_i...)
+end
+
+function _deperiodise_hermite(::Derivative{0}, y, f::ClosedFilament, t, t_in)
+    (; Xoffset,) = f
+    Xoffset === zero(Xoffset) && return y
+    t == t_in && return y
+    ta, tb = knotlims(f)
+    T = tb - ta
+    dt = t_in - t  # expected to be a multiple of T
+    y + dt / T * Xoffset
+end
+
+_deperiodise_hermite(::Derivative, y, args...) = y  # derivatives (n ≥ 1): shift not needed

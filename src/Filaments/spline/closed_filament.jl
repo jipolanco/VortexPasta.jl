@@ -26,7 +26,7 @@ function _derivative_at_node(
         (t[3] - t[2]) * cs[i - 1] +
         (t[2] - t[1]) * cs[i]
     ) / (t[3] - t[1])
-    deperiodise_spline(y, Xoffset, ts, t[2], Val(1))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
+    deperiodise_curve(y, Xoffset, ts, t[2], Val(1))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
 end
 
 # The second derivative at a node is simply equal to the corresponding spline coefficient.
@@ -53,7 +53,7 @@ function _interpolate(
     coefs = (cs, cderivs...)[n + 1]
     ord = 4 - n
     y = evaluate_spline(coefs, ts, i, t, Val(ord))
-    deperiodise_spline(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
+    deperiodise_curve(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
 end
 
 # Insertion is based on the knot insertion algorithm for splines.

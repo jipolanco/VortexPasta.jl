@@ -96,7 +96,7 @@ function periodise_coordinates!(
         @inbounds T = ts[end + 1] - ts[begin]  # knot period
         @inbounds for i ∈ eachindex(Ys)
             # Change of variables to have a periodic spline.
-            # See also `deperiodise_spline` below, which undoes this after the spline
+            # See also `deperiodise_curve` below, which undoes this after the spline
             # has been evaluated.
             Ys[i] = Xs[i] - (ts[i] / T) * Xoffset
         end
@@ -105,15 +105,15 @@ function periodise_coordinates!(
 end
 
 # This should be used to undo periodisation of non-periodic splines.
-function deperiodise_spline(y::Vec3, Xoffset::Vec3, ts::AbstractVector, t::Number, derivative::Val)
+function deperiodise_curve(y::Vec3, Xoffset::Vec3, ts::AbstractVector, t::Number, derivative::Val)
     Xoffset === zero(Xoffset) && return y
     @inbounds T = ts[end + 1] - ts[begin]  # knot period
-    _deperiodise_spline(y, Xoffset, T, t, derivative)
+    _deperiodise_curve(y, Xoffset, T, t, derivative)
 end
 
-_deperiodise_spline(y::Vec3, Xoffset::Vec3, T, t, ::Val{0}) = y + (t / T) * Xoffset  # zero-th derivative
-_deperiodise_spline(y::Vec3, Xoffset::Vec3, T, t, ::Val{1}) = y + (1 / T) * Xoffset  # first derivative
-_deperiodise_spline(y::Vec3, Xoffset::Vec3, T, t, ::Val)    = y  # higher-order derivatives
+_deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val{0}) = y + (t / T) * Xoffset  # zero-th derivative
+_deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val{1}) = y + (1 / T) * Xoffset  # first derivative
+_deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val)    = y  # higher-order derivatives
 
 function _thomas_buffers(ts::AbstractVector, buf_in::PaddedVector, ::Val{unsafe} = Val(true)) where {unsafe}
     n = length(ts)
