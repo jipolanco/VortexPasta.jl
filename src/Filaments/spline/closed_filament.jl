@@ -2,7 +2,8 @@ function _update_coefficients_only!(
         ::CubicSplineMethod, f::ClosedFilament;
         only_derivatives = false,
     )
-    (; ts, Xs, cs, cderivs, Xoffset,) = f
+    (; ts, Xs, Xoffset,) = f
+    (; cs, cderivs,) = f.coefs
     if !only_derivatives
         solve_cubic_spline_coefficients!(cs, ts, Xs; Xoffset,)
     end
@@ -17,9 +18,9 @@ end
 function _derivative_at_node(
         ::Derivative{1}, ::CubicSplineMethod, f::ClosedFilament, node::AtNode,
     )
-    (; ts, cderivs, Xoffset,) = f
+    (; ts, coefs, Xoffset,) = f
     (; i,) = node
-    cs = cderivs[1]  # spline coefficients associated to first derivative
+    cs = coefs.cderivs[1]  # spline coefficients associated to first derivative
     t = ntuple(j -> ts[i - 2 + j], Val(3))  # = (ts[i - 1], ts[i], ts[i + 1])
     y = (
         (t[3] - t[2]) * cs[i - 1] +
@@ -32,7 +33,7 @@ end
 function _derivative_at_node(
         ::Derivative{2}, ::CubicSplineMethod, f::ClosedFilament, node::AtNode,
     )
-    f.cderivs[2][node.i]
+    f.coefs.cderivs[2][node.i]
 end
 
 function _interpolate(m::CubicSplineMethod, f::ClosedFilament, i::Int, ζ::Number, d::Derivative)
@@ -46,7 +47,8 @@ function _interpolate(
         ::CubicSplineMethod, f::ClosedFilament, t_in::Number, ::Derivative{n};
         ileft::Union{Nothing, Int} = nothing,
     ) where {n}
-    (; ts, cs, cderivs, Xoffset,) = f
+    (; ts, Xoffset,) = f
+    (; cs, cderivs,) = f.coefs
     i, t = _find_knot_segment(ileft, knotlims(f), ts, t_in)
     coefs = (cs, cderivs...)[n + 1]
     ord = 4 - n
@@ -56,7 +58,8 @@ end
 
 # Insertion is based on the knot insertion algorithm for splines.
 function _insert_node!(::CubicSplineMethod, f::ClosedFilament, i::Integer, ζ::Real)
-    (; ts, cs, Xs,) = f
+    (; ts, Xs,) = f
+    (; cs,) = f.coefs
     t = (1 - ζ) * ts[i] + ζ * ts[i + 1]  # insert knot somewhere in the middle (ζ ∈ [0, 1]; by default ζ = 0.5)
     spline_insert_knot!(cs, ts, i, t)    # note: this calls pad_periodic! on cs and ts
     Xnew = f(t; ileft = i)
@@ -65,7 +68,8 @@ function _insert_node!(::CubicSplineMethod, f::ClosedFilament, i::Integer, ζ::R
 end
 
 function _remove_node!(::CubicSplineMethod, f::ClosedFilament, i::Integer)
-    (; ts, cs, Xs,) = f
+    (; ts, Xs,) = f
+    (; cs,) = f.coefs
     T = ts[end + 1] - ts[begin]
     popat!(cs, i)
     popat!(ts, i)
@@ -83,7 +87,8 @@ end
 # reevaluating node positions (not needed for node insertion, since the curve is unchanged
 # in that case).
 function _update_after_changing_nodes!(::CubicSplineMethod, f::ClosedFilament; removed = true)
-    (; Xs, cs, ts,) = f
+    (; Xs, ts,) = f
+    (; cs,) = f.coefs
     @assert length(f) == length(Xs) == length(cs) == length(ts)  # these already have the right size
     resize!(f, length(Xs))   # resize all vectors in the filament
     check_nodes(Bool, f) || return f  # avoids error if the new number of nodes is too low

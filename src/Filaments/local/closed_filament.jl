@@ -3,7 +3,8 @@ function _update_coefficients_only!(
         ::FiniteDiffMethod, f::ClosedFilament;
         only_derivatives = false,
     )
-    (; ts, Xs, cs, cderivs,) = f
+    (; ts, Xs,) = f
+    (; cs, cderivs,) = f.coefs
     M = npad(ts)
     @assert M ≥ 1  # minimum padding required for computation of ts
     method = discretisation_method(f)
@@ -25,7 +26,7 @@ end
 function _derivative_at_node(
         ::Derivative{n}, ::FiniteDiffMethod, f::ClosedFilament, node::AtNode,
     ) where {n}
-    (; cs, cderivs,) = f
+    (; cs, cderivs,) = f.coefs
     coefs = (cs, cderivs...)
     coefs[n + 1][node.i]
 end
@@ -48,7 +49,8 @@ function _interpolate(
         method::HermiteInterpolation{M}, f::ClosedFilament,
         i::Int, t::Number, deriv::Derivative{N},
     ) where {M, N}
-    (; ts, cs, cderivs,) = f
+    (; cs, cderivs,) = f.coefs
+    ts = knots(f)
     checkbounds(f, i)
     @assert npad(cs) ≥ 1
     @assert all(X -> npad(X) ≥ 1, cderivs)
@@ -80,7 +82,8 @@ end
 _deperiodise_finitediff(::Derivative, y, args...) = y  # derivatives (n ≥ 1): shift not needed
 
 function _insert_node!(::FiniteDiffMethod, f::ClosedFilament, i::Integer, ζ::Real)
-    (; Xs, cs, cderivs,) = f
+    (; Xs,) = f
+    (; cs, cderivs,) = f.coefs
     @assert length(cderivs) == 2
 
     s⃗ = f(i, ζ)  # new point to be added

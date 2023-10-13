@@ -37,3 +37,16 @@ derivatives at a given point.
 Some examples of this are spline- or Fourier-based filament descriptions.
 """
 abstract type GlobalDiscretisationMethod <: DiscretisationMethod end
+
+# Discretisation coefficients associated to a method.
+# Here `N` is the number of derivatives that are included in the coefficients.
+abstract type DiscretisationCoefs{Method <: DiscretisationMethod, N} end
+
+# Check that two sets of coefficients are equal
+function Base.:(==)(x::DiscretisationCoefs, y::DiscretisationCoefs)
+    x.method === y.method || return false
+    us = allvectors(x)
+    vs = allvectors(y)
+    length(us) === length(vs) || return false
+    all(splat(==), zip(us, vs))
+end
