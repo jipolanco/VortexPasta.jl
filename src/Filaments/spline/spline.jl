@@ -19,6 +19,30 @@ npad(::Type{<:CubicSplineMethod}) = 3  # padding needed for cubic splines
 # Cubic splines are C² at the knots.
 continuity(::Type{CubicSplineMethod}) = 2
 
+struct CubicSplineCoefs{
+        Method <: CubicSplineMethod,
+        N,  # number of derivatives included (usually 2)
+        Points <: AbstractVector,
+    } <: DiscretisationCoefs{Method, N}
+    method :: Method
+
+    # B-spline coefficients associated to the curve.
+    cs :: Points
+
+    # B-spline coefficients associated to first and second derivatives.
+    cderivs :: NTuple{N, Points}
+end
+
+function init_coefficients(method::CubicSplineMethod, Xs::AbstractVector, Nderiv::Val)
+    cs = similar(Xs)
+    cderivs = ntuple(_ -> similar(Xs), Nderiv)
+    CubicSplineCoefs(method, cs, cderivs)
+end
+
+allvectors(x::CubicSplineCoefs) = (x.cs, x.cderivs...)
+
+## ================================================================================ ##
+
 # Evaluate cubic B-splines at `x` based on the knot vector `ts`.
 # The `ileft` index must be such that ts[ileft] ≤ x < ts[ileft + 1].
 # Note that the returned B-splines are in reversed order: (b_{i + 2}, b_{i + 1}, b_{i}, b_{i - 1}),
