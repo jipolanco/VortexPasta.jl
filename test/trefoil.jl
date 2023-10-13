@@ -4,12 +4,12 @@ using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 
-function init_trefoil_filament(N::Int)
+function init_trefoil_filament(N::Int; method = CubicSplineMethod())
     R = π / 4
     S = @inferred define_curve(TrefoilKnot(); translate = R, scale = R)
     ζs = range(0, 1; length = N + 1)[1:N]
     Xs = @inferred broadcast(S, ζs)  # same as S.(ζs)
-    Filaments.init(ClosedFilament, Xs, CubicSplineMethod())
+    Filaments.init(ClosedFilament, Xs, method)
 end
 
 function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, params_kws...)
@@ -202,6 +202,10 @@ end
         quadratures = (GaussLegendre(3), NoQuadrature())
         @testset "$quad" for quad ∈ quadratures
             check_independence_on_ewald_parameter(f, αs; quad, params_kws...)
+        end
+        @testset "FourierMethod()" begin
+            f_fourier = @inferred init_trefoil_filament(32; method = FourierMethod())
+            check_independence_on_ewald_parameter(f_fourier, αs; params_kws...)
         end
     end
 end
