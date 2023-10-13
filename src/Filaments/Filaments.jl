@@ -261,8 +261,9 @@ include("refinement.jl")
 include("reconnections.jl")
 include("from_vector_field.jl")
 
-include("local/interpolation.jl")
-include("local/interp_hermite.jl")
+include("interpolation/interpolation.jl")
+include("interpolation/hermite.jl")
+
 include("local/finitediff.jl")
 include("local/closed_filament.jl")
 
