@@ -131,7 +131,7 @@ function ClosedFilament(
 end
 
 ClosedFilament(Xs::PaddedVector, method::DiscretisationMethod; kws...) =
-    ClosedFilament(default_parametrisation, Xs, method; kws...)
+    ClosedFilament(default_parametrisation(method), Xs, method; kws...)
 
 discretisation_method(::Type{<:ClosedFilament{T, D}}) where {T, D} = D()
 discretisation_method(f::ClosedFilament) = discretisation_method(typeof(f))
@@ -146,7 +146,7 @@ init(func::Func, ::Type{ClosedFilament}, args...; kws...) where {Func} =
 
 function init(
         ::Type{ClosedFilament{T}}, N::Integer, method::DiscretisationMethod;
-        parametrisation::F = default_parametrisation, kws...,
+        parametrisation::F = default_parametrisation(method), kws...,
     ) where {T, F}
     M = npad(method)
     Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))
@@ -155,7 +155,7 @@ end
 
 function init(
         ::Type{<:ClosedFilament}, Xs::PaddedVector{M, <:Vec3}, method::DiscretisationMethod;
-        parametrisation::F = default_parametrisation, kws...,
+        parametrisation::F = default_parametrisation(method), kws...,
     ) where {M, F}
     @assert M == npad(method)
     f = ClosedFilament(parametrisation, Xs, method; kws...)

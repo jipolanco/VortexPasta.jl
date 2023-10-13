@@ -290,13 +290,16 @@ Base.@propagate_inbounds Base.getindex(
     f::AbstractFilament, i::Int, d::Union{Derivative, GeometricQuantity},
 ) = f(AtNode(i), d)
 
-default_parametrisation(Xs::PaddedVector, i::Int) = Xs[i]
+# This is the default parametrisation for any generic discretisation method.
+# Specific discretisation methods (e.g. Fourier) may choose a different default
+# parametrisation.
+default_parametrisation(::DiscretisationMethod) = (Xs, i) -> @inbounds(Xs[i])
 
 @doc raw"""
     Filaments.init(
         ClosedFilament{T}, N::Integer, method::DiscretisationMethod;
         offset = zero(Vec3{T}),
-        parametrisation = Filaments.default_parametrisation,
+        parametrisation = Filaments.default_parametrisation(method),
     ) -> ClosedFilament{T}
 
 Allocate data for a closed filament with `N` discretisation points.
