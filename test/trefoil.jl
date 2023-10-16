@@ -1,5 +1,5 @@
 using Test
-using LinearAlgebra: norm, ⋅
+using LinearAlgebra: norm, ⋅, ×
 using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
@@ -185,6 +185,34 @@ function check_independence_on_ewald_parameter(f, αs; quad = GaussLegendre(2), 
     nothing
 end
 
+longrange_modified_bs_integrand_taylor(::Velocity, s⃗′, r⃗, α) =
+    (s⃗′ × r⃗) * (4 * α^3 / (3 * sqrt(π)))
+
+longrange_modified_bs_integrand_taylor(::Streamfunction, s⃗′, r⃗, α) =
+    s⃗′ * (2 * α / sqrt(π))
+
+function test_long_range_accuracy_near_zero(::Type{T}, quantity) where {T}
+    component = BiotSavart.LongRange()
+    s⃗′ = Vec3{T}(0.3, 0.4, -0.5)  # not important
+    α = T(2.3)
+    @testset "Near zero" begin
+        r⃗ = Vec3{T}(0.0, 0.0, 0.0) .+ T(8) * sqrt(eps(1.0))
+        r² = sum(abs2, r⃗)
+        integrand = BiotSavart.modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
+        integrand_taylor = longrange_modified_bs_integrand_taylor(quantity, s⃗′, r⃗, α)
+        @test isapprox(integrand, integrand_taylor; rtol = 1e-4)
+    end
+    @testset "At zero" begin
+        r⃗ = Vec3{T}(0.0, 0.0, 0.0)
+        r² = sum(abs2, r⃗)
+        # This should call the internal BiotSavart.long_range_bs_integrand_at_zero function.
+        integrand = BiotSavart.modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
+        integrand_taylor = longrange_modified_bs_integrand_taylor(quantity, s⃗′, r⃗, α)
+        @test integrand == integrand_taylor
+    end
+    nothing
+end
+
 @testset "Trefoil" begin
     f = @inferred init_trefoil_filament(30)
     Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
@@ -193,6 +221,9 @@ end
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
     @testset "Long range" begin
         compare_long_range([f]; tol = 1e-8, params_kws..., α = kmax / 6)
+        @testset "$quantity near r = 0" for quantity ∈ (Velocity(), Streamfunction())
+            test_long_range_accuracy_near_zero(Float64, quantity)
+        end
     end
     @testset "Short range" begin
         compare_short_range([f]; params_kws..., α = kmax / 6)
