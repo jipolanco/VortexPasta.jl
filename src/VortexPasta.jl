@@ -13,6 +13,7 @@ export GaussLegendre
 
 include("Filaments/Filaments.jl")
 include("FilamentIO/FilamentIO.jl")
+include("Reconnections/Reconnections.jl")
 
 include("BiotSavart/BiotSavart.jl")
 include("Diagnostics/Diagnostics.jl")

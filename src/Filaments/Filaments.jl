@@ -16,10 +16,6 @@ export
     CurvatureScalar,
     CurvatureBinormal,
 
-    # Reconnection criteria
-    NoReconnections,
-    ReconnectBasedOnDistance,
-
     knots,
     knotlims,
     end_to_end_offset,
@@ -258,7 +254,7 @@ include("segments.jl")
 include("integrate.jl")
 include("min_distance.jl")
 include("refinement.jl")
-include("reconnections.jl")
+include("split_merge.jl")
 include("from_vector_field.jl")
 
 include("interpolation/interpolation.jl")

@@ -15,10 +15,11 @@ using ..Filaments:
     nodes,
     segments,
     knots,
-
     RefinementCriterion,
-    NoRefinement,
+    NoRefinement
 
+using ..Reconnections:
+    Reconnections,
     ReconnectionCriterion,
     NoReconnections
 
@@ -554,7 +555,7 @@ end
 function reconnect!(iter::VortexFilamentSolver)
     (; vs, ψs, fs, reconnect,) = iter
     fields = (vs, ψs)
-    Filaments.reconnect!(reconnect, fs) do f, i, mode
+    Reconnections.reconnect!(reconnect, fs) do f, i, mode
         reconnect_callback((fs, fields), f, i, mode)
     end :: Int  # returns the number of reconnections
 end
