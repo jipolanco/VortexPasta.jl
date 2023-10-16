@@ -7,7 +7,7 @@ using VortexPasta.BiotSavart
 using VortexPasta.Diagnostics: Diagnostics
 using Random
 
-function init_ring_filament(N::Int, R = π / 3; noise = 0.0, rng = nothing)
+function init_ring_filament(N::Int, R = π / 3; noise = 0.0, method = CubicSplineMethod(), rng = nothing)
     S = define_curve(Ring(); scale = R, translate = π)
     tlims = (0, 1)
     ζs_base = range(tlims...; length = 2N + 1)[2:2:end]
@@ -18,7 +18,7 @@ function init_ring_filament(N::Int, R = π / 3; noise = 0.0, rng = nothing)
         rng_ = rng === nothing ? MersenneTwister(42) : rng
         ζs .+= noise * dζ * rand(rng_, N)  # `noise` should be ∈ ]-1, 1[
     end
-    f = @inferred Filaments.init(S, ClosedFilament, ζs, CubicSplineMethod())
+    f = @inferred Filaments.init(S, ClosedFilament, ζs, method)
     (; f, R, noise,)
 end
 
@@ -74,7 +74,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         # This assumes that the point distribution is uniform; otherwise the variance is much higher.
         # @test all(std(vs) .< U * 1e-12)
         U_expected = vortex_ring_velocity(ps.Γ, R, ps.a; Δ = ps.Δ)
-        @show (U - U_expected) / U_expected
+        # @show (U - U_expected) / U_expected
         rtol = nquad == 1 ? 6e-3 : 1e-4
         @test isapprox(U, U_expected; rtol)  # the tolerance will mainly depend on the vortex resolution N
     end
@@ -95,7 +95,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         ψ_mean = mean(ψs_para)
         # @test std(ψs_para) < 2 * eps(ψ_mean)  # ψ ⋅ s⃗ along the curve doesn't vary
         ψ_expected = vortex_ring_streamfunction(ps.Γ, R, ps.a; Δ = ps.Δ)
-        @show (ψ_mean - ψ_expected) / ψ_expected
+        # @show (ψ_mean - ψ_expected) / ψ_expected
         rtol = 4e-3 / nquad
         @test isapprox(ψ_mean, ψ_expected; rtol)
     end
@@ -105,22 +105,25 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         Ls = 1  # sets domain volume to 1 for energy estimation
         E_expected = (Γ^2 * R/2) * (log(8R / a) - (Δ + 1))
         E_estimated = Diagnostics.kinetic_energy_from_streamfunction(ψs, f, Γ, Ls)
-        @show (E_expected - E_estimated) / E_expected
+        # @show (E_expected - E_estimated) / E_expected
         rtol = 4e-3 / nquad
         @test isapprox(E_expected, E_estimated; rtol)
     end
 
     # Check velocity excluding LIA (i.e. only non-local integration)
     @testset "Non-local velocity" begin
-        ts = knots(f)
         i = 1
-        ℓ = sqrt((ts[i + 1] - ts[i]) * (ts[i] - ts[i - 1])) / 4  # = √(l₋ l₊) / 4
+        integrand(f, i, ζ) = norm(f(i, ζ, Derivative(1)))  # for segment length
+        ℓ₋ = integrate(integrand, f, i - 1, GaussLegendre(8))
+        ℓ₊ = integrate(integrand, f, i - 0, GaussLegendre(8))
+        ℓ = sqrt(ℓ₋ * ℓ₊) / 4
         fill!(vs, zero(eltype(vs)))
         BiotSavart.set_filaments!(cache.shortrange, [f])
         BiotSavart.add_short_range_velocity!(vs, cache.shortrange, f; LIA = Val(false))
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
         U_nonlocal = norm(vs[i])
-        @show (U_nonlocal - U_nonlocal_expected) / U_nonlocal_expected
+        # method = Filaments.discretisation_method(f)
+        # @show quad, method, noise, (U_nonlocal - U_nonlocal_expected) / U_nonlocal_expected
         rtol = if quad === NoQuadrature()
             0.05
         else
@@ -147,16 +150,18 @@ function test_local_induced_approximation(ring)
     ℓ₊ = arclength(i)
     ℓ = sqrt(ℓ₋ * ℓ₊) / 4
     v_expected = vortex_ring_velocity(ps.Γ, R, ps.a; ps.Δ) - vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
-    v_base = norm(BiotSavart.local_self_induced_velocity(f, i; quad = nothing, ps...))  # without quadrature
+    v_base = norm(
+        BiotSavart.local_self_induced_velocity(f, i; quad = nothing, ps...),
+    )  # without quadrature
     v_quad = map(1:8) do n
         quad = GaussLegendre(n)
         norm(BiotSavart.local_self_induced_velocity(f, i; quad, ps...))
     end
     # Things converge quite quickly; in this case GaussLegendre(2) seems to be enough.
-    @show (v_base - v_expected) / v_expected
-    @show (v_quad[1] .- v_expected) ./ v_expected
-    @show (v_quad[2] .- v_expected) ./ v_expected
-    @show (v_quad[3] .- v_expected) ./ v_expected
+    # @show (v_base - v_expected) / v_expected
+    # @show (v_quad[1] .- v_expected) ./ v_expected
+    # @show (v_quad[2] .- v_expected) ./ v_expected
+    # @show (v_quad[3] .- v_expected) ./ v_expected
     @test isapprox(v_expected, v_base; rtol = 5e-3)
     @test isapprox(v_expected, v_quad[1]; rtol = 1e-2)
     rtol = max(6e-6, noise * 1e-3)
@@ -166,28 +171,41 @@ function test_local_induced_approximation(ring)
         # Alternative estimation by fitting a circle (as in Schwarz PRB 1985).
         # In the specific case of a vortex ring, this should give a perfect
         # estimation of the curvature and binormal vectors.
-        v⃗_base_circle = BiotSavart.local_self_induced_velocity(f, i; quad = nothing, fit_circle = true, ps...)
+        v⃗_base_circle = BiotSavart.local_self_induced_velocity(
+            f, i; quad = nothing, fit_circle = true, ps...,
+        )
         @test normalize(v⃗_base_circle) ≈ Base.setindex(zero(v⃗_base_circle), 1, 3)  # has the right direction
         @test isapprox(norm(v⃗_base_circle), v_expected; rtol = 1e-3)
     end
     nothing
 end
 
-N = 32  # number of discretisation points
-
-# `noise`: non-uniformity of filament discretisation (noise == 0 means uniform discretisation)
-
-@testset "Vortex ring (N = $N, noise = $noise)" for noise ∈ (0.0, 0.2)
-    ring = init_ring_filament(N; noise)
-    @testset "Non-periodic" begin
-        # Note: GaussLegendre(1) and NoQuadrature() should give nearly the same results.
-        quads = (GaussLegendre(4), GaussLegendre(1), NoQuadrature())
-        @testset "Quadrature: $quad" for quad ∈ quads
-            test_vortex_ring_nonperiodic(ring; quad)
+@testset "Vortex ring velocity" begin
+    method = CubicSplineMethod()
+    N = 32  # number of discretisation points
+    # `noise`: non-uniformity of filament discretisation (noise == 0 means uniform discretisation)
+    @testset "$method, N = $N, noise = $noise" for noise ∈ (0.0, 0.2)
+        ring = init_ring_filament(N; noise, method)
+        @testset "Non-periodic" begin
+            # Note: GaussLegendre(1) and NoQuadrature() should give nearly the same results.
+            quads = (GaussLegendre(4), GaussLegendre(1), NoQuadrature())
+            @testset "Quadrature: $quad" for quad ∈ quads
+                test_vortex_ring_nonperiodic(ring; quad)
+            end
+        end
+        @testset "LIA" begin
+            test_local_induced_approximation(ring)
         end
     end
-    @testset "LIA" begin
-        test_local_induced_approximation(ring)
+    method = FourierMethod()
+    @testset "$method" begin
+        ring = init_ring_filament(N; noise = 0.0, method)
+        @testset "Non-periodic" begin
+            test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(1))
+        end
+        @testset "LIA" begin
+            test_local_induced_approximation(ring)
+        end
     end
 end
 

@@ -70,7 +70,7 @@ Estimate the total length of a closed filament, ``L = ∮ |∂_t \\bm{X}(t)| \\,
 ```julia
 quad = GaussLegendre(4)  # quadrature rule
 
-integrand(f, i, ζ) = f(i, ζ, Derivative(1))  # = |∂ₜ𝐗|
+integrand(f, i, ζ) = norm(f(i, ζ, Derivative(1)))  # = |∂ₜ𝐗|
 
 # Here `f` is an existent filament.
 L = integrate(integrand, f, quad)

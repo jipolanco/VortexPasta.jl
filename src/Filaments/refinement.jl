@@ -72,6 +72,7 @@ abstract type RefinementCriterion end
 function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
     (; cache,) = crit
     (; inds_add, inds_rem,) = cache
+    ts = knots(f)
     empty!(cache)
     skipnext = false
     iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
