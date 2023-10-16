@@ -261,10 +261,13 @@ include("refinement.jl")
 include("reconnections.jl")
 include("from_vector_field.jl")
 
-include("local/interpolation.jl")
-include("local/interp_hermite.jl")
+include("interpolation/interpolation.jl")
+include("interpolation/hermite.jl")
+
 include("local/finitediff.jl")
 include("local/closed_filament.jl")
+
+include("fourier/fourier.jl")
 
 include("spline/spline.jl")
 include("spline/closed_filament.jl")
@@ -290,13 +293,16 @@ Base.@propagate_inbounds Base.getindex(
     f::AbstractFilament, i::Int, d::Union{Derivative, GeometricQuantity},
 ) = f(AtNode(i), d)
 
-default_parametrisation(Xs::PaddedVector, i::Int) = Xs[i]
+# This is the default parametrisation for any generic discretisation method.
+# Specific discretisation methods (e.g. Fourier) may choose a different default
+# parametrisation.
+default_parametrisation(::DiscretisationMethod) = (Xs, i) -> @inbounds(Xs[i])
 
 @doc raw"""
     Filaments.init(
         ClosedFilament{T}, N::Integer, method::DiscretisationMethod;
         offset = zero(Vec3{T}),
-        parametrisation = Filaments.default_parametrisation,
+        parametrisation = Filaments.default_parametrisation(method),
     ) -> ClosedFilament{T}
 
 Allocate data for a closed filament with `N` discretisation points.

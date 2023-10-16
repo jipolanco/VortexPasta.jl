@@ -154,7 +154,20 @@ ewald_screening_function(::Streamfunction, ::LongRange,   ::Zero) = Zero()
 biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3
 biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r
 
+# Evaluation of long-range integrands at r = 0.
+# These are non-singular and can be obtained from Taylor expansions close to r = 0.
+# Currently we don't use them but we keep them here just in case.
+long_range_bs_integrand_at_zero(::Velocity, α, s⃗′) = zero(s⃗′)
+long_range_bs_integrand_at_zero(::Streamfunction, α, s⃗′) = 2 * α / sqrt(π) * s⃗′
+
 @inline function modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
+    # This is generally not reached as we don't evaluate exactly on nodes.
+    # But it could be useful in the future.
+    if component === LongRange() && iszero(r²)
+        # In this case the result of `biot_savart_integrand` is `NaN`, but the actual
+        # integrand when multiplied by the splitting function is well defined.
+        return oftype(s⃗′, long_range_bs_integrand_at_zero(quantity, α, s⃗′))
+    end
     r = sqrt(r²)
     g = ewald_screening_function(quantity, component, α * r)
     w⃗ = biot_savart_integrand(quantity, s⃗′, r⃗, r)

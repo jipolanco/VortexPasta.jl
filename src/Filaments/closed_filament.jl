@@ -131,7 +131,7 @@ function ClosedFilament(
 end
 
 ClosedFilament(Xs::PaddedVector, method::DiscretisationMethod; kws...) =
-    ClosedFilament(default_parametrisation, Xs, method; kws...)
+    ClosedFilament(default_parametrisation(method), Xs, method; kws...)
 
 discretisation_method(::Type{<:ClosedFilament{T, D}}) where {T, D} = D()
 discretisation_method(f::ClosedFilament) = discretisation_method(typeof(f))
@@ -146,7 +146,7 @@ init(func::Func, ::Type{ClosedFilament}, args...; kws...) where {Func} =
 
 function init(
         ::Type{ClosedFilament{T}}, N::Integer, method::DiscretisationMethod;
-        parametrisation::F = default_parametrisation, kws...,
+        parametrisation::F = default_parametrisation(method), kws...,
     ) where {T, F}
     M = npad(method)
     Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))
@@ -155,7 +155,7 @@ end
 
 function init(
         ::Type{<:ClosedFilament}, Xs::PaddedVector{M, <:Vec3}, method::DiscretisationMethod;
-        parametrisation::F = default_parametrisation, kws...,
+        parametrisation::F = default_parametrisation(method), kws...,
     ) where {M, F}
     @assert M == npad(method)
     f = ClosedFilament(parametrisation, Xs, method; kws...)
@@ -398,3 +398,45 @@ remove_node!(f::ClosedFilament, i::Integer) =
 
 update_after_changing_nodes!(f::ClosedFilament; removed = true) =
     _update_after_changing_nodes!(discretisation_method(f), f; removed)
+
+## Default implementation
+
+function _insert_node!(::DiscretisationMethod, f::ClosedFilament, i::Integer, ζ::Real)
+    (; Xs,) = f
+    (; cs, cderivs,) = f.coefs
+    @assert length(cderivs) == 2
+
+    s⃗ = f(i, ζ)  # new point to be added
+    insert!(Xs, i + 1, s⃗)  # note: this uses derivatives at nodes (Hermite interpolations), so make sure they are up to date!
+    insert!(cs, i + 1, s⃗)
+
+    # We also insert new derivatives in case we need to perform Hermite interpolations later
+    # (for instance if we insert other nodes).
+    # Derivatives will be recomputed later when calling `update_after_changing_nodes!`.
+    s⃗′ = f(i, ζ, Derivative(1))
+    s⃗″ = f(i, ζ, Derivative(2))
+    insert!(cderivs[1], i + 1, s⃗′)
+    insert!(cderivs[2], i + 1, s⃗″)
+
+    s⃗
+end
+
+function _remove_node!(::DiscretisationMethod, f::ClosedFilament, i::Integer)
+    (; ts, Xs,) = f
+    # No need to modify interpolation coefficients, since they will be updated later in
+    # `update_after_changing_nodes!`. This assumes that we won't insert nodes after removing
+    # nodes (i.e. insertions are done before removals).
+    popat!(ts, i)
+    popat!(Xs, i)
+end
+
+# The `removed` argument is just there for compatibility with splines.
+function _update_after_changing_nodes!(::DiscretisationMethod, f::ClosedFilament; removed = true)
+    (; Xs,) = f
+    resize!(f, length(Xs))   # resize all vectors in the filament
+    if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low
+        pad_periodic!(Xs, f.Xoffset)
+        update_coefficients!(f)
+    end
+    f
+end

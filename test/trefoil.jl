@@ -1,15 +1,15 @@
 using Test
-using LinearAlgebra: norm, ⋅
+using LinearAlgebra: norm, ⋅, ×
 using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 
-function init_trefoil_filament(N::Int)
+function init_trefoil_filament(N::Int; method = CubicSplineMethod())
     R = π / 4
     S = @inferred define_curve(TrefoilKnot(); translate = R, scale = R)
     ζs = range(0, 1; length = N + 1)[1:N]
     Xs = @inferred broadcast(S, ζs)  # same as S.(ζs)
-    Filaments.init(ClosedFilament, Xs, CubicSplineMethod())
+    Filaments.init(ClosedFilament, Xs, method)
 end
 
 function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, params_kws...)
@@ -185,6 +185,34 @@ function check_independence_on_ewald_parameter(f, αs; quad = GaussLegendre(2), 
     nothing
 end
 
+longrange_modified_bs_integrand_taylor(::Velocity, s⃗′, r⃗, α) =
+    (s⃗′ × r⃗) * (4 * α^3 / (3 * sqrt(π)))
+
+longrange_modified_bs_integrand_taylor(::Streamfunction, s⃗′, r⃗, α) =
+    s⃗′ * (2 * α / sqrt(π))
+
+function test_long_range_accuracy_near_zero(::Type{T}, quantity) where {T}
+    component = BiotSavart.LongRange()
+    s⃗′ = Vec3{T}(0.3, 0.4, -0.5)  # not important
+    α = T(2.3)
+    @testset "Near zero" begin
+        r⃗ = Vec3{T}(0.0, 0.0, 0.0) .+ T(8) * sqrt(eps(1.0))
+        r² = sum(abs2, r⃗)
+        integrand = BiotSavart.modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
+        integrand_taylor = longrange_modified_bs_integrand_taylor(quantity, s⃗′, r⃗, α)
+        @test isapprox(integrand, integrand_taylor; rtol = 1e-4)
+    end
+    @testset "At zero" begin
+        r⃗ = Vec3{T}(0.0, 0.0, 0.0)
+        r² = sum(abs2, r⃗)
+        # This should call the internal BiotSavart.long_range_bs_integrand_at_zero function.
+        integrand = BiotSavart.modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
+        integrand_taylor = longrange_modified_bs_integrand_taylor(quantity, s⃗′, r⃗, α)
+        @test integrand == integrand_taylor
+    end
+    nothing
+end
+
 @testset "Trefoil" begin
     f = @inferred init_trefoil_filament(30)
     Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
@@ -193,6 +221,9 @@ end
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
     @testset "Long range" begin
         compare_long_range([f]; tol = 1e-8, params_kws..., α = kmax / 6)
+        @testset "$quantity near r = 0" for quantity ∈ (Velocity(), Streamfunction())
+            test_long_range_accuracy_near_zero(Float64, quantity)
+        end
     end
     @testset "Short range" begin
         compare_short_range([f]; params_kws..., α = kmax / 6)
@@ -202,6 +233,10 @@ end
         quadratures = (GaussLegendre(3), NoQuadrature())
         @testset "$quad" for quad ∈ quadratures
             check_independence_on_ewald_parameter(f, αs; quad, params_kws...)
+        end
+        @testset "FourierMethod()" begin
+            f_fourier = @inferred init_trefoil_filament(32; method = FourierMethod())
+            check_independence_on_ewald_parameter(f_fourier, αs; params_kws...)
         end
     end
 end

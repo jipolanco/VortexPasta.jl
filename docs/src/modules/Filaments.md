@@ -120,6 +120,7 @@ interpolate
 ```@docs
 GlobalDiscretisationMethod
 CubicSplineMethod
+FourierMethod
 ```
 
 ## Segments

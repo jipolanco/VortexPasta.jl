@@ -16,6 +16,7 @@ end
     methods = (
         FiniteDiffMethod(),
         CubicSplineMethod(),
+        FourierMethod(),
     )
     N = 64
     curve = trefoil_curve(; R = π / 4, origin = π .* (1, 1, 1))
@@ -29,23 +30,28 @@ end
         end
 
         @testset "RefineBasedOnSegmentLength" begin
-            fc = copy(f)
             # Note: the max/min factor must be ≳ 2.
             # Otherwise we get an infinite loop:
             # 1. insert → now we're too fine
             # 2. remove → now we're too coarse
             # 3. insert → now we're too fine
             # 4. etc...
-            crit = RefineBasedOnSegmentLength(2 * l_min_orig, 4 * l_min_orig)
-            niter = 0
+            α_low = method isa FourierMethod ? 1.9 : 2.0
+            crit = RefineBasedOnSegmentLength(α_low * l_min_orig, 4 * l_min_orig)
 
+            fc = copy(f)
+            niter = 0
             while true  # do multiple passes if needed, until we don't need to refine anymore
                 niter += 1
+                N_prev = length(fc)
                 ret = Filaments.refine!(fc, crit)
                 all(iszero, ret) && break
+                n_add, n_rem = ret
+                @test length(fc) == N_prev + n_add - n_rem
                 niter == 10 && break
             end
             @test niter < 10  # shouldn't need so many iterations (infinite loop?)
+            fc
 
             l_min, l_max = extrema(segments(fc)) do seg
                 norm(seg(1.0) - seg(0.0))
@@ -56,12 +62,20 @@ end
 
         @testset "RefineBasedOnCurvature" begin
             fc = copy(f)
-            crit = RefineBasedOnCurvature(0.35, 0.35 / 2.5)
+            crit = if method isa FourierMethod
+                RefineBasedOnCurvature(0.2, 0.2 / 3.5)
+            else
+                RefineBasedOnCurvature(0.2, 0.2 / 2.5)
+            end
             niter = 0
             while true  # do multiple passes if needed, until we don't need to refine anymore
                 niter += 1
                 ret = Filaments.refine!(fc, crit)
                 all(iszero, ret) && break
+                n_add, n_rem = ret
+                # Make sure we insert nodes at the first iteration (since the
+                # RefineBasedOnSegmentLength test mainly removes nodes).
+                @assert n_add > 0 || niter > 1
                 niter == 10 && break
             end
             @test niter < 10  # shouldn't need so many iterations (infinite loop?)
@@ -78,6 +92,7 @@ end
             # Check that removing a node doesn't change the curve properties (continuity,
             # periodicity...). We test all nodes just in case, but nodes near the beginning
             # and end are the ones which used to fail for splines (fixed since)...
+            # Note: this is not really relevant for FourierMethod...
             for i ∈ eachindex(f)
                 @testset "Node $i/$N" begin
                     fc = copy(f)
@@ -103,7 +118,7 @@ if @isdefined(Makie)
     let f = fc
         p = plot!(ax, f; refinement = 8)
         scatter!(ax, nodes(f).data; color = p.color)
-        inds = (firstindex(f) - 2):(lastindex(f) + 2)
+        inds = (firstindex(f) - 1):(lastindex(f) + 1)
         for i ∈ inds
             align = i ∈ eachindex(f) ? (:left, :bottom) : (:right, :top)
             color = i ∈ eachindex(f) ? (p.color, 1.0) : (p.color, 0.6)

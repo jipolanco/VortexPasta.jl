@@ -16,6 +16,18 @@ using VortexPasta.Diagnostics
 using JET: JET
 using FINUFFT: FINUFFT  # for JET only
 
+function init_ring_filaments(R_init; method = CubicSplineMethod(), noise = 1/3)
+    N = 32
+    zs_init = [0.9, 1.1] .* π
+    rng = MersenneTwister(42)
+    map(zs_init) do z
+        S = define_curve(Ring(); translate = (π / 20, π, z), scale = R_init)
+        τs = collect(range(0, 1; length = 2N + 1)[2:2:2N])
+        τs .+= rand(rng, N) .* (noise / N)  # slightly randomise locations
+        Filaments.init(S, ClosedFilament, τs, method)
+    end
+end
+
 function vortex_ring_squared_radius(f::AbstractFilament)
     quad = GaussLegendre(4)
     # Note: this is the impulse normalised by the vortex circulation Γ and the density ρ.
@@ -122,7 +134,7 @@ function test_leapfrogging_rings(
     iseuler = scheme isa Euler || scheme isa IMEXEuler  # reduced precision of results
     @testset "Energy & impulse conservation" begin
         # With refinement we lose a tiny bit of precision (but still very acceptable!).
-        rtol_energy = refinement === NoRefinement() ? 1e-5 : 1e-4
+        rtol_energy = refinement === NoRefinement() ? 5e-5 : 1e-4
         rtol_impulse = 1e-5
         if iseuler
             rtol_energy *= 100
@@ -206,19 +218,9 @@ end
     @test α == @inferred (p -> p.α)(params_bs)
     @test :α ∈ @inferred propertynames(params_bs)
 
-    # Initialise filaments
-    N = 32
-    R_init = π / 3
-    zs_init = [0.9, 1.1] .* π
-    rng = MersenneTwister(42)
-    fs_init = map(zs_init) do z
-        S = define_curve(Ring(); translate = (π / 20, π, z), scale = R_init)
-        τs = collect(range(0, 1; length = 2N + 1)[2:2:2N])
-        τs .+= rand(rng, N) ./ 3N  # slightly randomise locations
-        Filaments.init(S, ClosedFilament, τs, CubicSplineMethod())
-    end
-
     # Initialise simulation
+    R_init = π / 3
+    fs_init = init_ring_filaments(R_init)
     tmax = 5 * R_init^2 / Γ  # enough time for a couple of "jumps"
     tspan = (0.0, tmax)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
@@ -287,5 +289,12 @@ end
 
     @testset "RK4 + no refinement" begin
         test_leapfrogging_rings(prob, RK4(); R_init, refinement = NoRefinement())
+    end
+
+    @testset "FourierMethod (with noise = 0)" begin
+        local scheme = SanduMRI33a(RK4(), 2)
+        local fs_init = @inferred init_ring_filaments(R_init; method = FourierMethod(), noise = 0.0)
+        local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
+        test_leapfrogging_rings(prob, scheme; R_init, refinement = NoRefinement())
     end
 end

@@ -72,8 +72,8 @@ abstract type RefinementCriterion end
 function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
     (; cache,) = crit
     (; inds_add, inds_rem,) = cache
-    empty!(cache)
     ts = knots(f)
+    empty!(cache)
     skipnext = false
     iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
     for i ∈ iter
@@ -99,7 +99,8 @@ end
 
 Refine the filament according to a given criterion.
 
-By default, it also removes nodes
+More precisely, this function can add and remove discretisation points according to the
+chosen refinement criterion.
 
 Returns the number of added and removed nodes.
 
@@ -110,6 +111,13 @@ Example usage:
 
 """
 function refine!(f::AbstractFilament, crit::RefinementCriterion)
+    method = discretisation_method(f)
+    _refine!(method, f, crit)
+end
+
+# Default implementation
+function _refine!(method::DiscretisationMethod, f, crit)
+    @assert method === discretisation_method(f)
     N = length(f)  # original number of nodes
 
     # Determine where to add or remove nodes.

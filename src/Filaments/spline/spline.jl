@@ -96,7 +96,7 @@ function periodise_coordinates!(
         @inbounds T = ts[end + 1] - ts[begin]  # knot period
         @inbounds for i ∈ eachindex(Ys)
             # Change of variables to have a periodic spline.
-            # See also `deperiodise_spline` below, which undoes this after the spline
+            # See also `deperiodise_curve` below, which undoes this after the spline
             # has been evaluated.
             Ys[i] = Xs[i] - (ts[i] / T) * Xoffset
         end
@@ -105,42 +105,15 @@ function periodise_coordinates!(
 end
 
 # This should be used to undo periodisation of non-periodic splines.
-function deperiodise_spline(y::Vec3, Xoffset::Vec3, ts::AbstractVector, t::Number, derivative::Val)
+function deperiodise_curve(y::Vec3, Xoffset::Vec3, ts::AbstractVector, t::Number, derivative::Val)
     Xoffset === zero(Xoffset) && return y
     @inbounds T = ts[end + 1] - ts[begin]  # knot period
-    _deperiodise_spline(y, Xoffset, T, t, derivative)
+    _deperiodise_curve(y, Xoffset, T, t, derivative)
 end
 
-_deperiodise_spline(y::Vec3, Xoffset::Vec3, T, t, ::Val{0}) = y + (t / T) * Xoffset  # zero-th derivative
-_deperiodise_spline(y::Vec3, Xoffset::Vec3, T, t, ::Val{1}) = y + (1 / T) * Xoffset  # first derivative
-_deperiodise_spline(y::Vec3, Xoffset::Vec3, T, t, ::Val)    = y  # higher-order derivatives
-
-function _thomas_buffers(ts::AbstractVector, buf_in::PaddedVector, ::Val{unsafe} = Val(true)) where {unsafe}
-    n = length(ts)
-    T = eltype(ts)
-    bdata = parent(buf_in)  # this is usually a vector of Vec3{T} of length n + 2M, where M is the padding
-    Base.require_one_based_indexing(bdata)
-    @assert sizeof(bdata) ≥ 3 * n * sizeof(T)
-    if unsafe
-        # This creates two tiny allocations (96 bytes total) due to `unsafe_wrap`.
-        # Tested on Julia 1.9-rc2.
-        # But things are much faster than with the safe version!
-        ptr = pointer(bdata)
-        ptr_bc = convert(Ptr{SVector{2, T}}, ptr)
-        sizeof_bc = 2n * sizeof(T)
-        ptr_us = convert(Ptr{T}, ptr + sizeof_bc)
-        (;
-            bc = unsafe_wrap(Array, ptr_bc, n; own = false),
-            us = unsafe_wrap(Array, ptr_us, n; own = false),
-        )
-    else
-        data = reinterpret(T, bdata)
-        (;
-            bc = reinterpret(SVector{2, T}, view(data, 1:2n)),
-            us = reinterpret(T, view(data, (2n + 1):(3n))),
-        )
-    end
-end
+_deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val{0}) = y + (t / T) * Xoffset  # zero-th derivative
+_deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val{1}) = y + (1 / T) * Xoffset  # first derivative
+_deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val)    = y  # higher-order derivatives
 
 # Construct and solve cyclic tridiagonal linear system `Ax = y`.
 # Uses an optimised version of the algorithm described in
