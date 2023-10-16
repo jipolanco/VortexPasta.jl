@@ -43,6 +43,8 @@ update_coefficients!
 change_offset
 fold_periodic!
 redistribute_nodes!
+split!
+merge!
 ```
 
 ## Other functions
@@ -68,23 +70,6 @@ refine!
 insert_node!
 remove_node!
 update_after_changing_nodes!
-```
-
-## Reconnections
-
-Reconnections are generally performed by calling [`reconnect!`](@ref) and
-according to a chosen reconnection criterion.
-
-```@docs
-ReconnectionCriterion
-NoReconnections
-ReconnectBasedOnDistance
-should_reconnect
-reconnect!
-reconnect_self!
-reconnect_other!
-split!
-merge!
 ```
 
 ## Geometric quantities

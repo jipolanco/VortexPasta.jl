@@ -138,6 +138,7 @@ function make_all()
                 "modules/Filaments.md",
                 "modules/FilamentIO.md",
                 "modules/BiotSavart.md",
+                "modules/Reconnections.md",
                 "modules/Timestepping.md",
                 "modules/Diagnostics.md",
             ],

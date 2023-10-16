@@ -1,3 +1,8 @@
+"""
+    Reconnections
+
+Module for dealing with the reconnection of filaments.
+"""
 module Reconnections
 
 export ReconnectionCriterion,
@@ -5,6 +10,7 @@ export ReconnectionCriterion,
        ReconnectBasedOnDistance
 
 using ..BasicTypes: Infinity
+
 using ..Filaments: AbstractFilament,
                    Derivative,
                    segments,
