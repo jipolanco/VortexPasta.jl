@@ -7,7 +7,8 @@ module Reconnections
 
 export ReconnectionCriterion,
        NoReconnections,
-       ReconnectBasedOnDistance
+       ReconnectBasedOnDistance,
+       reconnect!
 
 using ..BasicTypes: Infinity
 

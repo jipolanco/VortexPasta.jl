@@ -21,7 +21,8 @@ using ..Filaments:
 using ..Reconnections:
     Reconnections,
     ReconnectionCriterion,
-    NoReconnections
+    NoReconnections,
+    reconnect!
 
 using ..BiotSavart:
     BiotSavart,
@@ -552,7 +553,7 @@ end
     nothing
 end
 
-function reconnect!(iter::VortexFilamentSolver)
+function Reconnections.reconnect!(iter::VortexFilamentSolver)
     (; vs, ψs, fs, reconnect,) = iter
     fields = (vs, ψs)
     Reconnections.reconnect!(reconnect, fs) do f, i, mode
