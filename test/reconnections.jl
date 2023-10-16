@@ -2,6 +2,7 @@ using Test
 using VortexPasta.PredefinedCurves:
     define_curve, Ring, TrefoilKnot, Lemniscate, PeriodicLine
 using VortexPasta.Filaments
+using VortexPasta.Reconnections
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Timestepping: VortexFilamentSolver
