@@ -4,6 +4,7 @@ export ReconnectionCriterion,
        NoReconnections,
        ReconnectBasedOnDistance
 
+using ..BasicTypes: Infinity
 using ..Filaments: AbstractFilament,
                    Derivative,
                    segments,
@@ -14,7 +15,6 @@ using ..Filaments: AbstractFilament,
                    check_nodes
 
 using LinearAlgebra: ⋅, norm
-using ..BasicTypes: Zero, Infinity
 
 """
     ReconnectionCriterion
@@ -56,7 +56,7 @@ Used to disable filament reconnections.
 """
 struct NoReconnections <: ReconnectionCriterion end
 
-distance(::NoReconnections) = Zero()
+distance(::NoReconnections) = nothing
 should_reconnect(::NoReconnections, args...; kws...) = nothing
 
 """
@@ -156,7 +156,7 @@ function reconnect_self!(
         istart = firstindex(segments(f)),
     ) where {F <: AbstractFilament}
     d_crit = distance(crit)
-    d_crit === Zero() && return nothing  # reconnections are disabled
+    d_crit === nothing && return nothing  # reconnections are disabled
 
     # This cutoff distance serves as a first (coarse) filter.
     # It is larger than the critical distance to take into account the fact
@@ -255,7 +255,7 @@ function reconnect_other!(
     @assert f !== g
 
     d_crit = distance(crit)
-    d_crit === Zero() && return nothing  # reconnections are disabled
+    d_crit === nothing && return nothing  # reconnections are disabled
 
     # The following is very similar to `reconnect_self!`
     d_cut = 2 * d_crit
