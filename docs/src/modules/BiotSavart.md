@@ -38,11 +38,11 @@ CellListsBackend
 ```@docs
 ShortRangeCache
 init_cache_short
-set_filaments!
+set_filaments!(c::ShortRangeCache, fs)
 add_short_range_velocity!
 local_self_induced
 local_self_induced_velocity
-nearby_segments
+nearby_segments(c::ShortRangeCache, x⃗)
 ```
 
 ## Long-range interactions
