@@ -3,6 +3,7 @@ using LinearAlgebra: norm, normalize, ⋅
 using Statistics: mean, std
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
+using VortexPasta.FindNearbySegments: NaiveSegmentIterator
 using VortexPasta.BiotSavart
 using VortexPasta.Diagnostics: Diagnostics
 using Random
@@ -61,7 +62,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
 
     @testset "NaiveSegmentIterator" begin
         it = @inferred BiotSavart.nearby_segments(cache.shortrange, f[2])
-        @test it isa BiotSavart.NaiveSegmentIterator
+        @test it isa NaiveSegmentIterator
         @test eltype(it) === typeof(first(segments(f))) === typeof(first(it))
         segs = @inferred collect(it)
         @test eltype(it) === eltype(segs)

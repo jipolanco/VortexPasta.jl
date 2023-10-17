@@ -137,6 +137,7 @@ function make_all()
                 "modules/Quadratures.md",
                 "modules/Filaments.md",
                 "modules/FilamentIO.md",
+                "modules/FindNearbySegments.md",
                 "modules/BiotSavart.md",
                 "modules/Reconnections.md",
                 "modules/Timestepping.md",

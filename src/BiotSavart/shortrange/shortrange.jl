@@ -1,6 +1,7 @@
 using LinearAlgebra: ×, norm
 using SpecialFunctions: erfc, erf
 using ..Filaments: deperiodise_separation, Segment, segments
+using ..FindNearbySegments: FindNearbySegments, set_filaments!, nearby_segments
 
 """
     ShortRangeBackend
@@ -40,17 +41,12 @@ The [`init_cache_short`](@ref) function returns a concrete instance of a `ShortR
 
 The following fields must be included in a cache:
 
-- `params <: ParamsShortRange` parameters for short-range computations;
+- `finder :: NearbySegmentFinder` a nearby-segment finder from the
+  [`FindNearbySegments`](@ref) module;
+
+- `params :: ParamsShortRange` parameters for short-range computations;
 
 - `to :: TimerOutput` for measuring time spent on different functions.
-
-## Functions
-
-The following functions must be implemented by a cache:
-
-- [`set_filaments!`](@ref),
-
-- [`nearby_segments`](@ref).
 
 """
 abstract type ShortRangeCache end
@@ -67,47 +63,25 @@ Initialise the cache for the short-range backend defined in `p`.
 function init_cache_short end
 
 """
-    set_filaments!(c::ShortRangeCache, fs::AbstractVector{<:AbstractFilament})
+    FindSegmentPair.set_filaments!(c::ShortRangeCache, fs::AbstractVector{<:AbstractFilament})
 
 Store (and optionally process) the list of filaments to be used for short-range computations.
 
 This must be called before computing any short-range quantities (e.g. using
 [`add_short_range_velocity!`](@ref)).
+
+See also [`FindNearbySegments.set_filaments!`](@ref).
 """
-function set_filaments! end
-
-# This may be overloaded by different backends (but it's not necessary).
-abstract type NearbySegmentIterator{S <: Segment} end
-
-# These are needed e.g. by collect(it::NearbySegmentIterator)
-Base.IteratorSize(::Type{<:NearbySegmentIterator}) = Base.SizeUnknown()
-Base.eltype(::Type{<:NearbySegmentIterator{S}}) where {S <: Segment} = S
+FindNearbySegments.set_filaments!(c::ShortRangeCache, fs) = set_filaments!(c.finder, fs)
 
 """
-    nearby_segments(c::ShortRangeCache, x⃗::Vec3) -> NearbySegmentIterator
+    nearby_segments(c::ShortRangeCache, x⃗::Vec3)
 
 Return an iterator over the segments that are "close" to the location `x⃗`.
 
-A segment is considered to be close to `x⃗` if the minimum[^mindist] distance between `x⃗`
-and the segment midpoint is smaller than the cutoff distance ``r_{\\text{cut}}``.
-
-Typical usage:
-
-```julia
-x⃗ = Vec3(0.1, 0.3, 0.2)
-for segment ∈ nearby_segments(c, x⃗)
-    # Get the filament `f` and the index `i` of the segment within the filament.
-    # The segment is between the filament nodes `f[i]` and `f[i + 1]`.
-    (; f, i,) = segment
-    # Do something with the segment...
-end
-```
-
-[^mindist]: When periodicity is enabled, the relevant distance for short-range interactions
-            is the *minimum* distance between the two points, after considering all their
-            periodic images.
+See also [`FindNearbySegments.nearby_segments`](@ref).
 """
-function nearby_segments end
+FindNearbySegments.nearby_segments(c::ShortRangeCache, fs) = nearby_segments(c.finder, fs)
 
 struct ParamsShortRange{
         Backend <: ShortRangeBackend,
