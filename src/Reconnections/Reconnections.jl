@@ -24,6 +24,7 @@ using ..Filaments: AbstractFilament,
 using LinearAlgebra: ⋅, norm
 
 include("criteria.jl")
+include("cache.jl")
 
 """
     reconnect_self!(
