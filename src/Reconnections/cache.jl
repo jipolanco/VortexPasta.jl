@@ -13,9 +13,7 @@ struct ReconnectionCache{
     finder :: Finder
 end
 
-# Used when reconnections are disabled.
-struct NullReconnectionCache <: AbstractReconnectionCache end
-init_cache(::NoReconnections, args...) = NullReconnectionCache()
+criterion(c::ReconnectionCache) = c.crit
 
 """
     Reconnections.init_cache(
@@ -54,3 +52,9 @@ function init_cache(
     end
     ReconnectionCache(crit, finder)
 end
+
+# Used when reconnections are disabled.
+struct NullReconnectionCache <: AbstractReconnectionCache end
+init_cache(::NoReconnections, fs::AbstractVector{<:AbstractFilament}, Ls::NTuple{3, Real}) =
+    NullReconnectionCache()
+criterion(::NullReconnectionCache) = NoReconnections()

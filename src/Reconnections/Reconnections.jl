@@ -211,7 +211,7 @@ end
 """
     reconnect!(
         [callback::Function],
-        crit::ReconnectionCriterion,
+        cache::AbstractReconnectionCache,
         fs::AbstractVector{<:AbstractFilament};
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
     ) -> Int
@@ -244,12 +244,13 @@ This function calls [`reconnect_other!`](@ref) on all filament pairs, and then
 """
 function reconnect!(
         callback::F,
-        crit::ReconnectionCriterion,
+        cache::AbstractReconnectionCache,
         fs::AbstractVector{<:AbstractFilament};
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
     ) where {F <: Function}
-
+    crit = criterion(cache)
     number_of_reconnections = 0
+    crit === NoReconnections() && return number_of_reconnections
 
     # 1. Reconnect filaments with each other.
     i = firstindex(fs) - 1
@@ -328,7 +329,7 @@ function reconnect!(
     number_of_reconnections
 end
 
-reconnect!(crit::ReconnectionCriterion, args...; kws...) =
-    reconnect!(Returns(nothing), crit, args...; kws...)
+reconnect!(cache::AbstractReconnectionCache, args...; kws...) =
+    reconnect!(Returns(nothing), cache, args...; kws...)
 
 end

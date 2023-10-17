@@ -20,6 +20,7 @@ using ..Filaments:
 
 using ..Reconnections:
     Reconnections,
+    AbstractReconnectionCache,
     ReconnectionCriterion,
     NoReconnections,
     reconnect!
@@ -168,7 +169,7 @@ struct VortexFilamentSolver{
         Velocities <: VectorOfVectors{<:Vec3},
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
-        Reconnect <: ReconnectionCriterion,
+        CacheReconnect <: AbstractReconnectionCache,
         CacheBS <: BiotSavartCache,
         CacheTimestepper <: TemporalSchemeCache,
         Timer <: TimerOutput,
@@ -184,7 +185,7 @@ struct VortexFilamentSolver{
     dtmin :: Float64
     refinement        :: Refinement
     adaptivity        :: Adaptivity
-    reconnect         :: Reconnect
+    reconnect         :: CacheReconnect
     cache_bs          :: CacheBS
     cache_timestepper :: CacheTimestepper
     callback :: Callback
@@ -204,7 +205,7 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     print(io, "\n - `dtmin`: ", iter.dtmin)
     print(io, "\n - `refinement`: ", iter.refinement)
     print(io, "\n - `adaptivity`: ", iter.adaptivity)
-    print(io, "\n - `reconnect`: ", iter.reconnect)
+    print(io, "\n - `reconnect`: ", Reconnections.criterion(iter.reconnect))
     print(io, "\n - `cache_bs`: ")
     summary(io, iter.cache_bs)
     print(io, "\n - `cache_timestepper`: ")
@@ -283,11 +284,13 @@ function init(
         timer = TimerOutput("VortexFilament"),
     ) where {F <: Function}
     (; tspan,) = prob
+    (; Ls,) = prob.p
     fs = convert(VectorOfVectors, prob.fs)
     vs_data = map(similar ∘ nodes, fs) :: AllFilamentVelocities
     vs = convert(VectorOfVectors, vs_data)
     ψs = similar(vs)
     fs_sol = alias_u0 ? fs : copy(fs)
+    cache_reconnect = Reconnections.init_cache(reconnect, fs_sol, Ls)
     cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
 
@@ -303,7 +306,7 @@ function init(
     time = TimeInfo(nstep = 0, t = first(tspan), dt = dt, dt_prev = dt)
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, ψs, time, dtmin, refinement, adaptivity, reconnect,
+        prob, fs_sol, vs, ψs, time, dtmin, refinement, adaptivity, cache_reconnect,
         cache_bs, cache_timestepper, callback_, timer,
         advect!, rhs!,
     )
