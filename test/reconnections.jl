@@ -148,6 +148,8 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     nothing
 end
 
+##
+
 @testset "Reconnections" begin
     @testset "Static self-reconnection: figure-eight knot" begin
         Az = 0.001
@@ -181,6 +183,25 @@ end
             @test length(fs_all) == 2  # filament split into two!
             fs_all[1] = f1  # one usually wants to replace the old `fc` filament, no longer valid
             f2 = fs_all[2]
+
+            # Check that the reconnection happened at the right place
+            i = length(f) ÷ 4
+            j = 3i
+            @test length(f1) == length(f2) == length(f) ÷ 2
+            @test f1 == f[i + 1:j]
+            @test f2 == vcat(f[j + 1:end], f[begin:i])
+        end
+
+        @testset "reconnect!" begin
+            crit = @inferred ReconnectBasedOnDistance(l_min / 2)
+            fc = copy(f)
+            fs_all = [fc]
+            cache = @inferred Reconnections.init_cache(crit, fs_all)
+            # @test_opt ignored_modules=(Base,) reconnect!(cache, fs_all)
+            num_reconnections = reconnect!(cache, fs_all)
+            @test num_reconnections == 1
+            @test length(fs_all) == 2  # filament split into two!
+            f1, f2 = fs_all[1], fs_all[2]
 
             # Check that the reconnection happened at the right place
             i = length(f) ÷ 4

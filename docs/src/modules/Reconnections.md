@@ -15,9 +15,6 @@ Reconnections are generally performed by choosing a [reconnection criterion](@re
 ```@docs
 init_cache
 reconnect!
-reconnect_self!
-reconnect_other!
-should_reconnect
 ```
 
 ## Reconnection criteria
@@ -26,6 +23,14 @@ should_reconnect
 ReconnectionCriterion
 NoReconnections
 ReconnectBasedOnDistance
+```
+
+## Internals
+
+```@docs
+reconnect_self!
+reconnect_other!
+should_reconnect
 ```
 
 ## Index

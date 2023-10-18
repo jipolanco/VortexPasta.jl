@@ -29,6 +29,7 @@ using PrecompileTools: @setup_workload, @compile_workload
     using .PredefinedCurves
     using .Filaments
     using .BiotSavart
+    using .Reconnections
     using .Timestepping
     using .Diagnostics
 
@@ -74,6 +75,7 @@ using PrecompileTools: @setup_workload, @compile_workload
             dt = 0.001,
             adaptivity = AdaptBasedOnSegmentLength(1.0),
             refinement = RefineBasedOnSegmentLength(0.75 * l_min),
+            reconnect = ReconnectBasedOnDistance(l_min),
             callback,
         )
         solve!(iter)

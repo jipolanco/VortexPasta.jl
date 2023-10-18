@@ -31,6 +31,9 @@ Otherwise, returns `nothing` if the filament segments should not reconnect.
 """
 function should_reconnect end
 
+should_reconnect(c::ReconnectionCriterion, a::Segment, b::Segment; kws...) =
+    should_reconnect(c, a.f, b.f, a.i, b.i; kws...)
+
 """
     NoReconnections <: ReconnectionCriterion
 
@@ -39,7 +42,7 @@ Used to disable filament reconnections.
 struct NoReconnections <: ReconnectionCriterion end
 
 distance(::NoReconnections) = nothing
-should_reconnect(::NoReconnections, args...; kws...) = nothing
+should_reconnect(::NoReconnections, fx, fy, i, j; kws...) = nothing
 
 """
     ReconnectBasedOnDistance <: ReconnectionCriterion

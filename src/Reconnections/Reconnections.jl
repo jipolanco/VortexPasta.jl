@@ -12,7 +12,9 @@ export ReconnectionCriterion,
 
 using ..BasicTypes: Infinity
 
-using ..Filaments: AbstractFilament,
+using ..Filaments: Filaments,
+                   AbstractFilament,
+                   Segment,
                    Derivative,
                    segments,
                    split!, merge!,
@@ -196,7 +198,7 @@ function reconnect_other!(
             end
 
             # The current segment passed the first two filters and is a candidate for reconnection.
-            info =  should_reconnect(crit, f, g, i, j; periods = Ls)
+            info = should_reconnect(crit, f, g, i, j; periods = Ls)
             info === nothing && continue
 
             h = merge!(f, g, i, j; p⃗ = info.p⃗)  # filaments are merged onto `h`
@@ -242,6 +244,99 @@ This function calls [`reconnect_other!`](@ref) on all filament pairs, and then
 [`reconnect_self!`](@ref) on all filaments.
 """
 function reconnect!(
+        callback::F,
+        cache::AbstractReconnectionCache,
+        fs::AbstractVector{<:AbstractFilament},
+    ) where {F <: Function}
+    number_of_reconnections = 0
+    criterion(cache) === NoReconnections() && return number_of_reconnections
+    crit = criterion(cache)
+    Ls = periods(cache)
+    candidates = find_reconnection_candidates!(cache, fs)
+    for candidate ∈ candidates
+        (; a, b,) = candidate
+        # TODO add additional filter?
+        info = should_reconnect(crit, a, b; periods = Ls)
+        info === nothing && continue
+        if a.f === b.f
+            # Reconnect filament with itself => split filament into two
+            @assert a.i ≠ b.i
+            reconnect_with_itself!(callback, fs, a.f, a.i, b.i, info)
+            remove_filaments_from_candidates!(cache, a.f)
+        else
+            # Reconnect two different filaments => merge them into one
+            reconnect_with_other!(callback, fs, a.f, b.f, a.i, b.i, info)
+            remove_filaments_from_candidates!(cache, a.f, b.f)
+        end
+        number_of_reconnections += 1
+    end
+    number_of_reconnections
+end
+
+# Find the index of a filament in a vector of filaments.
+# Returns `nothing` if the filament is not found.
+# This can happen (but should be very rare) if the filament actually disappeared from `fs`
+# after a previous reconnection.
+find_filament_index(fs, f) = findfirst(g -> g === f, fs)
+
+function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
+    n = find_filament_index(fs, f)
+    n === nothing && return nothing
+    gs = split!(f, i, j; p⃗ = info.p⃗)  # = (g₁, g₂)
+    @assert length(gs) == 2
+
+    # Determine whether to keep each new filament.
+    # We discard a filament if it can't be represented with the chosen discretisation method
+    # (typically if the number of nodes is too small)
+    keep = map(g -> check_nodes(Bool, g), gs)
+    m = findfirst(keep)  # index of first filament to keep (either 1, 2 or nothing)
+
+    if m === nothing
+        # We discard the two filaments and remove the original filament from fs.
+        popat!(fs, n)
+        callback(f, n, :removed)
+        return nothing
+    end
+
+    # Replace the original filament by the first accepted filament.
+    let g = gs[m]
+        fs[n] = g
+        callback(g, n, :modified)
+    end
+
+    # If the two new filaments were accepted, append the second one at the end of `fs`.
+    if count(keep) == 2
+        @assert m == 1
+        let g = gs[2]
+            push!(fs, g)
+            callback(g, lastindex(fs), :appended)
+        end
+    end
+
+    nothing
+end
+
+function reconnect_with_other!(callback::F, fs, f, g, i, j, info) where {F}
+    @assert f !== g
+    nf = find_filament_index(fs, f)
+    ng = find_filament_index(fs, g)
+    (nf === nothing || ng === nothing) && return nothing  # at least one of the filaments is not present in `fs`
+
+    h = merge!(f, g, i, j; p⃗ = info.p⃗)  # filaments are merged onto `h`
+    update_coefficients!(h)
+
+    # Replace `f` by the new filament.
+    fs[nf] = h
+    callback(h, nf, :modified)
+
+    # Remove `g` from the list of filaments.
+    popat!(fs, ng)
+    callback(g, ng, :removed)
+
+    nothing
+end
+
+function reconnect_old!(
         callback::F,
         cache::AbstractReconnectionCache,
         fs::AbstractVector{<:AbstractFilament},
