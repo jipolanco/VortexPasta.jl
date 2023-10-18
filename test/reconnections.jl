@@ -293,8 +293,20 @@ end
 
         fs = collect(copy.(fs_orig))
         cache = @inferred Reconnections.init_cache(crit, fs)
-        nrec = @inferred reconnect!(cache, fs)
-        @test nrec == 2
+
+        # We need two reconnect! passes to arrive to the final state.
+        for n ∈ 1:4
+            nrec = reconnect!(cache, fs) do f, i, mode
+                nothing
+            end
+            if n ≤ 2
+                @test nrec == 1
+            else
+                @test nrec == 0
+                break
+            end
+        end
+
         @test length(fs) == 2
         @test fs[1] != fs_orig[1]  # reconnection happened
         @test fs[2] != fs_orig[2]  # reconnection happened
@@ -516,22 +528,22 @@ end
 end
 
 # This can be useful for playing around with the tests.
-if false && @isdefined(Makie)
+if @isdefined(Makie)
     fig = Figure()
     Ls = 2π .* (1, 1, 1)
     ax = Axis3(fig[1, 1]; aspect = :data)
-    wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
-    # for f ∈ fs_orig
-    #     plot!(ax, f; refinement = 8, linestyle = :dash, color = (:grey, 0.5), markersize = 8)
-    # end
+    # wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
+    for f ∈ fs_orig
+        # plot!(ax, f; refinement = 8, linestyle = :dash, color = (:grey, 0.5), markersize = 8)
+    end
     for f ∈ fs
-        p = plot!(ax, f; refinement = 8, linestyle = :solid)
-        scatter!(ax, nodes(f).data; color = p.color)
-        inds = (firstindex(f) - 1):(lastindex(f) + 1)
-        for i ∈ inds
-            align = i ∈ eachindex(f) ? (:left, :bottom) : (:right, :top)
-            text!(ax, f[i]; text = string(i), fontsize = 16, color = p.color, align)
-        end
+        p = plot!(ax, f; refinement = 1, linestyle = :solid, markersize = 8, linewidth = 2)
+        # scatter!(ax, nodes(f).data; color = p.color)
+        # inds = (firstindex(f) - 1):(lastindex(f) + 1)
+        # for i ∈ inds
+        #     align = i ∈ eachindex(f) ? (:left, :bottom) : (:right, :top)
+        #     text!(ax, f[i]; text = string(i), fontsize = 16, color = p.color, align)
+        # end
     end
     fig
 end

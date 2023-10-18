@@ -111,8 +111,18 @@ function find_reconnection_candidates!(
             seg_a === seg_b && continue
             # For now we simply include the pair of segments, but we may want to apply a few
             # more filters to reduce the number of candidates.
+            are_neighbours(seg_a, seg_b) && continue
             push!(candidates, ReconnectionCandidate(seg_a, seg_b))
         end
     end
     candidates
+end
+
+# This is to make sure we don't reconnect neighbouring segments of the same filament.
+function are_neighbours(a::Segment, b::Segment)
+    a.f === b.f || return false
+    f = a.f
+    i, j = a.i < b.i ? (a.i, b.i) : (b.i, a.i)  # make sure i < j
+    @assert firstindex(f) ≤ i < j ≤ lastindex(f)
+    (i == lastindex(segments(f)) && j == firstindex(segments(f))) || i + 1 == j
 end
