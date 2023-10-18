@@ -300,6 +300,7 @@ function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
 
     # Replace the original filament by the first accepted filament.
     let g = gs[m]
+        update_coefficients!(g)
         fs[n] = g
         callback(g, n, :modified)
     end
@@ -308,6 +309,7 @@ function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
     if count(keep) == 2
         @assert m == 1
         let g = gs[2]
+            update_coefficients!(g)
             push!(fs, g)
             callback(g, lastindex(fs), :appended)
         end
