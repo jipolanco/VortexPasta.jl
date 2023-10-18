@@ -5,15 +5,20 @@ using ..FindNearbySegments:
 
 abstract type AbstractReconnectionCache end
 
+distance(c::AbstractReconnectionCache) = distance(criterion(c))
+
 struct ReconnectionCache{
         Criterion <: ReconnectionCriterion,
         Finder <: NearbySegmentFinder,
+        Periods <: Tuple{Vararg{Real}},
     } <: AbstractReconnectionCache
     crit   :: Criterion
     finder :: Finder
+    Ls     :: Periods
 end
 
 criterion(c::ReconnectionCache) = c.crit
+periods(c::ReconnectionCache) = c.Ls
 
 """
     Reconnections.init_cache(
@@ -43,6 +48,10 @@ function init_cache(
         fs::AbstractVector{<:AbstractFilament},
         Ls::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
     )
+    _init_cache(crit, fs, Ls)
+end
+
+function _init_cache(crit::ReconnectionCriterion, fs, Ls)
     has_nonperiodic_directions = any(L -> L === Infinity(), Ls)
     r_cut = distance(crit) :: Real
     finder = if has_nonperiodic_directions
@@ -50,11 +59,10 @@ function init_cache(
     else
         CellListSegmentFinder(fs, r_cut, Ls; nsubdiv = Val(1))
     end
-    ReconnectionCache(crit, finder)
+    ReconnectionCache(crit, finder, Ls)
 end
 
 # Used when reconnections are disabled.
 struct NullReconnectionCache <: AbstractReconnectionCache end
-init_cache(::NoReconnections, fs::AbstractVector{<:AbstractFilament}, Ls::NTuple{3, Real}) =
-    NullReconnectionCache()
+_init_cache(::NoReconnections, args...) = NullReconnectionCache()
 criterion(::NullReconnectionCache) = NoReconnections()

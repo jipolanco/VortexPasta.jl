@@ -28,10 +28,9 @@ include("cache.jl")
 
 """
     reconnect_self!(
-        crit::ReconnectionCriterion,
+        cache::ReconnectionCache,
         f::AbstractFilament,
         flist::AbstractVector{<:AbstractFilament};
-        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
     ) -> Union{Nothing, AbstractFilament}
 
 Attempt to reconnect filament `f` with itself.
@@ -49,17 +48,17 @@ For example, if the filament `f` self-reconnects onto 4 filaments, this
 function returns one of these filaments, and the other 3 are appended to
 `flist`. This is useful if one wants to replace the original filament `f` by
 one of the resulting filaments.
-
-In a periodic domain, one should also pass the optional `periods` argument.
 """
 function reconnect_self!(
-        crit::ReconnectionCriterion, f::F,
+        cache::ReconnectionCache, f::F,
         fs_new::AbstractVector{F} = F[];
-        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
         istart = firstindex(segments(f)),
     ) where {F <: AbstractFilament}
-    d_crit = distance(crit)
-    d_crit === nothing && return nothing  # reconnections are disabled
+    crit = criterion(cache)
+    crit === NoReconnections() && return nothing  # reconnections are disabled
+
+    d_crit = distance(cache)
+    Ls = periods(cache)
 
     # This cutoff distance serves as a first (coarse) filter.
     # It is larger than the critical distance to take into account the fact
@@ -69,7 +68,7 @@ function reconnect_self!(
     d_cut_sq = d_cut^2
 
     inds_i = istart:lastindex(segments(f))
-    periods_half = map(L -> L / 2, periods)
+    Ls_half = map(L -> L / 2, Ls)
 
     # Segments to be "compared" with segment i.
     # We don't want to compare with direct neighbours, since they will often
@@ -81,14 +80,14 @@ function reconnect_self!(
         x⃗_mid = (f[i] + f[i + 1]) ./ 2
         r⃗_b = let
             y⃗ = f[first(inds_j)]
-            deperiodise_separation(y⃗ - x⃗_mid, periods, periods_half)
+            deperiodise_separation(y⃗ - x⃗_mid, Ls, Ls_half)
         end
         is_outside_range_b = any(>(d_cut), r⃗_b)  # should be cheaper than computing the squared vector norm
         for j ∈ inds_j
             r⃗_a = r⃗_b
             r⃗_b = let
                 y⃗ = f[j + 1]
-                deperiodise_separation(y⃗ - x⃗_mid, periods, periods_half)
+                deperiodise_separation(y⃗ - x⃗_mid, Ls, Ls_half)
             end
             is_outside_range_a = is_outside_range_b
             is_outside_range_b = any(>(d_cut), r⃗_b)
@@ -104,7 +103,7 @@ function reconnect_self!(
             end
 
             # The current segment passed the first two filters and is a candidate for reconnection.
-            info = should_reconnect(crit, f, f, i, j; periods)
+            info = should_reconnect(crit, f, f, i, j; periods = Ls)
             info === nothing && continue
 
             # Split filament into 2
@@ -117,13 +116,13 @@ function reconnect_self!(
             # may fail if the split! function is modified.
             if check_nodes(Bool, f₂)  # skip if coefficients can't be computed, typically if the number of nodes is too small (< 3 for cubic splines)
                 update_coefficients!(f₂)
-                g₂ = reconnect_self!(crit, f₂, fs_new; periods, istart = i + 1)
+                g₂ = reconnect_self!(cache, f₂, fs_new; istart = i + 1)
                 push!(fs_new, something(g₂, f₂))  # push f₂, or its replacement if f₂ itself reconnected
             end
 
             if check_nodes(Bool, f₁)
                 update_coefficients!(f₁)
-                g₁ = reconnect_self!(crit, f₁, fs_new; periods, istart = firstindex(segments(f₁)))
+                g₁ = reconnect_self!(cache, f₁, fs_new; istart = firstindex(segments(f₁)))
                 return something(g₁, f₁)  # return f₁, or its replacement if f₁ itself reconnected
             end
 
@@ -137,8 +136,7 @@ end
 
 """
     reconnect_other!(
-        crit::ReconnectionCriterion, f::AbstractFilament, g::AbstractFilament;
-        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+        cache::ReconnectionCache, f::AbstractFilament, g::AbstractFilament,
     ) -> Union{Nothing, AbstractFilament}
 
 Attempt to reconnect filaments `f` and `g`.
@@ -152,18 +150,20 @@ The original filaments `f` and `g` can be discarded (in particular, `f` is modif
 Returns the merged filament a reconnection happened, `nothing` otherwise.
 """
 function reconnect_other!(
-        crit::ReconnectionCriterion, f::AbstractFilament, g::AbstractFilament;
-        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+        cache::ReconnectionCache, f::AbstractFilament, g::AbstractFilament,
     )
     @assert f !== g
 
-    d_crit = distance(crit)
-    d_crit === nothing && return nothing  # reconnections are disabled
+    crit = criterion(cache)
+    criterion(cache) === NoReconnections() && return nothing  # reconnections are disabled
+
+    d_crit = distance(cache)
+    Ls = periods(cache)
 
     # The following is very similar to `reconnect_self!`
     d_cut = 2 * d_crit
     d_cut_sq = d_cut^2
-    periods_half = map(L -> L / 2, periods)
+    Ls_half = map(L -> L / 2, Ls)
 
     inds_i = eachindex(segments(f))
     inds_j = eachindex(segments(g))
@@ -173,14 +173,14 @@ function reconnect_other!(
         x⃗_mid = (f[i] + f[i + 1]) ./ 2
         r⃗_b = let
             y⃗ = g[first(inds_j)]
-            deperiodise_separation(y⃗ - x⃗_mid, periods, periods_half)
+            deperiodise_separation(y⃗ - x⃗_mid, Ls, Ls_half)
         end
         is_outside_range_b = any(>(d_cut), r⃗_b)  # should be cheaper than computing the squared vector norm
         for j ∈ inds_j
             r⃗_a = r⃗_b
             r⃗_b = let
                 y⃗ = g[j + 1]
-                deperiodise_separation(y⃗ - x⃗_mid, periods, periods_half)
+                deperiodise_separation(y⃗ - x⃗_mid, Ls, Ls_half)
             end
             is_outside_range_a = is_outside_range_b
             is_outside_range_b = any(>(d_cut), r⃗_b)
@@ -196,7 +196,7 @@ function reconnect_other!(
             end
 
             # The current segment passed the first two filters and is a candidate for reconnection.
-            info =  should_reconnect(crit, f, g, i, j; periods)
+            info =  should_reconnect(crit, f, g, i, j; periods = Ls)
             info === nothing && continue
 
             h = merge!(f, g, i, j; p⃗ = info.p⃗)  # filaments are merged onto `h`
@@ -212,8 +212,7 @@ end
     reconnect!(
         [callback::Function],
         cache::AbstractReconnectionCache,
-        fs::AbstractVector{<:AbstractFilament};
-        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+        fs::AbstractVector{<:AbstractFilament},
     ) -> Int
 
 Perform filament reconnections according to chosen criterion.
@@ -245,12 +244,10 @@ This function calls [`reconnect_other!`](@ref) on all filament pairs, and then
 function reconnect!(
         callback::F,
         cache::AbstractReconnectionCache,
-        fs::AbstractVector{<:AbstractFilament};
-        periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+        fs::AbstractVector{<:AbstractFilament},
     ) where {F <: Function}
-    crit = criterion(cache)
     number_of_reconnections = 0
-    crit === NoReconnections() && return number_of_reconnections
+    criterion(cache) === NoReconnections() && return number_of_reconnections
 
     # 1. Reconnect filaments with each other.
     i = firstindex(fs) - 1
@@ -263,7 +260,7 @@ function reconnect!(
         while j < jlast
             j += 1
             g = fs[j]
-            h = reconnect_other!(crit, f, g; periods)
+            h = reconnect_other!(cache, f, g)
             h === nothing && continue
 
             number_of_reconnections += 1
@@ -295,7 +292,7 @@ function reconnect!(
         # If the filament `f` reconnects onto `N` filaments, this will:
         #  1. construct a new filament `f₁`, which should replace `f` in the list of filaments `fs`
         #  2. construct N - 1 additional filaments which will be appended to `fs`
-        f₁ = reconnect_self!(crit, f, fs; periods)
+        f₁ = reconnect_self!(cache, f, fs)
         f₁ === nothing && continue  # there were no reconnections
 
         # First check appended filaments, and remove them if they don't have enough nodes (typically < 3).

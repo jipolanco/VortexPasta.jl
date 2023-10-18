@@ -174,8 +174,9 @@ end
             crit = @inferred ReconnectBasedOnDistance(l_min / 2)
             fc = copy(f)
             fs_all = [fc]
-            @test_opt ignored_modules=(Base,) reconnect_self!(crit, fc, fs_all)
-            f1 = reconnect_self!(crit, fc, fs_all)
+            cache = @inferred Reconnections.init_cache(crit, fs_all)
+            @test_opt ignored_modules=(Base,) reconnect_self!(cache, fc, fs_all)
+            f1 = reconnect_self!(cache, fc, fs_all)
             @test f1 !== nothing       # reconnection happened
             @test length(fs_all) == 2  # filament split into two!
             fs_all[1] = f1  # one usually wants to replace the old `fc` filament, no longer valid
@@ -225,7 +226,8 @@ end
 
         @testset "reconnect_other!" begin
             f, g = copy.(fs_orig)
-            h = @inferred Nothing reconnect_other!(crit, f, g)
+            cache = @inferred Reconnections.init_cache(crit, [f, g])
+            h = @inferred Nothing reconnect_other!(cache, f, g)
             @test h !== nothing  # reconnection happened!
             @test length(h) == sum(length, fs_orig)
             @test maximum_knot_increment(h) < 2 * l_min  # check that there are no crazy jumps
@@ -233,7 +235,8 @@ end
 
         @testset "reconnect!" begin
             fs = collect(copy.(fs_orig))
-            nrec = @inferred reconnect!(crit, fs)
+            cache = @inferred Reconnections.init_cache(crit, fs)
+            nrec = @inferred reconnect!(cache, fs)
             @test nrec == 1  # one reconnection
             @test length(fs) == 1
             @test length(fs[1]) == sum(length, fs_orig)
@@ -268,7 +271,8 @@ end
         crit = ReconnectBasedOnDistance(1.2 * d_min_nodes)
 
         fs = collect(copy.(fs_orig))
-        nrec = @inferred reconnect!(crit, fs)
+        cache = @inferred Reconnections.init_cache(crit, fs)
+        nrec = @inferred reconnect!(cache, fs)
         @test nrec == 2
         @test length(fs) == 2
         @test fs[1] != fs_orig[1]  # reconnection happened
@@ -299,7 +303,8 @@ end
 
             fs = [copy(f_orig)]
             crit = ReconnectBasedOnDistance(4 * ϵ)
-            f1 = reconnect_self!(crit, first(fs), fs; periods)
+            cache = @inferred Reconnections.init_cache(crit, fs, periods)
+            f1 = reconnect_self!(cache, first(fs), fs)
             @test f1 !== nothing
             @test length(fs) == 2  # filament reconnected onto 2
             fs[1] = f1  # replace now invalid filament with new filament
@@ -327,7 +332,8 @@ end
             l_min = minimum_knot_increment(f_orig)
             fs = [copy(f_orig)]
             crit = ReconnectBasedOnDistance(l_min / 2)
-            nrec = @inferred reconnect!(crit, fs; periods)
+            cache = @inferred Reconnections.init_cache(crit, fs, periods)
+            nrec = @inferred reconnect!(cache, fs)
             @test nrec == 2
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
@@ -361,7 +367,8 @@ end
 
             # First pass: the ring splits into 2 infinite lines and a closed curve (very
             # similar to the overlapping ellipse case).
-            nrec = reconnect!(crit, fs; periods)
+            cache = @inferred Reconnections.init_cache(crit, fs, periods)
+            nrec = @inferred reconnect!(cache, fs)
             @test nrec == 2
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
@@ -369,7 +376,7 @@ end
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
 
             # Second pass: the two infinite lines merge and then split, forming two closed lines.
-            nrec = reconnect!(crit, fs; periods)
+            nrec = reconnect!(cache, fs)
             @test nrec == 2
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
@@ -438,7 +445,8 @@ end
         # Automatic reconnection
         fs = copy.(fs_orig)
         crit = ReconnectBasedOnDistance(0.5 * l_min)
-        nrec = reconnect!(crit, fs)
+        cache = @inferred Reconnections.init_cache(crit, fs)
+        nrec = reconnect!(cache, fs)
         @test nrec == 2
         for f ∈ fs
             Filaments.fold_periodic!(f, periods)
@@ -477,7 +485,8 @@ end
         crit = ReconnectBasedOnDistance(l_min)
         periods = 2π .* (1, 1, 1)
         fs = copy.(fs_orig)
-        nrec = reconnect!(crit, fs; periods)
+        cache = @inferred Reconnections.init_cache(crit, fs, periods)
+        nrec = reconnect!(cache, fs)
         @test nrec == 1
         @test length(fs) == 1
         @test fs == fs_manual  # compare with manually merged vortices
