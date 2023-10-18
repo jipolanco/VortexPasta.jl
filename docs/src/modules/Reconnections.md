@@ -31,5 +31,5 @@ ReconnectBasedOnDistance
 ## Index
 
 ```@index
-Pages = ["Filaments.md"]
+Pages = ["Reconnections.md"]
 ```
