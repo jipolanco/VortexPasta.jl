@@ -258,6 +258,9 @@ function reconnect!(
         # TODO add additional filter?
         info = should_reconnect(crit, a, b; periods = Ls)
         info === nothing && continue
+        info, a, b = find_better_candidates(info, a, b) do sx, sy
+            should_reconnect(crit, sx, sy; periods = Ls)
+        end
         if a.f === b.f
             # Reconnect filament with itself => split filament into two
             @assert a.i ≠ b.i
@@ -271,6 +274,45 @@ function reconnect!(
         number_of_reconnections += 1
     end
     number_of_reconnections
+end
+
+# If we already found a relatively good reconnection candidate, look at the neighbouring
+# segments to see if we can further reduce the distance between the filaments.
+@inline function find_better_candidates(f::F, info, x::Segment, y::Segment) where {F <: Function}
+    d²_min = info.d²  # this is the minimum distance we've found until now
+    while true
+        x′ = choose_neighbouring_segment(x, info.ζx)
+        y′ = choose_neighbouring_segment(y, info.ζy)
+        if x′ === x && y′ === y
+            break  # the proposed segments are the original ones, so we stop here
+        end
+        info′ = f(x′, y′)
+        if info′ === nothing || info′.d² ≥ d²_min
+            break  # the previous candidate was better, so we stop here
+        end
+        # We found a better candidate! But we keep looking just in case.
+        info = info′
+        x, y = x′, y′
+        d²_min = info.d²
+    end
+    info, x, y
+end
+
+# Here ζ ∈ [0, 1] is the location within the segment where the minimum distance was found by
+# `should_reconnect`. If ζ = 0, the minimum location was found at the segment starting
+# point, which means that we might find a smaller distance if we look at the previous
+# segment. Similar thing if ζ = 1.
+@inline function choose_neighbouring_segment(s::Segment, ζ)
+    (; f, i,) = s
+    if ζ == 0
+        j = ifelse(i == firstindex(f), lastindex(f), i - 1)  # basically j = i - 1 (except when i = 1)
+        Segment(f, j)
+    elseif ζ == 1
+        j = ifelse(i == lastindex(f), firstindex(f), i + 1)
+        Segment(f, j)
+    else
+        s
+    end
 end
 
 # Find the index of a filament in a vector of filaments.

@@ -99,7 +99,9 @@ function should_reconnect(
     X′ = fx(i, ζx, Derivative(1))
     Y′ = fy(j, ζy, Derivative(1))
 
-    success = min_dist  # for now, only return the output of find_min_distance if segments should reconnect
+    # For now, only return the output of find_min_distance + d² if segments should
+    # reconnect.
+    success = (; min_dist..., d²,)
 
     xy = X′ ⋅ Y′
     xy < 0 && return success  # always reconnect antiparallel vortices
