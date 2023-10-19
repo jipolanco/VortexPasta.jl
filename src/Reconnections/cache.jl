@@ -104,13 +104,20 @@ function find_reconnection_candidates!(
     (; finder, candidates,) = cache
     empty!(candidates)
     r_cut = distance(cache)
-    r²_crit = r_cut * r_cut
+    r²_crit = 4 * r_cut * r_cut
+    Ls = periods(cache)
+    Lhs = map(L -> L / 2, Ls)
+    function check_distance(r⃗_in)
+        r⃗ = deperiodise_separation(r⃗_in, Ls, Lhs)
+        r² = sum(abs2, r⃗)
+        r² < r²_crit
+    end
     @timeit to "set_filaments!" set_filaments!(finder, fs)  # this is needed in particular to initialise cell lists
     @timeit to "add candidates" for f ∈ fs, seg_a ∈ segments(f)
         x⃗ = Filaments.midpoint(seg_a)
         for seg_b ∈ nearby_segments(finder, x⃗)
             # Slightly finer filter to determine whether we keep this candidate.
-            keep_segment_pair(seg_a, seg_b, r²_crit) || continue
+            keep_segment_pair(check_distance, seg_a, seg_b) || continue
             push!(candidates, ReconnectionCandidate(seg_a, seg_b))
         end
     end
@@ -119,7 +126,7 @@ end
 
 # This is to make sure we don't reconnect nearly neighbouring segments belonging to the same
 # filament.
-function keep_segment_pair(a::Segment, b::Segment, r²_crit)
+function keep_segment_pair(check_distance::F, a::Segment, b::Segment) where {F <: Function}
     f, i = a.f, a.i
     g, j = b.f, b.i
     if f === g
@@ -135,11 +142,10 @@ function keep_segment_pair(a::Segment, b::Segment, r²_crit)
             return false
         end
     end
-    r²s = (
-        sum(abs2, f[i + 0] - g[j + 0]),
-        sum(abs2, f[i + 1] - g[j + 0]),
-        sum(abs2, f[i + 0] - g[j + 1]),
-        sum(abs2, f[i + 1] - g[j + 1]),
-    )
-    min(r²s...) < r²_crit  # keep candidate if minimum distance is below the critical one
+    any((
+        check_distance(f[i + 0] - g[j + 0]),
+        check_distance(f[i + 1] - g[j + 0]),
+        check_distance(f[i + 0] - g[j + 1]),
+        check_distance(f[i + 1] - g[j + 1]),
+    ))
 end
