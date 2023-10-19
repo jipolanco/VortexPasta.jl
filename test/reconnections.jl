@@ -64,7 +64,7 @@ trefoil_scheme_dt(::RK4) = 1
 
 function test_trefoil_knot_reconnection(scheme = RK4())
     S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
-    N = 96
+    N = 64
     f = Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
     fs_init = [f]
     l_min = minimum_knot_increment(fs_init)
@@ -108,7 +108,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     tspan = (0.0, 2.0)
     @test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
-    reconnect = ReconnectBasedOnDistance(1.0 * l_min)
+    reconnect = ReconnectBasedOnDistance(l_min)
     iter = @inferred init(
         prob, scheme;
         dt = 0.005 * trefoil_scheme_dt(scheme),
@@ -128,15 +128,13 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         println(plt)
     end
 
-    # TODO check that energy decreases? (currently, it slightly increases before the
-    # reconnection...)
-
     @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
 
     @show t_reconnect[]
     @test n_reconnect[] > 0
-    @test 1.65 < t_reconnect[] < 1.75  # for now this depends on a lot parameters...
-    @test last(energy) < first(energy)
+    @test 1.4 < t_reconnect[] < 1.5  # this depends on several parameters...
+    @show last(energy) / first(energy)
+    @test last(energy) < 0.97 * first(energy)
 
     nothing
 end
