@@ -15,8 +15,8 @@ Note that this function modifies the filament `f`, which should then be discarde
 One should generally call [`update_coefficients!`](@ref) on both filaments after a split.
 """
 function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
-    i ≤ j || return split!(f, j, i)
-    @debug "Splitting:" f[i] f[j] p⃗
+    i ≤ j || return split!(f, j, i; p⃗ = -p⃗)
+    @debug "Splitting:" eachindex(f) i j p⃗
 
     n1 = j - i
     n2 = length(f) - n1
@@ -84,39 +84,55 @@ This function returns a new filament `h` which may share memory with `f`.
 The filament `g` is not modified.
 
 One should generally call [`update_coefficients!`](@ref) on the returned filament after merging.
+
+# Merging a filament with its shifted image
+
+This function supports merging a filament `f` with a shifted version of itself, `g = f + p⃗`.
+For this, one should simply pass `g = f` and a non-zero offset `p⃗`.
 """
 function merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗::Vec3 = zero(eltype(f)))
+    # Note: we allow f === g (usually in combination with p⃗ ≠ 0) which allows to merge a
+    # filament with a shifted image of itself.
+    # However, in this case, the implementation below requires j < i to avoid overwriting
+    # data too early, since we do in-place operations.
+    if f === g && j > i
+        return merge!(f, f, j, i; p⃗ = -p⃗)
+    end
     @debug "Merging:" f[i] g[j]
     Nf, Ng = length(f), length(g)
-    is_shift = (i + 1):lastindex(f)
 
     foff = end_to_end_offset(f)
     goff = end_to_end_offset(g)
     offset_total = foff + goff
 
+    is⁻ = firstindex(f):i
+    is⁺ = (i + 1):lastindex(f)
+    js⁻ = firstindex(g):j
+    js⁺ = (j + 1):lastindex(g)
+
     resize!(f, Nf + Ng)
 
     # Shift second half of `f` nodes (i.e. f[is_shift]) to the end of `f`.
     l = lastindex(f) + 1
-    for k ∈ reverse(is_shift)
+    for k ∈ reverse(is⁺)
         f[l -= 1] = f[k]
     end
-    @assert l == length(f) - length(is_shift) + 1
+    @assert l == length(f) - length(is⁺) + 1
 
     if !iszero(goff)
-        for k ∈ firstindex(f):i
+        for k ∈ is⁻
             f[k] = f[k] - goff
         end
     end
 
     # Copy first half of `g` nodes (i.e. g[begin:j]).
-    for k ∈ j:-1:firstindex(g)
+    for k ∈ reverse(js⁻)
         f[l -= 1] = g[k] - p⃗
     end
 
     # Copy second half of `g` nodes (i.e. g[j + 1:end]).
     u⃗ = -(p⃗ + goff)
-    for k ∈ lastindex(g):-1:(j + 1)
+    for k ∈ reverse(js⁺)
         f[l -= 1] = g[k] + u⃗
     end
     @assert l == i + 1
