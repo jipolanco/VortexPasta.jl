@@ -5,6 +5,7 @@ using ..FindNearbySegments:
     CellListSegmentFinder,
     set_filaments!,
     nearby_segments
+using ..CellLists: CellLists  # for docs only
 
 abstract type AbstractReconnectionCache end
 
