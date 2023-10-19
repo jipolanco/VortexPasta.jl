@@ -69,7 +69,7 @@ function split!(f::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
 end
 
 """
-    merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0))
+    merge!(f::ClosedFilament, g::ClosedFilament, i::Int, j::Int; p⃗ = Vec3(0, 0, 0)) -> ClosedFilament
 
 Merge two closed filaments into one.
 

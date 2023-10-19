@@ -324,6 +324,22 @@ find_filament_index(fs, f) = findfirst(g -> g === f, fs)
 function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
     n = find_filament_index(fs, f)
     n === nothing && return nothing
+
+    if !iszero(info.p⃗)
+        # In this case, the vortex is reconnecting with a periodic image of itself.
+        # We explicitly create its periodic image and then we merge the two vortices.
+        g = similar(f)
+        for i ∈ eachindex(g, f)
+            g[i] = f[i] - info.p⃗
+        end
+        update_coefficients!(g)
+        h = merge!(f, g, i, j)
+        update_coefficients!(h)
+        fs[n] = h
+        callback(h, n, :modified)
+        return nothing
+    end
+
     gs = split!(f, i, j; p⃗ = info.p⃗)  # = (g₁, g₂)
     @assert length(gs) == 2
 
