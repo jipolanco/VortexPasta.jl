@@ -5,7 +5,8 @@ Module defining timestepping solvers for vortex filament simulations.
 """
 module Timestepping
 
-export init, solve!, step!, VortexFilamentProblem
+export init, solve!, step!, VortexFilamentProblem,
+       NoReconnections, ReconnectBasedOnDistance  # for convenience
 
 using ..BasicTypes: Vec3, VectorOfVectors
 
@@ -23,6 +24,7 @@ using ..Reconnections:
     AbstractReconnectionCache,
     ReconnectionCriterion,
     NoReconnections,
+    ReconnectBasedOnDistance,
     reconnect!
 
 using ..BiotSavart:
@@ -557,10 +559,9 @@ end
 end
 
 function Reconnections.reconnect!(iter::VortexFilamentSolver)
-    (; vs, ψs, fs, reconnect,) = iter
+    (; vs, ψs, fs, reconnect, to,) = iter
     fields = (vs, ψs)
-    periods = iter.prob.p.Ls
-    Reconnections.reconnect!(reconnect, fs; periods) do f, i, mode
+    Reconnections.reconnect!(reconnect, fs; to) do f, i, mode
         reconnect_callback((fs, fields), f, i, mode)
     end :: Int  # returns the number of reconnections
 end

@@ -23,7 +23,13 @@ using ..Filaments: Filaments,
                    deperiodise_separation,
                    check_nodes
 
+using TimerOutputs
 using LinearAlgebra: ⋅, norm
+
+struct ReconnectionCandidate{S <: Segment}
+    a :: S
+    b :: S
+end
 
 include("criteria.jl")
 include("cache.jl")
@@ -62,30 +68,35 @@ where `f` is the modified filament, `i` is its index in `fs`, and `mode` is one 
 function reconnect!(
         callback::F,
         cache::AbstractReconnectionCache,
-        fs::AbstractVector{<:AbstractFilament},
+        fs::AbstractVector{<:AbstractFilament};
+        to::TimerOutput = TimerOutput(),
     ) where {F <: Function}
     number_of_reconnections = 0
     criterion(cache) === NoReconnections() && return number_of_reconnections
     crit = criterion(cache)
     Ls = periods(cache)
-    candidates = find_reconnection_candidates!(cache, fs)
-    for candidate ∈ candidates
-        (; a, b,) = candidate
-        # TODO add additional filter?
-        info = should_reconnect(crit, a, b; periods = Ls)
-        info === nothing && continue
-        info, a, b = find_better_candidates(info, a, b) do sx, sy
-            should_reconnect(crit, sx, sy; periods = Ls)
+    @timeit to "find_reconnection_candidates!" begin
+        candidates = find_reconnection_candidates!(cache, fs; to)
+    end
+    @timeit to "iterate over candidates" for candidate ∈ candidates
+        candidate === nothing && continue
+        @timeit to "should_reconnect" begin
+            info = should_reconnect(crit, candidate; periods = Ls)
+            info === nothing && continue
+            info, candidate = find_better_candidates(info, candidate) do other_candidate
+                should_reconnect(crit, other_candidate; periods = Ls)
+            end
         end
-        if a.f === b.f
+        (; a, b,) = candidate
+        @timeit to "reconnect" if a.f === b.f
             # Reconnect filament with itself => split filament into two
             @assert a.i ≠ b.i
             reconnect_with_itself!(callback, fs, a.f, a.i, b.i, info)
-            remove_filaments_from_candidates!(cache, a.f)
+            invalidate_candidates!(cache, a.f)
         else
             # Reconnect two different filaments => merge them into one
             reconnect_with_other!(callback, fs, a.f, b.f, a.i, b.i, info)
-            remove_filaments_from_candidates!(cache, a.f, b.f)
+            invalidate_candidates!(cache, a.f, b.f)
         end
         number_of_reconnections += 1
     end
@@ -94,24 +105,26 @@ end
 
 # If we already found a relatively good reconnection candidate, look at the neighbouring
 # segments to see if we can further reduce the distance between the filaments.
-@inline function find_better_candidates(f::F, info, x::Segment, y::Segment) where {F <: Function}
+@inline function find_better_candidates(f::F, info, c::ReconnectionCandidate) where {F <: Function}
     d²_min = info.d²  # this is the minimum distance we've found until now
     while true
+        x, y = c.a, c.b
         x′ = choose_neighbouring_segment(x, info.ζx)
         y′ = choose_neighbouring_segment(y, info.ζy)
         if x′ === x && y′ === y
             break  # the proposed segments are the original ones, so we stop here
         end
-        info′ = f(x′, y′)
+        c′ = ReconnectionCandidate(x′, y′)
+        info′ = f(c′)
         if info′ === nothing || info′.d² ≥ d²_min
             break  # the previous candidate was better, so we stop here
         end
         # We found a better candidate! But we keep looking just in case.
         info = info′
-        x, y = x′, y′
+        c = c′
         d²_min = info.d²
     end
-    info, x, y
+    info, c
 end
 
 # Here ζ ∈ [0, 1] is the location within the segment where the minimum distance was found by

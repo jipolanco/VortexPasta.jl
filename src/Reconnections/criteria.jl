@@ -31,6 +31,8 @@ Otherwise, returns `nothing` if the filament segments should not reconnect.
 """
 function should_reconnect end
 
+should_reconnect(c::ReconnectionCriterion, candidate::ReconnectionCandidate; kws...) =
+    should_reconnect(c, candidate.a, candidate.b; kws...)
 should_reconnect(c::ReconnectionCriterion, a::Segment, b::Segment; kws...) =
     should_reconnect(c, a.f, b.f, a.i, b.i; kws...)
 

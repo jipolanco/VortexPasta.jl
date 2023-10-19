@@ -118,7 +118,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         adaptivity = NoAdaptivity(),
         callback,
     )
-    solve!(iter)
+    @time solve!(iter)
 
     let
         plt = lineplot(
