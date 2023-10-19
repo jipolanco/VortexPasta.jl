@@ -28,8 +28,6 @@ ReconnectBasedOnDistance
 ## Internals
 
 ```@docs
-reconnect_self!
-reconnect_other!
 should_reconnect
 ```
 

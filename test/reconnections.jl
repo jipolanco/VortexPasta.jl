@@ -4,7 +4,7 @@ using VortexPasta.PredefinedCurves:
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 using VortexPasta.Reconnections
-using VortexPasta.Reconnections: reconnect!, reconnect_self!, reconnect_other!
+using VortexPasta.Reconnections: reconnect!
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Timestepping: VortexFilamentSolver
@@ -165,26 +165,6 @@ end
             @test f2 == vcat(f[j + 1:end], f[begin:i])
         end
 
-        @testset "reconnect_self!" begin
-            crit = @inferred ReconnectBasedOnDistance(l_min / 2)
-            fc = copy(f)
-            fs_all = [fc]
-            cache = @inferred Reconnections.init_cache(crit, fs_all)
-            @test_opt ignored_modules=(Base,) reconnect_self!(cache, fc, fs_all)
-            f1 = reconnect_self!(cache, fc, fs_all)
-            @test f1 !== nothing       # reconnection happened
-            @test length(fs_all) == 2  # filament split into two!
-            fs_all[1] = f1  # one usually wants to replace the old `fc` filament, no longer valid
-            f2 = fs_all[2]
-
-            # Check that the reconnection happened at the right place
-            i = length(f) ÷ 4
-            j = 3i
-            @test length(f1) == length(f2) == length(f) ÷ 2
-            @test f1 == f[i + 1:j]
-            @test f2 == vcat(f[j + 1:end], f[begin:i])
-        end
-
         @testset "reconnect!" begin
             crit = @inferred ReconnectBasedOnDistance(l_min / 2)
             fc = copy(f)
@@ -237,15 +217,6 @@ end
             end
         end
         crit = ReconnectBasedOnDistance(1.2 * d_min_nodes)
-
-        @testset "reconnect_other!" begin
-            f, g = copy.(fs_orig)
-            cache = @inferred Reconnections.init_cache(crit, [f, g])
-            h = @inferred Nothing reconnect_other!(cache, f, g)
-            @test h !== nothing  # reconnection happened!
-            @test length(h) == sum(length, fs_orig)
-            @test maximum_knot_increment(h) < 2 * l_min  # check that there are no crazy jumps
-        end
 
         @testset "reconnect!" begin
             fs = collect(copy.(fs_orig))
