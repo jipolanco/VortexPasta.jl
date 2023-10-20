@@ -556,7 +556,8 @@ end
 function Reconnections.reconnect!(iter::VortexFilamentSolver)
     (; vs, ψs, fs, reconnect,) = iter
     fields = (vs, ψs)
-    Reconnections.reconnect!(reconnect, fs) do f, i, mode
+    periods = iter.prob.p.Ls
+    Reconnections.reconnect!(reconnect, fs; periods) do f, i, mode
         reconnect_callback((fs, fields), f, i, mode)
     end :: Int  # returns the number of reconnections
 end
