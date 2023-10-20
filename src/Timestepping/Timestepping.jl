@@ -292,7 +292,10 @@ function init(
     vs = convert(VectorOfVectors, vs_data)
     ψs = similar(vs)
     fs_sol = alias_u0 ? fs : copy(fs)
-    cache_reconnect = Reconnections.init_cache(reconnect, fs_sol, Ls)
+    # TODO pass periods `Ls` to init_cache.
+    # For now we don't do it to preserve the old behaviour (which was a bug).
+    # This will be fixed in a separate MR.
+    cache_reconnect = Reconnections.init_cache(reconnect, fs_sol)
     cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
 
