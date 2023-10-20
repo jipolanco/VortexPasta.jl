@@ -31,6 +31,11 @@ Otherwise, returns `nothing` if the filament segments should not reconnect.
 """
 function should_reconnect end
 
+should_reconnect(c::ReconnectionCriterion, candidate::ReconnectionCandidate; kws...) =
+    should_reconnect(c, candidate.a, candidate.b; kws...)
+should_reconnect(c::ReconnectionCriterion, a::Segment, b::Segment; kws...) =
+    should_reconnect(c, a.f, b.f, a.i, b.i; kws...)
+
 """
     NoReconnections <: ReconnectionCriterion
 
@@ -39,7 +44,7 @@ Used to disable filament reconnections.
 struct NoReconnections <: ReconnectionCriterion end
 
 distance(::NoReconnections) = nothing
-should_reconnect(::NoReconnections, args...; kws...) = nothing
+should_reconnect(::NoReconnections, fx, fy, i, j; kws...) = nothing
 
 """
     ReconnectBasedOnDistance <: ReconnectionCriterion
@@ -96,7 +101,9 @@ function should_reconnect(
     X′ = fx(i, ζx, Derivative(1))
     Y′ = fy(j, ζy, Derivative(1))
 
-    success = min_dist  # for now, only return the output of find_min_distance if segments should reconnect
+    # For now, only return the output of find_min_distance + d² if segments should
+    # reconnect.
+    success = (; min_dist..., d²,)
 
     xy = X′ ⋅ Y′
     xy < 0 && return success  # always reconnect antiparallel vortices

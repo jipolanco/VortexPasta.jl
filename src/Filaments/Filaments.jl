@@ -503,6 +503,8 @@ More precisely, this function repositions the filament nodes such that the knot 
 In other words, the new locations satisfy `f[i] = f((i - 1) * Δt)` where ``Δt = t_{N + 1} / N`` is
 the knot spacing, ``N`` is the number of nodes, and the index ``N + 1`` refers to the
 filament endpoint (which is equal to the starting point for a closed filament).
+
+One does not need to call [`update_coefficients!`](@ref) after calling this function.
 """
 function redistribute_nodes!(f::AbstractFilament)
     ta, tb = knotlims(f)

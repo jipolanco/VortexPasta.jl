@@ -21,3 +21,9 @@ CellListSegmentFinder
 set_filaments!
 nearby_segments
 ```
+
+## Index
+
+```@index
+Pages = ["FindNearbySegments.md"]
+```

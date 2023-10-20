@@ -35,7 +35,7 @@ struct CellListSegmentFinder{
         CellList <: PeriodicCellList,
         CutoffDistance <: Real,
         Periods <: Tuple{Vararg{Real}},
-    }
+    } <: NearbySegmentFinder
     cl     :: CellList
     r_cut  :: CutoffDistance
     Ls     :: Periods

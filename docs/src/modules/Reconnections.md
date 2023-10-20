@@ -13,10 +13,8 @@ Reconnections are generally performed by choosing a [reconnection criterion](@re
 ## Functions
 
 ```@docs
+init_cache
 reconnect!
-reconnect_self!
-reconnect_other!
-should_reconnect
 ```
 
 ## Reconnection criteria
@@ -27,8 +25,14 @@ NoReconnections
 ReconnectBasedOnDistance
 ```
 
+## Internals
+
+```@docs
+should_reconnect
+```
+
 ## Index
 
 ```@index
-Pages = ["Filaments.md"]
+Pages = ["Reconnections.md"]
 ```

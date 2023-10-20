@@ -114,30 +114,33 @@ This can become inefficient when there are many filaments.
   Can be `Ls = (Infinity(), Infinity(), Infinity())` for an infinite non-periodic domain.
 """
 struct NaiveSegmentFinder{
-        FilamentsRef <: Ref{<:AbstractVector{<:AbstractFilament}},
+        Filaments <: AbstractVector{<:AbstractFilament},
         CutoffDistance <: Real,
         Periods <: Tuple{Vararg{Real}},
     } <: NearbySegmentFinder
-    fs_ref :: FilamentsRef
-    r_cut  :: CutoffDistance
-    Ls     :: Periods
-end
+    fs    :: Filaments
+    r_cut :: CutoffDistance
+    Ls    :: Periods
 
-function NaiveSegmentFinder(fs::AbstractVector{<:AbstractFilament}, r_cut, Ls)
-    NaiveSegmentFinder(Ref(fs), r_cut, Ls)
+    function NaiveSegmentFinder(fs::AbstractVector{<:AbstractFilament}, r_cut, Ls)
+        new{typeof(fs), typeof(r_cut), typeof(Ls)}(copy(fs), r_cut, Ls)
+    end
 end
 
 function set_filaments!(c::NaiveSegmentFinder, fs)
-    c.fs_ref[] = fs
+    resize!(c.fs, length(fs))
+    for i ∈ eachindex(c.fs)
+        c.fs[i] = fs[i]  # copies filament references ("pointers")
+    end
     c
 end
 
 function nearby_segments(c::NaiveSegmentFinder, x⃗::Vec3)
-    (; fs_ref, r_cut, Ls,) = c
+    (; fs, r_cut, Ls,) = c
     Lhs = map(L -> L / 2, Ls)  # half periods
-    Filament = eltype(eltype(fs_ref))
+    Filament = eltype(fs)
     @assert Filament <: AbstractFilament
     S = Segment{Filament}
     @assert isconcretetype(S)
-    NaiveSegmentIterator{S}(fs_ref[], r_cut, r_cut^2, Ls, Lhs, x⃗)
+    NaiveSegmentIterator{S}(fs, r_cut, r_cut^2, Ls, Lhs, x⃗)
 end

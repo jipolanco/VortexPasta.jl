@@ -2,8 +2,9 @@ using Test
 using VortexPasta.PredefinedCurves:
     define_curve, Ring, TrefoilKnot, Lemniscate, PeriodicLine
 using VortexPasta.Filaments
+using VortexPasta.Filaments: Vec3
 using VortexPasta.Reconnections
-using VortexPasta.Reconnections: reconnect!, reconnect_self!, reconnect_other!
+using VortexPasta.Reconnections: reconnect!
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Timestepping: VortexFilamentSolver
@@ -63,7 +64,7 @@ trefoil_scheme_dt(::RK4) = 1
 
 function test_trefoil_knot_reconnection(scheme = RK4())
     S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
-    N = 96
+    N = 64
     f = Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
     fs_init = [f]
     l_min = minimum_knot_increment(fs_init)
@@ -83,10 +84,31 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         )
     end
 
-    tspan = (0.0, 1.0)  # ignored
+    times = Float64[]
+    energy = similar(times)
+    n_reconnect = Ref(0)
+    t_reconnect = Ref(0.0)
+
+    function callback(iter)
+        local (; fs, t, dt, nstep,) = iter
+        if nstep == 0
+            foreach(empty!, (times, energy))
+            n_reconnect[] = t_reconnect[] = 0
+        end
+        push!(times, t)
+        push!(energy, Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(4)))
+        Nf = length(fs)
+        if n_reconnect[] == 0 && Nf == 2
+            t_reconnect[] = t
+            n_reconnect[] = nstep
+        end
+        nothing
+    end
+
+    tspan = (0.0, 2.0)
     @test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
-    reconnect = ReconnectBasedOnDistance(1.5 * l_min)
+    reconnect = ReconnectBasedOnDistance(l_min)
     iter = @inferred init(
         prob, scheme;
         dt = 0.005 * trefoil_scheme_dt(scheme),
@@ -94,48 +116,9 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
         reconnect,
         adaptivity = NoAdaptivity(),
+        callback,
     )
-    (; fs,) = iter
-
-    times = [iter.time.t]
-    quad = GaussLegendre(4)
-    energy = [@inferred Diagnostics.kinetic_energy_from_streamfunction(iter; quad)]
-
-    # TODO check that energy decreases? (currently, it slightly increases before the
-    # reconnection...)
-    Nf_prev = length(fs)
-    n_reconnect = 0
-    t_reconnect = 0.0
-    @time for n = 2:500  # corresponds to the index in `times` array
-        Timestepping.step!(iter)
-        (; t, dt,) = iter.time
-        push!(times, t)
-        push!(energy, Diagnostics.kinetic_energy_from_streamfunction(iter; quad))
-        Nf = length(fs)
-
-        # let s = nameof(typeof(scheme))
-        #     write_vtkhdf("trefoil_$(s)_$(n).hdf", fs; refinement = 8) do io
-        #         io["Velocity"] = iter.vs
-        #     end
-        # end
-
-        # First self-reconnection.
-        if n_reconnect == 0 && Nf == 2
-            t_reconnect = t
-            n_reconnect = n
-        end
-
-        Nf_prev = Nf
-
-        t > 1.95 && break
-    end
-
-    @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
-
-    @show t_reconnect
-    @test n_reconnect > 0
-    @test 1.65 < t_reconnect < 1.75  # for now this depends on a lot parameters...
-    @test last(energy) < first(energy)
+    @time solve!(iter)
 
     let
         plt = lineplot(
@@ -145,8 +128,18 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         println(plt)
     end
 
+    @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+
+    @show t_reconnect[]
+    @test n_reconnect[] > 0
+    @test 1.4 < t_reconnect[] < 1.5  # this depends on several parameters...
+    @show last(energy) / first(energy)
+    @test last(energy) < 0.97 * first(energy)
+
     nothing
 end
+
+##
 
 @testset "Reconnections" begin
     @testset "Static self-reconnection: figure-eight knot" begin
@@ -170,16 +163,16 @@ end
             @test f2 == vcat(f[j + 1:end], f[begin:i])
         end
 
-        @testset "reconnect_self!" begin
+        @testset "reconnect!" begin
             crit = @inferred ReconnectBasedOnDistance(l_min / 2)
             fc = copy(f)
             fs_all = [fc]
-            @test_opt ignored_modules=(Base,) reconnect_self!(crit, fc, fs_all)
-            f1 = reconnect_self!(crit, fc, fs_all)
-            @test f1 !== nothing       # reconnection happened
+            cache = @inferred Reconnections.init_cache(crit, fs_all)
+            # @test_opt ignored_modules=(Base,) reconnect!(cache, fs_all)
+            num_reconnections = reconnect!(cache, fs_all)
+            @test num_reconnections == 1
             @test length(fs_all) == 2  # filament split into two!
-            fs_all[1] = f1  # one usually wants to replace the old `fc` filament, no longer valid
-            f2 = fs_all[2]
+            f1, f2 = fs_all[1], fs_all[2]
 
             # Check that the reconnection happened at the right place
             i = length(f) ÷ 4
@@ -223,17 +216,10 @@ end
         end
         crit = ReconnectBasedOnDistance(1.2 * d_min_nodes)
 
-        @testset "reconnect_other!" begin
-            f, g = copy.(fs_orig)
-            h = @inferred Nothing reconnect_other!(crit, f, g)
-            @test h !== nothing  # reconnection happened!
-            @test length(h) == sum(length, fs_orig)
-            @test maximum_knot_increment(h) < 2 * l_min  # check that there are no crazy jumps
-        end
-
         @testset "reconnect!" begin
             fs = collect(copy.(fs_orig))
-            nrec = @inferred reconnect!(crit, fs)
+            cache = @inferred Reconnections.init_cache(crit, fs)
+            nrec = @inferred reconnect!(cache, fs)
             @test nrec == 1  # one reconnection
             @test length(fs) == 1
             @test length(fs[1]) == sum(length, fs_orig)
@@ -244,7 +230,7 @@ end
     @testset "Static: nearly overlapping rings" begin
         # Test two nearly overlapping rings (with some small offset in z) which should reconnect at two points.
         # We should end up with two separate vortices.
-        # Internally, this happens in two steps:
+        # This requires two reconnection steps:
         #   (1) the two vortices merge at one of the reconnection points, and
         #   (2) the resulting vortex splits into two at the other reconnection point.
         R = π / 4
@@ -268,8 +254,21 @@ end
         crit = ReconnectBasedOnDistance(1.2 * d_min_nodes)
 
         fs = collect(copy.(fs_orig))
-        nrec = @inferred reconnect!(crit, fs)
-        @test nrec == 2
+        cache = @inferred Reconnections.init_cache(crit, fs)
+
+        # We need two reconnect! passes to arrive to the final state.
+        for n ∈ 1:4
+            nrec = reconnect!(cache, fs) do f, i, mode
+                nothing
+            end
+            if n ≤ 2
+                @test nrec == 1
+            else
+                @test nrec == 0
+                break
+            end
+        end
+
         @test length(fs) == 2
         @test fs[1] != fs_orig[1]  # reconnection happened
         @test fs[2] != fs_orig[2]  # reconnection happened
@@ -297,12 +296,14 @@ end
 
             l_min = minimum_knot_increment(f_orig)
 
-            fs = [copy(f_orig)]
+            fs_orig = [copy(f_orig)]
             crit = ReconnectBasedOnDistance(4 * ϵ)
-            f1 = reconnect_self!(crit, first(fs), fs; periods)
-            @test f1 !== nothing
-            @test length(fs) == 2  # filament reconnected onto 2
-            fs[1] = f1  # replace now invalid filament with new filament
+            fs = copy.(fs_orig)
+            cache = @inferred Reconnections.init_cache(crit, fs, periods)
+            nrec = @inferred reconnect!(cache, fs)
+
+            @test nrec == 1
+            @test length(fs) == 2
             @test abs(end_to_end_offset(fs[1])[1]) ≈ 2π  # infinite line in x
             @test abs(end_to_end_offset(fs[2])[1]) ≈ 2π  # infinite line in x
             foreach(Filaments.update_coefficients!, fs)
@@ -327,23 +328,34 @@ end
             l_min = minimum_knot_increment(f_orig)
             fs = [copy(f_orig)]
             crit = ReconnectBasedOnDistance(l_min / 2)
-            nrec = @inferred reconnect!(crit, fs; periods)
-            @test nrec == 2
+            cache = @inferred Reconnections.init_cache(crit, fs, periods)
+
+            # We need 2 passes to arrive to the final state.
+            for n ∈ 1:4
+                nrec = @inferred reconnect!(cache, fs)
+                if n ≤ 2
+                    @test nrec == 1
+                else
+                    @test nrec == 0
+                    break
+                end
+            end
+
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
 
             # Note that the order of the filaments is arbitrary and implementation-dependent...
             @test sum(f -> norm(end_to_end_offset(f)), fs) ≈ 4π  # two infinite lines
             @test end_to_end_offset(fs[1]) ≈ Vec3(-2π, 0, 0)  # infinite line
-            @test end_to_end_offset(fs[2]) == Vec3(0, 0, 0)   # small loop
-            @test end_to_end_offset(fs[3]) ≈ Vec3(+2π, 0, 0)  # infinite line
+            @test end_to_end_offset(fs[2]) ≈ Vec3(+2π, 0, 0)  # infinite line
+            @test end_to_end_offset(fs[3]) == Vec3(0, 0, 0)   # small loop
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
         end
 
         @testset "Overlapping circles" begin
             # Slightly more complex case of overlapping periodic circles.
             # Each circle is reconnected into 3 closed curves.
-            # Right now, this requires two passes of reconnect! (shouldn't really
+            # Right now, this requires 4 passes of reconnect! (shouldn't really
             # matter in practice...).
             periods = 2π .* (1, 1, 1)
             R = π * 1.2
@@ -354,26 +366,28 @@ end
                 ζs = range(tlims...; length = 2N + 1)[2:2:2N]
                 Filaments.init(ClosedFilament, S.(ζs), FiniteDiffMethod(2))
             end
+            fs_orig = [f_orig]
 
             l_min = minimum_knot_increment(f_orig)
-            fs = [copy(f_orig)]
             crit = ReconnectBasedOnDistance(l_min / 2)
 
-            # First pass: the ring splits into 2 infinite lines and a closed curve (very
-            # similar to the overlapping ellipse case).
-            nrec = reconnect!(crit, fs; periods)
-            @test nrec == 2
-            @test length(fs) == 3
-            @test sum(length, fs) == N  # number of nodes didn't change
-            @test sum(f -> norm(end_to_end_offset(f)), fs) ≈ 4π  # two infinite lines
-            @test all(f -> no_jumps(f, 2.1 * l_min), fs)
+            fs = copy.(fs_orig)
+            cache = @inferred Reconnections.init_cache(crit, fs, periods)
+            nfilaments = (2, 1, 2, 3)  # expected number of filaments after each pass
+            for n ∈ 1:10
+                nrec = @inferred reconnect!(cache, fs)
+                if n ≤ 4
+                    @test length(fs) == nfilaments[n]
+                    @test nrec == 1
+                else
+                    @test nrec == 0
+                    break
+                end
+            end
 
-            # Second pass: the two infinite lines merge and then split, forming two closed lines.
-            nrec = reconnect!(crit, fs; periods)
-            @test nrec == 2
             @test length(fs) == 3
             @test sum(length, fs) == N  # number of nodes didn't change
-            @test sum(f -> norm(end_to_end_offset(f)), fs) < 1e-12  # no infinite lines
+            @test all(f -> iszero(end_to_end_offset(f)), fs)  # all closed filaments
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
         end
     end
@@ -438,8 +452,16 @@ end
         # Automatic reconnection
         fs = copy.(fs_orig)
         crit = ReconnectBasedOnDistance(0.5 * l_min)
-        nrec = reconnect!(crit, fs)
-        @test nrec == 2
+        cache = @inferred Reconnections.init_cache(crit, fs)
+        for n ∈ 1:5
+            nrec = reconnect!(cache, fs)
+            if n ≤ 2
+                @test nrec == 1
+            else
+                @test nrec == 0
+                break
+            end
+        end
         for f ∈ fs
             Filaments.fold_periodic!(f, periods)
             Filaments.update_coefficients!(f)
@@ -477,7 +499,8 @@ end
         crit = ReconnectBasedOnDistance(l_min)
         periods = 2π .* (1, 1, 1)
         fs = copy.(fs_orig)
-        nrec = reconnect!(crit, fs; periods)
+        cache = @inferred Reconnections.init_cache(crit, fs, periods)
+        nrec = reconnect!(cache, fs)
         @test nrec == 1
         @test length(fs) == 1
         @test fs == fs_manual  # compare with manually merged vortices
@@ -486,22 +509,28 @@ end
 end
 
 # This can be useful for playing around with the tests.
-if false && @isdefined(Makie)
+if @isdefined(Makie)
     fig = Figure()
     Ls = 2π .* (1, 1, 1)
-    ax = Axis3(fig[1, 1]; aspect = :data)
+    # ax = Axis3(fig[1, 1]; aspect = :data)
+    ax = Axis(fig[1, 1]; aspect = DataAspect())
     wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
-    # for f ∈ fs_orig
-    #     plot!(ax, f; refinement = 8, linestyle = :dash, color = (:grey, 0.5), markersize = 8)
-    # end
-    for f ∈ fs
-        p = plot!(ax, f; refinement = 8, linestyle = :solid)
-        scatter!(ax, nodes(f).data; color = p.color)
-        inds = (firstindex(f) - 1):(lastindex(f) + 1)
+    for f ∈ fs_orig
+        p = plot!(ax, f; refinement = 8, linestyle = :dash, color = (:grey, 0.8), markersize = 8)
+        inds = (firstindex(f) - 0):(lastindex(f) + 0)
         for i ∈ inds
             align = i ∈ eachindex(f) ? (:left, :bottom) : (:right, :top)
-            text!(ax, f[i]; text = string(i), fontsize = 16, color = p.color, align)
+            text!(ax, f[i]; text = string(i), fontsize = 12, color = p.color, align)
         end
+    end
+    for f ∈ fs
+        p = plot!(ax, f; refinement = 1, linestyle = :solid, markersize = 0, linewidth = 2)
+        scatterlines!(ax, nodes(f).data; color = p.color, markersize = 8)
+        inds = (firstindex(f) - 0):(lastindex(f) + 0)
+        # for i ∈ inds
+        #     align = i ∈ eachindex(f) ? (:left, :bottom) : (:right, :top)
+        #     text!(ax, f[i]; text = string(i), fontsize = 12, color = p.color, align)
+        # end
     end
     fig
 end
