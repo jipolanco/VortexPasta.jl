@@ -104,7 +104,7 @@ end
 """
     Filaments.distance_to_field(vecfield::Function, f::AbstractFilament) -> Real
 
-Return an estimate of the "distance" between a filament and a vector field.
+Return an estimate of the normalised "distance" between a filament and a target vector field.
 
 This function is meant to be used to verify the result of [`Filaments.from_vector_field`](@ref),
 more specifically to verify that the filament is everywhere tangent to the objective vector
@@ -118,6 +118,7 @@ See [`Filaments.from_vector_field`](@ref) for more details.
 function distance_to_field(vecfield::F, f::AbstractFilament) where {F}
     T = eltype(eltype(f))  # e.g. Float64
     res::T = zero(T)
+    L::T = zero(T)  # estimated total line length
     ts = knots(f)
     @inbounds for i ∈ eachindex(f)
         s⃗ = f[i]
@@ -125,12 +126,14 @@ function distance_to_field(vecfield::F, f::AbstractFilament) where {F}
         dt = (ts[i + 1] - ts[i - 1]) / 2
         ω⃗ = vecfield(s⃗)
         uv = s⃗′ ⋅ ω⃗
-        uu = sum(abs2, s⃗′)
+        uu = sum(abs2, s⃗′)  # units: [L²T⁻²] where T is the parametrisation unit
         vv = sum(abs2, ω⃗)
         # This is basically the squared Gram–Schmidt projection.
         # It is 0 if both vectors are perfectly aligned.
-        res += (uu - uv^2 / vv) * dt^2  # has units of a squared length
+        err² = uu - uv^2 / vv   # units: [L²T⁻²]
+        err² = max(err², zero(err²))  # avoid tiny negative values
+        res += sqrt(err²) * dt  # units: [L] (length)
+        L += norm(s⃗′) * dt
     end
-    Tline = ts[end + 1] - ts[begin]  # roughly the line length
-    res / Tline^2  # normalise roughly by the total line length
+    res / L  # normalise by the estimated total line length
 end
