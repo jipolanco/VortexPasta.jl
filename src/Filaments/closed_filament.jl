@@ -402,19 +402,26 @@ update_after_changing_nodes!(f::ClosedFilament; removed = true) =
 ## Default implementation
 
 function _insert_node!(::DiscretisationMethod, f::ClosedFilament, i::Integer, ζ::Real)
-    (; Xs,) = f
+    (; Xs, ts,) = f
     (; cs, cderivs,) = f.coefs
     @assert length(cderivs) == 2
 
-    s⃗ = f(i, ζ)  # new point to be added
-    insert!(Xs, i + 1, s⃗)  # note: this uses derivatives at nodes (Hermite interpolations), so make sure they are up to date!
-    insert!(cs, i + 1, s⃗)
+    # New point to be added.
+    # Note: this uses derivatives at nodes (Hermite interpolations), so make sure they are up to date!
+    s⃗ = f(i, ζ)
 
     # We also insert new derivatives in case we need to perform Hermite interpolations later
     # (for instance if we insert other nodes).
     # Derivatives will be recomputed later when calling `update_after_changing_nodes!`.
     s⃗′ = f(i, ζ, Derivative(1))
     s⃗″ = f(i, ζ, Derivative(2))
+
+    # New knot location
+    t = (1 - ζ) * ts[i] + ζ * ts[i + 1]
+
+    insert!(ts, i + 1, t)
+    insert!(Xs, i + 1, s⃗)
+    insert!(cs, i + 1, s⃗)
     insert!(cderivs[1], i + 1, s⃗′)
     insert!(cderivs[2], i + 1, s⃗″)
 
