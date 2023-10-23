@@ -1,5 +1,7 @@
 using LinearAlgebra: normalize, norm
 
+using ..BasicTypes: ∞
+
 @doc raw"""
     from_vector_field(
         ClosedFilament, vecfield::Function, s⃗₀, dτ, method::DiscretisationMethod;
@@ -34,7 +36,13 @@ One may use [`Filaments.distance_to_field`](@ref) to verify the result of this f
 ## Optional keyword arguments
 
 - `max_steps::Int = 1000`: maximum number of steps before we stop iterating. This is also
-  the maximum possible length of the returned filament.
+  the maximum possible length of the returned filament;
+
+- `nsubsteps::Int = 1`: number of solver substeps to perform for each spatial increment `dτ`.
+  Larger values may be used to improve accuracy;
+
+- `redistribute = true`: if `true` (default), [`redistribute_nodes!`] is called at the end
+  to make sure that nodes are approximately distributed in a uniform way along the filament.
 
 # Extended help
 
@@ -55,41 +63,69 @@ Note that the curve will be automatically closed (and the ODE stopped) if we rea
 ``\bm{s}(τ)`` which is sufficiently close (closer than ``dτ/2``) to the starting point
 ``\bm{s}_0``.
 If that never happens, we stop after we have performed `max_steps` solver iterations.
-
-After the filament nodes have been obtained, this function calls
-[`redistribute_nodes!`](@ref) to make sure that nodes are approximately distributed in a
-uniform way along the filament.
 """
 function from_vector_field(
-        ::Type{ClosedFilament}, vecfield::F, s⃗₀::Vec3, dτ, method::DiscretisationMethod; kws...,
+        ::Type{ClosedFilament}, vecfield::F, s⃗₀::Vec3, dτ, method::DiscretisationMethod;
+        redistribute = true, kws...,
     ) where {F <: Function}
     xs = [s⃗₀]
-    _from_vector_field!(vecfield, xs, dτ; kws...)
-    f = Filaments.init(ClosedFilament, xs, method)
-    redistribute_nodes!(f)
+    offset = _from_vector_field!(vecfield, xs, dτ; kws...)
+    f = Filaments.init(ClosedFilament, xs, method; offset)
+    if redistribute
+        redistribute_nodes!(f)
+    else
+        update_coefficients!(f)
+    end
+    f
 end
 
-function _from_vector_field!(vecfield::F, xs, dτ; max_steps = 1000) where {F <: Function}
+function _from_vector_field!(
+        vecfield::F, xs, dτ;
+        nsubsteps = 1,
+        max_steps = 1000,
+        periods = nothing,  # domain period (used to decide whether to close the curve)
+    ) where {F <: Function}
     f(x) = normalize(vecfield(x))
     xinit = first(xs)
+    Ls = periods === nothing ? ntuple(_ -> ∞, Val(length(xinit))) : periods
+    Lhs = map(L -> L / 2, Ls)  # half periods
+    r²_crit = (dτ / 2)^2  # squared end-to-end critical distance to stop iterating
+    r²_prev = zero(eltype(xinit))
+    r²_pprev = r²_prev
+    dt_solver = dτ / nsubsteps
     for _ ∈ 2:max_steps
-        xprev = last(xs)
-        # Note: the resulting "velocity" is not exactly unitary (but usually very close to
-        # it). We normalise it just in case.
-        v = advancement_velocity_RK4(f, xprev, dτ)
-        vnorm = norm(v)
-        xnew = xprev + v * (dτ / vnorm)
-        push!(xs, xnew)
-        if norm(xnew - xinit) ≤ dτ/2
-            break  # we have come back very close to the starting point, so we can stop now
+        xnew = last(xs)
+        # Note: the resulting "velocity" is not exactly unitary but usually very close to
+        # it. We normalise it just in case.
+        for _ ∈ 1:nsubsteps
+            v = advancement_velocity_RK4(f, xnew, dt_solver)
+            xnew = xnew + normalize(v) * dt_solver
         end
+        r⃗ = xnew - xinit
+        r⃗ₚ = deperiodise_separation(r⃗, Ls, Lhs)
+        r² = sum(abs2, r⃗ₚ)
+        # Stop if the point (n - 1) is closer to the starting point than both the points
+        # (n - 2) and n. Note that we discard the point n.
+        if r²_prev < min(r², r²_pprev, r²_crit)
+            break
+        end
+        r²_prev, r²_pprev = r², r²_prev
+        push!(xs, xnew)
     end
     length(xs) == max_steps &&
-        @warn "Reached maximum number of steps. The curve may not be properly closed." max_steps dτ
+        @warn "Reached maximum number of steps. The curve may not be properly closed." max_steps dτ nsubsteps
+    p⃗ = xs[end] - xinit  # should be roughly a multiple of the period
+    if periods === nothing
+        offset = zero(p⃗)
+    else
+        ps = round.(Int, p⃗ ./ Ls)
+        offset = ps .* periods
+    end
     # Reposition the last point to avoid curve weirdness (for example, having to go
     # "backwards" to close the curve).
-    xs[end] = (xs[end - 1] + xinit) ./ 2
-    xs
+    xlast = xinit + offset
+    xs[end] = (xs[end - 1] + xlast) / 2
+    offset
 end
 
 # Obtain "velocity" of advancement using standard RK4 scheme.
