@@ -16,6 +16,8 @@ does is to make sure that the *average* among all filament nodes is in the main
 unit cell.
 
 Returns `true` if coordinates were modified, `false` otherwise.
+In the first case, one may want to call [`update_coefficients!`](@ref) to update the curve
+representation.
 """
 function fold_periodic!(Xs::AbstractVector{<:Vec3}, periods::NTuple{3, Real})
     Xmean = sum(Xs) ./ length(Xs)
@@ -46,6 +48,8 @@ function fold_periodic!(f::AbstractFilament, periods::NTuple{3, Real})
     end
     modified
 end
+
+fold_periodic!(f, periods::Vec3) = fold_periodic!(f, Tuple(periods))
 
 function _count_periodic_offsets(x::Real, L::Real)
     offset = 0

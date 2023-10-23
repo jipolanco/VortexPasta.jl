@@ -18,7 +18,11 @@ end
 @inline deperiodise_separation(r::Real, ::Infinity, ::Infinity) = r
 
 # We convert SVector to tuple to make sure that no heap allocations are performed.
-@inline deperiodise_separation(r⃗::Vec3, args...)::Vec3 = oftype(r⃗, deperiodise_separation(Tuple(r⃗), args...))
+@inline function deperiodise_separation(r⃗::Vec3, args...)::Vec3
+    r⃗ₚ = deperiodise_separation(Tuple(r⃗), map(Tuple, args)...)
+    oftype(r⃗, r⃗ₚ)
+end
+
 @inline deperiodise_separation(rs::Tuple, args...)::Tuple = map(deperiodise_separation, rs, args...)
 
 """
