@@ -70,7 +70,7 @@ to_quadrature(::Nothing) = NoQuadrature()
 
 function _local_self_induced(
         ::Velocity, ::NoQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real, fit_circle = false,
+        a::Real, Δ::Real, fit_circle = false, kws...,
     )
     ℓ₋ = norm(f[i] - f[i - 1])
     ℓ₊ = norm(f[i + 1] - f[i])
@@ -103,10 +103,8 @@ end
 # It seems to improve accuracy and stability (tested with vortex ring example and Kelvin waves).
 function _local_self_induced(
         ::Velocity, quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real,
-        fit_circle = false,  # ignored
+        a::Real, Δ::Real, regularise_binormal::StaticBool = False(), kws...,
     )
-    ts = knots(f)
     ℓ₋ = integrate(f, i - 1, quad) do f, j, ζ
         norm(f(j, ζ, Derivative(1)))
     end
@@ -114,13 +112,19 @@ function _local_self_induced(
         norm(f(j, ζ, Derivative(1)))
     end
     # Estimate the scaled binormal vector b⃗ = ρ b̂, where ρ is the curvature and b̂ = t̂ × n̂.
-    b⃗₋ = integrate(f, i - 1, quad) do f, j, ζ
-        f(j, ζ, CurvatureBinormal())
+    regularise = dynamic(regularise_binormal)
+    b⃗ = if regularise
+        b⃗₋ = integrate(f, i - 1, quad) do f, j, ζ
+            f(j, ζ, CurvatureBinormal())
+        end
+        b⃗₊ = integrate(f, i, quad) do f, j, ζ
+            f(j, ζ, CurvatureBinormal())
+        end
+        ts = knots(f)
+        (b⃗₋ + b⃗₊) ./ (ts[i + 1] - ts[i - 1])  # average on [i - 1, i + 1]
+    else
+        f[i, CurvatureBinormal()]
     end
-    b⃗₊ = integrate(f, i, quad) do f, j, ζ
-        f(j, ζ, CurvatureBinormal())
-    end
-    b⃗ = (b⃗₋ + b⃗₊) ./ (ts[i + 1] - ts[i - 1])  # average on [i - 1, i + 1]
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
     β * b⃗
 end
@@ -128,8 +132,7 @@ end
 function _local_self_induced(
         ::Streamfunction, ::NoQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real,
-        fit_circle = false,  # ignored
+        a::Real, Δ::Real, kws...,
     )
     ℓ₋ = norm(f[i] - f[i - 1])
     ℓ₊ = norm(f[i + 1] - f[i])
@@ -141,8 +144,7 @@ end
 function _local_self_induced(
         ::Streamfunction, quad::AbstractQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real,
-        fit_circle = false,  # ignored
+        a::Real, Δ::Real, kws...,
     )
     ℓ₋ = integrate(f, i - 1, quad) do f, j, ζ
         norm(f(j, ζ, Derivative(1)))

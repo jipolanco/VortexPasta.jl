@@ -88,21 +88,23 @@ struct ParamsShortRange{
         Quadrature <: AbstractQuadrature,
         Common <: ParamsCommon,
         T <: Real,
+        RegulariseBinormal <: StaticBool,
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, α, Ls)
     rcut    :: T           # cutoff distance
+    regularise_binormal :: RegulariseBinormal
 
     function ParamsShortRange(
             backend::ShortRangeBackend, quad::AbstractQuadrature,
-            common::ParamsCommon, rcut::Real,
+            common::ParamsCommon, rcut::Real, regularise::StaticBool,
         )
         (; Ls,) = common
         2 * rcut ≤ min(Ls...) ||
             error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
-        new{typeof(backend), typeof(quad), typeof(common), typeof(rcut)}(
-            backend, quad, common, rcut,
+        new{typeof(backend), typeof(quad), typeof(common), typeof(rcut), typeof(regularise)}(
+            backend, quad, common, rcut, regularise,
         )
     end
 end
@@ -213,7 +215,7 @@ function add_short_range_fields!(
     ps = _fields_to_pairs(fields)
 
     (; params,) = cache
-    (; quad,) = params
+    (; quad, regularise_binormal,) = params
     (; Γ, a, Δ,) = params.common
     prefactor = Γ / (4π)
 
@@ -242,7 +244,7 @@ function add_short_range_fields!(
                     integrate_biot_savart(quantity, LongRange(), sb, x⃗, params)
                 )
                 if _LIA
-                    u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad)
+                    u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad, regularise_binormal)
                 end
                 quantity => u⃗
             end
