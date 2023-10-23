@@ -366,7 +366,7 @@ end
 # timesteps.
 
 dt = T_kw / 32
-iter = init(prob, SanduMRI33a(RK4(), 4); dt, callback)
+iter = init(prob, SanduMRI33a(RK4(), 16); dt, callback)
 solve!(iter)
 
 # We can first check that energy is conserved:
