@@ -7,11 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add a few options to `Filaments.from_vector_field`.
+
 ### Changed
 
-- Move reconnections to separate `Reconnections` module.
+- Change default estimation of binormal vector. Previously it was regularised, now it's more physically correct (!58).
 
-- Move most of the short-range backend implementation to new `FindNearbySegments` module.
+- Move reconnections to separate `Reconnections` module (!54).
+
+- Move most of the short-range backend implementation to new `FindNearbySegments` module (!55).
+
+### Fixed
+
+- Fix periodicity effects on reconnections in `Timestepping` module (!57).
+
+- Fix node insertion and curve refinement when using `FiniteDiffMethod`.
 
 ## [0.4.0] - 2023-10-16
 

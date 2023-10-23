@@ -52,6 +52,7 @@ function test_kelvin_waves(
         scheme = RK4();
         method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,
         quad = GaussLegendre(4),
+        regularise_binormal = Val(true),
     )
     Lx = Ly = Lz
     lines = [
@@ -93,6 +94,7 @@ function test_kelvin_waves(
             backend_long = FINUFFTBackend(),
             quadrature_short = quad,
             quadrature_long = quad,
+            regularise_binormal,
         )
     end
 
@@ -275,9 +277,8 @@ function test_kelvin_waves(
 
         # Check that we actually recover the KW frequency!
         # @show abs(ωy - ω_kw) / ω_kw
-        nquad = length(quad)
-        @test isapprox(ωx, ω_kw; rtol = 2e-3 * 4 / nquad)
-        @test isapprox(ωy, ω_kw; rtol = (iseuler ? 3e-3 : 2e-3) * 4 / nquad)
+        @test isapprox(ωx, ω_kw; rtol = 8e-3)
+        @test isapprox(ωy, ω_kw; rtol = 8e-3)
     end
 
     nothing
@@ -291,6 +292,9 @@ end
     )
     @testset "Scheme: $scheme" for scheme ∈ schemes
         test_kelvin_waves(scheme; method = CubicSplineMethod())
+    end
+    @testset "No regularisation" begin
+        test_kelvin_waves(SanduMRI33a(RK4(), 8); regularise_binormal = Val(false))
     end
     @testset "NoQuadrature()" begin
         test_kelvin_waves(SanduMRI33a(RK4(), 8); quad = NoQuadrature())

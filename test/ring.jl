@@ -1,6 +1,7 @@
 using Test
 using LinearAlgebra: norm, normalize, ⋅
 using Statistics: mean, std
+using Static: True
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
 using VortexPasta.FindNearbySegments: NaiveSegmentIterator
@@ -46,6 +47,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         α = Zero(),
         backend_short = NaiveShortRangeBackend(),
         quadrature_short = quad,
+        regularise_binormal = Val(true),
     )
     nquad = length(quad)  # number of quadrature points per segment
 
@@ -144,6 +146,7 @@ function test_local_induced_approximation(ring)
         a = 1e-6,
         Δ = 1/4,
         Γ = 4.2,
+        regularise_binormal = True(),
     )
     quad = GaussLegendre(8)  # for accurate estimation of arc length
     arclength(j) = integrate((f, j, ζ) -> norm(f(j, ζ, Derivative(1))), f, j, quad)

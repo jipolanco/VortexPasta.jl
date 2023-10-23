@@ -26,6 +26,7 @@ using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, CurvatureBinormal,
     knots, nodes, segments, integrate
 
+using Static: StaticBool, False, dynamic
 using TimerOutputs: TimerOutput, @timeit
 
 abstract type OutputField end
@@ -134,6 +135,12 @@ Mandatory and optional keyword arguments are detailed in the following.
 
   See Saffman (1992), sections 10.2--10.3 for the first three.
 
+- `regularise_binormal = Val(false)`: if `Val(true)`, regularise the estimation of the local
+  binormal vector for computation of the LIA term. The binormal vector is averaged along the
+  local filament segments. This may lead to more stable simulations of single vortex rings,
+  but it's not recommended (nor very useful) for more complex cases. In particular, it can
+  lead to spurious energy fluctuations.
+
 """
 struct ParamsBiotSavart{
         T,
@@ -152,15 +159,18 @@ struct ParamsBiotSavart{
             quadrature_long::AbstractQuadrature = GaussLegendre(2),
             backend_short::ShortRangeBackend = default_short_range_backend(Ls),
             backend_long::LongRangeBackend = FINUFFTBackend(),
+            regularise_binormal::Val{RegulariseBinormal} = Val(false),
             Δ::Real = 0.25,
             kws...,
-        ) where {T}
+        ) where {T, RegulariseBinormal}
         # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
         # - define ParamsPhysical instead of ParamsCommon
         # - include α in both ParamsShortRange and ParamsLongRange?
         (; Ns, rcut,) = _extra_params(α; kws...)
         common = ParamsCommon{T}(Γ, a, Δ, α, Ls)
-        sr = ParamsShortRange(backend_short, quadrature_short, common, rcut)
+        sr = ParamsShortRange(
+            backend_short, quadrature_short, common, rcut, StaticBool(RegulariseBinormal),
+        )
         lr = ParamsLongRange(backend_long, quadrature_long, common, Ns)
         new{T, typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
     end
@@ -461,7 +471,7 @@ function _compute_LIA_on_nodes!(
     (; to,) = cache
     (; params,) = cache.shortrange
     # Note: we must use the same quadrature as used when computing the globally induced terms
-    (; quad,) = params
+    (; quad, regularise_binormal,) = params
     (; Γ, a, Δ,) = params.common
     ps = _fields_to_pairs(fields)  # e.g. (Velocity() => vs, Streamfunction() => ψs)
     prefactor = Γ / (4π)
@@ -471,7 +481,7 @@ function _compute_LIA_on_nodes!(
                 # Here `quantity` is either Velocity() or Streamfunction()
                 values[n][i] = BiotSavart.local_self_induced(
                     quantity, f, i, prefactor;
-                    a, Δ, quad,
+                    a, Δ, quad, regularise_binormal,
                 )
             end
         end

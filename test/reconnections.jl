@@ -61,6 +61,7 @@ end
 
 trefoil_scheme_dt(::Any) = trefoil_scheme_dt(RK4())  # default
 trefoil_scheme_dt(::RK4) = 1
+trefoil_scheme_dt(::SanduMRI33a) = 1
 
 function test_trefoil_knot_reconnection(scheme = RK4())
     S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
@@ -97,6 +98,9 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         end
         push!(times, t)
         push!(energy, Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(4)))
+        # write_vtkhdf("trefoil_$nstep.hdf", fs) do io
+        #     io["velocity"] = iter.vs
+        # end
         Nf = length(fs)
         if n_reconnect[] == 0 && Nf == 2
             t_reconnect[] = t
@@ -111,7 +115,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     reconnect = ReconnectBasedOnDistance(l_min)
     iter = @inferred init(
         prob, scheme;
-        dt = 0.005 * trefoil_scheme_dt(scheme),
+        dt = 0.004 * trefoil_scheme_dt(scheme),
         refinement = RefineBasedOnSegmentLength(0.75 * l_min),
         # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
         reconnect,
@@ -132,9 +136,9 @@ function test_trefoil_knot_reconnection(scheme = RK4())
 
     @show t_reconnect[]
     @test n_reconnect[] > 0
-    @test 1.4 < t_reconnect[] < 1.5  # this depends on several parameters...
+    @test 1.5 < t_reconnect[] < 1.6  # this depends on several parameters...
     @show last(energy) / first(energy)
-    @test last(energy) < 0.97 * first(energy)
+    @test last(energy) < 0.995 * first(energy)
 
     nothing
 end

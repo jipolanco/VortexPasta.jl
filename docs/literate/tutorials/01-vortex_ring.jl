@@ -460,7 +460,7 @@ prob = VortexFilamentProblem(fs, tspan, params)
 # `dt`, and leave the defaults for everything else:
 
 l_min = minimum_knot_increment(fs)       # this is an estimate for the minimum distance between discretisation points
-dt = 8 * l_min^2 / (Γ * log(l_min / a))  # we set the timestep to be proportional to some characteristic "fast" timescale
+dt = 3 * l_min^2 / (Γ * log(l_min / a))  # we set the timestep to be proportional to some characteristic "fast" timescale
 iter = init(prob, RK4(); dt)
 
 # Note that the maximum possible timestep to avoid numerical instability is mainly limited
