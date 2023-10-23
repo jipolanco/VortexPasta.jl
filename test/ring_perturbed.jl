@@ -84,7 +84,7 @@ using LinearAlgebra: ⋅
 
     tspan = (0.0, 15 * R^2 / Γ)
     prob = @inferred VortexFilamentProblem([f], tspan, params_bs)
-    iter = init(prob, SanduMRI33a(RK4(), 4); dt = 0.04, callback)
+    iter = init(prob, SanduMRI33a(RK4(), 4); dt = 0.02, callback)
     @time solve!(iter)
 
     Emean = mean(energy_time)

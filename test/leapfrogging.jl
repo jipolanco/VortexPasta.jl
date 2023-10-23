@@ -212,6 +212,7 @@ end
         backend_long = FINUFFTBackend(),
         quadrature_short = GaussLegendre(4),
         quadrature_long = GaussLegendre(4),
+        regularise_binormal = Val(true),
     )
 
     # Check overloaded getproperty and propertynames for ParamsBiotSavart.

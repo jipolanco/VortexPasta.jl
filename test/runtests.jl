@@ -6,6 +6,7 @@ macro includetest(path::String)
     modname = Symbol("Mod_" * replace(path, '.' => '_'))
     escname = esc(modname)
     ex = quote
+        @info "Running $($path)"
         module $escname
             $escname.include($path)
         end
