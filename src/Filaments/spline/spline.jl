@@ -2,7 +2,7 @@ export
     CubicSplineMethod
 
 using Base.Cartesian: @ntuple, @nexprs
-using Bumper: Bumper
+using Bumper: Bumper, @no_escape, @alloc
 
 """
     CubicSplineMethod <: GlobalDiscretisationMethod
@@ -72,10 +72,10 @@ function solve_cubic_spline_coefficients!(
     T = eltype(ts)
     # Use Bumper to allocate buffer arrays "for free" (not managed by Julia's GC).
     buf = Bumper.default_buffer()
-    Bumper.@no_escape buf begin
+    @no_escape buf begin
         bufs_thomas = (
-            bc = Bumper.alloc(SVector{2, T}, buf, n),
-            us = Bumper.alloc(T, buf, n),
+            bc = @alloc(SVector{2, T}, n),
+            us = @alloc(T, n),
         )
         _solve_periodic_cubic_spline_coefficients_thomas!(ts, cs, bufs_thomas)
     end
