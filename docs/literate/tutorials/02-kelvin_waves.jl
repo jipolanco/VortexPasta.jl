@@ -357,7 +357,7 @@ end
 # [here](https://docs.julialang.org/en/v1/manual/variables-and-scoping/#man-typed-globals)
 # for details.
 
-# ### Choosing the timestep and the temporal scheme
+# ### [Choosing the timestep and the temporal scheme](@id tutorial-kelvin-waves-timestep)
 #
 # In the [vortex ring tutorial](@ref tutorial-vortex-ring) we have used the standard
 # [`RK4`](@ref) scheme.
@@ -383,10 +383,11 @@ T_kw / dt_kw
 # This means that we would need a relatively large simulation time to observe the
 # evolution of large-scale Kelvin waves over multiple periods.
 
-# Besides, for the [`RK4`](@ref) scheme, this time scale really seems to set the maximum allowed
+# For the [`RK4`](@ref) scheme, this time scale really seems to set the maximum allowed
 # timestep limit.
 # We can check that a simulation with `RK4` using `dt = dt_kw` remains stable.
-# In particular, energy stays constant over time after running a few iterations:
+# In particular, energy stays constant in time after running a few iterations with this
+# timestep:
 
 iter = init(prob, RK4(); dt = dt_kw, callback)
 for _ ∈ 1:40
@@ -394,7 +395,7 @@ for _ ∈ 1:40
 end
 energy'
 
-# Meanwhile, using `dt = 2 * dt_kw` quickly leads to instability and energy blow-up:
+# However, using `dt = 2 * dt_kw` quickly leads to instability and energy blow-up:
 
 iter = init(prob, RK4(); dt = 2 * dt_kw, callback)
 for _ ∈ 1:40
@@ -406,22 +407,19 @@ energy'
 # [Desingularisation](@ref VFM-desingularisation)), which presents fast temporal variations.
 # This term is actually very cheap to compute compared to the non-local velocity resulting
 # from the Biot--Savart law.
-# In this case, it makes sense to use multirate timestepping schemes, which use a small
-# timestep to evaluate the fast (and cheap) motions, and a larger timestep to evaluate the
-# slow (and expensive) terms.
+# Therefore, it makes sense to use a multirate timestepping scheme. 
+# The idea is to use a small timestep to evaluate the fast (and cheap) motions, and a larger
+# timestep to evaluate the slow (and expensive) terms.
 # In the following we use the [`SanduMRI33a`](@ref) scheme [Sandu2019](@cite), which is a
-# 3rd-order 3-stage Runge--Kutta scheme for the "slow" component.
+# 3rd-order 3-stage explicit Runge--Kutta scheme for the "slow" component.
 # For each "outer" RK stage, we perform ``M = 10`` inner iterations of the "fast" component
-# using the standard `RK4` scheme:
+# using the standard `RK4` scheme, which allows to greatly increase the timestep:
 
 scheme = SanduMRI33a(RK4(), 10)
-
-# This allows to greatly increase the timestep:
-
-dt = 32 * dt_kw  # timestep allowed by SanduMRI33a(RK4(), 10) scheme
+dt = 32 * dt_kw
 
 # Note that we could tune the number ``M`` of inner iterations to allow even larger
-# timesteps, but this can lead to precision loss (in particular, small energy fluctuations).
+# timesteps, but this can lead to precision loss.
 #
 # ### Running the simulation
 #
@@ -484,9 +482,9 @@ show(IOContext(stdout, :displaysize => (40, 100)), iter.to)  # hide
 iter.to
 nothing  # hide
 
-# We can see that, in this case, roughly half the time is spent in the long-range
-# computations, while the other half is spent on short-range computations and the LIA
-# (local) term.
+# We can see that, in this case, roughly half the time is spent in the long-range Biot--Savart
+# computations, while the other half is spent on short-range Biot--Savart computations and
+# the LIA (local) term.
 # Note that the LIA term is computed much more often than the other components due to the
 # use of a multirate scheme, but even then, its total cost is a fraction of that associated
 # to the Biot--Savart integrals.

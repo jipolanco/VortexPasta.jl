@@ -1,4 +1,4 @@
-# # [Getting started](@id tutorial-vortex-ring)
+# # [Vortex ring](@id tutorial-vortex-ring)
 #
 # The following tutorial goes through the simulation of a **single vortex ring** propagating
 # due to its self-induced propulsion.
@@ -40,8 +40,8 @@ using VortexPasta
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 
-R = 1.5   # radius of the circular ring
-N = 32    # number of discretisation points
+R = 2.0   # radius of the circular ring
+N = 16    # number of discretisation points
 x⃗₀ = Vec3(3.0, 3.0, 1.0)  # ring centre
 θs = range(0, 2π; length = N + 1)[1:N]  # discretisation angles (we exclude θ = 2π)
 points = [x⃗₀ + R * Vec3(cos(θ), sin(θ), 0) for θ ∈ θs]
@@ -148,10 +148,10 @@ ax = Axis3(fig[1, 1]; aspect = :data)
 zlims!(ax, 0.5, 1.5)
 plot!(
     ax, f;
-    refinement = 4, linewidth = 4, markersize = 20,
+    refinement = 4, linewidth = 4, markersize = 12,
     tangents = true, tangentcolor = :Yellow,         # plot tangent vectors
     curvatures = true, curvaturecolor = :LightBlue,  # plot curvature vectors
-    arrowwidth = 0.03, arrowscale = 0.6, arrowsize = (1, 1, 1.2) .* 0.1,  # arrow properties
+    arrowwidth = 0.03, arrowscale = 1.2, arrowsize = (1, 1, 1.2) .* 0.1,  # arrow properties
     vectorpos = 0.5,    # plot vectors at the midpoint in-between nodes
 )
 fig
@@ -332,7 +332,7 @@ relative_difference = (v_ring - vz) / v_ring
 nothing  # hide
 
 # We can see that we're quite close, and that the relative difference between the two is of
-# the order of 1%.
+# the order of 5%.
 # This is already nice, but note that most of the difference may be explained by
 # **periodicity effects**, as shown in more detail in the [next section](@ref
 # ring-disabling-periodicity).
@@ -363,13 +363,12 @@ fig
 
 # One can show that the images have the tendency to slow the vortex down, which is
 # consistent with our results (since `vz < v_ring`).
-# The effect here is quite small even though the ring diameter ``2R`` is comparable to the
+# The effect here is relatively important because the ring diameter ``2R`` is comparable to the
 # domain period ``L``:
 
 2R/L
 
-# We can expect the periodicity effect on the ring to be even weaker for smaller ring
-# radius.
+# We can expect the periodicity effect on the ring to be much weaker for smaller rings.
 
 # ### [Side note: disabling periodicity](@id ring-disabling-periodicity)
 #
@@ -421,9 +420,15 @@ nothing  # hide
 vz_inf = v_mean_inf[3]
 relative_difference_inf = (v_ring - vz_inf) / v_ring
 
-# The relative difference is reduced to about 0.5%.
+# The relative difference is reduced to about 1%.
 # Once again, this clearly shows that periodic images have a minor impact on the effective
 # vortex ring velocity.
+#
+# Note that we could further reduce the difference with the analytical result by either
+# increasing the filament resolution ``N`` or by using a discretisation scheme which better
+# reproduces circular curves (such as [`FourierMethod`](@ref) or even
+# [`FiniteDiffMethod`](@ref), which works better than [`CubicSplineMethod`](@ref) for the
+# specific case of circular curves).
 
 # ## Making the ring move
 #
@@ -469,6 +474,7 @@ iter = init(prob, RK4(); dt)
 # length scale.
 # These correspond to Kelvin waves, whose frequency roughly scales as
 # ``ω(ℓ) ∼ Γ \ln (ℓ / a) / ℓ^2``.
+# See the [Kelvin wave tutorial](@ref tutorial-kelvin-waves-timestep) for more details.
 #
 # !!! note "Adaptive timestepping"
 #
