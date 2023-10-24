@@ -318,7 +318,7 @@ Base.@propagate_inbounds Base.getindex(
 # This is the default parametrisation for any generic discretisation method.
 # Specific discretisation methods (e.g. Fourier) may choose a different default
 # parametrisation.
-default_parametrisation(::DiscretisationMethod) = (Xs, i) -> @inbounds(Xs[i])
+default_parametrisation(::DiscretisationMethod) = (Xs, i) -> @inbounds(norm(Xs[i + 1] - Xs[i]))
 
 @doc raw"""
     Filaments.init(
@@ -485,11 +485,8 @@ function _update_knots_periodic!(
     ts[begin] = 0
     inds = eachindex(ts)
     @assert npad(ts) == npad(Xs) ≥ 1
-    yi = parametrisation(Xs, first(inds))
     @inbounds for i ∈ inds
-        yj = parametrisation(Xs, i + 1)
-        ts[i + 1] = ts[i] + norm(yj - yi)
-        yi = yj
+        ts[i + 1] = ts[i] + parametrisation(Xs, i)
     end
     L = ts[end + 1] - ts[begin]  # knot period
     pad_periodic!(ts, L)
