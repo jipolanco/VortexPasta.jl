@@ -40,8 +40,8 @@ using VortexPasta
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 
-R = 1.25  # radius of the circular ring
-N = 16    # number of discretisation points
+R = 1.5   # radius of the circular ring
+N = 32    # number of discretisation points
 x⃗₀ = Vec3(3.0, 3.0, 1.0)  # ring centre
 θs = range(0, 2π; length = N + 1)[1:N]  # discretisation angles (we exclude θ = 2π)
 points = [x⃗₀ + R * Vec3(cos(θ), sin(θ), 0) for θ ∈ θs]
@@ -332,7 +332,7 @@ relative_difference = (v_ring - vz) / v_ring
 nothing  # hide
 
 # We can see that we're quite close, and that the relative difference between the two is of
-# about 1%.
+# the order of 1%.
 # This is already nice, but note that most of the difference may be explained by
 # **periodicity effects**, as shown in more detail in the [next section](@ref
 # ring-disabling-periodicity).
@@ -421,8 +421,8 @@ nothing  # hide
 vz_inf = v_mean_inf[3]
 relative_difference_inf = (v_ring - vz_inf) / v_ring
 
-# The relative difference is close to 0.01%!
-# Once again, this clearly shows that periodic images have a minor on the effective
+# The relative difference is reduced to about 0.5%.
+# Once again, this clearly shows that periodic images have a minor impact on the effective
 # vortex ring velocity.
 
 # ## Making the ring move
