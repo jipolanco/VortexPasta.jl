@@ -6,7 +6,9 @@ Module defining timestepping solvers for vortex filament simulations.
 module Timestepping
 
 export init, solve!, step!, VortexFilamentProblem,
-       NoReconnections, ReconnectBasedOnDistance  # for convenience
+       ParamsBiotSavart,                           # from ..BiotSavart
+       NoReconnections, ReconnectBasedOnDistance,  # from ..Reconnections
+       reset_timer!  # from TimerOutputs
 
 using ..BasicTypes: Vec3, VectorOfVectors
 
@@ -41,7 +43,7 @@ using ..BiotSavart:
 # See https://docs.sciml.ai/CommonSolve/stable/
 import CommonSolve: init, solve!, step!
 
-using TimerOutputs: TimerOutputs, TimerOutput, @timeit
+using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
 
 abstract type AbstractProblem end
 abstract type AbstractSolver end

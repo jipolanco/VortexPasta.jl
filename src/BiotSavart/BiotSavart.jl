@@ -14,7 +14,8 @@ export
     init_cache,
     periods,
     velocity_on_nodes!,
-    compute_on_nodes!
+    compute_on_nodes!,
+    reset_timer!  # from TimerOutputs
 
 using ..BasicTypes:
     Vec3, Derivative, Zero, Infinity, ∞
@@ -27,7 +28,7 @@ using ..Filaments:
     knots, nodes, segments, integrate
 
 using Static: StaticBool, False, dynamic
-using TimerOutputs: TimerOutput, @timeit
+using TimerOutputs: TimerOutput, @timeit, reset_timer!
 
 abstract type OutputField end
 struct Streamfunction <: OutputField end
