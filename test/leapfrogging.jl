@@ -269,7 +269,9 @@ end
         end
     end
 
-    refinement = RefineBasedOnSegmentLength(0.99 * minimum_knot_increment(fs_init))
+    δ = @inferred minimum_knot_increment(fs_init)
+    @test δ ≈ @inferred minimum_node_distance(fs_init)  # almost always true, except for FourierMethod
+    refinement = RefineBasedOnSegmentLength(0.99 * δ)
     schemes = (
         RK4(), DP5(), SSPRK33(),
         IMEXEuler(), KenCarp4(),

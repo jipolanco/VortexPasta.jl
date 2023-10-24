@@ -30,6 +30,7 @@ discretisation_method
 knots
 knotlims
 end_to_end_offset
+minimum_node_distance
 minimum_knot_increment
 maximum_knot_increment
 nodes

@@ -21,6 +21,7 @@ export
     end_to_end_offset,
     minimum_knot_increment,
     maximum_knot_increment,
+    minimum_node_distance,
     nodes,
     segments,
     integrate,
@@ -179,6 +180,27 @@ Return the nodes (or discretisation points) ``\\bm{s}_i`` of the filament.
 """
 nodes(f::AbstractFilament) = f.Xs
 
+"""
+    minimum_node_distance(f::AbstractFilament) -> Real
+    minimum_node_distance(fs::AbstractVector{<:AbstractFilament}) -> Real
+
+Return the minimum distance between neighbouring filament discretisation points.
+
+See also [`minimum_knot_increment`](@ref).
+"""
+function minimum_node_distance(f::AbstractFilament)
+    inds_all = eachindex(segments(f))
+    i, inds = Iterators.peel(inds_all)
+    @inbounds res = norm(f[i + 1] - f[i])
+    for i ∈ inds
+        @inbounds res = min(res, norm(f[i + 1] - f[i]))
+    end
+    res
+end
+
+minimum_node_distance(fs::AbstractVector{<:AbstractFilament}) =
+    minimum(minimum_node_distance, fs)
+
 @doc raw"""
     knots(f::AbstractFilament{T}) -> AbstractVector{T}
 
@@ -196,7 +218,11 @@ Return the minimum increment ``Δt = t_{i + 1} - t_{i}`` between filament knots.
 
 The second form allows to estimate the minimum increment among a vector of filaments.
 
-This is generally a good approximation for the minimum segment length.
+This is generally a good and fast approximation for the minimum segment length.
+However, this approximation is generally incorrect if one is using the
+[`FourierMethod`](@ref) discretisation method.
+
+See also [`minimum_node_distance`](@ref).
 """
 minimum_knot_increment(f::AbstractFilament) = reduce_knot_increments(min, f)
 minimum_knot_increment(fs::AbstractVector{<:AbstractFilament}) = minimum(minimum_knot_increment, fs)
