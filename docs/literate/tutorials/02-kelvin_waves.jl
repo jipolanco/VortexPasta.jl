@@ -278,6 +278,8 @@ end
 # [`Timestepping`](@ref) module to perform a temporal simulation of the configuration we
 # just prepared.
 #
+# ### Setting physical and numerical parameters
+#
 # We start by setting the parameters for Biot--Savart computations:
 
 using VortexPasta.BiotSavart
@@ -355,21 +357,81 @@ end
 # [here](https://docs.julialang.org/en/v1/manual/variables-and-scoping/#man-typed-globals)
 # for details.
 
-# Below, we choose the timestep to be a fraction of the expected Kelvin wave period.
-# Moreover, we use the [`SanduMRI33a`](@ref) timestepping scheme.
-# This is a Runge--Kutta (RK) multirate scheme which splits local and non-local
-# computations, which respectively correspond to fast/slow motions and which are
-# cheap/expensive to compute.
-# For each RK stage, multiple evaluations of the fast component are performed using an inner
-# scheme (`RK4` here).
-# Compared to "pure" [`RK4`](@ref), this multirate scheme generally allows to use larger
-# timesteps.
+# ### Choosing the timestep and the temporal scheme
+#
+# In the [vortex ring tutorial](@ref tutorial-vortex-ring) we have used the standard
+# [`RK4`](@ref) scheme.
+# To capture the vortex evolution and avoid blow-up, this scheme requires the timestep
+# ``Δt`` to be of the order of the period of the **fastest** resolved Kelvin waves, which have a
+# wavelength ``λ`` equal to (twice) the filament resolution ``δ`` (the typical distance
+# between two discretisation points).
+#
+# We first estimate the filament resolution using [`minimun_node_distance`](@ref):
 
-dt = T_kw / 32
-iter = init(prob, SanduMRI33a(RK4(), 16); dt, callback)
+δ = minimum_node_distance(prob.fs)  # should be close to L/N in our case
+
+# Now we compute the Kelvin wave frequency associated to this distance:
+
+kelvin_wave_period(λ; a, Δ, Γ) = 2 * λ^2 / Γ / (log(λ / (π * a)) + 1/2 - (Δ + MathConstants.γ))
+dt_kw = kelvin_wave_period(δ; a, Δ, Γ)
+
+# Note that this time scale is very small compared to the period of the large-scale Kelvin
+# waves:
+
+T_kw / dt_kw
+
+# This means that we would need a relatively large simulation time to observe the
+# evolution of large-scale Kelvin waves over multiple periods.
+
+# Besides, for the [`RK4`](@ref) scheme, this time scale really seems to set the maximum allowed
+# timestep limit.
+# We can check that a simulation with `RK4` using `dt = dt_kw` remains stable.
+# In particular, energy stays constant over time after running a few iterations:
+
+iter = init(prob, RK4(); dt = dt_kw, callback)
+for _ ∈ 1:40
+    step!(iter)
+end
+energy'
+
+# Meanwhile, using `dt = 2 * dt_kw` quickly leads to instability and energy blow-up:
+
+iter = init(prob, RK4(); dt = 2 * dt_kw, callback)
+for _ ∈ 1:40
+    step!(iter)
+end
+energy'
+
+# This limit is basically set by the local self-induced velocity term (see
+# [Desingularisation](@ref VFM-desingularisation)), which presents fast temporal variations.
+# This term is actually very cheap to compute compared to the non-local velocity resulting
+# from the Biot--Savart law.
+# In this case, it makes sense to use multirate timestepping schemes, which use a small
+# timestep to evaluate the fast (and cheap) motions, and a larger timestep to evaluate the
+# slow (and expensive) terms.
+# In the following we use the [`SanduMRI33a`](@ref) scheme [Sandu2019](@cite), which is a
+# 3rd-order 3-stage Runge--Kutta scheme for the "slow" component.
+# For each "outer" RK stage, we perform ``M = 10`` inner iterations of the "fast" component
+# using the standard `RK4` scheme:
+
+scheme = SanduMRI33a(RK4(), 10)
+
+# This allows to greatly increase the timestep:
+
+dt = 32 * dt_kw  # timestep allowed by SanduMRI33a(RK4(), 10) scheme
+
+# Note that we could tune the number ``M`` of inner iterations to allow even larger
+# timesteps, but this can lead to precision loss (in particular, small energy fluctuations).
+#
+# ### Running the simulation
+#
+# We now solve the full problem with this multirate scheme:
+
+iter = init(prob, scheme; dt, callback)
+reset_timer!(iter.to)  # to get more accurate timings (removes most of the compilation time)
 solve!(iter)
 
-# We can first check that energy is conserved:
+# We can check that energy is conserved:
 
 energy'
 
@@ -425,10 +487,9 @@ nothing  # hide
 # We can see that, in this case, roughly half the time is spent in the long-range
 # computations, while the other half is spent on short-range computations and the LIA
 # (local) term.
-# Note that the LIA term is computed many more times than the other components.
-# This is because we used a multirate timestepping scheme ([`SanduMRI33a`](@ref)), which
-# allows for larger timesteps by taking advantage of the fact that this term is cheap to
-# compute (and represents the fast dynamics).
+# Note that the LIA term is computed much more often than the other components due to the
+# use of a multirate scheme, but even then, its total cost is a fraction of that associated
+# to the Biot--Savart integrals.
 
 # ## Fourier analysis
 #
@@ -445,8 +506,8 @@ nothing  # hide
 f = iter.fs[1]               # vortex to analyse
 zs = getindex.(nodes(f), 3)  # z locations
 N = length(zs)
-zs_expected = range(zs[begin], zs[end]; length = N)  # equispaced locations
-isapprox(zs, zs_expected; rtol = 1e-6)  # check that z locations are approximately equispaced
+zs_expected = range(zs[begin], zs[begin] + L; length = N + 1)[1:N]  # equispaced locations
+isapprox(zs, zs_expected; rtol = 1e-5)  # check that z locations are approximately equispaced
 
 # Now that we have verified this, we define the complex function ``r(z) = x(z) + i y(z)``
 # and we perform a complex-to-complex FFT to obtain ``\hat{r}(k)``:
