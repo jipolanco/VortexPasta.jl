@@ -366,7 +366,7 @@ end
 # wavelength ``λ`` equal to (twice) the filament resolution ``δ`` (the typical distance
 # between two discretisation points).
 #
-# We first estimate the filament resolution using [`minimun_node_distance`](@ref):
+# We first estimate the filament resolution using [`minimum_node_distance`](@ref):
 
 δ = minimum_node_distance(prob.fs)  # should be close to L/N in our case
 
@@ -540,9 +540,10 @@ function wave_action_spectrum(ks::AbstractVector, rhat::AbstractVector)
     @assert ks[2] == -ks[end]  # contains positive and negative wavenumbers
     @assert length(ks) == length(rhat)
     N = length(ks)
+    dk = ks[2]  # this is the wavenumber increment
     if iseven(N)
         Nh = N ÷ 2
-        @assert ks[Nh + 1] == -(ks[Nh] + 1)  # wavenumbers change sign after index Nh
+        @assert ks[Nh + 1] ≈ -(ks[Nh] + dk)  # wavenumbers change sign after index Nh
     else
         Nh = N ÷ 2 + 1
         @assert ks[Nh + 1] == -ks[Nh]  # wavenumbers change sign after index Nh
