@@ -335,10 +335,10 @@ function velocity_on_nodes!(
         vs::AbstractVector{<:VectorOfVec},
         cache::BiotSavartCache,
         fs::VectorOfFilaments;
-        LIA = Val(true),
+        kws...,
     )
     fields = (; velocity = vs,)
-    compute_on_nodes!(fields, cache, fs; LIA)
+    compute_on_nodes!(fields, cache, fs; kws...)
     vs
 end
 

@@ -63,7 +63,10 @@ function test_leapfrogging_rings(
         prob, scheme;
         R_init,  # initial ring radii
         refinement,
+        label = string(scheme),
     )
+    test_jet = true
+
     # Define callback function to be run at each simulation timestep
     times = Float64[]
     energy_time = Float64[]
@@ -99,12 +102,20 @@ function test_leapfrogging_rings(
         push!(sum_of_squared_radii, R²_all)
     end
 
-    JET.@test_opt ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
-    JET.@test_call ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
+    if test_jet
+        JET.@test_opt ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
+        JET.@test_call ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
+    end
 
     l_min = minimum_knot_increment(prob.fs)
+
+    factor = dt_factor(scheme)
+    if Filaments.discretisation_method(eltype(prob.fs)) isa QuinticSplineMethod
+        # Quintic splines seem to need a smaller timestep...
+        factor *= 0.3
+    end
     adaptivity =
-        AdaptBasedOnSegmentLength(dt_factor(scheme)) |
+        AdaptBasedOnSegmentLength(factor) |
         AdaptBasedOnVelocity(10 * l_min) |  # usually inactive; just for testing
         AdaptBasedOnVelocity(20 * l_min)    # usually inactive; just for testing
 
@@ -118,8 +129,10 @@ function test_leapfrogging_rings(
         callback,
     )
 
-    JET.@test_opt ignored_modules=(Base, FINUFFT) step!(iter)
-    JET.@test_call ignored_modules=(Base, FINUFFT) step!(iter)
+    if test_jet
+        JET.@test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+        JET.@test_call ignored_modules=(Base, FINUFFT) step!(iter)
+    end
 
     @info "Solving with $scheme..." dt_initial = iter.time.dt prob.tspan
 
@@ -159,7 +172,7 @@ function test_leapfrogging_rings(
             plt = lineplot(
                 times, energy_normalised;
                 xlabel = "Time", ylabel = "Energy",
-                title = "Leapfrogging rings / $scheme",
+                title = "Leapfrogging rings / " * label,
             )
             println(plt)
         end
@@ -191,6 +204,8 @@ function test_leapfrogging_rings(
 
     nothing
 end
+
+##
 
 @testset "Leapfrogging vortex rings" begin
     ##
@@ -290,14 +305,21 @@ end
         test_leapfrogging_rings(prob, scheme; R_init, refinement)
     end
 
+    @testset "QuinticSplineMethod" begin
+        local scheme = SanduMRI33a(RK4(), 2)
+        local fs_init = @inferred init_ring_filaments(R_init; method = QuinticSplineMethod())
+        local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
+        test_leapfrogging_rings(prob, scheme; R_init, refinement, label = "QuinticSplineMethod")
+    end
+
     @testset "RK4 + no refinement" begin
-        test_leapfrogging_rings(prob, RK4(); R_init, refinement = NoRefinement())
+        test_leapfrogging_rings(prob, RK4(); R_init, refinement = NoRefinement(), label = "NoRefinement")
     end
 
     @testset "FourierMethod (with noise = 0)" begin
         local scheme = SanduMRI33a(RK4(), 2)
         local fs_init = @inferred init_ring_filaments(R_init; method = FourierMethod(), noise = 0.0)
         local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
-        test_leapfrogging_rings(prob, scheme; R_init, refinement = NoRefinement())
+        test_leapfrogging_rings(prob, scheme; R_init, refinement = NoRefinement(), label = "FourierMethod")
     end
 end

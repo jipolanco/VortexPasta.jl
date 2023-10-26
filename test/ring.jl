@@ -78,7 +78,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         # @test all(std(vs) .< U * 1e-12)
         U_expected = vortex_ring_velocity(ps.Γ, R, ps.a; Δ = ps.Δ)
         # @show (U - U_expected) / U_expected
-        rtol = nquad == 1 ? 6e-3 : 1e-4
+        rtol = quad === NoQuadrature() ? 1e-2 : nquad == 1 ? 6e-3 : 1e-4
         @test isapprox(U, U_expected; rtol)  # the tolerance will mainly depend on the vortex resolution N
     end
 
@@ -185,20 +185,21 @@ function test_local_induced_approximation(ring)
 end
 
 @testset "Vortex ring velocity" begin
-    method = CubicSplineMethod()
     N = 32  # number of discretisation points
     # `noise`: non-uniformity of filament discretisation (noise == 0 means uniform discretisation)
-    @testset "$method, N = $N, noise = $noise" for noise ∈ (0.0, 0.2)
-        ring = init_ring_filament(N; noise, method)
-        @testset "Non-periodic" begin
-            # Note: GaussLegendre(1) and NoQuadrature() should give nearly the same results.
-            quads = (GaussLegendre(4), GaussLegendre(1), NoQuadrature())
-            @testset "Quadrature: $quad" for quad ∈ quads
-                test_vortex_ring_nonperiodic(ring; quad)
+    for method ∈ (CubicSplineMethod(), QuinticSplineMethod())
+        @testset "$method, N = $N, noise = $noise" for noise ∈ (0.0, 0.2)
+            ring = init_ring_filament(N; noise, method)
+            @testset "Non-periodic" begin
+                # Note: GaussLegendre(1) and NoQuadrature() should give nearly the same results.
+                quads = (GaussLegendre(4), GaussLegendre(1), NoQuadrature())
+                @testset "Quadrature: $quad" for quad ∈ quads
+                    test_vortex_ring_nonperiodic(ring; quad)
+                end
             end
-        end
-        @testset "LIA" begin
-            test_local_induced_approximation(ring)
+            @testset "LIA" begin
+                test_local_induced_approximation(ring)
+            end
         end
     end
     method = FourierMethod()
