@@ -1,8 +1,23 @@
 export
-    CubicSplineMethod
+    CubicSplineMethod,
+    QuinticSplineMethod
 
 using Base.Cartesian: @ntuple, @nexprs
 using Bumper: Bumper, @no_escape, @alloc
+
+struct SplineMethod{Order} <: GlobalDiscretisationMethod end
+
+order(::Type{<:SplineMethod{Order}}) where {Order} = Order
+order(m::SplineMethod) = order(typeof(m))
+
+# For instance, cubic splines (order = 4) are C² at the knots.
+continuity(::Type{M}) where {M <: SplineMethod} = order(M) - 2
+
+npad(::Type{M}) where {M <: SplineMethod} = order(M) - 1  # e.g. npad = 3 for cubic splines
+
+interpolation_method(m::SplineMethod) = m  # for compatibility with local methods (finite diff)
+
+## ================================================================================ ##
 
 """
     CubicSplineMethod <: GlobalDiscretisationMethod
@@ -11,16 +26,30 @@ Represents curves using cubic splines.
 
 In the case of closed curves, periodic cubic splines are used.
 """
-struct CubicSplineMethod <: GlobalDiscretisationMethod end
-interpolation_method(::CubicSplineMethod) = CubicSplineMethod()  # for compatibility with local methods (finite diff)
+const CubicSplineMethod = SplineMethod{4}
 
-npad(::Type{<:CubicSplineMethod}) = 3  # padding needed for cubic splines
+include("cubic.jl")
 
-# Cubic splines are C² at the knots.
-continuity(::Type{CubicSplineMethod}) = 2
+## ================================================================================ ##
 
-struct CubicSplineCoefs{
-        Method <: CubicSplineMethod,
+"""
+    QuinticSplineMethod <: GlobalDiscretisationMethod
+
+Represents curves using quintic splines.
+
+A quintic spline is made of polynomials of degree 5 and has global continuity ``C^4``.
+
+In the case of closed curves, periodic quintic splines are used.
+"""
+const QuinticSplineMethod = SplineMethod{6}
+
+include("banded.jl")  # banded matrix support
+include("quintic.jl")
+
+## ================================================================================ ##
+
+struct SplineCoefs{
+        Method <: SplineMethod,
         N,  # number of derivatives included (usually 2)
         Points <: AbstractVector,
     } <: DiscretisationCoefs{Method, N}
@@ -33,54 +62,33 @@ struct CubicSplineCoefs{
     cderivs :: NTuple{N, Points}
 end
 
-function init_coefficients(method::CubicSplineMethod, Xs::AbstractVector, Nderiv::Val)
+function init_coefficients(method::SplineMethod, Xs::AbstractVector, Nderiv::Val)
     cs = similar(Xs)
     cderivs = ntuple(_ -> similar(Xs), Nderiv)
-    CubicSplineCoefs(method, cs, cderivs)
+    SplineCoefs(method, cs, cderivs)
 end
 
-allvectors(x::CubicSplineCoefs) = (x.cs, x.cderivs...)
+allvectors(x::SplineCoefs) = (x.cs, x.cderivs...)
 
 ## ================================================================================ ##
 
-# Evaluate cubic B-splines at `x` based on the knot vector `ts`.
+# Evaluate B-splines at `x` based on the knot vector `ts`.
 # The `ileft` index must be such that ts[ileft] ≤ x < ts[ileft + 1].
-# Note that the returned B-splines are in reversed order: (b_{i + 2}, b_{i + 1}, b_{i}, b_{i - 1}),
-# where i = ileft.
-function eval_cubic_bsplines(ts::AbstractVector, x::Number, ileft::Int)
+# Note that the returned B-splines are in reversed order.
+# For example, for cubic splines: (b_{i + 2}, b_{i + 1}, b_{i}, b_{i - 1}), where i = ileft.
+function eval_bsplines(order::Val, ts::AbstractVector, x::Number, ileft::Int)
     T = promote_type(eltype(ts), typeof(x))
-    _evaluate_all(ts, x, Val(4), ileft, T)
+    _evaluate_all(ts, x, order, ileft, T)
 end
 
-# Evaluate cubic B-splines at ts[i].
 # TODO maybe the evaluation can be further optimised knowing that we're
 # evaluating right on a knot? (but it's already very fast...)
-Base.@propagate_inbounds function eval_cubic_bsplines(ts::AbstractVector, i::Int)
+# Evaluate B-splines at ts[i].
+Base.@propagate_inbounds function eval_bsplines(order::Val{k}, ts::AbstractVector, i::Int) where {k}
     x = ts[i]
-    bs = eval_cubic_bsplines(ts, x, i) :: NTuple{4}
+    bs = eval_bsplines(order, ts, x, i) :: NTuple{k}
     @assert iszero(first(bs))  # because we're evaluating right on the knot
     Base.tail(bs)  # return only non-zero B-splines (b_{i + 1}, b_{i}, b_{i - 1})
-end
-
-# Obtain coefficients `cs` of periodic cubic spline from positions `Xs` and knots `ts`.
-function solve_cubic_spline_coefficients!(
-        cs::PaddedVector, ts::PaddedVector{3}, Xs::PaddedVector;
-        Xoffset = zero(eltype(Xs)),
-    )
-    periodise_coordinates!(cs, Xs, ts, Xoffset)  # useful if Xoffset ≠ 0
-    n = length(ts)
-    T = eltype(ts)
-    # Use Bumper to allocate buffer arrays "for free" (not managed by Julia's GC).
-    buf = Bumper.default_buffer()
-    @no_escape buf begin
-        bufs_thomas = (
-            bc = @alloc(SVector{2, T}, n),
-            us = @alloc(T, n),
-        )
-        _solve_periodic_cubic_spline_coefficients_thomas!(ts, cs, bufs_thomas)
-    end
-    pad_periodic!(cs)
-    cs
 end
 
 function periodise_coordinates!(
@@ -114,58 +122,6 @@ end
 _deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val{0}) = y + (t / T) * Xoffset  # zero-th derivative
 _deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val{1}) = y + (1 / T) * Xoffset  # first derivative
 _deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val)    = y  # higher-order derivatives
-
-# Construct and solve cyclic tridiagonal linear system `Ax = y`.
-# Uses an optimised version of the algorithm described in
-# [Wikipedia](https://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm#Variants)
-# based on the Thomas algorithm and the Sherman–Morrison formula.
-function _solve_periodic_cubic_spline_coefficients_thomas!(ts, xs, bufs)
-    T = eltype(ts)
-    n = length(ts)
-    (; bc, us,) = bufs
-    @assert eltype(bc) === SVector{2, T}
-    @assert eltype(us) === T
-    @assert length(bc) == length(us) == n
-
-    βs₁ = eval_cubic_bsplines(ts, 1)
-    βsₙ = eval_cubic_bsplines(ts, n)
-
-    a₁ = βs₁[3]  # β₀(t₁)
-    cₙ = βsₙ[1]  # βₙ₊₁(tₙ)
-    ac = a₁ * cₙ
-
-    # The γ coefficient is kind of arbitrary.
-    # We choose the value such that the first and last elements of the main
-    # diagonal (`bs`) are perturbed equally.
-    γ = sqrt(ac)
-
-    c₁ = βs₁[1]
-    b₁ = βs₁[2] - γ
-    bₙ = βsₙ[2] - ac / γ
-    aₙ = βsₙ[3]
-
-    fill!(us, 0)
-    us[1] = γ
-    us[n] = cₙ
-
-    v₁ = 1
-    vₙ = a₁ / γ
-
-    solve_thomas!(bc, (xs, us), (b₁, c₁), (aₙ, bₙ)) do i
-        @inline
-        eval_cubic_bsplines(ts, i)  # generates i-th row of linear system
-    end
-
-    vy = v₁ * xs[1] + vₙ * xs[n]  # note: this may be a Vec{3}...
-    vq = v₁ * us[1] + vₙ * us[n]  # ...while this is always a scalar
-
-    α = vy ./ (1 + vq)
-    for i ∈ eachindex(xs)
-        @inbounds xs[i] = xs[i] - us[i] * α
-    end
-
-    xs
-end
 
 # ============================================================================ #
 # B-spline and spline evaluation code below adapted from BSplineKit.jl
@@ -270,55 +226,6 @@ periodic_coef_offset(::Val{k}) where {k} = k ÷ 2
     end
 end
 
-# Simultaneously solve M tridiagonal linear systems using Thomas algorithm.
-# Optimised version interleaving construction and solution of the linear
-# system, avoiding allocation of the subdiagonal `a`.
-@fastmath function solve_thomas!(
-        generate_row::F,                    # row generation function
-        bc::AbstractVector{<:SVector{2}},   # buffers for diagonal and superdiagonal
-        ds::Tuple{Vararg{AbstractVector}},  # right-hand sides, then solutions
-        (b₁, c₁),                           # first row
-        (aₙ, bₙ),                           # last row
-    ) where {F <: Function}
-    Base.require_one_based_indexing(bc)
-    foreach(Base.require_one_based_indexing, ds)
-    n = length(bc)
-    @assert all(x -> length(x) == n, ds)
-    bprev = b₁
-    cprev = c₁
-    bc[1] = (bprev, cprev)
-    @inbounds for i ∈ 2:(n - 1)
-        ci, bi, ai = generate_row(i)
-        w = ai / bprev
-        bprev = bi - w * cprev
-        cprev = ci
-        bc[i] = (bprev, cprev)
-        foreach(ds) do d
-            @inbounds d[i] = d[i] - w * d[i - 1]
-        end
-    end
-    @inbounds let i = n
-        bi, ai = bₙ, aₙ
-        w = ai / bprev
-        bc[i] = (bi - w * cprev, zero(cprev))
-        foreach(ds) do d
-            @inbounds d[i] = d[i] - w * d[i - 1]
-        end
-    end
-    let bn = bc[n][1]
-        foreach(ds) do d
-            @inbounds d[n] = d[n] / bn
-        end
-    end
-    for i ∈ (n - 1):-1:1
-        bi, ci = bc[i]
-        foreach(ds) do d
-            @inbounds d[i] = (d[i] - ci * d[i + 1]) / bi
-        end
-    end
-    ds
-end
-
 spline_derivative!(dc::PaddedVector, cs::PaddedVector, ts::PaddedVector, ord::Val) =
     spline_derivative!(copy!(dc, cs), ts, ord)
 
@@ -342,20 +249,27 @@ function spline_derivative!(
     cs
 end
 
-# Boehm's (1980) knot insertion algorithm applied to periodic cubic splines.
+# Boehm's (1980) knot insertion algorithm applied to periodic splines of order `k`.
 # The new knot `t` should be such that ts[i] ≤ t < ts[i + 1].
-function spline_insert_knot!(cs::PaddedVector, ts::PaddedVector, i::Int, t::Real)
+function spline_insert_knot!(::Val{k}, cs::PaddedVector, ts::PaddedVector, i::Int, t::Real) where {k}
     T = ts[end + 1] - ts[begin]
-    cs_new = ntuple(Val(3)) do m
-        j = i - 1 + m
-        @inbounds α = (t - ts[j - 2]) / (ts[j + 1] - ts[j - 2])
+    @assert iseven(k) "odd-order splines not currently supported"
+    h = k ÷ 2
+    ileft = i - h + 1  # so that ileft + 1 is the first coefficient to modify
+    cs_new = ntuple(Val(k - 1)) do m
+        j = ileft + m
+        @inbounds α = (t - ts[j - h]) / (ts[j + h - 1] - ts[j - h])
         @inbounds (1 - α) * cs[j - 1] + α * cs[j]
     end
-    @inbounds cs[i] = cs_new[1]
-    @inbounds insert!(cs, i + 1, cs_new[2])
-    @inbounds cs[i + 2] = cs_new[3]
+    for j ∈ 1:(h - 1)
+        @inbounds cs[ileft + j] = cs_new[j]
+    end
+    @inbounds insert!(cs, i + 1, cs_new[h])
+    for j ∈ 1:(h - 1)
+        @inbounds cs[i + 1 + j] = cs_new[h + j]
+    end
     insert!(ts, i + 1, t)
-    if i + 2 > lastindex(cs)
+    if i + h > lastindex(cs)
         pad_periodic!(FromRight(), cs)   # preserve values such as cs[end + 1] (over of cs[1])
     else
         pad_periodic!(FromCentre(), cs)  # usual padding, preserves cs[1]

@@ -52,7 +52,7 @@ function test_kelvin_waves(
         scheme = RK4();
         method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,
         quad = GaussLegendre(4),
-        regularise_binormal = Val(true),
+        regularise_binormal = Val(true),  # enables larger timesteps (and accuracy loss...)
     )
     Lx = Ly = Lz
     lines = [
@@ -297,10 +297,13 @@ end
         test_kelvin_waves(SanduMRI33a(RK4(), 8); regularise_binormal = Val(false))
     end
     @testset "NoQuadrature()" begin
-        test_kelvin_waves(SanduMRI33a(RK4(), 8); quad = NoQuadrature())
+        test_kelvin_waves(SanduMRI33a(RK4(), 8); quad = NoQuadrature(), regularise_binormal = Val(false))
+    end
+    @testset "QuinticSplineMethod()" begin
+        test_kelvin_waves(SanduMRI33a(RK4(), 8); method = QuinticSplineMethod(), regularise_binormal = Val(false))
     end
     @testset "FourierMethod()" begin
-        test_kelvin_waves(SanduMRI33a(RK4(), 1); method = FourierMethod())
+        test_kelvin_waves(SanduMRI33a(RK4(), 8); method = FourierMethod(), regularise_binormal = Val(false))
     end
     @testset "RK4 + FiniteDiff(2)" begin
         test_kelvin_waves(RK4(); method = FiniteDiffMethod(2, HermiteInterpolation(2)))

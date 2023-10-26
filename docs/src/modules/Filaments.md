@@ -106,6 +106,7 @@ interpolate
 ```@docs
 GlobalDiscretisationMethod
 CubicSplineMethod
+QuinticSplineMethod
 FourierMethod
 ```
 

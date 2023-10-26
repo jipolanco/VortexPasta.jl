@@ -297,6 +297,7 @@ end
             "FiniteDiff(2) / Hermite(1)" => (N, FiniteDiffMethod(2, HermiteInterpolation(1))),
             "FiniteDiff(2) / Hermite(0)" => (N, FiniteDiffMethod(2, HermiteInterpolation(0))),
             "CubicSpline" => (N, CubicSplineMethod()),
+            "QuinticSpline" => (N, QuinticSplineMethod()),
         )
         @testset "$label" for (label, args) ∈ methods
             test_filament_ring(args)
