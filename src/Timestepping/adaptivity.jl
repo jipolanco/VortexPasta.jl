@@ -43,7 +43,7 @@ estimate_timestep(::NoAdaptivity, iter::AbstractSolver) = get_dt(iter)  # don't 
 
 Adapt timestep ``Δt`` based on the minimum distance ``δ`` between two filament nodes.
 
-More precisely, the timestep is set to ``Δt = γ T_{\text{KW}}(δ)``, where ``γ`` is a
+More precisely, the timestep is set to ``Δt = γ \, T_{\text{KW}}(δ)``, where ``γ`` is a
 dimensionless factor to be chosen, and:
 
 ```math
@@ -60,7 +60,7 @@ This criterion is somewhat analogous to the CFL condition in grid-based
 computations, and ``γ`` is the analogous of the maximum CFL number to be allowed.
 As such, the right value of ``γ`` will depend on the chosen temporal scheme.
 
-Empirically, the [`RK4`](@ref) scheme seems to require ``γ ≈ 1`` to remain stable.
+For example, the [`RK4`](@ref) scheme seems to require ``γ ≈ 1`` to remain stable.
 """
 struct AdaptBasedOnSegmentLength <: AdaptivityCriterion
     γ :: Float64

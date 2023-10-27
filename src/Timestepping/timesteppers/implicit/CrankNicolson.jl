@@ -3,7 +3,7 @@ export CrankNicolson
 """
     CrankNicolson() <: ImplicitScheme
 
-2nd-order Crank–Nicolson implicit scheme.
+2nd order Crank–Nicolson implicit scheme.
 """
 struct CrankNicolson <: ImplicitScheme end
 
