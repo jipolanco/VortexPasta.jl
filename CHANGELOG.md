@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2023-10-27
+
 ### Changed
 
 - Change definition of `AdaptBasedOnSegmentLength` based on a more physical criterion, namely the Kelvin wave period at a certain scale.
