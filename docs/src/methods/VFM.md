@@ -156,6 +156,7 @@ Note that here we represent a *discretised* version of the curve, where the numb
 Here, to evaluate the velocity induced by the trefoil vortex on its point ``\bm{s}_i``, we split the curve into a local part ``\mathcal{C}_i`` (orange) and a non-local part ``\bar{\mathcal{C}}_i = \mathcal{C} ∖ \mathcal{C}_i`` (grey).
 The non-local part is far from the singularity, so there is no need to modify the Biot--Savart integral as written above.
 As for the local part, we can approximate it using a Taylor expansion of the Biot--Savart integral about ``\bm{s}_i`` and truncating the integral at a small distance ``ϵ ∝ a`` from the singularity.
+See for instance [Arms1965](@citet).
 
 More explicitly, from a Taylor expansion of ``\bm{s}(ξ)`` close to ``\bm{s}_i = \bm{s}(ξ_i)``,
 one can show that the Biot--Savart integrand is approximately
