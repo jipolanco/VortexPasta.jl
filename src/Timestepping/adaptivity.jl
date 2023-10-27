@@ -2,6 +2,8 @@ export NoAdaptivity,
        AdaptBasedOnSegmentLength,
        AdaptBasedOnVelocity
 
+using ..BiotSavart: kelvin_wave_period
+
 """
     AdaptivityCriterion
 
@@ -82,10 +84,7 @@ function estimate_timestep(crit::AdaptBasedOnSegmentLength, iter::AbstractSolver
     end
 
     # 2. Determine timestep.
-    (; Γ, a, Δ,) = p.common
-    dt = 2 * γ * δ^2 / Γ / (
-        log(δ / (π * a)) + 1/2 - (Δ + MathConstants.γ)
-    )
+    dt = γ * kelvin_wave_period(p, δ)
 
     dt
 end

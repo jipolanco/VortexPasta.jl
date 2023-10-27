@@ -65,7 +65,7 @@ using PrecompileTools: @setup_workload, @compile_workload
         S = define_curve(Ring(); scale = π / 3)
         f = Filaments.init(S, ClosedFilament, 32, CubicSplineMethod())
         fs = [f]
-        l_min = minimum_knot_increment(fs)
+        l_min = minimum_node_distance(fs)
 
         # Initialise and run simulation
         tspan = (0.0, 0.01)

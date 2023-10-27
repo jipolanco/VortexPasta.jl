@@ -205,6 +205,13 @@ function Base.summary(io::IO, p::ParamsBiotSavart{T}) where {T}
     print(io, "ParamsBiotSavart{$T}(Γ = $Γ, a = $a, Δ = $Δ, α = $α, …)")
 end
 
+# Returns the expected period of a small-amplitude Kelvin wave of wavelength λ.
+# Can be useful when setting a simulation timestep.
+kelvin_wave_period(λ::Real; a, Δ, Γ) = 2 * λ^2 / Γ / (
+    log(λ / (π * a)) + 1/2 - (Δ + MathConstants.γ)
+)
+kelvin_wave_period(p::ParamsBiotSavart, λ::Real) = kelvin_wave_period(λ; a = p.a, Δ = p.Δ, Γ = p.Γ)
+
 # Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.
 is_open_domain(Ls::Tuple) = is_open_domain(Ls...)
 is_open_domain(::Infinity, etc...) = true
