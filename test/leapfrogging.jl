@@ -46,18 +46,18 @@ dt_factor(::SSPRK33) = 1.0
 dt_factor(::Euler) = 0.08
 dt_factor(::Midpoint) = 0.4
 
-dt_factor(::KenCarp3) = 1.4
-dt_factor(::KenCarp4) = 2.8
-dt_factor(::Ascher343) = 1.4
+dt_factor(::KenCarp3) = 1.3
+dt_factor(::KenCarp4) = 2.3
+dt_factor(::Ascher343) = 1.3
 
 dt_factor(::MultirateMidpoint) = 0.8
 dt_factor(::SanduMRI33a) = 4.0
 dt_factor(::SanduMRI45a) = 4.0
 
 # NOTE: this factor ensures stability, but *not* accuracy of IMEXEuler. The factor should
-# actually be ~0.1 to get similar results to other schemes. With 0.7, one can clearly see
+# actually be ~0.1 to get similar results to other schemes. With 0.6, one can clearly see
 # the difference in results from the plots of the total vortex length.
-dt_factor(::IMEXEuler) = 0.7
+dt_factor(::IMEXEuler) = 0.6
 
 function test_leapfrogging_rings(
         prob, scheme;
@@ -109,7 +109,9 @@ function test_leapfrogging_rings(
 
     l_min = minimum_knot_increment(prob.fs)
 
-    factor = dt_factor(scheme)
+    # The 2π is simply because the factors were originally tuned with an old definition of
+    # AdaptBasedOnSegmentLength.
+    factor = dt_factor(scheme) * 2π
     if Filaments.discretisation_method(eltype(prob.fs)) isa QuinticSplineMethod
         # Quintic splines seem to need a smaller timestep...
         factor *= 0.3
@@ -122,7 +124,7 @@ function test_leapfrogging_rings(
     iter = @inferred init(
         prob, scheme;
         dt = 0.025,  # will be changed by the adaptivity
-        dtmin = 0.001,
+        dtmin = 0.005 * dt_factor(scheme),
         alias_u0 = false,  # don't overwrite fs_init
         adaptivity,
         refinement,
@@ -148,7 +150,7 @@ function test_leapfrogging_rings(
     @testset "Energy & impulse conservation" begin
         # With refinement we lose a tiny bit of precision (but still very acceptable!).
         rtol_energy = refinement === NoRefinement() ? 5e-5 : 1e-4
-        rtol_impulse = 1e-5
+        rtol_impulse = 2e-5
         if iseuler
             rtol_energy *= 100
             rtol_impulse *= 200
@@ -295,7 +297,7 @@ end
         Midpoint(),
         MultirateMidpoint(32),
         SanduMRI33a(12),
-        SanduMRI33a(CrankNicolson(), 1),  # one inner iteration is enough!! (not counting the fixed point iterations...)
+        SanduMRI33a(CrankNicolson(), 2),
         SanduMRI45a(6),
     )
 

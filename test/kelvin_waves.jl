@@ -131,11 +131,15 @@ function test_kelvin_waves(
     # This tests `show(::IO, prob)`.
     @test startswith(repr(prob), "VortexFilamentProblem with fields:\n")
 
+    # The `5` is simply because the factors were originally tuned with an old definition of
+    # AdaptBasedOnSegmentLength.
+    factor = 5 * dt_factor(scheme)
+
     iter = @inferred init(
         prob, scheme;
         dtmin = T_kw * 1e-4,
         dt = 1.0,  # will be changed by the adaptivity
-        adaptivity = AdaptBasedOnSegmentLength(dt_factor(scheme)),
+        adaptivity = AdaptBasedOnSegmentLength(factor),
         refinement = NoRefinement(),  # make sure that nodes don't "move" vertically due to refinement
         callback,
     )
