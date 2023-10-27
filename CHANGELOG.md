@@ -5,9 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Change definition of `AdaptBasedOnSegmentLength` based on a more physical criterion, namely the Kelvin wave period at a certain scale.
+
+## [0.6.0] - 2023-10-26
+
 ### Added
 
-- Add [`QuinticSplineMethod`] for accurate filament discretisation.
+- Add `QuinticSplineMethod` for accurate filament discretisation.
 
 ## [0.5.1] - 2023-10-24
 

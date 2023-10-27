@@ -101,7 +101,7 @@ struct ClosedFilament{
         Knots <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
         Coefs <: DiscretisationCoefs{Method},
-    } <: AbstractFilament{T}
+    } <: AbstractFilament{T, Method, Parametrisation}
 
     parametrisation :: Parametrisation  # parametrisation function
 

@@ -143,7 +143,13 @@ For convenience, other geometric quantities can be evaluated in a similar way:
     There is also [`normalise_derivatives`](@ref) which can be more efficient when one
     already has the derivatives with respect to ``t``.
 """
-abstract type AbstractFilament{T} <: AbstractVector{Vec3{T}} end
+abstract type AbstractFilament{T, Method, Parametrisation <: Function} <: AbstractVector{Vec3{T}} end
+
+# The result is usually `parametrise_by_node_distance`, unless a custom parametrisation is
+# used, or unless FourierMethod is used.
+parametrisation(::Type{<:AbstractFilament{T,M,P}}) where {T,M,P} = P.instance
+parametrisation(f::AbstractFilament) = parametrisation(typeof(f))
+parametrisation(fs::AbstractVector{<:AbstractFilament}) = parametrisation(eltype(fs))
 
 Base.IndexStyle(::Type{<:AbstractFilament}) = IndexLinear()
 
@@ -184,18 +190,17 @@ nodes(f::AbstractFilament) = f.Xs
     minimum_node_distance(f::AbstractFilament) -> Real
     minimum_node_distance(fs::AbstractVector{<:AbstractFilament}) -> Real
 
-Return the minimum distance between neighbouring filament discretisation points.
+Return the minimum distance ``δ`` between neighbouring filament discretisation points.
 
 See also [`minimum_knot_increment`](@ref).
 """
 function minimum_node_distance(f::AbstractFilament)
-    inds_all = eachindex(segments(f))
-    i, inds = Iterators.peel(inds_all)
-    @inbounds res = norm(f[i + 1] - f[i])
-    for i ∈ inds
-        @inbounds res = min(res, norm(f[i + 1] - f[i]))
+    T = eltype(eltype(f))
+    δ = convert(T, Inf)
+    for i ∈ eachindex(segments(f))
+        @inbounds δ = min(δ, norm(f[i + 1] - f[i]))
     end
-    res
+    δ
 end
 
 minimum_node_distance(fs::AbstractVector{<:AbstractFilament}) =
@@ -318,7 +323,8 @@ Base.@propagate_inbounds Base.getindex(
 # This is the default parametrisation for any generic discretisation method.
 # Specific discretisation methods (e.g. Fourier) may choose a different default
 # parametrisation.
-default_parametrisation(::DiscretisationMethod) = (Xs, i) -> @inbounds(norm(Xs[i + 1] - Xs[i]))
+parametrise_by_node_distance(Xs, i) = @inbounds(norm(Xs[i + 1] - Xs[i]))
+default_parametrisation(::DiscretisationMethod) = parametrise_by_node_distance
 
 @doc raw"""
     Filaments.init(

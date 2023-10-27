@@ -98,7 +98,7 @@ end
 # Moreover, the location and the derivative at that point are approximated from the
 # locations at the two extremities of the segment, according to a straight-segment
 # approximation.
-struct NoQuadFilament{T, F <: AbstractFilament{T}} <: AbstractFilament{T}
+struct NoQuadFilament{T, F <: AbstractFilament{T}} <: AbstractFilament{T, Nothing, typeof(identity)}
     f :: F
 end
 
