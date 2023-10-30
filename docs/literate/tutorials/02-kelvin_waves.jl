@@ -496,7 +496,7 @@ nothing  # hide
 # The idea is to identify the spatial fluctuations of a single vortex with respect to the
 # unperturbed filament.
 # For this, we first write the perturbations in complex representation as a function of the ``z``
-# coordinate, i.e. ``r(z) = x(z) + i y(z)``.
+# coordinate, i.e. ``w(z) = x(z) + i y(z)``.
 #
 # We want to apply the FFT to these two functions.
 # For this, we need all points of the vortex filament to be equispaced in ``z``:
@@ -507,18 +507,18 @@ N = length(zs)
 zs_expected = range(zs[begin], zs[begin] + L; length = N + 1)[1:N]  # equispaced locations
 isapprox(zs, zs_expected; rtol = 1e-5)  # check that z locations are approximately equispaced
 
-# Now that we have verified this, we define the complex function ``r(z) = x(z) + i y(z)``
-# and we perform a complex-to-complex FFT to obtain ``\hat{r}(k)``:
+# Now that we have verified this, we define the complex function ``w(z) = x(z) + i y(z)``
+# and we perform a complex-to-complex FFT to obtain ``\hat{w}(k)``:
 
 xs = getindex.(nodes(f), 1)  # x locations
 ys = getindex.(nodes(f), 2)  # y locations
-rs = @. xs + im * ys
+ws = @. xs + im * ys
 
 using FFTW: fft, fft!, fftfreq
-rhat = fft(rs)
-@. rhat = rhat / N  # normalise FFT
-@show rhat[1]       # the zero frequency gives the mean location
-rhat[1] ≈ π/2 + π/2 * im  # we expect the mean location to be (π/2, π/2)
+w_hat = fft(ws)
+@. w_hat = w_hat / N  # normalise FFT
+@show w_hat[1]       # the zero frequency gives the mean location
+w_hat[1] ≈ π/2 + π/2 * im  # we expect the mean location to be (π/2, π/2)
 
 # The associated wavenumbers are multiples of ``2π/Δz = 2πN/L``:
 
@@ -531,12 +531,12 @@ ks'  # should be integers if L = 2π
 # More precisely, `ks[2:N÷2]` contains the positive wavenumbers, and `ks[N÷2+1:end]`
 # contains the corresponding negative wavenumbers.
 #
-# We now want to compute the wave action spectrum ``n(k) = |\hat{r}(k)|^2 + |\hat{r}(-k)|^2``,
+# We now want to compute the wave action spectrum ``n(k) = |\hat{w}(k)|^2 + |\hat{w}(-k)|^2``,
 # which is related to the amplitude of the oscillations at the scale ``λ = 2π/k``.
 
-function wave_action_spectrum(ks::AbstractVector, rhat::AbstractVector)
+function wave_action_spectrum(ks::AbstractVector, w_hat::AbstractVector)
     @assert ks[2] == -ks[end]  # contains positive and negative wavenumbers
-    @assert length(ks) == length(rhat)
+    @assert length(ks) == length(w_hat)
     N = length(ks)
     dk = ks[2]  # this is the wavenumber increment
     if iseven(N)
@@ -553,12 +553,12 @@ function wave_action_spectrum(ks::AbstractVector, rhat::AbstractVector)
         i⁺ = 1 + j      # index of coefficient corresponding to wavenumber +k
         i⁻ = N + 1 - j  # index of coefficient corresponding to wavenumber -k
         @assert ks[i⁺] == -ks[i⁻] == k  # verification
-        nk[j] = abs2(rhat[i⁺]) + abs2(rhat[i⁻])
+        nk[j] = abs2(w_hat[i⁺]) + abs2(w_hat[i⁻])
     end
     ks_pos, nk
 end
 
-ks_pos, nk = wave_action_spectrum(ks, rhat)
+ks_pos, nk = wave_action_spectrum(ks, w_hat)
 nk_normalised = nk ./ ((ϵ * L)^2 / 2)
 sum(nk_normalised)  # we expect the sum to be 1
 
@@ -584,7 +584,7 @@ fig
 # that original mode is exactly preserved over time (except for negligible spurious
 # effects).
 
-# ## Temporal analysis
+# ### Temporal analysis
 #
 # We can do something similar to analyse the *temporal* oscillations of the filament.
 # For example, we can take the same temporal data we analysed before, corresponding to the
@@ -595,18 +595,18 @@ yt = getindex.(X_probe, 2)  # y positions of a single node over time
 zt = getindex.(X_probe, 3)  # z positions of a single node over time
 std(zt) / mean(zt)    # ideally, the z positions shouldn't change over time
 
-# Similarly to before, we now write ``r(t) = x(t) + i y(t)`` and perform an FFT:
+# Similarly to before, we now write ``w(t) = x(t) + i y(t)`` and perform an FFT:
 
 inds_t = eachindex(times)[begin:end - 1]  # don't consider the last time to make sure the timestep Δt is constant
-rt = @views @. xt[inds_t] + im * yt[inds_t]
-Nt = length(rt)           # number of time snapshots
+wt = @views @. xt[inds_t] + im * yt[inds_t]
+Nt = length(wt)           # number of time snapshots
 Δt = times[2] - times[1]  # timestep
 @assert times[begin:end-1] ≈ range(times[begin], times[end-1]; length = Nt)  # check that times are equispaced
-rhat = fft(rt)
-@. rhat .= rhat ./ Nt  # normalise FFT
+w_hat = fft(wt)
+@. w_hat .= w_hat ./ Nt  # normalise FFT
 ωs = fftfreq(Nt, 2π / Δt)
 
-ωs_pos, nω = wave_action_spectrum(ωs, rhat)
+ωs_pos, nω = wave_action_spectrum(ωs, w_hat)
 ωs_normalised = ωs_pos ./ ω_kw  # normalise by expected KW frequency
 
 fig = Figure()
