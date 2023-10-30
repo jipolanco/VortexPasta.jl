@@ -64,44 +64,79 @@ end
 #
 # Here `A` actually contains the LU decomposition of the original banded matrix (obtained
 # from `banded_lu!`).
-function banded_ldiv!(
-        A::SplineBandedMatrix,
-        x::AbstractVector,
-    )
-    (; w, nrow, nbandl, nbandu,) = A
-    middle = nbandu + 1
-
-    if nrow == 1
-        @inbounds x[1] /= w[middle, 1]
-        return x
+#
+# We also allow multiple RHSs. We use a @generated function to ensure type stability
+# when the RHSs have different element types (which is actually our case).
+@generated function banded_ldiv!(A::SplineBandedMatrix, xs::Vararg{AbstractVector})
+    ex_z1 = :()
+    ex_zi = :()
+    ex_fw = :()
+    ex_bw = :()
+    for k ∈ eachindex(xs)
+        ex_z1 = quote
+            $ex_z1
+            xs[$k][1] /= z
+        end
+        ex_zi = quote
+            $ex_zi
+            xs[$k][i] /= z
+        end
+        ex_fw = quote
+            $ex_fw
+            xs[$k][i + j] -= xs[$k][i] * y
+        end
+        ex_bw = quote
+            $ex_bw
+            xs[$k][i - j] -= xs[$k][i] * y
+        end
     end
 
-    # Forward pass:
-    #
-    # For i = 1:(nrow-1), subtract RHS[i] * (i-th column of L) from the
-    # right hand side, below the i-th row.
-    if nbandl != 0
-        for i = 1:(nrow - 1)
-            jmax = min(nbandl, nrow - i)
-            for j = 1:jmax
-                @inbounds x[i + j] -= x[i] * w[middle + j, i]
+    ex = quote
+        (; w, nrow, nbandl, nbandu,) = A
+        middle = nbandu + 1
+
+        if nrow == 1
+            let z = w[middle, 1]
+                $ex_z1
+            end
+            return xs
+        end
+
+        # Forward pass:
+        #
+        # For i = 1:(nrow-1), subtract RHS[i] * (i-th column of L) from the
+        # right hand side, below the i-th row.
+        if nbandl != 0
+            @inbounds for i = 1:(nrow - 1)
+                jmax = min(nbandl, nrow - i)
+                for j = 1:jmax
+                    let y = w[middle + j, i]
+                        $ex_fw
+                    end
+                end
             end
         end
-    end
 
-    # Backward pass:
-    #
-    # For i = nrow:-1:1, divide RHS[i] by the i-th diagonal entry of
-    # U, then subtract RHS[i]*(i-th column of U) from right hand side, above the
-    # i-th row.
-    @inbounds for i = nrow:-1:2
-        x[i] /= w[middle, i]
-        for j = 1:min(nbandu, i - 1)
-            x[i - j] -= x[i] * w[middle - j, i]
+        # Backward pass:
+        #
+        # For i = nrow:-1:1, divide RHS[i] by the i-th diagonal entry of
+        # U, then subtract RHS[i]*(i-th column of U) from right hand side, above the
+        # i-th row.
+        @inbounds for i = nrow:-1:2
+            let z = w[middle, i]
+                $ex_zi
+            end
+            for j = 1:min(nbandu, i - 1)
+                let y = w[middle - j, i]
+                    $ex_bw
+                end
+            end
         end
+
+        let z = w[middle, 1]
+            $ex_z1
+        end
+
+        xs
     end
-
-    @inbounds x[1] /= w[middle, 1]
-
-    x
 end
