@@ -33,6 +33,16 @@ function test_filament_ring(args)
     update_coefficients!(f)
     ts = knots(f)
 
+    # Check that the interpolation actually matches the input points.
+    @testset "Interpolation" begin
+        err = sum(eachindex(f)) do i
+            s⃗_expected = S(γs[i])
+            s⃗_interp = f(i, 0.0)
+            sum(abs2, s⃗_interp - s⃗_expected)
+        end / N
+        @test err < 1e-30
+    end
+
     @test eltype(f) === typeof(f[begin])
     @test startswith(summary(f), "$N-element $(nameof(typeof(f)))")
 
