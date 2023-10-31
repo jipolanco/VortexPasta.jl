@@ -11,8 +11,8 @@ using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot
 using VortexPasta.BasicTypes: VectorOfVectors
 using VortexPasta.PaddedArrays: PaddedVector
 
-function test_filament_ring(args)
-    f = @inferred Filaments.init(ClosedFilament, args...)
+function test_filament_ring(N, method)
+    f = @inferred Filaments.init(ClosedFilament, N, method)
 
     R = 3  # ring radius
     S(t) = R * SVector(1 + cospi(2t), -1 + sinpi(2t), 0)  # t ∈ [0, 1]
@@ -26,7 +26,10 @@ function test_filament_ring(args)
 
     γs = collect(range(0, 1; length = N + 1)[1:N])  # some arbitrary parametrisation
     rng = MersenneTwister(42)
-    γs .+= rand(rng, N) .* α
+    if !(method isa FourierMethod)
+        # Don't randomise locations for FourierMethod, as it expects roughly equal node spacings.
+        γs .+= rand(rng, N) .* α
+    end
     γs .-= γs[begin]
 
     f .= S.(γs)
@@ -51,8 +54,12 @@ function test_filament_ring(args)
     @testset "Knot periodicity" begin
         M = Filaments.npad(ts)
         @assert M ≥ 1
-        L = ts[end + 1] - ts[begin]  # knot period (≈ total length of closed filament)
-        @test isapprox(L, 2π * R; rtol = 1e-2)
+        L = ts[end + 1] - ts[begin]  # knot period
+        if !(method isa FourierMethod)
+            # In general, knot period ≈ total length of closed filament, except for
+            # FourierMethod.
+            @test isapprox(L, 2π * R; rtol = 1e-2)
+        end
         @test all(1:M) do i
             (ts[end + i] - ts[begin - 1 + i]) == (ts[end + 1 - i] - ts[begin - i]) == L
         end
@@ -143,6 +150,21 @@ function test_filament_ring(args)
                 @test f[i + 1, CurvatureVector()] ≈ f(i, 1.0, CurvatureVector())
             end
         end
+        let i = 5
+            # Third-order derivatives were not enabled.
+            @test_throws ArgumentError f[i, TorsionScalar()]
+            if continuity ≥ 3
+                fc = @inferred Filaments.init(ClosedFilament, nodes(f), method; nderivs = Val(3))
+                @test @inferred(fc[i, TorsionScalar()]) == 0  # torsion is 0 for a planar ring
+                if method isa FourierMethod
+                    # Hermite interpolation of 3rd derivative not currently implemented.
+                    @test_throws ArgumentError fc(i, 0.3, TorsionScalar())
+                else
+                    # Typically the case of QuinticSplineMethod
+                    @test @inferred(fc(i, 0.3, TorsionScalar())) == 0
+                end
+            end
+        end
     end
 
     @testset "copy" begin
@@ -215,10 +237,12 @@ function test_filament_ring(args)
                 @test ρℓ_min > 2π / 4M  # criterion is (roughly) satisfied
             end
             @testset "Refining" begin
-                crit = RefineBasedOnCurvature(0.2)
+                curv = 0.19
+                crit = RefineBasedOnCurvature(curv)
                 fc = copy(f)
                 while true
-                    Filaments.refine!(fc, crit) == (0, 0) && break
+                    ref = Filaments.refine!(fc, crit)
+                    ref == (0, 0) && break
                 end
                 @test length(fc) > length(f)
                 # Check that all ρℓ < 0.2
@@ -230,7 +254,7 @@ function test_filament_ring(args)
                 end
                 method = @inferred discretisation_method(fc)
                 factor = method isa CubicSplineMethod ? 1 : 2
-                @test ρℓ_max < factor * 0.2  # criterion is satisfied (only roughly for FiniteDiff)
+                @test ρℓ_max < factor * curv  # criterion is satisfied (only roughly for FiniteDiff)
             end
         end
     end
@@ -308,9 +332,10 @@ end
             "FiniteDiff(2) / Hermite(0)" => (N, FiniteDiffMethod(2, HermiteInterpolation(0))),
             "CubicSpline" => (N, CubicSplineMethod()),
             "QuinticSpline" => (N, QuinticSplineMethod()),
+            "FourierMethod" => (N, FourierMethod()),
         )
         @testset "$label" for (label, args) ∈ methods
-            test_filament_ring(args)
+            test_filament_ring(args...)
         end
     end
     @testset "From vector field" begin

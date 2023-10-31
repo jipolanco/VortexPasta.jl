@@ -13,7 +13,9 @@ Some available geometric quantities include:
 
 - [`CurvatureScalar`](@ref),
 
-- [`CurvatureBinormal`](@ref).
+- [`CurvatureBinormal`](@ref),
+
+- [`TorsionScalar`](@ref).
 
 Evaluating geometric quantities works in the same way as evaluating derivatives.
 """
@@ -42,8 +44,8 @@ Represents the unit tangent vector ``t̂`` at a filament location.
 struct UnitTangent <: GeometricQuantity end
 
 @inline function _evaluate(::UnitTangent, f::AbstractFilament, args...; kws...)
-    ṡ = f(args..., Derivative(1); kws...)
-    normalize(ṡ)
+    s′ = f(args..., Derivative(1); kws...)
+    normalize(s′)
 end
 
 """
@@ -57,10 +59,10 @@ vector and ``ρ`` the scalar curvature (the inverse of the curvature radius).
 struct CurvatureVector <: GeometricQuantity end
 
 @inline function _evaluate(::CurvatureVector, f::AbstractFilament, args...; kws...)
-    ṡ = f(args..., Derivative(1); kws...)
-    s̈ = f(args..., Derivative(2); kws...)
-    ṡ² = sum(abs2, ṡ)
-    (ṡ² * s̈ - (s̈ ⋅ ṡ) * ṡ) ./ (ṡ² * ṡ²)
+    s′ = f(args..., Derivative(1); kws...)
+    s″ = f(args..., Derivative(2); kws...)
+    s′² = sum(abs2, s′)
+    (s′² * s″ - (s″ ⋅ s′) * s′) ./ (s′² * s′²)
 end
 
 """
@@ -88,7 +90,38 @@ where ``b̂`` is the (unit) binormal vector and ``ρ`` is the scalar curvature.
 struct CurvatureBinormal <: GeometricQuantity end
 
 @inline function _evaluate(::CurvatureBinormal, f::AbstractFilament, args...; kws...)
-    ṡ = f(args..., Derivative(1); kws...)
-    s̈ = f(args..., Derivative(2); kws...)
-    (ṡ × s̈) / norm(ṡ)^3
+    s′ = f(args..., Derivative(1); kws...)
+    s″ = f(args..., Derivative(2); kws...)
+    (s′ × s″) / norm(s′)^3
+end
+
+@doc raw"""
+    TorsionScalar <: GeometricQuantity
+
+Torsion of a filament.
+
+The torsion ``τ`` describes the variation of the binormal vector along the curve.
+
+It can be obtained as
+
+```math
+τ = \frac{(\bm{s}' × \bm{s}'') ⋅ \bm{s}'''}{|\bm{s}' × \bm{s}''|^2}
+```
+
+where derivatives are with respect to an arbitrary curve parametrisation.
+
+!!! note
+
+    Because it is obtained from third derivatives, estimating the torsion requires a
+    high-order filament discretisation scheme such as [`QuinticSplineMethod`](@ref).
+
+"""
+struct TorsionScalar <: GeometricQuantity end
+
+@inline function _evaluate(::TorsionScalar, f::AbstractFilament, args...; kws...)
+    s′ = f(args..., Derivative(1); kws...)
+    s″ = f(args..., Derivative(2); kws...)
+    s‴ = f(args..., Derivative(3); kws...)
+    b⃗ = s′ × s″
+    (b⃗ ⋅ s‴) / sum(abs2, b⃗)
 end

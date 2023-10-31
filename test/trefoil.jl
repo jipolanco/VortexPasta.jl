@@ -2,14 +2,128 @@ using Test
 using LinearAlgebra: norm, ⋅, ×
 using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.Filaments
+using VortexPasta.Filaments: GeometricQuantity, Vec3
 using VortexPasta.BiotSavart
+using ForwardDiff: ForwardDiff
+using LaTeXStrings  # used for plots only (L"...")
 
-function init_trefoil_filament(N::Int; method = CubicSplineMethod())
+function trefoil_function()
     R = π / 4
-    S = @inferred define_curve(TrefoilKnot(); translate = R, scale = R)
+    define_curve(TrefoilKnot(); translate = R, scale = R)
+end
+
+function trefoil_derivative(::Derivative{1}, t)
+    S = trefoil_function()
+    ForwardDiff.derivative(S, t)
+end
+
+function trefoil_derivative(::Derivative{n}, t) where {n}
+    ForwardDiff.derivative(u -> trefoil_derivative(Derivative(n - 1), u), t)
+end
+
+# Analytical trefoil torsion (here t ∈ [0, 1]).
+function trefoil_quantity(t, ::TorsionScalar)
+    s′ = trefoil_derivative(Derivative(1), t)
+    s″ = trefoil_derivative(Derivative(2), t)
+    s‴ = trefoil_derivative(Derivative(3), t)
+    b⃗ = s′ × s″
+    (b⃗ ⋅ s‴) / norm(b⃗)^2
+end
+
+function trefoil_quantity(t, ::CurvatureScalar)
+    s′ = trefoil_derivative(Derivative(1), t)
+    s″ = trefoil_derivative(Derivative(2), t)
+    s′² = sum(abs2, s′)
+    norm(s′² * s″ - (s″ ⋅ s′) * s′) / (s′² * s′²)
+end
+
+nderivs_required(::GeometricQuantity) = Val(2)
+nderivs_required(::TorsionScalar) = Val(3)
+
+function trefoil_quantity_error(N, method, quantity)
+    f = init_trefoil_filament(
+        N; method, nderivs = nderivs_required(quantity),
+    )
+    τ_max = 0.0
+    err = 0.0
+    err_max = 0.0
+    for i ∈ eachindex(f)
+        τ = f[i, quantity]
+        u = (i - 1) / N  # original curve parametrisation
+        τ_expected = trefoil_quantity(u, quantity)
+        τ_max = max(τ_max, abs(τ_expected))
+        err_i = (τ - τ_expected)^2
+        err += err_i
+        err_max = max(err_max, err_i)
+    end
+    err = sqrt(err / N) / τ_max  # normalise by the maximum torsion
+    err_max = sqrt(err_max) / τ_max
+    err, err_max
+end
+
+# This tests scalar quantities on discretisation points, comparing them with "analytical"
+# expressions obtained via automatic differentiation (using ForwardDiff).
+function test_trefoil_quantity(method, quantity)
+    N = 96
+    err, err_max = trefoil_quantity_error(N, method, quantity)
+    # @show err, err_max
+    if method isa QuinticSplineMethod
+        # This method captures the torsion with a quite good precision.
+        # Of course, the error decreases with the resolution `N` (with polynomial convergence).
+        # In both cases, the error decreases as N⁻⁴.
+        if quantity === TorsionScalar()
+            @test err < 2e-4
+            @test err_max < 3e-4
+        elseif quantity === CurvatureScalar()
+            @test err < 1e-4
+            @test err_max < 2e-4
+        end
+    elseif method isa CubicSplineMethod
+        # This error decreases as N⁻².
+        @assert quantity === CurvatureScalar()
+        @test err < 5e-3
+        @test err_max < 1e-2
+    elseif method isa FiniteDiffMethod
+        # This error decreases as N⁻¹.
+        @assert quantity === CurvatureScalar()
+        @test err < 2e-2
+        @test err_max < 3e-2
+    elseif method isa FourierMethod
+        # This is usually the case of FourierMethod, which captures the torsion with very
+        # high precision! This is expected because the trefoil is defined by trigonometric
+        # functions, so that very few Fourier modes are needed to perfectly describe the
+        # trefoil. What is less expected is that this error tends to *increase* with `N`
+        # (but always staying very small). This seems to be due to round-off error of the
+        # FFTs. Indeed, Fourier coefficients that are supposed to be 0 are actually ~1e-16,
+        # and are amplified when computing derivatives.
+        if quantity === TorsionScalar()
+            @test err < 1e-12
+            @test err_max < 1e-11
+        elseif quantity === CurvatureScalar()
+            # Case of CurvatureScalar
+            @test err < 1e-13
+            @test err_max < 1e-13
+        end
+    end
+    nothing
+end
+
+function test_convergence(method, quantity)
+    Ns = 1 .<< (3:10)  # = 2^n
+    errs_both = map(Ns) do N
+        err, err_max = trefoil_quantity_error(N, method, quantity)
+        err, err_max
+    end
+    errs = getindex.(errs_both, 1)
+    errs_max = getindex.(errs_both, 2)
+    Ns, errs, errs_max
+end
+
+function init_trefoil_filament(N::Int; method = CubicSplineMethod(), kws...)
+    S = @inferred trefoil_function()
     ζs = range(0, 1; length = N + 1)[1:N]
     Xs = @inferred broadcast(S, ζs)  # same as S.(ζs)
-    Filaments.init(ClosedFilament, Xs, method)
+    Filaments.init(ClosedFilament, Xs, method; kws...)
 end
 
 function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, params_kws...)
@@ -239,6 +353,18 @@ end
             check_independence_on_ewald_parameter(f_fourier, αs; params_kws...)
         end
     end
+    @testset "Curvature" begin
+        methods = (FiniteDiffMethod(), CubicSplineMethod(), QuinticSplineMethod(), FourierMethod())
+        @testset "$method" for method ∈ methods
+            test_trefoil_quantity(method, CurvatureScalar())
+        end
+    end
+    @testset "Torsion" begin
+        methods = (QuinticSplineMethod(), FourierMethod())
+        @testset "$method" for method ∈ methods
+            test_trefoil_quantity(method, TorsionScalar())
+        end
+    end
 end
 
 ##
@@ -246,7 +372,59 @@ end
 if @isdefined(Makie)
     fig = Figure()
     ax = Axis3(fig[1, 1]; aspect = :data)
-    wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
+    # wireframe!(ax, Rect(0, 0, 0, Ls...); color = :grey, linewidth = 0.5)
     plot!(ax, f; refinement = 8)
     fig
+end
+
+function plot_convergence()
+    # Check convergence of discretisation
+    fig = Figure(resolution = (1200, 600))
+    ax_curv = Axis(fig[1, 1]; xscale = log10, yscale = log10, title = "Curvature", xlabel = L"N", ylabel = "Error")
+    ax_tors = Axis(fig[1, 2];  xscale = log10, yscale = log10, title = "Torsion", xlabel = L"N")
+    linkaxes!(ax_curv, ax_tors)
+    methods_curv = (FiniteDiffMethod(), CubicSplineMethod(), QuinticSplineMethod(), FourierMethod())
+    methods_tors = (QuinticSplineMethod(), FourierMethod())
+    ls_curv = map(methods_curv) do method
+        Ns, errs, errs_max = test_convergence(method, CurvatureScalar())
+        method => scatterlines!(ax_curv, Ns, errs; label = string(method))
+    end
+    map(methods_tors) do method
+        Ns, errs, errs_max = test_convergence(method, TorsionScalar())
+        i = findfirst(splat((k, l) -> k === method), ls_curv)  # match colour of curvature line
+        color = ls_curv[i][2].color
+        scatterlines!(ax_tors, Ns, errs; label = string(method), color)
+    end
+    axislegend(ax_curv; position = (0.04, 0.35))
+    let Ns = 2.0.^(range(7, 10; length = 3))
+        let ys = @. (3 / Ns)^1
+            lines!(ax_curv, Ns, ys; color = :grey, linestyle = :dash)
+            text!(ax_curv, Ns[2], ys[2]; text = L"∼N^{-1}", color = :grey, fontsize = 20, align = (:left, :bottom))
+        end
+        let ys = @. (4 / Ns)^2
+            lines!(ax_curv, Ns, ys; color = :grey, linestyle = :dash)
+            text!(ax_curv, Ns[2], 0.8 * ys[2]; text = L"∼N^{-2}", color = :grey, fontsize = 20, align = (:right, :top))
+        end
+        let ys = @. (6 / Ns)^4
+            lines!(ax_curv, Ns, ys; color = :grey, linestyle = :dash)
+            text!(ax_curv, Ns[2], 0.8 * ys[2]; text = L"∼N^{-4}", color = :grey, fontsize = 20, align = (:right, :top))
+        end
+        let ys = @. (Ns / 1e9)^2
+            lines!(ax_curv, Ns, ys; color = :grey, linestyle = :dash)
+            text!(ax_curv, Ns[2], 0.8 * ys[2]; text = L"∼N^{2}", color = :grey, fontsize = 20, align = (:left, :top))
+        end
+        let ys = @. (8 / Ns)^4
+            lines!(ax_tors, Ns, ys; color = :grey, linestyle = :dash)
+            text!(ax_tors, Ns[2], 0.8 * ys[2]; text = L"∼N^{-4}", color = :grey, fontsize = 20, align = (:right, :top))
+        end
+        let ys = @. (Ns / 2e6)^3
+            lines!(ax_tors, Ns, ys; color = :grey, linestyle = :dash)
+            text!(ax_tors, Ns[2], 0.8 * ys[2]; text = L"∼N^{3}", color = :grey, fontsize = 20, align = (:left, :top))
+        end
+    end
+    fig
+end
+
+if @isdefined(Makie)
+    plot_convergence()
 end

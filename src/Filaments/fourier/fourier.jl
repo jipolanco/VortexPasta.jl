@@ -39,8 +39,10 @@ default_parametrisation(::FourierMethod) = parametrise_fourier
 
 interpolation_method(m::FourierMethod) = m.interp
 
-# This is actually the continuity of the (Hermite) interpolation scheme.
-continuity(::Type{<:FourierMethod{I}}) where {I} = continuity(I)
+# For practical purposes we set the continuity to a relatively large number.
+# Note however that the interpolation method `I` imposes a smaller continuity when doing
+# interpolations...
+continuity(::Type{<:FourierMethod{I}}) where {I} = 4
 
 npad(::Type{<:FourierMethod}) = 1  # padding needed for Fourier series + Hermite interpolation
 
@@ -150,6 +152,9 @@ function _derivative_at_node(
         ::Derivative{n}, ::FourierMethod, f::ClosedFilament, node::AtNode,
     ) where {n}
     (; cs, cderivs,) = f.coefs
+    n > length(cderivs) && throw(ArgumentError(
+        lazy"derivatives of order $n are not enabled. Initialise a filament with nderivs ≥ $n, and make sure the discretisation scheme has the required continuity degree."
+    ))
     coefs = (cs, cderivs...)
     coefs[n + 1][node.i]
 end

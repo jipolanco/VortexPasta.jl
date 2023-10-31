@@ -84,6 +84,7 @@ UnitTangent
 CurvatureVector
 CurvatureScalar
 CurvatureBinormal
+TorsionScalar
 ```
 
 ## Local discretisations

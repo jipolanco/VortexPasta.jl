@@ -120,12 +120,14 @@ end
 
 function ClosedFilament(
         parametrisation::F, Xs::PaddedVector{M, Vec3{T}}, method::DiscretisationMethod;
-        offset = zero(Vec3{T})
-    ) where {F <: Function, M, T}
+        offset = zero(Vec3{T}), nderivs::Val{Nderivs} = Val(2),
+    ) where {F <: Function, M, T, Nderivs}
     @assert M == npad(method)
     ts = similar(Xs, T)
-    nderivs = 2
-    coefs = init_coefficients(method, Xs, Val(nderivs))
+    coefs = init_coefficients(method, Xs, nderivs)
+    C = continuity(method)
+    # Always allow Nderivs ≤ 2
+    max(C, 2) ≥ Nderivs || throw(ArgumentError(lazy"$method only allows up to $C derivatives"))
     Xoffset = convert(Vec3{T}, offset)
     ClosedFilament(parametrisation, ts, Xs, coefs, Xoffset)
 end
@@ -404,7 +406,7 @@ update_after_changing_nodes!(f::ClosedFilament; removed = true) =
 function _insert_node!(::DiscretisationMethod, f::ClosedFilament, i::Integer, ζ::Real)
     (; Xs, ts,) = f
     (; cs, cderivs,) = f.coefs
-    @assert length(cderivs) == 2
+    nderivs = length(cderivs)
 
     # New point to be added.
     # Note: this uses derivatives at nodes (Hermite interpolations), so make sure they are up to date!
@@ -413,8 +415,7 @@ function _insert_node!(::DiscretisationMethod, f::ClosedFilament, i::Integer, ζ
     # We also insert new derivatives in case we need to perform Hermite interpolations later
     # (for instance if we insert other nodes).
     # Derivatives will be recomputed later when calling `update_after_changing_nodes!`.
-    s⃗′ = f(i, ζ, Derivative(1))
-    s⃗″ = f(i, ζ, Derivative(2))
+    derivs = _eval_derivatives_up_to(Val(nderivs), f, i, ζ)
 
     # New knot location
     t = (1 - ζ) * ts[i] + ζ * ts[i + 1]
@@ -422,11 +423,20 @@ function _insert_node!(::DiscretisationMethod, f::ClosedFilament, i::Integer, ζ
     insert!(ts, i + 1, t)
     insert!(Xs, i + 1, s⃗)
     insert!(cs, i + 1, s⃗)
-    insert!(cderivs[1], i + 1, s⃗′)
-    insert!(cderivs[2], i + 1, s⃗″)
+    for (coefs, val) ∈ zip(cderivs, derivs)
+        insert!(coefs, i + 1, val)
+    end
 
     s⃗
 end
+
+@inline function _eval_derivatives_up_to(::Val{n}, f, i, ζ) where {n}
+    prev = _eval_derivatives_up_to(Val(n - 1), f, i, ζ)
+    val = f(i, ζ, Derivative(n))
+    (prev..., val)
+end
+
+@inline _eval_derivatives_up_to(::Val{0}, args...) = ()
 
 function _remove_node!(::DiscretisationMethod, f::ClosedFilament, i::Integer)
     (; ts, Xs,) = f
