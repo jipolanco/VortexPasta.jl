@@ -155,6 +155,10 @@ function test_filament_ring(N, method)
             @test_throws ArgumentError f[i, TorsionScalar()]
             if continuity ≥ 3
                 fc = @inferred Filaments.init(ClosedFilament, nodes(f), method; nderivs = Val(3))
+                @test 3 == @inferred Filaments.nderivatives(fc)
+                fsim = @inferred similar(fc)  # should preserve nderivs
+                @test typeof(fc) === typeof(fsim)
+                @test 3 == Filaments.nderivatives(fsim)
                 @test @inferred(fc[i, TorsionScalar()]) == 0  # torsion is 0 for a planar ring
                 if method isa FourierMethod
                     # Hermite interpolation of 3rd derivative not currently implemented.
