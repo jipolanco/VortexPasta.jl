@@ -152,6 +152,9 @@ parametrisation(::Type{<:AbstractFilament{T,M,P}}) where {T,M,P} = P.instance
 parametrisation(f::AbstractFilament) = parametrisation(typeof(f))
 parametrisation(fs::AbstractVector{<:AbstractFilament}) = parametrisation(eltype(fs))
 
+coefficients(f::AbstractFilament) = f.coefs
+nderivatives(f::AbstractFilament) = nderivatives(coefficients(f))
+
 Base.IndexStyle(::Type{<:AbstractFilament}) = IndexLinear()
 
 # This is needed since eltype(f) == Vec3{T}

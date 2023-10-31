@@ -23,6 +23,15 @@ Filaments.init
 Filaments.from_vector_field
 ```
 
+## Discretisation methods
+
+```@docs
+FiniteDiffMethod
+CubicSplineMethod
+QuinticSplineMethod
+FourierMethod
+```
+
 ## Obtaining information
 
 ```@docs
@@ -87,30 +96,6 @@ CurvatureBinormal
 TorsionScalar
 ```
 
-## Local discretisations
-
-```@docs
-LocalDiscretisationMethod
-FiniteDiffMethod
-```
-
-### Local interpolations
-
-```@docs
-LocalInterpolationMethod
-HermiteInterpolation
-interpolate
-```
-
-## Global discretisations
-
-```@docs
-GlobalDiscretisationMethod
-CubicSplineMethod
-QuinticSplineMethod
-FourierMethod
-```
-
 ## Segments
 
 ### Segment iterators
@@ -135,6 +120,16 @@ Filaments.segment_length
 ```@docs
 filamentplot!
 filamentplot
+```
+
+## Internals
+
+```@docs
+LocalDiscretisationMethod
+GlobalDiscretisationMethod
+LocalInterpolationMethod
+HermiteInterpolation
+interpolate
 ```
 
 ## Index

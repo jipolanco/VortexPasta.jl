@@ -42,6 +42,9 @@ abstract type GlobalDiscretisationMethod <: DiscretisationMethod end
 # Here `N` is the number of derivatives that are included in the coefficients.
 abstract type DiscretisationCoefs{Method <: DiscretisationMethod, N} end
 
+nderivatives(::Type{<:DiscretisationCoefs{M, N}}) where {M, N} = N
+nderivatives(c::DiscretisationCoefs) = nderivatives(typeof(c))
+
 # Check that two sets of coefficients are equal
 function Base.:(==)(x::DiscretisationCoefs, y::DiscretisationCoefs)
     x.method === y.method || return false

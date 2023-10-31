@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2023-10-31
+
+### Fixed
+
+- Make sure the number of derivatives of a filament is preserved when calling `similar` and `copy`.
+
 ## [0.6.3] - 2023-10-31
 
 ### Added
