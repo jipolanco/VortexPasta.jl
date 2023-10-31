@@ -8,10 +8,20 @@ function _update_coefficients_only!(
     if !only_derivatives
         solve_spline_coefficients!(Val(k), cs, ts, Xs; Xoffset,)
     end
-    spline_derivative!(cderivs[1], cs, ts, Val(k))
-    spline_derivative!(cderivs[2], cderivs[1], ts, Val(k - 1))
+    _compute_derivative_coefs!(Val(k), cderivs, cs, ts)
     f
 end
+
+# Compute coefficients of the derivatives of a spline.
+# Note that the derivative of a spline of order `k` is a spline of order `k - 1`.
+@inline function _compute_derivative_coefs!(::Val{k}, cderivs::NTuple, ck, ts) where {k}
+    # Compute derivative coefficients `cd` from spline coefficients `ck`.
+    cd = first(cderivs)
+    spline_derivative!(cd, ck, ts, Val(k))
+    _compute_derivative_coefs!(Val(k - 1), Base.tail(cderivs), cd, ts)  # compute next derivative from `cd`
+end
+
+@inline _compute_derivative_coefs!(::Val, ::Tuple{}, args...) = nothing
 
 # Generic implementation, simply evaluates spline on the node.
 function _derivative_at_node(
@@ -34,6 +44,9 @@ function _interpolate(
     (; ts, Xoffset,) = f
     (; cs, cderivs,) = f.coefs
     i, t = _find_knot_segment(ileft, knotlims(f), ts, t_in)
+    n > length(cderivs) && throw(ArgumentError(
+        lazy"derivatives of order $n are not enabled. Initialise a filament with nderivs ≥ $n, and make sure the discretisation scheme has the required continuity degree."
+    ))
     coefs = (cs, cderivs...)[n + 1]
     ord = order(method) - n
     y = evaluate_spline(coefs, ts, i, t, Val(ord))

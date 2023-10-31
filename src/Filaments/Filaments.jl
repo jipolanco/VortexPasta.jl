@@ -15,6 +15,7 @@ export
     CurvatureVector,
     CurvatureScalar,
     CurvatureBinormal,
+    TorsionScalar,
 
     knots,
     knotlims,
@@ -331,6 +332,7 @@ default_parametrisation(::DiscretisationMethod) = parametrise_by_node_distance
         ClosedFilament{T}, N::Integer, method::DiscretisationMethod;
         offset = zero(Vec3{T}),
         parametrisation = Filaments.default_parametrisation(method),
+        nderivs = Val(2),
     ) -> ClosedFilament{T}
 
 Allocate data for a closed filament with `N` discretisation points.
@@ -342,13 +344,27 @@ offset between points `f[i]` and `f[i + N]`. By default the offset is zero,
 meaning that the filament is a closed loop. This can be used for defining
 infinite (so not really closed) filaments living in periodic domains.
 
-Possible discretisation methods include [`CubicSplineMethod`](@ref) and
-[`FiniteDiffMethod`](@ref).
+Possible discretisation methods include [`CubicSplineMethod`](@ref),
+[`QuinticSplineMethod`](@ref) and [`FiniteDiffMethod`](@ref).
 
-# Customising the filament parametrisation
+# Extended help
+
+## Evaluating high-order derivatives
+
+By default the filament discretisation allows to evaluate up to the second derivative of the
+curve with respect to its parametrisation.
+This means in particular than one has access to the tangent, curvature and binormal vectors.
+
+One may want to evaluate higher order derivatives, for example to also have access to the
+curve torsion (which depends on the 3rd derivative).
+This is only possible for some high-order discretisation methods ([`QuinticSplineMethod`](@ref),
+as well as [`FourierMethod`](@ref) with the limitation that one has to evaluate on discretisation points).
+Moreover, one needs to explicitly pass `nderivs = Val(3)` (or higher) to the `init` function.
+
+## Customising the filament parametrisation
 
 By default the filament is parametrised as ``\bm{s}(t)`` such that the parameter ``t``
-roughly corresponds to the arc length ``ξ``.
+roughly corresponds to the arc length ``ξ``.[^1]
 More precisely, the discrete values ``t_i`` at the discretisation points are defined from
 the distances between discretisation points:
 
@@ -370,6 +386,8 @@ discretisation points, one can pass `parametrisation(Xs, i) = Xs[i].z`.
     Changing the filament parametrisation is **experimental**.
     This feature may change/disappear in the future.
 
+[^1]: Except for [`FourierMethod`](@ref), which requires the parametrisation to have a
+      constant increment.
 """
 function init end
 

@@ -28,6 +28,7 @@ function _derivative_at_node(
     ) where {n}
     (; cs, cderivs,) = f.coefs
     coefs = (cs, cderivs...)
+    n ≤ length(cderivs) || throw(ArgumentError("FiniteDiffMethod supports up to 2 derivatives only"))
     coefs[n + 1][node.i]
 end
 

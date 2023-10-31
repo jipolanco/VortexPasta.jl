@@ -157,6 +157,12 @@ end
     )
 end
 
+function interpolate(method::HermiteInterpolation, d::Derivative, args...)
+    throw(ArgumentError(
+        lazy"interpolation of $d with $method not currently implemented"
+    ))
+end
+
 ## ================================================================================ ##
 
 function _interpolate(
