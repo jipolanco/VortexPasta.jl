@@ -73,9 +73,7 @@ function Base.similar(v::PaddedArray{M, T, N}, ::Type{S}, dims::Dims{N}) where {
     PaddedArray{M}(similar(v.data, S, dims .+ 2M))
 end
 
-Base.@propagate_inbounds function Base.getindex(v::PaddedArray, I::Vararg{Int})
-    N = ndims(v)
-    M = npad(v)
+Base.@propagate_inbounds function Base.getindex(v::PaddedArray{M, T, N}, I::Vararg{Int, N}) where {M, T, N}
     J = ntuple(n -> I[n] + M, Val(N))
     parent(v)[J...]
 end
