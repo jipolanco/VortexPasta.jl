@@ -7,7 +7,7 @@ See the [Wikipedia article](https://en.wikipedia.org/wiki/Cell_lists) for some d
 """
 module CellLists
 
-export PeriodicCellList, CellListIterator, static, nearby_elements
+export PeriodicCellList, static, nearby_elements
 
 using ..PaddedArrays: PaddedArray, pad_periodic!
 using Static: StaticInt, static, dynamic
@@ -156,15 +156,26 @@ end
 end
 
 """
-    add_element!(cl::PeriodicCellList{N, T}, el::T)
+    add_element!(cl::PeriodicCellList{N, T}, el::T, [x⃗])
 
 Add element to the cell list.
 
 Determines the cell associated to the element and then appends the element to that cell.
+
+Optionally, one may pass the coordinate location ``x⃗`` associated to the element.
+Otherwise, it will be obtained from the element according to
+
+    x⃗ = to_coordinate(el)
+
+where `to_coordinate` corresponds to the keyword argument of [`PeriodicCellList`](@ref).
 """
 function add_element!(cl::PeriodicCellList{N, T}, el::T) where {N, T}
-    (; data, rs_cut, Ls, to_coordinate,) = cl
-    x⃗ = to_coordinate(el)
+    x⃗ = cl.to_coordinate(el)
+    add_element!(cl, el, x⃗)
+end
+
+function add_element!(cl::PeriodicCellList{N, T}, el::T, x⃗) where {N, T}
+    (; data, rs_cut, Ls,) = cl
     inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
     I = CartesianIndex(inds)
     @inbounds cell = data[I]
@@ -172,60 +183,8 @@ function add_element!(cl::PeriodicCellList{N, T}, el::T) where {N, T}
     cl
 end
 
-struct CellListIterator{
-        T, N,
-        CellList <: PeriodicCellList{N, T},
-        CellIndices,
-    }
-    cl           :: CellList
-    cell_indices :: CellIndices  # iterator over indices of cells to be visited
-    function CellListIterator(cl::PeriodicCellList{N, T}, inds) where {N, T}
-        new{T, N, typeof(cl), typeof(inds)}(cl, inds)
-    end
-end
-
-# These are needed e.g. by collect(it::CellListIterator)
-Base.IteratorSize(::Type{<:CellListIterator}) = Base.SizeUnknown()
-Base.eltype(::Type{<:CellListIterator{T}}) where {T} = T
-
-# As of Julia 1.9.1, the @inline is needed to avoid poor performance and spurious allocations.
-@inline function Base.iterate(it::CellListIterator, state = nothing)
-    (; cl, cell_indices,) = it
-    (; data,) = cl
-
-    if state === nothing  # initial iteration
-        cell_index, cell_indices_state = iterate(cell_indices)
-        @inbounds elements_in_current_cell = data[cell_index]
-        ret_element = iterate(elements_in_current_cell)  # get first element of first cell (or `nothing`, if the cell is empty)
-    else
-        (cell_indices_state, elements_in_current_cell, elements_state,) = state
-        ret_element = iterate(elements_in_current_cell, elements_state)  # advance to next element (or `nothing`, if we're done with this cell)
-    end
-
-    # 1. Try to keep iterating over the elements of the current cell.
-    if ret_element !== nothing
-        current_element, elements_state = ret_element
-        state_next = (cell_indices_state, elements_in_current_cell, elements_state,)
-        return current_element, state_next
-    end
-
-    # 2. We're done iterating over the current cell, so we jump to the next non-empty cell.
-    while ret_element === nothing
-        ret_cell = iterate(cell_indices, cell_indices_state)
-        ret_cell === nothing && return nothing  # we're done iterating over cells
-        cell_index, cell_indices_state = ret_cell
-        @inbounds elements_in_current_cell = data[cell_index]
-        ret_element = iterate(elements_in_current_cell)
-        cell_indices_state, elements_in_current_cell, ret_element
-    end
-
-    current_element, elements_state = ret_element
-    state_next = (cell_indices_state, elements_in_current_cell, elements_state,)
-    current_element, state_next
-end
-
 """
-    nearby_elements(cl::PeriodicCellList{N}, x⃗) -> CellListIterator
+    nearby_elements(cl::PeriodicCellList{N}, x⃗)
 
 Return an iterator over the elements that are sufficiently close to the point `x⃗`.
 
@@ -244,7 +203,8 @@ function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}
     cell_indices = CartesianIndices(
         map(i -> (i - M):(i + M), Tuple(I₀))
     )
-    CellListIterator(cl, cell_indices)
+    subcells = view(cl.data, cell_indices)
+    Iterators.flatten(subcells)
 end
 
 end
