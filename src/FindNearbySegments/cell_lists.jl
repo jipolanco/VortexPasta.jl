@@ -63,23 +63,11 @@ end
 to_static(::Val{M}) where {M} = static(M)
 to_static(M::StaticInt) = M
 
-function _assign_cells!(cl::PeriodicCellList, f::AbstractFilament)
-    for s ∈ segments(f)
-        CellLists.add_element!(cl, s)
-    end
-    cl
-end
-
-function _assign_cells!(cl::PeriodicCellList, fs::AbstractVector{<:AbstractFilament})
-    empty!(cl)
-    for f ∈ fs
-        _assign_cells!(cl, f)
-    end
-    cl
-end
-
 function set_filaments!(c::CellListSegmentFinder, fs)
-    _assign_cells!(c.cl, fs)
+    empty!(c.cl)
+    for f ∈ fs, s ∈ segments(f)
+        CellLists.add_element!(c.cl, s)
+    end
     c
 end
 
