@@ -57,8 +57,7 @@ using PrecompileTools: @setup_workload, @compile_workload
             α, rcut, Ls, Ns,
             backend_short = CellListsBackend(2),
             backend_long = FINUFFTBackend(nthreads = 1),
-            quadrature_short = GaussLegendre(4),
-            quadrature_long = GaussLegendre(4),
+            quadrature = GaussLegendre(2),
         )
 
         # Initialise vortex ring

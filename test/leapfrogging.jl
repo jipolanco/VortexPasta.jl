@@ -227,8 +227,7 @@ end
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
         backend_long = FINUFFTBackend(),
-        quadrature_short = GaussLegendre(4),
-        quadrature_long = GaussLegendre(4),
+        quadrature = GaussLegendre(4),
         regularise_binormal = Val(true),
     )
 

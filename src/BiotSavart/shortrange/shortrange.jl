@@ -1,55 +1,6 @@
 using LinearAlgebra: ×, norm
 using SpecialFunctions: erfc, erf
 using ..Filaments: deperiodise_separation, Segment, segments
-using ..FindNearbySegments: FindNearbySegments, set_filaments!, nearby_segments
-
-"""
-    ShortRangeBackend
-
-Abstract type denoting the backend used for computing short-range interactions.
-
-# Implemented backends
-
-- [`CellListsBackend`](@ref): most efficient when the cutoff radius is much smaller than the
-  domain size. Can only be used with periodic boundary conditions.
-
-- [`NaiveShortRangeBackend`](@ref): usually less efficient as it needs to compute distances
-  between all pairs of locations.
-
-# Extended help
-
-## Implementation details
-
-A `BACKEND <: ShortRangeBackend` must implement the function:
-
-    init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput)
-
-which should return a [`ShortRangeCache`](@ref).
-"""
-abstract type ShortRangeBackend end
-
-"""
-    ShortRangeCache
-
-Abstract type describing the storage of data required to compute short-range interactions.
-
-The [`init_cache_short`](@ref) function returns a concrete instance of a `ShortRangeCache`.
-
-# Interface
-
-## Fields
-
-The following fields must be included in a cache:
-
-- `finder :: NearbySegmentFinder` a nearby-segment finder from the
-  [`FindNearbySegments`](@ref) module;
-
-- `params :: ParamsShortRange` parameters for short-range computations;
-
-- `to :: TimerOutput` for measuring time spent on different functions.
-
-"""
-abstract type ShortRangeCache end
 
 """
     init_cache_short(
@@ -63,57 +14,30 @@ Initialise the cache for the short-range backend defined in `p`.
 function init_cache_short end
 
 """
-    FindSegmentPair.set_filaments!(c::ShortRangeCache, fs::AbstractVector{<:AbstractFilament})
+    process_point_charges!(c::ShortRangeCache, data::PointData)
 
-Store (and optionally process) the list of filaments to be used for short-range computations.
+Process list of point charges.
 
-This must be called before computing any short-range quantities (e.g. using
-[`add_short_range_velocity!`](@ref)).
+This is useful for short-range backends like [`CellListsBackend`](@ref), which needs to
 
-See also [`FindNearbySegments.set_filaments!`](@ref).
+Must be called after [`add_point_charges!`](@ref) and before computing any short-range quantities
+(using [`add_short_range_fields!`](@ref)).
 """
-FindNearbySegments.set_filaments!(c::ShortRangeCache, fs) = set_filaments!(c.finder, fs)
+process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overriden by the backend
 
 """
-    nearby_segments(c::ShortRangeCache, x⃗::Vec3)
+    nearby_charges(c::ShortRangeCache, x⃗::Vec3)
 
-Return an iterator over the segments that are "close" to the location `x⃗`.
-
-See also [`FindNearbySegments.nearby_segments`](@ref).
+Return an iterator over the charges that are "close" to the location `x⃗`.
 """
-FindNearbySegments.nearby_segments(c::ShortRangeCache, fs) = nearby_segments(c.finder, fs)
-
-struct ParamsShortRange{
-        Backend <: ShortRangeBackend,
-        Quadrature <: AbstractQuadrature,
-        Common <: ParamsCommon,
-        T <: Real,
-        RegulariseBinormal <: StaticBool,
-    }
-    backend :: Backend
-    quad    :: Quadrature  # quadrature rule used for numerical integration
-    common  :: Common      # common parameters (Γ, α, Ls)
-    rcut    :: T           # cutoff distance
-    regularise_binormal :: RegulariseBinormal
-
-    function ParamsShortRange(
-            backend::ShortRangeBackend, quad::AbstractQuadrature,
-            common::ParamsCommon, rcut::Real, regularise::StaticBool,
-        )
-        (; Ls,) = common
-        2 * rcut ≤ min(Ls...) ||
-            error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
-        new{typeof(backend), typeof(quad), typeof(common), typeof(rcut), typeof(regularise)}(
-            backend, quad, common, rcut, regularise,
-        )
-    end
-end
+function nearby_charges end
 
 function short_range_velocity end
 
 abstract type EwaldComponent end
 struct ShortRange <: EwaldComponent end
 struct LongRange <: EwaldComponent end
+struct ShortPlusLongRange <: EwaldComponent end  # ShortRange + LongRange
 
 ewald_screening_function(::Velocity, ::ShortRange, αr::Real) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
 ewald_screening_function(::Velocity, ::ShortRange,   ::Zero) = 1
@@ -126,6 +50,10 @@ ewald_screening_function(::Streamfunction, ::ShortRange,   ::Zero) = 1
 
 ewald_screening_function(::Streamfunction, ::LongRange, αr::Real) = erf(αr)
 ewald_screening_function(::Streamfunction, ::LongRange,   ::Zero) = Zero()
+
+# This simply corresponds to the unmodified BS integrals.
+ewald_screening_function(::Velocity, ::ShortPlusLongRange, αr) = 1
+ewald_screening_function(::Streamfunction, ::ShortPlusLongRange, αr) = 1
 
 biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3
 biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r
@@ -150,6 +78,31 @@ long_range_bs_integrand_at_zero(::Streamfunction, α, s⃗′) = 2 * α / sqrt(�
     oftype(s⃗′, g * w⃗)  # we assume w⃗ is a vector...
 end
 
+# Compute the contribution of a single filament point to the Biot-Savart integral on a given
+# point x⃗. Note: this doesn't include the prefactor Γ/4π.
+@inline function biot_savart_contribution(
+        quantity::OutputField,      # Velocity() or Streamfunction()
+        component::EwaldComponent,  # ShortRange() or LongRange()
+        params::ParamsShortRange,
+        x⃗::Vec3,                    # point where quantity is computed
+        s⃗::Vec3,                    # curve location s⃗(t)
+        qs⃗′::Vec3{<:Real};          # curve derivative s⃗′(t) (optionally multiplied by a quadrature weight)
+        Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
+    )
+    (; common, rcut_sq,) = params
+    (; Ls, α,) = common
+    r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
+    r² = sum(abs2, r⃗)
+    if component === ShortRange() && r² > rcut_sq
+        # The short-range backend may allow some pair interactions beyond the cutoff.
+        # This is in particular the case when using cell lists.
+        # We want to avoid extra computations in that case.
+        return zero(r⃗)
+    end
+    @assert typeof(r⃗) === typeof(qs⃗′)  # should be true for type stability reasons...
+    modified_bs_integrand(quantity, component, qs⃗′, r⃗, r², α)
+end
+
 # Compute Biot-Savart integral over a single filament segment.
 # Note: this doesn't include the prefactor Γ/4π.
 function integrate_biot_savart(
@@ -160,52 +113,33 @@ function integrate_biot_savart(
         params::ParamsShortRange;
         Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
     )
-    (; common, quad, rcut,) = params
-    (; Ls, α,) = common
-    rc² = rcut * rcut
-    integrate(seg, quad) do seg, ζ
+    integrate(seg, params.quad) do seg, ζ
         s⃗ = seg(ζ)
-        r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
-        r² = sum(abs2, r⃗)
-        if component === ShortRange() && r² > rc²
-            # The short-range backend may allow some pair interactions beyond the cutoff.
-            # This is in particular the case when using cell lists.
-            # We want to avoid extra computations in that case.
-            return zero(r⃗)
-        end
         s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
-        @assert typeof(r⃗) === typeof(s⃗′)  # should be true for type stability reasons...
-        modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
+        biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs)
     end
 end
 
 """
-    add_short_range_velocity!(
-        vs::AbstractVector{<:Vec3}, cache::ShortRangeCache, f::AbstractFilament;
+    add_short_range_fields!(
+        fields::NamedTuple{Names, NTuple{N, V}},
+        cache::ShortRangeCache,
+        f::AbstractFilament;
         LIA = Val(true),
     )
 
-Compute short-range velocity induced on the nodes of filament `f`.
+Compute short-range Biot-Savart integrals.
 
-The velocity vector `vs` must have the same length as the number of nodes in `f`.
+Adds the results onto `fields`.
+See [`compute_on_nodes!`](@ref) for more details.
 
 Setting `LIA = Val(false)` allows to disable computation of the localised induction
 approximation (LIA) term. In that case, that term should be computed separately using
-[`local_self_induced_velocity`](@ref).
+[`local_self_induced`](@ref).
 
-Before calling this function, one must first set the list of filaments using
-[`set_filaments!`](@ref).
+Before calling this function, one must first call
+[`add_point_charges!`](@ref) and then [`process_point_charges!`](@ref).
 """
-function add_short_range_velocity!(
-        vs::AbstractVector{<:Vec3},
-        cache::ShortRangeCache,
-        f::AbstractFilament;
-        LIA = Val(true),  # can be used to disable LIA
-    )
-    fields = (; velocity = vs,)
-    add_short_range_fields!(fields, cache, f; LIA)
-end
-
 function add_short_range_fields!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::ShortRangeCache,
@@ -216,8 +150,9 @@ function add_short_range_fields!(
 
     (; params,) = cache
     (; quad, regularise_binormal,) = params
-    (; Γ, a, Δ,) = params.common
+    (; Γ, a, Δ, Ls,) = params.common
     prefactor = Γ / (4π)
+    Lhs = map(L -> L / 2, Ls)
 
     Xs = nodes(f)
     for (_, us) ∈ ps
@@ -237,33 +172,32 @@ function add_short_range_fields!(
         # Note that the integral with the long-range kernel is *not* singular (since it's a
         # smoothing kernel), so there's no problem with evaluating this integral.
         # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the prefactor later.
-        vecs_i = let sa = Segment(f, segment_a), sb = Segment(f, segment_b)
-            map(ps) do (quantity, _)
-                u⃗ = -(
-                    integrate_biot_savart(quantity, LongRange(), sa, x⃗, params) +
-                    integrate_biot_savart(quantity, LongRange(), sb, x⃗, params)
-                )
-                if _LIA
-                    u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad, regularise_binormal)
-                end
-                quantity => u⃗
+        # We also subtract short-range contributions, since we compute them further below
+        # and we're not supposed to include them in the computations.
+        # So, in the end, we use ShortPlusLongRange to add both contributions.
+        sa = Segment(f, segment_a)
+        sb = Segment(f, segment_b)
+        vecs_i = map(ps) do (quantity, _)
+            u⃗ = -(
+                integrate_biot_savart(quantity, ShortPlusLongRange(), sa, x⃗, params; Lhs) +
+                integrate_biot_savart(quantity, ShortPlusLongRange(), sb, x⃗, params; Lhs)
+            )
+            if _LIA
+                u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad, regularise_binormal)
             end
+            quantity => u⃗
         end
 
-        # Then integrate short-range effect of nearby segments.
-        for seg ∈ nearby_segments(cache, x⃗)
-            g, j = seg.f, seg.i
-
-            if f === g && (j == segment_a || j == segment_b)
-                # Target point x⃗ is one of the segment limits.
-                # This is the singular region, and we do nothing.
-                @assert x⃗ === g[i]
-            else
-                # Usual case: non-singular region.
-                vecs_i = map(vecs_i) do (quantity, u⃗)
-                    u⃗ = u⃗ + integrate_biot_savart(quantity, ShortRange(), seg, x⃗, params)
-                    quantity => u⃗
-                end
+        # Then integrate short-range effect of nearby charges.
+        # Note that this includes the contributions of the two segments within the singular
+        # region which we're not supposed to include (we subtracted the same contributions
+        # above, so it cancels out).
+        for charge ∈ nearby_charges(cache, x⃗)
+            s⃗, q⃗ = charge
+            qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
+            vecs_i = map(vecs_i) do (quantity, u⃗)
+                u⃗ = u⃗ + biot_savart_contribution(quantity, ShortRange(), params, x⃗, s⃗, qs⃗′; Lhs)
+                quantity => u⃗
             end
         end
 

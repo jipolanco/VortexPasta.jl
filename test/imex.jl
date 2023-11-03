@@ -24,8 +24,7 @@ function biot_savart_parameters()
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
         backend_long = FINUFFTBackend(),
-        quadrature_short = GaussLegendre(3),
-        quadrature_long = GaussLegendre(5),
+        quadrature = GaussLegendre(3),
     )
 end
 

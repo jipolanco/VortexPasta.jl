@@ -38,11 +38,11 @@ CellListsBackend
 ```@docs
 ShortRangeCache
 init_cache_short
-set_filaments!(c::ShortRangeCache, fs)
-add_short_range_velocity!
-local_self_induced
+process_point_charges!
+add_short_range_fields!
 local_self_induced_velocity
-nearby_segments(c::ShortRangeCache, x⃗)
+local_self_induced
+nearby_charges
 ```
 
 ## Long-range interactions
@@ -63,9 +63,8 @@ NullLongRangeCache
 init_cache_long
 expected_period
 folding_limits
-reset_fields!
 set_num_points!
-add_pointcharge!
+add_point_charges!
 add_point!
 compute_vorticity_fourier!
 to_smoothed_streamfunction!

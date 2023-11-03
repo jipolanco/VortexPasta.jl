@@ -135,6 +135,7 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
         params_kws...,
         backend_long = FINUFFTBackend(; tol,),
     )
+    quad = params_exact.quad
 
     # This is just to check that Base.show is implemented for ParamsBiotSavart.
     @test startswith(repr(params_exact), "ParamsBiotSavart with:\n")
@@ -151,7 +152,8 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
 
     # Compute induced velocity field in Fourier space
     foreach((cache_exact, cache_default)) do c
-        BiotSavart.compute_vorticity_fourier!(c, fs)
+        BiotSavart.add_point_charges!(c.common.pointdata, fs, quad)
+        BiotSavart.compute_vorticity_fourier!(c)
         BiotSavart.to_smoothed_velocity!(c)
     end
 
@@ -180,7 +182,8 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
         BiotSavart.interpolate_to_physical!(c)
     end
 
-    max_rel_error_physical = maximum(zip(cache_exact.common.charges, cache_default.common.charges)) do (qexact, qdefault)
+    charges(cache) = cache.common.pointdata.charges  # get charges from cache
+    max_rel_error_physical = maximum(zip(charges(cache_exact), charges(cache_default))) do (qexact, qdefault)
         norm(qexact - qdefault) / norm(qexact)
     end
     @test max_rel_error_physical < tol
@@ -230,22 +233,14 @@ function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws.
         backend_short = CellListsBackend(2),
     )
 
-    cache_naive = @inferred(BiotSavart.init_cache(params_naive, fs)).shortrange
-    cache_cl = @inferred(BiotSavart.init_cache(params_cl, fs)).shortrange
+    cache_naive = @inferred BiotSavart.init_cache(params_naive, fs)
+    cache_cl = @inferred BiotSavart.init_cache(params_cl, fs)
 
-    BiotSavart.set_filaments!(cache_naive, fs)
-    BiotSavart.set_filaments!(cache_cl, fs)
+    vs_naive = map(similar ∘ nodes, fs)
+    vs_cl = map(similar ∘ nodes, fs)
 
-    vs_naive = map(f -> zero(nodes(f)), fs)
-    vs_cl = map(f -> zero(nodes(f)), fs)
-
-    for (v, f) ∈ zip(vs_naive, fs)
-        BiotSavart.add_short_range_velocity!(v, cache_naive, f)
-    end
-
-    for (v, f) ∈ zip(vs_cl, fs)
-        BiotSavart.add_short_range_velocity!(v, cache_cl, f)
-    end
+    BiotSavart.velocity_on_nodes!(vs_naive, cache_naive, fs; longrange = Val(false))
+    BiotSavart.velocity_on_nodes!(vs_cl, cache_cl, fs; longrange = Val(false))
 
     for (a, b) ∈ zip(vs_naive, vs_cl)
         @test isapprox(a, b; rtol = 1e-7)
@@ -277,8 +272,7 @@ function check_independence_on_ewald_parameter(f, αs; quad = GaussLegendre(2), 
             f;
             α,
             backend_short = CellListsBackend(2),
-            quadrature_short = quad,
-            quadrature_long = quad,
+            quadrature = quad,
             params_kws...,
         )
     end

@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2023-11-03
+
+### Changed
+
+- `ParamsBiotSavart` now takes a single `quadrature` argument instead of separate `quadrature_short` and `quadrature_long` arguments.
+  This allows to reuse interpolation operations between short-range and long-range computations, where positions and derivatives are evaluated in-between discretisation points.
+  In particular, short-range computations should be faster now.
+
 ## [0.6.4] - 2023-10-31
 
 ### Fixed
