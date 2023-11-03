@@ -97,14 +97,15 @@ function _solve_quintic_spline_coefficients!(buffers::NamedTuple, cs, ts)
     cs
 end
 
-@inbounds function _construct_quintic_spline_matrices!(
+function _construct_quintic_spline_matrices!(
         A::AbstractMatrix{T}, V::AbstractVector{<:SVector{2, T}}, ts,
     ) where {T}
     @assert size(A, 1) == 5  # = kl + ku + 1
     D = 3  # = ku + 1
 
     m = size(A, 2)
-    n = m + 2
+    @assert m ≥ 5  # this is ensured by minimum_nodes(::QuinticSplineMethod) = 7
+    n = m + 2      # this is the number of nodes
 
     # Set arrays to zero
     fill!(A, zero(T))
@@ -119,7 +120,7 @@ end
         bs = eval_bsplines(order, ts, i) :: NTuple{5}
         V[i] = (bs[5], bs[4])
         for j ∈ 1:3
-            A[D + i - j, j] = bs[4 - j]
+            @inbounds A[D + i - j, j] = bs[4 - j]
         end
     end
 
@@ -128,7 +129,7 @@ end
         bs = eval_bsplines(order, ts, i)
         V[i] = (zero(T), bs[5])
         for j ∈ 1:4
-            A[D + i - j, j] = bs[5 - j]
+            @inbounds A[D + i - j, j] = bs[5 - j]
         end
     end
 
@@ -137,7 +138,7 @@ end
         bs = eval_bsplines(order, ts, i)
         for l ∈ eachindex(bs)
             j = i + 3 - l
-            A[D - 3 + l, j] = bs[l]
+            @inbounds A[D - 3 + l, j] = bs[l]
         end
     end
 
@@ -147,7 +148,7 @@ end
         V[i] = (bs[1], zero(T))
         for l ∈ 2:5
             j = i + 3 - l
-            A[D - 3 + l, j] = bs[l]
+            @inbounds A[D - 3 + l, j] = bs[l]
         end
     end
 
@@ -157,7 +158,7 @@ end
         V[i] = (bs[2], bs[1])
         for l ∈ 3:5
             j = i + 3 - l
-            A[D - 3 + l, j] = bs[l]
+            @inbounds A[D - 3 + l, j] = bs[l]
         end
     end
 

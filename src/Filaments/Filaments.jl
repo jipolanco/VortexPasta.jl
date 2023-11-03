@@ -450,16 +450,21 @@ For now, the only requirement is that the number of nodes must be larger than
 some small value. In particular, one can't have a closed filament with less
 than 3 nodes (but the specific discretisation method might impose some other small value).
 """
-check_nodes(::Type{Bool}, f::AbstractFilament) = _check_nodes(Bool, nodes(f))
-check_nodes(f::AbstractFilament) = _check_nodes(Nothing, nodes(f))
+check_nodes(::Type{Bool}, f::AbstractFilament) = _check_nodes(Bool, f)
+check_nodes(f::AbstractFilament) = _check_nodes(Nothing, f)
 
-function _check_nodes(::Type{T}, Xs::PaddedVector) where {T}
-    M = max(npad(Xs), 3)  # can't have a closed filament with less than 3 nodes!
-    if length(Xs) < M
+# Limit set by the discretisation method. Can be overriden by other discretisation methods.
+minimum_nodes(::DiscretisationMethod) = 3
+
+function _check_nodes(::Type{T}, f::AbstractFilament) where {T}
+    method = discretisation_method(f)
+    M = max(npad(nodes(f)), minimum_nodes(method))
+    N = length(f)
+    if N < M
         if T === Bool
             return false
         else
-            error(lazy"number of nodes in filament ($(length(Xs))) is below the allowed minimum ($M)")
+            error(lazy"number of nodes in filament ($N) is below the minimum allowed by the chosen discretisation method ($M)")
         end
     end
     true
