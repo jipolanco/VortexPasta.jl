@@ -4,7 +4,7 @@ using Statistics: mean, std
 using Static: True
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
-using VortexPasta.FindNearbySegments: NaiveSegmentIterator
+using VortexPasta.FindNearbySegments: FindNearbySegments, NaiveSegmentIterator
 using VortexPasta.BiotSavart
 using VortexPasta.Diagnostics: Diagnostics
 using Random
@@ -46,7 +46,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         Ls = Infinity(),
         α = Zero(),
         backend_short = NaiveShortRangeBackend(),
-        quadrature_short = quad,
+        quadrature = quad,
         regularise_binormal = Val(true),
     )
     nquad = length(quad)  # number of quadrature points per segment
@@ -61,14 +61,6 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
     compute_on_nodes!(fields, cache, fs)
     vs = only(vs_all)  # velocity of the first (and only) filament
     ψs = only(ψs_all)
-
-    @testset "NaiveSegmentIterator" begin
-        it = @inferred BiotSavart.nearby_segments(cache.shortrange, f[2])
-        @test it isa NaiveSegmentIterator
-        @test eltype(it) === typeof(first(segments(f))) === typeof(first(it))
-        segs = @inferred collect(it)
-        @test eltype(it) === eltype(segs)
-    end
 
     @testset "Total velocity" begin
         v⃗_mean = mean(vs)
@@ -120,9 +112,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         ℓ₋ = integrate(integrand, f, i - 1, GaussLegendre(8))
         ℓ₊ = integrate(integrand, f, i - 0, GaussLegendre(8))
         ℓ = sqrt(ℓ₋ * ℓ₊) / 4
-        fill!(vs, zero(eltype(vs)))
-        BiotSavart.set_filaments!(cache.shortrange, [f])
-        BiotSavart.add_short_range_velocity!(vs, cache.shortrange, f; LIA = Val(false))
+        BiotSavart.velocity_on_nodes!([vs], cache, [f]; LIA = Val(false))
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
         U_nonlocal = norm(vs[i])
         # method = Filaments.discretisation_method(f)

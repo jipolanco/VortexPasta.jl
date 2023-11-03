@@ -23,7 +23,7 @@ end
 
 function init_cache_long_ewald(
         pc::ParamsCommon{T},
-        params::ParamsLongRange{<:ExactSumBackend}, timer::TimerOutput,
+        params::ParamsLongRange{<:ExactSumBackend}, args...,
     ) where {T}
     (; Ls,) = pc
     (; Ns,) = params
@@ -32,26 +32,8 @@ function init_cache_long_ewald(
         f = i == 1 ? rfftfreq : fftfreq
         f(N, 2π * N / L)
     end
-    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, timer)
+    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, args...)
     ExactSumCache(cache_common)
-end
-
-function reset_fields!(c::ExactSumCache)
-    (; uhat,) = c.common
-    fill!(uhat, zero(eltype(uhat)))
-    c
-end
-
-# Add contribution of point charge to Fourier space field `uhat`.
-function add_pointcharge!(c::ExactSumCache, X::Vec3, Q::Vec3, i::Int)
-    (; uhat, wavenumbers,) = c.common
-    @assert size(uhat) == map(length, wavenumbers)
-    inds = CartesianIndices(uhat)
-    @inbounds @batch for I ∈ inds
-        k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
-        uhat[I] += Q * cis(-k⃗ ⋅ X)
-    end
-    c
 end
 
 # Set to zero "asymmetric" modes, to ease comparison with other implementations.
@@ -84,15 +66,28 @@ end
 
 _ensure_hermitian_symmetry!(::ExactSumCache, ::Val{0}, us) = us  # we're done, do nothing
 
-# Almost nothing to do, most of the work was already done in `add_pointcharge!`.
-# We just zero out some "asymmetric" modes to ease the comparison with other implementations.
 function transform_to_fourier!(c::ExactSumCache)
+    (; uhat, wavenumbers, pointdata,) = c.common
+    (; points, charges,) = pointdata
+    @assert size(uhat) == map(length, wavenumbers)
+    fill!(uhat, zero(eltype(uhat)))
+    inds = CartesianIndices(uhat)
+    @inbounds for i ∈ eachindex(points, charges)
+        X = points[i]
+        Q = charges[i]
+        @inbounds @batch for I ∈ inds
+            k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
+            uhat[I] += Q * cis(-k⃗ ⋅ X)
+        end
+    end
+    # We zero out some "asymmetric" modes to ease the comparison with other implementations.
     _ensure_hermitian_symmetry!(c, c.common.uhat)
     c
 end
 
 function interpolate_to_physical!(c::ExactSumCache)
-    (; uhat, wavenumbers, points, charges,) = c.common
+    (; uhat, wavenumbers, pointdata,) = c.common
+    (; points, charges,) = pointdata
     @assert length(points) == length(charges)
     kxs = first(wavenumbers)
     kx_lims = first(kxs), last(kxs)

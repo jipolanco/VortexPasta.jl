@@ -31,8 +31,7 @@ using LinearAlgebra: ⋅
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
         backend_long = FINUFFTBackend(),
-        quadrature_short = GaussLegendre(2),
-        quadrature_long = GaussLegendre(2),
+        quadrature = GaussLegendre(2),
     )
 
     if @isdefined(Makie)

@@ -90,13 +90,13 @@ end
 
 function init_cache_long_ewald(
         pc::ParamsCommon{T},
-        params::ParamsLongRange{<:FINUFFTBackend}, timer::TimerOutput,
+        params::ParamsLongRange{<:FINUFFTBackend}, args...,
     ) where {T}
     (; Ls,) = pc
     (; backend, Ns,) = params
     n_modes = collect(Int64, Ns)  # type expected by finufft_makeplan
     wavenumbers = map((N, L) -> fftfreq(N, 2π * N / L), Ns, Ls)
-    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, timer)
+    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, args...)
     Nks = map(length, wavenumbers)  # in this case (complex-to-complex transform) this is the same as Ns
     @assert Ns == Nks
     plan_type1 = _make_finufft_plan_type1(backend, n_modes, T)
@@ -125,13 +125,6 @@ function _make_finufft_plan_type2(p::FINUFFTBackend, n_modes::Vector{Int64}, ::T
     finufft_makeplan(type, n_modes, iflag, ntrans, p.tol; dtype = T, p.kws..., opts...)
 end
 
-# This is used for type-1 NUFFTs (physical to Fourier).
-function add_pointcharge!(c::FINUFFTCache, X::Vec3, Q::Vec3, i::Int)
-    @inbounds c.common.points[i] = X
-    @inbounds c.common.charges[i] = Q
-    c
-end
-
 # Set to zero asymmetric modes from complex-to-complex FFT.
 function _ensure_hermitian_symmetry!(c::FINUFFTCache, us::Array{<:Complex})
     _ensure_hermitian_symmetry!(c, Val(ndims(us)), us)
@@ -155,7 +148,8 @@ _ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{0}, us) = us  # we're done, d
 
 function transform_to_fourier!(c::FINUFFTCache)
     (; plan_type1,) = c
-    (; points, charges, uhat,) = c.common
+    (; pointdata, uhat,) = c.common
+    (; points, charges,) = pointdata
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     charges = StructArrays.components(charges)
@@ -170,7 +164,8 @@ end
 
 function interpolate_to_physical!(c::FINUFFTCache)
     (; plan_type2,) = c
-    (; points, charges, uhat,) = c.common
+    (; pointdata, uhat,) = c.common
+    (; points, charges,) = pointdata
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     charges = StructArrays.components(charges)

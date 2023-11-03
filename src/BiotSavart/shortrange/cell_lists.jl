@@ -1,7 +1,6 @@
 export CellListsBackend
 
-using ..FindNearbySegments: CellListSegmentFinder
-using ..CellLists: PeriodicCellList  # for docs only
+using ..CellLists: CellLists, PeriodicCellList
 
 """
     CellListsBackend <: ShortRangeBackend
@@ -27,23 +26,45 @@ CellListsBackend(n::Int = 1) = CellListsBackend{n}()
 subdivisions(::CellListsBackend{M}) where {M} = M
 
 struct CellListsCache{
-        Finder <: CellListSegmentFinder,
         Params <: ParamsShortRange{<:CellListsBackend},
+        CellList <: PeriodicCellList,
         Timer <: TimerOutput,
     } <: ShortRangeCache
-    finder :: Finder
     params :: Params
+    cl     :: CellList
     to     :: Timer
 end
 
 function init_cache_short(
         pc::ParamsCommon, params::ParamsShortRange{<:CellListsBackend},
-        fs::AbstractVector{<:AbstractFilament},
-        to::TimerOutput,
-    )
+        ::PointData{T}, to::TimerOutput,
+    ) where {T}
     (; backend, rcut,) = params
     (; Ls,) = pc
     nsubdiv = Val(subdivisions(backend))
-    finder = CellListSegmentFinder(fs, rcut, Ls; nsubdiv)
-    CellListsCache(finder, params, to)
+    @assert T <: AbstractFloat
+    # Increase cut-off radius along each direction so that it exactly divides the domain size.
+    rs_cut = map(Ls) do L
+        L / floor(L / rcut)
+    end
+    @assert all(≥(rcut), rs_cut)
+    Charge = Pair{Vec3{T}, Vec3{T}}       # a charge is a pair s⃗ => qs⃗′
+    to_coordinate(charge) = charge.first  # retrieves the coordinate s⃗ associated to a charge
+    cl = PeriodicCellList(Charge, rs_cut, Ls, nsubdiv; to_coordinate)
+    CellListsCache(params, cl, to)
 end
+
+function process_point_charges!(c::CellListsCache, data::PointData)
+    (; cl,) = c
+    (; points, charges,) = data
+    empty!(cl)
+    @inbounds for i ∈ eachindex(points, charges)
+        s⃗ = points[i]
+        qs⃗′ = real(charges[i])  # note: `charges` may contain complex numbers (but purely real) because it's needed by some NUFFT backends
+        charge = s⃗ => qs⃗′
+        CellLists.add_element!(cl, charge)
+    end
+    nothing
+end
+
+nearby_charges(c::CellListsCache, x⃗::Vec3) = CellLists.nearby_elements(c.cl, x⃗)

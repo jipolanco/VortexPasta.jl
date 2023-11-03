@@ -295,8 +295,7 @@ params = ParamsBiotSavart(;
     Ls = (L, L, L),  # same domain size in all directions
     Ns = (M, M, M),  # same long-range resolution in all directions
     rcut = 5 / α,    # cut-off distance for short-range computations
-    quadrature_short = GaussLegendre(2),  # quadrature for short-range computations
-    quadrature_long = GaussLegendre(2),   # quadrature for long-range computations
+    quadrature = GaussLegendre(2),        # quadrature for integrals over filament segments
     backend_long = FINUFFTBackend(),      # this is the default
     backend_short = NaiveShortRangeBackend(),  # OK when rcut/L is large
 )

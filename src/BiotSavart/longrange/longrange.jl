@@ -1,79 +1,3 @@
-using StaticArrays: SVector
-using StructArrays: StructArrays, StructVector, StructArray
-
-## ================================================================================ ##
-
-"""
-    LongRangeBackend
-
-Abstract type denoting the backend to use for computing long-range interactions.
-
-# Implemented backends
-
-- [`FINUFFTBackend`](@ref): estimates long-range interactions via the non-uniform fast
-  Fourier transform (NUFFT) using the FINUFFT library;
-
-- [`ExactSumBackend`](@ref): computes long-range interactions using exact Fourier sums. This
-  is really inefficient and should only be used for testing.
-
-# Extended help
-
-## Implementation details
-
-The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
-
-- `init_cache_long_ewald(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`.
-
-- [`expected_period`](@ref) (optional),
-
-- [`folding_limits`](@ref) (optional).
-
-"""
-abstract type LongRangeBackend end
-
-"""
-    expected_period(::LongRangeBackend) -> Union{Nothing, Real}
-
-Domain period expected by the backend.
-
-This is used for rescaling input coordinates to the requirements of the backend.
-For instance, FINUFFT assumes a period ``2π``, and therefore coordinates are
-rescaled if the input data has a period different from ``2π``.
-"""
-expected_period(::LongRangeBackend) = nothing
-
-"""
-    folding_limits(::LongRangeBackend) -> Union{Nothing, NTuple{2, Real}}
-
-Domain limits required by the backend.
-
-This is used for folding input coordinates so that they are within the limits
-expected by the backend.
-For instance, FINUFFT requires coordinates to be in the ``[-3π, 3π]`` interval.
-
-Note that, if a backend defines `folding_limits`, then it must also define
-[`expected_period`](@ref).
-"""
-folding_limits(::LongRangeBackend) = nothing
-
-## ================================================================================ ##
-
-struct ParamsLongRange{
-        Backend <: LongRangeBackend,
-        Quadrature <: AbstractQuadrature,
-        Common <: ParamsCommon,
-    }
-    backend :: Backend
-    quad    :: Quadrature  # quadrature rule used for numerical integration
-    common  :: Common      # common parameters (Γ, α, Ls)
-    Ns      :: Dims{3}     # grid dimensions for FFTs
-end
-
-backend(p::ParamsLongRange) = p.backend
-quadrature_rule(p::ParamsLongRange) = p.quad
-
-## ================================================================================ ##
-
 mutable struct LongRangeCacheState
     quantity :: Symbol  # quantity currently held by the cache (:undef, :vorticity, :velocity, :streamfunction)
     smoothed :: Bool    # true if Ewald's Gaussian filter has already been applied
@@ -85,17 +9,15 @@ struct LongRangeCacheCommon{
         T <: AbstractFloat,
         Params <: ParamsLongRange,
         WaveNumbers <: NTuple{3, AbstractVector},
-        Points <: StructVector{Vec3{T}},
-        Charges <: StructVector{Vec3{Complex{T}}},
+        PointCharges <: PointData{T},
         FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
         Timer <: TimerOutput,
     }
     params      :: Params
     wavenumbers :: WaveNumbers
-    points      :: Points   # non-uniform locations in physical space (3 × [Np])
-    charges     :: Charges  # values at non-uniform locations (3 × [Np]) -- only used to store interpolations
+    pointdata   :: PointCharges        # non-uniform data in physical space
     uhat        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
-    ewald_op    :: Array{T, 3}  # Ewald operator in Fourier space ([Nx, Ny, Nz])
+    ewald_op    :: Array{T, 3}         # Ewald operator in Fourier space ([Nx, Ny, Nz])
     state       :: LongRangeCacheState
     to          :: Timer
 end
@@ -104,54 +26,18 @@ function LongRangeCacheCommon(
         pcommon::ParamsCommon,
         params::ParamsLongRange,
         wavenumbers::NTuple{3, AbstractVector},
+        pointdata::PointData{T},
         timer::TimerOutput,
-    )
-    T = eltype(pcommon)
+    ) where {T}
     (; Γ, Ls, α,) = pcommon
+    @assert T === eltype(pcommon)
     @assert α !== Zero()
     Nks = map(length, wavenumbers)
-    points = StructVector{Vec3{T}}(undef, 0)
-    charges = StructVector{Vec3{Complex{T}}}(undef, 0)
     uhat = StructArray{Vec3{Complex{T}}}(undef, Nks)
     ewald_op = init_ewald_fourier_operator(T, wavenumbers, Γ, α, Ls)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, wavenumbers, points, charges, uhat, ewald_op, state, timer)
+    LongRangeCacheCommon(params, wavenumbers, pointdata, uhat, ewald_op, state, timer)
 end
-
-"""
-    LongRangeCache
-
-Abstract type describing the storage of data required to compute long-range interactions.
-
-The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRangeCache`
-(or `NullLongRangeCache()`, if long-range computations were disabled by setting `α = Zero()`).
-
-# Extended help
-
-## Implementation details
-
-### Fields
-
-All caches must include a `common <: LongRangeCacheCommon` field which contains common
-definitions for all backends.
-
-### Functions
-
-The following functions must be implemented by a cache:
-
-- [`reset_fields!`](@ref) (optional),
-
-- [`set_num_points!`](@ref) (optional),
-
-- [`add_point!`](@ref) (optional),
-
-- [`add_pointcharge!`](@ref),
-
-- [`transform_to_fourier!`](@ref),
-
-- [`interpolate_to_physical!`](@ref).
-"""
-abstract type LongRangeCache end
 
 """
     NullLongRangeCache <: LongRangeCache
@@ -182,63 +68,13 @@ function init_cache_long(pc::ParamsCommon, args...)
 end
 
 """
-    reset_fields!(cache::LongRangeCache)
-
-Reset cache fields if required by the chosen backend.
-"""
-reset_fields!(c::LongRangeCache) = c
-
-"""
-    set_num_points!(cache::LongRangeCache, Np::Integer)
-
-Set the total number of non-uniform points that the cache must hold.
-
-This will reallocate space to make all points fit in the cache. It will also reset to zero
-the contributions of previously-added charges.
-
-Must be called before [`add_point!`](@ref) and [`add_pointcharge!`](@ref).
-"""
-function set_num_points!(c::LongRangeCache, Np)
-    resize!(c.common.points, Np)
-    resize!(c.common.charges, Np)
-    c
-end
-
-"""
-    add_pointcharge!(cache::LongRangeCache, X::Vec3, Q::Vec3, i::Int)
-
-Add a vector charge at a single non-uniform location.
-
-This is used for type-1 NUFFTs, to transform from non-uniform data in physical
-space to uniform data in Fourier space.
-
-The total number of locations must be first set via [`set_num_points!`](@ref).
-"""
-function add_pointcharge! end
-
-"""
-    add_point!(cache::LongRangeCache, X::Vec3, i::Int)
-
-Add an interpolation point for type-2 NUFFT.
-
-This is used for type-2 NUFFTs, to transform (interpolate) from uniform data in Fourier
-space to non-uniform data in physical space.
-
-The total number of locations must be first set via [`set_num_points!`](@ref).
-"""
-function add_point!(c::LongRangeCache, X::Vec3, i::Int)
-    @inbounds c.common.points[i] = X
-    c
-end
-
-"""
     transform_to_fourier!(cache::LongRangeCache)
 
 Transform stored non-uniform data to Fourier space.
 
 This usually corresponds to a type-1 NUFFT.
 
-Non-uniform data must be first added via [`add_pointcharge!`](@ref).
+Non-uniform data must be first added via [`add_point_charges!`](@ref).
 """
 function transform_to_fourier! end
 
@@ -307,15 +143,9 @@ end
 Perform type-2 NUFFT to interpolate values in `cache.uhat` to non-uniform
 points in physical space.
 
-Results are written to `cache.charges`.
+Results are written to `cache.pointdata.charges`.
 """
 function interpolate_to_physical! end
-
-function _count_charges(quad::AbstractQuadrature, fs::AbstractVector{<:ClosedFilament})
-    Nq = length(quad)        # number of evaluation points per filament segment
-    Np = sum(f -> length(segments(f)), fs)  # total number of segments among all filaments (assumes closed filaments!!)
-    Np * Nq
-end
 
 function init_ewald_fourier_operator!(
         u::AbstractArray{T, 3} where {T}, ks, Γ::Real, α::Real, Ls::NTuple{3},
@@ -348,7 +178,8 @@ _rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing
 
 function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
     (; Ls,) = c.common.params.common
-    for (xs, L) ∈ zip(StructArrays.components(c.common.points), Ls)
+    (; points,) = c.common.pointdata
+    for (xs, L) ∈ zip(StructArrays.components(points), Ls)
         _rescale_coordinates!(xs, L, L_expected)
     end
     nothing
@@ -372,7 +203,7 @@ end
 _fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
 
 function _fold_coordinates!(c::LongRangeCache, lims::NTuple{2}, L::Real)
-    for xs ∈ StructArrays.components(c.common.points)
+    for xs ∈ StructArrays.components(c.common.pointdata.points)
         @inbounds for (i, x) ∈ pairs(xs)
             xs[i] = _fold_coordinate(x, lims, L)
         end
@@ -392,7 +223,7 @@ end
 end
 
 """
-    compute_vorticity_fourier!(cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
+    compute_vorticity_fourier!(cache::LongRangeCache)
 
 Estimate vorticity in Fourier space.
 
@@ -400,64 +231,31 @@ The vorticity, written to `cache.common.uhat`, is estimated using some variant o
 non-uniform Fourier transforms (depending on the chosen backend). Note that this function
 doesn't perform smoothing over the vorticity.
 
+Must be called after [`add_point_charges!`](@ref).
+
 After calling this function, one may want to use [`to_smoothed_streamfunction!`](@ref) and/or
 [`to_smoothed_velocity!`](@ref) to obtain the respective fields.
 """
-function compute_vorticity_fourier!(cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
-    (; to, params, uhat, state,) = cache.common
-    quad = quadrature_rule(params)
-    Ncharges = _count_charges(quad, fs)
-    reset_fields!(cache)
-    set_num_points!(cache, Ncharges)
-    n = 0
-    @timeit to "add point charges" for f ∈ fs
-        n = _add_point_charges!(cache, f, n, quad)
-    end
-    @assert n == Ncharges
-    rescale_coordinates!(cache)
-    fold_coordinates!(cache)
-    @timeit to "transform to Fourier" transform_to_fourier!(cache)
+function compute_vorticity_fourier!(cache::LongRangeCache)
+    (; to, uhat, state,) = cache.common
+    rescale_coordinates!(cache)  # may be needed by the backend (e.g. FINUFFT requires period L = 2π)
+    fold_coordinates!(cache)     # may be needed by the backend (e.g. FINUFFT requires x ∈ [-3π, 3π])
+    @timeit to "Transform to Fourier" transform_to_fourier!(cache)
     state.quantity = :vorticity
     state.smoothed = false
     uhat
-end
-
-function _add_point_charges!(cache, f, n, quad::AbstractQuadrature)
-    ζs, ws = quadrature(quad)
-    ts = knots(f)
-    @inbounds for i ∈ eachindex(segments(f))
-        Δt = ts[i + 1] - ts[i]
-        for (ζ, w) ∈ zip(ζs, ws)
-            X = f(i, ζ)
-            Ẋ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
-            # Note: the vortex circulation Γ is included in the Ewald operator and
-            # doesn't need to be included here.
-            q = w * Δt
-            add_pointcharge!(cache, X, q * Ẋ, n += 1)
-        end
-    end
-    n
-end
-
-function _add_point_charges!(cache, f, n, ::NoQuadrature)
-    @inbounds for i ∈ eachindex(segments(f))
-        X = (f[i] + f[i + 1]) ./ 2
-        Ẋ_dt = f[i + 1] - f[i]
-        add_pointcharge!(cache, X, Ẋ_dt, n += 1)
-    end
-    n
 end
 
 function set_interpolation_points!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
     )
-    (; to,) = cache.common
+    (; to, pointdata,) = cache.common
     Npoints = sum(length, fs)
-    set_num_points!(cache, Npoints)
+    set_num_points!(pointdata, Npoints)
     n = 0
     for f ∈ fs, X ∈ f
-        add_point!(cache, X, n += 1)
+        add_point!(pointdata, X, n += 1)
     end
     @assert n == Npoints
     @timeit to "rescale coordinates" rescale_coordinates!(cache)
@@ -468,7 +266,7 @@ end
 function add_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
     )
-    (; charges,) = cache.common
+    (; charges,) = cache.common.pointdata
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     n = 0

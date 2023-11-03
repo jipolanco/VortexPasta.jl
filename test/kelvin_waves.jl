@@ -92,8 +92,7 @@ function test_kelvin_waves(
             backend_short = CellListsBackend(2),
             # backend_short = NaiveShortRangeBackend(),
             backend_long = FINUFFTBackend(),
-            quadrature_short = quad,
-            quadrature_long = quad,
+            quadrature = quad,
             regularise_binormal,
         )
     end

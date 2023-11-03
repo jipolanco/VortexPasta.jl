@@ -28,28 +28,12 @@ using ..Filaments:
     knots, nodes, segments, integrate
 
 using Static: StaticBool, False, dynamic
+using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutput, @timeit, reset_timer!
 
 abstract type OutputField end
 struct Streamfunction <: OutputField end
 struct Velocity <: OutputField end
-
-# Common parameters to short- and long-range computations.
-struct ParamsCommon{T, Alpha <: Real, Sigma <: Real, Periods <: NTuple{3, Real}}
-    Γ  :: T        # vortex circulation
-    a  :: T        # vortex core size
-    Δ  :: T        # LIA coefficient given by core vorticity profile
-    α  :: Alpha    # Ewald splitting parameter (inverse length scale)
-    σ  :: Sigma    # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
-    Ls :: Periods  # size of unit cell (= period in each direction)
-    function ParamsCommon{T}(Γ, a, Δ, α, Ls) where {T}
-        σ = 1 / (α * sqrt(2))
-        new{T, typeof(α), typeof(σ), typeof(Ls)}(Γ, a, Δ, α, σ, Ls)
-    end
-end
-
-Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
-Base.eltype(p::ParamsCommon) = eltype(typeof(p))
 
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
 const VectorOfVec = AbstractVector{<:Vec3}
@@ -57,247 +41,14 @@ const VectorOfPositions = VectorOfVec
 const VectorOfVelocities = VectorOfVec
 const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
 
+include("types_shortrange.jl")
+include("types_longrange.jl")
+include("params.jl")
+include("pointdata.jl")
+include("cache.jl")
+
 include("shortrange/shortrange.jl")
 include("longrange/longrange.jl")
-
-"""
-    ParamsBiotSavart{T <: AbstractFloat}
-
-Contains parameters for calculation of Biot–Savart integrals using fast Ewald splitting.
-
-The type parameter `T` corresponds to the precision used in computations
-(typically `Float64` or `Float32`).
-
-# Construction
-
-    ParamsBiotSavart([T = Float64]; Γ, a, α, Ls, Ns, optional_kws...)
-
-where the optional parameter `T` sets the numerical precision.
-
-Mandatory and optional keyword arguments are detailed in the following.
-
-## Mandatory keyword arguments
-
-- `Γ::Real`: vortex circulation (assumed constant);
-
-- `a::Real`: vortex core size (assumed constant);
-
-- `α::Real`: Ewald splitting parameter (inverse length scale). One can set
-  `α = Zero()` to efficiently disable long-range computations.
-
-- `Ls::Union{Real, NTuple{3, Real}}`: size of unit cell (i.e. period in each direction).
-  If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
-  the same in each direction.
-
-  One can set `Ls = Infinity()` to disable periodicity. This should be done in combination with `α = Zero()`.
-
-- `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions. This parameter
-  is not required if `α = Zero()`.
-
-## Optional keyword arguments (and their defaults)
-
-### Short-range interactions
-
-- `backend_short::ShortRangeBackend`: backend used to compute
-  short-range interactions. The default is `CellListsBackend(2)`, unless periodicity is
-  disabled, in which case `NaiveShortRangeBackend()` is used.
-  See [`ShortRangeBackend`](@ref) for a list of possible backends;
-
-- `quadrature_short::AbstractQuadrature = GaussLegendre(4)`:
-  quadrature rule for short-range interactions;
-
-- `rcut = 4√2 / α`: cutoff distance for computation of short-range interactions.
-  For performance and practical reasons, the cutoff distance must be less than half the cell
-  unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
-
-### Long-range interactions
-
-- `backend_long::LongRangeBackend = FINUFFTBackend()`: backend used to compute
-  long-range interactions. See [`LongRangeBackend`](@ref) for a list of possible backends;
-
-- `quadrature_long::AbstractQuadrature = GaussLegendre(2)`:
-  quadrature rule for long-range interactions.
-
-### Local self-induced velocity
-
-- `Δ = 0.25`: coefficient appearing in the local self-induced velocity (LIA
-  term), which depends on the vorticity profile at the vortex core.
-
-  Some common values of `Δ` are:
-
-  * `Δ = 0.25` for a constant vorticity profile (default);
-
-  * `Δ = 0.5` for a hollow vortex;
-
-  * `Δ ≈ 0.905 ≈ 0.558 + ln(2) / 2` for a Gaussian vorticity profile (taking
-    `a` as the Gaussian standard deviation `σ`);
-
-  * `Δ ≈ 0.615` for a Gross–Pitaevskii vortex with healing length `a`.
-
-  See Saffman (1992), sections 10.2--10.3 for the first three.
-
-- `regularise_binormal = Val(false)`: if `Val(true)`, regularise the estimation of the local
-  binormal vector for computation of the LIA term. The binormal vector is averaged along the
-  local filament segments. This may lead to more stable simulations of single vortex rings,
-  but it's not recommended (nor very useful) for more complex cases. In particular, it can
-  lead to spurious energy fluctuations.
-
-"""
-struct ParamsBiotSavart{
-        T,
-        Common <: ParamsCommon{T},
-        ShortRange <: ParamsShortRange,
-        LongRange <: ParamsLongRange,
-    }
-    common     :: Common
-    shortrange :: ShortRange
-    longrange  :: LongRange
-
-    function ParamsBiotSavart(
-            ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
-            a::Real,
-            quadrature_short::AbstractQuadrature = GaussLegendre(4),
-            quadrature_long::AbstractQuadrature = GaussLegendre(2),
-            backend_short::ShortRangeBackend = default_short_range_backend(Ls),
-            backend_long::LongRangeBackend = FINUFFTBackend(),
-            regularise_binormal::Val{RegulariseBinormal} = Val(false),
-            Δ::Real = 0.25,
-            kws...,
-        ) where {T, RegulariseBinormal}
-        # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
-        # - define ParamsPhysical instead of ParamsCommon
-        # - include α in both ParamsShortRange and ParamsLongRange?
-        (; Ns, rcut,) = _extra_params(α; kws...)
-        common = ParamsCommon{T}(Γ, a, Δ, α, Ls)
-        sr = ParamsShortRange(
-            backend_short, quadrature_short, common, rcut, StaticBool(RegulariseBinormal),
-        )
-        lr = ParamsLongRange(backend_long, quadrature_long, common, Ns)
-        new{T, typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
-    end
-end
-
-function Base.show(io::IO, p::ParamsBiotSavart)
-    (; common, shortrange, longrange,) = p
-    (; Γ, a, Δ, Ls, α,) = common
-    σ = 1 / (α * sqrt(2))
-    rcut_L = shortrange.rcut / minimum(Ls)
-    print(io, "ParamsBiotSavart with:")
-    print(io, "\n - Physical parameters:")
-    print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
-    print(io, "\n   * Vortex core radius:         a  = ", a)
-    print(io, "\n   * Vortex core parameter:      Δ  = ", Δ)
-    print(io, "\n   * Domain period:              Ls = ", Ls)
-    print(io, "\n - Numerical parameters:")
-    print(io, "\n   * Ewald splitting parameter:  α  = ", α, " (σ = 1/α√2 = ", σ, ")")
-    print(io, "\n   * Short-range backend:        ", shortrange.backend)
-    print(io, "\n   * Short-range cut-off radius: ", shortrange.rcut, " (r_cut/L = ", rcut_L, ")")
-    print(io, "\n   * Short-range quadrature:     ", shortrange.quad)
-    print(io, "\n   * Long-range backend:         ", longrange.backend)
-    print(io, "\n   * Long-range resolution:      Ns = ", longrange.Ns)
-    print(io, "\n   * Long-range quadrature:      ", longrange.quad)
-    nothing
-end
-
-function Base.summary(io::IO, p::ParamsBiotSavart{T}) where {T}
-    # Print a few physical parameters (and α)
-    (; Γ, a, Δ, α,) = p.common
-    print(io, "ParamsBiotSavart{$T}(Γ = $Γ, a = $a, Δ = $Δ, α = $α, …)")
-end
-
-# Returns the expected period of a small-amplitude Kelvin wave of wavelength λ.
-# Can be useful when setting a simulation timestep.
-kelvin_wave_period(λ::Real; a, Δ, Γ) = 2 * λ^2 / Γ / (
-    log(λ / (π * a)) + 1/2 - (Δ + MathConstants.γ)
-)
-kelvin_wave_period(p::ParamsBiotSavart, λ::Real) = kelvin_wave_period(λ; a = p.a, Δ = p.Δ, Γ = p.Γ)
-
-# Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.
-is_open_domain(Ls::Tuple) = is_open_domain(Ls...)
-is_open_domain(::Infinity, etc...) = true
-is_open_domain(::Real, etc...) = is_open_domain(etc...)
-is_open_domain() = false
-
-function default_short_range_backend(Ls::Tuple)
-    if is_open_domain(Ls)
-        NaiveShortRangeBackend()
-    else
-        CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
-    end
-end
-
-# Returns the float type used (e.g. Float64)
-Base.eltype(::Type{<:ParamsBiotSavart{T}}) where {T} = T
-Base.eltype(p::ParamsBiotSavart) = eltype(typeof(p))
-
-periods(p::ParamsBiotSavart) = p.common.Ls
-
-_extra_params(α::Zero; Ns = (0, 0, 0), rcut = ∞) = (; Ns, rcut,)
-_extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case
-
-ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls, kws...) where {T} =
-    ParamsBiotSavart(T, Γ, α, _convert_periods(Ls); kws...)
-
-_convert_periods(Ls::NTuple{3, Real}) = Ls
-_convert_periods(L::Real) = (L, L, L)
-
-ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)
-
-# This is for convenience: doing p.α is equivalent to p.common.α.
-@inline function Base.getproperty(p::ParamsBiotSavart, name::Symbol)
-    common = getfield(p, :common)
-    if hasproperty(common, name)
-        getproperty(common, name)
-    else
-        getfield(p, name)
-    end
-end
-
-function Base.propertynames(p::ParamsBiotSavart, private::Bool = false)
-    (fieldnames(typeof(p))..., propertynames(p.common, private)...)
-end
-
-"""
-    BiotSavartCache
-
-Includes arrays and data required for computation of Biot–Savart integrals.
-
-## Fields
-
-- `shortrange`: cache associated to short-range computations;
-- `longrange`: cache associated to long-range computations. It can be `NullLongRangeCache()`
-  in case the Ewald parameter `α` was set to `Zero()`;
-- `to`: a `TimerOutput` instance for measuring the time spent on different functions.
-
-"""
-struct BiotSavartCache{
-        ShortRange <: ShortRangeCache,
-        LongRange <: LongRangeCache,
-        Timer,
-    }
-    shortrange :: ShortRange
-    longrange  :: LongRange
-    to         :: Timer
-end
-
-Base.summary(io::IO, c::BiotSavartCache) = print(io, "BiotSavartCache")
-
-"""
-    init_cache(
-        p::ParamsBiotSavart, fs::AbstractVector{<:AbstractFilament};
-        timer = TimerOutput("BiotSavart"),
-    ) -> BiotSavartCache
-
-Initialise caches for computing Biot–Savart integrals.
-"""
-function init_cache(
-        p::ParamsBiotSavart, fs::AbstractVector{<:AbstractFilament};
-        timer = TimerOutput("BiotSavart"),
-    )
-    shortrange = init_cache_short(p.common, p.shortrange, fs, timer)
-    longrange = init_cache_long(p.common, p.longrange, timer)
-    BiotSavartCache(shortrange, longrange, timer)
-end
 
 """
     velocity_on_nodes!(
@@ -433,12 +184,28 @@ function compute_on_nodes!(
         return _compute_LIA_on_nodes!(fields, cache, fs)
     end
 
-    (; to,) = cache
+    (; to, params, pointdata,) = cache
+    (; quad,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
+
+    # This is used by both short-range and long-range computations.
+    # Note that we need to compute the short-range first, because the long-range
+    # computations then modify `pointdata`.
+    @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)
+
+    if shortrange === Val(true)
+        @timeit to "Short-range component" begin
+            @timeit to "Set point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
+            @timeit to "Compute Biot–Savart" for i ∈ eachindex(fs)
+                fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
+                add_short_range_fields!(fields_i, cache.shortrange, fs[i]; LIA)
+            end
+        end
+    end
 
     if cache.longrange !== NullLongRangeCache() && longrange === Val(true)
         @timeit to "Long-range component" begin
-            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange, fs)
+            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
             set_interpolation_points!(cache.longrange, fs)
             if ψs !== nothing
                 @timeit to "Streamfunction" begin
@@ -454,16 +221,6 @@ function compute_on_nodes!(
                     interpolate_to_physical!(cache.longrange)
                     add_long_range_output!(vs, cache.longrange)
                 end
-            end
-        end
-    end
-
-    if shortrange === Val(true)
-        @timeit to "Short-range component" begin
-            set_filaments!(cache.shortrange, fs)
-            for i ∈ eachindex(fs)
-                fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
-                add_short_range_fields!(fields_i, cache.shortrange, fs[i]; LIA)
             end
         end
     end

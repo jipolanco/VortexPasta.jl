@@ -16,7 +16,7 @@ using Static: StaticInt, static, dynamic
     PeriodicCellList{N, T}
     PeriodicCellList(
         ::Type{T}, rs_cut::NTuple{N, Real}, periods::NTuple{N, Real},
-        [nsubdiv::StaticInt = static(1)];
+        [nsubdiv = static(1)];
         [to_coordinate::Function = identity],
     )
 
@@ -37,6 +37,7 @@ subcells. This can significantly improve performance, since it allows to discard
 spurious pair interactions (i.e. beyond the chosen cutoff radius) as described
 [here](https://en.wikipedia.org/wiki/Cell_lists#Improvements). In practice, a value of
 `2` or `3` can significantly improve performance compared to no subdivision (`1`).
+For convenience, it can be passed as `nsubdiv = Val(M)` or as `nsubdiv = static(M)`.
 
 Infinite non-periodic domains (in the sense of `period = Infinity()`) are not supported.
 
@@ -76,6 +77,9 @@ end
 
 Base.size(cl::PeriodicCellList) = size(cl.data)
 subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M
+
+@inline PeriodicCellList(::Type{T}, rs, Ls, nsubdiv::Val{M}; kws...) where {T, M} =
+    PeriodicCellList(T, rs, Ls, static(M); kws...)
 
 function PeriodicCellList(
         ::Type{T},

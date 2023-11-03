@@ -225,12 +225,10 @@ rcut = 5 / α              # cut-off distance for short-range computations
 rcut / L                  # note: the cut-off distance should be less than half the period L
 
 # Additionally, we can optionally set the parameters for numerical integration.
-# These are the quadrature rules used to approximate line integrals within each filament
-# segment (see [Numerical integration](@ref)).
-# We can separately set the quadrature rule used for short-range and long-range computations:
+# In particular, we can set the quadrature rule used to approximate line integrals within each filament
+# segment (see [Numerical integration](@ref)):
 
-quadrature_short = GaussLegendre(4)  # use 4-point Gauss–Legendre quadrature
-quadrature_long  = GaussLegendre(4)
+quadrature = GaussLegendre(4)  # use 4-point Gauss–Legendre quadrature
 nothing  # hide
 
 # See [`GaussLegendre`](@ref) or the [Wikipedia
@@ -244,8 +242,7 @@ params = ParamsBiotSavart(;
     Ls = (L, L, L),  # same domain size in all directions
     Ns = (N, N, N),  # same long-range resolution in all directions
     rcut,
-    quadrature_short,
-    quadrature_long,
+    quadrature,
 )
 
 # Note that there are a few parameters, namely the short-range and long-range backends,
@@ -390,8 +387,7 @@ fig
 params_inf = ParamsBiotSavart(;
     Γ, α = Zero(), Δ, a,
     Ls = Infinity(),
-    quadrature_short,
-    quadrature_long,
+    quadrature,
 )
 
 # Here [`Zero`](@ref) and [`Infinity`](@ref) are custom types that, as one may expect,
