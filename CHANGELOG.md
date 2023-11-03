@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This allows to reuse interpolation operations between short-range and long-range computations, where positions and derivatives are evaluated in-between discretisation points.
   In particular, short-range computations should be faster now.
 
+### Fixed
+
+- `QuinticSplineMethod` now requires filaments with at least 7 nodes, due to how the associated linear system is assembled.
+
 ## [0.6.4] - 2023-10-31
 
 ### Fixed
