@@ -237,10 +237,10 @@ After calling this function, one may want to use [`to_smoothed_streamfunction!`]
 [`to_smoothed_velocity!`](@ref) to obtain the respective fields.
 """
 function compute_vorticity_fourier!(cache::LongRangeCache)
-    (; to, uhat, state,) = cache.common
+    (; uhat, state,) = cache.common
     rescale_coordinates!(cache)  # may be needed by the backend (e.g. FINUFFT requires period L = 2π)
     fold_coordinates!(cache)     # may be needed by the backend (e.g. FINUFFT requires x ∈ [-3π, 3π])
-    @timeit to "Transform to Fourier" transform_to_fourier!(cache)
+    transform_to_fourier!(cache)
     state.quantity = :vorticity
     state.smoothed = false
     uhat
@@ -250,7 +250,7 @@ function set_interpolation_points!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
     )
-    (; to, pointdata,) = cache.common
+    (; pointdata,) = cache.common
     Npoints = sum(length, fs)
     set_num_points!(pointdata, Npoints)
     n = 0
@@ -258,8 +258,8 @@ function set_interpolation_points!(
         add_point!(pointdata, X, n += 1)
     end
     @assert n == Npoints
-    @timeit to "rescale coordinates" rescale_coordinates!(cache)
-    @timeit to "fold coordinates" fold_coordinates!(cache)
+    rescale_coordinates!(cache)
+    fold_coordinates!(cache)
     nothing
 end
 

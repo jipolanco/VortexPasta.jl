@@ -206,9 +206,9 @@ function compute_on_nodes!(
     if cache.longrange !== NullLongRangeCache() && longrange === Val(true)
         @timeit to "Long-range component" begin
             @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
-            set_interpolation_points!(cache.longrange, fs)
+            @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)
             if ψs !== nothing
-                @timeit to "Streamfunction" begin
+                @timeit to "Streamfunction to physical" begin
                     to_smoothed_streamfunction!(cache.longrange)
                     interpolate_to_physical!(cache.longrange)
                     add_long_range_output!(ψs, cache.longrange)
@@ -216,7 +216,7 @@ function compute_on_nodes!(
             end
             if vs !== nothing
                 # Velocity must be computed after streamfunction if both are enabled.
-                @timeit to "Velocity" begin
+                @timeit to "Velocity to physical" begin
                     to_smoothed_velocity!(cache.longrange)
                     interpolate_to_physical!(cache.longrange)
                     add_long_range_output!(vs, cache.longrange)
