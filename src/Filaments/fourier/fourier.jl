@@ -44,7 +44,7 @@ interpolation_method(m::FourierMethod) = m.interp
 # interpolations...
 continuity(::Type{<:FourierMethod{I}}) where {I} = 4
 
-npad(::Type{<:FourierMethod}) = 1  # padding needed for Fourier series + Hermite interpolation
+npad(::Type{<:FourierMethod}) = 2  # we need at least npad = 1 for Hermite interpolations
 
 Base.show(io::IO, ::FourierMethod{I}) where {I} = print(io, "FourierMethod{", I, "}")
 
