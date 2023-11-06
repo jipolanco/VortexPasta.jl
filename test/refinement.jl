@@ -12,10 +12,23 @@ function trefoil_curve(; R, origin,)
     (; tlims, S, R, origin,)
 end
 
+# This is in particular to check that knot insertion in spline implementations gives the
+# right interpolation coefficients.
+function check_coefficients(f)
+    fc = copy(f)
+    # Check that coefficients don't change after calling update_coefficients!.
+    # If they do, it's beacuse the original coefficients are wrong (they don't correctly
+    # interpolate the filament nodes).
+    update_coefficients!(fc; knots = knots(fc))
+    @test fc.coefs.cs ≈ f.coefs.cs
+    nothing
+end
+
 @testset "Refinement: trefoil knot" begin
     methods = (
         FiniteDiffMethod(),
         CubicSplineMethod(),
+        QuinticSplineMethod(),
         FourierMethod(),
     )
     N = 64
@@ -27,6 +40,22 @@ end
         f = Filaments.init(ClosedFilament, copy(Xs_base), method)
         l_min_orig, l_max_orig = extrema(eachindex(segments(f))) do i
             norm(f[i + 1] - f[i])
+        end
+
+        @testset "Insert at beginning" begin
+            fc = copy(f)
+            i = firstindex(fc)  # insert node between nodes 1 and 2
+            Filaments.insert_node!(fc, i, 0.5)
+            Filaments.update_after_changing_nodes!(fc; removed = false)  # we didn't remove any nodes
+            check_coefficients(fc)
+        end
+
+        @testset "Insert at end" begin
+            fc = copy(f)
+            i = lastindex(fc)  # insert node after last node
+            Filaments.insert_node!(fc, i, 0.5)
+            Filaments.update_after_changing_nodes!(fc; removed = false)  # we didn't remove any nodes
+            check_coefficients(fc)
         end
 
         @testset "RefineBasedOnSegmentLength" begin
@@ -45,6 +74,7 @@ end
                 niter += 1
                 N_prev = length(fc)
                 ret = Filaments.refine!(fc, crit)
+                check_coefficients(fc)
                 all(iszero, ret) && break
                 n_add, n_rem = ret
                 @test length(fc) == N_prev + n_add - n_rem
@@ -71,6 +101,7 @@ end
             while true  # do multiple passes if needed, until we don't need to refine anymore
                 niter += 1
                 ret = Filaments.refine!(fc, crit)
+                check_coefficients(fc)
                 all(iszero, ret) && break
                 n_add, n_rem = ret
                 # Make sure we insert nodes at the first iteration (since the

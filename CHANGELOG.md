@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2023-11-06
+
+### Fixed
+
+- Fix knot insertion issue for quintic splines.
+
 ## [0.7.0] - 2023-11-03
 
 ### Changed
