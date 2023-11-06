@@ -264,6 +264,7 @@ function spline_insert_knot!(::Val{k}, cs::PaddedVector, ts::PaddedVector, i::In
         @inbounds α = (t - ts[j - h]) / (ts[j + h - 1] - ts[j - h])
         @inbounds (1 - α) * cs[j - 1] + α * cs[j]
     end
+    # Note: the modified and new coefficients are cs[(i - h + 2):(i + h)].
     for j ∈ 1:(h - 1)
         @inbounds cs[ileft + j] = cs_new[j]
     end
@@ -272,10 +273,14 @@ function spline_insert_knot!(::Val{k}, cs::PaddedVector, ts::PaddedVector, i::In
         @inbounds cs[i + 1 + j] = cs_new[h + j]
     end
     insert!(ts, i + 1, t)
-    if i + h > lastindex(cs)
-        pad_periodic!(FromRight(), cs)   # preserve values such as cs[end + 1] (over of cs[1])
+    ifirst = i - h + 2  # index of first modified coefficient
+    ilast = i + h       # index of last modified coefficient
+    if ifirst < firstindex(cs)
+        pad_periodic!(FromLeft(), cs)    # preserve values such as cs[begin - 1] (over cs[end])
+    elseif ilast > lastindex(cs)
+        pad_periodic!(FromRight(), cs)   # preserve values such as cs[end + 1] (over of cs[begin])
     else
-        pad_periodic!(FromCentre(), cs)  # usual padding, preserves cs[1]
+        pad_periodic!(FromCentre(), cs)  # usual padding, preserves cs[begin]
     end
     pad_periodic!(FromCentre(), ts, T)
     nothing

@@ -36,7 +36,7 @@ using ..BasicTypes: Vec3, Derivative
 using ..PredefinedCurves: PredefinedCurves  # just for documentation
 
 # Load PaddedVector and some non-exported functions associated to PaddedVector
-using ..PaddedArrays: PaddedVector, pad_periodic!, FromCentre, FromRight
+using ..PaddedArrays: PaddedVector, pad_periodic!, FromCentre, FromRight, FromLeft
 import ..PaddedArrays: npad  # overloaded for DiscretisationMethod
 
 using LinearAlgebra: norm, normalize, ⋅, ×

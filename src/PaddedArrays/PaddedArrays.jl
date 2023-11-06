@@ -189,6 +189,7 @@ Base.pointer(v::PaddedVector) = pointer(parent(v), npad(v) + 1)  # points to the
 
 struct FromCentre end
 struct FromRight end
+struct FromLeft end
 
 """
     pad_periodic!(v::PaddedArray{M, T, N}, [L = zero(T)])
@@ -216,6 +217,7 @@ function pad_periodic!(::FromCentre, v::PaddedVector{M, T}, L::T = zero(T)) wher
         v[begin - i] = v[end + 1 - i] - L
         v[end + i] = v[begin - 1 + i] + L
     end
+    v
 end
 
 # This variant gives priority to padded values on the right of the "central" array.
@@ -225,6 +227,16 @@ function pad_periodic!(::FromRight, v::PaddedVector{M, T}, L::T = zero(T)) where
     @inbounds for i ∈ 1:M
         v[begin - i] = v[end + 1 - i] - L
         v[begin - 1 + i] = v[end + i] - L
+    end
+    v
+end
+
+# Similar to above, but preserving the left padding.
+function pad_periodic!(::FromLeft, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}
+    @assert length(v) ≥ M
+    @inbounds for i ∈ 1:M
+        v[end + 1 - i] = v[begin - i] + L
+        v[end + i] = v[begin - 1 + i] + L
     end
     v
 end
