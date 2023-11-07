@@ -32,28 +32,29 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
 end
 
 # Explicit RK methods
-dt_factor(::RK4) = 1.8    # this factor seems to give stability with RK4 (fails with factor = 1.9)
-dt_factor(::DP5) = 1.5    # I'd expect DP5 to allow a larger timestep than RK4, but that doesn't seem to be the case...
-dt_factor(::SSPRK33) = 1.2
-dt_factor(::Euler) = 0.12  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
+dt_factor(::RK4) = 1.5    # this factor seems to give stability with RK4
+dt_factor(::DP5) = 1.3    # I'd expect DP5 to allow a larger timestep than RK4, but that doesn't seem to be the case...
+dt_factor(::SSPRK33) = 1.1
+dt_factor(::Euler) = 0.08  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
 dt_factor(::Midpoint) = 0.4
 
 # IMEX-RK methods
-dt_factor(::IMEXEuler) = 0.6
-dt_factor(::Ascher343) = 1.3
-dt_factor(::KenCarp3) = 1.3
-dt_factor(::KenCarp4) = 2.2
+dt_factor(::IMEXEuler) = 0.25
+dt_factor(::Ascher343) = 1.2
+dt_factor(::KenCarp3) = 1.2
+dt_factor(::KenCarp4) = 1.5  # we could increase this but then it takes more iterations and time to solve the implicit problem!
 
 dt_factor(::MultirateMidpoint) = 4.0
-dt_factor(::SanduMRI33a) = 4.0
-dt_factor(::SanduMRI45a) = 5.0
+dt_factor(::SanduMRI33a) = 5.0
+dt_factor(::SanduMRI45a) = 8.0
 
 function test_kelvin_waves(
         scheme = RK4();
-        method = CubicSplineMethod(), Lz = 2π, A = 0.01, k = 1,
+        method = QuinticSplineMethod(), Lz = 2π, A = 0.01, k = 1,
         quad = GaussLegendre(4),
-        regularise_binormal = Val(true),  # enables larger timesteps (and accuracy loss...)
+        regularise_binormal = Val(false),  # enables larger timesteps (and accuracy loss...)
     )
+    test_jet = true
     Lx = Ly = Lz
     lines = [
         init_vortex_line(; x = 0.25Lx, y = 0.25Ly, Lz, sign = +1, A = +A, k,),
@@ -62,7 +63,7 @@ function test_kelvin_waves(
         init_vortex_line(; x = 0.75Lx, y = 0.75Ly, Lz, sign = +1, A = +A, k,),
     ]
 
-    N = 42
+    N = 16
     filaments = map(lines) do line
         Filaments.init(line.S, ClosedFilament, N, method)
     end
@@ -83,25 +84,27 @@ function test_kelvin_waves(
     params_bs = let
         @assert Lx == Ly == Lz
         Ls = (Lx, Ly, Lz)
-        Ns = (1, 1, 1) .* 32
+        Ns = (1, 1, 1) .* 16
         kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
         α = kmax / 5
         rcut = 5 / α
         ParamsBiotSavart(;
             Γ, α, a, Δ, rcut, Ls, Ns,
-            backend_short = CellListsBackend(2),
-            # backend_short = NaiveShortRangeBackend(),
-            backend_long = FINUFFTBackend(),
+            # backend_short = CellListsBackend(2),
+            backend_short = NaiveShortRangeBackend(),
+            backend_long = FINUFFTBackend(tol = 1e-6),
             quadrature = quad,
             regularise_binormal,
+            # For NoQuadrature, it doesn't make much sense to use lia_segment_fraction ≠ 1.
+            lia_segment_fraction = quad === NoQuadrature() ? 1.0 : 0.1,
         )
     end
 
     fs = copy.(filaments)
     tmax = if scheme isa Euler
-        0.5  # explicit Euler needs a very small dt, hence we reduce the time...
+        1.0  # explicit Euler needs a very small dt, hence we reduce the time...
     else
-        1.2
+        1.5
     end
     tspan = (0.0, tmax * T_kw)
 
@@ -114,11 +117,14 @@ function test_kelvin_waves(
         (; t, nstep,) = iter
         push!(times, t)
         push!(X_probe, iter.fs[1][jprobe])
+        T = iter.prob.tspan[2]
         local (; fs, ψs,) = iter
         local (; Γ, Ls,) = iter.prob.p.common
         local quad = nothing  # this doesn't seem to change much the results...
         E = Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad)
-        # @show (nstep, t, E)
+        # if nstep % 10 == 0
+        #     @show nstep, t/T, E
+        # end
         # write_vtkhdf("kw_$nstep.hdf", fs; refinement = 4) do io
         #     io["Streamfunction"] = ψs
         # end
@@ -130,14 +136,16 @@ function test_kelvin_waves(
     # This tests `show(::IO, prob)`.
     @test startswith(repr(prob), "VortexFilamentProblem with fields:\n")
 
-    # The `5` is simply because the factors were originally tuned with an old definition of
-    # AdaptBasedOnSegmentLength.
-    factor = 5 * dt_factor(scheme)
+    factor = dt_factor(scheme)
+    if method isa CubicSplineMethod
+        factor *= 0.8  # CubicSplineMethod requires slightly smaller timestep
+    end
 
     iter = @inferred init(
         prob, scheme;
-        dtmin = T_kw * 1e-4,
+        dtmin = factor * T_kw * 1e-4,
         dt = 1.0,  # will be changed by the adaptivity
+        fast_term = ShortRangeTerm(),  # allows to increase the timestep with splitting methods
         adaptivity = AdaptBasedOnSegmentLength(factor),
         refinement = NoRefinement(),  # make sure that nodes don't "move" vertically due to refinement
         callback,
@@ -156,7 +164,9 @@ function test_kelvin_waves(
         # println(plt)
     end
 
-    @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+    if test_jet
+        @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+    end
 
     (; fs, vs, ψs,) = iter  # `vs` already contains the initial velocities
 
@@ -165,18 +175,24 @@ function test_kelvin_waves(
     fil = fs[1]
     vel = vs[1]
 
-    # Test the initial condition just once, since it doesn't depend on the scheme...
-    if scheme isa RK4
-        @testset "Initial condition" begin
-            @test iter.time.t == 0
-            @test iter.time.nstep == 0
-            sign_kw = -line.sign  # KWs rotate in the direction opposite to the vortex circulation
-            for (X, v) ∈ zip(nodes(fil), vel)
-                @test norm(v) ≈ abs(v[2])  # initial velocity is in the `y` direction
-                δx = X[1] - line.x         # local perturbation
-                v_expected = sign_kw * ω_kw * δx
-                @test isapprox(v_expected, v[2]; rtol = 0.01)  # `rtol` can be further decreased if one increases the resolution `N` (things seem to converge)
+    # This shouldn't depend on the scheme, but it can depend on the discretisation
+    # parameters.
+    @testset "Initial condition" begin
+        @test iter.time.t == 0
+        @test iter.time.nstep == 0
+        sign_kw = -line.sign  # KWs rotate in the direction opposite to the vortex circulation
+        for (X, v) ∈ zip(nodes(fil), vel)
+            @test norm(v) ≈ abs(v[2])  # initial velocity is in the `y` direction
+            δx = X[1] - line.x         # local perturbation
+            v_expected = sign_kw * ω_kw * δx
+            # `rtol` can be further decreased if one increases the resolution `N` (things seem to converge)
+            # @show (v_expected - v[2]) / v_expected
+            rtol = if method isa CubicSplineMethod
+                0.03
+            else
+                0.01
             end
+            @test isapprox(v_expected, v[2]; rtol)
         end
     end
 
@@ -209,6 +225,9 @@ function test_kelvin_waves(
         if iseuler
             @test energy_std / energy_initial < 1e-6
             @test isapprox(energy_last, energy_initial; rtol = 1e-5)
+        elseif method isa CubicSplineMethod || quad === NoQuadrature()
+            @test energy_std / energy_initial < 2e-9
+            @test isapprox(energy_last, energy_initial; rtol = 2e-9)
         else
             @test energy_std / energy_initial < 1e-9
             @test isapprox(energy_last, energy_initial; rtol = 2e-9)
@@ -260,7 +279,7 @@ function test_kelvin_waves(
         end
 
         # Verify that we found a good global minimum.
-        A_tol = iseuler ? 1e-6 : 2e-13
+        A_tol = iseuler ? 2e-6 : 2e-13
         Nt = length(times)
         # @show xfit.minimum / (A * Nt)
         # @show yfit.minimum / (A * Nt)
@@ -276,12 +295,13 @@ function test_kelvin_waves(
         # @show abs(Ax - Ay) / Ay
         # @show abs(ωx - ωy) / ωy
         @test isapprox(Ax, Ay; rtol = 1e-2)
-        @test isapprox(ωx, ωy; rtol = iseuler ? 2e-3 : 1e-5)
+        @test isapprox(ωx, ωy; rtol = iseuler ? 2e-3 : 1e-6)
 
         # Check that we actually recover the KW frequency!
         # @show abs(ωy - ω_kw) / ω_kw
-        @test isapprox(ωx, ω_kw; rtol = 8e-3)
-        @test isapprox(ωy, ω_kw; rtol = 8e-3)
+        rtol = method isa CubicSplineMethod ? 2e-2 : quad === NoQuadrature() ? 6e-3 : 1e-3
+        @test isapprox(ωx, ω_kw; rtol)
+        @test isapprox(ωy, ω_kw; rtol)
     end
 
     nothing
@@ -290,25 +310,22 @@ end
 @testset "Kelvin waves" begin
     schemes = (
         RK4(), KenCarp3(),
-        SanduMRI33a(4),  # 4 substeps seems to be enough!
-        # SanduMRI45a(2),  # 2 substeps seems to be enough!
+        SanduMRI33a(RK4(), 1),
+        # SanduMRI45a(RK4(), 1),
     )
     @testset "Scheme: $scheme" for scheme ∈ schemes
-        test_kelvin_waves(scheme; method = CubicSplineMethod())
-    end
-    @testset "No regularisation" begin
-        test_kelvin_waves(SanduMRI33a(RK4(), 8); regularise_binormal = Val(false))
+        test_kelvin_waves(scheme; method = QuinticSplineMethod())
     end
     @testset "NoQuadrature()" begin
-        test_kelvin_waves(SanduMRI33a(RK4(), 8); quad = NoQuadrature(), regularise_binormal = Val(false))
+        test_kelvin_waves(RK4(); quad = NoQuadrature())
     end
-    @testset "QuinticSplineMethod()" begin
-        test_kelvin_waves(SanduMRI33a(RK4(), 8); method = QuinticSplineMethod(), regularise_binormal = Val(false))
+    @testset "CubicSplineMethod()" begin
+        test_kelvin_waves(SanduMRI33a(RK4(), 1); method = CubicSplineMethod())
     end
     @testset "FourierMethod()" begin
-        test_kelvin_waves(SanduMRI33a(RK4(), 8); method = FourierMethod(), regularise_binormal = Val(false))
+        test_kelvin_waves(SanduMRI33a(RK4(), 1); method = FourierMethod())
     end
-    @testset "RK4 + FiniteDiff(2)" begin
-        test_kelvin_waves(RK4(); method = FiniteDiffMethod(2, HermiteInterpolation(2)))
+    @testset "FiniteDiffMethod()" begin
+        test_kelvin_waves(RK4(); method = FiniteDiffMethod())
     end
 end

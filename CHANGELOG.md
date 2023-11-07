@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add optional `lia_segment_limits` parameter, which allows to compute the LIA term over a fraction of the local segments. This can improve accuracy, especially when the filament discretisation is relatively coarse.
 
+- Add optional `fast_term` parameter in `Timestepping`. When using split schemes (such as IMEX or multirate Runge–Kutta), this allows to indicate what is considered to be the "fast" term. More precisely, the fast term can either be identified to the local (LIA) term in Biot–Savart, or to the short-range term in Ewald summation.
+
 ## [0.7.1] - 2023-11-06
 
 ### Fixed

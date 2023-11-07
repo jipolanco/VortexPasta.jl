@@ -49,15 +49,16 @@ points = [x⃗₀ + R * Vec3(cos(θ), sin(θ), 0) for θ ∈ θs]
 # Now that we have defined a set of points, we can create a filament using `Filaments.init`.
 # Note that this function requires choosing a **discretisation method** which will be used to
 # interpolate the curve in-between nodes and to estimate curve derivatives.
-# Here we use the [`CubicSplineMethod`](@ref), which represents curves as **periodic cubic
-# splines**:
+# Here we use the [`QuinticSplineMethod`](@ref), which represents curves as **periodic
+# quintic splines** (that is, piecewise polynomials of degree 5):
 
-f = Filaments.init(ClosedFilament, points, CubicSplineMethod())
+f = Filaments.init(ClosedFilament, points, QuinticSplineMethod())
 
-# Another possible discretisation option is the [`FiniteDiffMethod`](@ref), which estimates
-# derivatives at discretisation points using **finite differences** (based on the locations of
-# neighbouring points), and performs Hermite interpolations using those derivatives to
-# reconstruct the curve in-between nodes.
+# Other possible discretisation options are the [`CubicSplineMethod`](@ref) and
+# [`FiniteDiffMethod`](@ref).
+# The latter estimates derivatives at discretisation points using **finite differences**
+# (based on the locations of neighbouring points), and performs Hermite interpolations using
+# those derivatives to reconstruct the curve in-between nodes.
 #
 # Besides, note that the first argument ([`ClosedFilament`](@ref)) is mandatory and is only
 # there to make sure that we're creating a *closed* (as opposed to an open-ended) filament.
@@ -215,11 +216,11 @@ nothing  # hide
 # See the [Parameter selection](@ref Ewald-parameters) section for an advice on how to set
 # them.
 #
-# Following that page, we start by setting the resolution ``N`` of the numerical grid used
+# Following that page, we start by setting the resolution ``M`` of the numerical grid used
 # for long-range computations, and we set the other parameters based on that:
 
-N = round(Int, 64 * 4/5)  # we prefer if the FFT size is a power of 2, here Ñ = σN = 64
-kmax = π * N / L          # this is the maximum resolved wavenumber (the Nyquist frequency)
+M = round(Int, 64 * 4/5)  # we prefer if the FFT size is a power of 2, here M′ = σM = 64 (where σ = 1.25)
+kmax = π * M / L          # this is the maximum resolved wavenumber (the Nyquist frequency)
 α = kmax / 8              # Ewald splitting parameter || "α" can be typed by "\alpha<tab>"
 rcut = 5 / α              # cut-off distance for short-range computations
 rcut / L                  # note: the cut-off distance should be less than half the period L
@@ -240,7 +241,7 @@ using VortexPasta.BiotSavart
 params = ParamsBiotSavart(;
     Γ, α, Δ, a,
     Ls = (L, L, L),  # same domain size in all directions
-    Ns = (N, N, N),  # same long-range resolution in all directions
+    Ns = (M, M, M),  # same long-range resolution in all directions
     rcut,
     quadrature,
 )
@@ -404,27 +405,27 @@ v_std_normalised_inf = v_std_inf / norm(v_mean_inf)
 @show v_mean_inf v_std_inf v_std_normalised_inf
 nothing  # hide
 
-# Interestingly, the velocity fluctuations along the filament are orders of magnitude
-# smaller than in the periodic case.
+# The velocity fluctuations along the filament are now practically zero!
+# This should be contrasted with the standard deviation of about ``0.001`` we obtained in
+# the periodic case.
 # This is consistent with what was explained on the anisotropy introduced by periodicity,
 # in the sense that not all points on the filament "feel" the effect of the periodic images
 # in the same way.
 #
-# Besides, the mean velocity is approximately the same as in the periodic case.
-# In fact, we can see that it's even closer to the analytical velocity:
+# Moreover, the mean velocity is even closer to the analytical velocity:
 
 vz_inf = v_mean_inf[3]
 relative_difference_inf = (v_ring - vz_inf) / v_ring
 
-# The relative difference is reduced to about 1%.
-# Once again, this clearly shows that periodic images have a minor impact on the effective
+# The relative difference is reduced from 5% to about 0.01%!
+# Once again, this clearly shows that periodic images have some (very minor) impact on the effective
 # vortex ring velocity.
 #
-# Note that we could further reduce the difference with the analytical result by either
-# increasing the filament resolution ``N`` or by using a discretisation scheme which better
-# reproduces circular curves (such as [`FourierMethod`](@ref) or even
-# [`FiniteDiffMethod`](@ref), which works better than [`CubicSplineMethod`](@ref) for the
-# specific case of circular curves).
+# Note that we could further reduce the difference with the analytical result by increasing
+# the filament resolution ``N``. The results also depend on the chosen discretisation
+# scheme: [`QuinticSplineMethod`](@ref) allows to accurately describe the circular vortex
+# ring geometry (and [`FourierMethod`](@ref) even more so), while methods like
+# [`CubicSplineMethod`](@ref) and [`FiniteDiffMethod`](@ref) are less accurate.
 
 # ## Making the ring move
 #

@@ -6,6 +6,7 @@ Module defining timestepping solvers for vortex filament simulations.
 module Timestepping
 
 export init, solve!, step!, VortexFilamentProblem,
+       ShortRangeTerm, LocalTerm,
        ParamsBiotSavart,                           # from ..BiotSavart
        NoReconnections, ReconnectBasedOnDistance,  # from ..Reconnections
        reset_timer!  # from TimerOutputs
@@ -143,6 +144,27 @@ function Base.summary(io::IO, time::TimeInfo)
     print(io, "TimeInfo(nstep = $nstep, t = $t, dt = $dt, dt_prev = $dt_prev)")
 end
 
+abstract type FastBiotSavartTerm end
+
+"""
+    ShortRangeTerm <: FastBiotSavartTerm
+
+Identifies fast dynamics with the **short-range component** of Ewald splitting.
+
+This is only useful for split timestepping schemes like IMEX or multirate methods.
+"""
+struct ShortRangeTerm <: FastBiotSavartTerm end
+
+"""
+    LocalTerm <: FastBiotSavartTerm
+
+Identifies fast dynamics with the **local (LIA) term** associated to the desingularisation
+of the Biot–Savart integral.
+
+This is useful for split timestepping schemes like IMEX or multirate methods.
+"""
+struct LocalTerm <: FastBiotSavartTerm end
+
 """
     VortexFilamentSolver
 
@@ -176,6 +198,7 @@ struct VortexFilamentSolver{
         CacheReconnect <: AbstractReconnectionCache,
         CacheBS <: BiotSavartCache,
         CacheTimestepper <: TemporalSchemeCache,
+        FastTerm <: FastBiotSavartTerm,
         Timer <: TimerOutput,
         Callback <: Function,
         AdvectFunction <: Function,
@@ -192,6 +215,7 @@ struct VortexFilamentSolver{
     reconnect         :: CacheReconnect
     cache_bs          :: CacheBS
     cache_timestepper :: CacheTimestepper
+    fast_term         :: FastTerm
     callback :: Callback
     to       :: Timer
     advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
@@ -214,6 +238,7 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     summary(io, iter.cache_bs)
     print(io, "\n - `cache_timestepper`: ")
     summary(io, iter.cache_timestepper)
+    print(io, "\n - `fast_term`: ", iter.fast_term)
     print(io, "\n - `callback`: Function (`", _printable_function(iter.callback), "`)")
     print(io, "\n - `advect!`: Function")
     print(io, "\n - `rhs!`: Function")
@@ -270,6 +295,10 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `dtmin = 0.0`: minimum `dt` for adaptive timestepping. If `dt < dtmin`, the
   solver is stopped with an error.
 
+- `fast_term = LocalTerm()`: for IMEX and multirate schemes, this determines what is meant by
+  "fast" and "slow" dynamics. This can either be [`LocalTerm`](@ref) or [`ShortRangeTerm`](@ref).
+  Note that the default may change in the future!
+
 - `callback`: a function to be called at the end of each timestep. The function
   must accept a single argument `iter::VortexFilamentSolver`.
 
@@ -281,6 +310,7 @@ function init(
         alias_u0 = false,   # same as in OrdinaryDiffEq.jl
         dt::Real,
         dtmin::Real = 0.0,
+        fast_term::FastBiotSavartTerm = LocalTerm(),
         refinement::RefinementCriterion = NoRefinement(),
         reconnect::ReconnectionCriterion = NoReconnections(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
@@ -311,7 +341,7 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs_sol, vs, ψs, time, dtmin, refinement, adaptivity, cache_reconnect,
-        cache_bs, cache_timestepper, callback_, timer,
+        cache_bs, cache_timestepper, fast_term, callback_, timer,
         advect!, rhs!,
     )
 
@@ -322,6 +352,7 @@ end
 
 function _update_values_at_nodes!(
         ::Val{:full},
+        ::FastBiotSavartTerm,  # ignored in this case
         fields::NamedTuple{Names, NTuple{N, V}},
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
@@ -337,11 +368,22 @@ end
 # This component will be treated explicitly by IMEX schemes.
 function _update_values_at_nodes!(
         ::Val{:slow},
+        ::LocalTerm,
         fields::NamedTuple{(:velocity,)},
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
+end
+
+function _update_values_at_nodes!(
+        ::Val{:slow},
+        ::ShortRangeTerm,
+        fields::NamedTuple{(:velocity,)},
+        fs::VectorOfFilaments,
+        iter::VortexFilamentSolver,
+    )
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = Val(false))
 end
 
 # Compute fast component only.
@@ -351,11 +393,22 @@ end
 # This component will be treated implicitly by IMEX schemes.
 function _update_values_at_nodes!(
         ::Val{:fast},
+        ::LocalTerm,
         fields::NamedTuple{(:velocity,)},
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+end
+
+function _update_values_at_nodes!(
+        ::Val{:fast},
+        ::ShortRangeTerm,
+        fields::NamedTuple{(:velocity,)},
+        fs::VectorOfFilaments,
+        iter::VortexFilamentSolver,
+    )
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = Val(false))
 end
 
 # This is the most general variant which should be called by timesteppers.
@@ -364,7 +417,7 @@ function update_values_at_nodes!(
         fields::NamedTuple, fs, t::Real, iter;
         component = Val(:full),  # compute slow + fast components by default
     )
-    _update_values_at_nodes!(component, fields, fs, iter)
+    _update_values_at_nodes!(component, iter.fast_term, fields, fs, iter)
 end
 
 # Case where only the velocity is passed (generally used in internal RK substeps).
