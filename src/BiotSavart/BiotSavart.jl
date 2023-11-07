@@ -236,7 +236,7 @@ function _compute_LIA_on_nodes!(
     (; to,) = cache
     (; params,) = cache.shortrange
     # Note: we must use the same quadrature as used when computing the globally induced terms
-    (; quad, regularise_binormal,) = params
+    (; quad, regularise_binormal, lia_segment_fraction,) = params
     (; Γ, a, Δ,) = params.common
     ps = _fields_to_pairs(fields)  # e.g. (Velocity() => vs, Streamfunction() => ψs)
     prefactor = Γ / (4π)
@@ -247,6 +247,7 @@ function _compute_LIA_on_nodes!(
                 values[n][i] = BiotSavart.local_self_induced(
                     quantity, f, i, prefactor;
                     a, Δ, quad, regularise_binormal,
+                    lia_segment_fraction,
                 )
             end
         end

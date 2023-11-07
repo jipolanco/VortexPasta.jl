@@ -4,7 +4,7 @@ using LinearAlgebra
 using StaticArrays
 using StructArrays: StructArray, StructVector
 using ForwardDiff: ForwardDiff
-using VortexPasta.Quadratures: GaussLegendre
+using VortexPasta.Quadratures: NoQuadrature, GaussLegendre
 using VortexPasta.Filaments
 using VortexPasta.Filaments: discretisation_method
 using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot
@@ -46,10 +46,51 @@ function test_filament_ring(N, method)
         @test err < 1e-30
     end
 
+    continuity = Filaments.continuity(Filaments.interpolation_method(f))
+
+    quads = (NoQuadrature(), GaussLegendre(1), GaussLegendre(2), GaussLegendre(3), GaussLegendre(4))
+    @testset "Integrate: $quad" for quad ∈ quads
+        @testset "Filament length" begin
+            L_expected = 2π * R  # ring perimeter
+            integrand(f, i, ζ) = norm(f(i, ζ, Derivative(1)))
+            L = @inferred integrate(integrand, f, quad)
+            # @show method, continuity, quad, (L - L_expected) / L_expected
+            rtol = if continuity == 0 || quad === NoQuadrature()
+                2e-3
+            elseif method isa FiniteDiffMethod || quad === GaussLegendre(1)
+                5e-3
+            elseif method isa FourierMethod
+                1e-9
+            else
+                5e-4
+            end
+            @test isapprox(L, L_expected; rtol)
+        end
+        @testset "Integration limits" begin
+            # Integrate length of a single segment
+            integrand(f, i, ζ) = norm(f(i, ζ, Derivative(1)))
+            i = firstindex(f) + 3
+            # Note: there may be small differences because integrals over subsegments are
+            # computed with the same quadrature than the full integral.
+            L = @inferred integrate(integrand, f, i, quad)
+            L_a = @inferred integrate(integrand, f, i, quad; limits = (0, 0.3))
+            L_b = @inferred integrate(integrand, f, i, quad; limits = (0.3, 1))
+            # @show method, continuity, quad, (L - (L_a + L_b)) / L
+            rtol = if method isa FiniteDiffMethod && quad === GaussLegendre(1)
+                0.02
+            elseif method isa FiniteDiffMethod && quad === GaussLegendre(2)
+                0.005
+            elseif method isa FourierMethod
+                1e-9
+            else
+                8e-5
+            end
+            @test isapprox(L, L_a + L_b; rtol)
+        end
+    end
+
     @test eltype(f) === typeof(f[begin])
     @test startswith(summary(f), "$N-element $(nameof(typeof(f)))")
-
-    continuity = Filaments.continuity(Filaments.interpolation_method(f))
 
     @testset "Knot periodicity" begin
         M = Filaments.npad(ts)
@@ -343,13 +384,13 @@ end
         end
     end
     @testset "From vector field" begin
-        methods = (CubicSplineMethod(), FiniteDiffMethod())
+        methods = (QuinticSplineMethod(), CubicSplineMethod(), FiniteDiffMethod())
         @testset "$method" for method ∈ methods
             test_init_from_vector_field(method)
         end
     end
     @testset "StructVector nodes" begin
-        methods = (CubicSplineMethod(), FiniteDiffMethod())
+        methods = (QuinticSplineMethod(), CubicSplineMethod(), FiniteDiffMethod())
         @testset "$method" for method ∈ methods
             test_nodes_structvector(method)
         end
