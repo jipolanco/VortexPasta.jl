@@ -73,7 +73,7 @@ x⃗₀ = Vec3(L/4, L/4, L/2)  # line "origin"
 ϵ = 0.01
 ts = range(0, 1; length = N + 1)[1:N]  # important: we exclude the endpoint (t = 1)
 points = [x⃗₀ + Vec3(ϵ * L * sinpi(2m * t), 0, L * (t - 1/2)) for t ∈ ts]
-f = Filaments.init(ClosedFilament, points, CubicSplineMethod())
+f = Filaments.init(ClosedFilament, points, QuinticSplineMethod())
 nothing  # hide
 
 # Let's look at the result:
@@ -125,7 +125,7 @@ plot_filaments(f)
 # vector via the `offset` keyword argument.
 # In our case the end-to-end vector is ``\bm{Δ} = (0, 0, 2π)``.
 
-f = Filaments.init(ClosedFilament, points, CubicSplineMethod(); offset = (0, 0, 2π))
+f = Filaments.init(ClosedFilament, points, QuinticSplineMethod(); offset = (0, 0, 2π))
 plot_filaments(f)
 
 # Now everything looks fine!
@@ -167,7 +167,7 @@ fcurve(t) = x⃗₀ + Vec3(
 #
 # Now we just pass the function to `Filaments.init`:
 
-f′ = Filaments.init(fcurve, ClosedFilament, N, CubicSplineMethod())
+f′ = Filaments.init(fcurve, ClosedFilament, N, QuinticSplineMethod())
 nothing  # hide
 
 # Note that this generates a filament which is practically identical to the previous one
@@ -209,7 +209,7 @@ nothing  # hide
 # In fact, `S` is identical to the `fcurve` function we defined above.
 # We can now pass this function to [`Filaments.init`](@ref) to generate a filament:
 
-f = Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
+f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
 plot_filaments(f)
 
 # ## Ensuring periodicity of the velocity
@@ -255,7 +255,7 @@ funcs = [
     define_curve(p; scale = L, translate = (0.25L, 0.75L, 0.5L), orientation = -1),
     define_curve(p; scale = L, translate = (0.75L, 0.25L, 0.5L), orientation = -1),
 ]
-fs = map(S -> Filaments.init(S, ClosedFilament, N, CubicSplineMethod()), funcs)
+fs = map(S -> Filaments.init(S, ClosedFilament, N, QuinticSplineMethod()), funcs)
 plot_filaments(fs)
 
 # Here the colours represent the local orientation of the curve tangent with respect to the
@@ -285,7 +285,7 @@ end
 using VortexPasta.BiotSavart
 M = round(Int, 32 * 4/5)  # resolution of long-range grid
 kmax = π * M / L          # maximum resolved wavenumber (Nyquist frequency) for long-range part
-α = kmax / 8              # Ewald splitting parameter
+α = kmax / 5              # Ewald splitting parameter
 
 params = ParamsBiotSavart(;
     Γ = 1.0,    # vortex circulation
@@ -297,7 +297,7 @@ params = ParamsBiotSavart(;
     rcut = 5 / α,    # cut-off distance for short-range computations
     quadrature = GaussLegendre(2),        # quadrature for integrals over filament segments
     backend_long = FINUFFTBackend(),      # this is the default
-    backend_short = NaiveShortRangeBackend(),  # OK when rcut/L is large
+    backend_short = CellListsBackend(2),
 )
 
 # We would like to compute a few periods of Kelvin wave oscillations.
@@ -402,29 +402,32 @@ for _ ∈ 1:40
 end
 energy'
 
-# This limit is basically set by the local self-induced velocity term (see
-# [Desingularisation](@ref VFM-desingularisation)), which presents fast temporal variations.
-# This term is actually very cheap to compute compared to the non-local velocity resulting
-# from the Biot--Savart law.
-# Therefore, it makes sense to use a multirate timestepping scheme. 
-# The idea is to use a small timestep to evaluate the fast (and cheap) motions, and a larger
-# timestep to evaluate the slow (and expensive) terms.
+# This limit is basically set by the short-range Biot--Savart interactions and in particular
+# the local term (see [Desingularisation](@ref VFM-desingularisation)), which presents fast
+# temporal variations while being cheap to compute.
+# For these reasons, it can make sense to use a multirate timestepping scheme. 
+# The idea is to use a small timestep to evaluate the fast (and relatively cheap) motions,
+# and a larger timestep to evaluate the slow (and expensive) terms.
 # In the following we use the [`SanduMRI33a`](@ref) scheme [Sandu2019](@cite), which is a
-# 3rd-order 3-stage explicit Runge--Kutta scheme for the "slow" component.
-# For each "outer" RK stage, we perform ``M = 10`` inner iterations of the "fast" component
+# third-order 3-stage explicit Runge--Kutta scheme for the "slow" component.
+# For each "outer" RK stage, we perform ``M = 4`` inner iterations of the "fast" component
 # using the standard `RK4` scheme, which allows to greatly increase the timestep:
 
-scheme = SanduMRI33a(RK4(), 10)
-dt = 32 * dt_kw
+scheme = SanduMRI33a(RK4(), 4)
+dt = 16 * dt_kw
 
 # Note that we could tune the number ``M`` of inner iterations to allow even larger
 # timesteps, but this can lead to precision loss.
 #
 # ### Running the simulation
 #
-# We now solve the full problem with this multirate scheme:
+# We now solve the full problem with this multirate scheme.
+# Note that we use [`LocalTerm`](@ref) to identify the "fast" motions to the
+# local (LIA) term of the Biot--Savart integrals.
+# We could alternatively use [`ShortRangeTerm`](@ref) for a different interpretation of what
+# represents the "fast" motions.
 
-iter = init(prob, scheme; dt, callback)
+iter = init(prob, scheme; dt, callback, fast_term = LocalTerm())
 reset_timer!(iter.to)  # to get more accurate timings (removes most of the compilation time)
 solve!(iter)
 
@@ -485,8 +488,7 @@ nothing  # hide
 # computations, while the other half is spent on short-range Biot--Savart computations and
 # the LIA (local) term.
 # Note that the LIA term is computed much more often than the other components due to the
-# use of a multirate scheme, but even then, its total cost is a fraction of that associated
-# to the Biot--Savart integrals.
+# use of a multirate scheme.
 
 # ## Fourier analysis
 #
@@ -615,7 +617,7 @@ xlims!(ax, 0.8 * ωs_normalised[begin], 1.2 * ωs_normalised[end])
 vlines!(ax, 1.0; linestyle = :dash, color = :orangered)
 fig
 
-# We see that the temporal spectrum is strongly peaked near the analytical Kelvin wave
+# We see that the temporal spectrum is strongly peaked at the analytical Kelvin wave
 # frequency (dashed vertical line).
 # Note that the trajectory is not perfectly periodic in time (the ending time doesn't
 # exactly match the start time), which can explain non-zero values far from the peak.

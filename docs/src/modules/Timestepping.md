@@ -79,6 +79,16 @@ ImplicitScheme
 CrankNicolson
 ```
 
+### Determining the fast term
+
+The splitting between fast and slow terms in IMEX and multirate schemes can be done in two different ways.
+One may either choose to identify the fast term with the local (LIA) term in Biot–Savart, or with the short-range component of Ewald summation.
+
+```@docs
+LocalTerm
+ShortRangeTerm
+```
+
 ## Adaptivity
 
 ```@docs

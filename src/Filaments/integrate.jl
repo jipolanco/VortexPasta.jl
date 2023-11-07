@@ -123,12 +123,16 @@ end
 # Moreover, the location and the derivative at that point are approximated from the
 # locations at the two extremities of the segment, according to a straight-segment
 # approximation.
-struct NoQuadFilament{T, F <: AbstractFilament{T}} <: AbstractFilament{T, Nothing, typeof(identity)}
+struct NoQuadFilament{
+        T,
+        F <: AbstractFilament{T},
+    } <: AbstractFilament{T, Nothing, typeof(identity)}
     f :: F
 end
 
-@propagate_inbounds (u::NoQuadFilament)(i::Int, ζ::Number) =
+@propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number)
     u(i, ζ, Derivative(0))
+end
 
 @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{0})
     (; f,) = u
@@ -137,7 +141,7 @@ end
     # See McGreivy et al, Phys. Plasmas 28, 082111 (2021) [https://doi.org/10.1063/5.0058014].
     # However estimating curvatures increases the computation cost, and we want to keep
     # NoQuadrature as cheap as possible.
-    (f[i] + f[i + 1]) ./ 2
+    (1 - ζ) * f[i] + ζ * f[i + 1]
 end
 
 @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{1})
@@ -147,19 +151,25 @@ end
 end
 
 # Not sure if this is used...
-@propagate_inbounds (u::NoQuadFilament)(i, ζ::Number, d) = (u.f[i, d] + u.f[i + 1, d]) ./ 2
+@propagate_inbounds function (u::NoQuadFilament)(i, ζ::Number, d)
+    (1 - ζ) * u.f[i, d] + ζ * u.f[i + 1, d]
+end
 
 function integrate(
         integrand::F, f::AbstractFilament, i::Int, quad::NoQuadrature;
-        _args = (NoQuadFilament(f), i), limits = nothing,
+        limits = nothing,
+        _args = (NoQuadFilament(f), i),
     ) where {F}
     ts = knots(f)
     args = _noquad_replace_args(_args...)  # replaces filaments by NoQuadFilament
     Δt = ts[i + 1] - ts[i]
     if limits !== nothing
-        Δt *= limits[2] - limits[1]
+        a, b = limits
+        Δt *= b - a
+        ζ = (a + b) / 2
+    else
+        ζ = 0.5
     end
-    ζ = 0.5  # generally unused
     Δt * integrand(args..., ζ)
 end
 
