@@ -1,15 +1,21 @@
 using Base: @propagate_inbounds
 
 @doc raw"""
-    integrate(integrand::Function, f::AbstractFilament, i::Int, quad::AbstractQuadrature)
-    integrate(integrand::Function, s::Segment, quad::AbstractQuadrature)
+    integrate(integrand::Function, f::AbstractFilament, i::Int, quad::AbstractQuadrature; limits = nothing)
+    integrate(integrand::Function, s::Segment, quad::AbstractQuadrature; limits = nothing)
 
 Estimate integral along a filament segment using the chosen quadrature.
 
 Integration is performed in the segment `(f[i], f[i + 1])`.
 
-The function `integrand(ζ)` takes a single argument ``ζ ∈ [0, 1]`` which corresponds
-to the position of a point within the segment.
+The function `integrand(ζ)` takes the arguments `f`, `i` and ``ζ ∈ [0, 1]``.
+The first two are a bit redundant since they're the same filament and node index passed to
+this function, while `ζ` corresponds to the position of a point within the segment.
+See further below for some examples.
+
+By default, the integration is performed along the whole segment, that is, for the range ``ζ ∈ [0, 1]``.
+It is possible to integrate over a subset of the segment, i.e. for ``ζ ∈ [a, b]`` with ``0 ≤ a ≤ b ≤ 1``.
+For this, one should pass the keyword argument `limits = (a, b)`.
 
 # Examples
 
@@ -33,8 +39,13 @@ end
 """
 function integrate(
         integrand::F, f::AbstractFilament, i::Int, quad::AbstractQuadrature;
+        limits = nothing,
         _args = (f, i),  # integrand arguments; used internally
     ) where {F}
+    _integrate(integrand, limits, f, i, quad; _args)
+end
+
+function _integrate(integrand::F, limits::Nothing, f, i, quad; _args) where {F}
     ζs, ws = quadrature(quad)
     ts = knots(f)
     Δt = ts[i + 1] - ts[i]
@@ -45,12 +56,26 @@ function integrate(
     end
 end
 
-function integrate(integrand::F, s::Segment, quad::AbstractQuadrature) where {F}
-    integrate(integrand, s.f, s.i, quad; _args = (s,))
+function _integrate(integrand::F, limits::NTuple{2, Real}, f, i, quad; _args) where {F}
+    ζs, ws = quadrature(quad)
+    ts = knots(f)
+    a, b = limits
+    δ = b - a
+    Δt = (ts[i + 1] - ts[i]) * δ
+    Δt * sum(eachindex(ws)) do j
+        @inline
+        ζ = a + δ * ζs[j]  # in [a, b]
+        fx = @inline integrand(_args..., ζ)
+        ws[j] * fx
+    end
+end
+
+function integrate(integrand::F, s::Segment, quad::AbstractQuadrature; kws...) where {F}
+    integrate(integrand, s.f, s.i, quad; _args = (s,), kws...)
 end
 
 """
-    integrate(integrand::Function, f::AbstractFilament, quad::AbstractQuadrature)
+    integrate(integrand::Function, f::AbstractFilament, quad::AbstractQuadrature; limits = nothing)
 
 Estimate integral over a whole filament.
 
@@ -126,11 +151,14 @@ end
 
 function integrate(
         integrand::F, f::AbstractFilament, i::Int, quad::NoQuadrature;
-        _args = (NoQuadFilament(f), i),
+        _args = (NoQuadFilament(f), i), limits = nothing,
     ) where {F}
     ts = knots(f)
     args = _noquad_replace_args(_args...)  # replaces filaments by NoQuadFilament
     Δt = ts[i + 1] - ts[i]
+    if limits !== nothing
+        Δt *= limits[2] - limits[1]
+    end
     ζ = 0.5  # generally unused
     Δt * integrand(args..., ζ)
 end

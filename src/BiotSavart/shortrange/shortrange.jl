@@ -112,8 +112,9 @@ function integrate_biot_savart(
         x⃗::Vec3,
         params::ParamsShortRange;
         Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
+        limits = nothing,
     )
-    integrate(seg, params.quad) do seg, ζ
+    integrate(seg, params.quad; limits) do seg, ζ
         s⃗ = seg(ζ)
         s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
         biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs)
@@ -149,7 +150,7 @@ function add_short_range_fields!(
     ps = _fields_to_pairs(fields)
 
     (; params,) = cache
-    (; quad, regularise_binormal,) = params
+    (; quad, regularise_binormal, lia_segment_fraction,) = params
     (; Γ, a, Δ, Ls,) = params.common
     prefactor = Γ / (4π)
     Lhs = map(L -> L / 2, Ls)
@@ -163,6 +164,8 @@ function add_short_range_fields!(
 
     segment_a = lastindex(segments(f))   # index of segment ending at point x⃗
     segment_b = firstindex(segments(f))  # index of segment starting at point x⃗
+
+    nonlia_lims = nonlia_integration_limits(lia_segment_fraction)
 
     for (i, x⃗) ∈ pairs(Xs)
         # Start with the "singular" region (i.e. the segments which include x⃗: `segment_a` and `segment_b`).
@@ -179,11 +182,22 @@ function add_short_range_fields!(
         sb = Segment(f, segment_b)
         vecs_i = map(ps) do (quantity, _)
             u⃗ = -(
-                integrate_biot_savart(quantity, ShortPlusLongRange(), sa, x⃗, params; Lhs) +
-                integrate_biot_savart(quantity, ShortPlusLongRange(), sb, x⃗, params; Lhs)
+                + integrate_biot_savart(quantity, ShortPlusLongRange(), sa, x⃗, params; Lhs)
+                + integrate_biot_savart(quantity, ShortPlusLongRange(), sb, x⃗, params; Lhs)
             )
+            if lia_segment_fraction !== nothing
+                # In this case we need to include the integral over a fraction of the local segments.
+                u⃗ = u⃗ + (
+                    + integrate_biot_savart(quantity, ShortPlusLongRange(), sa, x⃗, params; Lhs, limits = nonlia_lims[1])
+                    + integrate_biot_savart(quantity, ShortPlusLongRange(), sb, x⃗, params; Lhs, limits = nonlia_lims[2])
+                )
+            end
             if _LIA
-                u⃗ = u⃗ + local_self_induced(quantity, f, i, one(prefactor); a, Δ, quad, regularise_binormal)
+                u⃗ = u⃗ + local_self_induced(
+                    quantity, f, i, one(prefactor);
+                    a, Δ, quad, regularise_binormal,
+                    segment_fraction = lia_segment_fraction,
+                )
             end
             quantity => u⃗
         end

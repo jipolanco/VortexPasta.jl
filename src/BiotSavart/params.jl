@@ -24,24 +24,30 @@ struct ParamsShortRange{
         Common <: ParamsCommon,
         T <: Real,
         RegulariseBinormal <: StaticBool,
+        LIASegmentFraction <: Union{Nothing, Real}
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, α, Ls)
     rcut    :: T           # cutoff distance
     rcut_sq :: T           # squared cutoff distance
-    regularise_binormal :: RegulariseBinormal
+    regularise_binormal  :: RegulariseBinormal
+    lia_segment_fraction :: LIASegmentFraction
 
     function ParamsShortRange(
             backend::ShortRangeBackend, quad::AbstractQuadrature,
             common::ParamsCommon, rcut::Real, regularise::StaticBool,
+            lia_segment_fraction,
         )
         (; Ls,) = common
         2 * rcut ≤ min(Ls...) ||
             error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
         rcut_sq = rcut * rcut
-        new{typeof(backend), typeof(quad), typeof(common), typeof(rcut), typeof(regularise)}(
-            backend, quad, common, rcut, rcut_sq, regularise,
+        new{
+            typeof(backend), typeof(quad), typeof(common),
+            typeof(rcut), typeof(regularise), typeof(lia_segment_fraction)
+        }(
+            backend, quad, common, rcut, rcut_sq, regularise, lia_segment_fraction,
         )
     end
 end
@@ -138,6 +144,12 @@ Mandatory and optional keyword arguments are detailed in the following.
 
   See Saffman (1992), sections 10.2--10.3 for the first three.
 
+- `lia_segment_fraction = nothing`: can be used to indicate that the LIA term should be
+  evaluated over a *fraction* of the two segments surrounding a node. In this case, it
+  should be a real value in ``(0, 1]``. The default (`nothing`) is equivalent to 1, and
+  means that the LIA term is evaluated over the full segments. Smaller values may improve
+  accuracy, especially when the discretisation distance is relatively large.
+
 - `regularise_binormal = Val(false)`: if `Val(true)`, regularise the estimation of the local
   binormal vector for computation of the LIA term. The binormal vector is averaged along the
   local filament segments. This may lead to more stable simulations of single vortex rings,
@@ -165,6 +177,7 @@ struct ParamsBiotSavart{
             backend_long::LongRangeBackend = FINUFFTBackend(),
             regularise_binormal::Val{RegulariseBinormal} = Val(false),
             Δ::Real = 0.25,
+            lia_segment_fraction::Union{Nothing, Real} = nothing,
             kws...,
         ) where {T, RegulariseBinormal}
         # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
@@ -178,6 +191,7 @@ struct ParamsBiotSavart{
         common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad)
         sr = ParamsShortRange(
             backend_short, quad, common, rcut, StaticBool(RegulariseBinormal),
+            lia_segment_fraction,
         )
         lr = ParamsLongRange(backend_long, quad, common, Ns)
         new{T, typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)

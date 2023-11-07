@@ -7,6 +7,7 @@ using StaticArrays: SVector
         f::AbstractFilament, i::Int, [prefactor::Real];
         a::Real, [Γ::Real],
         Δ = 0.25, quad = nothing, fit_circle = false,
+        segment_fraction = nothing,
     )
 
 Compute local self-induced velocity of filament node `f[i]`.
@@ -26,7 +27,7 @@ local_self_induced(q::OutputField, f, i; Γ, kws...) =
 """
     local_self_induced(
         q::OutputField, f::AbstractFilament, i::Int, [prefactor::Real];
-        a::Real, Δ::Real = 0.25, quad = nothing, [Γ],
+        a::Real, Δ::Real = 0.25, segment_fraction = nothing, quad = nothing, [Γ],
     )
 
 Compute localised induction approximation (LIA) term at node `f[i]`.
@@ -47,6 +48,11 @@ One must pass either the circulation `Γ` as a keyword argument, or a precompute
 
 - the optional parameter `Δ` sets the effect of the vorticity profile (see
   [`ParamsBiotSavart`](@ref) for details);
+
+- the optional parameter `segment_fraction` can be used to indicate that the LIA term should
+  only be computed over a fraction of the segments neighbouring the node `f[i]`. In that case,
+  it should be a real number in ``(0, 1]`` (where 1 corresponds to integrating over the full
+  segments, which the default);
 
 - a quadrature rule can be passed via `quad`, which can improve the estimation
   of the LIA term and the stability of the solver (even a 1-point quadrature
@@ -70,11 +76,12 @@ to_quadrature(::Nothing) = NoQuadrature()
 
 function _local_self_induced(
         ::Velocity, ::NoQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real, fit_circle = false, kws...,
+        a::Real, Δ::Real, fit_circle = false, segment_fraction = nothing, kws...,
     )
     ℓ₋ = norm(f[i] - f[i - 1])
     ℓ₊ = norm(f[i + 1] - f[i])
-    β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
+    γ = something(segment_fraction, true)  # true in the sense of 1
+    β = prefactor * (log(2 * γ * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
     if fit_circle
         # Fit circle passing through the 3 points.
         # See https://en.wikipedia.org/wiki/Circumscribed_circle#Higher_dimensions
@@ -99,29 +106,39 @@ function _local_self_induced(
     end
 end
 
+lia_integration_limits(::Nothing) = (nothing, nothing)
+lia_integration_limits(γ::Real) = ((one(γ) - γ, one(γ)), (zero(γ), γ))
+
+nonlia_integration_limits(::Nothing) = (nothing, nothing)
+nonlia_integration_limits(γ::Real) = ((zero(γ), one(γ) - γ), (γ, one(γ)))
+
 # Alternative estimation using quadratures.
-# It seems to improve accuracy and stability (tested with vortex ring example and Kelvin waves).
 function _local_self_induced(
         ::Velocity, quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real, regularise_binormal::StaticBool = False(), kws...,
+        a::Real, Δ::Real, regularise_binormal::StaticBool = False(),
+        segment_fraction::Union{Nothing, Real} = nothing,
+        kws...,
     )
-    ℓ₋ = integrate(f, i - 1, quad) do f, j, ζ
+    lims = lia_integration_limits(segment_fraction)
+    ℓ₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
         norm(f(j, ζ, Derivative(1)))
     end
-    ℓ₊ = integrate(f, i, quad) do f, j, ζ
+    ℓ₊ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
         norm(f(j, ζ, Derivative(1)))
     end
     # Estimate the scaled binormal vector b⃗ = ρ b̂, where ρ is the curvature and b̂ = t̂ × n̂.
     regularise = dynamic(regularise_binormal)
     b⃗ = if regularise
-        b⃗₋ = integrate(f, i - 1, quad) do f, j, ζ
+        b⃗₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
             f(j, ζ, CurvatureBinormal())
         end
-        b⃗₊ = integrate(f, i, quad) do f, j, ζ
+        b⃗₊ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
             f(j, ζ, CurvatureBinormal())
         end
         ts = knots(f)
-        (b⃗₋ + b⃗₊) ./ (ts[i + 1] - ts[i - 1])  # average on [i - 1, i + 1]
+        γ = something(segment_fraction, true)  # true in the sense of 1
+        dt = γ * (ts[i + 1] - ts[i - 1])
+        (b⃗₋ + b⃗₊) ./ dt  # average on [i - 1, i + 1]
     else
         f[i, CurvatureBinormal()]
     end
@@ -132,24 +149,28 @@ end
 function _local_self_induced(
         ::Streamfunction, ::NoQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real, kws...,
+        a::Real, Δ::Real, segment_fraction = nothing, kws...,
     )
     ℓ₋ = norm(f[i] - f[i - 1])
     ℓ₊ = norm(f[i + 1] - f[i])
+    γ = something(segment_fraction, true)  # true in the sense of 1
     t̂ = f[i, UnitTangent()]
-    β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) + 1 - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)
+    β = 2 * prefactor * (log(2 * γ * sqrt(ℓ₋ * ℓ₊) / a) + 1 - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)
     β * t̂
 end
 
 function _local_self_induced(
         ::Streamfunction, quad::AbstractQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real, kws...,
+        a::Real, Δ::Real,
+        segment_fraction::Union{Nothing, Real} = nothing,
+        kws...,
     )
-    ℓ₋ = integrate(f, i - 1, quad) do f, j, ζ
+    lims = lia_integration_limits(segment_fraction)
+    ℓ₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
         norm(f(j, ζ, Derivative(1)))
     end
-    ℓ₊ = integrate(f, i, quad) do f, j, ζ
+    ℓ₊ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
         norm(f(j, ζ, Derivative(1)))
     end
     # Use local (non-averaged) tangent at point of interest.
