@@ -8,7 +8,7 @@ Naive computation of short-range interactions.
 struct NaiveShortRangeBackend <: ShortRangeBackend end
 
 struct NaiveShortRangeCache{
-        Params <: ParamsShortRange{<:NaiveShortRangeBackend},
+        Params <: ParamsShortRange{<:Real, <:NaiveShortRangeBackend},
         Charges <: PointData,
         Timer <: TimerOutput,
     } <: ShortRangeCache
@@ -18,9 +18,9 @@ struct NaiveShortRangeCache{
 end
 
 function init_cache_short(
-        ::ParamsCommon, params::ParamsShortRange{<:NaiveShortRangeBackend},
+        ::ParamsCommon, params::ParamsShortRange{T, <:NaiveShortRangeBackend},
         data::PointData, to::TimerOutput,
-    )
+    ) where {T}
     NaiveShortRangeCache(params, data, to)
 end
 

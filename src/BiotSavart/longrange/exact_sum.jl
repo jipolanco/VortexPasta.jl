@@ -23,7 +23,7 @@ end
 
 function init_cache_long_ewald(
         pc::ParamsCommon{T},
-        params::ParamsLongRange{<:ExactSumBackend}, args...,
+        params::ParamsLongRange{T, <:ExactSumBackend}, args...,
     ) where {T}
     (; Ls,) = pc
     (; Ns,) = params

@@ -51,62 +51,7 @@ abstract type AbstractSolver end
 
 include("timesteppers/timesteppers.jl")
 include("adaptivity.jl")
-
-"""
-    VortexFilamentProblem
-    VortexFilamentProblem(fs::AbstractVector{<:AbstractFilament}, tspan::NTuple{2}, p::ParamsBiotSavart)
-
-Define a vortex filament problem.
-
-Arguments:
-
-- `fs`: initial vortex positions;
-
-- `tspan = (t_begin, t_end)`: time span;
-
-- `p`: Biot–Savart parameters (see [`ParamsBiotSavart`](@ref)).
-
-See [`init`](@ref) for initialising a solver from a `VortexFilamentProblem`.
-"""
-struct VortexFilamentProblem{
-        Filaments <: VectorOfVectors{<:Vec3, <:AbstractFilament},
-        Params <: ParamsBiotSavart,
-    } <: AbstractProblem
-    fs    :: Filaments
-    tspan :: NTuple{2, Float64}
-    p     :: Params
-end
-
-VortexFilamentProblem(fs::VectorOfFilaments, tspan::NTuple{2}, p::ParamsBiotSavart) =
-    VortexFilamentProblem(
-        convert(VectorOfVectors, fs),
-        convert(NTuple{2, Float64}, tspan),
-        p,
-    )
-
-function Base.show(io::IO, prob::VortexFilamentProblem)
-    (; fs, tspan, p,) = prob
-    print(io, "VortexFilamentProblem with fields:")
-    print(io, "\n - `p`: ")
-    summary(io, p)
-    print(io, "\n - `tspan`: ", tspan)
-    _print_summary(io, fs; pre = "\n - `fs`: ")
-end
-
-# This generates a summarised (shorter) version of typeof(fs).
-function _typeof_summary(io::IO, fs::VectorOfVectors)
-    V = eltype(fs)  # e.g. ClosedFilament{Float64, ...}
-    T = eltype(V)   # e.g. Vec3{Float64}
-    print(io, "VectorOfVectors{$T}")
-end
-
-function _print_summary(io::IO, fs::VectorOfVectors; pre = nothing, post = nothing)
-    pre === nothing || print(io, pre)
-    print(io, length(fs), "-element ")
-    _typeof_summary(io, fs)
-    post === nothing || print(io, post)
-    nothing
-end
+include("problem.jl")
 
 """
     TimeInfo
@@ -190,9 +135,10 @@ Some useful fields are:
   long-range computations.
 """
 struct VortexFilamentSolver{
-        Problem <: VortexFilamentProblem,
-        Filaments <: VectorOfVectors{<:Vec3, <:AbstractFilament},
-        Velocities <: VectorOfVectors{<:Vec3},
+        T,
+        Problem <: VortexFilamentProblem{T},
+        Filaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
+        Velocities <: VectorOfVectors{Vec3{T}},
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
         CacheReconnect <: AbstractReconnectionCache,
@@ -209,7 +155,7 @@ struct VortexFilamentSolver{
     vs    :: Velocities
     ψs    :: Velocities  # not really velocity, but streamfunction
     time  :: TimeInfo
-    dtmin :: Float64
+    dtmin :: T
     refinement        :: Refinement
     adaptivity        :: Adaptivity
     reconnect         :: CacheReconnect
@@ -306,7 +252,7 @@ either [`step!`](@ref) or [`solve!`](@ref).
   recording the time spent on different functions.
 """
 function init(
-        prob::VortexFilamentProblem, scheme::TemporalScheme;
+        prob::VortexFilamentProblem{T}, scheme::TemporalScheme;
         alias_u0 = false,   # same as in OrdinaryDiffEq.jl
         dt::Real,
         dtmin::Real = 0.0,
@@ -316,7 +262,7 @@ function init(
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         callback::F = identity,
         timer = TimerOutput("VortexFilament"),
-    ) where {F <: Function}
+    ) where {F <: Function, T}
     (; tspan,) = prob
     (; Ls,) = prob.p
     fs = convert(VectorOfVectors, prob.fs)
@@ -340,7 +286,7 @@ function init(
     time = TimeInfo(nstep = 0, t = first(tspan), dt = dt, dt_prev = dt)
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, ψs, time, dtmin, refinement, adaptivity, cache_reconnect,
+        prob, fs_sol, vs, ψs, time, T(dtmin), refinement, adaptivity, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, callback_, timer,
         advect!, rhs!,
     )

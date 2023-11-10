@@ -1,11 +1,13 @@
 import Base: +, -, *, /, ^, <
 
+abstract type RealConst <: Real end
+
 """
-    Zero <: Real
+    Zero <: RealConst <: Real
 
 Singleton type representing zero.
 """
-struct Zero <: Real end
+struct Zero <: RealConst end
 
 Base.convert(::Type{T}, ::Zero) where {T <: Number} = zero(T)
 Base.convert(::Type{Zero}, ::Zero) = Zero()
@@ -18,11 +20,11 @@ Base.convert(::Type{Zero}, ::Zero) = Zero()
 (::Zero) / (::Number) = Zero()
 
 """
-    Infinity <: Real
+    Infinity <: RealConst <: Real
 
 Singleton type representing infinity.
 """
-struct Infinity <: Real end
+struct Infinity <: RealConst end
 
 """
     ∞

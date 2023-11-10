@@ -346,7 +346,12 @@ function test_init_from_vector_field(method = CubicSplineMethod())
     f = @inferred Filaments.from_vector_field(
         ClosedFilament, taylor_green_vorticity, x₀, dτ, method,
     )
-    @test eltype(f) === typeof(x₀)
+    V = typeof(x₀)
+    @test eltype(f) === V
+    # Check type returned by interpolations
+    @test @inferred(f(2, 0.1)) isa V
+    @test @inferred(f(2, 0.1, Derivative(1))) isa V
+    @test @inferred(f(2, 0.1, Derivative(2))) isa V
     # Check that the filament is actually tangent to the vector field to a very good
     # approximation.
     err = @inferred Filaments.distance_to_field(taylor_green_vorticity, f)

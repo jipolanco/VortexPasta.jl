@@ -90,7 +90,7 @@ end
 
 function init_cache_long_ewald(
         pc::ParamsCommon{T},
-        params::ParamsLongRange{<:FINUFFTBackend}, args...,
+        params::ParamsLongRange{T, <:FINUFFTBackend}, args...,
     ) where {T}
     (; Ls,) = pc
     (; backend, Ns,) = params
