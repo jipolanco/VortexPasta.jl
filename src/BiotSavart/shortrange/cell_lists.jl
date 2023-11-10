@@ -26,7 +26,7 @@ CellListsBackend(n::Int = 1) = CellListsBackend{n}()
 subdivisions(::CellListsBackend{M}) where {M} = M
 
 struct CellListsCache{
-        Params <: ParamsShortRange{<:CellListsBackend},
+        Params <: ParamsShortRange{<:Real, <:CellListsBackend},
         CellList <: PeriodicCellList,
         Timer <: TimerOutput,
     } <: ShortRangeCache
@@ -36,7 +36,7 @@ struct CellListsCache{
 end
 
 function init_cache_short(
-        pc::ParamsCommon, params::ParamsShortRange{<:CellListsBackend},
+        pc::ParamsCommon, params::ParamsShortRange{T, <:CellListsBackend},
         ::PointData{T}, to::TimerOutput,
     ) where {T}
     (; backend, rcut,) = params

@@ -5,9 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2023-11-10
+
 ### Changed
 
 - Relax number of allowed nodes for `QuinticSplineMethod` from 7 to 5.
+
+- Try to do all computations with the same float type. This should improve consistency when using precisions other than `Float64` (for instance `Float32`).
 
 ## [0.8.0] - 2023-11-08
 

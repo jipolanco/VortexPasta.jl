@@ -377,17 +377,25 @@ end
 ## Interpolation of values and derivatives in-between nodes
 
 # 1. If we know the interpolation segment (here ζ ∈ [0, 1])
-function (f::ClosedFilament)(i::Int, ζ::Number, d::Derivative = Derivative(0))
+function (f::ClosedFilament{T})(i::Int, ζ_in::Number, d::Derivative = Derivative(0)) where {T}
+    ζ = _convert_float(T, ζ_in)
     _interpolate(discretisation_method(f), f, i, ζ, d)
 end
 
 # 2. If we don't know the interpolation segment (here `t` is the curve parameter).
-function (f::ClosedFilament)(
-        t::Number, d::Derivative = Derivative(0);
+function (f::ClosedFilament{T})(
+        t_in::Number, d::Derivative = Derivative(0);
         ileft::Union{Nothing, Int} = nothing,
-    )
+    ) where {T}
+    t = _convert_float(T, t_in)
     _interpolate(discretisation_method(f), f, t, d; ileft)
 end
+
+# Convert value to type T. We don't perform conversion if the value is not a float.
+# This is to workaround issue when working with ForwardDiff.Dual (which is never an
+# AbstractFloat).
+_convert_float(::Type{T}, x::AbstractFloat) where {T} = convert(T, x)
+_convert_float(::Type{T}, x) where {T} = x
 
 ## Knot insertion and removal.
 #  We allow the different discretisation methods to implement their own versions (for

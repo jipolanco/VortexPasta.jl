@@ -1,5 +1,17 @@
+using ..BasicTypes: RealConst
+
+const MaybeConst{T} = Union{RealConst, T}
+
 # Common parameters to short- and long-range computations.
-struct ParamsCommon{T, Alpha <: Real, Sigma <: Real, Periods <: NTuple{3, Real}, Quad <: AbstractQuadrature}
+# Note: it would be nice to further constrain the Alpha parameter (commented code below),
+# but then precompilation fails (enters an infinite loop?). Tested on Julia 1.10-rc1.
+struct ParamsCommon{
+        T <: AbstractFloat,
+        Alpha <: Real,  #  <: MaybeConst{T} (fails!!)
+        Sigma <: Real,  #  <: MaybeConst{T} (fails!!)
+        Periods <: NTuple{3, MaybeConst{T}},
+        Quad <: AbstractQuadrature,
+    }
     Γ  :: T        # vortex circulation
     a  :: T        # vortex core size
     Δ  :: T        # LIA coefficient given by core vorticity profile
@@ -7,60 +19,81 @@ struct ParamsCommon{T, Alpha <: Real, Sigma <: Real, Periods <: NTuple{3, Real},
     σ  :: Sigma    # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
     Ls :: Periods  # size of unit cell (= period in each direction)
     quad :: Quad   # quadrature rule used for short- and long-range computations
-    function ParamsCommon{T}(Γ, a, Δ, α, Ls, quad) where {T}
-        σ = 1 / (α * sqrt(2))
+    function ParamsCommon{T}(Γ, a, Δ, α_in, Ls_in, quad) where {T}
+        α = maybe_convert(T, α_in)  # don't convert constants (e.g. if α = Zero())
+        Ls = map(L -> maybe_convert(T, L), Ls_in)
+        σ = 1 / (α * sqrt(T(2)))
         new{T, typeof(α), typeof(σ), typeof(Ls), typeof(quad)}(Γ, a, Δ, α, σ, Ls, quad)
     end
 end
 
+maybe_convert(::Type{T}, x::Real) where {T <: AbstractFloat} = convert(T, x)
+maybe_convert(::Type{T}, x::RealConst) where {T <: AbstractFloat} = x  # don't convert constants (Zero, Infinity)
+
 Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
 Base.eltype(p::ParamsCommon) = eltype(typeof(p))
+
+function Base.convert(::Type{T}, p::ParamsCommon) where {T <: AbstractFloat}
+    (; Γ, a, Δ, α, Ls, quad,) = p
+    ParamsCommon{T}(Γ, a, Δ, α, Ls, quad)  # converts all floats to type T
+end
 
 ## ================================================================================ ##
 
 struct ParamsShortRange{
+        T <: Real,
         Backend <: ShortRangeBackend,
         Quadrature <: AbstractQuadrature,
-        Common <: ParamsCommon,
-        T <: Real,
+        Common <: ParamsCommon{T},
+        CutoffDist <: MaybeConst{T},
         RegulariseBinormal <: StaticBool,
         LIASegmentFraction <: Union{Nothing, Real}
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, α, Ls)
-    rcut    :: T           # cutoff distance
-    rcut_sq :: T           # squared cutoff distance
+    rcut    :: CutoffDist  # cutoff distance
+    rcut_sq :: CutoffDist  # squared cutoff distance
     regularise_binormal  :: RegulariseBinormal
     lia_segment_fraction :: LIASegmentFraction
 
     function ParamsShortRange(
             backend::ShortRangeBackend, quad::AbstractQuadrature,
-            common::ParamsCommon, rcut::Real, regularise::StaticBool,
+            common::ParamsCommon{T}, rcut::Real, regularise::StaticBool,
             lia_segment_fraction,
-        )
+        ) where {T}
         (; Ls,) = common
         2 * rcut ≤ min(Ls...) ||
             error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
         rcut_sq = rcut * rcut
         new{
-            typeof(backend), typeof(quad), typeof(common),
-            typeof(rcut), typeof(regularise), typeof(lia_segment_fraction)
+            T, typeof(backend), typeof(quad), typeof(common), typeof(rcut),
+            typeof(regularise), typeof(lia_segment_fraction)
         }(
             backend, quad, common, rcut, rcut_sq, regularise, lia_segment_fraction,
         )
     end
 end
 
+# Create a new ParamsShortRange based on the type of ParamsCommon.
+function change_float_type(p::ParamsShortRange, common::ParamsCommon{T}) where {T}
+    ParamsShortRange(p.backend, p.quad, common, p.rcut, p.regularise_binormal, p.lia_segment_fraction)
+end
+
 struct ParamsLongRange{
+        T,
         Backend <: LongRangeBackend,
         Quadrature <: AbstractQuadrature,
-        Common <: ParamsCommon,
+        Common <: ParamsCommon{T},
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, α, Ls)
     Ns      :: Dims{3}     # grid dimensions for FFTs
+end
+
+function change_float_type(p::ParamsLongRange, common::ParamsCommon{T}) where {T}
+    ParamsLongRange(p.backend, p.quad, common, p.Ns)
 end
 
 backend(p::ParamsLongRange) = p.backend
@@ -166,36 +199,43 @@ struct ParamsBiotSavart{
     common     :: Common
     shortrange :: ShortRange
     longrange  :: LongRange
+end
 
-    function ParamsBiotSavart(
-            ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
-            a::Real,
-            quadrature::AbstractQuadrature = GaussLegendre(2),
-            quadrature_short = nothing,  # deprecated
-            quadrature_long = nothing,   # deprecated
-            backend_short::ShortRangeBackend = default_short_range_backend(Ls),
-            backend_long::LongRangeBackend = FINUFFTBackend(),
-            regularise_binormal::Val{RegulariseBinormal} = Val(false),
-            Δ::Real = 0.25,
-            lia_segment_fraction::Union{Nothing, Real} = nothing,
-            kws...,
-        ) where {T, RegulariseBinormal}
-        # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
-        # - define ParamsPhysical instead of ParamsCommon
-        # - include α in both ParamsShortRange and ParamsLongRange?
-        (; Ns, rcut,) = _extra_params(α; kws...)
-        if !isnothing(quadrature_short) || !isnothing(quadrature_long)
-            @warn "`quadrature_short` and `quadrature_long` are deprecated and will be removed. Pass `quadrature` instead."
-        end
-        quad = _parse_quadrature_args(quadrature, quadrature_short, quadrature_long)
-        common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad)
-        sr = ParamsShortRange(
-            backend_short, quad, common, rcut, StaticBool(RegulariseBinormal),
-            lia_segment_fraction,
-        )
-        lr = ParamsLongRange(backend_long, quad, common, Ns)
-        new{T, typeof(common), typeof(sr), typeof(lr)}(common, sr, lr)
+function ParamsBiotSavart(
+        ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
+        a::Real,
+        quadrature::AbstractQuadrature = GaussLegendre(2),
+        quadrature_short = nothing,  # deprecated
+        quadrature_long = nothing,   # deprecated
+        backend_short::ShortRangeBackend = default_short_range_backend(Ls),
+        backend_long::LongRangeBackend = FINUFFTBackend(),
+        regularise_binormal::Val{RegulariseBinormal} = Val(false),
+        Δ::Real = 0.25,
+        lia_segment_fraction::Union{Nothing, Real} = nothing,
+        kws...,
+    ) where {T, RegulariseBinormal}
+    # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
+    # - define ParamsPhysical instead of ParamsCommon
+    # - include α in both ParamsShortRange and ParamsLongRange?
+    (; Ns, rcut,) = _extra_params(α; kws...)
+    if !isnothing(quadrature_short) || !isnothing(quadrature_long)
+        @warn "`quadrature_short` and `quadrature_long` are deprecated and will be removed. Pass `quadrature` instead."
     end
+    quad = _parse_quadrature_args(quadrature, quadrature_short, quadrature_long)
+    common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad)
+    sr = ParamsShortRange(
+        backend_short, quad, common, rcut, StaticBool(RegulariseBinormal),
+        lia_segment_fraction,
+    )
+    lr = ParamsLongRange(backend_long, quad, common, Ns)
+    ParamsBiotSavart(common, sr, lr)
+end
+
+function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T <: AbstractFloat}
+    common = convert(T, p.common)
+    shortrange = change_float_type(p.shortrange, common)
+    longrange = change_float_type(p.longrange, common)
+    ParamsBiotSavart(common, shortrange, longrange)
 end
 
 _parse_quadrature_args(quad::AbstractQuadrature, ::Nothing, ::Nothing) = quad
