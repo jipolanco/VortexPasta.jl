@@ -55,7 +55,9 @@ function test_filament_ring(N, method)
             integrand(f, i, ζ) = norm(f(i, ζ, Derivative(1)))
             L = @inferred integrate(integrand, f, quad)
             # @show method, continuity, quad, (L - L_expected) / L_expected
-            rtol = if continuity == 0 || quad === NoQuadrature()
+            rtol = if N < 10
+                0.1  # just for very low resolution cases
+            elseif continuity == 0 || quad === NoQuadrature()
                 2e-3
             elseif method isa FiniteDiffMethod || quad === GaussLegendre(1)
                 5e-3
@@ -78,6 +80,8 @@ function test_filament_ring(N, method)
             # @show method, continuity, quad, (L - (L_a + L_b)) / L
             rtol = if method isa FiniteDiffMethod && quad === GaussLegendre(1)
                 0.02
+            elseif N < 10
+                0.01
             elseif method isa FiniteDiffMethod && quad === GaussLegendre(2)
                 0.005
             elseif method isa FourierMethod
@@ -99,7 +103,8 @@ function test_filament_ring(N, method)
         if !(method isa FourierMethod)
             # In general, knot period ≈ total length of closed filament, except for
             # FourierMethod.
-            @test isapprox(L, 2π * R; rtol = 1e-2)
+            rtol = (N < 10) ? 0.1 : 0.01
+            @test isapprox(L, 2π * R; rtol)
         end
         @test all(1:M) do i
             (ts[end + i] - ts[begin - 1 + i]) == (ts[end + 1 - i] - ts[begin - i]) == L
@@ -253,7 +258,7 @@ function test_filament_ring(N, method)
         @test @inferred(first(seg)) isa @inferred(eltype(seg))
     end
 
-    if continuity ≥ 1
+    if continuity ≥ 1 && N > 10
         @testset "Refinement (ring)" begin
             @testset "Coarsening" begin
                 # This criterion will basically remove points such that ρℓ = ℓ/R > 2π/M.
@@ -378,6 +383,9 @@ end
             "CubicSpline" => (N, CubicSplineMethod()),
             "QuinticSpline" => (N, QuinticSplineMethod()),
             "FourierMethod" => (N, FourierMethod()),
+            # These are edge cases which use a different linear solver:
+            "QuinticSpline (N = 6)" => (6, QuinticSplineMethod()),
+            "QuinticSpline (N = 5)" => (5, QuinticSplineMethod()),
         )
         @testset "$label" for (label, args) ∈ methods
             test_filament_ring(args...)

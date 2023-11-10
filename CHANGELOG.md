@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Relax number of allowed nodes for `QuinticSplineMethod` from 7 to 5.
+
 ## [0.8.0] - 2023-11-08
 
 ### Added

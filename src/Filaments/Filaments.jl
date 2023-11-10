@@ -458,7 +458,7 @@ minimum_nodes(::DiscretisationMethod) = 3
 
 function _check_nodes(::Type{T}, f::AbstractFilament) where {T}
     method = discretisation_method(f)
-    M = max(npad(nodes(f)), minimum_nodes(method))
+    M = minimum_nodes(method)
     N = length(f)
     if N < M
         if T === Bool

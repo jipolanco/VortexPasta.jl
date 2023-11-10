@@ -18,6 +18,7 @@ end
 
 @testset "VortexPasta.jl" begin
     @includetest "vector_of_vector.jl"
+    @includetest "padded_arrays.jl"
     @includetest "splines.jl"
     @includetest "filaments.jl"
     @includetest "refinement.jl"
