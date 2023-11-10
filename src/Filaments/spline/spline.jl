@@ -43,8 +43,9 @@ In the case of closed curves, periodic quintic splines are used.
 """
 const QuinticSplineMethod = SplineMethod{6}
 
-# The linear system solver for quintic splines requires at least 7 nodes.
-minimum_nodes(::QuinticSplineMethod) = 7
+# The usual linear system solver for quintic splines requires at least 7 nodes.
+# But we also provide solvers for 5 and 6 nodes.
+minimum_nodes(::QuinticSplineMethod) = 5
 
 include("banded.jl")  # banded matrix support
 include("quintic.jl")

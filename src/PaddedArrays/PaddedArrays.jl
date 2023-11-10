@@ -212,7 +212,6 @@ function pad_periodic! end
 pad_periodic!(v::PaddedArray, args...) = pad_periodic!(FromCentre(), v, args...)
 
 function pad_periodic!(::FromCentre, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}
-    @assert length(v) ≥ M
     @inbounds for i ∈ 1:M
         v[begin - i] = v[end + 1 - i] - L
         v[end + i] = v[begin - 1 + i] + L
@@ -223,22 +222,20 @@ end
 # This variant gives priority to padded values on the right of the "central" array.
 # This can be convenient for certain algorithms (e.g. when inserting spline knots).
 function pad_periodic!(::FromRight, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}
-    @assert length(v) ≥ M
+    # Copy right ghost values onto "central" array, then perform the usual padding "from centre".
     @inbounds for i ∈ 1:M
-        v[begin - i] = v[end + 1 - i] - L
         v[begin - 1 + i] = v[end + i] - L
     end
-    v
+    pad_periodic!(FromCentre(), v, L)
 end
 
 # Similar to above, but preserving the left padding.
 function pad_periodic!(::FromLeft, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}
-    @assert length(v) ≥ M
+    # Copy left ghost values onto "central" array, then perform the usual padding "from centre".
     @inbounds for i ∈ 1:M
         v[end + 1 - i] = v[begin - i] + L
-        v[end + i] = v[begin - 1 + i] + L
     end
-    v
+    pad_periodic!(FromCentre(), v, L)
 end
 
 # Generalisation to N-dimensional PaddedArray.

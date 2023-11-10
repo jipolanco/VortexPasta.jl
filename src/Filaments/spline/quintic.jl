@@ -18,14 +18,7 @@ function solve_spline_coefficients!(
 end
 
 # Compute Uᵀ * y, where Uᵀ is a 2×m matrix which is only non-zero in its first and last
-# 2 columns.
-function lmul_utranspose(Uᵀ_left::SMatrix{2, 2}, Uᵀ_right::SMatrix{2, 2}, y::AbstractVector{<:Real})
-    y_hi = SVector(y[begin], y[begin + 1])
-    y_lo = SVector(y[end - 1], y[end])
-    Uᵀ_left * y_hi + Uᵀ_right * y_lo
-end
-
-# Similar when `y` is a vector of SVector.
+# 2 columns. Here `y` is a vector of SVector.
 function lmul_utranspose(Uᵀ_left::SMatrix{2, 2}, Uᵀ_right::SMatrix{2, 2}, y::AbstractVector{<:SVector{N}}) where {N}
     y_hi = hcat(y[begin], y[begin + 1])' :: SMatrix{2, N}
     y_lo = hcat(y[end - 1], y[end])'     :: SMatrix{2, N}
@@ -34,6 +27,10 @@ end
 
 function _solve_quintic_spline_coefficients!(cs::AbstractVector{<:Vec3}, ts)
     n = length(ts)
+    if n < 7
+        _solve_quintic_spline_coefficients_small!(cs, ts)
+        return cs
+    end
     m = n - 2
     kl, ku = 2, 2  # lower and upper band sizes
     T = eltype(ts)
@@ -182,4 +179,51 @@ function _construct_quintic_spline_matrices!(
     )
 
     (; A₂, Uᵀ_left, Uᵀ_right,)
+end
+
+## ================================================================================ ##
+
+# Special case of small linear systems (n = 5, 6), which are not supported by the above
+# solver.
+# We directly solve the linear system. Note that a cyclic pentadiagonal matrix is basically
+# a full matrix for these sizes, so we can use generic solvers.
+
+function _solve_quintic_spline_coefficients_small!(cs, ts)
+    n = length(cs)
+    @assert 5 ≤ n ≤ 6
+    if n == 6
+        _solve_quintic_spline_coefficients_small!(cs, ts, Val(6))
+    elseif n == 5
+        _solve_quintic_spline_coefficients_small!(cs, ts, Val(5))
+    end
+    nothing
+end
+
+function _solve_quintic_spline_coefficients_small!(cs, ts, ::Val{n}) where {n}
+    A = _construct_quintic_spline_matrix_small(ts, Val(n))
+    ys = SVector{n}(cs)
+    xs = A \ ys
+    copy!(cs, xs)
+end
+
+function _construct_quintic_spline_matrix_small(ts, ::Val{n}) where {n}
+    @assert n == length(ts)
+    @assert n ≥ 5
+    n² = n * n
+    T = eltype(ts)
+    A = zero(MMatrix{n, n, T, n²})
+    order = Val(6)
+    for i ∈ 1:n
+        bs = eval_bsplines(order, ts, i) :: NTuple{5}
+        for (ib, b) ∈ pairs(bs)
+            j = i + 3 - ib
+            if j < 1
+                j += n
+            elseif j > n
+                j -= n
+            end
+            A[i, j] = b
+        end
+    end
+    SMatrix(A)
 end
