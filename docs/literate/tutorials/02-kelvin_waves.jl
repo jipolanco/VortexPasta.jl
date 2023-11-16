@@ -241,19 +241,27 @@ end
 # This means that, for each vortex oriented in the ``+z`` direction, we need to compensate
 # by a vortex oriented in the ``-z`` direction to obtain a zero total circulation.
 #
-# Secondly, if we put just two vortices of opposite signs in the domain, these will rotate
-# and "dance" around each other due to the velocity they induce on each other.
-# To avoid this and stabilise the system, we can add two more vortices, making sure that
-# all vortices are equally spaced on the XY plane.
-# Let's create these four vortices:
+# In practice, to make sure that the total circulation is zero and to stabilise the system,
+# we want to have four vortices such that their coordinates respect mirror symmetry with
+# respect to the planes ``x = L/2`` and ``y = L/2``.
+# Respecting these two symmetries means that both planes effectively become impermeable
+# (but free-slip) walls.
+# That is, the velocity induced by the vortices on those planes can only be parallel to the
+# planes and not normal to them.
+# More generally, due to periodicity, all planes ``x = nL/2`` and
+# ``y = nL/2`` (for integer ``n``) effectively become impermeable walls.
+#
+# Let's now create these four vortices:
+
+using StaticArrays: SDiagonal  # used to create 3×3 diagonal matrices
 
 funcs = [
     ## "Positive" vortices
-    define_curve(p; scale = L, translate = (0.25L, 0.25L, 0.5L)),
-    define_curve(p; scale = L, translate = (0.75L, 0.75L, 0.5L)),
+    define_curve(p; scale = SDiagonal(+L, +L, +L), translate = (0.25L, 0.25L, 0.5L)),
+    define_curve(p; scale = SDiagonal(-L, -L, +L), translate = (0.75L, 0.75L, 0.5L)),  # mirror symmetry wrt x and y
     ## "Negative" vortices: we use the `orientation` keyword to flip their orientation.
-    define_curve(p; scale = L, translate = (0.25L, 0.75L, 0.5L), orientation = -1),
-    define_curve(p; scale = L, translate = (0.75L, 0.25L, 0.5L), orientation = -1),
+    define_curve(p; scale = SDiagonal(+L, -L, +L), translate = (0.25L, 0.75L, 0.5L), orientation = -1),  # mirror symmetry wrt y
+    define_curve(p; scale = SDiagonal(-L, +L, +L), translate = (0.75L, 0.25L, 0.5L), orientation = -1),  # mirror symmetry wrt x
 ]
 fs = map(S -> Filaments.init(S, ClosedFilament, N, QuinticSplineMethod()), funcs)
 plot_filaments(fs)
