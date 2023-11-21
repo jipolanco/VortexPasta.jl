@@ -31,7 +31,7 @@ end
 
 function VortexFilamentProblem(
         fs_in::VectorOfFilaments,
-        tspan_in::NTuple{2},
+        tspan_in::NTuple{2, Real},
         p_in::ParamsBiotSavart,
     )
     fs = convert(VectorOfVectors, fs_in)
