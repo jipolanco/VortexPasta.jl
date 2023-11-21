@@ -92,7 +92,7 @@ function interpolate_to_physical!(c::ExactSumCache)
     kxs = first(wavenumbers)
     kx_lims = first(kxs), last(kxs)
     @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
-    @inbounds for i ∈ eachindex(points, charges)
+    @inbounds @batch for i ∈ eachindex(points, charges)
         X = points[i]
         q⃗ = zero(real(eltype(uhat)))
         for I ∈ CartesianIndices(uhat)
