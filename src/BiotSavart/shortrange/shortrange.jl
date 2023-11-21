@@ -37,7 +37,7 @@ function short_range_velocity end
 abstract type EwaldComponent end
 struct ShortRange <: EwaldComponent end
 struct LongRange <: EwaldComponent end
-struct ShortPlusLongRange <: EwaldComponent end  # ShortRange + LongRange
+struct FullIntegrand <: EwaldComponent end  # ShortRange + LongRange
 
 ewald_screening_function(::Velocity, ::ShortRange, αr::Real) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
 ewald_screening_function(::Velocity, ::ShortRange,   ::Zero) = 1
@@ -52,8 +52,8 @@ ewald_screening_function(::Streamfunction, ::LongRange, αr::Real) = erf(αr)
 ewald_screening_function(::Streamfunction, ::LongRange,   ::Zero) = Zero()
 
 # This simply corresponds to the unmodified BS integrals.
-ewald_screening_function(::Velocity, ::ShortPlusLongRange, αr) = 1
-ewald_screening_function(::Streamfunction, ::ShortPlusLongRange, αr) = 1
+ewald_screening_function(::Velocity, ::FullIntegrand, αr) = 1
+ewald_screening_function(::Streamfunction, ::FullIntegrand, αr) = 1
 
 biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3
 biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r
@@ -177,19 +177,19 @@ function add_short_range_fields!(
         # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the prefactor later.
         # We also subtract short-range contributions, since we compute them further below
         # and we're not supposed to include them in the computations.
-        # So, in the end, we use ShortPlusLongRange to add both contributions.
+        # So, in the end, we use FullIntegrand to add both contributions.
         sa = Segment(f, segment_a)
         sb = Segment(f, segment_b)
         vecs_i = map(ps) do (quantity, _)
             u⃗ = -(
-                + integrate_biot_savart(quantity, ShortPlusLongRange(), sa, x⃗, params; Lhs)
-                + integrate_biot_savart(quantity, ShortPlusLongRange(), sb, x⃗, params; Lhs)
+                + integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs)
+                + integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs)
             )
             if lia_segment_fraction !== nothing
                 # In this case we need to include the integral over a fraction of the local segments.
                 u⃗ = u⃗ + (
-                    + integrate_biot_savart(quantity, ShortPlusLongRange(), sa, x⃗, params; Lhs, limits = nonlia_lims[1])
-                    + integrate_biot_savart(quantity, ShortPlusLongRange(), sb, x⃗, params; Lhs, limits = nonlia_lims[2])
+                    + integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, limits = nonlia_lims[1])
+                    + integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, limits = nonlia_lims[2])
                 )
             end
             if _LIA

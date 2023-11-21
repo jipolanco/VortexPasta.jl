@@ -303,7 +303,7 @@ function _update_values_at_nodes!(
         fs::VectorOfFilaments,
         iter::VortexFilamentSolver,
     ) where {Names, N, V <: VectorOfVectors}
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(true))
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
 end
 
 # Compute slow component only.
