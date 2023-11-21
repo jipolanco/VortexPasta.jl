@@ -377,12 +377,12 @@ t_{i + 1} = t_{i} + |\bm{s}_{i + 1} - \bm{s}_i|, \quad t_1 = 0.
 
 One can use the `parametrisation` keyword argument to change this.
 This must be a function `parametrisation(Xs, i)` which takes the vector `Xs` of
-discretisation points and the index `i` of the current point.
-The default parametrisation function is simply `parametrisation(Xs, i) = Xs[i]`, which
-corresponds to the definition above.
+discretisation points and the index `i` associated to the start of the current segment.
+The default parametrisation function is equivalent to
+`parametrisation(Xs, i) = norm(Xs[i + 1] - Xs[i])`, which corresponds to the definition above.
 
 For instance, to parametrise filaments according to the ``z`` increments between
-discretisation points, one can pass `parametrisation(Xs, i) = Xs[i].z`.
+discretisation points, one can pass `parametrisation(Xs, i) = abs(Xs[i + 1].z - Xs[i].z)`.
 
 !!! warning
 
