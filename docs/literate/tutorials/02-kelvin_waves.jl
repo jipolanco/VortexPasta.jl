@@ -455,7 +455,7 @@ Estd / Emean
 # We now plot the evolution of the ``x`` and ``y`` coordinates of the closen filament node:
 
 using CairoMakie  # hide
-CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
+CairoMakie.activate!(type = "svg", pt_per_unit = 1.0, visible = false)  # hide
 fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = L"t / T_{\text{KW}}", ylabel = "Position")
 tnorm = times ./ T_kw  # normalised time
@@ -578,7 +578,8 @@ ax = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"2
 scatterlines!(ax, ks_pos, nk_normalised)
 xlims!(ax, 0.8 * ks_pos[begin], nothing)
 ylims!(ax, 1e-30, 1e1)
-vlines!(ax, ks_pos[m]; linestyle = :dash, color = :orangered)
+## vlines!(ax, ks_pos[m]; linestyle = :dash, color = :orangered)  # not working in Makie 0.20 (issue with log scales)
+linesegments!(ax, [ks_pos[m]], collect(ax.limits[][2]); linestyle = :dash, color = :orangered)
 fig
 
 # We see that the wave action spectrum is strongly peaked at the wavenumber ``k = 2πm/L``
@@ -663,7 +664,9 @@ fig = Figure()
 ax = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"ω / ω_{\text{kw}}", ylabel = L"n(ω)", xlabelsize = 20, ylabelsize = 20)
 scatterlines!(ax, ωs_normalised, nω)
 xlims!(ax, 0.8 * ωs_normalised[begin], 1.2 * ωs_normalised[end])
-vlines!(ax, 1.0; linestyle = :dash, color = :orangered)
+ylims!(ax, 1e-10, 1e-2)
+## vlines!(ax, 1.0; linestyle = :dash, color = :orangered)  # not working in Makie 0.20 (issue with log scales)
+linesegments!(ax, [1.0], collect(ax.limits[][2]); linestyle = :dash, color = :orangered)
 fig
 
 # We see that the temporal spectrum is strongly peaked at the analytical Kelvin wave

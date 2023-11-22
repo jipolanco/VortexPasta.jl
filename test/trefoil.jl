@@ -373,7 +373,7 @@ end
 
 function plot_convergence()
     # Check convergence of discretisation
-    fig = Figure(resolution = (1200, 600))
+    fig = Figure(size = (1200, 600))
     ax_curv = Axis(fig[1, 1]; xscale = log10, yscale = log10, title = "Curvature", xlabel = L"N", ylabel = "Error")
     ax_tors = Axis(fig[1, 2];  xscale = log10, yscale = log10, title = "Torsion", xlabel = L"N")
     linkaxes!(ax_curv, ax_tors)
