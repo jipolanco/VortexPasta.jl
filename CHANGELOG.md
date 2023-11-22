@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2023-11-22
+
+### Added
+
+- Parallelise short-range computations using threads.
+  Note that the most expensive part of long-range computations (via FINUFFT) are also parallel.
+  To use multithreading, start Julia with the `-t N` flag, where `N` is the number of threads.
+  See the [docs](https://docs.julialang.org/en/v1/manual/multi-threading/#Starting-Julia-with-multiple-threads) for more details.
+
 ## [0.8.1] - 2023-11-10
 
 ### Changed
