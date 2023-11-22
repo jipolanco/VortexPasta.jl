@@ -602,8 +602,9 @@ fig
 #     \bm{v}_{\text{LIA}} = C \frac{\bm{s}' × \bm{s}''}{|\bm{s}'|^3}
 #     ```
 #     where ``C`` is (roughly) a constant.
-#     Derivatives are with respect to the chosen parametrisation, hence the normalising
-#     factor in the denominator.
+#     Derivatives are with respect to the chosen parametrisation (which can differ from the
+#     "natural" arc-length parametrisation), hence the normalising factor in the
+#     denominator.
 #
 #     In our case we have ``\bm{s}' = [ϵ \cos(z), 0, 1]`` and ``\bm{s}'' = [-ϵ \sin(z), 0, 0]``,
 #     and thus
@@ -617,11 +618,11 @@ fig
 #     v_{\text{LIA}} = ϵ \sin(z) \left[1 - \frac{3}{2} ϵ^2 \cos^2 z + \mathcal{O}(ϵ^4) \right].
 #     ```
 #     Noting that ``\sin(z) \cos^2(z) = [\sin(z) + \sin(3z)] / 4``, one clearly sees that
-#     the term in ``ϵ^2`` excites modes at wavenumber ``q = 3`` (which is the third harmonic
-#     of the perturbed mode ``k = 1``).
+#     the term in ``ϵ^2`` excites modes at wavenumber ``q = 3``, i.e. the third harmonic
+#     of the perturbed mode ``k = 1``.
 #     Since the contribution is proportional to ``ϵ^2``, this non-linear effect should be
 #     negligible for very small perturbation amplitudes.
-#     It is easy to see that all of this generalises to any ``q = 1 + 2n`` by
+#     It is easy to see that all of this generalises to all odd harmonics ``q = 1 + 2n`` by
 #     taking into account higher-order terms of the Taylor expansion.
 #
 #     In the tutorial, we initially perturbed the mode ``k = 2``, which excites its odd harmonics
