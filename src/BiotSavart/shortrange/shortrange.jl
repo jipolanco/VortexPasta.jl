@@ -95,8 +95,6 @@ end
     r² = sum(abs2, r⃗)
     if component === ShortRange() && r² > rcut_sq
         # The short-range backend may allow some pair interactions beyond the cutoff.
-        # This is in particular the case when using cell lists.
-        # We want to avoid extra computations in that case.
         return zero(r⃗)
     end
     @assert typeof(r⃗) === typeof(qs⃗′)  # should be true for type stability reasons...
@@ -119,6 +117,14 @@ function integrate_biot_savart(
         s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
         biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs)
     end
+end
+
+function indices_per_thread(inds::AbstractUnitRange, nthreads = Threads.threadpoolsize())
+    N = length(inds)
+    m = cld(N, nthreads)
+    part = Iterators.partition(inds, m)
+    @assert length(part) ≤ nthreads
+    part
 end
 
 """
@@ -162,67 +168,69 @@ function add_short_range_fields!(
         ))
     end
 
-    segment_a = lastindex(segments(f))   # index of segment ending at point x⃗
-    segment_b = firstindex(segments(f))  # index of segment starting at point x⃗
-
+    segs = segments(f)
     nonlia_lims = nonlia_integration_limits(lia_segment_fraction)
 
-    for (i, x⃗) ∈ pairs(Xs)
-        # Start with the "singular" region (i.e. the segments which include x⃗: `segment_a` and `segment_b`).
-        # We first subtract the effect of the long-range estimation, and then replace it with the LIA term.
-        # Removing the long-range integral is needed to have a total velocity which does not
-        # depend on the (unphysical) Ewald parameter α.
-        # Note that the integral with the long-range kernel is *not* singular (since it's a
-        # smoothing kernel), so there's no problem with evaluating this integral.
-        # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the prefactor later.
-        # We also subtract short-range contributions, since we compute them further below
-        # and we're not supposed to include them in the computations.
-        # So, in the end, we use FullIntegrand to add both contributions.
-        sa = Segment(f, segment_a)
-        sb = Segment(f, segment_b)
-        vecs_i = map(ps) do (quantity, _)
-            u⃗ = -(
-                + integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs)
-                + integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs)
-            )
-            if lia_segment_fraction !== nothing
-                # In this case we need to include the integral over a fraction of the local segments.
-                u⃗ = u⃗ + (
-                    + integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, limits = nonlia_lims[1])
-                    + integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, limits = nonlia_lims[2])
-                )
-            end
-            if _LIA
-                u⃗ = u⃗ + local_self_induced(
-                    quantity, f, i, one(prefactor);
-                    a, Δ, quad, regularise_binormal,
-                    segment_fraction = lia_segment_fraction,
-                )
-            end
-            quantity => u⃗
-        end
+    part = indices_per_thread(eachindex(Xs))
 
-        # Then integrate short-range effect of nearby charges.
-        # Note that this includes the contributions of the two segments within the singular
-        # region which we're not supposed to include (we subtracted the same contributions
-        # above, so it cancels out).
-        for charge ∈ nearby_charges(cache, x⃗)
-            s⃗, q⃗ = charge
-            qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
-            vecs_i = map(vecs_i) do (quantity, u⃗)
-                u⃗ = u⃗ + biot_savart_contribution(quantity, ShortRange(), params, x⃗, s⃗, qs⃗′; Lhs)
+    @sync for inds ∈ part
+        Threads.@spawn for i ∈ inds
+            x⃗ = Xs[i]
+
+            # Start with the "singular" region (i.e. the segments which include x⃗: `sa` and `sb`).
+            # We first subtract the effect of the long-range estimation, and then replace it with the LIA term.
+            # Removing the long-range integral is needed to have a total velocity which does not
+            # depend on the (unphysical) Ewald parameter α.
+            # Note that the integral with the long-range kernel is *not* singular (since it's a
+            # smoothing kernel), so there's no problem with evaluating this integral.
+            # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the prefactor later.
+            # We also subtract short-range contributions, since we compute them further below
+            # and we're not supposed to include them in the computations.
+            # So, in the end, we use FullIntegrand to add both contributions.
+            sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
+            sb = Segment(f, i)  # segment i
+
+            vecs_i = map(ps) do (quantity, _)
+                u⃗ = -(
+                    + integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs)
+                    + integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs)
+                )
+                if lia_segment_fraction !== nothing
+                    # In this case we need to include the integral over a fraction of the local segments.
+                    u⃗ = u⃗ + (
+                        + integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, limits = nonlia_lims[1])
+                        + integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, limits = nonlia_lims[2])
+                    )
+                end
+                if _LIA
+                    u⃗ = u⃗ + local_self_induced(
+                        quantity, f, i, one(prefactor);
+                        a, Δ, quad, regularise_binormal,
+                        segment_fraction = lia_segment_fraction,
+                    )
+                end
                 quantity => u⃗
             end
-        end
 
-        segment_a = segment_b
-        segment_b += 1
+            # Then integrate short-range effect of nearby charges.
+            # Note that this includes the contributions of the two segments within the singular
+            # region which we're not supposed to include (we subtracted the same contributions
+            # above, so it cancels out).
+            for charge ∈ nearby_charges(cache, x⃗)
+                s⃗, q⃗ = charge
+                qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
+                vecs_i = map(vecs_i) do (quantity, u⃗)
+                    u⃗ = u⃗ + biot_savart_contribution(quantity, ShortRange(), params, x⃗, s⃗, qs⃗′; Lhs)
+                    quantity => u⃗
+                end
+            end
 
-        # Add computed vectors (velocity and/or streamfunction) to corresponding arrays.
-        map(ps, vecs_i) do (quantity_p, us), (quantity_i, u⃗)
-            @inline
-            @assert quantity_p === quantity_i
-            us[i] = us[i] + prefactor * u⃗
+            # Add computed vectors (velocity and/or streamfunction) to corresponding arrays.
+            map(ps, vecs_i) do (quantity_p, us), (quantity_i, u⃗)
+                @inline
+                @assert quantity_p === quantity_i
+                us[i] = us[i] + prefactor * u⃗
+            end
         end
     end
 

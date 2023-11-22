@@ -16,6 +16,8 @@ macro includetest(path::String)
     ex
 end
 
+@info "Running tests with $(Threads.nthreads()) threads"
+
 @testset "VortexPasta.jl" begin
     @includetest "vector_of_vector.jl"
     @includetest "padded_arrays.jl"
