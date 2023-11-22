@@ -6,6 +6,7 @@
     # This is needed for caching Julia files (compilation, ...), since caching
     # can only be done if the files are in the project directory.
     - export JULIA_DEPOT_PATH=.julia
+    - export JULIA_NUM_THREADS=1  # using more than 1 thread is slower in the CI machines (probably because there are other CI processes running!)
   cache:
     key: julia-cache
     paths:
@@ -23,6 +24,7 @@
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   script:
+    - echo "JULIA_NUM_THREADS = $JULIA_NUM_THREADS"
     - |
       julia --project -e '
         using Pkg
@@ -100,6 +102,7 @@ docs:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH       # run on master branch
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'  # run on merge requests
   script:
+    - echo "JULIA_NUM_THREADS = $JULIA_NUM_THREADS"
     - apt-get update -qq
     - apt-get install -qq git  # needed by Documenter
 
