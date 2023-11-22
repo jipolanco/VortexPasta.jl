@@ -63,7 +63,7 @@ Note in particular that, for small ``r``, ``\operatorname{erf}(αr) = 2αr/\sqrt
     gl(αr) =  erf(αr) - 2αr / sqrt(π) * exp(-αr^2)  # long-range
     xticks = LogTicks(-4:1:3)
     yticks = LogTicks(-16:4:0)
-    fig = Figure(resolution = (600, 400), fontsize = 18)
+    fig = Figure(size = (600, 400), fontsize = 18)
     ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
     ylims!(ax, 1e-17, 4)
     ls = lines!(ax, rs, gs.(rs); label = L"g^<(r)")
@@ -208,7 +208,7 @@ Of course, one can vary the ``k_\text{max} / α`` ratio depending on the wanted 
     lines(
         ks_α, ys;
         axis = (yscale = log10, xticks, yticks, xlabel = L"k/α", ylabel = L"\exp \, \left[ -k^2 / 4α^2 \right]",),
-        figure = (fontsize = 20, resolution = (600, 400),),
+        figure = (fontsize = 20, size = (600, 400),),
     )
     save("gaussian_kalpha.svg", current_figure())
     nothing  # hide
