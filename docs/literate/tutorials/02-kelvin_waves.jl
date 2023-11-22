@@ -583,14 +583,55 @@ fig
 
 # We see that the wave action spectrum is strongly peaked at the wavenumber ``k = 2πm/L``
 # (dashed vertical line) corresponding to the perturbation mode ``m`` we chose at the
-# beginning (the other peaks are spurious and about 6 orders of magnitude smaller than the
-# main peak).
+# beginning.
+# Note that the other peaks (which here are about 6 orders of magnitude smaller than the
+# main peak) are not numerical artefacts.
+# Instead, these peaks appearing at wavenumbers ``q = k (1 + 2n)`` for integer ``n`` can be
+# explained analytically (see box below).
+# Their relative magnitude should further decrease if one decreases the perturbation amplitude.
+#
+# !!! details "A kind of proof using LIA"
+#
+#     One way to illustrate this analytically is using the local induction approximation
+#     (LIA).
+#     Let's consider the perturbed line ``\bm{s}(z) = [ϵ \sin(z), 0, z]`` parametrised by the
+#     ``z`` coordinate.
+#     The LIA can be written as
+#     ```math
+#     \bm{v}_{\text{LIA}} = C \frac{\bm{s}' × \bm{s}''}{|\bm{s}'|^3}
+#     ```
+#     where ``C`` is (roughly) a constant.
+#     Derivatives are with respect to the chosen parametrisation, hence the normalising
+#     factor in the denominator.
+#
+#     In our case we have ``\bm{s}' = [ϵ \cos(z), 0, 1]`` and ``\bm{s}'' = [-ϵ \sin(z), 0, 0]``,
+#     and thus
+#     ```math
+#     v_{\text{LIA}} = \frac{ϵ \sin(z)}{(1 + ϵ^2 \cos^2 z)^{3/2}}.
+#     ```
+#
+#     Using a Taylor expansion, one can easily show that the denominator introduces fluctuations
+#     over the odd harmonics ``q = 1 + 2n`` for ``n ∈ \{ 1, 2, 3, … \}``:
+#     ```math
+#     v_{\text{LIA}} = ϵ \sin(z) \left[1 - \frac{3}{2} ϵ^2 \cos^2 z + \mathcal{O}(ϵ^4) \right].
+#     ```
+#     Noting that ``\sin(z) \cos^2(z) = [\sin(z) + \sin(3z)] / 4``, one clearly sees that
+#     the term in ``ϵ^2`` excites modes at wavenumber ``q = 3`` (which is the third harmonic
+#     of the perturbed mode ``k = 1``).
+#     Since the contribution is proportional to ``ϵ^2``, this non-linear effect should be
+#     negligible for very small perturbation amplitudes.
+#     It is easy to see that all of this generalises to any ``q = 1 + 2n`` by
+#     taking into account higher-order terms of the Taylor expansion.
+#
+#     In the tutorial, we initially perturbed the mode ``k = 2``, which excites its odd harmonics
+#     ``q = k (1 + 2n) = 6, 10, 14, …`` as seen in the above figure.
+#
 # We also see that the sum ``∑_k n(k)`` (which is basically just the value of the main peak
 # in this case) is equal to ``A^2/2``, where ``A = ϵL`` is the amplitude of the initial
 # perturbation.
 #
 # The main conclusion is that, when we perturb a single Kelvin wave mode as we did here,
-# that original mode is exactly preserved over time (except for negligible spurious
+# that original mode is exactly preserved over time (except for negligible high-order
 # effects).
 
 # ### Temporal analysis
