@@ -33,6 +33,7 @@ end
     @includetest "imex.jl"
     @includetest "leapfrogging.jl"
     @includetest "kelvin_waves.jl"
+    @includetest "forced_lines.jl"
     @includetest "min_distance.jl"
     @includetest "reconnections.jl"
     @includetest "plots.jl"
