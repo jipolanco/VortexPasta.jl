@@ -15,6 +15,96 @@ using UnicodePlots: lineplot, lineplot!
 using JET: JET
 using FINUFFT: FINUFFT
 
+# ================================================================================ #
+
+abstract type AbstractStochasticForcing{T <: AbstractFloat} end
+
+function init_forcing!(rng::Random.AbstractRNG, f::AbstractStochasticForcing)
+    Random.randn!(rng, f.ws)  # normal distribution
+    f.ws .*= f.amplitude
+    f
+end
+
+function generate_forcing_function(f::AbstractStochasticForcing{T}) where {T}
+    function (x⃗::Vec3, t)
+        z = x⃗.z
+        u = zero(Complex{T})
+        for (k, w) ∈ zip(f.ks, f.ws)
+            u += w * cis(k * z)
+        end
+        Vec3(real(u), imag(u), 0)
+    end
+end
+
+function generate_streamfunction_function(f::AbstractStochasticForcing{T}) where {T}
+    # Note: this satisfies v = ∇ × ψ
+    function (x⃗::Vec3, t)
+        z = x⃗.z
+        u = zero(Complex{T})
+        for (k, w) ∈ zip(f.ks, f.ws)
+            u += (-w / k) * cis(k * z)
+        end
+        Vec3(real(u), imag(u), 0)
+    end
+end
+
+# ================================================================================ #
+
+# Delta-correlated forcing (like Brownian motion)
+struct BrownianForcing{T} <: AbstractStochasticForcing{T}
+    dt :: T          # simulation timestep
+    σ² :: T          # fixed forcing amplitude -- has units of a diffusion coefficient [L²T⁻¹]
+    amplitude :: T   # = √{σ² / dt} -- has units of a velocity [LT⁻¹]
+    ks :: Vector{T}  # forced wavenumbers
+    ws :: Vector{Complex{T}}  # random forcing coefficients (~ Normal(0, std = amplitude))
+end
+
+correlation_time(f::BrownianForcing) = f.dt
+
+function BrownianForcing(dt, σ², ks)
+    ws = similar(ks, complex(eltype(ks)))
+    fill!(ws, 0)
+    amplitude = sqrt(σ² / dt)
+    BrownianForcing(dt, σ², amplitude, ks, ws)
+end
+
+function update_forcing!(rng::Random.AbstractRNG, f::BrownianForcing)
+    init_forcing!(rng, f)  # we just reset the coefficients to new random values
+end
+
+# ================================================================================ #
+
+# Stochastic forcing with correlation time τ
+struct OrnsteinUhlenbeckForcing{T} <: AbstractStochasticForcing{T}
+    dt :: T          # simulation timestep
+    σ² :: T          # fixed forcing amplitude -- has units of a diffusion coefficient [L²T⁻¹]
+    amplitude :: T   # = √{σ² / dt} -- has units of a velocity [LT⁻¹]
+    τ  :: T          # correlation time
+    ks :: Vector{T}  # forced wavenumbers
+    ws :: Vector{Complex{T}}  # random forcing coefficients
+end
+
+correlation_time(f::OrnsteinUhlenbeckForcing) = f.τ
+
+function OrnsteinUhlenbeckForcing(dt, σ², τ_, ks)
+    τ = max(τ_, dt)  # numerically, the correlation time can't be smaller than dt
+    amplitude = sqrt(σ² / dt)
+    ws = similar(ks, complex(eltype(ks)))
+    fill!(ws, 0)
+    OrnsteinUhlenbeckForcing(dt, σ², amplitude, τ, ks, ws)
+end
+
+function update_forcing!(rng::Random.AbstractRNG, f::OrnsteinUhlenbeckForcing)
+    (; ws, dt, τ, amplitude,) = f
+    for (i, w) ∈ pairs(ws)
+        # Note: setting τ = dt gives Brownian motion
+        ws[i] = (1 - dt / τ) * w + amplitude * Random.randn(rng, typeof(w)) # * dt
+    end
+    f
+end
+
+# ================================================================================ #
+
 function filaments_from_functions(funcs::NTuple{N, F}, args...) where {N, F <: Function}
     isempty(funcs) && return ()
     S = first(funcs)
@@ -23,13 +113,7 @@ function filaments_from_functions(funcs::NTuple{N, F}, args...) where {N, F <: F
     (f, f_next...)
 end
 
-function test_forced_lines(
-        ::Type{T} = Float64;
-        method = QuinticSplineMethod(),
-        scheme = RK4(),
-    ) where {T}
-    ## Initial condition
-    L = 2π
+function generate_straight_lines(::Type{T}, L, N, method) where {T}
     p = PeriodicLine()  # unperturbed straight line
     funcs = let L = L
         (
@@ -39,12 +123,13 @@ function test_forced_lines(
             define_curve(p; scale = L, translate = (3L/4, 3L/4, L/2), orientation = +1),
         )
     end
-    N = 32
-    filaments = collect(filaments_from_functions(funcs, ClosedFilament{T}, N, method))
+    collect(filaments_from_functions(funcs, ClosedFilament{T}, N, method))
+end
 
-    ## Biot–Savart parameters
-    Γ = 2.0
-    a = 1e-6
+function generate_biot_savart_parameters()
+    L = 2π
+    Γ = 9.97e-4
+    a = 1e-8
     Δ = 1/4
     Ngrid = 16
     Ns = (Ngrid, Ngrid, Ngrid)
@@ -52,49 +137,41 @@ function test_forced_lines(
     Ls = (L, L, L)
     α = kmax / 5
     rcut = 5 / α
-
-    params = ParamsBiotSavart(;
+    ParamsBiotSavart(;
         Γ, α, a, Δ, rcut, Ls, Ns,
         # backend_short = CellListsBackend(2),
         backend_short = NaiveShortRangeBackend(),  # needed when rcut > L/2 (which is the case here, since Ngrid is small)
         backend_long = FINUFFTBackend(tol = 1e-6),
         quadrature = GaussLegendre(2),
     )
+end
 
-    # Simulation timestep (also appearing in the amplitude of the stochastic forcing)
-    dt = BiotSavart.kelvin_wave_period(params, L/N)
+function test_forced_lines(
+        ::Type{T} = Float64;
+        N = 32,
+        method = QuinticSplineMethod(),
+        scheme = RK4(),
+    ) where {T}
+    params = generate_biot_savart_parameters()
+    (; Γ,) = params
+    L = params.Ls[3]  # = Lz
+    filaments = generate_straight_lines(T, L, N, method)
 
-    ## Forcing
+    T_kw = BiotSavart.kelvin_wave_period(params, L)  # period of largest KWs
+    dt_kw = BiotSavart.kelvin_wave_period(params, L/N)  # period of smallest resolved KWs
+    dt = dt_kw
+
+    # Forcing
     # We apply a stochastic velocity forcing.
-    # The forcing changes randomly at each timestep (not the best possible implementation of
-    # stochastic forcing!).
+    # The forcing changes randomly at each timestep (basic Euler–Maruyama scheme).
     # This is similar to the forcing used by Baggaley & Laurie (PRB 2014).
     rng = Random.Xoshiro()
-    forcing_amplitude = Ref(sqrt(Γ / dt / 100))  # this has the units of a velocity [L¹T⁻¹]
+    forcing_amplitude = Γ / 100
     forcing_ks = T[-3, -2, -1, 1, 2, 3]  # forcing wavenumbers (in the z direction)
-    forcing_ϕs = similar(forcing_ks)     # forcing phases
-    forcing_as = similar(forcing_ks)     # normal-distributed amplitudes (with unit variance)
+    forcing = BrownianForcing(dt, forcing_amplitude, forcing_ks)
 
-    function forcing_velocity(x⃗::Vec3, t)
-        A = forcing_amplitude[]
-        z = x⃗.z
-        w = zero(Complex{T})
-        for (k, ϕ, a) ∈ zip(forcing_ks, forcing_ϕs, forcing_as)
-            w += a * cis(k * z + ϕ)
-        end
-        A * Vec3(real(w), imag(w), 0)
-    end
-
-    # Note: this satisfies v = ∇ × ψ
-    function forcing_streamfunction(x⃗::Vec3, t)
-        A = forcing_amplitude[]
-        z = x⃗.z
-        w = zero(Complex{T})
-        for (k, ϕ, a) ∈ zip(forcing_ks, forcing_ϕs, forcing_as)
-            w -= (a / k) * cis(k * z + ϕ)
-        end
-        A * Vec3(real(w), imag(w), 0)
-    end
+    forcing_velocity = generate_forcing_function(forcing)
+    forcing_streamfunction = generate_streamfunction_function(forcing)
 
     ## Callback function to be called after each timestep
     times = T[]
@@ -105,17 +182,12 @@ function test_forced_lines(
         (; nstep, t,) = iter
         Tend = iter.prob.tspan[2]
         if nstep == 0  # make sure vectors are empty at the beginning of the simulation
-            Random.seed!(rng, 42)  # restart the random number generator
             empty!(times)
             empty!(energy)
             empty!(line_length)
         end
         # Set random amplitudes and phases of forcing for next iteration.
-        let
-            Random.randn!(rng, forcing_as)  # normal distribution
-            Random.rand!(rng, forcing_ϕs)
-            forcing_ϕs .*= 2π  # random in [0, 2π]
-        end
+        update_forcing!(rng, forcing)
         E = Diagnostics.kinetic_energy_from_streamfunction(iter)
         Lvort = Diagnostics.filament_length(iter)
         push!(times, t)
@@ -131,8 +203,8 @@ function test_forced_lines(
     # We first test *without* the external streamfunction, which means that energy estimates
     # will only include the energy associated to the Biot–Savart velocity (which is probably
     # the most relevant energy).
-    fill!(forcing_as, 0)  # this disables forcing of the initial velocity
-    fill!(forcing_ϕs, 0)
+    Random.seed!(rng, 42)  # restart the random number generator
+    init_forcing!(rng, forcing)
     iter = init(
         prob, scheme;
         dt,
@@ -157,8 +229,8 @@ function test_forced_lines(
     # should be exactly the same as before.
     energy_prev = copy(energy)
     line_length_prev = copy(line_length)
-    fill!(forcing_as, 0)
-    fill!(forcing_ϕs, 0)
+    Random.seed!(rng, 42)  # restart the random number generator
+    init_forcing!(rng, forcing)
     iter = init(
         prob, scheme;
         dt,
