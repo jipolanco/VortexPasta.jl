@@ -1,3 +1,5 @@
+using HCubature: HCubature
+
 export kinetic_energy_from_streamfunction
 
 @doc raw"""
@@ -86,4 +88,19 @@ function _kinetic_energy_from_streamfunction(
         end
     end
     prefactor * E
+end
+
+# Estimate kinetic energy of periodic velocity field in physical space.
+# The velocity field is expected to be described by a smooth spatial function.
+function kinetic_energy_of_periodic_velocity_field(
+        vext::F, Ls;
+        rtol = sqrt(eps(eltype(Ls))),
+    ) where {F <: Function}
+    @assert length(Ls) == 3 && !isinf(prod(Ls))
+    bs = Vec3(Ls)
+    as = zero(bs)
+    f(x⃗) = sum(abs2, vext(x⃗))
+    E, err = HCubature.hcubature(f, as, bs; rtol)
+    E /= 2 * prod(Ls)
+    E
 end

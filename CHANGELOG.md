@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.9.0 - 2023-11-24
+
+### Added
+
+- Add an option to force the vortex filaments by adding an external velocity.
+  This is done via the `external_velocity` keyword argument of `Timestepping.init`.
+
 ## [0.8.2] - 2023-11-22
 
 ### Added

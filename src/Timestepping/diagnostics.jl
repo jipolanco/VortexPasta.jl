@@ -3,9 +3,18 @@
 using ..Diagnostics: Diagnostics
 
 function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; kws...)
-    (; ψs, fs,) = iter
+    (; ψs, fs, external_forcing, t,) = iter
     (; Γ, Ls,) = iter.prob.p.common
-    Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; kws...)
+    E = Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; kws...)
+    # Add kinetic energy of external velocity field, if available.
+    # Note that we only do this if we also included the streamfunction, since otherwise
+    # we don't have enough information to estimate the total kinetic energy.
+    if external_forcing.velocity !== nothing && external_forcing.streamfunction !== nothing
+        E += Diagnostics.kinetic_energy_of_periodic_velocity_field(Ls) do x⃗
+            external_forcing.velocity(x⃗, t)
+        end
+    end
+    E
 end
 
 function Diagnostics.filament_length(iter::VortexFilamentSolver; kws...)
