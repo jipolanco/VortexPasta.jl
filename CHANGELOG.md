@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.10.0 - 2023-11-27
+
+### Added
+
+- Add optional `affect!` keyword argument to `Timestepping.init`.
+  It works similarly to `callback`, but allows modifying filament definitions
+  before computing their induced velocities.
+
 ## 0.9.0 - 2023-11-24
 
 ### Added
