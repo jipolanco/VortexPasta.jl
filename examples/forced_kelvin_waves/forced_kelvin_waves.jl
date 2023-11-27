@@ -1,22 +1,19 @@
-# Test initially straight infinite lines subject to velocity forcing.
+# Simulate initially straight infinite lines subject to velocity forcing.
 
-using Test
-using StaticArrays
-using Statistics: mean, std
-using LinearAlgebra: norm
 using Random: Random
 using FFTW: fft!, bfft!, fftfreq
 using VortexPasta.PredefinedCurves: define_curve, PeriodicLine
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
+using VortexPasta.FilamentIO
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
 using UnicodePlots: lineplot, lineplot!
-using JET: JET
-using FINUFFT: FINUFFT
+using GLMakie
 
 # ================================================================================ #
+## Forcing definitions
 
 abstract type AbstractStochasticForcing{T <: AbstractFloat} end
 
@@ -37,21 +34,7 @@ function generate_forcing_function(f::AbstractStochasticForcing{T}) where {T}
     end
 end
 
-function generate_streamfunction_function(f::AbstractStochasticForcing{T}) where {T}
-    # Note: this satisfies v = ∇ × ψ
-    function (x⃗::Vec3, t)
-        z = x⃗.z
-        u = zero(Complex{T})
-        for (k, w) ∈ zip(f.ks, f.ws)
-            u += (-w / k) * cis(k * z)
-        end
-        Vec3(real(u), imag(u), 0)
-    end
-end
-
-# ================================================================================ #
-
-# Delta-correlated forcing (like Brownian motion)
+## Delta-correlated forcing (like Brownian motion)
 struct DeltaCorrelatedForcing{T} <: AbstractStochasticForcing{T}
     dt :: T          # simulation timestep
     σ² :: T          # fixed forcing amplitude -- has units of a diffusion coefficient [L²T⁻¹]
@@ -73,9 +56,7 @@ function update_forcing!(rng::Random.AbstractRNG, f::DeltaCorrelatedForcing)
     init_forcing!(rng, f)  # we just reset the coefficients to new random values
 end
 
-# ================================================================================ #
-
-# Stochastic forcing with correlation time τ
+## Stochastic forcing with correlation time τ.
 struct OrnsteinUhlenbeckForcing{T} <: AbstractStochasticForcing{T}
     dt :: T          # simulation timestep
     σ² :: T          # fixed forcing amplitude -- has units of a diffusion coefficient [L²T⁻¹]
@@ -105,6 +86,30 @@ function update_forcing!(rng::Random.AbstractRNG, f::OrnsteinUhlenbeckForcing)
 end
 
 # ================================================================================ #
+## Fourier space stuff
+
+function wave_action_spectrum(ks::AbstractVector, rhat::AbstractVector)
+    @assert ks[2] == -ks[end]  # contains positive and negative wavenumbers
+    @assert length(ks) == length(rhat)
+    N = length(ks)
+    if iseven(N)
+        Nh = N ÷ 2
+        @assert ks[Nh + 1] ≈ -(ks[Nh] + ks[2])  # wavenumbers change sign after index Nh
+    else
+        Nh = N ÷ 2 + 1
+        @assert ks[Nh + 1] == -ks[Nh]  # wavenumbers change sign after index Nh
+    end
+    ks_pos = ks[2:Nh]  # only positive wavenumbers
+    nk = similar(ks_pos)
+    for j ∈ eachindex(ks_pos)
+        local k = ks_pos[j]
+        i⁺ = 1 + j      # index of coefficient corresponding to wavenumber +k
+        i⁻ = N + 1 - j  # index of coefficient corresponding to wavenumber -k
+        @assert ks[i⁺] == -ks[i⁻] == k  # verification
+        nk[j] = abs2(rhat[i⁺]) + abs2(rhat[i⁻])
+    end
+    ks_pos, nk
+end
 
 function dissipate_fourier!(ws, ks; dt, α, ν,)
     for i ∈ eachindex(ws, ks)
@@ -117,7 +122,7 @@ function dissipate_fourier!(ws, ks; dt, α, ν,)
     ws
 end
 
-function dissipate!(f::ClosedFilament, L; kwargs...)
+function dissipate_and_analyse!(f::ClosedFilament, L; kwargs...)
     Xs = nodes(f)
     ws = @. getindex(Xs, 1) + im * getindex(Xs, 2)
     fft!(ws)  # in-place FFT
@@ -125,13 +130,16 @@ function dissipate!(f::ClosedFilament, L; kwargs...)
     @. ws = ws / N  # normalise FFT
     ks = fftfreq(N, 2π * N / L)  # wavenumbers associated to FFT
     dissipate_fourier!(ws, ks; kwargs...)
+    ks_pos, nk = wave_action_spectrum(ks, ws)
     # Apply backwards FFT and modify `f` the filament with the results.
     bfft!(ws)
     for i ∈ eachindex(f, ws)
         f[i] = (real(ws[i]), imag(ws[i]), f[i].z)
     end
-    f
+    (; ks_pos, nk,)
 end
+
+# ================================================================================ #
 
 function redistribute_along_z!(f::AbstractFilament; rtol = 1e-12, nmax = 10)
     N = length(f)
@@ -198,15 +206,16 @@ function generate_biot_savart_parameters()
         Γ, α, a, Δ, rcut, Ls, Ns,
         # backend_short = CellListsBackend(2),
         backend_short = NaiveShortRangeBackend(),  # needed when rcut > L/2 (which is the case here, since Ngrid is small)
-        backend_long = FINUFFTBackend(tol = 1e-6),
+        backend_long = FINUFFTBackend(),
         quadrature = GaussLegendre(2),
     )
 end
 
-function test_forced_lines(
+function run_forced_lines(
         ::Type{T} = Float64;
-        N = 32,
-        kf_norm = [1, 2, 3],  # forced wavenumbers (absolute values only)
+        N = 128,
+        tmax = 0.5,        # maximum time in units of T_kw
+        kf_norm = [2, 3],  # forced wavenumbers (absolute values only)
         method = QuinticSplineMethod(),
         scheme = RK4(),
     ) where {T}
@@ -215,46 +224,59 @@ function test_forced_lines(
     (; Γ,) = params
     L = params.Ls[3]  # = Lz
     filaments = generate_straight_lines(T, L, N, method)
+    println(params)
 
+    # Simulation timestep (also appearing in the amplitude of the stochastic forcing)
+    T_kw = BiotSavart.kelvin_wave_period(params, L)  # period of largest KWs
     dt_kw = BiotSavart.kelvin_wave_period(params, L/N)  # period of smallest resolved KWs
-    dt = dt_kw  # simulation timestep
+    dt = dt_kw
 
     # Forcing
     # We apply a stochastic velocity forcing.
     # The forcing changes randomly at each timestep (basic Euler–Maruyama scheme).
     # This is similar to the forcing used by Baggaley & Laurie (PRB 2014).
     rng = Random.Xoshiro()
-    forcing_amplitude = Γ / 200  # this has the units of a diffusion coefficient [L²T⁻¹]
+    forcing_amplitude = Γ * 1e-2  # this has the units of a diffusion coefficient [L²T⁻¹]
     forcing_ks = let kf = convert(Vector{T}, kf_norm)  # forcing wavenumbers (in the z direction)
         append!(kf, -kf)  # also force negative wavenumbers
     end
     forcing_τ = 4 * dt_kw
-    forcing = DeltaCorrelatedForcing(dt, forcing_amplitude, forcing_ks)
-    # forcing = OrnsteinUhlenbeckForcing(dt, forcing_amplitude, forcing_τ, forcing_ks)
-
-    forcing_velocity = generate_forcing_function(forcing)
-    forcing_streamfunction = generate_streamfunction_function(forcing)
+    @show forcing_amplitude forcing_ks forcing_τ
+    @assert forcing_τ > dt
+    # forcing = DeltaCorrelatedForcing(dt, forcing_amplitude, forcing_ks)
+    forcing = OrnsteinUhlenbeckForcing(dt, forcing_amplitude, forcing_τ, forcing_ks)
 
     # Dissipation parameters
-    kf_min = minimum(kf_norm)  # corresponds to the largest forcing scale
+    kf_min = minimum(kf_norm)  # corresponds to the largest forced scale
     kmax = π * N / L
     dissipate_α = Γ * kf_min^4 * 2  # [L⁻²T⁻¹]
-    dissipate_ν = Γ / kmax^2 * 2    # [L⁴T⁻¹]
+    dissipate_ν = Γ / kmax^2 * 2   # [L⁴T⁻¹]
+    @show dissipate_α dissipate_ν
 
     # Callback function to be called after each timestep
     times = T[]
     energy = T[]
     line_length = T[]
+    nk_time = Vector{T}[]  # vector of vectors
+    forcing_coef = Complex{T}[]  # just to visualise the time evolution of the forcing coefficients
+    ks_pos = T[]
 
     function affect!(iter)
         # Set random amplitudes and phases of forcing for next iteration.
         update_forcing!(rng, forcing)
+        push!(forcing_coef, forcing.ws[1])
+
         # Add dissipation and analyse Fourier modes
-        for f ∈ iter.fs
+        for (i, f) ∈ enumerate(iter.fs)
             redistribute_along_z!(f)  # make sure nodes are uniformly distributed in z
-            dissipate!(f, L; dt = iter.dt, α = dissipate_α, ν = dissipate_ν)
-            update_coefficients!(f)   # update interpolation coefficients
+            data = dissipate_and_analyse!(f, L; dt = iter.dt, α = dissipate_α, ν = dissipate_ν)
+            update_coefficients!(f; knots = knots(f))  # update interpolation coefficients
+            if i == 1  # only keep data for a single filament
+                push!(nk_time, data.nk)
+                copy!(ks_pos, data.ks_pos)
+            end
         end
+
         nothing
     end
 
@@ -271,94 +293,82 @@ function test_forced_lines(
         push!(times, t)
         push!(energy, E)
         push!(line_length, Lvort)
-        # @show nstep, t/Tend, E, Lvort/4
+        local L_growth = Lvort/4L - 1  # relative growth of vortex lines
+        if nstep % 10 == 0
+            @show nstep, t/Tend, E, L_growth
+            write_vtkhdf("vtk/kws_$nstep.hdf", iter.fs) do vtk
+                vtk["velocity"] = iter.vs
+            end
+        end
         nothing
     end
 
     ## Initialise solver
-    tspan = (0.0, 10 * dt)  # run a few timesteps
+    Tend = tmax * T_kw
+    @show T_kw, correlation_time(forcing), Tend, dt, Tend/dt
+    tspan = (0.0, Tend)
     prob = VortexFilamentProblem(filaments, tspan, params)
 
-    # 1. We first test *without* the external streamfunction, which means that energy estimates
-    # will only include the energy associated to the Biot–Savart velocity (which is probably
-    # the most relevant energy).
-    Random.seed!(rng, 42)  # restart the random number generator
+    forcing_velocity = generate_forcing_function(forcing)
+
+    Random.seed!(rng, 42)
     init_forcing!(rng, forcing)
     iter = init(
         prob, scheme;
         dt,
         callback, affect!,
         external_velocity = forcing_velocity,
-        # external_streamfunction = forcing_streamfunction,
     )
     @time solve!(iter)
+    println(iter.to)
     let
-        plt = lineplot(times, line_length ./ first(line_length); title = "Forced lines", name = "Line length", xlabel = "Time", ylabel = "L/L₀")
-        lineplot!(plt, times, energy ./ first(energy); name = "Energy")
+        plt = lineplot(times, line_length ./ first(line_length) .- 1; title = "Forced lines", name = "Line length", xlabel = "Time", ylabel = "L/L₀ - 1")
+        lineplot!(plt, times, energy ./ first(energy) .- 1; name = "Energy")
         display(plt)
     end
     L_growth = last(line_length) / first(line_length) - 1
     E_growth = last(energy) / first(energy) - 1
     @show L_growth E_growth
-    @test 0.002 < L_growth < 0.003
-    @test 0.002 < E_growth < 0.003
 
-    energy_prev = copy(energy)
-    line_length_prev = copy(line_length)
+    let
+        plt = lineplot(times, real.(forcing_coef))
+        lineplot!(plt, times, imag.(forcing_coef))
+        display(plt)
+    end
 
-    # 2. Same thing without dissipation (without `affect!`). In this case line length and
-    # energy should be larger than before.
-    Random.seed!(rng, 42)  # restart the random number generator
-    init_forcing!(rng, forcing)
-    iter = init(
-        prob, scheme;
-        dt,
-        callback,
-        # affect!,  # commented => no dissipation
-        external_velocity = forcing_velocity,
-        # external_streamfunction = forcing_streamfunction,
+    # Return all results
+    results = (;
+        times, energy, line_length,
+        ks_pos, nk_time, forcing_coef,
     )
-    @time solve!(iter)
-    L_growth = last(line_length) / first(line_length) - 1
-    E_growth = last(energy) / first(energy) - 1
-    @show L_growth E_growth
-    @test 0.02 < L_growth < 0.03
-    @test 0.02 < E_growth < 0.03
 
-    # 3. Now test including the external_streamfunction parameter (energy values will be much
-    # higher). Note that this doesn't change the dynamics, and the vortex trajectories
-    # should be exactly the same as before.
-    Random.seed!(rng, 42)  # restart the random number generator
-    init_forcing!(rng, forcing)
-    iter = init(
-        prob, scheme;
-        dt,
-        callback, affect!,
-        external_velocity = forcing_velocity,
-        external_streamfunction = forcing_streamfunction,
-    )
-    @time solve!(iter)
-    @test line_length ≈ line_length_prev  # we get the exact same results
-    # Energy estimates are much larger when including energy associated to the
-    # forcing velocity.
-    # @show energy ./ energy_prev
-    @test all(8 .< energy ./ energy_prev .< 40)
-
-    ## Inference tests
-    # Check that everything is inferred (except for issues coming from FINUFFT.jl).
-    # (This is only for tests and can be ignored!)
-    JET.@test_opt ignored_modules=(FINUFFT, Base, Base.PCRE) init(
-        prob, scheme;
-        dt,
-        callback, affect!,
-        external_velocity = forcing_velocity,
-        external_streamfunction = forcing_streamfunction,
-    )
-    JET.@test_opt ignored_modules=(FINUFFT, Base, Base.PCRE) step!(iter)
-
-    nothing
+    results
 end
 
-@testset "Velocity forcing" begin
-    test_forced_lines()
+##
+
+mkpath("vtk")  # for VTK output
+results = run_forced_lines(; N = 128, tmax = 0.1,)
+
+## Plot results
+
+let fig = Figure()
+    ax = Axis(fig[1, 1]; xscale = log10, yscale = log10,)
+    step = 20
+    inds = eachindex(results.times)[begin:step:end]
+    tmax = results.times[end]
+    for i ∈ inds
+        ks = results.ks_pos
+        t = results.times[i]
+        nk = results.nk_time[i]
+        all(iszero, nk) && continue  # skip if all values are zero (typically at t = 0)
+        cmap = Makie.to_colormap(:viridis)
+        color = Makie.interpolated_getindex(cmap, t/tmax)  # colour as a function of time
+        scatterlines!(ax, ks, nk; label = "$t", color,)
+    end
+    let ks = 10.0.^range(log10(2), log10(16); length = 3)
+        lines!(ax, ks, ks.^(-11/3); color = :grey, linestyle = :dash)
+    end
+    DataInspector(fig)
+    fig
 end

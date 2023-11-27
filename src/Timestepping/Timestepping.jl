@@ -147,6 +147,7 @@ struct VortexFilamentSolver{
         CacheTimestepper <: TemporalSchemeCache,
         FastTerm <: FastBiotSavartTerm,
         Timer <: TimerOutput,
+        Affect <: Function,
         Callback <: Function,
         ExternalForcing <: NamedTuple,
         AdvectFunction <: Function,
@@ -164,6 +165,7 @@ struct VortexFilamentSolver{
     cache_bs          :: CacheBS
     cache_timestepper :: CacheTimestepper
     fast_term         :: FastTerm
+    affect!  :: Affect
     callback :: Callback
     external_forcing :: ExternalForcing  # velocity and streamfunction forcing
     to       :: Timer
@@ -188,6 +190,7 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     print(io, "\n - `cache_timestepper`: ")
     summary(io, iter.cache_timestepper)
     print(io, "\n - `fast_term`: ", iter.fast_term)
+    print(io, "\n - `affect!`: Function (`", _printable_function(iter.affect!), "`)")
     print(io, "\n - `callback`: Function (`", _printable_function(iter.callback), "`)")
     for (name, func) ∈ pairs(iter.external_forcing)
         func === nothing || print(io, "\n - `external_forcing.$name`: Function (`$func`)")
@@ -252,12 +255,34 @@ either [`step!`](@ref) or [`solve!`](@ref).
   Note that the default may change in the future!
 
 - `callback`: a function to be called at the end of each timestep. The function
-  must accept a single argument `iter::VortexFilamentSolver`.
+  must accept a single argument `iter::VortexFilamentSolver`. **Filaments should not be
+  modified** by this function. In that case use `affect!` instead. See notes below for more
+  details.
+
+- `affect!`: similar to `callback`, but allows to modify filament definitions. See notes
+  below for more details.
 
 - `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
   recording the time spent on different functions.
 
 # Extended help
+
+## Difference between `callback` and `affect!`
+
+The difference between the `callback(iter)` and `affect!(iter)` functions is the time at
+which they are called:
+
+- the `affect!` function is called *before* performing Biot-Savart computations from the
+  latest filament positions. In other words, the fields `iter.vs` and `iter.ψs` are not
+  synchronised with `iter.fs`, and it generally makes no sense to access them.
+  Things like energy estimates will be incorrect if done in `affect!`. On the other hand,
+  the `affect!` function **allows to modify `iter.fs`** before Biot–Savart computations are
+  performed.
+
+- the `callback` function is called *after* performing Biot-Savart computations.
+  This means that `iter.vs` and `iter.ψs` correspond to the latest filament positions.
+  However, one **must not modify `iter.fs`**, or otherwise the velocity `iter.vs` (which
+  will be used at the next timestep) will no longer correspond to the filament positions.
 
 ## Adding an external velocity
 
@@ -330,12 +355,14 @@ function init(
         refinement::RefinementCriterion = NoRefinement(),
         reconnect::ReconnectionCriterion = NoReconnections(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
-        callback::F = identity,
+        callback::Callback = identity,
+        affect!::Affect = identity,
         external_velocity::ExtVel = nothing,
         external_streamfunction::ExtStf = nothing,
         timer = TimerOutput("VortexFilament"),
     ) where {
-        F <: Function,
+        Callback <: Function,
+        Affect <: Function,
         ExtVel <: Union{Nothing, Function},
         ExtStf <: Union{Nothing, Function},
         T,
@@ -355,6 +382,7 @@ function init(
     advect! = timer(advect_filaments!, "Advect filaments")
     rhs! = timer(update_values_at_nodes!, "Update values at nodes")
     callback_ = timer(callback, "Callback")
+    affect_ = timer(affect!, "Affect!")
 
     if adaptivity !== NoAdaptivity() && !can_change_dt(scheme)
         throw(ArgumentError(lazy"temporal scheme $scheme doesn't support adaptibility; set `adaptivity = NoAdaptivity()` or choose a different scheme"))
@@ -370,7 +398,7 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs_sol, vs, ψs, time, T(dtmin), refinement, adaptivity, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, callback_, external_forcing,
+        cache_bs, cache_timestepper, fast_term, affect_, callback_, external_forcing,
         timer, advect!, rhs!,
     )
 
@@ -480,27 +508,29 @@ function update_values_at_nodes!(
         component = Val(:full),  # compute slow + fast components by default
     )
     _update_values_at_nodes!(component, iter.fast_term, fields, fs, iter)
-    _add_external_fields!(fields, iter.external_forcing, fs, t)
+    _add_external_fields!(fields, iter.external_forcing, fs, t, iter.to)
 end
 
-function _add_external_fields!(fields::NamedTuple, forcing::NamedTuple, fs, t)
+function _add_external_fields!(fields::NamedTuple, forcing::NamedTuple, fs, t, to)
     if haskey(fields, :velocity)
-        _add_external_field!(fields.velocity, forcing.velocity, fs, t)
+        _add_external_field!(fields.velocity, forcing.velocity, fs, t, to)
     end
     if haskey(fields, :streamfunction)
         # We multiply the external streamfunction by 2 to get the right kinetic energy.
-        _add_external_field!(fields.streamfunction, forcing.streamfunction, fs, t; factor = 2)
+        _add_external_field!(fields.streamfunction, forcing.streamfunction, fs, t, to; factor = 2)
     end
     fields
 end
 
 _add_external_field!(vs_all, ::Nothing, args...; kws...) = vs_all  # do nothing
 
-function _add_external_field!(vs_all, vext::F, fs, time; factor = 1) where {F <: Function}
+function _add_external_field!(vs_all, vext::F, fs, time, to; factor = 1) where {F <: Function}
     @assert eachindex(vs_all) == eachindex(fs)
-    for (f, vs) ∈ zip(fs, vs_all)
-        for i ∈ eachindex(vs, f)
-            @inbounds vs[i] = vs[i] + factor * vext(f[i], time)
+    @timeit to "Add external field" begin
+        for (f, vs) ∈ zip(fs, vs_all)
+            for i ∈ eachindex(vs, f)
+                @inbounds vs[i] = vs[i] + factor * vext(f[i], time)
+            end
         end
     end
     vs_all
@@ -709,7 +739,7 @@ end
 
 # Called whenever filament positions have just been initialised or updated.
 function finalise_step!(iter::VortexFilamentSolver)
-    (; vs, ψs, fs, time, callback, adaptivity, rhs!, to,) = iter
+    (; vs, ψs, fs, time, adaptivity, rhs!, to,) = iter
 
     # Perform reconnections, possibly changing the number of filaments.
     @timeit to "reconnect!" number_of_reconnections = reconnect!(iter)
@@ -732,6 +762,8 @@ function finalise_step!(iter::VortexFilamentSolver)
 
     isempty(fs) && error("all vortices disappeared!")  # TODO nicer way to handle this?
 
+    iter.affect!(iter)
+
     # Update velocities and streamfunctions to the next timestep (and first RK step).
     # Note that we only compute the streamfunction at full steps, and not in the middle of
     # RK substeps.
@@ -750,7 +782,7 @@ function finalise_step!(iter::VortexFilamentSolver)
         Filaments.pad_periodic!(u)
     end
 
-    callback(iter)
+    iter.callback(iter)
     time.dt_prev = time.dt
     time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
 
