@@ -146,7 +146,7 @@ To install it, one should first add the "VortexRegistry" package registry, which
     ```julia
     ENV["JULIA_PKG_USE_CLI_GIT"] = "true"
     ```
-    to your `~/.julia/config/startup.jl` file and then restart Julia.
+    to your `~/.julia/config/startup.jl` file[^2] and then restart Julia.
 
 Now we can easily install VortexPasta.jl:
 
@@ -182,3 +182,5 @@ See the [vortex ring tutorial](@ref tutorial-vortex-ring) for an example on how 
 
 
 [^1]: Alternatively, one can start Julia *without* the `--project` flag, and then `] activate .` in package mode, as described in the [official docs](https://pkgdocs.julialang.org/dev/getting-started/#Getting-Started-with-Environments).
+
+[^2]: Replace `~/.julia` with [`$JULIA_DEPOT_PATH`](https://docs.julialang.org/en/v1/manual/environment-variables/#JULIA_DEPOT_PATH) in case you have defined this environment variable.

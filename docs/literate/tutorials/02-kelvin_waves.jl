@@ -80,7 +80,7 @@ nothing  # hide
 
 using GLMakie
 set_theme!()  # hide
-GLMakie.activate!()  # hide
+GLMakie.activate!(px_per_unit = 2)  # hide
 
 ## Give a colour to a filament based on its local orientation wrt Z.
 function filament_colour(f::AbstractFilament, refinement)
@@ -578,8 +578,7 @@ ax = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"2
 scatterlines!(ax, ks_pos, nk_normalised)
 xlims!(ax, 0.8 * ks_pos[begin], nothing)
 ylims!(ax, 1e-30, 1e1)
-## vlines!(ax, ks_pos[m]; linestyle = :dash, color = :orangered)  # not working in Makie 0.20 (issue with log scales)
-linesegments!(ax, [ks_pos[m]], collect(ax.limits[][2]); linestyle = :dash, color = :orangered)
+vlines!(ax, ks_pos[m]; linestyle = :dash, color = :orangered)
 fig
 
 # We see that the wave action spectrum is strongly peaked at the wavenumber ``k = 2πm/L``
@@ -666,8 +665,7 @@ ax = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"ω / ω_{\text{k
 scatterlines!(ax, ωs_normalised, nω)
 xlims!(ax, 0.8 * ωs_normalised[begin], 1.2 * ωs_normalised[end])
 ylims!(ax, 1e-10, 1e-2)
-## vlines!(ax, 1.0; linestyle = :dash, color = :orangered)  # not working in Makie 0.20 (issue with log scales)
-linesegments!(ax, [1.0], collect(ax.limits[][2]); linestyle = :dash, color = :orangered)
+vlines!(ax, 1.0; linestyle = :dash, color = :orangered)
 fig
 
 # We see that the temporal spectrum is strongly peaked at the analytical Kelvin wave
