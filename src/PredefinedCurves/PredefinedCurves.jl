@@ -10,7 +10,7 @@ export define_curve
 abstract type ParametricCurve end
 
 using LinearAlgebra: LinearAlgebra
-using StaticArrays: SVector
+using StaticArrays: SVector, SDiagonal
 
 @doc raw"""
     define_curve(
@@ -32,9 +32,8 @@ The original curve can be transformed by (1) scaling, (2) rotation and (3) trans
 operations. Note that transformations are applied in that order.
 
 - `scale`: scales the curve by a given factor. The argument can be a scalar value for
-  isotropic scaling (same scaling in all directions), or a `Diagonal` matrix (3×3 in 3D) for
-  anisotropic scaling. In the second case, one can use the `SDiagonal` type from the
-  StaticArrays.jl package (see below for some examples).
+  isotropic scaling (same scaling in all directions) or a `Tuple` of values for anisotropic
+  scaling (see below for some examples).
 
 - `rotate`: in 3D, this should be a 3×3 orthogonal matrix describing pure rotation. For
   convenience, one can use the [Rotations.jl](https://github.com/JuliaGeometry/Rotations.jl)
@@ -89,15 +88,9 @@ If one wants an ellipse instead of a circle, one can simply apply an anisotropic
 transformation:
 
 ```jldoctest parametric_definition; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"
-julia> using LinearAlgebra, StaticArrays
+julia> using LinearAlgebra
 
-julia> scale = SDiagonal(2.0, 1.0, 1.0)
-3×3 Diagonal{Float64, SVector{3, Float64}} with indices SOneTo(3)×SOneTo(3):
- 2.0   ⋅    ⋅
-  ⋅   1.0   ⋅
-  ⋅    ⋅   1.0
-
-julia> S = define_curve(Ring(); scale);
+julia> S = define_curve(Ring(); scale = (2, 1, 1));
 
 julia> S.(ts)
 17-element Vector{SVector{3, Float64}}:
@@ -213,13 +206,20 @@ function define_curve(
         orientation::Int = 1,
     )
     S_base = _definition(p)
-    A = rotate * scale  # linear transformation (we apply scaling first!)
+    scale_la = maybe_convert_scale(scale)
+    A = rotate * scale_la  # linear transformation (we apply scaling first!)
     function S(t)
         τ = ifelse(orientation > 0, t, 1 - t)
         x⃗ = S_base(τ)
         translate .+ A * x⃗
     end
 end
+
+# Convert `scale` argument to something that can be used in linear algebra operations.
+# This allows passing `scale = (sx, sy, sz)` to scale different directions differently.
+# In that case the argument is converted to a diagonal matrix.
+maybe_convert_scale(scale) = scale
+maybe_convert_scale(scale::NTuple{3, Real}) = SDiagonal(scale)  # this is a static diagonal matrix
 
 # Closed lines
 include("ring.jl")

@@ -22,7 +22,7 @@ function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
     p = PeriodicLine(; x = xfun,)
     S = define_curve(
         p;
-        scale = SDiagonal(1, 1, Lz),  # make the line 2π-periodic in Z
+        scale = (1, 1, Lz),  # make the line 2π-periodic in Z
         translate = (x, y, Lz / 2),
         orientation = sign,
     )

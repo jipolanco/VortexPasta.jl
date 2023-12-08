@@ -36,7 +36,7 @@ DocMeta.setdocmeta!(
     VortexPasta.PredefinedCurves,
     :DocTestSetup,
     quote
-        using StaticArrays: SVector
+        using StaticArrays: SVector, SMatrix
         using Rotations
         using VortexPasta.PredefinedCurves
     end,
