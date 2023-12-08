@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- In `PredefinedCurves.define_curve`, one can pass a tuple `scale = (sx, sy, sz)` to apply anisotropic scaling.
+  Previously, this was only possible by passing a diagonal matrix, which is slightly less convenient.
+
 ## 0.10.0 - 2023-11-27
 
 ### Added

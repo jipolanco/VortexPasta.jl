@@ -253,15 +253,13 @@ end
 #
 # Let's now create these four vortices:
 
-using StaticArrays: SDiagonal  # used to create 3×3 diagonal matrices
-
 funcs = [
     ## "Positive" vortices
-    define_curve(p; scale = SDiagonal(+L, +L, +L), translate = (0.25L, 0.25L, 0.5L)),
-    define_curve(p; scale = SDiagonal(-L, -L, +L), translate = (0.75L, 0.75L, 0.5L)),  # mirror symmetry wrt x and y
+    define_curve(p; scale = (+L, +L, +L), translate = (0.25L, 0.25L, 0.5L)),
+    define_curve(p; scale = (-L, -L, +L), translate = (0.75L, 0.75L, 0.5L)),  # mirror symmetry wrt x and y
     ## "Negative" vortices: we use the `orientation` keyword to flip their orientation.
-    define_curve(p; scale = SDiagonal(+L, -L, +L), translate = (0.25L, 0.75L, 0.5L), orientation = -1),  # mirror symmetry wrt y
-    define_curve(p; scale = SDiagonal(-L, +L, +L), translate = (0.75L, 0.25L, 0.5L), orientation = -1),  # mirror symmetry wrt x
+    define_curve(p; scale = (+L, -L, +L), translate = (0.25L, 0.75L, 0.5L), orientation = -1),  # mirror symmetry wrt y
+    define_curve(p; scale = (-L, +L, +L), translate = (0.75L, 0.25L, 0.5L), orientation = -1),  # mirror symmetry wrt x
 ]
 fs = map(S -> Filaments.init(S, ClosedFilament, N, QuinticSplineMethod()), funcs)
 plot_filaments(fs)
