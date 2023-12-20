@@ -389,7 +389,7 @@ In all cases, one usually wants the physical grid spacing ``δ = L/N`` (or equiv
 
     It may also be a good idea to "round" the chosen value of ``N`` so that the FFTs performed in long-range computations have sizes described by powers of 2 or 3 (for which the FFT is most efficient).
     Note that, to reduce aliasing errors, the NUFFT oversamples the data from ``N`` to ``Ñ = σN > N``, and this ``Ñ`` is the actual size of the performed FFTs.
-    As an example, the default [`FINUFFTBackend`](@ref) in VortexPasta uses an oversampling of ``σ = 5/4``.
+    As an example, the default [`NonuniformFFTsBackend`](@ref) in VortexPasta uses an oversampling of ``σ = 5/4``.
     Therefore, choosing ``N = 102 ≈ 5/4 × 128`` leads to FFTs of size ``Ñ = 128 = 2^7``, which is what we want.
 
 Another parameter to choose is the **size of the quadrature rules** for numerical integration.

@@ -156,7 +156,7 @@ Mandatory and optional keyword arguments are detailed in the following.
 
 ### Long-range interactions
 
-- `backend_long::LongRangeBackend = FINUFFTBackend()`: backend used to compute
+- `backend_long::LongRangeBackend = NonuniformFFTsBackend()`: backend used to compute
   long-range interactions. See [`LongRangeBackend`](@ref) for a list of possible backends.
 
 ### Local self-induced velocity
@@ -208,7 +208,7 @@ function ParamsBiotSavart(
         quadrature_short = nothing,  # deprecated
         quadrature_long = nothing,   # deprecated
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
-        backend_long::LongRangeBackend = FINUFFTBackend(),
+        backend_long::LongRangeBackend = NonuniformFFTsBackend(),
         regularise_binormal::Val{RegulariseBinormal} = Val(false),
         Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,

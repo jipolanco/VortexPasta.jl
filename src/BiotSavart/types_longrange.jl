@@ -5,8 +5,12 @@ Abstract type denoting the backend to use for computing long-range interactions.
 
 # Implemented backends
 
-- [`FINUFFTBackend`](@ref): estimates long-range interactions via the non-uniform fast
-  Fourier transform (NUFFT) using the FINUFFT library;
+- [`NonuniformFFTsBackend`](@ref): estimates long-range interactions via the non-uniform fast
+  Fourier transform (NUFFT) using the
+  [NonuniformFFTs.jl](https://github.com/jipolanco/NonuniformFFTs.jl) package;
+
+- [`FINUFFTBackend`](@ref): estimates long-range interactions via the NUFFT using the
+  [FINUFFT](https://github.com/flatironinstitute/finufft) library;
 
 - [`ExactSumBackend`](@ref): computes long-range interactions using exact Fourier sums. This
   is really inefficient and should only be used for testing.
