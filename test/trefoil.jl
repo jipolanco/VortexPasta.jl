@@ -126,14 +126,17 @@ function init_trefoil_filament(N::Int; method = CubicSplineMethod(), kws...)
     Filaments.init(ClosedFilament, Xs, method; kws...)
 end
 
-function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, params_kws...)
+function compare_long_range(
+        fs::AbstractVector{<:AbstractFilament}, backend = FINUFFTBackend();
+        tol = 1e-8, params_kws...,
+    )
     params_exact = @inferred ParamsBiotSavart(;
         params_kws...,
         backend_long = ExactSumBackend(),
     )
     params_default = @inferred ParamsBiotSavart(;
         params_kws...,
-        backend_long = FINUFFTBackend(; tol,),
+        backend_long = backend,
     )
     quad = params_exact.quad
 
@@ -148,7 +151,7 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     cache_default = cache_default_base.longrange
 
     @test BiotSavart.backend(cache_exact) isa ExactSumBackend
-    @test BiotSavart.backend(cache_default) isa FINUFFTBackend
+    @test BiotSavart.backend(cache_default) === backend
 
     # Compute induced velocity field in Fourier space
     foreach((cache_exact, cache_default)) do c
@@ -158,7 +161,8 @@ function compare_long_range(fs::AbstractVector{<:AbstractFilament}; tol = 1e-8, 
     end
 
     # Compare velocities in Fourier space.
-    # Note: the comparison is not straightforward since the wavenumbers are not the same.
+    # Note: when using FINUFFTBackend, the comparison is not straightforward since the
+    # wavenumbers are not the same.
     # The "exact" implementation takes advantage of Hermitian symmetry to avoid
     # computing half of the data, while FINUFFT doesn't make this possible...
     ks_default = cache_default.common.wavenumbers
@@ -328,7 +332,9 @@ end
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
     @testset "Long range" begin
-        compare_long_range([f]; tol = 1e-8, params_kws..., α = kmax / 6)
+        # Test NUFFT backends with default parameters
+        compare_long_range([f], NonuniformFFTsBackend(); tol = 1e-8, params_kws..., α = kmax / 6)
+        compare_long_range([f], FINUFFTBackend(); tol = 1e-8, params_kws..., α = kmax / 6)
         @testset "$quantity near r = 0" for quantity ∈ (Velocity(), Streamfunction())
             test_long_range_accuracy_near_zero(Float64, quantity)
         end

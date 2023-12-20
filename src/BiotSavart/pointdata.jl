@@ -8,17 +8,18 @@
 # `charges` the interpolation values (usually velocities or streamfunction values).
 struct PointData{
         T <: AbstractFloat,
+        S <: Union{T, Complex{T}},
         Points <: StructVector{Vec3{T}},
-        # Note: complex may be needed by long-range backend (even though values are always real!)
-        Charges <: StructVector{Vec3{Complex{T}}},
+        # Note: complex is needed by some long-range backends such as FINUFFT (even though values are always real!)
+        Charges <: StructVector{Vec3{S}},
     }
     points  :: Points   # interpolated locations s⃗ on segments
     charges :: Charges  # rescaled tangent vector q * s⃗′ on segments (where `q` is the quadrature weight)
 end
 
-function PointData(::Type{T}) where {T}
+function PointData(::Type{T}, ::Type{S}) where {T, S}
     points = StructVector{Vec3{T}}(undef, 0)
-    charges = StructVector{Vec3{Complex{T}}}(undef, 0)
+    charges = StructVector{Vec3{S}}(undef, 0)
     PointData(points, charges)
 end
 

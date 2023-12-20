@@ -302,7 +302,7 @@ params = ParamsBiotSavart(;
     Ns = (M, M, M),  # same long-range resolution in all directions
     rcut = 5 / α,    # cut-off distance for short-range computations
     quadrature = GaussLegendre(2),        # quadrature for integrals over filament segments
-    backend_long = FINUFFTBackend(),      # this is the default
+    backend_long = NonuniformFFTsBackend(),  # this is the default
     backend_short = CellListsBackend(2),
 )
 

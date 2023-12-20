@@ -158,7 +158,7 @@ function test_infinite_lines(method)
         @views let ks = ks[4:end]
             lineplot!(plt, ks, 0.08 ./ ks; name = "~ k^{-1}")
         end
-        @views let inds = (lastindex(ks) ÷ 4):lastindex(ks)
+        @views let inds = (lastindex(ks) ÷ 4):(lastindex(ks) - 1)
             C, α = estimate_power_law_exponent(ks[inds], Ek[inds])
             @test isapprox(α, -1; rtol = 1e-2)  # approximately k^{-1}
             lineplot!(plt, ks[inds], @.(C * ks[inds]^α); name = "Fit")

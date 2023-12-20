@@ -77,6 +77,7 @@ end
 
 expected_period(::FINUFFTBackend) = 2π
 folding_limits(::FINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
+non_uniform_type(::Type{T}, ::FINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
 
 struct FINUFFTCache{
         T,
@@ -125,27 +126,6 @@ function _make_finufft_plan_type2(p::FINUFFTBackend, n_modes::Vector{Int64}, ::T
     finufft_makeplan(type, n_modes, iflag, ntrans, p.tol; dtype = T, p.kws..., opts...)
 end
 
-# Set to zero asymmetric modes from complex-to-complex FFT.
-function _ensure_hermitian_symmetry!(c::FINUFFTCache, us::Array{<:Complex})
-    _ensure_hermitian_symmetry!(c, Val(ndims(us)), us)
-end
-
-# Ensure Hermitian symmetry one dimension at a time.
-@inline function _ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{d}, us) where {d}
-    N = size(us, d)
-    kd = c.common.wavenumbers[d]
-    Δk = kd[2]
-    if iseven(N)
-        imin = (N ÷ 2) + 1  # asymmetric mode
-        @assert -kd[imin] ≈ kd[imin - 1] + Δk
-        inds = ntuple(j -> j == d ? imin : Colon(), Val(ndims(us)))
-        @inbounds @views us[inds...] .= 0
-    end
-    _ensure_hermitian_symmetry!(c, Val(d - 1), us)
-end
-
-_ensure_hermitian_symmetry!(c::FINUFFTCache, ::Val{0}, us) = us  # we're done, do nothing
-
 function transform_to_fourier!(c::FINUFFTCache)
     (; plan_type1,) = c
     (; pointdata, uhat,) = c.common
@@ -156,8 +136,9 @@ function transform_to_fourier!(c::FINUFFTCache)
     uhat = StructArrays.components(uhat)
     finufft_setpts!(plan_type1, points...)
     for (qs, us) ∈ zip(charges, uhat)
+        @assert eltype(qs) <: Complex
         finufft_exec!(plan_type1, qs, us)
-        _ensure_hermitian_symmetry!(c, us)
+        _ensure_hermitian_symmetry!(c.common.wavenumbers, us)
     end
     c
 end
@@ -172,6 +153,7 @@ function interpolate_to_physical!(c::FINUFFTCache)
     uhat = StructArrays.components(uhat)
     finufft_setpts!(plan_type2, points...)
     for (qs, us) ∈ zip(charges, uhat)
+        @assert eltype(qs) <: Complex
         finufft_exec!(plan_type2, us, qs)
     end
     c

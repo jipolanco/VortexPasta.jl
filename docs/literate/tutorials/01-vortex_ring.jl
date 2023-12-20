@@ -250,7 +250,7 @@ params = ParamsBiotSavart(;
 # which haven't been discussed yet.
 # These correspond to different ways of computing both components.
 # We leave them here at their default values.
-# See [`CellListsBackend`](@ref) and [`FINUFFTBackend`](@ref) for details on the defaults
+# See [`CellListsBackend`](@ref) and [`NonuniformFFTsBackend`](@ref) for details on the defaults
 # and their parameters.
 
 # ### Computing the velocity on filament nodes
