@@ -92,11 +92,11 @@
 # Name a test and select an appropriate image.
 # images comes from Docker hub
 test:julia-latest:
-  image: julia:1.10-rc
+  image: julia:1.10
   extends: .test_template
 
 docs:
-  image: julia:1.10-rc
+  image: julia:1.10
   stage: test
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH       # run on master branch
@@ -129,7 +129,7 @@ docs:
     - .julia-cache
 
 pages:
-  image: julia:1.10-rc
+  image: julia:1.10
   stage: deploy
   dependencies:
     - test:julia-latest  # use coverage from test:julia-latest (lcov_html)
