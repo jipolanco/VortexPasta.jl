@@ -1,7 +1,7 @@
 name = "VortexPasta"
 uuid = "3d0f1e53-df37-477e-a492-0d33e6039c24"
 authors = ["Juan Ignacio Polanco<juan-ignacio.polanco@cnrs.fr>"]
-version = "0.11.0"
+version = "0.11.1"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -42,7 +42,7 @@ HCubature = "1.5"
 HDF5 = "0.16, 0.17"
 LinearAlgebra = "1.9"
 MakieCore = "0.6, 0.7"
-NonuniformFFTs = "0.2"
+NonuniformFFTs = "0.3"
 Observables = "0.5"
 PrecompileTools = "1"
 SpecialFunctions = "2.2"

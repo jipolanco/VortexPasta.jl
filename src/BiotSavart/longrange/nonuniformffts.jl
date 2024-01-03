@@ -79,8 +79,9 @@ function init_cache_long_ewald(
     ) where {T}
     (; Ls,) = pc
     (; backend, Ns,) = params
-    plan = NonuniformFFTs.PlanNUFFT(T, Ns, backend.m; backend.kws...)  # plan for real-to-complex transform
+    (; m, kws,) = backend
     d = length(Ns)  # dimensionality (usually 3)
+    plan = NonuniformFFTs.PlanNUFFT(T, Ns; ntransforms = Val(d), m, kws...)  # plan for real-to-complex transform
     wavenumbers = ntuple(Val(d)) do i
         i == 1 ? rfftfreq(Ns[i], 2π * Ns[i] / Ls[i]) : fftfreq(Ns[i], 2π * Ns[i] / Ls[i])
     end
@@ -96,9 +97,8 @@ function transform_to_fourier!(c::NonuniformFFTsCache)
     charges = StructArrays.components(charges)
     uhat = StructArrays.components(uhat)
     NonuniformFFTs.set_points!(plan, points)
-    for (qs, us) ∈ zip(charges, uhat)
-        @assert eltype(qs) <: Real
-        NonuniformFFTs.exec_type1!(us, plan, qs)
+    NonuniformFFTs.exec_type1!(uhat, plan, charges)  # execute NUFFT on all components at once
+    for us ∈ uhat
         _ensure_hermitian_symmetry!(c.common.wavenumbers, us)
     end
     c
@@ -112,9 +112,6 @@ function interpolate_to_physical!(c::NonuniformFFTsCache)
     charges = StructArrays.components(charges)
     uhat = StructArrays.components(uhat)
     NonuniformFFTs.set_points!(plan, points)
-    for (qs, us) ∈ zip(charges, uhat)
-        @assert eltype(qs) <: Real
-        NonuniformFFTs.exec_type2!(qs, plan, us)
-    end
+    NonuniformFFTs.exec_type2!(charges, plan, uhat)
     c
 end

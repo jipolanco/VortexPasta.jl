@@ -56,7 +56,7 @@ using PrecompileTools: @setup_workload, @compile_workload
             Γ, a, Δ,
             α, rcut, Ls, Ns,
             backend_short = CellListsBackend(2),
-            backend_long = FINUFFTBackend(nthreads = 1),
+            backend_long = NonuniformFFTsBackend(),
             quadrature = GaussLegendre(2),
         )
 
