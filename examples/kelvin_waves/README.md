@@ -1,4 +1,4 @@
-# Simulation of forced Kelvin waves
+# Simulation of unforced and forced Kelvin waves
 
 ## Running the example
 
@@ -13,17 +13,17 @@ where the `-t NTHREADS` is optional and allows using multithreading.
 Then, install required packages by entering package mode (with `]`):
 
 ```julia
-(forced_kelvin_waves) pkg> instantiate
+(kelvin_waves) pkg> instantiate
 ```
 
 In particular, this will install the latest release of VortexPasta.
 If you want to use the version in this repository instead, do:
 
 ```julia
-(forced_kelvin_waves) pkg> dev ../..
+(kelvin_waves) pkg> dev ../..
 ```
 
-Finally, the example script can be executed using `include` (or, even better,
+Finally, the example scripts can be executed using `include` (or, even better,
 using `includet` from the [Revise.jl](https://github.com/timholy/Revise.jl) package):
 
 ```julia

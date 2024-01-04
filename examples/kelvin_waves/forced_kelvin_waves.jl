@@ -206,7 +206,7 @@ function generate_biot_savart_parameters()
         Γ, α, a, Δ, rcut, Ls, Ns,
         # backend_short = CellListsBackend(2),
         backend_short = NaiveShortRangeBackend(),  # needed when rcut > L/2 (which is the case here, since Ngrid is small)
-        backend_long = FINUFFTBackend(),
+        backend_long = NonuniformFFTsBackend(),
         quadrature = GaussLegendre(2),
     )
 end
