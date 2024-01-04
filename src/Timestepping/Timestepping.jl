@@ -265,6 +265,9 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
   recording the time spent on different functions.
 
+- `external_velocity` / `external_streamfunction`: allows to add an external velocity to
+  "force" the filaments. See "Adding an external velocity" below for more details.
+
 # Extended help
 
 ## Difference between `callback` and `affect!`
@@ -441,14 +444,17 @@ function check_external_streamfunction(forcing::NamedTuple, Ls)
     nothing
 end
 
+# This variant computes the full BS law + any added velocities.
 function _update_values_at_nodes!(
         ::Val{:full},
         ::FastBiotSavartTerm,  # ignored in this case
         fields::NamedTuple{Names, NTuple{N, V}},
         fs::VectorOfFilaments,
+        t::Real,
         iter::VortexFilamentSolver,
     ) where {Names, N, V <: VectorOfVectors}
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
+    _add_external_fields!(fields, iter.external_forcing, fs, t, iter.to)
 end
 
 # Compute slow component only.
@@ -462,6 +468,7 @@ function _update_values_at_nodes!(
         ::LocalTerm,
         fields::NamedTuple{(:velocity,)},
         fs::VectorOfFilaments,
+        t::Real,
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
@@ -472,6 +479,7 @@ function _update_values_at_nodes!(
         ::ShortRangeTerm,
         fields::NamedTuple{(:velocity,)},
         fs::VectorOfFilaments,
+        t::Real,
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = Val(false))
@@ -487,9 +495,11 @@ function _update_values_at_nodes!(
         ::LocalTerm,
         fields::NamedTuple{(:velocity,)},
         fs::VectorOfFilaments,
+        t::Real,
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+    _add_external_fields!(fields, iter.external_forcing, fs, t, iter.to)
 end
 
 function _update_values_at_nodes!(
@@ -497,9 +507,11 @@ function _update_values_at_nodes!(
         ::ShortRangeTerm,
         fields::NamedTuple{(:velocity,)},
         fs::VectorOfFilaments,
+        t::Real,
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = Val(false))
+    _add_external_fields!(fields, iter.external_forcing, fs, t, iter.to)
 end
 
 # This is the most general variant which should be called by timesteppers.
@@ -507,8 +519,7 @@ function update_values_at_nodes!(
         fields::NamedTuple, fs, t::Real, iter;
         component = Val(:full),  # compute slow + fast components by default
     )
-    _update_values_at_nodes!(component, iter.fast_term, fields, fs, iter)
-    _add_external_fields!(fields, iter.external_forcing, fs, t, iter.to)
+    _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
 end
 
 function _add_external_fields!(fields::NamedTuple, forcing::NamedTuple, fs, t, to)
