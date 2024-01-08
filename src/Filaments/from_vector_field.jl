@@ -41,7 +41,7 @@ One may use [`Filaments.distance_to_field`](@ref) to verify the result of this f
 - `nsubsteps::Int = 1`: number of solver substeps to perform for each spatial increment `dτ`.
   Larger values may be used to improve accuracy;
 
-- `redistribute = true`: if `true` (default), [`redistribute_nodes!`] is called at the end
+- `redistribute = true`: if `true` (default), [`redistribute_nodes!`](@ref) is called at the end
   to make sure that nodes are approximately distributed in a uniform way along the filament.
 
 # Extended help
