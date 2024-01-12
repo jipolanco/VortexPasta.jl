@@ -264,7 +264,31 @@ end
 Base.eltype(::Type{<:ParamsBiotSavart{T}}) where {T} = T
 Base.eltype(p::ParamsBiotSavart) = eltype(typeof(p))
 
+"""
+    BiotSavart.circulation(p::ParamsBiotSavart) -> Γ
+
+Return the circulation `Γ` associated to each vortex.
+"""
+circulation(p::ParamsBiotSavart) = p.common.Γ
+
+"""
+    BiotSavart.periods(p::ParamsBiotSavart) -> (Lx, Ly, Lz)
+
+Return the domain periods in each direction.
+"""
 periods(p::ParamsBiotSavart) = p.common.Ls
+
+"""
+    BiotSavart.domain_is_periodic(p::ParamsBiotSavart) -> Bool
+
+Check whether the domain is periodic.
+
+Returns `true` if the domain is periodic in *all* directions, `false` otherwise.
+"""
+function domain_is_periodic(p::ParamsBiotSavart)
+    Ls = periods(p)
+    !is_open_domain(Ls)
+end
 
 _extra_params(α::Zero; Ns = (0, 0, 0), rcut = ∞) = (; Ns, rcut,)
 _extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case

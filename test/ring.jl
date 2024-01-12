@@ -1,7 +1,6 @@
 using Test
 using LinearAlgebra: norm, normalize, ⋅
 using Statistics: mean, std
-using Static: True
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
 using VortexPasta.FindNearbySegments: FindNearbySegments, NaiveSegmentIterator
@@ -105,9 +104,14 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
 
     # Estimate normalised energy
     @testset "Normalised energy" begin
-        Ls = 1  # sets domain volume to 1 for energy estimation
-        E_expected = (Γ^2 * R/2) * (log(8R / a) - (Δ + 1))
-        E_estimated = Diagnostics.kinetic_energy_from_streamfunction(ψs, f, Γ, Ls)
+        # TODO why is it that the kinetic energy from streamfunction (supposed to work for
+        # periodic domains only) is the one that matches better the analytical prediction?
+        # This is not very clear...
+        Ls = BiotSavart.periods(params)  # all Infinity() in this case
+        E_expected = (Γ^2 * R/2) * (log(8R / a) - (Δ + 1))  # energy per unit density
+        E_estimated = Diagnostics.kinetic_energy_from_streamfunction(ψs, f, Γ, Ls)  # energy per unit density
+        # E_alt = Diagnostics.kinetic_energy_nonperiodic(vs, f, Γ)
+        # @show E_expected E_estimated E_alt
         # @show quad (E_expected - E_estimated) / E_expected
         rtol = nquad == 1 ? 0.02 : 1e-4
         @test isapprox(E_expected, E_estimated; rtol)

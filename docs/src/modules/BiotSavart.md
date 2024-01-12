@@ -8,11 +8,20 @@ CurrentModule = VortexPasta.BiotSavart
 BiotSavart
 ```
 
-## Types
+## Biot–Savart parameters
+
+### Setting the parameters
 
 ```@docs
 ParamsBiotSavart
-BiotSavartCache
+```
+
+### Accessing parameters
+
+```@docs
+circulation
+periods
+domain_is_periodic
 ```
 
 ## Exported functions
@@ -72,6 +81,12 @@ to_smoothed_streamfunction!
 to_smoothed_velocity!
 interpolate_to_physical!
 transform_to_fourier!
+```
+
+## Other internal types
+
+```@doc
+BiotSavartCache
 ```
 
 ## Index
