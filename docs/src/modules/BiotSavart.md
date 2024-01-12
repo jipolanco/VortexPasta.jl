@@ -85,7 +85,7 @@ transform_to_fourier!
 
 ## Other internal types
 
-```@doc
+```@docs
 BiotSavartCache
 ```
 
