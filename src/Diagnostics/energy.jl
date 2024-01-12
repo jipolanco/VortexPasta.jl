@@ -154,6 +154,7 @@ end
 
 @doc raw"""
     kinetic_energy_nonperiodic(vs, fs, Γ; quad = nothing)
+    kinetic_energy_nonperiodic(iter::VortexFilamentSolver; quad = nothing)
 
 Compute kinetic energy per unit density (units ``L^5 T^{-2}``) fro velocity values at
 filament nodes in an open (non-periodic) domain.
