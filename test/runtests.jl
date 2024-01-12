@@ -26,6 +26,7 @@ end
     @includetest "refinement.jl"
     @includetest "hdf5.jl"
     @includetest "ring.jl"
+    @includetest "ring_energy.jl"
     @includetest "ring_perturbed.jl"
     @includetest "ring_collision.jl"
     @includetest "trefoil.jl"
