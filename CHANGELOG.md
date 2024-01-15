@@ -5,10 +5,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.12.0 - 2024-01-12
+
 ### Added
 
-- In `PredefinedCurves.define_curve`, one can pass a tuple `scale = (sx, sy, sz)` to apply anisotropic scaling.
-  Previously, this was only possible by passing a diagonal matrix, which is slightly less convenient.
+- Add alternative energy estimation method adapted for non-periodic domains.
+
+## 0.11.2 - 2024-01-04
+
+### Added
+
+- Add example: unforced Kelvin waves.
+
+### Fixed
+
+- Fix wrong results when using splitting timestepping schemes (IMEX or
+  multirate) and setting an `external_velocity`.
+
+## 0.11.1 - 2024-01-03
+
+### Changed
+
+- `NonuniformFFTsBackend` now uses NonuniformFFTs.jl v0.3, which improves performance.
+
+## 0.11.0 - 2023-12-20
+
+### Added
+
+- Add `NonuniformFFTsBackend` for long-range computations.
+
+### Changed
+
+- `NonuniformFFTsBackend` is now the default backend for long-range computations.
 
 ## 0.10.0 - 2023-11-27
 
