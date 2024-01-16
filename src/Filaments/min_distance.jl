@@ -27,16 +27,21 @@ end
 
 """
     find_min_distance(
-        fx::AbstractFilament, fy::AbstractFilament,
-        i::Int, j::Int;
+        fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+        maxiter = 4, rtol = 1e-2,
     )
 
 Determine the minimum distance between filament segments.
 
-This function estimates the minimum distance between filament segments `fx[i:i+1]` and `fy[j:j+1]`.
+This function estimates the minimum distance between filament segments `fx[i:i+1]` and `fy[j:j+1]`
+via an iterative (Newton–Raphson) method.
 
-It returns a `NamedTuple` with the following fields:
+The filaments `fx` and `fy` may be the same filament.
+
+# Returns
+
+Returns a `NamedTuple` with the following fields:
 
 - `ζx`, `ζy`: optimal locations in ``[0, 1]`` within each segment;
 
@@ -45,22 +50,34 @@ It returns a `NamedTuple` with the following fields:
 - `p⃗`: periodic offset (each component is a multiple of the domain period along that direction);
 
 - `d⃗`: minimum distance vector, `d⃗ = x⃗ - y⃗ + p⃗`.
+
+# Optional keyword arguments
+
+- `periods`: the period of the spatial domain. This should be given if one wants to take
+  into account periodic images of the filaments;
+
+- `maxiter = 4`: maximum number of iterations of the Newton method;
+
+- `rtol = 1e-2`: relative tolerance for stopping the iterations. By default it's not very
+  small since in general we don't need to be very precise.
+
 """
 function find_min_distance(
         fx::AbstractFilament, fy::AbstractFilament,
         i::Int, j::Int;
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+        maxiter = 4,
+        rtol = 1e-2,
     )
     periods_half = map(L -> L / 2, periods)
     tx, ty = knots(fx), knots(fy)
     Δts = SVector(tx[i + 1] - tx[i], ty[j + 1] - ty[j])
 
-    max_newton_iterations = 4
     ζs = SVector(0.5, 0.5)  # initial guess: middle of each segment
 
     # Use Newton's method to find minimum distance.
     # We minimise the squared distance d² between the two segments.
-    for _ ∈ 1:max_newton_iterations
+    for _ ∈ 1:maxiter
         ζx, ζy = ζs
         d⃗ = deperiodise_separation(fx(i, ζx) - fy(j, ζy), periods, periods_half)
         X′ = fx(i, ζx, Derivative(1))
@@ -90,7 +107,7 @@ function find_min_distance(
         dζs_actual = ζs - ζs_prev
 
         # Check if we converged to a minimum distance (we don't need to be very precise).
-        maximum(abs, dζs_actual) < 1e-2 && break
+        maximum(abs, dζs_actual) < rtol && break
     end
 
     ζx, ζy = ζs
@@ -98,7 +115,7 @@ function find_min_distance(
     y⃗ = fy(j, ζy)
     r⃗ = x⃗ - y⃗
     d⃗ = deperiodise_separation(r⃗, periods, periods_half)
-    p⃗ = d⃗ - r⃗  # periodic offset (most often 0⃗)
+    p⃗ = d⃗ - r⃗  # periodic offset
 
     (; ζx, ζy, d⃗, x⃗, y⃗, p⃗,)
 end

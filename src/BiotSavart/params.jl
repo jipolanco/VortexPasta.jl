@@ -180,8 +180,10 @@ Mandatory and optional keyword arguments are detailed in the following.
 - `lia_segment_fraction = nothing`: can be used to indicate that the LIA term should be
   evaluated over a *fraction* of the two segments surrounding a node. In this case, it
   should be a real value in ``(0, 1]``. The default (`nothing`) is equivalent to 1, and
-  means that the LIA term is evaluated over the full segments. Smaller values may improve
-  accuracy, especially when the discretisation distance is relatively large.
+  means that the LIA term is evaluated over the full segments. If smaller than 1, the
+  velocity induced by the excluded part of the segments will be evaluated using the regular
+  Biot–Savart law (using quadratures within each subsegment). This may improve accuracy,
+  especially when the discretisation distance is relatively large.
 
 - `regularise_binormal = Val(false)`: if `Val(true)`, regularise the estimation of the local
   binormal vector for computation of the LIA term. The binormal vector is averaged along the
