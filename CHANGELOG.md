@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix possible memory leak when using `sizehint!` when emptying a `PeriodicCellList`.
+  This was mostly visible when using cell lists for reconnections (in which case each cell is usually very small).
+
 ## 0.12.0 - 2024-01-12
 
 ### Added

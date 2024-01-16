@@ -127,7 +127,7 @@ function PeriodicCellList(
     end
 
     # Pad array periodically. Note that this needs to be done only once (and not whenever
-    # filaments are added), since we're copying array references ("pointers"), so modifying
+    # elements are added), since we're copying array references ("pointers"), so modifying
     # a "central" cell will also modify its corresponding ghost cell if it has one.
     pad_periodic!(data)
 
@@ -141,10 +141,7 @@ Remove all elements from the cell list.
 """
 function Base.empty!(cl::PeriodicCellList)
     for v ∈ cl.data
-        n = length(v)
         empty!(v)
-        # Heuristic to reduce allocations in `push!` when refilling the cells.
-        sizehint!(v, n < 8 ? 8 : nextpow(2, n))
     end
     cl
 end
@@ -183,7 +180,7 @@ function add_element!(cl::PeriodicCellList{N, T}, el::T, x⃗) where {N, T}
     inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
     I = CartesianIndex(inds)
     @inbounds cell = data[I]
-    push!(cell, el)  # this can allocate if we don't put a `sizehint!` somewhere (which we do!)
+    push!(cell, el)
     cl
 end
 
