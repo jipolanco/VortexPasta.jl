@@ -1,3 +1,5 @@
+using LinearAlgebra: ⋅, ×, norm
+using StaticArrays: SVector
 using HCubature: HCubature
 
 export kinetic_energy_from_streamfunction, kinetic_energy_nonperiodic, kinetic_energy
@@ -7,31 +9,32 @@ export kinetic_energy_from_streamfunction, kinetic_energy_nonperiodic, kinetic_e
 
 Compute kinetic energy of velocity field induced by a set of vortex filaments.
 
-This function calls either [`kinetic_energy_from_streamfunction`](@ref) or
-[`kinetic_energy_nonperiodic`](@ref) depending on whether the simulation domain is periodic
-or not.
+Right now this function simply calls [`kinetic_energy_from_streamfunction`](@ref).
 """
-function kinetic_energy end
+function kinetic_energy(args...; kws...)
+    kinetic_energy_from_streamfunction(args...; kws...)
+end
 
 # ======================================================================================== #
 
 # Periodic case
 
 @doc raw"""
-    kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad = nothing)
+    kinetic_energy_from_streamfunction(ψs, fs, Γ, [Ls]; quad = nothing)
     kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; quad = nothing)
 
 Compute kinetic energy per unit mass (units ``L^2 T^{-2}``) from streamfunction values at
 filament nodes in a periodic domain.
 
-In a periodic domain, the kinetic energy per unit mass of the velocity field induced by a
-set of vortex filaments can be obtained as:
+The kinetic energy per unit mass of the velocity field induced by a set of vortex filaments
+can be obtained as:
 
 ```math
 E = \frac{Γ}{2V} ∮ \bm{ψ}(\bm{s}) ⋅ \mathrm{d}\bm{s}
 ```
 
-where ``Γ`` is the vortex circulation and ``V`` is the volume of a periodic cell.
+where ``Γ`` is the vortex circulation and ``V`` is the volume of interest (e.g. the volume
+of a periodic cell in periodic domains).
 
 ## Mandatory arguments
 
@@ -41,10 +44,13 @@ where ``Γ`` is the vortex circulation and ``V`` is the volume of a periodic cel
 
 - `Γ::Real`: quantum of circulation;
 
-- `Ls::Tuple = (Lx, Ly, Lz)`: domain period in each direction.
-
 Alternatively, one may simply pass a `VortexFilamentSolver`, which contains the current
 state of a vortex filament simulation.
+
+## Optional arguments
+
+- `Ls::Tuple = (Lx, Ly, Lz)`: domain size in each direction. If not given, the domain volume
+  ``V`` is taken to be 1 (see **Non-periodic domains** below).
 
 ## Optional keyword arguments
 
@@ -61,11 +67,13 @@ This corresponds to computing an energy *per unit density* (units ``L^5 T^{-2}``
 per unit mass, meaning that one should multiply by the fluid density ``ρ`` (``M L^{-3}``) to
 get an actual kinetic energy (``M L^2 T^{-2}``).
 
-However, note that the above definition of the kinetic energy is actually not valid in
-non-periodic domains (since it comes from an integration by parts, and the boundary term
-can no longer be neglected in this case).
-Therefore, in this case one should instead use [`kinetic_energy_nonperiodic`](@ref), which
-uses a different definition commonly used for open domains.
+Note that in non-periodic domains one may also use the [`kinetic_energy_nonperiodic`](@ref)
+function, which uses a different definition commonly used for open domains and which does
+not require streamfunction values (but only velocity values on filament nodes).
+However, energy computed using that definition may not be properly conserved when it should.
+
+Therefore, **it is recommended to always use `kinetic_energy_from_streamfunction`**, even
+in non-periodic domains.
 
 """
 function kinetic_energy_from_streamfunction(ψs::AbstractVector, args...; quad = nothing)
@@ -96,7 +104,8 @@ end
 # Case of a single filament
 # 1. No quadratures (cheaper)
 function _kinetic_energy_from_streamfunction(
-        ::Nothing, ψf::SingleFilamentData, f::AbstractFilament, Γ, Ls,
+        ::Nothing, ψf::SingleFilamentData, f::AbstractFilament, Γ,
+        Ls = (∞, ∞, ∞),
     )
     prefactor = Γ / (2 * _domain_volume(Ls))
     E = zero(prefactor)
@@ -112,7 +121,8 @@ end
 
 # With quadratures (requires interpolation + allocations)
 function _kinetic_energy_from_streamfunction(
-        quad, ψf::SingleFilamentData, f::SingleFilamentData, Γ, Ls,
+        quad, ψf::SingleFilamentData, f::SingleFilamentData, Γ,
+        Ls = (∞, ∞, ∞),
     )
     prefactor = Γ / (2 * _domain_volume(Ls))
     E = zero(prefactor)
@@ -156,8 +166,11 @@ end
     kinetic_energy_nonperiodic(vs, fs, Γ; quad = nothing)
     kinetic_energy_nonperiodic(iter::VortexFilamentSolver; quad = nothing)
 
-Compute kinetic energy per unit density (units ``L^5 T^{-2}``) fro velocity values at
+Compute kinetic energy per unit density (units ``L^5 T^{-2}``) from velocity values at
 filament nodes in an open (non-periodic) domain.
+
+This function returns the kinetic energy *over the infinite fluid volume*, which only makes
+sense in an open domain such that the velocity tends to zero far from the vortices.
 
 In an open domain, the kinetic energy of the velocity field induced by a set of vortex
 filaments can be obtained as:
@@ -167,8 +180,18 @@ E = ρ Γ ∮ \bm{v} ⋅ (\bm{s} × \mathrm{d}\bm{s})
 ```
 
 where ``Γ`` is the vortex circulation and ``ρ`` is the fluid density.
-This definition assumes that the velocity field tends to zero far from the vortices (which
-is true in open domains, but not in periodic ones).
+This definition assumes that the velocity field tends to zero far from the vortices.
+This is true in open domains, but not in periodic ones.
+
+!!! warning "Energy conservation"
+
+    Energy computed using this definition may present small temporal fluctuations in cases
+    where energy should be conserved.
+    For this reason, it is recommended to always use
+    [`kinetic_energy_from_streamfunction`](@ref), which displays proper energy conservation
+    properties.
+    In general, this definition will slightly overestimate the energy obtained from the
+    streamfunction.
 
 This function returns the energy *per unit density* ``E / ρ``.
 
@@ -189,8 +212,12 @@ See [`kinetic_energy_from_streamfunction`](@ref) for details.
 
 ## Periodic domains
 
-In fully periodic domains, the [`kinetic_energy_from_streamfunction`](@ref) function should
-be used instead to compute the kinetic energy.
+In periodic domains this function will give wrong results, since there are boundary terms
+coming from integration by parts which are neglected in the above definition (assuming the
+velocity goes to zero far from the vortices, which is not the case in a periodic domain).
+
+In this case, the [`kinetic_energy_from_streamfunction`](@ref) function should be used
+instead.
 
 """
 function kinetic_energy_nonperiodic(vs::AbstractVector, args...; quad = nothing)
@@ -211,7 +238,8 @@ end
 function _kinetic_energy_nonperiodic(
         ::Nothing, vs::SingleFilamentData, f::AbstractFilament, Γ,
     )
-    E = zero(typeof(Γ))
+    T = typeof(Γ)
+    E = zero(T)
     ts = knots(f)
     for i ∈ eachindex(f, vs)
         s⃗ = f[i]
@@ -227,7 +255,8 @@ end
 function _kinetic_energy_nonperiodic(
         quad, vs::SingleFilamentData, f::AbstractFilament, Γ,
     )
-    E = zero(typeof(Γ))
+    T = typeof(Γ)
+    E = zero(T)
     # Create Filament object where each node is a velocity instead of a position.
     # This allows to interpolate velocities in-between nodes.
     Xoff = Filaments.end_to_end_offset(f)
@@ -235,12 +264,13 @@ function _kinetic_energy_nonperiodic(
     copy!(Filaments.nodes(v_int), vs)
     Filaments.update_coefficients!(v_int; knots = knots(f))
     for i ∈ eachindex(segments(f))
-        E += integrate(f, i, quad) do f, i, ζ
+        res = integrate(f, i, quad) do f, i, ζ
             s⃗ = f(i, ζ)
             s⃗′ = f(i, ζ, Derivative(1))
             v⃗ = v_int(i, ζ)
-            v⃗ ⋅ (s⃗ × s⃗′)
+            SVector(v⃗ ⋅ (s⃗ × s⃗′), norm(s⃗′))
         end
+        E += res[1]
     end
     Γ * E
 end

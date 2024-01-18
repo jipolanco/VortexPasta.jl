@@ -176,8 +176,10 @@ function _local_self_induced(
     # Use local (non-averaged) tangent at point of interest.
     # We want to make sure that the result is exactly tangent to the curve at the node.
     t̂ = f[i, UnitTangent()]
-    # Note: the +1 coefficient seems to provide energy conservation to very high accuracy.
-    # Tested in particular with leapfrogging rings case.
+    # Note: the +1 coefficient is required for energy conservation.
+    # It is required so that the resulting energy follows Hamilton's equation (at least for
+    # the case of a vortex ring), and it has been verified in many cases that it improves
+    # the effective energy conservation.
     β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) + 1 - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)
     β * t̂
 end

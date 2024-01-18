@@ -11,7 +11,7 @@ using ..Filaments:
     AbstractFilament, Derivative, Vec3,
     knots, segments, integrate
 
-using ..BiotSavart: BiotSavartCache, LongRangeCache, Infinity
+using ..BiotSavart: BiotSavartCache, LongRangeCache, Infinity, ∞
 
 using LinearAlgebra: ⋅, ×
 

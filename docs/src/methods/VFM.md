@@ -251,23 +251,25 @@ where we have used ``\bm{∇} G(\bm{r}) = -\bm{r} / (4π r^3)``.
 
 ### [Connection with kinetic energy](@id VFM-energy)
 
-The kinetic energy per unit mass of the system is given by
+The kinetic energy of the system is given by
 
 ```math
 \newcommand{\xvec}{\bm{x}}
 \newcommand{\dd}{\mathrm{d}}
 E
-= \frac{1}{2V} ∫ \bm{v}(\xvec) ⋅ \bm{v}(\xvec) \, \dd^3\xvec
-= \frac{1}{2V} ∫ \bm{ψ}(\xvec) ⋅ \bm{ω}(\xvec) \, \dd^3\xvec
+= \frac{ρ}{2} ∫ \bm{v}(\xvec) ⋅ \bm{v}(\xvec) \, \dd^3\xvec
+= \frac{ρ}{2} ∫ \bm{ψ}(\xvec) ⋅ \bm{ω}(\xvec) \, \dd^3\xvec
 ```
 
-where the second equality is obtained using integration by parts and assuming we're in a periodic domain, and ``V`` is the volume of one periodic unit cell.
+where the second equality is obtained using integration by parts and assuming
+we're in a periodic domain (or, alternatively, that the velocity goes to zero
+far from the vortices), and ``ρ`` is the fluid density.
 As before, using ``\bm{ω}(\bm{x}) = Γ ∮_{\mathcal{C}} δ(\bm{s} - \bm{x}) \, \mathrm{d}\bm{s}`` leads to
 
 ```math
 \newcommand{\svec}{\bm{s}}
 \newcommand{\dd}{\mathrm{d}}
-E = \frac{Γ}{2V} ∮_{\mathcal{C}} \bm{ψ}(\svec) ⋅ \dd\svec
+E = \frac{ρΓ}{2} ∮_{\mathcal{C}} \bm{ψ}(\svec) ⋅ \dd\svec
 ```
 
 That is, the energy is simply the line integral of the tangential component of the streamfunction along vortex filaments.
@@ -277,7 +279,7 @@ Note that, if one uses the expression for ``\bm{ψ}(\bm{x})`` from the previous 
 ```math
 \newcommand{\svec}{\bm{s}}
 \newcommand{\dd}{\mathrm{d}}
-E = \frac{Γ^2}{8πV} ∮_{\mathcal{C}} ∮_{\mathcal{C}}' \frac{\dd \svec ⋅ \dd \svec_1}{|\svec - \svec_1|}
+E = \frac{ρΓ^2}{8π} ∮_{\mathcal{C}} ∮_{\mathcal{C}}' \frac{\dd \svec ⋅ \dd \svec_1}{|\svec - \svec_1|}
 ```
 
 where the prime over the integral is to account for the desingularisation of the streamfunction integral (see section below).
@@ -357,28 +359,28 @@ Adding the local integrals obtained by desingularisation leads to:
 
 The first expression obtained is the well-known self-induced velocity of a thin vortex ring.
 
-From the second expression, we can easily obtain the energy per unit mass associated to the vortex ring:
+From the second expression, we can easily obtain the energy associated to the vortex ring:
 
 ```math
-E = \frac{Γ^2 R}{2V} \left[ \ln \left( \frac{8R}{a} \right) - (Δ + 1) \right]
+E = \frac{ρ Γ^2 R}{2} \left[ \ln \left( \frac{8R}{a} \right) - (Δ + 1) \right]
 ```
 
 We can finally check that, with the desingularisation procedure described
 in the previous sections, the vortex ring obeys Hamilton's equation ``v = ∂E/∂p`` [Roberts1970](@cite).
-Here ``\bm{p}`` is the vortex impulse per unit mass [Saffman1993](@cite):
+Here ``\bm{p}`` is the vortex impulse [Saffman1993](@cite):
 
 ```math
-\bm{p} = \frac{Γ}{2} ∮_{\mathcal{C}} \bm{s} × \mathrm{d}\bm{s}
+\bm{p} = \frac{ρ Γ}{2} ∮_{\mathcal{C}} \bm{s} × \mathrm{d}\bm{s}
 ```
 
-For a vortex ring, ``\bm{p} = Γ π R^2 \hat{\bm{z}}``, that is, the impulse is directly related to the area of the vortex.
+For a vortex ring, ``\bm{p} = ρ Γ π R^2 \hat{\bm{z}}``, that is, the impulse is directly related to the area enclosed by the vortex.
 
 Noting that
 
 ```math
-\frac{∂E}{∂R} = \frac{Γ^2}{2} \left[ \ln \left( \frac{8R}{a} \right) - Δ \right]
+\frac{∂E}{∂R} = \frac{ρ Γ^2}{2} \left[ \ln \left( \frac{8R}{a} \right) - Δ \right]
 \quad \text{and} \quad
-\frac{∂\bm{p}}{∂R} = 2ΓπR \hat{\bm{z}},
+\frac{∂\bm{p}}{∂R} = 2ρ ΓπR \hat{\bm{z}},
 ```
 
 we finally obtain that
@@ -388,6 +390,38 @@ we finally obtain that
 = \frac{Γ}{4πR} \left[ \ln \left( \frac{8R}{a} \right) - Δ \right]
 = v_{\text{ring}}
 ```
+
+## Energy in open domains
+
+In open (non-periodic and unbounded) domains, assuming that the velocity field goes to zero
+sufficiently far from the vortices, a commonly used alternative expression for
+the energy is [Saffman1993](@cite):
+
+```math
+E₀ = ρ Γ ∮_{\mathcal{C}} \bm{v} ⋅ (\bm{s} × \mathrm{d}\bm{s})
+```
+
+which only requires knowing the velocity ``\bm{v}`` on the vortex filaments.
+Besides the above assumptions, this assumes that the fluid is incompressible
+everywhere.
+
+However, this definition does not satisfy Hamilton's equation, meaning that
+this "energy" may present fluctuations in time in cases where the previous
+definition will be conserved.
+
+This can be easily shown for the case of a vortex ring, in which case applying
+this definition to the expression for the vortex ring velocity leads to
+
+```math
+E₀ = \frac{ρ Γ^2 R}{2} \left[ \ln \left( \frac{8R}{a} \right) - Δ \right]
+```
+
+which overestimates the actual vortex ring energy by a ``ρ Γ^2 R / 2`` term
+(and thus doesn't satisfy Hamilton's equation).
+
+These differences might be explained by the fact that this second definition
+doesn't take into account the internal structure of the vortices, unlike the
+first definition which does this via the local contribution to the streamfunction.
 
 ## References
 
