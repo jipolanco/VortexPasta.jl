@@ -292,7 +292,7 @@ function domain_is_periodic(p::ParamsBiotSavart)
     !is_open_domain(Ls)
 end
 
-_extra_params(α::Zero; Ns = (0, 0, 0), rcut = ∞) = (; Ns, rcut,)
+_extra_params(α::Zero; Ns = nothing, rcut = ∞) = (; Ns = (0, 0, 0), rcut,)  # Ns is always (0, 0, 0), no matter the input
 _extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case
 
 ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls, kws...) where {T} =

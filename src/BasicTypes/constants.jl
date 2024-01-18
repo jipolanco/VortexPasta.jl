@@ -1,4 +1,4 @@
-import Base: +, -, *, /, ^, <
+import Base: +, -, *, /, ^, <, ÷
 
 abstract type RealConst <: Real end
 
@@ -18,6 +18,7 @@ Base.convert(::Type{Zero}, ::Zero) = Zero()
 (x::Number) - (::Zero) = x
 (::Zero) + (::Zero) = Zero()
 (::Zero) / (::Number) = Zero()
+(::Zero) ÷ (::Number) = Zero()
 
 """
     Infinity <: RealConst <: Real
