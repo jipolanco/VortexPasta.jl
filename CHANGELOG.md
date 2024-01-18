@@ -5,7 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.12.1 - 2024-01-18
+
 ### Fixed
+
+- `Diagnostics.kinetic_energy` always uses the streamfunction. Also removed
+  warnings when calling `kinetic_energy_from_streamfunctions` in non-periodic
+  domains, where this definition is totally valid and should be preferred.
 
 - Fix possible memory leak when using `sizehint!` when emptying a `PeriodicCellList`.
   This was mostly visible when using cell lists for reconnections (in which case each cell is usually very small).
