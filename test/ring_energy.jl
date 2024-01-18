@@ -49,22 +49,30 @@ function test_vortex_ring_energy()
     params_nonper = ParamsBiotSavart(; params_common..., Ls = Infinity(), α = Zero())
     prob_nonper = VortexFilamentProblem(fs, tspan, params_nonper)
     iter_nonper = init(prob_nonper, RK4(); dt = 0.1)
-    JET.@test_opt Diagnostics.kinetic_energy(iter_nonper)
-    JET.@test_call Diagnostics.kinetic_energy(iter_nonper)
-    E_nonper = Diagnostics.kinetic_energy(iter_nonper)
-    E_nonper_quad = Diagnostics.kinetic_energy(iter_nonper; quad = GaussLegendre(4))
-    @test isapprox(E_nonper, E_nonper_quad; rtol = 1e-8)  # roughly the same result
-    E_nonper_wrong = @test_logs(
-        (:warn, r"should only be called when working with periodic domains"),
-        Diagnostics.kinetic_energy_from_streamfunction(iter_nonper),
-    )
+    JET.@test_opt Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
+    JET.@test_call Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
+    E_nonper_v = Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
+    E_nonper_quad = Diagnostics.kinetic_energy_nonperiodic(iter_nonper; quad = GaussLegendre(4))
+    @test isapprox(E_nonper_v, E_nonper_quad; rtol = 1e-8)  # roughly the same result
+    E_nonper_ψ = Diagnostics.kinetic_energy_from_streamfunction(iter_nonper)
 
     # Compare energies obtained from both cases.
     # To be able to make comparisons, we must multiply the periodic energy (per unit mass) by
     # the domain volume, to obtain an energy per unit density.
-    E_periodic_comp = E_periodic * prod(BiotSavart.periods(params_periodic))
+    E_periodic_V = E_periodic * prod(BiotSavart.periods(params_periodic))
 
-    # @show E_periodic_wrong E_nonper E_periodic_comp E_nonper_wrong
+    E_expected = (params_common.Γ^2 * R/2) * (log(8R / params_common.a) - (params_common.Δ + 1))  # energy per unit density
+    # @show E_periodic_wrong E_periodic_V E_nonper_v E_nonper_ψ E_expected
+
+    # E_nonper_ψ gives the expected energy.
+    # @show (E_nonper_ψ - E_expected) / E_expected
+    @test isapprox(E_nonper_ψ, E_expected; rtol = 1e-3)
+
+    # E_nonper_v overestimates the energy by a factor Γ²R/2 = Γ²/(4π) * L, where L is the
+    # vortex length.
+    E_overestimate = E_expected + params_common.Γ^2 * R / 2
+    # @show (E_nonper_v - E_overestimate) / E_overestimate
+    @test isapprox(E_nonper_v, E_overestimate; rtol = 1e-4)
 
     # We expect the periodic energy to be slightly smaller than the non-periodic one, for two
     # reasons:
@@ -73,8 +81,8 @@ function test_vortex_ring_energy()
     # 2. The periodic energy includes the influence of image vortices, which tend to reduce the
     #    fluid velocity in the unit cell.
     # Still, the two values should be of the same order of magnitude.
-    # @show E_periodic_comp / E_nonper
-    @test 0.84 < E_periodic_comp / E_nonper < 0.86  # the actual difference depends on R/L and other parameters
+    # @show E_periodic_V / E_nonper_ψ
+    @test 0.90 < E_periodic_V / E_nonper_ψ < 0.92  # the actual difference depends on R/L and other parameters
 
     nothing
 end

@@ -104,9 +104,6 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
 
     # Estimate normalised energy
     @testset "Normalised energy" begin
-        # TODO why is it that the kinetic energy from streamfunction (supposed to work for
-        # periodic domains only) is the one that matches better the analytical prediction?
-        # This is not very clear...
         Ls = BiotSavart.periods(params)  # all Infinity() in this case
         E_expected = (Γ^2 * R/2) * (log(8R / a) - (Δ + 1))  # energy per unit density
         E_estimated = Diagnostics.kinetic_energy_from_streamfunction(ψs, f, Γ, Ls)  # energy per unit density

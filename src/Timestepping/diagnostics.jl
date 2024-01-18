@@ -2,19 +2,9 @@
 # state of the solver to get diagnostics.
 using ..Diagnostics: Diagnostics
 
-function Diagnostics.kinetic_energy(iter::VortexFilamentSolver; kws...)
-    if BiotSavart.domain_is_periodic(iter.prob.p)
-        Diagnostics.kinetic_energy_from_streamfunction(iter; kws...)
-    else
-        Diagnostics.kinetic_energy_nonperiodic(iter; kws...)
-    end
-end
-
 function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; kws...)
     (; ψs, fs, external_forcing, t,) = iter
     Ls = BiotSavart.periods(iter.prob.p)
-    BiotSavart.domain_is_periodic(iter.prob.p) ||
-        @warn(lazy"`kinetic_energy_from_streamfunction` should only be called when working with periodic domains (got Ls = $Ls)")
     Γ = BiotSavart.circulation(iter.prob.p)
     E = Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; kws...)
     # Add kinetic energy of external velocity field, if available.
