@@ -5,6 +5,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.13.0 - 2024-01-19
+
+### Changed
+
+- Improve performance of reconnections in periodic domains (using periodic cell lists).
+
+- Optimise periodic padding of multidimensional `PaddedArray`s.
+
+### Fixed
+
+- Changed implementation of periodic cell lists to fix possible memory leak
+  when using a large amount of cells (at least $∼512³$), which can occur when
+  enabling reconnections with a small reconnection distance in a periodic domain.
+  The issue seems to be related to creating a very large array of arrays, which
+  is avoided in the new implementation.
+
 ## 0.12.1 - 2024-01-18
 
 ### Fixed
