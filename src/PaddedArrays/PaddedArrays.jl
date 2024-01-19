@@ -239,32 +239,31 @@ function pad_periodic!(::FromLeft, v::PaddedVector{M, T}, L::T = zero(T)) where 
 end
 
 # Generalisation to N-dimensional PaddedArray.
-function pad_periodic!(::FromCentre, v::PaddedArray)
+@inline function pad_periodic!(dir::FromCentre, v::PaddedArray)
+    # Copy ghost cells over each dimension separately.
+    N = ndims(v)
+    _pad_periodic_dimension!(dir, Val(N), v)
+end
+
+# Copy values over dimension d.
+@inline function _pad_periodic_dimension!(dir::FromCentre, ::Val{d}, v::PaddedArray) where {d}
+    data = parent(v)
+    N = ndims(data)
+    inds_before = CartesianIndices(ntuple(i -> axes(data, i), Val(d - 1)))
+    inds_after = CartesianIndices(ntuple(i -> axes(data, d + i), Val(N - d)))
+    ibegin = firstindex(data, d)
+    iend = lastindex(data, d)
     M = npad(v)
-    @assert all(≥(2M), size(v))
-    for I ∈ CartesianIndices(v)
-        # Determine index of associated ghost cell
-        js = map(Tuple(I), axes(v)) do i, ax
-            if i < first(ax) + M
-                last(ax) + i
-            elseif i > last(ax) - M
-                i - last(ax)
-            else
-                i
-            end
-        end
-        J = CartesianIndex(js)
-        I === J && continue  # no ghost cells
-        dest_indices = Iterators.product(
-            map((i, j) -> (i, j), Tuple(I), Tuple(J))...
-        )
-        for dest ∈ dest_indices
-            K = CartesianIndex(dest)
-            K === I && continue
-            @inbounds v[K] = v[I]
+    @inbounds for J ∈ inds_after, I ∈ inds_before
+        for δ ∈ 1:M  # copy each ghost cell layer
+            data[I, iend - M + δ, J] = data[I, ibegin - 1 + M + δ, J]
+            data[I, ibegin - 1 + δ, J] = data[I, iend - 2M + δ, J]
         end
     end
-    v
+    _pad_periodic_dimension!(dir, Val(d - 1), v)
 end
+
+# Stop when we have copied over all dimensions.
+@inline _pad_periodic_dimension!(dir::FromCentre, ::Val{0}, v::PaddedArray) = v
 
 end  # module

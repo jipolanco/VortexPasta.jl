@@ -4,6 +4,7 @@ using ..FindNearbySegments:
     NaiveSegmentFinder,
     CellListSegmentFinder,
     set_filaments!,
+    segment_is_close,
     nearby_segments
 using ..CellLists: CellLists  # for docs only
 
@@ -76,6 +77,13 @@ function _init_cache(crit::ReconnectionCriterion, fs, Ls)
     # Note: we make the cutoff distance larger than the actual critical distance, since this
     # distance is only used to compare the segment *midpoints*.
     r_cut = 2 * distance(crit)
+    Lmax = maximum(Ls)
+    if !isinf(Lmax)
+        # Heuristic: in the periodic case, make sure there's at most ~32 cells per
+        # direction. The cell lists implementation can get really slow when there are too
+        # many cells (especially ~256³ and up).
+        r_cut = max(r_cut, Lmax / 32)
+    end
     finder = if has_nonperiodic_directions
         NaiveSegmentFinder(fs, r_cut, Ls)
     else
@@ -104,7 +112,8 @@ function find_reconnection_candidates!(
     (; finder, candidates,) = cache
     empty!(candidates)
     r_cut = distance(cache)
-    r²_crit = 4 * r_cut * r_cut
+    r_crit = 2 * r_cut
+    r²_crit = r_crit * r_crit
     Ls = periods(cache)
     Lhs = map(L -> L / 2, Ls)
     function check_distance(r⃗_in)
@@ -116,7 +125,9 @@ function find_reconnection_candidates!(
     @timeit to "add candidates" for f ∈ fs, seg_a ∈ segments(f)
         x⃗ = Filaments.midpoint(seg_a)
         for seg_b ∈ nearby_segments(finder, x⃗)
-            # Slightly finer filter to determine whether we keep this candidate.
+            # Slightly finer filters to determine whether we keep this candidate.
+            # TODO combine these two criteria?
+            segment_is_close(seg_b, x⃗, r_crit, r²_crit, Ls, Lhs) || continue
             keep_segment_pair(check_distance, seg_a, seg_b) || continue
             push!(candidates, ReconnectionCandidate(seg_a, seg_b))
         end

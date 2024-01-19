@@ -61,6 +61,30 @@ end
 """
 function nearby_segments end
 
+function segment_is_close(s::Segment, x⃗, r_cut::Real, r²_cut::Real, Ls, Lhs)
+        r⃗_a = let  # separation with first node of the segment
+            y⃗ = @inbounds s.f[s.i]
+            deperiodise_separation(y⃗ - x⃗, Ls, Lhs)
+        end
+        r⃗_b = let  # separation with second node of the segment
+            y⃗ = @inbounds s.f[s.i + 1]
+            deperiodise_separation(y⃗ - x⃗, Ls, Lhs)
+        end
+
+        # Skip segment if both extrema are too far from the point of interest.
+        if any(>(r_cut), r⃗_a) && any(>(r_cut), r⃗_b)
+            return false
+        end
+
+        # Second (more precise) filter: look at the actual distances.
+        if sum(abs2, r⃗_a) > r²_cut && sum(abs2, r⃗_b) > r²_cut
+            return false
+        end
+
+        # The current segment is sufficiently close to x⃗, so we return it.
+        true
+end
+
 include("naive.jl")
 include("cell_lists.jl")
 
