@@ -103,23 +103,3 @@ Associated keyword arguments:
 
 """
 function filamentplot! end
-
-# TODO move to VortexPastaMakieExt.jl?
-function _refine_filament(f::ClosedFilament, refinement::Int)
-    Xs_nodes = nodes(f)
-    refinement ≥ 1 || error("refinement must be ≥ 1")
-    refinement == 1 && return Xs_nodes[begin:end + 1]
-    N = refinement * length(f) + 1  # the +1 is to close the loop
-    Xs = similar(Xs_nodes, N)
-    n = 0
-    subinds = range(0, 1; length = refinement + 1)[1:refinement]
-    for i ∈ eachindex(f)
-        for ζ ∈ subinds
-            n += 1
-            Xs[n] = f(i, ζ)
-        end
-    end
-    @assert n == refinement * length(f)
-    Xs[n + 1] = f(lastindex(f), 1.0)  # close the loop
-    Xs
-end

@@ -1,6 +1,7 @@
 export write_vtkhdf, read_vtkhdf, PointData, FieldData
 
 using HDF5: HDF5
+using Bumper: Bumper, @no_escape, @alloc
 
 ## ================================================================================ ##
 ## 1. Writing filament HDF5 files
@@ -18,12 +19,17 @@ end
 struct PointData end
 struct FieldData end
 
+include("write_points.jl")
+include("write_data.jl")
+
 """
     write_vtkhdf(
         [func::Function],
         filename::AbstractString,
         fs::AbstractVector{<:AbstractFilament};
         refinement = 1,
+        tangents = false,
+        curvatures = false,
         dataset_type = :PolyData,
     )
 
@@ -67,6 +73,10 @@ syntax. See further below for some examples.
   the `/VTKHDF/RefinementLevel` dataset, which allows to read back the data skipping
   intra-segment nodes.
 
+- `tangents::Bool = false`: if `true`, write the local unit tangent vector on the filaments.
+
+- `curvatures::Bool = false`: if `true`, write the local curvature vector on the filaments.
+
 - `dataset_type::Symbol`: can be either `:PolyData` (default) or `:UnstructuredGrid`.
   There's usually no reason to change this.
 
@@ -75,7 +85,7 @@ syntax. See further below for some examples.
 ```julia
 # Note: the file extension is arbitrary, but ParaView prefers ".vtkhdf" (or ".hdf") if one
 # wants to use the files for visualisation.
-write_vtkhdf("filaments.vtkhdf", fs; refinement = 2) do io
+write_vtkhdf("filaments.vtkhdf", fs; refinement = 2, curvatures = true) do io
     io["Velocity"] = vs  # adds velocity as VTK point data, assuming vs is a VectorOfVectors
     io["Time"] = 0.3     # adds time as VTK field data, since it's a scalar
     # one can add other fields here...
@@ -118,11 +128,14 @@ function init_vtkhdf(
         io::HDF5.File,
         fs::AbstractVector{<:AbstractFilament};
         refinement::Int = 1,
+        tangents::Bool = false, curvatures::Bool = false,
         dataset_type::Symbol = :PolyData,  # either :UnstructuredGrid (old default) or :PolyData
     )
     gtop = HDF5.create_group(io, "VTKHDF")
     HDF5.attrs(gtop)["Version"] = [2, 1]
-    HDF5.attrs(gtop)["VortexPasta minimum version"] = [0, 14, 0]  # matches the latest VortexPasta version where changes were made
+
+    # This is the first VortexPasta version needed to read back the files.
+    HDF5.attrs(gtop)["VortexPasta minimum version"] = [0, 14, 0]
 
     # This attribute *must* be written as ASCII instead of UTF8, or ParaView will fail to
     # open the file.
@@ -166,14 +179,6 @@ function init_vtkhdf(
     gcells["NumberOfCells"] = [num_cells]
     gcells["NumberOfConnectivityIds"] = [num_points]
 
-    points = let dtype = HDF5.datatype(T)
-        dspace = HDF5.dataspace((N, num_points))
-        (;
-            dtype, dspace,
-            dset = HDF5.create_dataset(gtop, "Points", dtype, dspace),
-        )
-    end
-
     let dset = HDF5.create_dataset(gcells, "Connectivity", Int, (num_points,))
         local data = collect(0:(num_points - 1))
         dtype = HDF5.datatype(data)
@@ -203,29 +208,18 @@ function init_vtkhdf(
         end
     end
 
-    n = 0
-    for f ∈ fs
-        if refinement == 1
-            Xs = nodes(f)
-            Np = length(Xs) + 1  # include the endpoint
-        else
-            # Reuse Makie recipe code.
-            Xs = Filaments._refine_filament(f, refinement)
-            @assert typeof(Xs) === typeof(nodes(f))
-            @assert Xs[end] ≈ f[end + 1]  # already includes the endpoint
-            Np = length(Xs)
-            @assert Np == refinement * length(nodes(f)) + 1
-        end
+    points = let dtype = HDF5.datatype(T)
+        dspace = HDF5.dataspace((N, num_points))
+        (;
+            dtype, dspace,
+            dset = HDF5.create_dataset(gtop, "Points", dtype, dspace),
+        )
+    end
 
-        let (; dset, dspace, dtype,) = points
-            memspace = HDF5.dataspace((N, Np))
-            memtype = dtype
-            HDF5.select_hyperslab!(dspace, (1:N, (n + 1):(n + Np)))
-            HDF5.API.h5d_write(dset.id, memtype.id, memspace.id, dspace.id, dset.xfer, Xs)
-            close(memspace)
-        end
-
-        n += Np
+    n = if refinement == 1
+        write_points_unrefined(points, fs)
+    else
+        write_points_refined(points, fs, refinement)
     end
     @assert n == num_points
 
@@ -271,115 +265,10 @@ function Base.setindex!(
         String[name]
     end
     HDF5.attrs(gdata)[attrname] = names  # overwrite attribute if it already existed
-    _write_data_on_filaments(T, gdata, vs, name, refinement)
+    write_data_on_filaments(T, gdata, vs, name, refinement)
     close(gdata)
     nothing
 end
-
-# Write data on filament nodes -- case of scalar data (e.g. local curvature magnitude)
-function _write_data_on_filaments(
-        ::Type{T}, gdata, vs::AbstractVector{<:AbstractVector}, name, refinement,
-    ) where {T <: Number}
-    @assert T === eltype(eltype(vs))
-    num_points = sum(v -> refinement * length(v) + 1, vs)  # the +1 is to include the endpoint
-    dtype = HDF5.datatype(T)
-    dspace = HDF5.dataspace((num_points,))
-    memtype = dtype
-    memspace_node = HDF5.dataspace(T)  # this is for writing a scalar on a single point
-
-    dset = HDF5.create_dataset(gdata, name, dtype, dspace)
-    n = 0
-    for v ∈ vs
-        Np = refinement * length(v)
-        if refinement == 1
-            # Write all data associated to a single filament at once
-            memspace_filament = HDF5.dataspace((Np,))
-            HDF5.select_hyperslab!(dspace, ((n + 1):(n + Np),))
-            HDF5.API.h5d_write(dset.id, memtype.id, memspace_filament.id, dspace.id, dset.xfer, v)
-            close(memspace_filament)
-            n += Np
-        else
-            for i ∈ eachindex(v), m ∈ 1:refinement
-                u = _interpolate_on_segment(v, i, m, refinement)
-                n += 1
-                # Write values one by one
-                HDF5.select_hyperslab!(dspace, (n,))
-                HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, Ref(u))
-            end
-        end
-        # Close the loop: this writes v[begin]
-        n += 1
-        HDF5.select_hyperslab!(dspace, (n,))
-        HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, v)
-    end
-    @assert n == num_points
-    close(dset)
-
-    close(dspace)
-    close(dtype)
-    close(memspace_node)
-
-    nothing
-end
-
-# Write data on filament nodes -- case of vector data (e.g. velocity)
-function _write_data_on_filaments(
-        ::Type{V}, gdata, vs::AbstractVector{<:AbstractVector}, name, refinement,
-    ) where {V <: AbstractVector}
-    @assert V === eltype(eltype(vs))
-    T = eltype(V)
-    @assert T <: Number
-    N = length(V)  # usually == 3 (works when V <: StaticArray)
-    num_points = sum(v -> refinement * length(v) + 1, vs)  # the +1 is to include the endpoint
-    dtype = HDF5.datatype(T)
-    dspace = HDF5.dataspace((N, num_points))
-    memtype = dtype
-    memspace_node = HDF5.dataspace((N,))  # this is for writing a vector on a single point
-
-    dset = HDF5.create_dataset(gdata, name, dtype, dspace)
-    n = 0
-    for v ∈ vs
-        Np = refinement * length(v)
-        if refinement == 1
-            # Write all data associated to a single filament at once
-            memspace_filament = HDF5.dataspace((N, Np))
-            HDF5.select_hyperslab!(dspace, (1:N, (n + 1):(n + Np)))
-            HDF5.API.h5d_write(dset.id, memtype.id, memspace_filament.id, dspace.id, dset.xfer, v)
-            close(memspace_filament)
-            n += Np
-        else
-            for i ∈ eachindex(v), m ∈ 1:refinement
-                u = _interpolate_on_segment(v, i, m, refinement)
-                n += 1
-                # Write vectors one by one
-                HDF5.select_hyperslab!(dspace, (1:N, n))
-                HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, u)
-            end
-        end
-        # Close the loop: this writes v[begin]
-        n += 1
-        HDF5.select_hyperslab!(dspace, (1:N, n))
-        HDF5.API.h5d_write(dset.id, memtype.id, memspace_node.id, dspace.id, dset.xfer, v[begin])
-    end
-    @assert n == num_points
-    close(dset)
-
-    close(dspace)
-    close(dtype)
-    close(memspace_node)
-
-    nothing
-end
-
-# Interpolate value on segment. For now we simply use linear interpolation (it's just for
-# visualisation anyways).
-function _interpolate_on_segment(v, i, m, M)
-    α = (m - 1) / M
-    (1 - α) * v[i] + α * _vnext(v, i)
-end
-
-_vnext(v::PaddedVector, i) = v[i + 1]
-_vnext(v::AbstractVector, i) = v[i == lastindex(v) ? firstindex(v) : (i + 1)]
 
 """
     Base.setindex!(io::VTKHDFFile, data, name::AbstractString)
