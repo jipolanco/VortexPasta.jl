@@ -112,7 +112,7 @@ function find_reconnection_candidates!(
     (; finder, candidates,) = cache
     empty!(candidates)
     r_cut = distance(cache)
-    r_crit = 2 * r_cut
+    r_crit = 1.5 * r_cut
     r²_crit = r_crit * r_crit
     Ls = periods(cache)
     Lhs = map(L -> L / 2, Ls)
@@ -123,11 +123,18 @@ function find_reconnection_candidates!(
     end
     @timeit to "set_filaments!" set_filaments!(finder, fs)  # this is needed in particular to initialise cell lists
     @timeit to "add candidates" for f ∈ fs, seg_a ∈ segments(f)
+        # Since we only compare the *midpoint* of this segment to the extrema of other
+        # segments, we add δ/2 (half the segment length) to the critical distance to take
+        # into account the case where the point of minimum distance is at the extrema of
+        # this segment (and not near the midpoint).
         x⃗ = Filaments.midpoint(seg_a)
+        δ² = sum(abs2, f[seg_a.i + 1] - f[seg_a.i])  # ≈ squared segment length
+        d²_crit = r²_crit + δ² / 4
+        d_crit = sqrt(d²_crit)
         for seg_b ∈ nearby_segments(finder, x⃗)
             # Slightly finer filters to determine whether we keep this candidate.
             # TODO combine these two criteria?
-            segment_is_close(seg_b, x⃗, r_crit, r²_crit, Ls, Lhs) || continue
+            segment_is_close(seg_b, x⃗, d_crit, d²_crit, Ls, Lhs) || continue
             keep_segment_pair(check_distance, seg_a, seg_b) || continue
             push!(candidates, ReconnectionCandidate(seg_a, seg_b))
         end
@@ -153,10 +160,5 @@ function keep_segment_pair(check_distance::F, a::Segment, b::Segment) where {F <
             return false
         end
     end
-    any((
-        check_distance(f[i + 0] - g[j + 0]),
-        check_distance(f[i + 1] - g[j + 0]),
-        check_distance(f[i + 0] - g[j + 1]),
-        check_distance(f[i + 1] - g[j + 1]),
-    ))
+    true
 end
