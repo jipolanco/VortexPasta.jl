@@ -111,7 +111,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     tspan = (0.0, 2.0)
     @test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
-    reconnect = ReconnectBasedOnDistance(l_min)
+    reconnect = ReconnectBasedOnDistance(l_min / 2)
     iter = @inferred init(
         prob, scheme;
         dt = 0.004 * trefoil_scheme_dt(scheme),
@@ -135,7 +135,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
 
     @show t_reconnect[]
     @test n_reconnect[] > 0
-    @test 1.5 < t_reconnect[] < 1.6  # this depends on several parameters...
+    @test 1.7 < t_reconnect[] < 1.8  # this depends on several parameters...
     @show last(energy) / first(energy)
     @test last(energy) < 0.995 * first(energy)
 
