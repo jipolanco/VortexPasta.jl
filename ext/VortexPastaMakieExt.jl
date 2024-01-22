@@ -56,7 +56,7 @@ function MakieCore.plot!(p::FilamentPlot)
     f = p.filament :: Observable{<:AbstractFilament}
     v = (:velocities ∈ argnames) ? p.velocities : nothing
     Xs_nodes = @map _select_points_to_plot(&f)
-    Xs_line = @map Filaments._refine_filament(&f, &p.refinement)
+    Xs_line = @map _refine_filament_for_plotting(&f, &p.refinement)
     MakieCore.lines!(
         p, Xs_line;
         color = p.color, linewidth = p.linewidth, linestyle = p.linestyle,
@@ -95,6 +95,25 @@ end
 
 # Make sure we include `end + 1` point to close the loop.
 _select_points_to_plot(f::ClosedFilament) = nodes(f)[begin:end + 1]
+
+function _refine_filament_for_plotting(f::ClosedFilament, refinement::Int)
+    Xs_nodes = nodes(f)
+    refinement ≥ 1 || error("refinement must be ≥ 1")
+    refinement == 1 && return Xs_nodes[begin:end + 1]
+    N = refinement * length(f) + 1  # the +1 is to close the loop
+    Xs = similar(Xs_nodes, N)
+    n = 0
+    subinds = range(0, 1; length = refinement + 1)[1:refinement]
+    for i ∈ eachindex(f)
+        for ζ ∈ subinds
+            n += 1
+            Xs[n] = f(i, ζ)
+        end
+    end
+    @assert n == refinement * length(f)
+    Xs[n + 1] = f(lastindex(f), 1.0)  # close the loop
+    Xs
+end
 
 function _tangents_for_arrows(f::AbstractFilament, vectorpos::Real)
     N = length(f)
