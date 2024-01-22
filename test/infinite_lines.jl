@@ -38,14 +38,14 @@ function test_infinite_line_io(fs, vs)
     method = Filaments.discretisation_method(first(fs))
     T = eltype(eltype(eltype(fs)))
     @assert T <: AbstractFloat
-    FilamentIO.write_vtkhdf("infinite.hdf", fs) do io
+    FilamentIO.write_vtkhdf("infinite.vtkhdf", fs) do io
         io["velocity"] = vs
     end
     function check_velocity(io)
         vs_read = @inferred read(io, "velocity", FilamentIO.PointData())
         @test vs_read == vs
     end
-    fs_read = @inferred FilamentIO.read_vtkhdf(check_velocity, "infinite.hdf", T, method)
+    fs_read = @inferred FilamentIO.read_vtkhdf(check_velocity, "infinite.vtkhdf", T, method)
     @test fs_read == fs
     for (f, g) ∈ zip(fs, fs_read)
         @test end_to_end_offset(f) == end_to_end_offset(g)

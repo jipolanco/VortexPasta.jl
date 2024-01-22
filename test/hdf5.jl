@@ -75,94 +75,97 @@ end
 
     time = 0.3
     info_str = ["one", "two"]
+    dataset_types = (:PolyData, :UnstructuredGrid)
 
     @testset "→ refinement = $refinement" for refinement ∈ (1, 3)
-        fname = "ring_collision_ref$refinement.hdf"
+        @testset "Dataset type: $dataset_type" for dataset_type ∈ dataset_types
+            fname = "ring_collision_ref$(refinement)_$dataset_type.vtkhdf"
 
-        # Write results
-        FilamentIO.write_vtkhdf(fname, fs; refinement) do io
-            io["velocity"] = vs
-            io["streamfunction"] = ψs
-            io["streamfunction_t"] = ψt
-            io["streamfunction_t_vec"] = ψt_vec
-            io["time"] = time
-            io["info"] = info_str
-        end
+            # Write results
+            FilamentIO.write_vtkhdf(fname, fs; refinement, dataset_type) do io
+                io["velocity"] = vs
+                io["streamfunction"] = ψs
+                io["streamfunction_t"] = ψt
+                io["streamfunction_t_vec"] = ψt_vec
+                io["time"] = time
+                io["info"] = info_str
+            end
 
-        HDF5.h5open(fname, "r") do ff
-            gbase = HDF5.open_group(ff, "VTKHDF")
-            ref = read(gbase["RefinementLevel"]) :: Int
-            @test ref == refinement
-            # Check that both datasets are equal in the file.
-            # This is mainly interesting when refinement > 1, so that we're checking also
-            # interpolated values in-between nodes.
-            local ψt_read = read(gbase["PointData/streamfunction_t"]) :: Vector{Float64}
-            local ψt_vec_read = read(gbase["PointData/streamfunction_t_vec"]) :: Vector{Float64}
-            @test ψt_read == ψt_vec_read
-        end
+            HDF5.h5open(fname, "r") do ff
+                gbase = HDF5.open_group(ff, "VTKHDF")
+                ref = read(gbase["RefinementLevel"]) :: Int
+                @test ref == refinement
+                # Check that both datasets are equal in the file.
+                # This is mainly interesting when refinement > 1, so that we're checking also
+                # interpolated values in-between nodes.
+                local ψt_read = read(gbase["PointData/streamfunction_t"]) :: Vector{Float64}
+                local ψt_vec_read = read(gbase["PointData/streamfunction_t_vec"]) :: Vector{Float64}
+                @test ψt_read == ψt_vec_read
+            end
 
-        function check_fields(io)
-            vs_read = @inferred read(io, "velocity", PointData(), Vec3{Float64})
-            ψs_read = @inferred read(io, "streamfunction", PointData(), Vec3{Float64})
-            ψt_read = @inferred read(io, "streamfunction_t", PointData(), Float64)
+            function check_fields(io)
+                vs_read = @inferred read(io, "velocity", PointData(), Vec3{Float64})
+                ψs_read = @inferred read(io, "streamfunction", PointData(), Vec3{Float64})
+                ψt_read = @inferred read(io, "streamfunction_t", PointData(), Float64)
 
-            @test vs == vs_read
-            @test ψs == ψs_read
-            @test ψt == ψt_read
+                @test vs == vs_read
+                @test ψs == ψs_read
+                @test ψt == ψt_read
 
-            # Check that arrays are correctly padded
-            for (us, vs) ∈ (vs => vs_read, ψs => ψs_read, ψt => ψt_read)
-                for (u, v) ∈ zip(us, vs)
+                # Check that arrays are correctly padded
+                for (us, vs) ∈ (vs => vs_read, ψs => ψs_read, ψt => ψt_read)
+                    for (u, v) ∈ zip(us, vs)
+                        @test v isa PaddedVector
+                        @test parent(v) == parent(u)  # this also compares "ghost" entries
+                    end
+                end
+
+                # Test reading onto VectorOfVectors
+                ψs_alt = similar(ψs)
+                @assert ψs_alt != ψs
+                @assert ψs_alt isa VectorOfVectors
+                read!(io, ψs_alt, "streamfunction")
+                @test ψs_alt == ψs
+                for (u, v) ∈ zip(ψs, ψs_alt)
                     @test v isa PaddedVector
                     @test parent(v) == parent(u)  # this also compares "ghost" entries
                 end
+
+                # Test reading onto non-PaddedVectors
+                ψt_vec_read = similar(ψt_vec)
+                @assert ψt_vec_read isa VectorOfVectors
+                @assert eltype(ψt_vec_read) <: Vector
+                read!(io, ψt_vec_read, "streamfunction_t_vec")
+                @test ψt_vec_read == ψt_vec
+
+                # Test reading field data
+                time_read = @inferred read(io, "time", FieldData(), Float64)  # this is a vector!
+                @test time == only(time_read)
+
+                info_read = read(io, "info", FieldData(), String)
+                @test info_str == info_read
             end
 
-            # Test reading onto VectorOfVectors
-            ψs_alt = similar(ψs)
-            @assert ψs_alt != ψs
-            @assert ψs_alt isa VectorOfVectors
-            read!(io, ψs_alt, "streamfunction")
-            @test ψs_alt == ψs
-            for (u, v) ∈ zip(ψs, ψs_alt)
-                @test v isa PaddedVector
-                @test parent(v) == parent(u)  # this also compares "ghost" entries
+            # Read results back
+            fs_read = @inferred FilamentIO.read_vtkhdf(
+                check_fields, fname, Float64, CubicSplineMethod(),
+            )
+
+            @test eltype(eltype(fs_read)) === Vec3{Float64}
+            if refinement == 1
+                @test fs == fs_read
+            else
+                @test isapprox(fs, fs_read; rtol = 1e-15)
             end
 
-            # Test reading onto non-PaddedVectors
-            ψt_vec_read = similar(ψt_vec)
-            @assert ψt_vec_read isa VectorOfVectors
-            @assert eltype(ψt_vec_read) <: Vector
-            read!(io, ψt_vec_read, "streamfunction_t_vec")
-            @test ψt_vec_read == ψt_vec
+            fs_read_f32 = @inferred FilamentIO.read_vtkhdf(fname, Float32, CubicSplineMethod())
+            @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
+            @test fs ≈ fs_read_f32
 
-            # Test reading field data
-            time_read = @inferred read(io, "time", FieldData(), Float64)  # this is a vector!
-            @test time == only(time_read)
-
-            info_read = read(io, "info", FieldData(), String)
-            @test info_str == info_read
+            # Same without passing a function
+            FilamentIO.write_vtkhdf(fname * ".alt", fs; refinement)
+            fs_read = FilamentIO.read_vtkhdf(fname * ".alt", Float64, CubicSplineMethod())
+            @test fs ≈ fs_read
         end
-
-        # Read results back
-        fs_read = @inferred FilamentIO.read_vtkhdf(
-            check_fields, fname, Float64, CubicSplineMethod(),
-        )
-
-        @test eltype(eltype(fs_read)) === Vec3{Float64}
-        if refinement == 1
-            @test fs == fs_read
-        else
-            @test isapprox(fs, fs_read; rtol = 1e-15)
-        end
-
-        fs_read_f32 = @inferred FilamentIO.read_vtkhdf(fname, Float32, CubicSplineMethod())
-        @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
-        @test fs ≈ fs_read_f32
-
-        # Same without passing a function
-        FilamentIO.write_vtkhdf(fname * ".alt", fs; refinement)
-        fs_read = FilamentIO.read_vtkhdf(fname * ".alt", Float64, CubicSplineMethod())
-        @test fs ≈ fs_read
     end
 end

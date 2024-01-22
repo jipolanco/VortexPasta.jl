@@ -296,7 +296,7 @@ function run_forced_lines(
         local L_growth = Lvort/4L - 1  # relative growth of vortex lines
         if nstep % 10 == 0
             @show nstep, t/Tend, E, L_growth
-            write_vtkhdf("vtk/kws_$nstep.hdf", iter.fs) do vtk
+            write_vtkhdf("vtk/kws_$nstep.vtkhdf", iter.fs) do vtk
                 vtk["velocity"] = iter.vs
             end
         end

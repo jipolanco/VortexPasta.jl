@@ -24,6 +24,7 @@ struct FieldData end
         filename::AbstractString,
         fs::AbstractVector{<:AbstractFilament};
         refinement = 1,
+        dataset_type = :PolyData,
     )
 
 Write new VTK HDF file containing a list of filaments.
@@ -44,13 +45,13 @@ Some relevant datasets which are written are:
   appears twice in the file. This is done to disambiguate between *closed* and *infinite but
   unclosed* filaments (see [`end_to_end_offset`](@ref)).
 
-- `/VTKHDF/Offsets`: contains the offset associated to each filament within the `Points`
+- `/VTKHDF/Lines/Offsets`: contains the offset associated to each filament within the `Points`
   dataset. Its length is `1 + Nf` where `Nf` is the number of filaments. The points
   associated to the `i`-th filament are those with indices `(Offsets[i] + 1):Offsets[i + 1]`.
   Once again, note that number of nodes of filament `i` *including the endpoint* is
   `Offsets[i + 1] - Offsets[i]`.
 
-See also the [VTK documentation](https://examples.vtk.org/site/VTKFileFormats/#hdf-file-formats)
+See also the [VTK documentation](https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#vtkhdf-file-format)
 for details on the VTK HDF format.
 
 ## Attaching extra data
@@ -59,19 +60,22 @@ The optional `func` argument can be used to attach other data (such as velocity 
 the current time) to the generated file. This is most conveniently done using the `do` block
 syntax. See further below for some examples.
 
-## Optional arguments
+## Optional keyword arguments
 
 - `refinement::Int = 1`: allows to output more than 1 point for each filament segment. This
   is mostly useful for producing nice visualisations. The level of refinement is writen to
   the `/VTKHDF/RefinementLevel` dataset, which allows to read back the data skipping
   intra-segment nodes.
 
+- `dataset_type::Symbol`: can be either `:PolyData` (default) or `:UnstructuredGrid`.
+  There's usually no reason to change this.
+
 ## Typical usage
 
 ```julia
-# Note: the file extension is arbitrary, but ParaView prefers ".hdf" if one wants to use the
-# files for visualisation.
-write_vtkhdf("filaments.hdf", fs; refinement = 2) do io
+# Note: the file extension is arbitrary, but ParaView prefers ".vtkhdf" (or ".hdf") if one
+# wants to use the files for visualisation.
+write_vtkhdf("filaments.vtkhdf", fs; refinement = 2) do io
     io["Velocity"] = vs  # adds velocity as VTK point data, assuming vs is a VectorOfVectors
     io["Time"] = 0.3     # adds time as VTK field data, since it's a scalar
     # one can add other fields here...
@@ -82,10 +86,10 @@ function write_vtkhdf(
         func::Func,
         filename::AbstractString,
         fs::AbstractVector{<:AbstractFilament};
-        refinement = 1,
+        kwargs...
     ) where {Func <: Function}
     HDF5.h5open(filename, "w") do io
-        writer = init_vtkhdf(io, fs; refinement)
+        writer = init_vtkhdf(io, fs; kwargs...)
         func(writer)
     end
     nothing
@@ -114,13 +118,15 @@ function init_vtkhdf(
         io::HDF5.File,
         fs::AbstractVector{<:AbstractFilament};
         refinement::Int = 1,
+        dataset_type::Symbol = :PolyData,  # either :UnstructuredGrid (old default) or :PolyData
     )
     gtop = HDF5.create_group(io, "VTKHDF")
-    HDF5.attrs(gtop)["Version"] = [1, 0]
+    HDF5.attrs(gtop)["Version"] = [2, 1]
+    HDF5.attrs(gtop)["VortexPasta minimum version"] = [0, 14, 0]  # matches the latest VortexPasta version where changes were made
 
     # This attribute *must* be written as ASCII instead of UTF8, or ParaView will fail to
     # open the file.
-    let s = "UnstructuredGrid"
+    let s = string(dataset_type)
         dtype = datatype_ascii(s)
         dspace = HDF5.dataspace(s)
         attr = HDF5.create_attribute(gtop, "Type", dtype, dspace)
@@ -134,10 +140,31 @@ function init_vtkhdf(
     num_points = sum(f -> refinement * length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint
     num_cells = length(fs)
 
-    gtop["NumberOfCells"] = [num_cells]
+    if dataset_type == :PolyData
+        gcells = HDF5.create_group(gtop, "Lines")  # write cell info info to /VTKHDF/Lines
+    elseif dataset_type == :UnstructuredGrid
+        gcells = gtop  # write cell info directly to /VTKHDF
+    else
+        throw(ArgumentError("dataset_type must be either :PolyData (default) or :UnstructuredGrid"))
+    end
+
+    # Add empty categories
+    if dataset_type == :PolyData
+        for type ∈ ("Vertices", "Polygons", "Strips")
+            gempty = HDF5.create_group(gtop, type)
+            gempty["NumberOfCells"] = [0]
+            gempty["NumberOfConnectivityIds"] = [0]
+            gempty["Connectivity"] = Int[]
+            gempty["Offsets"] = [0]
+            close(gempty)
+        end
+    end
+
     gtop["NumberOfPoints"] = [num_points]
-    gtop["NumberOfConnectivityIds"] = [num_points]
     gtop["RefinementLevel"] = refinement  # this is not a VTK attribute, it's just for our own use
+
+    gcells["NumberOfCells"] = [num_cells]
+    gcells["NumberOfConnectivityIds"] = [num_points]
 
     points = let dtype = HDF5.datatype(T)
         dspace = HDF5.dataspace((N, num_points))
@@ -147,7 +174,7 @@ function init_vtkhdf(
         )
     end
 
-    let dset = HDF5.create_dataset(gtop, "Connectivity", Int, (num_points,))
+    let dset = HDF5.create_dataset(gcells, "Connectivity", Int, (num_points,))
         local data = collect(0:(num_points - 1))
         dtype = HDF5.datatype(data)
         HDF5.write_dataset(dset, dtype, data)
@@ -155,7 +182,7 @@ function init_vtkhdf(
         close(dset)
     end
 
-    let dset = HDF5.create_dataset(gtop, "Offsets", Int, (num_cells + 1,))
+    let dset = HDF5.create_dataset(gcells, "Offsets", Int, (num_cells + 1,))
         local data = Vector{Int}(undef, num_cells + 1)
         data[1] = 0
         for (i, f) ∈ enumerate(fs)
@@ -167,11 +194,13 @@ function init_vtkhdf(
         close(dset)
     end
 
-    # Write cell types, `4` corresponds to VTK_POLY_LINE
-    let dset = HDF5.create_dataset(gtop, "Types", UInt8, (num_cells,))
-        local data = fill(UInt8(4), num_cells)
-        HDF5.write_dataset(dset, HDF5.datatype(data), data)
-        close(dset)
+    if dataset_type == :UnstructuredGrid
+        # Write cell types, `4` corresponds to VTK_POLY_LINE
+        let dset = HDF5.create_dataset(gtop, "Types", UInt8, (num_cells,))
+            local data = fill(UInt8(4), num_cells)
+            HDF5.write_dataset(dset, HDF5.datatype(data), data)
+            close(dset)
+        end
     end
 
     n = 0
@@ -427,7 +456,7 @@ One can also read other datasets using `read` and `read!`, as shown and explaine
 local vs, t  # make sure these variables still exist after the `do` block
 
 # The returned `fs` is a list of filaments.
-fs = read_vtkhdf("filaments.hdf", Float64, CubicSplineMethod()) do io
+fs = read_vtkhdf("filaments.vtkhdf", Float64, CubicSplineMethod()) do io
     vs = read(io, "Velocity", PointData())            # here `vs` contains one velocity vector per filament node
     t = only(read(io, "Time", FieldData(), Float64))  # note: field data is always written as an array
     # one can read other fields here...
@@ -468,8 +497,22 @@ function read_filaments(
 
     refinement = HDF5.read_dataset(gtop, "RefinementLevel") :: Int
 
+    dataset_type = if haskey(gtop, "Lines")
+        :PolyData
+    elseif haskey(gtop, "Types")
+        :UnstructuredGrid
+    else
+        error("couldn't detect the type of dataset (PolyData or UnstructuredGrid)")
+    end
+
+    gcells = if dataset_type == :PolyData
+        gcells = HDF5.open_group(gtop, "Lines")  # cell info is in /VTKHDF/Lines
+    elseif dataset_type == :UnstructuredGrid
+        gcells = gtop  # cell info is in /VTKHDF
+    end
+
     dset_points = HDF5.open_dataset(gtop, "Points")
-    dset_offset = HDF5.open_dataset(gtop, "Offsets")
+    dset_offset = HDF5.open_dataset(gcells, "Offsets")
 
     Ñ, num_points_refined = size(dset_points) :: Dims{2}
     @assert Ñ == 3

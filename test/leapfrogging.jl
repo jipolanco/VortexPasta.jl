@@ -79,7 +79,7 @@ function test_leapfrogging_rings(
         push!(times, t)
 
         # This can be useful for visualisation
-        # write_vtkhdf("leapfrogging_$nstep.hdf", fs) do io
+        # write_vtkhdf("leapfrogging_$nstep.vtkhdf", fs) do io
         #     io["Velocity"] = vs
         #     io["Streamfunction"] = ψs
         # end

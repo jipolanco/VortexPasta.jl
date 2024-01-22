@@ -65,7 +65,7 @@ using LinearAlgebra: ⋅
         end
         local (; fs, ψs, vs,) = iter
         if @isdefined(write_vtkhdf)  # requires loading VortexPasta.FilamentIO
-            write_vtkhdf("ring_perturbed_$nstep.hdf", fs; refinement = 4) do io
+            write_vtkhdf("ring_perturbed_$nstep.vtkhdf", fs; refinement = 4) do io
                 io["velocity"] = vs
                 io["streamfunction"] = ψs
                 ψt = similar(ψs, Float64)
