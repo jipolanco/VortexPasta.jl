@@ -97,7 +97,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         end
         push!(times, t)
         push!(energy, Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(4)))
-        # write_vtkhdf("trefoil_$nstep.hdf", fs) do io
+        # write_vtkhdf("trefoil_$nstep.vtkhdf", fs) do io
         #     io["velocity"] = iter.vs
         # end
         Nf = length(fs)

@@ -626,42 +626,44 @@ nothing  # hide
 # !!! note "VTK HDF file extension"
 #
 #     ParaView doesn't recognise the usual `.h5` file extension as a VTK HDF file.
-#     For this reason, it is recommended to use `.hdf` if one wants to visualise the data.
+#     For this reason, it is recommended to use `.vtkhdf` if one wants to visualise the data.
 #
 # ### Writing filament data and reading it back
 #
 # Writing filament data is done via the [`write_vtkhdf`](@ref) function:
 
 using VortexPasta.FilamentIO
-write_vtkhdf("vortex_ring_initial.hdf", fs)  # write filament locations to disk
+write_vtkhdf("vortex_ring_initial.vtkhdf", fs)  # write filament locations to disk
 
 # This creates an HDF5 file with the following structure:
 #
 # ```bash
-# $ h5ls -r vortex_ring_initial.hdf
-# /                        Group
-# /VTKHDF                  Group
-# /VTKHDF/Connectivity     Dataset {17}
-# /VTKHDF/NumberOfCells    Dataset {1}
-# /VTKHDF/NumberOfConnectivityIds Dataset {1}
-# /VTKHDF/NumberOfPoints   Dataset {1}
-# /VTKHDF/Offsets          Dataset {2}
-# /VTKHDF/Points           Dataset {17, 3}
-# /VTKHDF/RefinementLevel  Dataset {SCALAR}
-# /VTKHDF/Types            Dataset {1}
+# $ h5ls -r vortex_ring_initial.vtkhdf
+# /                                     Group
+# /VTKHDF                               Group
+# /VTKHDF/Lines/Connectivity            Dataset {17}
+# /VTKHDF/Lines/NumberOfCells           Dataset {1}
+# /VTKHDF/Lines/NumberOfConnectivityIds Dataset {1}
+# /VTKHDF/Lines/Offsets                 Dataset {2}
+# /VTKHDF/NumberOfPoints                Dataset {1}
+# /VTKHDF/Points                        Dataset {17, 3}
+# /VTKHDF/RefinementLevel               Dataset {SCALAR}
+# [...]
 # ```
 #
+# (The `[...]` includes the `Polygons`, `Strips` and `Vertices` groups which are just there
+# to make ParaView happy.)
 # Note that everything is written to a `VTKHDF` group.
 # In this case, we have a single cell which corresponds to our vortex ring (one VTK cell
 # corresponds to one vortex filament).
 # The important datasets here are `Points`, which contains the discretisation points of all
-# filaments, and `Offsets`, which allows to identify which point corresponds to which
+# filaments, and `Lines/Offsets`, which allows to identify which point corresponds to which
 # vortex.
 # See [`write_vtkhdf`](@ref) for more details.
 #
 # The generated files can be read back using [`read_vtkhdf`](@ref):
 
-fs_read = read_vtkhdf("vortex_ring_initial.hdf", Float64, CubicSplineMethod())
+fs_read = read_vtkhdf("vortex_ring_initial.vtkhdf", Float64, CubicSplineMethod())
 fs_read == fs
 
 # ### Visualising VTK HDF files
@@ -674,7 +676,7 @@ fs_read == fs
 # ParaView connects by straight lines.
 # As with Makie plots, we can make things look nicer by passing the `refinement` argument:
 
-write_vtkhdf("vortex_ring_initial_refined.hdf", fs; refinement = 4)
+write_vtkhdf("vortex_ring_initial_refined.vtkhdf", fs; refinement = 4)
 
 # ![](paraview_vortex_ring_ref4.png)
 
@@ -686,7 +688,7 @@ write_vtkhdf("vortex_ring_initial_refined.hdf", fs; refinement = 4)
 # As an example, we can save the positions, velocities, streamfunction and time values
 # corresponding to the final state of our last simulation:
 
-write_vtkhdf("vortex_ring_final.hdf", iter.fs; refinement = 4) do io
+write_vtkhdf("vortex_ring_final.vtkhdf", iter.fs; refinement = 4) do io
     io["velocity"] = iter.vs
     io["streamfunction"] = iter.ψs
     io["time"] = iter.t
@@ -695,22 +697,22 @@ end
 # The HDF5 file structure now looks like:
 #
 # ```bash
-# $ h5ls -r vortex_ring_final.hdf
-# /                        Group
-# /VTKHDF                  Group
-# /VTKHDF/Connectivity     Dataset {65}
-# /VTKHDF/FieldData        Group
-# /VTKHDF/FieldData/time   Dataset {1}
-# /VTKHDF/NumberOfCells    Dataset {1}
-# /VTKHDF/NumberOfConnectivityIds Dataset {1}
-# /VTKHDF/NumberOfPoints   Dataset {1}
-# /VTKHDF/Offsets          Dataset {2}
-# /VTKHDF/PointData        Group
-# /VTKHDF/PointData/streamfunction Dataset {65, 3}
-# /VTKHDF/PointData/velocity Dataset {65, 3}
-# /VTKHDF/Points           Dataset {65, 3}
-# /VTKHDF/RefinementLevel  Dataset {SCALAR}
-# /VTKHDF/Types            Dataset {1}
+# $ h5ls -r vortex_ring_final.vtkhdf
+# /                                     Group
+# /VTKHDF                               Group
+# /VTKHDF/FieldData                     Group
+# /VTKHDF/FieldData/time                Dataset {1}
+# /VTKHDF/Lines/Connectivity            Dataset {65}
+# /VTKHDF/Lines/NumberOfCells           Dataset {1}
+# /VTKHDF/Lines/NumberOfConnectivityIds Dataset {1}
+# /VTKHDF/Lines/Offsets                 Dataset {2}
+# /VTKHDF/NumberOfPoints                Dataset {1}
+# /VTKHDF/PointData                     Group
+# /VTKHDF/PointData/streamfunction      Dataset {65, 3}
+# /VTKHDF/PointData/velocity            Dataset {65, 3}
+# /VTKHDF/Points                        Dataset {65, 3}
+# /VTKHDF/RefinementLevel               Dataset {SCALAR}
+# [...]
 # ```
 #
 # Note that a `PointData` group has been created with two datasets: `streamfunction` and
@@ -727,7 +729,7 @@ end
 
 vs_read = map(similar ∘ nodes, fs)
 ψs_read = map(similar ∘ nodes, fs)
-fs_read = read_vtkhdf("vortex_ring_final.hdf", Float64, CubicSplineMethod()) do io
+fs_read = read_vtkhdf("vortex_ring_final.vtkhdf", Float64, CubicSplineMethod()) do io
     read!(io, vs_read, "velocity")
     read!(io, ψs_read, "streamfunction")
     local t_read = read(io, "time", FieldData(), Float64)  # note: this is read as an array

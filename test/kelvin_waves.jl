@@ -125,7 +125,7 @@ function test_kelvin_waves(
         # if nstep % 10 == 0
         #     @show nstep, t/T, E
         # end
-        # write_vtkhdf("kw_$nstep.hdf", fs; refinement = 4) do io
+        # write_vtkhdf("kw_$nstep.vtkhdf", fs; refinement = 4) do io
         #     io["Streamfunction"] = ψs
         # end
         push!(energy_time, E)

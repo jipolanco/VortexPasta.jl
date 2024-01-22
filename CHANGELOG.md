@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.14.0 - 2024-01-22
+
+### Changed
+
+- VTKHDF files: slightly change internal representation of datasets (use
+  `PolyData` instead of `UnstructuredGrid`).
+  This doesn't change anything to visualisation, other than ParaView 5.12 is
+  now needed.
+
 ### Added
 
 - Add `fold_periodic` option to `Timestepping.init`.
