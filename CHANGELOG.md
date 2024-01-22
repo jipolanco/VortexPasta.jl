@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `fold_periodic` option to `Timestepping.init`.
+
 ## 0.13.1 - 2024-01-22
 
 ### Fixed

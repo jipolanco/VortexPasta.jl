@@ -165,6 +165,7 @@ struct VortexFilamentSolver{
     cache_bs          :: CacheBS
     cache_timestepper :: CacheTimestepper
     fast_term         :: FastTerm
+    fold_periodic :: Bool
     affect!  :: Affect
     callback :: Callback
     external_forcing :: ExternalForcing  # velocity and streamfunction forcing
@@ -185,11 +186,12 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     print(io, "\n - `refinement`: ", iter.refinement)
     print(io, "\n - `adaptivity`: ", iter.adaptivity)
     print(io, "\n - `reconnect`: ", Reconnections.criterion(iter.reconnect))
+    print(io, "\n - `fast_term`: ", iter.fast_term)
+    print(io, "\n - `fold_periodic`: ", iter.fold_periodic)
     print(io, "\n - `cache_bs`: ")
     summary(io, iter.cache_bs)
     print(io, "\n - `cache_timestepper`: ")
     summary(io, iter.cache_timestepper)
-    print(io, "\n - `fast_term`: ", iter.fast_term)
     print(io, "\n - `affect!`: Function (`", _printable_function(iter.affect!), "`)")
     print(io, "\n - `callback`: Function (`", _printable_function(iter.callback), "`)")
     for (name, func) ∈ pairs(iter.external_forcing)
@@ -253,6 +255,12 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `fast_term = LocalTerm()`: for IMEX and multirate schemes, this determines what is meant by
   "fast" and "slow" dynamics. This can either be [`LocalTerm`](@ref) or [`ShortRangeTerm`](@ref).
   Note that the default may change in the future!
+
+- `fold_periodic = true`: if `true` (default), vortices will be recentred onto the main unit cell
+  when using periodic boundary conditions. It may be convenient to disable this for
+  visualisation purposes. This setting doesn't affect the results (velocity of each
+  filament, reconnections, …), besides possible spatial translations of the filaments
+  proportional to the domain period.
 
 - `callback`: a function to be called at the end of each timestep. The function
   must accept a single argument `iter::VortexFilamentSolver`. **Filaments should not be
@@ -358,6 +366,7 @@ function init(
         refinement::RefinementCriterion = NoRefinement(),
         reconnect::ReconnectionCriterion = NoReconnections(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
+        fold_periodic = true,
         callback::Callback = identity,
         affect!::Affect = identity,
         external_velocity::ExtVel = nothing,
@@ -401,7 +410,7 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs_sol, vs, ψs, time, T(dtmin), refinement, adaptivity, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, affect_, callback_, external_forcing,
+        cache_bs, cache_timestepper, fast_term, fold_periodic, affect_, callback_, external_forcing,
         timer, advect!, rhs!,
     )
 
@@ -619,6 +628,12 @@ function _advect_filament!(
     nothing
 end
 
+function after_advection!(iter::VortexFilamentSolver)
+    (; fs, vs, ψs, prob, refinement, fold_periodic,) = iter
+    L_fold = periods(prob.p)  # box size (periodicity)
+    after_advection!(fs, (vs, ψs); L_fold, refinement, fold_periodic,)
+end
+
 # This should be called right after positions have been updated by the timestepper, but
 # before reconnections happen.
 # Here `fields` is a tuple containing the fields associated to each filament node.
@@ -637,8 +652,8 @@ function after_advection!(fs, fields::Tuple; kws...)
     fs
 end
 
-function _after_advection!(f::AbstractFilament, fields::Tuple; L_fold, refinement,)
-    if Filaments.fold_periodic!(f, L_fold)
+function _after_advection!(f::AbstractFilament, fields::Tuple; L_fold, refinement, fold_periodic,)
+    if fold_periodic && Filaments.fold_periodic!(f, L_fold)
         Filaments.update_coefficients!(f)  # only called if nodes were modified by fold_periodic!
     end
     refinement_steps = refine!(f, refinement)
@@ -701,19 +716,16 @@ end
 Advance solver by a single timestep.
 """
 function step!(iter::VortexFilamentSolver)
-    (; fs, vs, ψs, prob, time, dtmin, refinement, advect!, rhs!, to,) = iter
+    (; fs, vs, time, dtmin, advect!, rhs!,) = iter
     t_end = iter.prob.tspan[2]
     if time.dt < dtmin && time.t + time.dt < t_end
         error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
     end
     # Note: the timesteppers assume that iter.vs already contains the velocity
     # induced by the filaments at the current timestep.
-    update_velocities!(
-        rhs!, advect!, iter.cache_timestepper, iter,
-    )
-    L_fold = periods(prob.p)  # box size (periodicity)
+    update_velocities!(rhs!, advect!, iter.cache_timestepper, iter)
     advect!(fs, vs, time.dt)
-    after_advection!(fs, (vs, ψs); L_fold, refinement)
+    after_advection!(iter)
     time.t += time.dt
     time.nstep += 1
     finalise_step!(iter)
