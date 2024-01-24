@@ -28,8 +28,6 @@ include("write_data.jl")
         filename::AbstractString,
         fs::AbstractVector{<:AbstractFilament};
         refinement = 1,
-        tangents = false,
-        curvatures = false,
         dataset_type = :PolyData,
     )
 
@@ -73,10 +71,6 @@ syntax. See further below for some examples.
   the `/VTKHDF/RefinementLevel` dataset, which allows to read back the data skipping
   intra-segment nodes.
 
-- `tangents::Bool = false`: if `true`, write the local unit tangent vector on the filaments.
-
-- `curvatures::Bool = false`: if `true`, write the local curvature vector on the filaments.
-
 - `dataset_type::Symbol`: can be either `:PolyData` (default) or `:UnstructuredGrid`.
   There's usually no reason to change this.
 
@@ -87,6 +81,7 @@ syntax. See further below for some examples.
 # wants to use the files for visualisation.
 write_vtkhdf("filaments.vtkhdf", fs; refinement = 2, curvatures = true) do io
     io["Velocity"] = vs  # adds velocity as VTK point data, assuming vs is a VectorOfVectors
+    io["Curvatures"] = CurvatureVector()  # convenient syntax for writing geometric quantities along filaments
     io["Time"] = 0.3     # adds time as VTK field data, since it's a scalar
     # one can add other fields here...
 end
@@ -128,7 +123,6 @@ function init_vtkhdf(
         io::HDF5.File,
         fs::AbstractVector{<:AbstractFilament};
         refinement::Int = 1,
-        tangents::Bool = false, curvatures::Bool = false,
         dataset_type::Symbol = :PolyData,  # either :UnstructuredGrid (old default) or :PolyData
     )
     gtop = HDF5.create_group(io, "VTKHDF")
@@ -248,13 +242,51 @@ For vector fields (such as velocity), the written dataset has dimensions `(3, Np
 The format is exactly the same as for the `Points` dataset as detailed in
 [`write_vtkhdf`](@ref). As also explained there, the `Offsets` dataset can be used to recover
 the values associated to each filament.
+
+# Writing geometric quantities
+
+It is also possible to write geometric quantities such as unit tangents or curvature vectors
+along filaments (see [`GeometricQuantity`](@ref) for a list).
+For this, one can pass the wanted quantity as the `vs` argument.
+
+For example, one can simply do
+
+    io["Curvatures"] = CurvatureVector()
+
+to write curvature vectors along each filament.
 """
 function Base.setindex!(
         writer::VTKHDFFile,
         vs::AbstractVector{<:AbstractVector},
         name::AbstractString,
     )
-    (; gtop, refinement,) = writer
+    write_point_data(writer, vs, name)
+end
+
+function Base.setindex!(writer::VTKHDFFile, q::GeometricQuantity, name::AbstractString)
+    (; fs,) = writer
+    buf = Bumper.default_buffer()
+    @no_escape buf begin
+        vs = map(fs) do f
+            M = Filaments.npad(nodes(f))
+            v1 = f[begin, q]
+            T = typeof(v1)
+            # vdata = @alloc(T, length(f) + 2M)
+            # v = PaddedVector{M}(vdata)  # we need PaddedVector for doing refinement
+            v = @alloc(T, length(f))
+            v[begin] = v1
+            for i ∈ eachindex(v)[2:end]
+                v[i] = f[i, q]
+            end
+            v
+        end
+        write_point_data(writer, vs, name)
+    end
+    nothing
+end
+
+function write_point_data(writer, vs, name)
+    (; gtop,) = writer
     gdata = open_or_create_group(gtop, "PointData")
     T = eltype(eltype(vs))  # usually <:Real or Vec3{<:Real}
     attrname = vtk_attribute_type(T)  # "Scalars", "Vectors", ...
@@ -265,7 +297,7 @@ function Base.setindex!(
         String[name]
     end
     HDF5.attrs(gdata)[attrname] = names  # overwrite attribute if it already existed
-    write_data_on_filaments(T, gdata, vs, name, refinement)
+    write_data_on_filaments(T, writer, gdata, vs, name)
     close(gdata)
     nothing
 end

@@ -7,7 +7,7 @@ module FilamentIO
 
 using ..PaddedArrays: PaddedVector, pad_periodic!
 using ..Filaments
-using ..Filaments: DiscretisationMethod, Vec3
+using ..Filaments: DiscretisationMethod, GeometricQuantity, Vec3
 
 include("hdf5.jl")
     
