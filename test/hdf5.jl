@@ -22,7 +22,7 @@ function tangent_streamfunction!(ψt_all, fs, ψs_all::VectorOfVectors)
     ψt_all
 end
 
-@testset "FilamentIO: HDF5" begin
+function test_hdf5()
     # Copied from the ring collision test.
     R = π / 3  # ring radius
     L = π / 8  # ring distance
@@ -73,9 +73,70 @@ end
     tangent_streamfunction!(ψt_vec, fs, ψs)
     @test ψt == ψt_vec
 
+    # Curvature along filaments
+    curvature_vector = VectorOfVectors(map(fs) do f
+        map(i -> f[i, CurvatureVector()], eachindex(f))
+    end)
+    curvature_scalar = VectorOfVectors(map(fs) do f
+        map(i -> f[i, CurvatureScalar()], eachindex(f))
+    end)
+
     time = 0.3
     info_str = ["one", "two"]
     dataset_types = (:PolyData, :UnstructuredGrid)
+
+    function check_fields(io)
+        vs_read = @inferred read(io, "velocity", PointData(), Vec3{Float64})
+        ψs_read = @inferred read(io, "streamfunction", PointData(), Vec3{Float64})
+        ψt_read = @inferred read(io, "streamfunction_t", PointData(), Float64)
+
+        @test vs == vs_read
+        @test ψs == ψs_read
+        @test ψt == ψt_read
+
+        # Check that arrays are correctly padded
+        for (us, vs) ∈ (vs => vs_read, ψs => ψs_read, ψt => ψt_read)
+            for (u, v) ∈ zip(us, vs)
+                @test v isa PaddedVector
+                @test parent(v) == parent(u)  # this also compares "ghost" entries
+            end
+        end
+
+        # Test reading onto VectorOfVectors
+        ψs_alt = similar(ψs)
+        @assert ψs_alt != ψs
+        @assert ψs_alt isa VectorOfVectors
+        read!(io, ψs_alt, "streamfunction")
+        @test ψs_alt == ψs
+        for (u, v) ∈ zip(ψs, ψs_alt)
+            @test v isa PaddedVector
+            @test parent(v) == parent(u)  # this also compares "ghost" entries
+        end
+
+        # Test reading onto non-PaddedVectors
+        ψt_vec_read = similar(ψt_vec)
+        @assert ψt_vec_read isa VectorOfVectors
+        @assert eltype(ψt_vec_read) <: Vector
+        read!(io, ψt_vec_read, "streamfunction_t_vec")
+        @test ψt_vec_read == ψt_vec
+
+        # Test reading geometric quantities
+        let us = similar(curvature_vector)
+            read!(io, us, "curvature_vector")
+            @test us == curvature_vector
+        end
+        let us = similar(curvature_scalar)
+            read!(io, us, "curvature_scalar")
+            @test us == curvature_scalar
+        end
+
+        # Test reading field data
+        time_read = @inferred read(io, "time", FieldData(), Float64)  # this is a vector!
+        @test time == only(time_read)
+
+        info_read = read(io, "info", FieldData(), String)
+        @test info_str == info_read
+    end
 
     @testset "→ refinement = $refinement" for refinement ∈ (1, 3)
         @testset "Dataset type: $dataset_type" for dataset_type ∈ dataset_types
@@ -87,6 +148,8 @@ end
                 io["streamfunction"] = ψs
                 io["streamfunction_t"] = ψt
                 io["streamfunction_t_vec"] = ψt_vec
+                io["curvature_vector"] = CurvatureVector()
+                io["curvature_scalar"] = CurvatureScalar()
                 io["time"] = time
                 io["info"] = info_str
             end
@@ -103,60 +166,13 @@ end
                 @test ψt_read == ψt_vec_read
             end
 
-            function check_fields(io)
-                vs_read = @inferred read(io, "velocity", PointData(), Vec3{Float64})
-                ψs_read = @inferred read(io, "streamfunction", PointData(), Vec3{Float64})
-                ψt_read = @inferred read(io, "streamfunction_t", PointData(), Float64)
-
-                @test vs == vs_read
-                @test ψs == ψs_read
-                @test ψt == ψt_read
-
-                # Check that arrays are correctly padded
-                for (us, vs) ∈ (vs => vs_read, ψs => ψs_read, ψt => ψt_read)
-                    for (u, v) ∈ zip(us, vs)
-                        @test v isa PaddedVector
-                        @test parent(v) == parent(u)  # this also compares "ghost" entries
-                    end
-                end
-
-                # Test reading onto VectorOfVectors
-                ψs_alt = similar(ψs)
-                @assert ψs_alt != ψs
-                @assert ψs_alt isa VectorOfVectors
-                read!(io, ψs_alt, "streamfunction")
-                @test ψs_alt == ψs
-                for (u, v) ∈ zip(ψs, ψs_alt)
-                    @test v isa PaddedVector
-                    @test parent(v) == parent(u)  # this also compares "ghost" entries
-                end
-
-                # Test reading onto non-PaddedVectors
-                ψt_vec_read = similar(ψt_vec)
-                @assert ψt_vec_read isa VectorOfVectors
-                @assert eltype(ψt_vec_read) <: Vector
-                read!(io, ψt_vec_read, "streamfunction_t_vec")
-                @test ψt_vec_read == ψt_vec
-
-                # Test reading field data
-                time_read = @inferred read(io, "time", FieldData(), Float64)  # this is a vector!
-                @test time == only(time_read)
-
-                info_read = read(io, "info", FieldData(), String)
-                @test info_str == info_read
-            end
-
             # Read results back
             fs_read = @inferred FilamentIO.read_vtkhdf(
                 check_fields, fname, Float64, CubicSplineMethod(),
             )
 
             @test eltype(eltype(fs_read)) === Vec3{Float64}
-            if refinement == 1
-                @test fs == fs_read
-            else
-                @test isapprox(fs, fs_read; rtol = 1e-15)
-            end
+            @test fs == fs_read
 
             fs_read_f32 = @inferred FilamentIO.read_vtkhdf(fname, Float32, CubicSplineMethod())
             @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
@@ -165,7 +181,13 @@ end
             # Same without passing a function
             FilamentIO.write_vtkhdf(fname * ".alt", fs; refinement)
             fs_read = FilamentIO.read_vtkhdf(fname * ".alt", Float64, CubicSplineMethod())
-            @test fs ≈ fs_read
+            @test fs == fs_read
         end
     end
+
+    nothing
+end
+
+@testset "FilamentIO: HDF5" begin
+    test_hdf5()
 end

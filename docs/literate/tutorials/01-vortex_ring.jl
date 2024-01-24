@@ -693,6 +693,7 @@ write_vtkhdf("vortex_ring_initial_refined.vtkhdf", fs; refinement = 4)
 write_vtkhdf("vortex_ring_final.vtkhdf", iter.fs; refinement = 4) do io
     io["velocity"] = iter.vs
     io["streamfunction"] = iter.ψs
+    io["curvatures"] = CurvatureVector()  # note: no need to explicitly compute curvatures!
     io["time"] = iter.t
 end
 
