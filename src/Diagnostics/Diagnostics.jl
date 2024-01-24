@@ -6,6 +6,7 @@ simulation data.
 """
 module Diagnostics
 
+using ..PaddedArrays: PaddedVector
 using ..Filaments:
     Filaments,
     AbstractFilament, Derivative, Vec3,
@@ -13,6 +14,7 @@ using ..Filaments:
 
 using ..BiotSavart: BiotSavartCache, LongRangeCache, Infinity, ∞
 
+using Bumper: Bumper, @no_escape, @alloc
 using LinearAlgebra: ⋅, ×
 
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}

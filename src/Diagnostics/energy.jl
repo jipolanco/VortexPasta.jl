@@ -119,26 +119,41 @@ function _kinetic_energy_from_streamfunction(
     prefactor * E
 end
 
-# With quadratures (requires interpolation + allocations)
+# With quadratures (requires interpolating the streamfunction along filaments)
 function _kinetic_energy_from_streamfunction(
         quad, ψf::SingleFilamentData, f::SingleFilamentData, Γ,
         Ls = (∞, ∞, ∞),
     )
     prefactor = Γ / (2 * _domain_volume(Ls))
     E = zero(prefactor)
-    # Create Filament object where each node is a streamfunction value instead of a position.
-    # This allows to interpolate the streamfunction in-between nodes.
-    Xoff = Filaments.end_to_end_offset(f)
-    ψ_int = Filaments.change_offset(similar(f), zero(Xoff))
-    copy!(Filaments.nodes(ψ_int), ψf)
-    Filaments.update_coefficients!(ψ_int; knots = knots(f))
-    for i ∈ eachindex(segments(f))
-        E += integrate(f, i, quad) do f, i, ζ
-            ψ⃗ = ψ_int(i, ζ)
-            s⃗′ = f(i, ζ, Derivative(1))
-            ψ⃗ ⋅ s⃗′
+    method = Filaments.discretisation_method(f)
+    ts = Filaments.knots(f)
+    M = Filaments.npad(method)
+    Np = length(f)
+
+    # We use Bumper to avoid allocations managed by Julia's garbage collector.
+    buf = Bumper.default_buffer()
+    T = eltype(ψf)
+
+    @no_escape buf begin
+        data = @alloc(T, Np + 2M)
+        cs = PaddedVector{M}(data)
+        nderiv = Filaments.required_derivatives(method)
+        cderiv = ntuple(Val(nderiv)) do _
+            local data = @alloc(T, Np + 2M)
+            PaddedVector{M}(data)
+        end
+        coefs = Filaments.init_coefficients(method, cs, cderiv)
+        Filaments.compute_coefficients!(coefs, ψf, ts)
+        for i ∈ eachindex(segments(f))
+            E += integrate(f, i, quad) do f, i, ζ
+                ψ⃗ = Filaments.evaluate(coefs, ts, i, ζ)
+                s⃗′ = f(i, ζ, Derivative(1))
+                ψ⃗ ⋅ s⃗′
+            end
         end
     end
+
     prefactor * E
 end
 
@@ -257,17 +272,16 @@ function _kinetic_energy_nonperiodic(
     )
     T = typeof(Γ)
     E = zero(T)
-    # Create Filament object where each node is a velocity instead of a position.
-    # This allows to interpolate velocities in-between nodes.
-    Xoff = Filaments.end_to_end_offset(f)
-    v_int = Filaments.change_offset(similar(f), zero(Xoff))
-    copy!(Filaments.nodes(v_int), vs)
-    Filaments.update_coefficients!(v_int; knots = knots(f))
+    # We need to interpolate velocities along filaments.
+    method = Filaments.discretisation_method(f)
+    ts = Filaments.knots(f)
+    coefs = Filaments.init_coefficients(method, vs)
+    Filaments.compute_coefficients!(coefs, vs, ts)
     for i ∈ eachindex(segments(f))
         res = integrate(f, i, quad) do f, i, ζ
             s⃗ = f(i, ζ)
             s⃗′ = f(i, ζ, Derivative(1))
-            v⃗ = v_int(i, ζ)
+            v⃗ = Filaments.evaluate(coefs, ts, i, ζ)
             SVector(v⃗ ⋅ (s⃗ × s⃗′), norm(s⃗′))
         end
         E += res[1]
