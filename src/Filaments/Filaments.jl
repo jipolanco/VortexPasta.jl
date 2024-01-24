@@ -295,8 +295,8 @@ include("from_vector_field.jl")
 include("interpolation/interpolation.jl")
 include("interpolation/hermite.jl")
 
-include("local/finitediff.jl")
-include("local/closed_filament.jl")
+include("finitediff/finitediff.jl")
+include("finitediff/closed_filament.jl")
 
 include("fourier/fourier.jl")
 

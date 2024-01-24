@@ -5,7 +5,19 @@ export
 using Base.Cartesian: @ntuple, @nexprs
 using Bumper: Bumper, @no_escape, @alloc
 
-struct SplineMethod{Order} <: GlobalDiscretisationMethod end
+"""
+    SplineMethod{k} <: DiscretisationMethod
+
+Represents parametric curves using splines of order ``k``.
+
+A spline of order ``k`` is a piecewise polynomial with polynomial degree ``k - 1``
+in-between interpolation nodes.
+For instance, cubic splines correspond to ``k = 4``.
+On an interpolation node, the function has continuity ``C^{k - 2}``.
+
+See also [`CubicSplineMethod`](@ref) and [`QuinticSplineMethod`](@ref).
+"""
+struct SplineMethod{Order} <: DiscretisationMethod end
 
 order(::Type{<:SplineMethod{Order}}) where {Order} = Order
 order(m::SplineMethod) = order(typeof(m))
@@ -15,14 +27,17 @@ continuity(::Type{M}) where {M <: SplineMethod} = order(M) - 2
 
 npad(::Type{M}) where {M <: SplineMethod} = order(M) - 1  # e.g. npad = 3 for cubic splines
 
+required_derivatives(m::SplineMethod) = 0  # spline interpolation doesn't require derivatives on nodes
 interpolation_method(m::SplineMethod) = m  # for compatibility with local methods (finite diff)
 
 ## ================================================================================ ##
 
 """
-    CubicSplineMethod <: GlobalDiscretisationMethod
+    CubicSplineMethod <: DiscretisationMethod
 
 Represents curves using cubic splines.
+
+This is an alias for `SplineMethod{4}` (see [`SplineMethod`](@ref)).
 
 In the case of closed curves, periodic cubic splines are used.
 """
@@ -33,9 +48,11 @@ include("cubic.jl")
 ## ================================================================================ ##
 
 """
-    QuinticSplineMethod <: GlobalDiscretisationMethod
+    QuinticSplineMethod <: DiscretisationMethod
 
 Represents curves using quintic splines.
+
+This is an alias for `SplineMethod{6}` (see [`SplineMethod`](@ref)).
 
 A quintic spline is made of polynomials of degree 5 and has global continuity ``C^4``.
 
@@ -55,7 +72,7 @@ include("quintic.jl")
 struct SplineCoefs{
         Method <: SplineMethod,
         N,  # number of derivatives included (usually 2)
-        Points <: AbstractVector,
+        Points <: PaddedVector,
     } <: DiscretisationCoefs{Method, N}
     method :: Method
 
@@ -66,13 +83,58 @@ struct SplineCoefs{
     cderivs :: NTuple{N, Points}
 end
 
-function init_coefficients(method::SplineMethod, Xs::AbstractVector, Nderiv::Val)
-    cs = similar(Xs)
-    cderivs = ntuple(_ -> similar(Xs), Nderiv)
+function init_coefficients(
+        method::SplineMethod, cs::V, cderivs::NTuple{N, V},
+    ) where {N, V <: PaddedVector}
+    _check_coefficients(method, cs, cderivs)
     SplineCoefs(method, cs, cderivs)
 end
 
 allvectors(x::SplineCoefs) = (x.cs, x.cderivs...)
+
+function compute_coefficients!(
+        coefs::SplineCoefs, Xs::AbstractVector, ts::PaddedVector;
+        Xoffset = zero(eltype(Xs)),
+        only_derivatives = false,
+    )
+    (; method, cs, cderivs,) = coefs
+    M = npad(method)
+    length(cs) == length(Xs) == length(ts) ||
+        throw(DimensionMismatch("incompatible vector dimensions"))
+    @assert M == npad(ts) == npad(cs)
+    k = order(method)
+    if !only_derivatives
+        solve_spline_coefficients!(Val(k), cs, ts, Xs; Xoffset)
+    end
+    _compute_derivative_coefs!(Val(k), cderivs, cs, ts)
+    coefs
+end
+
+# Evaluate interpolation using local parametrisation ζ ∈ [0, 1] (within segment `i`)
+function evaluate(
+        method::SplineMethod, coefs::SplineCoefs, ts::PaddedVector,
+        i::Int, ζ::Number, deriv::Derivative = Derivative(0),
+    )
+    t = @inbounds (1 - ζ) * ts[i] + ζ * ts[i + 1]  # convert ζ ∈ [0, 1] to spline parametrisation
+    evaluate(method, coefs, ts, t, deriv; ileft = i)
+end
+
+# Evaluate interpolation using global parametrisation t ∈ [0, T]
+function evaluate(
+        method::SplineMethod, coefs::SplineCoefs, ts::PaddedVector,
+        t_in::Number, ::Derivative{n} = Derivative(0);
+        ileft::Union{Nothing, Int} = nothing,
+    ) where {n}
+    (; cs, cderivs,) = coefs
+    ta, tb = ts[begin], ts[end + 1]
+    i, t = _find_knot_segment(ileft, (ta, tb), ts, t_in)
+    n > length(cderivs) && throw(ArgumentError(
+        lazy"derivatives of order $n are not enabled. Initialise a filament with nderivs ≥ $n, and make sure the discretisation scheme has the required continuity degree."
+    ))
+    coefs = (cs, cderivs...)[n + 1]
+    ord = order(method) - n
+    evaluate_spline(coefs, ts, i, t, Val(ord))
+end
 
 ## ================================================================================ ##
 
@@ -95,22 +157,23 @@ Base.@propagate_inbounds function eval_bsplines(order::Val{k}, ts::AbstractVecto
     Base.tail(bs)  # return only non-zero B-splines (b_{i + 1}, b_{i}, b_{i - 1})
 end
 
+# Copies Xs -> Ys, possibly translating values if Xoffset ≠ 0
 function periodise_coordinates!(
-        Ys::AbstractVector, Xs::AbstractVector,
-        ts::AbstractVector, Xoffset::Vec3,
-    )
+        Ys::PaddedVector{M, T}, Xs::AbstractVector{T},
+        ts::PaddedVector{M}, Xoffset::T,
+    ) where {M, T}
     if Xoffset === zero(Xoffset)
         copyto!(Ys, Xs)
     else
         # In this case X is not really periodic. We define Y = X - (t / T) * Xoffset
         # which is really periodic.
         # @inbounds @assert Xoffset ≈ Xs[end + 1] - Xs[begin]
-        @inbounds T = ts[end + 1] - ts[begin]  # knot period
+        @inbounds Tper = ts[end + 1] - ts[begin]  # knot period
         @inbounds for i ∈ eachindex(Ys)
             # Change of variables to have a periodic spline.
             # See also `deperiodise_curve` below, which undoes this after the spline
             # has been evaluated.
-            Ys[i] = Xs[i] - (ts[i] / T) * Xoffset
+            Ys[i] = Xs[i] - (ts[i] / Tper) * Xoffset
         end
     end
     Ys
@@ -123,9 +186,9 @@ function deperiodise_curve(y::Vec3, Xoffset::Vec3, ts::AbstractVector, t::Number
     _deperiodise_curve(y, Xoffset, T, t, derivative)
 end
 
-_deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val{0}) = y + (t / T) * Xoffset  # zero-th derivative
-_deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val{1}) = y + (1 / T) * Xoffset  # first derivative
-_deperiodise_curve(y::Vec3, Xoffset::Vec3, T, t, ::Val)    = y  # higher-order derivatives
+_deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val{0}) where {T} = y + (t / Tper) * Xoffset  # zero-th derivative
+_deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val{1}) where {T} = y + (1 / Tper) * Xoffset  # first derivative
+_deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val)    where {T} = y  # higher-order derivatives
 
 # ============================================================================ #
 # B-spline and spline evaluation code below adapted from BSplineKit.jl

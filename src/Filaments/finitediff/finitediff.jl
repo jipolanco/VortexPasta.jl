@@ -2,7 +2,7 @@ export
     FiniteDiffMethod
 
 @doc raw"""
-    FiniteDiffMethod{M} <: LocalDiscretisationMethod{M}
+    FiniteDiffMethod{M} <: DiscretisationMethod{M}
     FiniteDiffMethod([M = 2], [interpolation = HermiteInterpolation(M)])
 
 Estimation of curve derivatives at filament nodes using finite differences.
@@ -24,7 +24,7 @@ derivatives estimated by finite differences at the discretisation points.
 struct FiniteDiffMethod{
         M,
         InterpolationMethod <: LocalInterpolationMethod,
-    } <: LocalDiscretisationMethod{M}
+    } <: DiscretisationMethod
     interp :: InterpolationMethod
 
     function FiniteDiffMethod{M}(interp) where {M}
@@ -37,6 +37,7 @@ struct FiniteDiffMethod{
 end
 
 continuity(::Type{<:FiniteDiffMethod{M, I}}) where {M, I} = continuity(I)  # returns continuity of interpolation method
+npad(::Type{<:FiniteDiffMethod{M}}) where {M} = M
 
 @inline FiniteDiffMethod(M::Int, interp = HermiteInterpolation(M)) = FiniteDiffMethod{M}(interp)
 @inline FiniteDiffMethod() = FiniteDiffMethod(2)
@@ -113,7 +114,7 @@ end
 struct FiniteDiffCoefs{
         Method <: FiniteDiffMethod,
         N,  # number of derivatives included (usually 2)
-        Points <: AbstractVector,
+        Points <: PaddedVector,
     } <: DiscretisationCoefs{Method, N}
     method :: Method
 
@@ -126,10 +127,36 @@ struct FiniteDiffCoefs{
     cderivs :: NTuple{N, Points}
 end
 
-function init_coefficients(method::FiniteDiffMethod, Xs::AbstractVector, Nderiv::Val)
-    cs = similar(Xs)
-    cderivs = ntuple(_ -> similar(Xs), Nderiv)
+function init_coefficients(
+        method::FiniteDiffMethod, cs::V, cderivs::NTuple{N, V},
+    ) where {N, V <: PaddedVector}
+    _check_coefficients(method, cs, cderivs)
     FiniteDiffCoefs(method, cs, cderivs)
 end
 
 allvectors(x::FiniteDiffCoefs) = (x.cs, x.cderivs...)
+
+function compute_coefficients!(
+        coefs::FiniteDiffCoefs, Xs::AbstractVector, ts::PaddedVector;
+        Xoffset = zero(eltype(Xs)),
+    )
+    (; method, cs, cderivs,) = coefs
+    M = npad(method)
+    length(cs) == length(Xs) == length(ts) ||
+        throw(DimensionMismatch("incompatible vector dimensions"))
+    @assert M == npad(ts) == npad(cs)
+    copy!(cs, Xs)
+    pad_periodic!(cs, Xoffset)
+    @inbounds for i ∈ eachindex(cs)
+        ℓs_i = ntuple(j -> @inbounds(ts[i - M + j] - ts[i - M - 1 + j]), Val(2M))  # = ℓs[(i - M):(i + M - 1)]
+        Xs_i = ntuple(j -> @inbounds(cs[i - M - 1 + j]), Val(2M + 1))  # = cs[(i - M):(i + M)]
+        coefs_dot = coefs_first_derivative(method, ℓs_i)
+        coefs_ddot = coefs_second_derivative(method, ℓs_i)
+        cderivs[1][i] = sum(splat(*), zip(coefs_dot, Xs_i))  # = ∑ⱼ c[j] * x⃗[j]
+        cderivs[2][i] = sum(splat(*), zip(coefs_ddot, Xs_i))
+    end
+    # These paddings are needed for Hermite interpolations and stuff like that.
+    # (In principle we just need M = 1 for two-point Hermite interpolations.)
+    map(pad_periodic!, cderivs)
+    nothing
+end

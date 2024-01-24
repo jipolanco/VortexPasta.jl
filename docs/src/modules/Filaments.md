@@ -13,7 +13,33 @@ Filaments
 ```@docs
 AbstractFilament
 ClosedFilament
+```
+
+## Curve representation
+
+### Discretisation methods
+
+```@docs
 DiscretisationMethod
+SplineMethod
+CubicSplineMethod
+QuinticSplineMethod
+FiniteDiffMethod
+FourierMethod
+discretisation_method
+```
+
+### Interpolation
+
+```@docs
+interpolation_method
+Filaments.required_derivatives
+Filaments.init_coefficients
+Filaments.compute_coefficients!
+Filaments.evaluate
+LocalInterpolationMethod
+HermiteInterpolation
+interpolate
 ```
 
 ## Initialisation
@@ -23,19 +49,9 @@ Filaments.init
 Filaments.from_vector_field
 ```
 
-## Discretisation methods
-
-```@docs
-FiniteDiffMethod
-CubicSplineMethod
-QuinticSplineMethod
-FourierMethod
-```
-
 ## Obtaining information
 
 ```@docs
-discretisation_method
 knots
 knotlims
 end_to_end_offset
@@ -120,16 +136,6 @@ Filaments.segment_length
 ```@docs
 filamentplot!
 filamentplot
-```
-
-## Internals
-
-```@docs
-LocalDiscretisationMethod
-GlobalDiscretisationMethod
-LocalInterpolationMethod
-HermiteInterpolation
-interpolate
 ```
 
 ## Index

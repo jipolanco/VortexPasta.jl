@@ -2,13 +2,9 @@ function _update_coefficients_only!(
         method::SplineMethod, f::ClosedFilament;
         only_derivatives = false,
     )
-    (; ts, Xs, Xoffset,) = f
-    (; cs, cderivs,) = f.coefs
-    k = order(method)
-    if !only_derivatives
-        solve_spline_coefficients!(Val(k), cs, ts, Xs; Xoffset,)
-    end
-    _compute_derivative_coefs!(Val(k), cderivs, cs, ts)
+    (; coefs, Xs, ts, Xoffset,) = f
+    @assert method === coefs.method
+    compute_coefficients!(coefs, Xs, ts; Xoffset, only_derivatives)
     f
 end
 
@@ -32,24 +28,17 @@ end
 
 function _interpolate(m::SplineMethod, f::ClosedFilament, i::Int, ζ::Number, d::Derivative)
     (; ts,) = f
-    t = (1 - ζ) * ts[i] + ζ * ts[i + 1]  # convert ζ ∈ [0, 1] to spline parametrisation
+    t = @inbounds (1 - ζ) * ts[i] + ζ * ts[i + 1]  # convert ζ ∈ [0, 1] to spline parametrisation
     _interpolate(m, f, t, d; ileft = i)
 end
 
 # Here `t_in` is in the spline parametrisation.
 function _interpolate(
-        method::SplineMethod, f::ClosedFilament, t_in::Number, ::Derivative{n};
+        method::SplineMethod, f::ClosedFilament, t_in::Number, deriv::Derivative{n};
         ileft::Union{Nothing, Int} = nothing,
     ) where {n}
     (; ts, Xoffset,) = f
-    (; cs, cderivs,) = f.coefs
-    i, t = _find_knot_segment(ileft, knotlims(f), ts, t_in)
-    n > length(cderivs) && throw(ArgumentError(
-        lazy"derivatives of order $n are not enabled. Initialise a filament with nderivs ≥ $n, and make sure the discretisation scheme has the required continuity degree."
-    ))
-    coefs = (cs, cderivs...)[n + 1]
-    ord = order(method) - n
-    y = evaluate_spline(coefs, ts, i, t, Val(ord))
+    y = evaluate(method, f.coefs, f.ts, t_in, deriv; ileft)
     deperiodise_curve(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 ("infinite" / non-closed filaments)
 end
 

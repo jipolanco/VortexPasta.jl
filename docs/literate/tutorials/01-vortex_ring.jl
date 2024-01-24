@@ -684,9 +684,11 @@ write_vtkhdf("vortex_ring_initial_refined.vtkhdf", fs; refinement = 4)
 #
 # It can also be useful to include other data associated to the filaments, such as the
 # velocity of the discretisation points.
+# One can also easily add geometric quantities along filaments (see
+# [`GeometricQuantity`](@ref Filaments.GeometricQuantity) for a list of possible options).
 #
-# As an example, we can save the positions, velocities, streamfunction and time values
-# corresponding to the final state of our last simulation:
+# As an example, we can save the positions, velocities, streamfunction, local curvature
+# vector and time values corresponding to the final state of our last simulation:
 
 write_vtkhdf("vortex_ring_final.vtkhdf", iter.fs; refinement = 4) do io
     io["velocity"] = iter.vs
@@ -708,6 +710,7 @@ end
 # /VTKHDF/Lines/Offsets                 Dataset {2}
 # /VTKHDF/NumberOfPoints                Dataset {1}
 # /VTKHDF/PointData                     Group
+# /VTKHDF/PointData/curvatures          Dataset {65, 3}
 # /VTKHDF/PointData/streamfunction      Dataset {65, 3}
 # /VTKHDF/PointData/velocity            Dataset {65, 3}
 # /VTKHDF/Points                        Dataset {65, 3}
