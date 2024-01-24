@@ -24,6 +24,8 @@ struct HermiteInterpolation{M} <: LocalInterpolationMethod end
 HermiteInterpolation(M::Int) = HermiteInterpolation{M}()
 
 continuity(::Type{HermiteInterpolation{M}}) where {M} = M
+required_derivatives(::Type{HermiteInterpolation{M}}) where {M} = M
+required_derivatives(m::HermiteInterpolation) = required_derivatives(typeof(m))
 
 # Linear interpolation
 # Coordinates and derivatives are expected to be normalised so that t ∈ [0, 1]
@@ -165,24 +167,13 @@ end
 
 ## ================================================================================ ##
 
-function _interpolate(
-        m::HermiteInterpolation, f::ClosedFilament, t_in::Number, d::Derivative = Derivative(0);
-        ileft::Union{Nothing, Int} = nothing,
-    )
-    (; ts,) = f
-    i, t = _find_knot_segment(ileft, knotlims(f), ts, t_in)
-    ζ = (t - ts[i]) / (ts[i + 1] - ts[i])
-    y = _interpolate(m, f, i, ζ, d)
-    _deperiodise_hermite(d, y, f, t, t_in)
-end
-
-function _interpolate(
-        method::HermiteInterpolation{M}, f::ClosedFilament,
-        i::Int, t::Number, deriv::Derivative{N},
+# Evaluate interpolation using local parametrisation ζ ∈ [0, 1] (within segment `i`)
+function evaluate(
+        method::HermiteInterpolation{M}, coefs::DiscretisationCoefs, ts::PaddedVector,
+        i::Int, ζ::Number, deriv::Derivative{N} = Derivative(0),
     ) where {M, N}
-    (; cs, cderivs,) = f.coefs
-    ts = knots(f)
-    checkbounds(f, i)
+    (; cs, cderivs,) = coefs
+    checkbounds(ts, i)
     @assert npad(cs) ≥ 1
     @assert all(X -> npad(X) ≥ 1, cderivs)
     @inbounds ℓ_i = ts[i + 1] - ts[i]
@@ -197,7 +188,41 @@ function _interpolate(
         ℓ_norm[] *= ℓ_i
         data
     end
-    α * interpolate(method, deriv, t, values_i...)
+    α * interpolate(method, deriv, ζ, values_i...)
+end
+
+# Evaluate interpolation using global parametrisation t ∈ [0, T]
+function evaluate(
+        method::HermiteInterpolation, coefs::DiscretisationCoefs, ts::PaddedVector,
+        t_in::Number, deriv::Derivative = Derivative(0);
+        ileft::Union{Nothing, Int} = nothing,
+    )
+    ta = ts[begin]
+    tb = ts[end + 1]
+    i, t = _find_knot_segment(ileft, (ta, tb), ts, t_in)
+    ζ = @inbounds (t - ts[i]) / (ts[i + 1] - ts[i])
+    evaluate(method, coefs, ts, i, ζ, deriv)
+end
+
+## ================================================================================ ##
+# Interpolation of filament coordinates and derivatives
+
+function _interpolate(
+        m::HermiteInterpolation, f::ClosedFilament, t_in::Number, d::Derivative = Derivative(0);
+        ileft::Union{Nothing, Int} = nothing,
+    )
+    (; ts,) = f
+    i, t = _find_knot_segment(ileft, knotlims(f), ts, t_in)
+    ζ = @inbounds (t - ts[i]) / (ts[i + 1] - ts[i])
+    y = evaluate(m, f.coefs, ts, i, ζ, d)
+    _deperiodise_hermite(d, y, f, t, t_in)
+end
+
+function _interpolate(
+        method::HermiteInterpolation, f::ClosedFilament,
+        i::Int, ζ::Number, deriv::Derivative,
+    )
+    evaluate(method, f.coefs, f.ts, i, ζ, deriv)
 end
 
 function _deperiodise_hermite(::Derivative{0}, y, f::ClosedFilament, t, t_in)

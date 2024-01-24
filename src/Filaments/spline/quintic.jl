@@ -8,7 +8,7 @@ using Bumper: Bumper, @no_escape, @alloc
 
 # Specialisation for quintic splines.
 function solve_spline_coefficients!(
-        ::Val{6}, cs::PaddedVector{M}, ts::PaddedVector{M}, Xs::PaddedVector;
+        ::Val{6}, cs::PaddedVector{M}, ts::PaddedVector{M}, Xs::AbstractVector;
         Xoffset = zero(eltype(Xs)),
     ) where {M}
     periodise_coordinates!(cs, Xs, ts, Xoffset)  # useful if Xoffset ≠ 0
@@ -19,13 +19,13 @@ end
 
 # Compute Uᵀ * y, where Uᵀ is a 2×m matrix which is only non-zero in its first and last
 # 2 columns. Here `y` is a vector of SVector.
-function lmul_utranspose(Uᵀ_left::SMatrix{2, 2}, Uᵀ_right::SMatrix{2, 2}, y::AbstractVector{<:SVector{N}}) where {N}
-    y_hi = hcat(y[begin], y[begin + 1])' :: SMatrix{2, N}
-    y_lo = hcat(y[end - 1], y[end])'     :: SMatrix{2, N}
+function lmul_utranspose(Uᵀ_left::SMatrix{2, 2}, Uᵀ_right::SMatrix{2, 2}, y::AbstractVector)
+    y_hi = hcat_transpose(y[begin], y[begin + 1])
+    y_lo = hcat_transpose(y[end - 1], y[end])
     Uᵀ_left * y_hi + Uᵀ_right * y_lo
 end
 
-function _solve_quintic_spline_coefficients!(cs::AbstractVector{<:Vec3}, ts)
+function _solve_quintic_spline_coefficients!(cs::AbstractVector, ts)
     n = length(ts)
     if n < 7
         _solve_quintic_spline_coefficients_small!(cs, ts)
@@ -44,14 +44,20 @@ function _solve_quintic_spline_coefficients!(cs::AbstractVector{<:Vec3}, ts)
     cs
 end
 
-function _solve_quintic_spline_coefficients!(buffers::NamedTuple, cs, ts)
+hcat_transpose(u::SVector{N}, v::SVector{N}) where {N} = hcat(u, v)' :: SMatrix{2, N}
+hcat_transpose(u::T, v::T) where {T <: Number} = SVector{2}(u, v)  # scalar case
+
+quintic_ldiv_terms(ys::SMatrix{2}) = (ys[1, :], ys[2, :])
+quintic_ldiv_terms(ys::SVector{2}) = ys
+
+function _solve_quintic_spline_coefficients!(buffers::NamedTuple, cs::AbstractVector, ts)
     (; AB, V,) = buffers
     n = length(ts)
     m = n - 2
     kl, ku = 2, 2  # lower and upper band sizes
 
     fs = @view cs[begin:end - 2]
-    fs_tilde = hcat(cs[end - 1], cs[end])' :: SMatrix{2, 3}
+    fs_tilde = hcat_transpose(cs[end - 1], cs[end])
 
     (; A₂, Uᵀ_left, Uᵀ_right,) = _construct_quintic_spline_matrices!(AB, V, ts)
 
@@ -59,9 +65,9 @@ function _solve_quintic_spline_coefficients!(buffers::NamedTuple, cs, ts)
     banded_lu!(Aband)
 
     # Compute `r = f̃ - V A₂⁻¹ f`̃ and then solve `A y = r` in-place.
-    gs = transpose(A₂ \ fs_tilde)
+    gs = quintic_ldiv_terms(A₂ \ fs_tilde)
     @inbounds for i ∈ eachindex(fs)
-        fs[i] = fs[i] - (V[i][1] * gs[:, 1] + V[i][2] * gs[:, 2])
+        fs[i] = fs[i] - (V[i][1] * gs[1] + V[i][2] * gs[2])
     end
 
     # Now solve `A y = r` in-place. Also solve `A Z = V`.
@@ -73,10 +79,10 @@ function _solve_quintic_spline_coefficients!(buffers::NamedTuple, cs, ts)
 
     # Compute x̂ solution onto y. This corresponds to coefficients 1:(n - 2).
     let y = fs
-        local u = lmul_utranspose(Uᵀ_left, Uᵀ_right, y) :: SMatrix{2, 3}  # Uᵀy
-        local w = B₂ \ u
+        local u = lmul_utranspose(Uᵀ_left, Uᵀ_right, y)  # Uᵀy
+        local ws = quintic_ldiv_terms(B₂ \ u)
         for i ∈ eachindex(y)
-            @inbounds y[i] = y[i] + V[i][1] * w[1, :] + V[i][2] * w[2, :]
+            @inbounds y[i] = y[i] + V[i][1] * ws[1] + V[i][2] * ws[2]
         end
     end
 
@@ -84,12 +90,12 @@ function _solve_quintic_spline_coefficients!(buffers::NamedTuple, cs, ts)
     xs_tilde = let f = fs_tilde, y = fs
         local u = lmul_utranspose(Uᵀ_left, Uᵀ_right, y)  # Uᵀx̂
         local w = f - u
-        A₂ \ w
+        quintic_ldiv_terms(A₂ \ w)
     end
 
     # Finally, copy solution onto cs.
-    cs[end - 1] = xs_tilde[1, :]
-    cs[end - 0] = xs_tilde[2, :]
+    cs[end - 1] = xs_tilde[1]
+    cs[end - 0] = xs_tilde[2]
 
     cs
 end

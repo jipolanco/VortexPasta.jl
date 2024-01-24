@@ -26,7 +26,7 @@ end
 
 # Obtain coefficients `cs` of periodic spline from positions `Xs` and knots `ts`.
 function solve_spline_coefficients!(
-        ::Val{4}, cs::PaddedVector{M}, ts::PaddedVector{M}, Xs::PaddedVector;
+        ::Val{4}, cs::PaddedVector{M}, ts::PaddedVector{M}, Xs::AbstractVector;
         Xoffset = zero(eltype(Xs)),
     ) where {M}
     periodise_coordinates!(cs, Xs, ts, Xoffset)  # useful if Xoffset ≠ 0

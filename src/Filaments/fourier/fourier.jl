@@ -4,10 +4,10 @@ using FFTW: FFTW
 using LinearAlgebra: mul!, ldiv!
 
 """
-    FourierMethod <: GlobalDiscretisationMethod
+    FourierMethod <: DiscretisationMethod
     FourierMethod(interpolation = HermiteInterpolation(2))
 
-Describes filaments using Fourier series.
+Represents closed curves using Fourier series.
 
 Derivatives at nodes are estimated using FFTs.
 To interpolate in-between nodes, a local interpolation method (typically
@@ -24,7 +24,7 @@ derivatives in other methods.
 """
 struct FourierMethod{
         InterpolationMethod <: LocalInterpolationMethod,
-    } <: GlobalDiscretisationMethod
+    } <: DiscretisationMethod
     interp :: InterpolationMethod
     FourierMethod(interp) = new{typeof(interp)}(interp)
     FourierMethod{I}() where {I} = new{I}(I())
@@ -68,13 +68,12 @@ end
 
 fftw_flags() = (; flags = FFTW.PRESERVE_INPUT,)
 
-function init_coefficients(method::FourierMethod, Xs::PaddedVector, Nderiv::Val)
-    M = npad(Xs)
-    @assert M ≥ npad(method)
-    cs = similar(Xs)
-    cderivs = ntuple(_ -> similar(Xs), Nderiv)
-    T = _typeof_number(eltype(Xs))
-    ubuf = Vector{T}(undef, length(Xs))
+function init_coefficients(
+        method::FourierMethod, cs::V, cderivs::NTuple{N, V},
+    ) where {N, V <: PaddedVector}
+    _check_coefficients(method, cs, cderivs)
+    T = _typeof_number(eltype(cs))
+    ubuf = Vector{T}(undef, length(cs))
     vbuf = Vector{Complex{T}}(undef, 0)
     plan = FFTW.plan_rfft(ubuf; fftw_flags()...)
     FourierCoefs(method, cs, cderivs, ubuf, vbuf, plan)
@@ -85,17 +84,17 @@ _typeof_number(::Type{T}) where {T <: AbstractArray} = _typeof_number(eltype(T))
 
 allvectors(x::FourierCoefs) = (x.cs, x.cderivs...)
 
-## ================================================================================ ##
-
-# Note: `only_derivatives` is not used, it's just there for compatibility with splines.
-function _update_coefficients_only!(
-        ::FourierMethod, f::ClosedFilament;
-        only_derivatives = false,
+function compute_coefficients!(
+        coefs::FourierCoefs, Xs::AbstractVector, ts::PaddedVector;
+        Xoffset = zero(eltype(Xs)),
+        only_derivatives = false,  # unused for now
     )
-    (; ts, Xs, Xoffset, coefs,) = f
     (; cs, cderivs, ubuf, vbuf,) = coefs
     M = npad(ts)
     @assert M ≥ 1  # minimum padding required for computation of ts
+    T = eltype(Xs)
+    is_scalar = T <: Number  # otherwise, T is usually SVector
+    components = eachindex(first(Xs))
 
     # This function is reused from splines.
     periodise_coordinates!(cs, Xs, ts, Xoffset)
@@ -113,7 +112,7 @@ function _update_coefficients_only!(
         coefs.plan = FFTW.plan_rfft(ubuf; fftw_flags()...)
     end
     plan = coefs.plan
-    @inbounds for i ∈ 1:3
+    @inbounds for i ∈ components
         for j ∈ eachindex(ubuf)
             ubuf[j] = cs[j][i]  # copy input
         end
@@ -123,7 +122,11 @@ function _update_coefficients_only!(
             ldiv!(ubuf, plan, vbuf)  # inverse FFT
             for j ∈ eachindex(ubuf)
                 w = cderivs[n]
-                w[j] = Base.setindex(w[j], ubuf[j], i)
+                w[j] = if is_scalar
+                    ubuf[j]
+                else
+                    Base.setindex(w[j], ubuf[j], i)
+                end
             end
         end
     end
@@ -139,12 +142,24 @@ function _update_coefficients_only!(
 
     # These paddings are needed for Hermite interpolations and stuff like that.
     # (In principle we just need M = 1 for two-point Hermite interpolations.)
-    map(pad_periodic!, cderivs)
+    foreach(pad_periodic!, cderivs)
 
     # Finally, copy coordinates to coefficient vector.
-    # This also copies padding (uses copyto! implementation in PaddedArrays)
     copy!(cs, Xs)
+    pad_periodic!(cs, Xoffset)  # apply periodic padding
 
+    coefs
+end
+
+## ================================================================================ ##
+
+# Note: `only_derivatives` is not used, it's just there for compatibility with splines.
+function _update_coefficients_only!(
+        ::FourierMethod, f::ClosedFilament;
+        only_derivatives = false,
+    )
+    (; ts, Xs, Xoffset, coefs,) = f
+    compute_coefficients!(coefs, Xs, ts; Xoffset)
     f
 end
 

@@ -81,8 +81,9 @@ function Remotes.fileurl(remote::Gitlab, ref, filename, linerange)
     String(take!(io))
 end
 
-function make_all()
+function make_all(; generate_tutorials = true,)
     repo = Gitlab("https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl")
+    warnonly = [:missing_docs]  # TODO can we remove this?
 
     bib = CitationBibliography(
         joinpath(@__DIR__, "src", "biblio.bib");
@@ -93,6 +94,11 @@ function make_all()
         "01-vortex_ring.jl",
         "02-kelvin_waves.jl",
     ]
+    if !generate_tutorials
+        empty!(tutorials)
+        # Some cross-references will be broken if we don't generate the tutorials
+        push!(warnonly, :cross_references)
+    end
 
     for name ∈ tutorials
         Literate.markdown(
@@ -146,7 +152,7 @@ function make_all()
             "References" => "references.md",
         ],
         pagesonly = true,
-        warnonly = [:missing_docs],  # TODO can we remove this?
+        warnonly,
         plugins = [bib],
         repo,
     )
