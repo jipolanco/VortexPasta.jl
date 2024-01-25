@@ -629,13 +629,15 @@ function _advect_filament!(
 end
 
 function after_advection!(iter::VortexFilamentSolver)
-    (; fs, vs, ψs, prob, refinement, fold_periodic,) = iter
+    (; fs, vs, ψs, prob, refinement, fold_periodic, to,) = iter
+    # Perform reconnections, possibly changing the number of filaments.
+    @timeit to "reconnect!" number_of_reconnections = reconnect!(iter)
+    @debug lazy"Number of reconnections: $number_of_reconnections"
     L_fold = periods(prob.p)  # box size (periodicity)
     after_advection!(fs, (vs, ψs); L_fold, refinement, fold_periodic,)
 end
 
-# This should be called right after positions have been updated by the timestepper, but
-# before reconnections happen.
+# This should be called right after positions have been updated by the timestepper.
 # Here `fields` is a tuple containing the fields associated to each filament node.
 # Usually this is `(vs, ψs)`, which contain the velocities and streamfunction values at all
 # filament nodes.
@@ -762,11 +764,7 @@ end
 
 # Called whenever filament positions have just been initialised or updated.
 function finalise_step!(iter::VortexFilamentSolver)
-    (; vs, ψs, fs, time, adaptivity, rhs!, to,) = iter
-
-    # Perform reconnections, possibly changing the number of filaments.
-    @timeit to "reconnect!" number_of_reconnections = reconnect!(iter)
-    @debug lazy"Number of reconnections: $number_of_reconnections"
+    (; vs, ψs, fs, time, adaptivity, rhs!,) = iter
 
     @assert eachindex(fs) == eachindex(vs)
 
