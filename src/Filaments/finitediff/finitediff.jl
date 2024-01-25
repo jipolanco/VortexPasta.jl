@@ -145,7 +145,7 @@ function compute_coefficients!(
     length(cs) == length(Xs) == length(ts) ||
         throw(DimensionMismatch("incompatible vector dimensions"))
     @assert M == npad(ts) == npad(cs)
-    copy!(cs, Xs)
+    copyto!(cs, Xs)
     pad_periodic!(cs, Xoffset)
     @inbounds for i ∈ eachindex(cs)
         ℓs_i = ntuple(j -> @inbounds(ts[i - M + j] - ts[i - M - 1 + j]), Val(2M))  # = ℓs[(i - M):(i + M - 1)]

@@ -209,7 +209,7 @@ function _solve_quintic_spline_coefficients_small!(cs, ts, ::Val{n}) where {n}
     A = _construct_quintic_spline_matrix_small(ts, Val(n))
     ys = SVector{n}(cs)
     xs = A \ ys
-    copy!(cs, xs)
+    copyto!(cs, xs)
 end
 
 function _construct_quintic_spline_matrix_small(ts, ::Val{n}) where {n}

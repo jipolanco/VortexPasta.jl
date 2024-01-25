@@ -108,11 +108,12 @@ function test_leapfrogging_rings(
     end
 
     l_min = minimum_knot_increment(prob.fs)
+    method = Filaments.discretisation_method(eltype(prob.fs))
 
     # The 2π is simply because the factors were originally tuned with an old definition of
     # AdaptBasedOnSegmentLength.
     factor = dt_factor(scheme) * 2π
-    if Filaments.discretisation_method(eltype(prob.fs)) isa QuinticSplineMethod
+    if method isa QuinticSplineMethod
         # Quintic splines seem to need a smaller timestep...
         factor *= 0.3
     end
@@ -132,6 +133,7 @@ function test_leapfrogging_rings(
     )
 
     if test_jet
+        JET.@test_opt ignored_modules=(Base, FINUFFT) callback(iter)
         JET.@test_opt ignored_modules=(Base, FINUFFT) step!(iter)
         JET.@test_call ignored_modules=(Base, FINUFFT) step!(iter)
     end
@@ -151,9 +153,14 @@ function test_leapfrogging_rings(
         # With refinement we lose a tiny bit of precision (but still very acceptable!).
         rtol_energy = refinement === NoRefinement() ? 5e-5 : 1e-4
         rtol_impulse = 2e-5
+        rtol_init = 1e-5
         if iseuler
             rtol_energy *= 100
             rtol_impulse *= 200
+        elseif method isa FiniteDiffMethod
+            rtol_energy *= 100
+            rtol_impulse *= 200
+            rtol_init *= 100
         elseif scheme isa Midpoint
             rtol_energy *= 2
             rtol_impulse *= 2
@@ -166,7 +173,7 @@ function test_leapfrogging_rings(
         # First, check that the squared radii are correctly estimated via the impulse.
         fs_init = prob.fs  # initial condition
         R²_sum_initial = length(fs_init) * R_init^2
-        @test isapprox(R²_sum_initial, first(sum_of_squared_radii); rtol = 1e-5)
+        @test isapprox(R²_sum_initial, first(sum_of_squared_radii); rtol = rtol_init)
 
         impulse_normalised = sum_of_squared_radii ./ first(sum_of_squared_radii)
 
@@ -306,11 +313,13 @@ end
         test_leapfrogging_rings(prob, scheme; R_init, refinement)
     end
 
-    @testset "QuinticSplineMethod" begin
+    methods = (QuinticSplineMethod(), FiniteDiffMethod())
+
+    @testset "$method" for method ∈ methods
         local scheme = SanduMRI33a(RK4(), 2)
-        local fs_init = @inferred init_ring_filaments(R_init; method = QuinticSplineMethod())
+        local fs_init = @inferred init_ring_filaments(R_init; method)
         local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
-        test_leapfrogging_rings(prob, scheme; R_init, refinement, label = "QuinticSplineMethod")
+        test_leapfrogging_rings(prob, scheme; R_init, refinement, label = string(method))
     end
 
     @testset "RK4 + no refinement" begin

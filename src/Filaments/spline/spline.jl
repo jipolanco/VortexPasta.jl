@@ -294,7 +294,7 @@ periodic_coef_offset(::Val{k}) where {k} = k ÷ 2
 end
 
 spline_derivative!(dc::PaddedVector, cs::PaddedVector, ts::PaddedVector, ord::Val) =
-    spline_derivative!(copy!(dc, cs), ts, ord)
+    spline_derivative!(copyto!(dc, cs), ts, ord)
 
 function spline_derivative!(
         cs::PaddedVector, ts::PaddedVector, ::Val{k},

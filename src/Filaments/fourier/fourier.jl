@@ -145,7 +145,7 @@ function compute_coefficients!(
     foreach(pad_periodic!, cderivs)
 
     # Finally, copy coordinates to coefficient vector.
-    copy!(cs, Xs)
+    copyto!(cs, Xs)
     pad_periodic!(cs, Xoffset)  # apply periodic padding
 
     coefs
