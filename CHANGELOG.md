@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.15.0 - 2024-01-26
+
 ### Added
 
 - VTKHDF: add convenient syntax for writing geometric quantities (such as `CurvatureVector`).
