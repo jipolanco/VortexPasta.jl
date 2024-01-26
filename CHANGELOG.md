@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - VTKHDF: add convenient syntax for writing geometric quantities (such as `CurvatureVector`).
 
+- Add predefined curve parametrisations.
+
 ### Changed
 
 - VTKHDF: more consistent and accurate interpolation of data on filaments when

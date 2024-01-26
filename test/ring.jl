@@ -8,7 +8,11 @@ using VortexPasta.BiotSavart
 using VortexPasta.Diagnostics: Diagnostics
 using Random
 
-function init_ring_filament(N::Int, R = π / 3; noise = 0.0, method = CubicSplineMethod(), rng = nothing)
+function init_ring_filament(
+        N::Int, R = π / 3;
+        noise = 0.0, method = CubicSplineMethod(), rng = nothing,
+        kwargs...,
+    )
     S = define_curve(Ring(); scale = R, translate = π)
     tlims = (0, 1)
     ζs_base = range(tlims...; length = 2N + 1)[2:2:end]
@@ -19,7 +23,7 @@ function init_ring_filament(N::Int, R = π / 3; noise = 0.0, method = CubicSplin
         rng_ = rng === nothing ? MersenneTwister(42) : rng
         ζs .+= noise * dζ * rand(rng_, N)  # `noise` should be ∈ ]-1, 1[
     end
-    f = @inferred Filaments.init(S, ClosedFilament, ζs, method)
+    f = @inferred Filaments.init(S, ClosedFilament, ζs, method; kwargs...)
     (; f, R, noise, method,)
 end
 
@@ -68,13 +72,15 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         # This assumes that the point distribution is uniform; otherwise the variance is much higher.
         # @test all(std(vs) .< U * 1e-12)
         U_expected = vortex_ring_velocity(ps.Γ, R, ps.a; Δ = ps.Δ)
-        # @show method noise quad (U - U_expected) / U_expected U U_expected
+        # @show method noise quad f.parametrisation (U - U_expected) / U_expected U U_expected
         rtol = if quad === NoQuadrature()
             0.1  # the error can be huge!
         elseif quad === GaussLegendre(1)
             7e-3
         elseif method isa CubicSplineMethod
             3e-3
+        elseif f.parametrisation === CentripetalParametrisation()
+            1e-3
         else
             1e-4
         end
@@ -91,9 +97,12 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
             norm(ψs[i] - ψs_para[i] * t̂)
         end
         # Check that ψ⃗ is always parallel to the tangent vector s′ (⇒ ψs_perp ≈ 0).
-        @test all(zip(ψs_para, ψs_perp)) do (a, b)
-            b / a < max(noise / 100, 1e-10)  # use `max` in case noise == 0
+        err_perp = maximum(splat((a, b) -> abs(a / b)), zip(ψs_perp, ψs_para))
+        tol_noise = noise / 100
+        if f.parametrisation === CentripetalParametrisation()
+            tol_noise *= 2
         end
+        @test err_perp < max(tol_noise, 1e-10)  # use `max` in case noise == 0
         ψ_mean = mean(ψs_para)
         # @test std(ψs_para) < 2 * eps(ψ_mean)  # ψ ⋅ s⃗ along the curve doesn't vary
         ψ_expected = vortex_ring_streamfunction(ps.Γ, R, ps.a; Δ = ps.Δ)
@@ -109,8 +118,11 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         E_estimated = Diagnostics.kinetic_energy_from_streamfunction(ψs, f, Γ, Ls)  # energy per unit density
         # E_alt = Diagnostics.kinetic_energy_nonperiodic(vs, f, Γ)
         # @show E_expected E_estimated E_alt
-        # @show quad (E_expected - E_estimated) / E_expected
+        # @show f.parametrisation (E_expected - E_estimated) / E_expected
         rtol = nquad == 1 ? 0.02 : 1e-4
+        if f.parametrisation === CentripetalParametrisation()
+            rtol = max(rtol, 2e-3)
+        end
         @test isapprox(E_expected, E_estimated; rtol)
     end
 
@@ -124,14 +136,16 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         BiotSavart.velocity_on_nodes!([vs], cache, [f]; LIA = Val(false))
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
         U_nonlocal = norm(vs[i])
-        # @show quad (U_nonlocal - U_nonlocal_expected) / U_nonlocal_expected
         rtol = if quad === NoQuadrature()
             0.3  # the error can be huge!!
         elseif quad === GaussLegendre(1)
             0.03
+        elseif f.parametrisation === CentripetalParametrisation()
+            0.01
         else
             max(1e-3, noise / 400)
         end
+        # @show f.parametrisation (U_nonlocal - U_nonlocal_expected) / U_nonlocal_expected rtol
         @test isapprox(U_nonlocal, U_nonlocal_expected; rtol)
     end
 
@@ -214,6 +228,13 @@ end
                 test_local_induced_approximation(ring)
             end
         end
+    end
+    @testset "CentripetalParametrisation" begin
+        local parametrisation = CentripetalParametrisation()
+        local method = QuinticSplineMethod()
+        local noise = 0.2
+        local ring = init_ring_filament(N; noise, method, parametrisation)
+        test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
     end
     method = FourierMethod()
     @testset "$method" begin

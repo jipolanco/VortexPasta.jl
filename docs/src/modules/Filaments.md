@@ -15,6 +15,13 @@ AbstractFilament
 ClosedFilament
 ```
 
+## Initialisation
+
+```@docs
+Filaments.init
+Filaments.from_vector_field
+```
+
 ## Curve representation
 
 ### Discretisation methods
@@ -42,13 +49,6 @@ HermiteInterpolation
 interpolate
 ```
 
-## Initialisation
-
-```@docs
-Filaments.init
-Filaments.from_vector_field
-```
-
 ## Obtaining information
 
 ```@docs
@@ -71,6 +71,16 @@ fold_periodic!
 redistribute_nodes!
 split!
 merge!
+```
+
+## Curve parametrisations
+
+```@docs
+AbstractParametrisation
+ChordalParametrisation
+CentripetalParametrisation
+FourierParametrisation
+CustomParametrisation
 ```
 
 ## Other functions

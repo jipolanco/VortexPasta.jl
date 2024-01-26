@@ -32,11 +32,7 @@ end
 
 FourierMethod() = FourierMethod(HermiteInterpolation(2))
 
-# Constant parametrisation with 2π period.
-# This shouldn't be modified!! (Assumed in particular when estimating derivatives.)
-parametrise_fourier(Xs, i) = 2π / length(Xs)
-default_parametrisation(::FourierMethod) = parametrise_fourier
-
+default_parametrisation(::FourierMethod) = FourierParametrisation()
 interpolation_method(m::FourierMethod) = m.interp
 
 # For practical purposes we set the continuity to a relatively large number.
@@ -159,6 +155,7 @@ function _update_coefficients_only!(
         only_derivatives = false,
     )
     (; ts, Xs, Xoffset, coefs,) = f
+    parametrisation(f) === FourierParametrisation() || error("FourierMethod requires using FourierParametrisation")
     compute_coefficients!(coefs, Xs, ts; Xoffset)
     f
 end
