@@ -74,10 +74,10 @@ function estimate_timestep(crit::AdaptBasedOnSegmentLength, iter::AbstractSolver
     p = prob.p :: ParamsBiotSavart
 
     # 1. Determine minimum distance.
-    # If we're using the default filament parametrisation, then the knot increments are
+    # If we're using the chordal filament parametrisation, then the knot increments are
     # equal to the node distances (assuming knots were recently recomputed).
     parametrisation = Filaments.parametrisation(fs)
-    δ = if parametrisation === Filaments.parametrise_by_node_distance
+    δ = if parametrisation === Filaments.ChordalParametrisation()
         Filaments.minimum_knot_increment(fs)  # faster to evaluate
     else
         Filaments.minimum_node_distance(fs)

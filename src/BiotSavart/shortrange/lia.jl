@@ -100,8 +100,8 @@ function _local_self_induced(
         Ẍ = f[i, Derivative(2)]
         # Note that the derivatives are wrt the parameter `t` and not exactly wrt
         # the arc length `ξ`, hence the extra `norm(Ẋ)^3` factor wrt the literature.
-        # Usually, `norm(Ẋ)` should be actually quite close to 1 since the
-        # parametrisation is a rough approximation of the arc length.
+        # Usually, `norm(Ẋ)` should be actually quite close to 1 for chordal
+        # parametrisation.
         β / norm(Ẋ)^3 * (Ẋ × Ẍ)
     end
 end

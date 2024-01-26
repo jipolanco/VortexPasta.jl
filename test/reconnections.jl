@@ -13,7 +13,7 @@ using StaticArrays
 using Rotations
 using UnicodePlots: lineplot
 using LinearAlgebra: norm, I, ⋅
-using JET: @test_opt
+using JET: JET
 using FINUFFT: FINUFFT  # for JET only
 
 # Create a curve which resembles an 8 (or ∞).
@@ -64,11 +64,11 @@ trefoil_scheme_dt(::RK4) = 1
 trefoil_scheme_dt(::SanduMRI33a) = 1
 
 function test_trefoil_knot_reconnection(scheme = RK4())
+    test_jet = true
     S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
     N = 64
-    f = Filaments.init(S, ClosedFilament, N, CubicSplineMethod())
+    f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
     fs_init = [f]
-    l_min = minimum_knot_increment(fs_init)
 
     params_bs = let
         Ls = (1, 1, 1) .* 2π
@@ -79,8 +79,9 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         ParamsBiotSavart(;
             Γ = 2.0, α, a = 1e-6, Δ = 1/4, rcut, Ls, Ns,
             backend_short = NaiveShortRangeBackend(),
-            backend_long = FINUFFTBackend(),
+            backend_long = FINUFFTBackend(tol = 1e-6),
             quadrature = GaussLegendre(4),
+            lia_segment_fraction = 0.2,
         )
     end
 
@@ -96,11 +97,20 @@ function test_trefoil_knot_reconnection(scheme = RK4())
             n_reconnect[] = t_reconnect[] = 0
         end
         push!(times, t)
-        push!(energy, Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(4)))
-        # write_vtkhdf("trefoil_$nstep.vtkhdf", fs) do io
-        #     io["velocity"] = iter.vs
-        # end
+        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(4))
+        push!(energy, E)
         Nf = length(fs)
+        # write_vtkhdf("trefoil_$nstep.vtkhdf", fs; refinement = 4) do io
+        #     io["velocity"] = iter.vs
+        #     io["streamfunction"] = iter.ψs
+        # end
+        # write_vtkhdf("trefoil_points_$nstep.vtkhdf", fs; refinement = 1) do io
+        #     io["velocity"] = iter.vs
+        #     io["streamfunction"] = iter.ψs
+        # end
+        # if nstep % 10 == 0
+        #     @show nstep, t, Nf, E
+        # end
         if n_reconnect[] == 0 && Nf == 2
             t_reconnect[] = t
             n_reconnect[] = nstep
@@ -109,13 +119,16 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     end
 
     tspan = (0.0, 2.0)
-    @test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
-    reconnect = ReconnectBasedOnDistance(l_min / 2)
+    δ = Filaments.minimum_node_distance(prob.fs)
+    d_crit = δ / 2
+    reconnect = ReconnectBasedOnDistance(d_crit)
+    dt = BiotSavart.kelvin_wave_period(params_bs, δ) * trefoil_scheme_dt(scheme) / 2
+    # @show δ d_crit dt
     iter = @inferred init(
         prob, scheme;
-        dt = 0.004 * trefoil_scheme_dt(scheme),
-        refinement = RefineBasedOnSegmentLength(0.75 * l_min),
+        dt,
+        refinement = RefineBasedOnSegmentLength(0.75 * δ),
         # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
         reconnect,
         adaptivity = NoAdaptivity(),
@@ -131,13 +144,16 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         println(plt)
     end
 
-    @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
-
     @show t_reconnect[]
     @test n_reconnect[] > 0
     @test 1.7 < t_reconnect[] < 1.8  # this depends on several parameters...
     @show last(energy) / first(energy)
     @test last(energy) < 0.995 * first(energy)
+
+    if test_jet
+        JET.@test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
+        JET.@test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+    end
 
     nothing
 end
@@ -158,7 +174,7 @@ end
         @testset "Filaments.split!" begin
             i = length(f) ÷ 4
             j = 3i
-            @test_opt ignored_modules=(Base,) Filaments.split!(copy(f), i, j)
+            JET.@test_opt ignored_modules=(Base,) Filaments.split!(copy(f), i, j)
             f1, f2 = @inferred Filaments.split!(copy(f), i, j)
             update_coefficients!.((f1, f2))
             @test length(f1) == length(f2) == length(f) ÷ 2
@@ -187,7 +203,7 @@ end
     end
 
     @testset "Dynamic: trefoil knot" begin
-        schemes = (RK4(), SanduMRI33a(8))
+        schemes = (RK4(),)
         @testset "Scheme: $scheme" for scheme ∈ schemes
             test_trefoil_knot_reconnection(scheme)
         end

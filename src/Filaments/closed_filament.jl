@@ -96,7 +96,7 @@ arc length between points ``\bm{s}_i`` and ``\bm{s}_{i + 1}``.
 struct ClosedFilament{
         T,
         Method,
-        Parametrisation <: Function,
+        Parametrisation <: AbstractParametrisation,
         M,  # padding (for dealing with periodicity)
         Knots <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
@@ -129,7 +129,7 @@ function ClosedFilament(
     # Always allow Nderivs ≤ 2
     max(C, 2) ≥ Nderivs || throw(ArgumentError(lazy"$method only allows up to $C derivatives"))
     Xoffset = convert(Vec3{T}, offset)
-    ClosedFilament(parametrisation, ts, Xs, coefs, Xoffset)
+    ClosedFilament(to_parametrisation(parametrisation), ts, Xs, coefs, Xoffset)
 end
 
 ClosedFilament(Xs::PaddedVector, method::DiscretisationMethod; kws...) =

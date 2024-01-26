@@ -126,7 +126,7 @@ end
 struct NoQuadFilament{
         T,
         F <: AbstractFilament{T},
-    } <: AbstractFilament{T, Nothing, typeof(identity)}
+    } <: AbstractFilament{T, Nothing, AbstractParametrisation}
     f :: F
 end
 

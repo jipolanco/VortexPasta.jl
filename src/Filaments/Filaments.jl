@@ -49,6 +49,8 @@ struct AtNode
     i :: Int
 end
 
+include("parametrisations.jl")
+
 @doc raw"""
     AbstractFilament{T} <: AbstractVector{Vec3{T}}
 
@@ -144,9 +146,11 @@ For convenience, other geometric quantities can be evaluated in a similar way:
     There is also [`normalise_derivatives`](@ref) which can be more efficient when one
     already has the derivatives with respect to ``t``.
 """
-abstract type AbstractFilament{T, Method, Parametrisation <: Function} <: AbstractVector{Vec3{T}} end
+abstract type AbstractFilament{
+    T, Method, Parametrisation <: AbstractParametrisation,
+} <: AbstractVector{Vec3{T}} end
 
-# The result is usually `parametrise_by_node_distance`, unless a custom parametrisation is
+# The result is usually `ChordalParametrisation()`, unless a custom parametrisation is
 # used, or unless FourierMethod is used.
 parametrisation(::Type{<:AbstractFilament{T,M,P}}) where {T,M,P} = P.instance
 parametrisation(f::AbstractFilament) = parametrisation(typeof(f))
@@ -327,8 +331,7 @@ Base.@propagate_inbounds Base.getindex(
 # This is the default parametrisation for any generic discretisation method.
 # Specific discretisation methods (e.g. Fourier) may choose a different default
 # parametrisation.
-parametrise_by_node_distance(Xs, i) = @inbounds(norm(Xs[i + 1] - Xs[i]))
-default_parametrisation(::DiscretisationMethod) = parametrise_by_node_distance
+default_parametrisation(::DiscretisationMethod) = ChordalParametrisation()
 
 @doc raw"""
     Filaments.init(
@@ -418,18 +421,15 @@ t_{i + 1} = t_{i} + |\bm{s}_{i + 1} - \bm{s}_i|, \quad t_1 = 0.
 ```
 
 One can use the `parametrisation` keyword argument to change this.
-This must be a function `parametrisation(Xs, i)` which takes the vector `Xs` of
+This may be a function `parametrisation(Xs, i)` which takes the vector `Xs` of
 discretisation points and the index `i` associated to the start of the current segment.
-The default parametrisation function is equivalent to
-`parametrisation(Xs, i) = norm(Xs[i + 1] - Xs[i])`, which corresponds to the definition above.
 
 For instance, to parametrise filaments according to the ``z`` increments between
-discretisation points, one can pass `parametrisation(Xs, i) = abs(Xs[i + 1].z - Xs[i].z)`.
+discretisation points, one can pass:
 
-!!! warning
+    parametrisation = (Xs, i) -> abs(Xs[i + 1].z - Xs[i].z)
 
-    Changing the filament parametrisation is **experimental**.
-    This feature may change/disappear in the future.
+One can also pass a predefined parametrisation. See [`AbstractParametrisation`](@ref) for a list of options.
 
 ## Examples
 
@@ -627,8 +627,9 @@ end
 
 # Update filament parametrisation knots `ts` from node coordinates `Xs`.
 function _update_knots_periodic!(
-        parametrisation::F, ts::PaddedVector, Xs::PaddedVector, ::Nothing = nothing,
-    ) where {F <: Function}
+        parametrisation::AbstractParametrisation, ts::PaddedVector,
+        Xs::PaddedVector, ::Nothing = nothing,
+    )
     @assert eachindex(ts) == eachindex(Xs)
     ts[begin] = 0
     inds = eachindex(ts)
@@ -642,8 +643,8 @@ end
 
 # In this case, override the computation of knots and copy the input knot vector.
 function _update_knots_periodic!(
-        ::F, ts::PaddedVector, Xs::PaddedVector, ts_in::PaddedVector,
-    ) where {F}
+        ::AbstractParametrisation, ts::PaddedVector, Xs::PaddedVector, ts_in::PaddedVector,
+    )
     if ts !== ts_in  # avoid copy if input and output vectors are the same
         copyto!(ts, ts_in)  # fails if arrays have different dimensions
     end
@@ -653,8 +654,8 @@ end
 # Similar to above but for a non-PaddedVector, so we need to apply periodic padding on the
 # output.
 function _update_knots_periodic!(
-        ::F, ts::PaddedVector, Xs::PaddedVector, ts_in::AbstractVector,
-    ) where {F}
+        ::AbstractParametrisation, ts::PaddedVector, Xs::PaddedVector, ts_in::AbstractVector,
+    )
     @assert !(ts_in isa PaddedVector)
     length(ts_in) == length(ts) + 1 ||
         throw(DimensionMismatch("input knots should include the endpoint"))
