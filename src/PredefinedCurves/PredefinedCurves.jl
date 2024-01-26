@@ -24,9 +24,9 @@ Return the definition of the parametric curve `p` as a function.
 The returned function `S(t)` returns a coordinate ``x⃗`` for any given value of the scalar
 parameter ``t ∈ [0, 1]``. In particular, closed curves satisfy `S(0) == S(1)`.
 
-## Optional arguments
+# Optional arguments
 
-### Coordinate transformations
+## Coordinate transformations
 
 The original curve can be transformed by (1) scaling, (2) rotation and (3) translation
 operations. Note that transformations are applied in that order.
@@ -43,10 +43,12 @@ operations. Note that transformations are applied in that order.
 - `translate`: a scalar or a vector describing a translation operation. Note that
   translations are performed *after* scaling and rotation.
 
-### Curve orientation
+## Curve orientation
 
 - `orientation`: allows to set the curve orientation. In particular, this determines the
   orientation of the tangent vector along the curve. Should be either `1` or `-1`.
+
+# Extended help
 
 ## Examples
 
