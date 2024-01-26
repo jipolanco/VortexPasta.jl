@@ -133,7 +133,7 @@ function _kinetic_energy_from_streamfunction(
 
     # We use Bumper to avoid allocations managed by Julia's garbage collector.
     buf = Bumper.default_buffer()
-    T = eltype(ψf)
+    T = eltype(eltype(ψf))
 
     @no_escape buf begin
         data = @alloc(T, Np + 2M)
@@ -143,13 +143,16 @@ function _kinetic_energy_from_streamfunction(
             local data = @alloc(T, Np + 2M)
             PaddedVector{M}(data)
         end
+        # Note: we interpolate the tangent component of the streamfunction (i.e. ψ⃗ ⋅ s⃗′),
+        # which we then integrate along filaments.
         coefs = Filaments.init_coefficients(method, cs, cderiv)
-        Filaments.compute_coefficients!(coefs, ψf, ts)
+        for i ∈ eachindex(cs, f, ψf)
+            @inbounds cs[i] = ψf[i] ⋅ f[i, Derivative(1)]
+        end
+        Filaments.compute_coefficients!(coefs, ts)
         for i ∈ eachindex(segments(f))
             E += integrate(f, i, quad) do f, i, ζ
-                ψ⃗ = Filaments.evaluate(coefs, ts, i, ζ)
-                s⃗′ = f(i, ζ, Derivative(1))
-                ψ⃗ ⋅ s⃗′
+                Filaments.evaluate(coefs, ts, i, ζ)
             end
         end
     end

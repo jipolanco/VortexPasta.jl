@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refinement is enabled. Instead of using linear interpolation, we use the same
   interpolation method used to represent the filaments themselves.
 
+- Slightly modify energy computation from streamfunction: when using
+  quadratures, we now interpolate the tangent component of the streamfunction on nodes,
+  instead of interpolating the streamfunction vector and *then* taking the tangent component.
+
 ## 0.14.0 - 2024-01-22
 
 ### Changed
