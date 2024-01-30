@@ -769,7 +769,7 @@ function finalise_step!(iter::VortexFilamentSolver)
     @assert eachindex(fs) == eachindex(vs)
 
     # Check if there are filaments to be removed (typically with ≤ 3 discretisation points,
-    # but this depends on the precise discretisation method). Note that filaments may also
+    # but this depends on the actual discretisation method). Note that filaments may also
     # be removed during reconnections for the same reason.
     for i ∈ reverse(eachindex(fs))
         if !Filaments.check_nodes(Bool, fs[i])

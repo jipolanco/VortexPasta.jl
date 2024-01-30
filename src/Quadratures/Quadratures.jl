@@ -70,23 +70,26 @@ struct NoQuadrature <: AbstractQuadrature{1} end
 # The following functions must be at the end of the file to avoid world age issues
 # (in particular during precompilation).
 
-function _generate(::Type{Q}) where {N, Q <: AbstractQuadrature{N}}
+function _generate(::Type{T}, ::Type{Q}) where {N, T <: AbstractFloat, Q <: AbstractQuadrature{N}}
     f = _generator(Q)
     xs, ws = f(N)
-    Xs = ntuple(i -> xs[i], Val(N))
-    Ws = ntuple(i -> ws[i], Val(N))
+    Xs = ntuple(i -> T(xs[i]), Val(N))
+    Ws = ntuple(i -> T(ws[i]), Val(N))
     _change_interval(Xs, Ws)
 end
 
 # We use a generated function to avoid runtime allocations and ensure that rules
 # have static size.
 """
-    quadrature(q::AbstractQuadrature{N}) -> (xs, ws)
+    quadrature([T = Float64], q::AbstractQuadrature{N}) -> (xs, ws)
 
 Return ``N``-point quadrature rule valid in ``[0, 1]`` interval.
 
 Quadrature nodes `xs` and weights `ws` are returned as tuples.
 """
-@generated quadrature(q::AbstractQuadrature) = _generate(q)
+@generated quadrature(::Type{T}, q::AbstractQuadrature) where {T <: AbstractFloat} =
+    _generate(T, q)
+
+quadrature(q::AbstractQuadrature) = quadrature(Float64, q)
 
 end

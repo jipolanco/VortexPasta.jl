@@ -70,10 +70,12 @@ include("quintic.jl")
 ## ================================================================================ ##
 
 struct SplineCoefs{
+        T,
         Method <: SplineMethod,
         N,  # number of derivatives included (usually 2)
-        Points <: PaddedVector,
-    } <: DiscretisationCoefs{Method, N}
+        M,
+        Points <: PaddedVector{M, T},
+    } <: DiscretisationCoefs{T, Method, N}
     method :: Method
 
     # B-spline coefficients associated to the curve.

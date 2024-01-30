@@ -47,18 +47,19 @@ Base.show(io::IO, ::FourierMethod{I}) where {I} = print(io, "FourierMethod{", I,
 ## ================================================================================ ##
 
 mutable struct FourierCoefs{
+        T,
         Method <: FourierMethod,
         N,  # number of derivatives included (usually 2)
         M,  # padding, needs to be at least 1 for Hermite interpolations
-        Points <: PaddedVector{M},
-        T <: AbstractFloat,
+        Points <: PaddedVector{M, T},
+        Tbuf <: AbstractFloat,
         Plan,
-    } <: DiscretisationCoefs{Method, N}
+    } <: DiscretisationCoefs{T, Method, N}
     const method  :: Method
-    const cs      :: Points              # node locations
-    const cderivs :: NTuple{N, Points}   # derivatives on nodes
-    const ubuf    :: Vector{T}           # FFT input
-    const vbuf    :: Vector{Complex{T}}  # FFT output
+    const cs      :: Points                 # node locations
+    const cderivs :: NTuple{N, Points}      # derivatives on nodes
+    const ubuf    :: Vector{Tbuf}           # FFT input
+    const vbuf    :: Vector{Complex{Tbuf}}  # FFT output
     plan          :: Plan
 end
 

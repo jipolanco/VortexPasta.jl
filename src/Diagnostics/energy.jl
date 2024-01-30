@@ -6,6 +6,7 @@ export kinetic_energy_from_streamfunction, kinetic_energy_nonperiodic, kinetic_e
 
 """
     kinetic_energy(iter::VortexFilamentSolver; quad = nothing)
+    kinetic_energy(ψs, fs, Γ, [Ls]; quad = nothing)
 
 Compute kinetic energy of velocity field induced by a set of vortex filaments.
 
@@ -36,6 +37,8 @@ E = \frac{Γ}{2V} ∮ \bm{ψ}(\bm{s}) ⋅ \mathrm{d}\bm{s}
 where ``Γ`` is the vortex circulation and ``V`` is the volume of interest (e.g. the volume
 of a periodic cell in periodic domains).
 
+# Arguments
+
 ## Mandatory arguments
 
 - `ψs`: streamfunction values at filament nodes;
@@ -59,7 +62,7 @@ state of a vortex filament simulation.
   if a quadrature rule is passed, interpolations are performed and extra allocations are
   needed.
 
-## Non-periodic domains
+# Non-periodic domains
 
 If the domain is not periodic, that is, if one or more values in `Ls` is [`Infinity`](@ref), then
 the domain volume ``V`` in the expression above will be set to 1.
@@ -125,7 +128,6 @@ function _kinetic_energy_from_streamfunction(
         Ls = (∞, ∞, ∞),
     )
     prefactor = Γ / (2 * _domain_volume(Ls))
-    E = zero(prefactor)
     method = Filaments.discretisation_method(f)
     ts = Filaments.knots(f)
     M = Filaments.npad(method)
@@ -134,6 +136,8 @@ function _kinetic_energy_from_streamfunction(
     # We use Bumper to avoid allocations managed by Julia's garbage collector.
     buf = Bumper.default_buffer()
     T = eltype(eltype(ψf))
+    @assert T <: Real
+    E = zero(T)
 
     @no_escape buf begin
         data = @alloc(T, Np + 2M)
@@ -153,7 +157,7 @@ function _kinetic_energy_from_streamfunction(
         for i ∈ eachindex(segments(f))
             E += integrate(f, i, quad) do f, i, ζ
                 Filaments.evaluate(coefs, ts, i, ζ)
-            end
+            end :: T
         end
     end
 

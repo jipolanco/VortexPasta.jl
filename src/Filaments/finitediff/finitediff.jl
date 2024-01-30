@@ -112,10 +112,12 @@ end
 end
 
 struct FiniteDiffCoefs{
+        T,
         Method <: FiniteDiffMethod,
         N,  # number of derivatives included (usually 2)
-        Points <: PaddedVector,
-    } <: DiscretisationCoefs{Method, N}
+        M,
+        Points <: PaddedVector{M, T},
+    } <: DiscretisationCoefs{T, Method, N}
     method :: Method
 
     # Interpolation coefficients associated to the curve.
