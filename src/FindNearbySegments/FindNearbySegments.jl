@@ -10,6 +10,8 @@ This is a common operation, used for instance for:
 """
 module FindNearbySegments
 
+export set_filaments!, nearby_segments, segment_is_close
+
 using ..Filaments:
     Filaments,
     AbstractFilament,
@@ -61,6 +63,18 @@ end
 """
 function nearby_segments end
 
+"""
+    segment_is_close(s::Segment, x⃗, r_cut::Real, r²_cut::Real, Ls, Lhs) -> Bool
+
+Determine whether segment `s` is close to the point `x⃗`.
+
+Here `r_cut` is the critical distance below which `s` and `x⃗` will be considered to be
+"close", and `r²_cut = r_cut^2` is its squared value.
+
+Moreover, `Ls = (Lx, Ly, Lz)` contains the domain period along each dimension (components
+can be `Infinity()` for infinite non-periodic domains), and `Lhs = (Lx/2, Ly/2, Lz/2)`
+contains half the domain periods.
+"""
 function segment_is_close(s::Segment, x⃗, r_cut::Real, r²_cut::Real, Ls, Lhs)
     r⃗_a = let  # separation with first node of the segment
         y⃗ = @inbounds s.f[s.i]

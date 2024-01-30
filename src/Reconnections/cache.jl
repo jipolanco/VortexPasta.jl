@@ -85,7 +85,7 @@ function _init_cache(crit::ReconnectionCriterion, fs, Ls)
         r_cut = max(r_cut, Lmax / 32)
     end
     finder = if has_nonperiodic_directions
-        NaiveSegmentFinder(fs, r_cut, Ls)
+        NaiveSegmentFinder(fs)
     else
         CellListSegmentFinder(fs, r_cut, Ls; nsubdiv = Val(2))
     end

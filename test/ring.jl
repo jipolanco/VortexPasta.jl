@@ -3,7 +3,6 @@ using LinearAlgebra: norm, normalize, ⋅
 using Statistics: mean, std
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
-using VortexPasta.FindNearbySegments: FindNearbySegments, NaiveSegmentIterator
 using VortexPasta.BiotSavart
 using VortexPasta.Diagnostics: Diagnostics
 using Random
