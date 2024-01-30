@@ -12,7 +12,7 @@ The [helicity](https://en.wikipedia.org/wiki/Hydrodynamical_helicity) is defined
 
 ```math
 \mathcal{H}
-= ∫ \bm{u}(\bm{x}) ⋅ \bm{ω}(\bm{x}) \mathrm{d}^3\bm{x}
+= ∫ \bm{u}(\bm{x}) ⋅ \bm{ω}(\bm{x}) \, \mathrm{d}^3\bm{x}
 = Γ ∮ \bm{v}(\bm{s}) ⋅ \mathrm{d}\bm{s}
 ```
 
