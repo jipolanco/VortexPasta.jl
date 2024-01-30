@@ -46,8 +46,9 @@ function integrate(
 end
 
 function _integrate(integrand::F, limits::Nothing, f, i, quad; _args) where {F}
-    ζs, ws = quadrature(quad)
     ts = knots(f)
+    T = eltype(ts)
+    ζs, ws = quadrature(T, quad)
     Δt = ts[i + 1] - ts[i]
     Δt * sum(eachindex(ws)) do j
         @inline
@@ -57,9 +58,10 @@ function _integrate(integrand::F, limits::Nothing, f, i, quad; _args) where {F}
 end
 
 function _integrate(integrand::F, limits::NTuple{2, Real}, f, i, quad; _args) where {F}
-    ζs, ws = quadrature(quad)
     ts = knots(f)
-    a, b = limits
+    T = eltype(ts)
+    ζs, ws = quadrature(T, quad)
+    a::T, b::T = limits
     δ = b - a
     Δt = (ts[i + 1] - ts[i]) * δ
     Δt * sum(eachindex(ws)) do j

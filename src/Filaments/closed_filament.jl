@@ -95,12 +95,12 @@ arc length between points ``\bm{s}_i`` and ``\bm{s}_{i + 1}``.
 """
 struct ClosedFilament{
         T,
-        Method,
+        Method <: DiscretisationMethod,
         Parametrisation <: AbstractParametrisation,
         M,  # padding (for dealing with periodicity)
         Knots <: PaddedVector{M, T},
         Points <: PaddedVector{M, Vec3{T}},
-        Coefs <: DiscretisationCoefs{Method},
+        Coefs <: DiscretisationCoefs{Vec3{T}, Method},
     } <: AbstractFilament{T, Method, Parametrisation}
 
     parametrisation :: Parametrisation  # parametrisation function

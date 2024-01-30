@@ -33,10 +33,13 @@ derivatives on interpolation nodes). This is 0 for other methods such as [`Splin
 required_derivatives(m::DiscretisationMethod) = required_derivatives(interpolation_method(m))
 
 # Discretisation coefficients associated to a method.
-# Here `N` is the number of derivatives that are included in the coefficients.
-abstract type DiscretisationCoefs{Method <: DiscretisationMethod, N} end
+# Here `T` is the element type of a coefficient (for example `Float64` for scalar data, or
+# `Vec3{Float64}` for 3D points).
+# Moreover, `N` is the number of derivatives that are included in the coefficients.
+abstract type DiscretisationCoefs{T, Method <: DiscretisationMethod, N} end
 
-nderivatives(::Type{<:DiscretisationCoefs{M, N}}) where {M, N} = N
+Base.eltype(::DiscretisationCoefs{T}) where {T} = T
+nderivatives(::Type{<:DiscretisationCoefs{T, M, N}}) where {T, M, N} = N
 nderivatives(c::DiscretisationCoefs) = nderivatives(typeof(c))
 
 """
@@ -129,7 +132,8 @@ the segment `i`.
 """
 function evaluate(coefs::DiscretisationCoefs, args...; kws...)
     m = interpolation_method(coefs.method)
-    evaluate(m, coefs, args...; kws...)
+    T = eltype(coefs)
+    evaluate(m, coefs, args...; kws...) :: T
 end
 
 # Check that two sets of coefficients are equal

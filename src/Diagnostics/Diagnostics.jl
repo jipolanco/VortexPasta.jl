@@ -22,6 +22,7 @@ const SingleFilamentData = AbstractVector{<:Vec3}
 const SetOfFilamentsData = AbstractVector{<:SingleFilamentData}
 
 include("energy.jl")
+include("helicity.jl")
 include("filament_length.jl")
 include("vortex_impulse.jl")
 include("spectra.jl")

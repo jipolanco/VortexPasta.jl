@@ -35,6 +35,11 @@ function Diagnostics.vortex_impulse(iter::VortexFilamentSolver; kws...)
     Diagnostics.vortex_impulse(iter.fs; kws...)
 end
 
+function Diagnostics.helicity(iter::VortexFilamentSolver; kws...)
+    Γ = BiotSavart.circulation(iter.prob.p)
+    Diagnostics.helicity(iter.fs, iter.vs, Γ; kws...)
+end
+
 function Diagnostics.energy_spectrum(iter::VortexFilamentSolver; kws...)
     Diagnostics.energy_spectrum(iter.cache_bs; kws...)
 end

@@ -115,7 +115,9 @@ The type parameter `T` corresponds to the precision used in computations
 
 where the optional parameter `T` sets the numerical precision.
 
-Mandatory and optional keyword arguments are detailed in the following.
+Mandatory and optional keyword arguments are detailed in the extended help below.
+
+# Extended help
 
 ## Mandatory keyword arguments
 
