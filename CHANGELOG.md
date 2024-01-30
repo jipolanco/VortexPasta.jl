@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Make sure `integrate` returns `Float32` values when working with `Float32`.
   This fixes some type instabilities when using single precision.
 
+- The behaviour of reconnections when periodicity is disabled is now more
+  consistent with the behaviour with periodicity enabled. In particular,
+  reconnections with small critical distances should work better than before.
+
 ## 0.15.0 - 2024-01-26
 
 ### Added

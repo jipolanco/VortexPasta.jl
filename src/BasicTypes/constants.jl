@@ -40,6 +40,7 @@ Base.isinf(::Infinity) = true
 (::Number) * (::Infinity) = Infinity()
 (::Infinity) * (::Infinity) = Infinity()
 (::Infinity) / (::Number) = Infinity()
+(::Number) / (::Infinity) = Zero()
 
 (::Real) > (::Infinity) = false
 (::Infinity) < (::Real) = false   # needs to be Real to disambiguate

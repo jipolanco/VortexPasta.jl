@@ -20,6 +20,7 @@ CellListSegmentFinder
 ```@docs
 set_filaments!
 nearby_segments
+FindNearbySegments.segment_is_close
 ```
 
 ## Index

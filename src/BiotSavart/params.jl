@@ -59,10 +59,11 @@ struct ParamsShortRange{
 
     function ParamsShortRange(
             backend::ShortRangeBackend, quad::AbstractQuadrature,
-            common::ParamsCommon{T}, rcut::Real, regularise::StaticBool,
+            common::ParamsCommon{T}, rcut_::Real, regularise::StaticBool,
             lia_segment_fraction,
         ) where {T}
         (; Ls,) = common
+        rcut = maybe_convert(T, rcut_)
         2 * rcut ≤ min(Ls...) ||
             error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
         rcut_sq = rcut * rcut
@@ -322,8 +323,9 @@ end
 function Base.show(io::IO, p::ParamsBiotSavart)
     (; common, shortrange, longrange,) = p
     (; Γ, a, Δ, Ls, α, quad,) = common
+    (; rcut,) = shortrange
     σ = 1 / (α * sqrt(2))
-    rcut_L = shortrange.rcut / minimum(Ls)
+    rcut_L = rcut === Infinity() ? rcut : rcut / minimum(Ls)  # avoid Infinity() / Infinity()
     print(io, "ParamsBiotSavart with:")
     print(io, "\n - Physical parameters:")
     print(io, "\n   * Vortex circulation:         Γ  = ", Γ)

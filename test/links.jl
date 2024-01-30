@@ -7,22 +7,29 @@ using VortexPasta.Diagnostics: Diagnostics
 using UnicodePlots: UnicodePlots, lineplot, lineplot!
 using Rotations: Rotations
 
-function generate_biot_savart_parameters(::Type{T}) where {T}
+function generate_biot_savart_parameters(::Type{T}; periodic = Val(true)) where {T}
     # Parameters are relevant for HeII if we interpret dimensions in cm and s.
     Γ = 9.97e-4
     a = 1e-8
     Δ = 1/4
-    L = 2π
-    Ngrid = 32
+    if periodic === Val(true)
+        L = 2π
+        Ngrid = 32
+        backend_short = CellListsBackend(2)
+    else
+        L = Infinity()
+        Ngrid = 0
+        backend_short = NaiveShortRangeBackend()
+    end
     Ls = (L, L, L)
     Ns = (Ngrid, Ngrid, Ngrid)
     kmax = (Ngrid ÷ 2) * 2π / L
-    α::T = kmax / 6
+    α = kmax / 6
     rcut = 5 / α
     ParamsBiotSavart(
         T;
         Γ, α, a, Δ, rcut, Ls, Ns,
-        backend_short = CellListsBackend(2),
+        backend_short,
         backend_long = NonuniformFFTsBackend(σ = T(1.5), m = HalfSupport(4)),
         quadrature = GaussLegendre(2),
     )
@@ -44,9 +51,12 @@ function generate_linked_rings(
     ]
 end
 
-function test_linked_rings(::Type{T}, N, method; R) where {T}
+function test_linked_rings(
+        ::Type{T}, N, method;
+        R, periodic = Val(true),
+    ) where {T}
     fs = @inferred generate_linked_rings(T, N, method; R)
-    params = @inferred generate_biot_savart_parameters(T)
+    params = @inferred generate_biot_savart_parameters(T; periodic)
     (; Γ,) = params
 
     τ = R^2 / Γ
@@ -76,10 +86,14 @@ function test_linked_rings(::Type{T}, N, method; R) where {T}
     # linking number. For two linked rings, |L| = 1.
     linking = H / (2 * Γ^2)
 
-    # Note: the accuracy seems to be mainly controlled by the splitting parameter α/kmax
-    # and by the accuracy of the NUFFTs.
+    if periodic === Val(true)
+        # When periodicity is enabled, the accuracy seems to be mainly controlled by the
+        # splitting parameter α/kmax and by the accuracy of the NUFFTs.
+        rtol = 1e-5
+    else
+        rtol = 2e-9  # without periodicity things are really accurate
+    end
     # @show linking + 1
-    rtol = 1e-5
     @test isapprox(linking, -1; rtol)
 
     times = [iter.t]
@@ -91,7 +105,7 @@ function test_linked_rings(::Type{T}, N, method; R) where {T}
         step!(iter)
         local (; nstep, t, fs,) = iter
         if nstep % 10 == 0
-            @show nstep, t/τ, length(fs)
+            # @show nstep, t/τ, length(fs)
         end
         E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(2))
         H = Diagnostics.helicity(iter; quad = GaussLegendre(2))
@@ -138,5 +152,6 @@ end
     N = 48
     method = QuinticSplineMethod()
     R = 1.2
-    test_linked_rings(T, N, method; R)
+    periodic = Val(false)  # in this case it's faster to disable periodicity
+    test_linked_rings(T, N, method; R, periodic)
 end
