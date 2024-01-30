@@ -4,6 +4,7 @@ using VortexPasta.PredefinedCurves
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics: Diagnostics
+using UnicodePlots: UnicodePlots, lineplot, lineplot!
 using Rotations: Rotations
 
 function generate_biot_savart_parameters(::Type{T}) where {T}
@@ -12,12 +13,12 @@ function generate_biot_savart_parameters(::Type{T}) where {T}
     a = 1e-8
     Δ = 1/4
     L = 2π
-    Ngrid = 64
+    Ngrid = 32
     Ls = (L, L, L)
     Ns = (Ngrid, Ngrid, Ngrid)
     kmax = (Ngrid ÷ 2) * 2π / L
-    α::T = kmax / 8
-    rcut = 4 / α
+    α::T = kmax / 6
+    rcut = 5 / α
     ParamsBiotSavart(
         T;
         Γ, α, a, Δ, rcut, Ls, Ns,
@@ -46,12 +47,21 @@ end
 function test_linked_rings(::Type{T}, N, method; R) where {T}
     fs = @inferred generate_linked_rings(T, N, method; R)
     params = @inferred generate_biot_savart_parameters(T)
-
-    tspan = (0.0, 3.2)  # not used
-    prob = VortexFilamentProblem(fs, tspan, params)
-    iter = init(prob, RK4(); dt = 0.1)
-
     (; Γ,) = params
+
+    τ = R^2 / Γ
+    tmax = 0.8 * τ  # reconnection seems to happen exactly around t = τ / 2
+    tspan = (0.0, tmax)
+    prob = VortexFilamentProblem(fs, tspan, params)
+
+    δ = minimum_node_distance(fs)
+    # d_crit = R / 20
+    d_crit = δ / 2
+    dt = BiotSavart.kelvin_wave_period(params, δ)
+    reconnect = ReconnectBasedOnDistance(d_crit)
+    # @show R d_crit δ tmax dt
+    iter = init(prob, RK4(); dt, reconnect, fold_periodic = false)
+
     E = @inferred Diagnostics.kinetic_energy(iter; quad = GaussLegendre(2))
     H_no_quad = @inferred Diagnostics.helicity(iter; quad = nothing)
     H = @inferred Diagnostics.helicity(iter; quad = GaussLegendre(2))
@@ -69,15 +79,63 @@ function test_linked_rings(::Type{T}, N, method; R) where {T}
     # Note: the accuracy seems to be mainly controlled by the splitting parameter α/kmax
     # and by the accuracy of the NUFFTs.
     # @show linking + 1
-    rtol = 2e-6
+    rtol = 1e-5
     @test isapprox(linking, -1; rtol)
+
+    times = [iter.t]
+    energy = [E]
+    helicity = [H]
+    t_reconnect = -1.0
+
+    while iter.t < tmax
+        step!(iter)
+        local (; nstep, t, fs,) = iter
+        if nstep % 10 == 0
+            @show nstep, t/τ, length(fs)
+        end
+        E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(2))
+        H = Diagnostics.helicity(iter; quad = GaussLegendre(2))
+        push!(times, t)
+        push!(energy, E)
+        push!(helicity, H)
+        if t_reconnect < 0 && length(fs) == 1
+            t_reconnect = t
+        end
+        # write_vtkhdf("links_$nstep.vtkhdf", fs) do io
+        #     io["CurvatureVector"] = CurvatureVector()
+        # end
+    end
+
+    times_norm = times ./ τ
+
+    let plt = lineplot(
+            times_norm, energy ./ energy[begin];
+            xlabel = "t Γ / R²", ylabel = "E / E₀",
+            title = "Hopf link reconnection",
+        )
+        UnicodePlots.vline!(plt, 0.5)
+        println(plt)
+    end
+
+    let plt = lineplot(
+            times_norm, abs.(helicity) ./ (2 * Γ^2);
+            xlabel = "t Γ / R²", ylabel = "|H| / 2Γ²",
+            ylim = (0.5, 1.0),
+        )
+        UnicodePlots.vline!(plt, 0.5)
+        println(plt)
+    end
+
+    println(iter.to)
+
+    @test 0.49 < t_reconnect / τ < 0.51
 
     nothing
 end
 
 @testset "Linked rings" begin
     T = Float32
-    N = 64
+    N = 48
     method = QuinticSplineMethod()
     R = 1.2
     test_linked_rings(T, N, method; R)
