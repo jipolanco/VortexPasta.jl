@@ -30,6 +30,7 @@ end
     @includetest "ring_perturbed.jl"
     @includetest "ring_collision.jl"
     @includetest "trefoil.jl"
+    @includetest "links.jl"
     @includetest "infinite_lines.jl"
     @includetest "imex.jl"
     @includetest "leapfrogging.jl"
