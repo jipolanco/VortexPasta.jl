@@ -1,6 +1,7 @@
 Manifest.toml
 
 # Simulation and test outputs
+*.vtkhdf
+*.vtkhdf.alt
 *.hdf
-*.hdf.alt
 *.h5
