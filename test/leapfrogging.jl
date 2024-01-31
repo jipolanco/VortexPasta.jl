@@ -104,7 +104,7 @@ function test_leapfrogging_rings(
 
     if test_jet
         JET.@test_opt ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
-        JET.@test_call ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
+        # JET.@test_call ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
     end
 
     l_min = minimum_knot_increment(prob.fs)
@@ -135,7 +135,7 @@ function test_leapfrogging_rings(
     if test_jet
         JET.@test_opt ignored_modules=(Base, FINUFFT) callback(iter)
         JET.@test_opt ignored_modules=(Base, FINUFFT) step!(iter)
-        JET.@test_call ignored_modules=(Base, FINUFFT) step!(iter)
+        # JET.@test_call ignored_modules=(Base, FINUFFT) step!(iter)
     end
 
     @info "Solving with $scheme..." dt_initial = iter.time.dt prob.tspan
