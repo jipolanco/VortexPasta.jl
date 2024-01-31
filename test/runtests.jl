@@ -1,4 +1,5 @@
 using Test
+using InteractiveUtils: versioninfo
 
 # Wraps each test file in a separate module, to avoid definition clashes and to make sure
 # that each file can also be run as a standalone script.
@@ -15,6 +16,12 @@ macro includetest(path::String)
     ex.head = :toplevel
     ex
 end
+
+println()
+@show Base.julia_cmd()
+println()
+versioninfo()
+println()
 
 @info "Running tests with $(Threads.nthreads()) threads"
 
