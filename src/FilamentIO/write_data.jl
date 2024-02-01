@@ -87,7 +87,7 @@ function write_data_refined(info, vs, fs, refinement; ldims::Dims = ())
             Np = refinement * length(v) + 1  # number of output points (the +1 is to close the loop)
             Xs = @alloc(V, Np)
             refine_data_on_filament!(Xs, v, f, refinement, buf)
-            write_points_to_hdf5(info, Xs, n, ldims, Np)
+            write_padded_data_to_hdf5(info, Xs, n, ldims, Np)
             n += Np
         end
     end
@@ -117,7 +117,7 @@ function refine_data_on_filament!(
             Xs[n += 1] = vs[j]  # copy value on node
             for m ∈ 2:refinement
                 # Copy value interpolated in-between nodes
-                ζ = (m - 1) / refinement  # in ]0, 1[
+                ζ = on_segment_location(m, refinement)  # in ]0, 1[
                 Xs[n += 1] = Filaments.evaluate(coefs, ts, j, ζ)
             end
         end

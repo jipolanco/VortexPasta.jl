@@ -143,7 +143,7 @@ function test_hdf5()
             fname = "ring_collision_ref$(refinement)_$dataset_type.vtkhdf"
 
             # Write results
-            FilamentIO.write_vtkhdf(fname, fs; refinement, dataset_type) do io
+            FilamentIO.write_vtkhdf(fname, fs; refinement, dataset_type, parametrisation = false) do io
                 io["velocity"] = vs
                 io["streamfunction"] = ψs
                 io["streamfunction_t"] = ψt
@@ -178,10 +178,24 @@ function test_hdf5()
             @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
             @test fs ≈ fs_read_f32
 
-            # Same without passing a function
-            FilamentIO.write_vtkhdf(fname * ".alt", fs; refinement)
-            fs_read = FilamentIO.read_vtkhdf(fname * ".alt", Float64, CubicSplineMethod())
-            @test fs == fs_read
+            # Same without passing a function. Also, modify parametrisation (knots) of the
+            # filament, to make sure we read it back with the same parametrisation.
+            gs = map(copy, fs)
+            for g ∈ gs
+                ts = knots(g)
+                for i ∈ eachindex(ts)
+                    ts[i] = sqrt(ts[i])
+                end
+                pad_periodic!(ts, ts[end + 1] - ts[begin])
+                update_coefficients!(g; knots = ts)
+            end
+            FilamentIO.write_vtkhdf(fname * ".alt", gs; refinement)
+            gs_read = FilamentIO.read_vtkhdf(fname * ".alt", Float64, CubicSplineMethod())
+            for (f, g) ∈ zip(gs, gs_read)
+                @test knots(f) == knots(g)      # parametrisation is the same!
+                @test f.coefs.cs == g.coefs.cs  # interpolation coefficients are the same!
+            end
+            @test gs == gs_read
         end
     end
 

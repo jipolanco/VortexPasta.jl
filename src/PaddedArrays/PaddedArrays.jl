@@ -50,8 +50,9 @@ struct PaddedArray{M, T, N, A <: AbstractArray{T, N}} <: AbstractArray{T, N}
     end
 end
 
+npad(::Type{<:AbstractArray}) = 0  # regular arrays have no padding
 npad(::Type{<:PaddedArray{M}}) where {M} = M
-npad(v::PaddedArray) = npad(typeof(v))
+npad(v::AbstractArray) = npad(typeof(v))
 
 # General case of N-D arrays: we can't use linear indexing due to the padding in all
 # directions.
@@ -63,11 +64,29 @@ Base.IndexStyle(::Type{<:PaddedArray{M, T, 1, A}}) where {M, T, A} = IndexStyle(
 Base.parent(v::PaddedArray) = v.data
 Base.size(v::PaddedArray) = ntuple(i -> size(parent(v), i) - 2 * npad(v), Val(ndims(v)))
 
+# Return a view to the parent array.
+function Base.view(v::PaddedArray{M, T, N}, inds::Vararg{Any, N}) where {M, T, N}
+    inds_parent = map(inds, axes(v)) do is, js
+        to_parent_indices(M, is, js)
+    end
+    view(parent(v), inds_parent...)
+end
+
+to_parent_indices(M, i::Integer, js) = M + i
+to_parent_indices(M, is::AbstractVector, js) = M .+ is  # this includes ranges
+to_parent_indices(M, ::Colon, js) = M .+ js  # select all values excluding ghost cells
+
 function Base.copyto!(w::PaddedArray{M}, v::PaddedArray{M}) where {M}
     length(w.data) == length(v.data) || throw(DimensionMismatch("arrays have different sizes"))
     copyto!(w.data, v.data)
     w
 end
+
+# Equality and isapprox must also include ghost cells!
+Base.:(==)(w::PaddedArray{M}, v::PaddedArray{M}) where {M} = w.data == v.data
+
+Base.isapprox(w::PaddedArray{M}, v::PaddedArray{M}; kwargs...) where {M} =
+    isapprox(w.data, v.data; kwargs...)
 
 function Base.similar(v::PaddedArray{M, T, N}, ::Type{S}, dims::Dims{N}) where {S, M, T, N}
     PaddedArray{M}(similar(v.data, S, dims .+ 2M))

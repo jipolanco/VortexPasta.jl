@@ -115,4 +115,42 @@ using Test
             end
         end
     end
+
+    @testset "Views" begin
+        data = collect(1:20)
+        v = @inferred PaddedArray{2}(data)
+        let w = @inferred view(v, :)
+            @test w isa SubArray
+            @test parent(w) == data  # this is a view to `data`, not to `v`
+            @test length(w) == length(v)  # ghost cells are not included
+            @test w == v
+        end
+        let w = @inferred view(v, 2:3)
+            @test w isa SubArray
+            @test parent(w) == data  # this is a view to `data`, not to `v`
+            @test length(w) == 2
+            @test w == v[2:3]
+        end
+        let w = @inferred view(v, 3)
+            @test w isa SubArray
+            @test parent(w) == data  # this is a view to `data`, not to `v`
+            @test ndims(w) == 0
+            @test w[] == v[3]
+        end
+    end
+
+    @testset "Equality" begin
+        data = collect(1:20)
+        v = @inferred PaddedArray{2}(data)
+        w = similar(v)
+        fill!(w, 0)
+        # 1. Copy only non-ghost cells.
+        @views w[:] .= v[:]  # this doesn't include ghost cells
+        @test w != v  # arrays are different because ghost cells were not copied!
+        @test !isapprox(w, v)
+        # 2. Copy including ghost cells.
+        copyto!(w, v)  # this includes ghost cells
+        @test w == v   # arrays are now equal
+        @test isapprox(w, v)
+    end
 end

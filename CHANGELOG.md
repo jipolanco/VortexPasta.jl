@@ -5,6 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Write filament parametrisation (knots) to VTKHDF files in `write_vtkhdf`.
+  This can be disabled by passing `parametrisation = false`.
+  Also, if the parametrisation is present in a VTKHDF file, then `read_vtkhdf`
+  reads the existent parametrisation instead of computing a new one.
+  This can be useful when using non-standard parametrisations.
+
+- Add custom definitions of `view`, `==` and `isapprox` for `PaddedArray`s.
+
 ## 0.15.1 - 2024-01-30
 
 ### Added

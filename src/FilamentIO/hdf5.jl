@@ -20,6 +20,7 @@ struct PointData end
 struct FieldData end
 
 include("write_points.jl")
+include("write_parametrisation.jl")
 include("write_data.jl")
 
 """
@@ -29,6 +30,7 @@ include("write_data.jl")
         fs::AbstractVector{<:AbstractFilament};
         refinement = 1,
         dataset_type = :PolyData,
+        parametrisation = true,
     )
 
 Write new VTK HDF file containing a list of filaments.
@@ -70,6 +72,12 @@ syntax. See further below for some examples.
   is mostly useful for producing nice visualisations. The level of refinement is writen to
   the `/VTKHDF/RefinementLevel` dataset, which allows to read back the data skipping
   intra-segment nodes.
+
+- `parametrisation::Bool = true`: if `true` (default), write curve parametrisation values.
+  This allows `read_vtkhdf` to reconstruct the exact same curve that was written (assuming
+  the same discretisation method is used, e.g. cubic splines), even if the curve used some
+  non-default curve parametrisation.
+  Values are written to the `/VTKHDF/PointData/Parametrisation` dataset.
 
 - `dataset_type::Symbol`: can be either `:PolyData` (default) or `:UnstructuredGrid`.
   There's usually no reason to change this.
@@ -123,6 +131,7 @@ function init_vtkhdf(
         io::HDF5.File,
         fs::AbstractVector{<:AbstractFilament};
         refinement::Int = 1,
+        parametrisation = true,
         dataset_type::Symbol = :PolyData,  # either :UnstructuredGrid (old default) or :PolyData
     )
     gtop = HDF5.create_group(io, "VTKHDF")
@@ -210,14 +219,28 @@ function init_vtkhdf(
         )
     end
 
-    n = if refinement == 1
-        write_points_unrefined(points, fs)
-    else
-        write_points_refined(points, fs, refinement)
+    let n = write_points(points, fs, refinement)
+        @assert n == num_points
     end
-    @assert n == num_points
 
-    map(close, points)  # close dataset + dataspace + datatype
+    g_pointdata = HDF5.create_group(gtop, "PointData")
+
+    if parametrisation
+        info_param = let dtype = HDF5.datatype(T)
+            dspace = HDF5.dataspace((num_points,))
+            (;
+                dtype, dspace,
+                dset = HDF5.create_dataset(g_pointdata, "Parametrisation", dtype, dspace),
+            )
+        end
+        let n = write_parametrisation(info_param, fs, refinement)
+            @assert n == num_points
+        end
+        foreach(close, info_param)  # close dataset + dataspace + datatype
+    end
+
+    close(g_pointdata)
+    foreach(close, points)  # close dataset + dataspace + datatype
 
     VTKHDFFile(gtop, fs, refinement)
 end
@@ -287,7 +310,7 @@ end
 
 function write_point_data(writer, vs, name)
     (; gtop,) = writer
-    gdata = open_or_create_group(gtop, "PointData")
+    gdata = HDF5.open_group(gtop, "PointData")
     T = eltype(eltype(vs))  # usually <:Real or Vec3{<:Real}
     attrname = vtk_attribute_type(T)  # "Scalars", "Vectors", ...
     names = if haskey(HDF5.attrs(gdata), attrname)
@@ -480,6 +503,31 @@ function read_filaments(
         _load_filament(T, points, offsets, method, i)
     end
 
+    # Load and use parametrisation values (knots `ts`) if they are included in the file.
+    if haskey(gtop, "PointData/Parametrisation")
+        # Read parametrisation values ts[begin:(end + 1)] for each filament.
+        ts_all = map(fs) do f
+            ts = knots(f)
+            @view ts[begin:(end + 1)]
+        end
+        let dset = HDF5.open_dataset(gtop, "PointData/Parametrisation")
+            _read_data_on_filaments!(T, dset, ts_all, refinement; endpoint = true)
+            close(dset)
+        end
+        # Compute interpolation and derivative coefficients, but preserving the input knots.
+        foreach(fs) do f
+            ts = knots(f)
+            Tper = ts[end + 1] - ts[begin]
+            pad_periodic!(ts, Tper)  # apply padding to remaining parametrisation values
+            update_coefficients!(f; knots = ts)
+        end
+    else
+        # Compute interpolation and derivative coefficients, also recomputing knots.
+        foreach(fs) do f
+            update_coefficients!(f)
+        end
+    end
+
     VTKHDFFile(gtop, fs, refinement)
 end
 
@@ -512,7 +560,6 @@ function _load_filament(
     @inbounds for j ∈ eachindex(f)
         f[j] = Xs[a + j]
     end
-    update_coefficients!(f)  # compute interpolations and derivative coefficients
     f
 end
 
@@ -533,64 +580,46 @@ function Base.read!(
     (; gtop, refinement,) = reader
     gdata = HDF5.open_group(gtop, "PointData")
     dset = HDF5.open_dataset(gdata, name)
-    T = eltype(eltype(vs))  # typically <:AbstractFloat or SVector{3, <:AbstractFloat}
-    _read_data_on_filaments!(T, dset, vs, refinement)
+    V = eltype(eltype(vs))  # typically <:AbstractFloat or SVector{3, <:AbstractFloat}
+    T = eltype(V)
+    if T === V  # scalar data (note: eltype(Float64) = Float64)
+        ldims = ()
+    else
+        ldims = size(V)
+    end
+    _read_data_on_filaments!(T, dset, vs, refinement; ldims)
     close(dset)
     close(gdata)
     vs
 end
 
-# Read data on filament nodes -- case of scalar data (e.g. local curvature magnitude)
+# Read data on filament nodes.
 function _read_data_on_filaments!(
-        ::Type{T}, dset, vs::AbstractVector{<:AbstractVector}, refinement,
+        ::Type{T}, dset, vs::AbstractVector{<:AbstractVector}, refinement;
+        ldims::Dims = (),
+        endpoint = false,  # if `true`, it requires eltype(vs) <: PaddedVector
     ) where {T <: Number}
-    @assert T === eltype(eltype(vs))
-    num_points, = size(dset) :: Dims{1}
+    V = eltype(eltype(vs))
+    @assert T === eltype(V)
+    N = 1 + length(ldims)
+    ldims_dset..., num_points = size(dset) :: Dims{N}
+    @assert ldims == ldims_dset
     n = 0
     dspace = HDF5.dataspace(dset)
+    lranges = map(N -> 1:N, ldims)
     for v ∈ vs
-        Np = length(v)  # number of filament nodes (*excluding* the endpoint)
+        Np = length(v)  # number of filament nodes (may or may not include the endpoint)
         vdata = reinterpret(reshape, T, v)
+        # vdata = @view v[begin:(end + endpoint)]
         if refinement == 1
-            HDF5.select_hyperslab!(dspace, ((n + 1):(n + Np),))  # read part of the dataset
+            HDF5.select_hyperslab!(dspace, (lranges..., (n + 1):(n + Np),))  # read part of the dataset
             read_dataset!(vdata, dset, dspace)
-            n += Np + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
+            n += Np + (!endpoint)  # the + (!endpoint) is because the endpoint is always included in the file (but maybe ignored here)
         else
             inds_file = range(n + 1; length = Np, step = refinement)
-            HDF5.select_hyperslab!(dspace, (inds_file,))
+            HDF5.select_hyperslab!(dspace, (lranges..., inds_file,))
             read_dataset!(vdata, dset, dspace)
-            n = last(inds_file) + refinement
-        end
-        maybe_pad_periodic!(v)
-    end
-    @assert n == num_points
-    nothing
-end
-
-# Write data on filament nodes -- case of vector data (e.g. velocity)
-function _read_data_on_filaments!(
-        ::Type{V}, dset, vs::AbstractVector{<:AbstractVector}, refinement,
-    ) where {V <: AbstractVector}
-    @assert V === eltype(eltype(vs))
-    N = length(V)  # usually == 3 (works when V <: StaticArray)
-    T = eltype(V)
-    @assert T <: Number
-    Ñ, num_points = size(dset) :: Dims{2}
-    @assert N == Ñ
-    n = 0
-    dspace = HDF5.dataspace(dset)
-    for v ∈ vs
-        Np = length(v)  # number of filament nodes (*excluding* the endpoint)
-        vdata = reinterpret(reshape, T, v)
-        if refinement == 1
-            HDF5.select_hyperslab!(dspace, (1:N, (n + 1):(n + Np)))  # read part of the dataset
-            read_dataset!(vdata, dset, dspace)
-            n += Np + 1  # the + 1 is because the endpoint is included in the file (but ignored here)
-        else
-            inds_file = range(n + 1; length = Np, step = refinement)
-            HDF5.select_hyperslab!(dspace, (1:N, inds_file))
-            read_dataset!(vdata, dset, dspace)
-            n = last(inds_file) + refinement
+            n = last(inds_file) + refinement * (!endpoint)
         end
         maybe_pad_periodic!(v)
     end
