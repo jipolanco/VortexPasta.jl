@@ -200,7 +200,8 @@ function compare_long_range(
 
     # Compare velocities one filament at a time.
     check_approx(us, vs, tol) = all(zip(us, vs)) do (u, v)
-        isapprox(u, v; rtol = tol)
+        # Note: we avoid comparing ghost cells in case these are PaddedVectors.
+        @views isapprox(u[:], v[:]; rtol = tol)
     end
     @test check_approx(vs_default, vs_exact, tol)
 
@@ -247,7 +248,10 @@ function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws.
     BiotSavart.velocity_on_nodes!(vs_cl, cache_cl, fs; longrange = Val(false))
 
     for (a, b) ∈ zip(vs_naive, vs_cl)
-        @test isapprox(a, b; rtol = 1e-7)
+        # Note: since `a` and `b` are PaddedVectors, we need to exclude their ghost cells
+        # (which can be different) from the comparison. For that reason we use a view onto
+        # the "central" (non-ghost) data of both arrays.
+        @test @views isapprox(a[:], b[:]; rtol = 1e-7)
     end
 
     nothing

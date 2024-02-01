@@ -43,7 +43,12 @@ function test_infinite_line_io(fs, vs)
     end
     function check_velocity(io)
         vs_read = @inferred read(io, "velocity", FilamentIO.PointData())
-        @test vs_read == vs
+        for (u, v) ∈ zip(vs, vs_read)
+            # Note that u == v can fail when these are PaddedArrays since their ghost cells
+            # generally don't match (and they don't have to). So we ignore possible ghost
+            # cells in the comparison.
+            @test @views u[:] == v[:]
+        end
     end
     fs_read = @inferred FilamentIO.read_vtkhdf(check_velocity, "infinite.vtkhdf", T, method)
     @test fs_read == fs
