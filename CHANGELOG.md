@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Timestepping: add Strang splitting scheme.
+
 - Write filament parametrisation (knots) to VTKHDF files in `write_vtkhdf`.
   This can be disabled by passing `parametrisation = false`.
   Also, if the parametrisation is present in a VTKHDF file, then `read_vtkhdf`
