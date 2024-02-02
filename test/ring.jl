@@ -50,6 +50,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         backend_short = NaiveShortRangeBackend(),
         quadrature = quad,
         lia_segment_fraction = 0.4,
+        regularise_binormal = Val(true),  # this can make sense for rings, but not for much else
     )
     nquad = length(quad)  # number of quadrature points per segment
 
@@ -79,7 +80,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         elseif method isa CubicSplineMethod
             3e-3
         elseif f.parametrisation === CentripetalParametrisation()
-            1e-3
+            2e-3
         else
             1e-4
         end

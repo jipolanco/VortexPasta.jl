@@ -22,6 +22,13 @@ include("Diagnostics/Diagnostics.jl")
 
 include("Timestepping/Timestepping.jl")
 
+# This is used in tests
+const ALL_MODULES = (
+    PaddedArrays, PredefinedCurves, CellLists, BasicTypes,
+    Quadratures, Filaments, FindNearbySegments, FilamentIO,
+    Reconnections, BiotSavart, Diagnostics, Timestepping,
+)
+
 ## Precompilation
 using PrecompileTools: @setup_workload, @compile_workload
 

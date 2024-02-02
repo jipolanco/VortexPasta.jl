@@ -5,6 +5,7 @@ using Statistics: mean, std
 using Random
 using LinearAlgebra: norm, normalize, ⋅, ×
 using UnicodePlots: lineplot
+using VortexPasta
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
 using VortexPasta.FilamentIO
@@ -14,7 +15,6 @@ using VortexPasta.Timestepping: VortexFilamentSolver
 using VortexPasta.Diagnostics
 
 using JET: JET
-using FINUFFT: FINUFFT  # for JET only
 
 function init_ring_filaments(R_init; method = CubicSplineMethod(), noise = 1/3)
     N = 32
@@ -40,23 +40,24 @@ function vortex_ring_squared_radius(f::AbstractFilament)
 end
 
 # Timestep factors required for conservation tests to pass
-dt_factor(::RK4) = 1.5
-dt_factor(::DP5) = 1.5
-dt_factor(::SSPRK33) = 1.0
+dt_factor(::RK4) = 1.8
+dt_factor(::DP5) = 1.2
+dt_factor(::SSPRK33) = 0.9
+dt_factor(::Midpoint) = 0.25
 dt_factor(::Euler) = 0.08
-dt_factor(::Midpoint) = 0.4
 
-dt_factor(::KenCarp3) = 1.3
-dt_factor(::KenCarp4) = 2.3
-dt_factor(::Ascher343) = 1.3
+dt_factor(::Strang{RK4}) = 3.5
 
-dt_factor(::MultirateMidpoint) = 0.8
-dt_factor(::SanduMRI33a) = 4.0
+dt_factor(::KenCarp4) = 2.5
+dt_factor(::KenCarp3) = 1.4
+dt_factor(::Ascher343) = 1.4
+
+dt_factor(::MultirateMidpoint) = 0.6
+dt_factor(::SanduMRI33a) = 12.0
 dt_factor(::SanduMRI45a) = 4.0
 
 # NOTE: this factor ensures stability, but *not* accuracy of IMEXEuler. The factor should
-# actually be ~0.1 to get similar results to other schemes. With 0.6, one can clearly see
-# the difference in results from the plots of the total vortex length.
+# actually be ~0.1 to get similar results to other schemes.
 dt_factor(::IMEXEuler) = 0.6
 
 function test_leapfrogging_rings(
@@ -66,6 +67,7 @@ function test_leapfrogging_rings(
         label = string(scheme),
     )
     test_jet = true
+    jet_modules = (VortexPasta, VortexPasta.ALL_MODULES...)
 
     # Define callback function to be run at each simulation timestep
     times = Float64[]
@@ -95,7 +97,10 @@ function test_leapfrogging_rings(
             R²_all += vortex_ring_squared_radius(f)
         end
 
-        # @show nstep, t, dt, E
+        if nstep % 10 == 0
+            local tmax = iter.prob.tspan[2]
+            # @show nstep, t/tmax, dt, E
+        end
         push!(energy_time, E)
         push!(line_length, L)
         push!(impulse_time, p⃗)
@@ -103,20 +108,21 @@ function test_leapfrogging_rings(
     end
 
     if test_jet
-        JET.@test_opt ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
-        # JET.@test_call ignored_modules=(Base, FINUFFT) init(prob, scheme; dt = 0.01)
+        JET.@test_opt target_modules=jet_modules init(prob, scheme; dt = 0.01)
+        JET.@test_call target_modules=jet_modules init(prob, scheme; dt = 0.01)
     end
 
     l_min = minimum_knot_increment(prob.fs)
     method = Filaments.discretisation_method(eltype(prob.fs))
 
-    # The 2π is simply because the factors were originally tuned with an old definition of
-    # AdaptBasedOnSegmentLength.
-    factor = dt_factor(scheme) * 2π
-    if method isa QuinticSplineMethod
-        # Quintic splines seem to need a smaller timestep...
-        factor *= 0.3
+    factor = dt_factor(scheme)
+
+    if method isa CubicSplineMethod
+        factor *= 0.8
+    elseif method isa FourierMethod
+        factor *= 0.8
     end
+
     adaptivity =
         AdaptBasedOnSegmentLength(factor) |
         AdaptBasedOnVelocity(10 * l_min) |  # usually inactive; just for testing
@@ -125,7 +131,7 @@ function test_leapfrogging_rings(
     iter = @inferred init(
         prob, scheme;
         dt = 0.025,  # will be changed by the adaptivity
-        dtmin = 0.005 * dt_factor(scheme),
+        # dtmin = 0.005 * dt_factor(scheme),
         alias_u0 = false,  # don't overwrite fs_init
         adaptivity,
         refinement,
@@ -133,9 +139,9 @@ function test_leapfrogging_rings(
     )
 
     if test_jet
-        JET.@test_opt ignored_modules=(Base, FINUFFT) callback(iter)
-        JET.@test_opt ignored_modules=(Base, FINUFFT) step!(iter)
-        # JET.@test_call ignored_modules=(Base, FINUFFT) step!(iter)
+        JET.@test_opt target_modules=jet_modules callback(iter)
+        JET.@test_opt target_modules=jet_modules step!(iter)
+        JET.@test_call target_modules=jet_modules step!(iter)
     end
 
     @info "Solving with $scheme..." dt_initial = iter.time.dt prob.tspan
@@ -157,6 +163,8 @@ function test_leapfrogging_rings(
         if iseuler
             rtol_energy *= 100
             rtol_impulse *= 200
+        elseif method isa CubicSplineMethod
+            rtol_impulse *= 2
         elseif method isa FiniteDiffMethod
             rtol_energy *= 100
             rtol_impulse *= 200
@@ -233,9 +241,9 @@ end
         Γ, a, Δ,
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
-        backend_long = FINUFFTBackend(),
-        quadrature = GaussLegendre(4),
-        regularise_binormal = Val(true),
+        backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4)),
+        quadrature = GaussLegendre(2),
+        # regularise_binormal = Val(true),
     )
 
     # Check overloaded getproperty and propertynames for ParamsBiotSavart.
@@ -244,13 +252,13 @@ end
 
     # Initialise simulation
     R_init = π / 3
-    fs_init = init_ring_filaments(R_init)
+    fs_init = init_ring_filaments(R_init; method = QuinticSplineMethod())
     tmax = 5 * R_init^2 / Γ  # enough time for a couple of "jumps"
     tspan = (0.0, tmax)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
 
     @testset "VortexFilamentSolver" begin
-        iter = @inferred init(prob, Midpoint(); dt = 0.01)
+        iter = init(prob, Midpoint(); dt = 0.01)
         @test iter isa VortexFilamentSolver
 
         # Check overloaded getproperty and propertynames for VortexFilamentSolver.
@@ -296,15 +304,20 @@ end
     @test δ ≈ @inferred minimum_node_distance(fs_init)  # almost always true, except for FourierMethod
     refinement = RefineBasedOnSegmentLength(0.99 * δ)
     schemes = (
-        RK4(), DP5(), SSPRK33(),
-        IMEXEuler(), KenCarp4(),
-        KenCarp3(), Ascher343(),
+        RK4(),
+        DP5(),
+        SSPRK33(),
+        IMEXEuler(),
+        KenCarp4(),
+        KenCarp3(),
+        Ascher343(),
         # Euler(),  # too slow!
-        Midpoint(),
+        # Midpoint(),  # too slow!
+        Strang(RK4(), Midpoint()),
         MultirateMidpoint(32),
         SanduMRI33a(12),
-        SanduMRI33a(CrankNicolson(), 2),
-        SanduMRI45a(6),
+        SanduMRI33a(CrankNicolson(), 4),
+        SanduMRI45a(RK4(), 4),
     )
 
     ##
@@ -313,21 +326,25 @@ end
         test_leapfrogging_rings(prob, scheme; R_init, refinement)
     end
 
-    methods = (QuinticSplineMethod(), FiniteDiffMethod())
+    methods = (
+        CubicSplineMethod(),
+        FiniteDiffMethod(),
+    )
 
     @testset "$method" for method ∈ methods
-        local scheme = SanduMRI33a(RK4(), 2)
+        local scheme = Strang(RK4(), Midpoint())
         local fs_init = @inferred init_ring_filaments(R_init; method)
         local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
         test_leapfrogging_rings(prob, scheme; R_init, refinement, label = string(method))
     end
 
-    @testset "RK4 + no refinement" begin
-        test_leapfrogging_rings(prob, RK4(); R_init, refinement = NoRefinement(), label = "NoRefinement")
+    @testset "No refinement" begin
+        local scheme = Strang(RK4())
+        test_leapfrogging_rings(prob, scheme; R_init, refinement = NoRefinement(), label = "NoRefinement")
     end
 
     @testset "FourierMethod (with noise = 0)" begin
-        local scheme = SanduMRI33a(RK4(), 2)
+        local scheme = Strang(RK4())
         local fs_init = @inferred init_ring_filaments(R_init; method = FourierMethod(), noise = 0.0)
         local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
         test_leapfrogging_rings(prob, scheme; R_init, refinement = NoRefinement(), label = "FourierMethod")

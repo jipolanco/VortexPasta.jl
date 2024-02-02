@@ -82,3 +82,4 @@ include("explicit/explicit.jl")
 include("implicit/implicit.jl")
 include("imex/imex.jl")  # implicit-explicit
 include("multirate/multirate.jl")
+include("split/split.jl")  # e.g. Strang splitting
