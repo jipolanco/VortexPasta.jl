@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Timestepping: add Strang splitting scheme.
 
+- Timestepping: add `LIA` option to `init`, enabling simulations of the local
+  induction approximation.
+
 - Write filament parametrisation (knots) to VTKHDF files in `write_vtkhdf`.
   This can be disabled by passing `parametrisation = false`.
   Also, if the parametrisation is present in a VTKHDF file, then `read_vtkhdf`

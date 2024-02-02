@@ -33,6 +33,7 @@ println()
     @includetest "refinement.jl"
     @includetest "hdf5.jl"
     @includetest "ring.jl"
+    @includetest "ring_lia.jl"
     @includetest "ring_energy.jl"
     @includetest "ring_perturbed.jl"
     @includetest "ring_collision.jl"

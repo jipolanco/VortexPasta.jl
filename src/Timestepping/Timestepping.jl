@@ -165,6 +165,7 @@ struct VortexFilamentSolver{
     cache_bs          :: CacheBS
     cache_timestepper :: CacheTimestepper
     fast_term         :: FastTerm
+    LIA           :: Bool
     fold_periodic :: Bool
     affect!  :: Affect
     callback :: Callback
@@ -187,6 +188,7 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     print(io, "\n - `adaptivity`: ", iter.adaptivity)
     print(io, "\n - `reconnect`: ", Reconnections.criterion(iter.reconnect))
     print(io, "\n - `fast_term`: ", iter.fast_term)
+    print(io, "\n - `LIA`: ", iter.LIA)
     print(io, "\n - `fold_periodic`: ", iter.fold_periodic)
     print(io, "\n - `cache_bs`: ")
     summary(io, iter.cache_bs)
@@ -254,7 +256,10 @@ either [`step!`](@ref) or [`solve!`](@ref).
 
 - `fast_term = LocalTerm()`: for IMEX and multirate schemes, this determines what is meant by
   "fast" and "slow" dynamics. This can either be [`LocalTerm`](@ref) or [`ShortRangeTerm`](@ref).
-  Note that the default may change in the future!
+
+- `LIA = false`: if `true`, only use the local induction approximation (LIA) to advance
+  vortex filaments, ignoring all non-local interactions. Note that reconnections may still
+  be enabled.
 
 - `fold_periodic = true`: if `true` (default), vortices will be recentred onto the main unit cell
   when using periodic boundary conditions. It may be convenient to disable this for
@@ -366,7 +371,8 @@ function init(
         refinement::RefinementCriterion = NoRefinement(),
         reconnect::ReconnectionCriterion = NoReconnections(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
-        fold_periodic = true,
+        fold_periodic::Bool = true,
+        LIA::Bool = false,
         callback::Callback = identity,
         affect!::Affect = identity,
         external_velocity::ExtVel = nothing,
@@ -400,6 +406,13 @@ function init(
         throw(ArgumentError(lazy"temporal scheme $scheme doesn't support adaptibility; set `adaptivity = NoAdaptivity()` or choose a different scheme"))
     end
 
+    # It doesn't make much sense to combine the LIA and fast_term arguments, since there's
+    # no RHS splitting to do when using LIA.
+    # Therefore, if LIA is enabled, we only support the default fast_term = LocalTerm().
+    if LIA && fast_term !== LocalTerm()
+        throw(ArgumentError("currently, using LIA requires setting fast_term = LocalTerm()"))
+    end
+
     time = TimeInfo(nstep = 0, t = first(tspan), dt = dt, dt_prev = dt)
 
     external_forcing = (
@@ -410,7 +423,7 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs_sol, vs, ψs, time, T(dtmin), refinement, adaptivity, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, fold_periodic, affect_, callback_, external_forcing,
+        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_forcing,
         timer, advect!, rhs!,
     )
 
@@ -462,7 +475,11 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     ) where {Names, N, V <: VectorOfVectors}
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
+    if iter.LIA
+        BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+    else
+        BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
+    end
     _add_external_fields!(fields, iter.external_forcing, fs, t, iter.to)
 end
 
@@ -480,7 +497,14 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
+    T = eltype(eltype(fields.velocity))
+    @assert T <: Vec3
+    if iter.LIA
+        fill!(fields.velocity, zero(T))
+    else
+        BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
+    end
+    nothing
 end
 
 function _update_values_at_nodes!(
