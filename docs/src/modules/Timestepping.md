@@ -53,6 +53,13 @@ KenCarp3
 KenCarp4
 ```
 
+### Splitting schemes
+
+```@docs
+SplittingScheme
+Strang
+```
+
 ### Multirate Runge–Kutta schemes
 
 These schemes are completely explicit, but use different timesteps (and
