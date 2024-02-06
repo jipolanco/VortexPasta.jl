@@ -402,7 +402,8 @@ function init(
     callback_ = timer(callback, "Callback")
     affect_ = timer(affect!, "Affect!")
 
-    if adaptivity !== NoAdaptivity() && !can_change_dt(scheme)
+    adaptivity_ = possibly_add_max_timestep(adaptivity, dt)
+    if adaptivity_ !== NoAdaptivity() && !can_change_dt(scheme)
         throw(ArgumentError(lazy"temporal scheme $scheme doesn't support adaptibility; set `adaptivity = NoAdaptivity()` or choose a different scheme"))
     end
 
@@ -422,7 +423,7 @@ function init(
     check_external_streamfunction(external_forcing, Ls)
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, ψs, time, T(dtmin), refinement, adaptivity, cache_reconnect,
+        prob, fs_sol, vs, ψs, time, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_forcing,
         timer, advect!, rhs!,
     )

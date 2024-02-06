@@ -1,6 +1,7 @@
 export NoAdaptivity,
        AdaptBasedOnSegmentLength,
-       AdaptBasedOnVelocity
+       AdaptBasedOnVelocity,
+       MaximumTimestep
 
 using ..BiotSavart: kelvin_wave_period
 
@@ -98,6 +99,15 @@ the given distance ``δ``.
 
 The timestep is set to ``Δt = δ / v_{\\max}``.
 
+Note that, in principle, using this criterion can lead to an infinite timestep when the
+velocities are zero. For this reason, it's a good idea to combine this criterion with the
+[`MaximumTimestep`](@ref) criterion. For example:
+
+    adaptivity = AdaptBasedOnVelocity(2.0) | MaximumTimestep(0.01)
+
+In fact, this is done automatically in [`init`](@ref) if only an `AdaptBasedOnVelocity` is passed.
+In that case, the maximum timestep is taken to be the `dt` passed to `init`.
+
 One application of this criterion is to ensure that reconnections happen in-between two
 solver iterations (that is, to avoid that two filaments cross each other without
 reconnecting). In this case, ``δ`` should be proportional to the chosen distance below
@@ -119,6 +129,18 @@ function estimate_timestep(crit::AdaptBasedOnVelocity, iter::AbstractSolver)
     δ / v_max
 end
 
+"""
+    MaximumTimestep <: AdaptivityCriterion
+    MaximumTimestep(Δt_max::Float64)
+
+Criterion ensuring that the timestep will be kept below a maximal value `Δt_max`.
+"""
+struct MaximumTimestep <: AdaptivityCriterion
+    Δt :: Float64
+end
+
+estimate_timestep(crit::MaximumTimestep, iter::AbstractSolver) = crit.Δt
+
 struct CombinedAdaptivityCriteria{
         Criteria <: Tuple{Vararg{AdaptivityCriterion}}
     } <: AdaptivityCriterion
@@ -138,3 +160,8 @@ function estimate_timestep(crit::CombinedAdaptivityCriteria, iter::AbstractSolve
     @debug lazy"Estimated timesteps: $dts"
     min(dts...)  # choose the smallest estimated timestep
 end
+
+# If only the AdaptBasedOnVelocity criterion is passed to `init`, then combine it with a
+# MaximumTimestep criterion. Otherwise, the dt can indefinitely increase when velocities are small.
+possibly_add_max_timestep(crit::AdaptBasedOnVelocity, dt) = crit | MaximumTimestep(dt)
+possibly_add_max_timestep(crit::AdaptivityCriterion, dt) = crit

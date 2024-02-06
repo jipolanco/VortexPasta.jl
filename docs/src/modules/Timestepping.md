@@ -96,6 +96,7 @@ AdaptivityCriterion
 NoAdaptivity
 AdaptBasedOnSegmentLength
 AdaptBasedOnVelocity
+MaximumTimestep
 ```
 
 ## Internals

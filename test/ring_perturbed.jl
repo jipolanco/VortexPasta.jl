@@ -30,7 +30,7 @@ using LinearAlgebra: ⋅
         Γ, a, Δ,
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
-        backend_long = FINUFFTBackend(),
+        backend_long = FINUFFTBackend(tol = 1e-6),
         quadrature = GaussLegendre(2),
     )
 
@@ -46,6 +46,7 @@ using LinearAlgebra: ⋅
 
     times::Vector{Float64} = Float64[]
     energy_time::Vector{Float64} = Float64[]
+    helicity_time::Vector{Float64} = Float64[]
 
     function callback(iter)
         (; nstep, t,) = iter.time
@@ -53,12 +54,12 @@ using LinearAlgebra: ⋅
             empty!(times)
             empty!(energy_time)
         end
-        E = Diagnostics.kinetic_energy_from_streamfunction(
-            iter; quad = GaussLegendre(2),
-        )
+        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2))
+        H = Diagnostics.helicity(iter; quad = GaussLegendre(2))
         # @show nstep, t, E
         push!(times, t)
         push!(energy_time, E)
+        push!(helicity_time, H)
         if @isdefined(Makie)
             fobs[] = iter.fs[1]  # update filament positions
             yield()
@@ -83,8 +84,30 @@ using LinearAlgebra: ⋅
 
     tspan = (0.0, 15 * R^2 / Γ)
     prob = @inferred VortexFilamentProblem([f], tspan, params_bs)
-    iter = init(prob, SanduMRI33a(RK4(), 4); dt = 0.02, callback)
+
+    # When we only use the AdaptBasedOnVelocity criterion, then `init` will complete it with
+    # a `MaximumTimestep` criterion. We check this below.
+    adaptivity_in = AdaptBasedOnVelocity(100.0)  # huge value of δ to make sure it doesn't actually limit the timestep
+    dt = 0.02
+    iter = @inferred init(prob, SanduMRI33a(RK4(), 4); dt, adaptivity = adaptivity_in, callback)
+
+    let adaptivity = iter.adaptivity
+        @test adaptivity isa Timestepping.CombinedAdaptivityCriteria
+        (; criteria,) = adaptivity
+        criteria :: Tuple{Vararg{Timestepping.AdaptivityCriterion}}  # `criteria` is a tuple of criteria
+        @test length(criteria) == 2
+        @test criteria[1] === adaptivity_in
+        @test criteria[2] === MaximumTimestep(dt)
+    end
+
     @time solve!(iter)
+
+    @test iter.dt == dt  # dt was kept to the initial value (because AdaptBasedOnVelocity criterion gives larger dt)
+
+    # Helicity should be zero at all times.
+    Hnorm = helicity_time ./ Γ^2
+    # @show extrema(Hnorm)
+    @test maximum(abs, Hnorm) < 2e-5
 
     Emean = mean(energy_time)
     Estd = std(energy_time)
