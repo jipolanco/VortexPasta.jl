@@ -1,26 +1,32 @@
 export Strang
 
 """
-    Strang([fast = Midpoint()], [slow = Midpoint()]) <: SplittingScheme
+    Strang([fast = Midpoint()], [slow = Midpoint()]; nsubsteps::Int = 1) <: SplittingScheme
 
 2nd order Strang splitting scheme.
 
-Uses one scheme for advancing the "fast" terms, and possibly a different scheme for the
-"slow" terms. By default both schemes are taken to be the 2nd order [`Midpoint`](@ref)
-method.
+Uses one scheme for advancing the "fast" terms (assumed to be cheap to compute as well), and
+possibly a different scheme for the "slow" (and expensive) terms. By default both schemes
+are taken to be the 2nd order [`Midpoint`](@ref) method.
+
+By default, according to Strang splitting, the fast term is advanced with a timestep of
+`dt/2` (twice in a full timestep). One can pass `nsubsteps` to use even smaller timesteps
+for the fast term.
 
 See [`SplittingScheme`](@ref) for more details.
 """
 struct Strang{FastScheme <: TemporalScheme, SlowScheme <: TemporalScheme} <: SplittingScheme
     fast :: FastScheme
     slow :: SlowScheme
+    nsubsteps :: Int
 end
 
-Strang(fast::TemporalScheme) = Strang(fast, Midpoint())
-Strang() = Strang(Midpoint())
+Strang(fast::TemporalScheme, slow::TemporalScheme; nsubsteps::Int = 1) = Strang(fast, slow, nsubsteps)
+Strang(fast::TemporalScheme; kwargs...) = Strang(fast, Midpoint(); kwargs...)
+Strang(; kwargs...) = Strang(Midpoint(); kwargs...)
 
 function Base.show(io::IO, scheme::Strang)
-    print(io, nameof(typeof(scheme)), '(', scheme.fast, ", ", scheme.slow, ')')
+    print(io, nameof(typeof(scheme)), '(', scheme.fast, ", ", scheme.slow, "; nsubsteps = ", scheme.nsubsteps, ')')
 end
 
 nbuf_filaments(scheme::Strang) = 1 + max(nbuf_filaments(scheme.fast), nbuf_filaments(scheme.slow))
@@ -60,36 +66,48 @@ function _update_velocities!(
     # could be avoided...
 
     # 1. Advance fast dynamics: t -> t + dt/2
-    let component = Val(:fast), cache = cache_fast, t = t, dt = dt/2
+    let component = Val(:fast), cache = cache_fast, τ = t, c = 1/2
         local rhs! = gen_rhs(component)
-        rhs!(vtmp, ftmp, t, iter)
-        update_velocities!(
-            rhs!, advect!, cache, iter;
-            resize_cache = false, t, dt, fs = ftmp, vs = vtmp,
-        )
-        advect!(ftmp, vtmp, dt; fbase = ftmp)
+        local (; nsubsteps,) = scheme
+        dτ = c * dt / nsubsteps  # timestep in each substep
+        for _ ∈ 1:nsubsteps
+            rhs!(vtmp, ftmp, τ, iter)
+            update_velocities!(
+                rhs!, advect!, cache, iter;
+                resize_cache = false, t = τ, dt = dτ, fs = ftmp, vs = vtmp,
+            )
+            advect!(ftmp, vtmp, dτ; fbase = ftmp)
+            τ += dτ
+        end
+        @assert τ ≈ t + c * dt
     end
 
     # 2. Advance slow dynamics: t -> t + dt
-    let component = Val(:slow), cache = cache_slow, t = t, dt = dt
+    let component = Val(:slow), cache = cache_slow, τ = t, dτ = dt
         local rhs! = gen_rhs(component)
-        rhs!(vtmp, ftmp, t, iter)
+        rhs!(vtmp, ftmp, τ, iter)
         update_velocities!(
             rhs!, advect!, cache, iter;
-            resize_cache = false, t, dt, fs = ftmp, vs = vtmp,
+            resize_cache = false, t = τ, dt = dτ, fs = ftmp, vs = vtmp,
         )
-        advect!(ftmp, vtmp, dt; fbase = ftmp)
+        advect!(ftmp, vtmp, dτ; fbase = ftmp)
     end
 
     # 3. Advance fast dynamics: t + dt/2 -> t + dt
-    let component = Val(:fast), cache = cache_fast, t = t + dt/2, dt = dt/2
+    let component = Val(:fast), cache = cache_fast, τ = t + dt/2, c = 1/2
         local rhs! = gen_rhs(component)
-        rhs!(vtmp, ftmp, t, iter)
-        update_velocities!(
-            rhs!, advect!, cache, iter;
-            resize_cache = false, t, dt, fs = ftmp, vs = vtmp,
-        )
-        advect!(ftmp, vtmp, dt; fbase = ftmp)
+        local (; nsubsteps,) = scheme
+        dτ = c * dt / nsubsteps  # timestep in each substep
+        for _ ∈ 1:nsubsteps
+            rhs!(vtmp, ftmp, τ, iter)
+            update_velocities!(
+                rhs!, advect!, cache, iter;
+                resize_cache = false, t = τ, dt = dτ, fs = ftmp, vs = vtmp,
+            )
+            advect!(ftmp, vtmp, dτ; fbase = ftmp)
+            τ += dτ
+        end
+        @assert τ ≈ t + dt
     end
 
     # Now ftmp is at the final position. We compute the effective velocity to go from fs to
