@@ -1,13 +1,13 @@
 export Strang
 
 """
-    Strang([fast = Midpoint()], [slow = Midpoint()]; nsubsteps::Int = 1) <: SplittingScheme
+    Strang([fast = RK4()], [slow = Midpoint()]; nsubsteps::Int = 1) <: SplittingScheme
 
 2nd order Strang splitting scheme.
 
 Uses one scheme for advancing the "fast" terms (assumed to be cheap to compute as well), and
-possibly a different scheme for the "slow" (and expensive) terms. By default both schemes
-are taken to be the 2nd order [`Midpoint`](@ref) method.
+possibly a different scheme for the "slow" (and expensive) terms. By default these schemes
+are respectively taken to be [`RK4`](@ref) and the 2nd order [`Midpoint`](@ref) method.
 
 By default, according to Strang splitting, the fast term is advanced with a timestep of
 `dt/2` (twice in a full timestep). One can pass `nsubsteps` to use even smaller timesteps
@@ -23,7 +23,7 @@ end
 
 Strang(fast::TemporalScheme, slow::TemporalScheme; nsubsteps::Int = 1) = Strang(fast, slow, nsubsteps)
 Strang(fast::TemporalScheme; kwargs...) = Strang(fast, Midpoint(); kwargs...)
-Strang(; kwargs...) = Strang(Midpoint(); kwargs...)
+Strang(; kwargs...) = Strang(RK4(); kwargs...)
 
 function Base.show(io::IO, scheme::Strang)
     print(io, nameof(typeof(scheme)), '(', scheme.fast, ", ", scheme.slow, "; nsubsteps = ", scheme.nsubsteps, ')')
