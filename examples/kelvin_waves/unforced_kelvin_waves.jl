@@ -123,7 +123,7 @@ function generate_biot_savart_parameters()
     Γ = 9.97e-4
     a = 1e-8
     Δ = 1/4
-    Ngrid = floor(Int, 32 * 4/5)
+    Ngrid = floor(Int, 32 * 2/3)
     Ns = (Ngrid, Ngrid, Ngrid)
     kmax = (Ngrid ÷ 2) * 2π / L
     Ls = (L, L, L)
@@ -134,7 +134,7 @@ function generate_biot_savart_parameters()
         # backend_short = CellListsBackend(2),
         backend_short = NaiveShortRangeBackend(),  # needed when rcut > L/2 (which is the case here, since Ngrid is small)
         # backend_long = NonuniformFFTsBackend(; σ = 2.0, m = HalfSupport(4)),
-        backend_long = NonuniformFFTsBackend(),
+        backend_long = NonuniformFFTsBackend(; σ = 1.5, m = HalfSupport(4)),
         # backend_long = FINUFFTBackend(),
         quadrature = GaussLegendre(2),
     )
@@ -148,6 +148,7 @@ function run_unforced_lines(
         ks_init = (1,),
         method = FourierMethod(),
         scheme = RK4(),
+        dt_factor = 1.0,
     ) where {T}
     params = generate_biot_savart_parameters()
     L = params.Ls[3]  # = Lz
@@ -170,7 +171,7 @@ function run_unforced_lines(
     # Simulation timestep
     T_kw = BiotSavart.kelvin_wave_period(params, L)  # period of largest KWs
     dt_kw = BiotSavart.kelvin_wave_period(params, L/N)  # period of smallest resolved KWs
-    dt = dt_kw / 2
+    dt = dt_kw * dt_factor
 
     # Callback function to be called after each timestep
     times = T[]
@@ -208,7 +209,7 @@ function run_unforced_lines(
                 push!(ws_time, s⃗.x + im * s⃗.y)
             end
         end
-        if nstep % 10 == 0
+        if nstep % 100 == 0
             @show nstep, t/Tend, E, L_growth
             # write_vtkhdf("vtk/kws_$nstep.vtkhdf", iter.fs) do vtk
             #     vtk["velocity"] = iter.vs
@@ -241,6 +242,7 @@ function run_unforced_lines(
 
     # Return all results
     results = (;
+        iter,
         N, times, params, energy, line_length,
         ks_pos, ws_time,
     )
@@ -250,29 +252,26 @@ end
 
 ##
 
-tmax = let params = generate_biot_savart_parameters(), kinit = 10
-    T_kw = BiotSavart.kelvin_wave_period(params, 2π)
-    t_k = BiotSavart.kelvin_wave_period(params, 2π / kinit)
-    40 * t_k / T_kw
-end
+ks_init = (1, 2)
+tmax = 1.0  # simulation time in units of the slowest kelvin wave period (λ = 2π)
 
 results = run_unforced_lines(;
-    N = 64, tmax, A = 2π / 1000,
-    ks_init = (4, 5, 6),
-    # ks_init = (10,),
+    N = 64, tmax, A = 2π / 200,
+    ks_init,
     method = FourierMethod(),
+    scheme = Strang(RK4(); nsubsteps = 4),
+    dt_factor = 1.0,
 );
 
-##
-
-# Plot spatiotemporal spectrum of filament fluctuations
+## Plot spatiotemporal spectrum of filament fluctuations (dispersion relation)
 
 using GLMakie
 using FFTW: fft!, fft, bfft, fftfreq, fftshift
 
-(; times, N,) = results
+(; times, N, ws_time,) = results
 inds = eachindex(times)[end÷4:end]  # drop the initial 1/4 of the simulation
-ws = reshape(results.ws_time, N, :)[:, inds]
+ws = reshape(ws_time, N, :)[:, inds]
+ts = times[inds]
 Nt = length(times[inds])
 Nt_out = size(ws, 2)
 step_out = ceil(Int, Nt / Nt_out)
@@ -292,8 +291,15 @@ ks_shift = fftshift(ks)
 ks_pos = ks[2:(end ÷ 2)]
 ωs_kw = 2π ./ BiotSavart.kelvin_wave_period.(Ref(results.params), 2π ./ ks_pos)
 
+set_theme!(
+    Axis = (
+        xlabelsize = 20, ylabelsize = 20,
+        xticklabelsize = 16, yticklabelsize = 16,
+    ),
+)
+
 fig = Figure()
-ax = Axis(fig[1, 1]; xlabel = "k", ylabel = "ω")
+ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
 hm = heatmap!(
     ax, ks_shift, ωs_shift, amplitudes;
     colorrange = (-34, -12),
@@ -303,27 +309,42 @@ Colorbar(fig[1, 2], hm)
 DataInspector(fig)
 fig
 
-##
+## Plot spectra over time
 
-# Plot average spatial spectrum of filament fluctuations
+nk_avg = zeros(length(ks_pos))  # average spectrum
+nk = similar(nk_avg)
+ts_lims = (ts[begin], ts[end])
+cmap = Makie.to_colormap(:roma)
+m = length(ts) ÷ 20  # plot ~20 times
+is = eachindex(ts)[1:m:end]
 
-nk = zeros(length(ks_pos))
-# ws_t = bfft(ws_h, 2)
-ws_t = fft(ws, 1) ./ N
-let n = 0
-    for j ∈ axes(ws_t, 2)
-        for i ∈ eachindex(nk)
-            nk[i] += abs2(ws_t[begin + i, j]) + abs2(ws_t[end - i + 1, j])
-        end
-        n += 1
+fig = Figure(size = (1200, 500))
+ax_normal = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"n(k)")
+ax_compen = Axis(fig[1, 2]; xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"k^{11/3} \, n(k)")
+for i ∈ is
+    local wi = @. ws[:, i]
+    local ŵi = fft(wi) ./ N
+    for i ∈ eachindex(nk)
+        nk[i] = abs2(ŵi[begin + i]) + abs2(ŵi[end - i + 1])
     end
-    nk ./= n
+    nk_avg .+= nk
+    t = ts[i]
+    color = Makie.interpolated_getindex(cmap, t, ts_lims)
+    label = string(round(t; digits = 2))
+    scatterlines!(ax_normal, ks_pos, nk; color, label)
+    let ys = @. ks_pos^(11/3) * nk
+        scatterlines!(ax_compen, ks_pos, ys; color, label)
+    end
 end
-
-fig = Figure()
-ax = Axis(fig[1, 1]; xscale = log10, yscale = log10)
-scatterlines!(ax, ks_pos, nk)
-let ks = 10.0.^(range(log10(5), log10(20); length = 3))
-    lines!(ax, ks, 1e-20 * ks.^(-11/3); color = :grey, linestyle = :dash)
+nk_avg ./= length(is)
+let kws = (color = :orangered, linewidth = 3, label = "Mean")
+    lines!(ax_normal, ks_pos, nk_avg; kws...)
+    let ys = @. ks_pos^(11/3) * nk_avg
+        scatterlines!(ax_compen, ks_pos, ys; kws...)
+    end
 end
+let ks = 10.0.^(range(log10(last(ks_init) * 2), log10(30); length = 3))
+    lines!(ax_normal, ks, 1e-13 * ks.^(-11/3); color = :grey, linestyle = :dash)
+end
+cb = Colorbar(fig[1, end + 1]; colormap = cmap, colorrange = ts_lims, label = "Time")
 fig
