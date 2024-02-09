@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Reduce default precision of NUFFT backends (`FINUFFTBackend`, `NonuniformFFTsBackend`).
+  The relative tolerance is reduced from `1e-8` to `1e-6`, which is still
+  largely enough in applications (especially since this tolerance doesn't
+  account for the Gaussian smoothing proper of Ewald summation, which further lowers the error).
+
+- Strang splitting: change default scheme used for the "fast" dynamics to `RK4` (used to be `Midpoint`).
+
 ## 0.16.0 - 2024-02-06
 
 ### Added
