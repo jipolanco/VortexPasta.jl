@@ -7,7 +7,7 @@ using StructArrays: StructArrays, StructVector, StructArray
 using StaticArrays: SVector
 using LinearAlgebra: ×
 
-const FINUFFT_DEFAULT_TOLERANCE = 1e-8
+const FINUFFT_DEFAULT_TOLERANCE = 1e-6
 const FINUFFT_DEFAULT_UPSAMPFAC = 1.25  # 1.25 or 2.0
 
 """

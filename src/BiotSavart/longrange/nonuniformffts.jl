@@ -18,20 +18,22 @@ Computations are parallelised by default using threads.
 
 The signature of `NonuniformFFTsBackend` is:
 
-    NonuniformFFTsBackend(; σ = 1.25, m = HalfSupport(8), kws...)
+    NonuniformFFTsBackend(; σ = 1.5, m = HalfSupport(4), kws...)
 
 where all arguments are passed to NonuniformFFTs.jl.
 
 Some relevant options are:
 
-- `σ = 1.25`: upsampling factor, which must be larger than 1. Usual values are 1.25 (smaller
-  FFTs, less accurate) and 2.0 (larger FFTs, more accurate). Other values such as 1.5 should
-  also work;
+- `σ = 1.5`: upsampling factor, which must be larger than 1. Usual values are between 1.25
+  (smaller FFTs, less accurate) and 2.0 (larger FFTs, more accurate). Other values such as 1.5
+  (default) also work;
 
-- `m = HalfSupport(8)`: the half-width of the NUFFT kernels. Larger means higher accuracy;
+- `m = HalfSupport(4)`: the half-width of the NUFFT kernels. Larger means higher accuracy;
 
 - `fftw_flags = FFTW.MEASURE`: flags passed to the FFTW planner.
 
+The default parameters (`σ = 1.5`, `m = HalfSupport(4)`) correspond to a relative NUFFT
+tolerance of ``∼10^{-6}``.
 """
 struct NonuniformFFTsBackend{
         HS <: HalfSupport, KwArgs <: NamedTuple,
@@ -39,8 +41,8 @@ struct NonuniformFFTsBackend{
     m :: HS
     kws :: KwArgs
     function NonuniformFFTsBackend(;
-            σ = 1.25,
-            m = HalfSupport(8),
+            σ = 1.5,
+            m = HalfSupport(4),
             fftw_flags = FFTW.MEASURE,
             other...,
         )
