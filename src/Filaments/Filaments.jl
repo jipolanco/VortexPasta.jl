@@ -288,6 +288,9 @@ function Base.showarg(io::IO, f::AbstractFilament, toplevel)
 end
 
 include("discretisations.jl")
+include("interpolation/interpolation.jl")
+include("interpolation/hermite.jl")
+
 include("closed_filament.jl")
 include("segments.jl")
 include("integrate.jl")
@@ -296,8 +299,7 @@ include("refinement.jl")
 include("split_merge.jl")
 include("from_vector_field.jl")
 
-include("interpolation/interpolation.jl")
-include("interpolation/hermite.jl")
+include("interpolation/hermite_filament.jl")  # must be after ClosedFilament definition
 
 include("finitediff/finitediff.jl")
 include("finitediff/closed_filament.jl")
