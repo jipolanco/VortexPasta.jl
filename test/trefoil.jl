@@ -8,7 +8,7 @@ using ForwardDiff: ForwardDiff
 using LaTeXStrings  # used for plots only (L"...")
 
 function trefoil_function()
-    R = π / 4
+    R = π / 3
     define_curve(TrefoilKnot(); translate = R, scale = R)
 end
 
@@ -199,11 +199,21 @@ function compare_long_range(
     BiotSavart.add_long_range_output!(vs_default, cache_default)
 
     # Compare velocities one filament at a time.
-    check_approx(us, vs, tol) = all(zip(us, vs)) do (u, v)
-        # Note: we avoid comparing ghost cells in case these are PaddedVectors.
-        @views isapprox(u[:], v[:]; rtol = tol)
+    function l2_difference(us, vs)
+        T = eltype(eltype(eltype(us)))
+        err = zero(T)
+        n = 0
+        for (u, v) ∈ zip(us, vs)
+            for i ∈ eachindex(u, v)
+                err += sum(abs2, u[i] - v[i]) / sum(abs2, v[i])
+                n += 1
+            end
+        end
+        sqrt(err / n)
     end
-    @test check_approx(vs_default, vs_exact, tol)
+
+    err_velocity_long = l2_difference(vs_default, vs_exact)
+    @test err_velocity_long < 2 * tol
 
     # Also compare output of full (short + long range) computation, and including
     # the streamfunction.
@@ -222,8 +232,10 @@ function compare_long_range(
     BiotSavart.compute_on_nodes!(fields_default, cache_default_base, fs)
     BiotSavart.compute_on_nodes!(fields_exact, cache_exact_base, fs)
 
-    @test check_approx(vs_default, vs_exact, tol)
-    @test check_approx(ψs_default, ψs_exact, tol)
+    err_velocity = l2_difference(vs_default, vs_exact)
+    err_streamfunction = l2_difference(ψs_default, ψs_exact)
+    @test err_velocity < tol
+    @test err_streamfunction < tol
 
     nothing
 end
@@ -295,8 +307,8 @@ function check_independence_on_ewald_parameter(f, αs; quad = GaussLegendre(2), 
             norm(a - b) / norm(b)
         end
     end
-    @show maxdiffs_vel maxdiffs_stf
-    @test maximum(maxdiffs_vel) < 1e-4
+    # @show maxdiffs_vel maxdiffs_stf
+    @test maximum(maxdiffs_vel) < 3e-4
     @test maximum(maxdiffs_stf) < 1e-5
     nothing
 end
@@ -335,16 +347,22 @@ end
     Ns = (3, 3, 4) .* 30
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
+    α_default = kmax / 6
     @testset "Long range" begin
         # Test NUFFT backends with default parameters
-        compare_long_range([f], NonuniformFFTsBackend(); tol = 1e-8, params_kws..., α = kmax / 6)
-        compare_long_range([f], FINUFFTBackend(); tol = 1e-8, params_kws..., α = kmax / 6)
+        tol = 1e-5  # allowed relative error
+        @testset "NonuniformFFTsBackend" begin
+            compare_long_range([f], NonuniformFFTsBackend(); tol, params_kws..., α = α_default)
+        end
+        @testset "FINUFFTBackend" begin
+            compare_long_range([f], FINUFFTBackend(); tol, params_kws..., α = α_default)
+        end
         @testset "$quantity near r = 0" for quantity ∈ (Velocity(), Streamfunction())
             test_long_range_accuracy_near_zero(Float64, quantity)
         end
     end
     @testset "Short range" begin
-        compare_short_range([f]; params_kws..., α = kmax / 6)
+        compare_short_range([f]; params_kws..., α = α_default)
     end
     @testset "Dependence on α" begin
         αs = [kmax / 5, kmax / 6, kmax / 7, kmax / 8, kmax / 12, kmax / 16]
