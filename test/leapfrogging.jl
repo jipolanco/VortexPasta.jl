@@ -65,6 +65,7 @@ function test_leapfrogging_rings(
         R_init,  # initial ring radii
         refinement,
         label = string(scheme),
+        verbose = false,
     )
     test_jet = true
     jet_modules = (VortexPasta, VortexPasta.ALL_MODULES...)
@@ -185,28 +186,33 @@ function test_leapfrogging_rings(
 
         impulse_normalised = sum_of_squared_radii ./ first(sum_of_squared_radii)
 
-        let
-            plt = lineplot(
-                times, energy_normalised;
-                xlabel = "Time", ylabel = "Energy",
-                title = "Leapfrogging rings / " * label,
-            )
-            println(plt)
-        end
-        let
-            plt = lineplot(times, line_length; xlabel = "Time", ylabel = "Length")
-            println(plt)
-        end
-        let
-            plt = lineplot(times, impulse_normalised; xlabel = "Time", ylabel = "Impulse")
-            println(plt)
+        if verbose
+            let
+                plt = lineplot(
+                    times, energy_normalised;
+                    xlabel = "Time", ylabel = "Energy",
+                    title = "Leapfrogging rings / " * label,
+                )
+                println(plt)
+            end
+            let
+                plt = lineplot(times, line_length; xlabel = "Time", ylabel = "Length")
+                println(plt)
+            end
+            let
+                plt = lineplot(times, impulse_normalised; xlabel = "Time", ylabel = "Impulse")
+                println(plt)
+            end
         end
 
         energy_mean = mean(energy_normalised)
         energy_std = std(energy_normalised)
-        @show energy_initial
-        @show extrema(energy_normalised)
-        @show energy_std (energy_mean - 1)
+
+        if verbose
+            @show energy_initial
+            @show extrema(energy_normalised)
+            @show energy_std (energy_mean - 1)
+        end
 
         @test energy_std < rtol_energy
         @test isapprox(energy_mean, 1; rtol = rtol_energy)
@@ -214,7 +220,9 @@ function test_leapfrogging_rings(
         impulse_mean = mean(impulse_normalised)
         impulse_std = std(impulse_normalised)
 
-        @show impulse_std (impulse_mean - 1)
+        if verbose
+            @show impulse_std (impulse_mean - 1)
+        end
         @test impulse_std < rtol_impulse
         @test isapprox(impulse_mean, 1; rtol = rtol_impulse)
     end
@@ -322,8 +330,10 @@ end
 
     ##
 
+    verbose = true
     @testset "Scheme: $scheme" for scheme ∈ schemes
-        test_leapfrogging_rings(prob, scheme; R_init, refinement)
+        test_leapfrogging_rings(prob, scheme; R_init, refinement, verbose)
+        verbose = false  # print stats and plots only in the first run
     end
 
     methods = (
