@@ -658,13 +658,13 @@ fig
 #     In our case we have ``\bm{s}' = [ϵ \cos(z), 0, 1]`` and ``\bm{s}'' = [-ϵ \sin(z), 0, 0]``,
 #     and thus
 #     ```math
-#     v_{\text{LIA}} = \frac{ϵ \sin(z)}{(1 + ϵ^2 \cos^2 z)^{3/2}}.
+#     v_{\text{LIA}} = \frac{C ϵ \sin(z)}{(1 + ϵ^2 \cos^2 z)^{3/2}}.
 #     ```
 #
 #     Using a Taylor expansion, one can easily show that the denominator introduces fluctuations
 #     over the odd harmonics ``q = 1 + 2n`` for ``n ∈ \{ 1, 2, 3, … \}``:
 #     ```math
-#     v_{\text{LIA}} = ϵ \sin(z) \left[1 - \frac{3}{2} ϵ^2 \cos^2 z + \mathcal{O}(ϵ^4) \right].
+#     v_{\text{LIA}} = C ϵ \sin(z) \left[1 - \frac{3}{2} ϵ^2 \cos^2 z + \mathcal{O}(ϵ^4) \right].
 #     ```
 #     Noting that ``\sin(z) \cos^2(z) = [\sin(z) + \sin(3z)] / 4``, one clearly sees that
 #     the term in ``ϵ^2`` excites modes at wavenumber ``q = 3``, i.e. the third harmonic
