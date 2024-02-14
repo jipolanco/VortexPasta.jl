@@ -323,7 +323,7 @@ T_kw = 2π / ω_kw              # expected Kelvin wave period
 # number of periods so that the results are not exactly time-periodic.
 
 using VortexPasta.Timestepping
-tspan = (0.0, 4 * T_kw)
+tspan = (0.0, 3.2 * T_kw)
 prob = VortexFilamentProblem(fs, tspan, params)
 
 # We now create a callback which will be used to store some data for further analysis.
@@ -685,7 +685,7 @@ fig
 # that original mode is exactly preserved over time (except for negligible high-order
 # effects).
 
-# ### Temporal analysis
+# ### [Temporal analysis](@id tutorial-kelvin-waves-temporal-analysis)
 #
 # We can do something similar to analyse the *temporal* oscillations of the filament.
 # For example, we can take the same temporal data we analysed before, corresponding to the
@@ -704,21 +704,54 @@ Nt = length(wt)           # number of time snapshots
 Δt = times[2] - times[1]  # timestep
 @assert times[begin:end-1] ≈ range(times[begin], times[end-1]; length = Nt)  # check that times are equispaced
 w_hat = fft(wt)
-@. w_hat .= w_hat ./ Nt  # normalise FFT
+@. w_hat = w_hat / Nt  # normalise FFT
 ωs = fftfreq(Nt, 2π / Δt)
 
 ωs_pos, nω = wave_action_spectrum(ωs, w_hat)
 ωs_normalised = ωs_pos ./ ω_kw  # normalise by expected KW frequency
 
 fig = Figure()
-ax = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"ω / ω_{\text{kw}}", ylabel = L"n(ω)", xlabelsize = 20, ylabelsize = 20)
-scatterlines!(ax, ωs_normalised, nω)
+ax = Axis(fig[1, 1], xscale = log10, yscale = log10, xlabel = L"ω / ω_{\text{kw}}", ylabel = L"n(ω)", xlabelsize = 20, ylabelsize = 20)
+scatterlines!(ax, ωs_normalised, nω; label = "Original signal")
 xlims!(ax, 0.8 * ωs_normalised[begin], 1.2 * ωs_normalised[end])
-ylims!(ax, 1e-10, 1e-2)
 vlines!(ax, 1.0; linestyle = :dash, color = :orangered)
 fig
 
-# We see that the temporal spectrum is strongly peaked at the analytical Kelvin wave
+# We see that the temporal spectrum is strongly peaked near the analytical Kelvin wave
 # frequency (dashed vertical line).
-# Note that the trajectory is not perfectly periodic in time (the ending time doesn't
-# exactly match the start time), which can explain non-zero values far from the peak.
+# However, since the trajectory is not perfectly periodic in time (the signal is
+# discontinuous when going from the final time to the initial time), other frequencies are
+# also present in the spectrum (this is known as [spectral
+# leakage](https://mathworld.wolfram.com/Leakage.html)).
+#
+# To reduce the effect of spectral leakage, the usual solution is to apply a window function
+# to the original signal to make it periodic.
+# There are [many examples of window
+# functions](https://en.wikipedia.org/wiki/Window_function#Examples_of_window_functions)
+# which are commonly used in signal processing.
+#
+# Here we use the [DSP.jl](https://github.com/JuliaDSP/DSP.jl) package which includes many
+# [definitions of window functions](https://docs.juliadsp.org/stable/windows/).
+# Note that we first need to subtract the mean value from our input signal before
+# multiplying it by the window function.
+# Below we compare the previous temporal spectrum with the one obtained after applying
+# the [Hann window](https://en.wikipedia.org/wiki/Hann_function):
+
+using DSP: DSP
+
+wt_mean = mean(wt)
+window = DSP.Windows.hanning(Nt)
+wt_windowed = @. (wt - wt_mean) * window
+w_hat = fft(wt_windowed)
+@. w_hat = w_hat / Nt  # normalise FFT
+_, nω_windowed = wave_action_spectrum(ωs, w_hat)
+
+scatterlines!(ax, ωs_normalised, nω_windowed; label = "Windowed signal")
+Legend(fig[0, 1], ax; orientation = :horizontal, framevisible = false, colgap = 32, patchsize = (40, 10))
+rowgap!(fig[:, 1].layout, 6)  # reduce gap between plot and legend (default gap is 18)
+fig
+
+# The new spectrum is still peaked near the expected frequency, while artificial modes far
+# from this frequency are strongly damped compared to the original spectrum.
+# Note however that windowing tends to smoothen the spectrum around the analytical
+# Kelvin wave frequency.
