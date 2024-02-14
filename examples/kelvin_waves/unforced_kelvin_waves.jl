@@ -267,6 +267,7 @@ results = run_unforced_lines(;
 
 using GLMakie
 using FFTW: fft!, fft, bfft, fftfreq, fftshift
+using DSP: Windows
 
 (; times, N, ws_time,) = results
 inds = eachindex(times)[end÷4:end]  # drop the initial 1/4 of the simulation
@@ -281,6 +282,14 @@ ks = fftfreq(N, N)
 ws_h = copy(ws)
 ws_mean = sum(i -> ws[i, 1], 1:N) / N
 ws_h .-= ws_mean
+
+# Apply window function in the temporal axis to make the signal closed to being time-periodic.
+# See Kelvin wave tutorial for more details (in 1D).
+window = Windows.hanning(size(ws_h, 2))
+for i ∈ axes(ws_h, 1)
+    @. @views ws_h[i, :] *= window
+end
+
 fft!(ws_h)
 ws_h ./= length(ws_h)
 
@@ -291,7 +300,7 @@ ks_shift = fftshift(ks)
 ks_pos = ks[2:(end ÷ 2)]
 ωs_kw = 2π ./ BiotSavart.kelvin_wave_period.(Ref(results.params), 2π ./ ks_pos)
 
-set_theme!(
+Makie.set_theme!(
     Axis = (
         xlabelsize = 20, ylabelsize = 20,
         xticklabelsize = 16, yticklabelsize = 16,
@@ -302,7 +311,7 @@ fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
 hm = heatmap!(
     ax, ks_shift, ωs_shift, amplitudes;
-    colorrange = (-34, -12),
+    colorrange = (-30, -15),
 )
 lines!(ax, ks_pos, ωs_kw; color = (:white, 0.5), linestyle = :dash)
 Colorbar(fig[1, 2], hm)
