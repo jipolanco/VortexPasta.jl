@@ -117,7 +117,7 @@ function generate_straight_lines(::Type{T}, L, N, method; p::PeriodicLine = Peri
     collect(filaments_from_functions(funcs, ClosedFilament{T}, N, method))
 end
 
-function generate_biot_savart_parameters()
+function generate_biot_savart_parameters(::Type{T}) where {T}
     # Parameters are relevant for HeII if we interpret dimensions in cm and s.
     L = 2π
     Γ = 9.97e-4
@@ -129,7 +129,8 @@ function generate_biot_savart_parameters()
     Ls = (L, L, L)
     α = kmax / 5
     rcut = 5 / α
-    ParamsBiotSavart(;
+    ParamsBiotSavart(
+        T;
         Γ, α, a, Δ, rcut, Ls, Ns,
         # backend_short = CellListsBackend(2),
         backend_short = NaiveShortRangeBackend(),  # needed when rcut > L/2 (which is the case here, since Ngrid is small)
@@ -141,35 +142,35 @@ function generate_biot_savart_parameters()
 end
 
 function run_unforced_lines(
-        ::Type{T} = Float64;
+        params::ParamsBiotSavart;
         N = 128,
-        tmax = 0.5,  # maximum time in units of T_kw
+        tend = 10.0,  # final time
         A = 0.01,
-        ks_init = (1,),
+        ks_init::AbstractVector = [1],  # perturbed wavenumbers (absolute values only)
         method = FourierMethod(),
         scheme = RK4(),
         dt_factor = 1.0,
-    ) where {T}
-    params = generate_biot_savart_parameters()
+    )
+    all(>(0), ks_init) || throw(ArgumentError("ks_init can only contain positive values"))
+    T = eltype(params)  # numerical precision (e.g. Float64)
     L = params.Ls[3]  # = Lz
     println(params)
 
     # Generate perturbed lines
     rng = Random.Xoshiro(42)
-    filaments = let ks = SVector(T.(ks_init))
-        phases = 2 * rand(rng, typeof(ks))  # in [0, 2]
-        amplitudes = randn(rng, typeof(ks))
-        amplitudes = amplitudes * A^2 / sum(abs2, amplitudes)  # renormalise
-        @info "Perturbation parameters:"
-        @show ks phases amplitudes
+    ks_init_all = let kf = convert(Vector{T}, ks_init)  # initialised wavenumbers (in the z direction)
+        append!(kf, -kf)  # also initialise negative wavenumbers
+    end
+    filaments = let ks = ks_init_all
+        ws = randn(rng, Complex{T}, length(ks))  # random complex perturbation (includes random amplitudes + phases)
+        @. ws = ws * (A^2 / sum(abs2, ws))       # renormalise to get the wanted perturbation amplitude
         r_pert(t) = sum(eachindex(ks)) do i
-            amplitudes[i] * cospi(2 * ks[i] * t + phases[i])
+            ws[i] * cispi(2 * ks[i] * t)
         end
         generate_straight_lines(T, L, N, method; p = PeriodicLine(r = r_pert))
     end
 
     # Simulation timestep
-    T_kw = BiotSavart.kelvin_wave_period(params, L)  # period of largest KWs
     dt_kw = BiotSavart.kelvin_wave_period(params, L/N)  # period of smallest resolved KWs
     dt = dt_kw * dt_factor
 
@@ -219,9 +220,8 @@ function run_unforced_lines(
     end
 
     # Initialise solver
-    Tend = tmax * T_kw
-    @show T_kw, Tend, dt, Tend/dt
-    tspan = (0.0, Tend)
+    @show tend, dt, tend/dt
+    tspan = (0.0, tend)
     prob = VortexFilamentProblem(filaments, tspan, params)
 
     iter = init(
@@ -252,11 +252,25 @@ end
 
 ##
 
-ks_init = (1, 2)
-tmax = 1.0  # simulation time in units of the slowest kelvin wave period (λ = 2π)
+params = generate_biot_savart_parameters(Float64)
 
-results = run_unforced_lines(;
-    N = 64, tmax, A = 2π / 200,
+# This roughly corresponds to the initial perturbation used by Krstulovic (PRE 2012) in GP
+# simulations (runs II, III).
+# In the paper, the first two modes are forced. The perturbation amplitude is A = 4ξ (with
+# ξ the healing length), and ξ = Δx = L/N⟂ ≈ 0.025, where L = 2π, and N⟂ = 256 is the resolution in
+# the perpendicular directions. So, in terms of the wavelength λ_max of the largest initialised
+# KW, the amplitude is A = 4 * λ_max / 256.
+ks_init = [1, 2]
+Lz = params.Ls[3]
+λ_max = Lz / maximum(ks_init)
+A = 4 * λ_max / 256
+
+T_kw = BiotSavart.kelvin_wave_period(params, λ_max)  # period of slowest Kelvin waves
+tend = 1.0 * T_kw  # simulation time
+
+results = run_unforced_lines(
+    params;
+    N = 64, tend, A,
     ks_init,
     method = FourierMethod(),
     scheme = Strang(RK4(); nsubsteps = 4),
@@ -267,12 +281,12 @@ results = run_unforced_lines(;
 
 using GLMakie
 using FFTW: fft!, fft, bfft, fftfreq, fftshift
-using DSP: Windows
+using DSP: DSP
 
 (; times, N, ws_time,) = results
 inds = eachindex(times)[end÷4:end]  # drop the initial 1/4 of the simulation
 ws = reshape(ws_time, N, :)[:, inds]
-ts = times[inds]
+ts = times[inds] ./ T_kw  # normalised time
 Nt = length(times[inds])
 Nt_out = size(ws, 2)
 step_out = ceil(Int, Nt / Nt_out)
@@ -285,7 +299,7 @@ ws_h .-= ws_mean
 
 # Apply window function in the temporal axis to make the signal closed to being time-periodic.
 # See Kelvin wave tutorial for more details (in 1D).
-window = Windows.hanning(size(ws_h, 2))
+window = DSP.Windows.hanning(size(ws_h, 2))
 for i ∈ axes(ws_h, 1)
     @. @views ws_h[i, :] *= window
 end
@@ -355,5 +369,5 @@ end
 let ks = 10.0.^(range(log10(last(ks_init) * 2), log10(30); length = 3))
     lines!(ax_normal, ks, 1e-13 * ks.^(-11/3); color = :grey, linestyle = :dash)
 end
-cb = Colorbar(fig[1, end + 1]; colormap = cmap, colorrange = ts_lims, label = "Time")
+cb = Colorbar(fig[1, end + 1]; colormap = cmap, colorrange = ts_lims, label = L"Time $(t / T_{KW})$")
 fig
