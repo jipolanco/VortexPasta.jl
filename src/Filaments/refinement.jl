@@ -234,6 +234,11 @@ end
 
 RefineBasedOnCurvature(ρℓ_max; kws...) = RefineBasedOnCurvature(ρℓ_max, ρℓ_max / 2.5; kws...)
 
+function Base.show(io::IO, c::RefineBasedOnCurvature)
+    (; ρℓ_max, ρℓ_min, ℓ_max, ℓ_min,) = c
+    print(io, "RefineBasedOnCurvature($ρℓ_max, $ρℓ_min; ℓ_max = $ℓ_max, ℓ_min = $ℓ_min)")
+end
+
 function _refinement_action(crit::RefineBasedOnCurvature, f::AbstractFilament, i::Integer)
     (; ρℓ_min, ρℓ_max, ℓ_min, ℓ_max,) = crit
     ℓ = norm(f[i + 1] - f[i])
@@ -274,6 +279,11 @@ struct RefineBasedOnSegmentLength <: RefinementCriterion
         ℓ_min < ℓ_max || error(lazy"ℓ_min should be smaller than ℓ_max (got ℓ_max/ℓ_min = $ℓ_max/$ℓ_min)")
         new(ℓ_min, ℓ_max, RefinementCache())
     end
+end
+
+function Base.show(io::IO, c::RefineBasedOnSegmentLength)
+    (; ℓ_min, ℓ_max,) = c
+    print(io, "RefineBasedOnSegmentLength($ℓ_min, $ℓ_max)")
 end
 
 function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)

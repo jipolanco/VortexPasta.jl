@@ -147,6 +147,16 @@ struct CombinedAdaptivityCriteria{
     criteria :: Criteria
 end
 
+# Pretty-printing
+Base.show(io::IO, crit::CombinedAdaptivityCriteria) = _show_combined(io, crit.criteria...)
+
+function _show_combined(io, c::AdaptivityCriterion, next...)
+    print(io, c, " | ")
+    _show_combined(io, next...)
+end
+
+_show_combined(io, c::AdaptivityCriterion) = show(io, c)
+
 CombinedAdaptivityCriteria(args...) = CombinedAdaptivityCriteria(args)
 
 Base.:|(a::AdaptivityCriterion, b::AdaptivityCriterion) =
