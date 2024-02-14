@@ -37,14 +37,14 @@ Possible output fields to be passed as first argument are `Velocity()` and `Stre
 One must pass either the circulation `Γ` as a keyword argument, or a precomputed
 `prefactor` which is usually equal to `Γ / 4π` (both for velocity and streamfunction).
 
-## Mandatory arguments
+# Mandatory arguments
 
 - the vortex core size `a` as a keyword argument;
 
 - either the vortex circulation `Γ` as a keyword argument, or the precomputed
   prefactor `Γ / 4π` as a positional argument.
 
-## Optional arguments
+# Optional arguments
 
 - the optional parameter `Δ` sets the effect of the vorticity profile (see
   [`ParamsBiotSavart`](@ref) for details);
