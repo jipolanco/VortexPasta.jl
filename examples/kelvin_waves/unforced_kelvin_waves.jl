@@ -163,7 +163,8 @@ function run_unforced_lines(
     end
     filaments = let ks = ks_init_all
         ws = randn(rng, Complex{T}, length(ks))  # random complex perturbation (includes random amplitudes + phases)
-        @. ws = ws * (A^2 / sum(abs2, ws))       # renormalise to get the wanted perturbation amplitude
+        ws .*= A / sqrt(sum(abs2, ws))           # renormalise to get the wanted perturbation amplitude
+        @assert sum(abs2, ws) ≈ A^2
         r_pert(t) = sum(eachindex(ks)) do i
             ws[i] * cispi(2 * ks[i] * t)
         end
