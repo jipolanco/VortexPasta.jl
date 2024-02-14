@@ -21,6 +21,7 @@ using StaticArrays
 using SpecialFunctions
 using GLMakie
 using CairoMakie
+using DSP: DSP
 
 # These seem to be needed for GLMakie on Gitlab
 using JpegTurbo
