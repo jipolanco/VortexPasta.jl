@@ -139,10 +139,11 @@ function compare_long_range(
         backend_long = backend,
     )
     quad = params_exact.quad
+    T = eltype(params_exact)
 
     # This is just to check that Base.show is implemented for ParamsBiotSavart.
-    @test startswith(repr(params_exact), "ParamsBiotSavart with:\n")
-    @test startswith(repr(params_default), "ParamsBiotSavart with:\n")
+    @test startswith(repr(params_exact), "ParamsBiotSavart{$T} with:\n")
+    @test startswith(repr(params_default), "ParamsBiotSavart{$T} with:\n")
 
     cache_exact_base = @inferred(BiotSavart.init_cache(params_exact, fs))
     cache_default_base = @inferred(BiotSavart.init_cache(params_default, fs))
