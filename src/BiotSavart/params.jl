@@ -320,13 +320,13 @@ function Base.propertynames(p::ParamsBiotSavart, private::Bool = false)
     (fieldnames(typeof(p))..., propertynames(p.common, private)...)
 end
 
-function Base.show(io::IO, p::ParamsBiotSavart)
+function Base.show(io::IO, p::ParamsBiotSavart{T}) where {T}
     (; common, shortrange, longrange,) = p
     (; Γ, a, Δ, Ls, α, quad,) = common
     (; rcut,) = shortrange
     σ = 1 / (α * sqrt(2))
     rcut_L = rcut === Infinity() ? rcut : rcut / minimum(Ls)  # avoid Infinity() / Infinity()
-    print(io, "ParamsBiotSavart with:")
+    print(io, "ParamsBiotSavart{$T} with:")
     print(io, "\n - Physical parameters:")
     print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
     print(io, "\n   * Vortex core radius:         a  = ", a)
