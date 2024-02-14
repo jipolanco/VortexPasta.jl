@@ -317,7 +317,10 @@ k = 2π * m / L
 )
 T_kw = 2π / ω_kw              # expected Kelvin wave period
 
-# We create a [`VortexFilamentProblem`](@ref) to simulate a few Kelvin wave periods:
+# We create a [`VortexFilamentProblem`](@ref) to simulate a few Kelvin wave periods.
+# To make things more interesting later when doing the [temporal Fourier analysis](@ref
+# tutorial-kelvin-waves-temporal-analysis) of the results, we don't simulate an integer
+# number of periods so that the results are not exactly time-periodic.
 
 using VortexPasta.Timestepping
 tspan = (0.0, 4 * T_kw)
@@ -410,20 +413,69 @@ energy'
 
 # This limit is basically set by the short-range Biot--Savart interactions and in particular
 # the local term (see [Desingularisation](@ref VFM-desingularisation)), which presents fast
-# temporal variations while being cheap to compute.
-# For these reasons, it can make sense to use a multirate timestepping scheme. 
-# The idea is to use a small timestep to evaluate the fast (and relatively cheap) motions,
-# and a larger timestep to evaluate the slow (and expensive) terms.
-# In the following we use the [`SanduMRI33a`](@ref) scheme [Sandu2019](@cite), which is a
-# third-order 3-stage explicit Runge--Kutta scheme for the "slow" component.
-# For each "outer" RK stage, we perform ``M = 4`` inner iterations of the "fast" component
-# using the standard `RK4` scheme, which allows to greatly increase the timestep:
+# temporal variations.
+# On the upside, this term is cheap to compute, which means that we can take advantage of a
+# splitting scheme (such as [Strang splitting](https://en.wikipedia.org/wiki/Strang_splitting))
+# to accelerate computations.
+#
+# The idea is to write the time evolution of a vortex point due to the Biot--Savart law as:
+#
+# ```math
+# \frac{\mathrm{d}\bm{s}}{\mathrm{d}t} = \bm{v}(\bm{s})
+# = \bm{v}_{\text{local}}(\bm{s}) + \bm{v}_{\text{non-local}}(\bm{s})
+# ```
+#
+# where the local term ``\bm{v}_{\text{local}}(\bm{s})`` represents the fast dynamics (thus
+# requiring very small timesteps) while being cheap to compute, while the non-local term
+# ``\bm{v}_{\text{non-local}}(\bm{s})`` represents the slow dynamics and has a higher
+# computational cost.
+#
+# Using a splitting method can make sense when it is easier or more convenient to separately solve
+# the two equations:
+#
+# ```math
+# \begin{align*}
+# \frac{\mathrm{d}\bm{s}}{\mathrm{d}t} &= \bm{v}_{\text{local}}(\bm{s}) & \quad & \text{(fast)}
+# \\
+# \frac{\mathrm{d}\bm{s}}{\mathrm{d}t} &= \bm{v}_{\text{non-local}}(\bm{s}) & \quad & \text{(slow)}
+# \end{align*}
+# ```
+#
+# In some applications, this is the case because one of the terms is linear or because one of
+# the sub-equations can be solved analytically.
+# This is not the case here, but this splitting is still convenient because it allows us to
+# use different timesteps for each sub-equation.
+# In particular, we can use a smaller timestep for the local (fast) term, which is the one
+# that sets the timestep limit.
+#
+# One of the most popular (and classical) splitting methods is **Strang splitting**, which is
+# second order in time.
+# In this method, a single simulation timestep (``t → t + Δt``) is decomposed in 3 steps:
+#
+# 1. Advance solution ``\bm{s}(t) → \bm{s}_1`` in the interval ``t → t + \frac{Δt}{2}`` using equation ``\text{(fast)}``.
+# 2. Advance solution ``\bm{s}_1 → \bm{s}_2`` in the interval ``t → t + Δt`` using equation ``\text{(slow)}``.
+# 3. Advance solution ``\bm{s}_2 → \bm{s}(t + Δt)`` in the interval ``t + \frac{Δt}{2} → t + Δt`` using equation ``\text{(fast)}``.
+#
+# In the following we use the [`Strang`](@ref) splitting scheme, which allows to use
+# different explicit Runge--Kutta schemes for the "fast" and "slow" equations, and allows to
+# set a smaller timestep to solve the former.
+#
+# Concretely, we solve steps 1 and 3 using the standard RK4 scheme, while for step 2
+# the [`Midpoint`](@ref) scheme is used by default (but this can be changed, see [`Strang`](@ref)
+# docs for details).
+# Moreover, steps 1 and 3 are decomposed into ``M = 16`` substeps, meaning that they are
+# solved with a smaller timestep ``Δt_{\text{fast}} = (Δt/2) / M = Δt / 32``.
+# In practice, this means that we can multiply our "global" timestep ``Δt`` by 32
+# and retain the stability of the solver.
 
-scheme = SanduMRI33a(RK4(), 4)
-dt = 16 * dt_kw
+scheme = Strang(RK4(); nsubsteps = 16)
+dt = 32 * dt_kw
 
-# Note that we could tune the number ``M`` of inner iterations to allow even larger
-# timesteps, but this can lead to precision loss.
+# More generally, when using Strang splitting with the `RK4` scheme for the fast
+# dynamics, setting `nsubsteps = M` allows us to set the global timestep to
+# `dt = 2M * dt_kw`.
+# We could tune the number ``M`` of inner iterations to allow even larger timesteps, but
+# this might lead to precision loss.
 #
 # ### Running the simulation
 #
