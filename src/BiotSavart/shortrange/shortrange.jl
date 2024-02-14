@@ -119,14 +119,6 @@ function integrate_biot_savart(
     end
 end
 
-function indices_per_thread(inds::AbstractUnitRange, nthreads = Threads.threadpoolsize())
-    N = length(inds)
-    m = cld(N, nthreads)
-    part = Iterators.partition(inds, m)
-    @assert length(part) ≤ nthreads
-    part
-end
-
 """
     add_short_range_fields!(
         fields::NamedTuple{Names, NTuple{N, V}},

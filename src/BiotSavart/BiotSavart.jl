@@ -118,21 +118,23 @@ end
 
 # Returns a tuple (Streamfunction() => ψs, Velocity() => vs) if both fields are available.
 # Otherwise, it returns a subset of this which only includes the available fields.
-function _fields_to_pairs(fields::NamedTuple{Names}) where {Names}
+# If `i` is an integer, then `ψs` and `vs` only contain the data associated to a single filament `i`.
+Base.@propagate_inbounds function _fields_to_pairs(fields::NamedTuple{Names}, i = nothing) where {Names}
     N = length(fields)
     @assert N > 0
     vs = get(fields, :velocity, nothing)
     ψs = get(fields, :streamfunction, nothing)
     ps = (
-        _make_field_pair(Velocity(), vs)...,
-        _make_field_pair(Streamfunction(), ψs)...,
+        _make_field_pair(Velocity(), vs, i)...,
+        _make_field_pair(Streamfunction(), ψs, i)...,
     )
     length(ps) == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
     ps
 end
 
-_make_field_pair(key, ::Nothing) = ()
-_make_field_pair(key, vs) = (key => vs,)
+_make_field_pair(key, ::Nothing, ::Any) = ()
+_make_field_pair(key, vs::AbstractVector, ::Nothing) = (key => vs,)
+Base.@propagate_inbounds _make_field_pair(key, vs::AbstractVector, i::Integer) = (key => vs[i],)
 
 """
     compute_on_nodes!(
@@ -228,31 +230,57 @@ function compute_on_nodes!(
     fields
 end
 
+function indices_per_thread(inds::AbstractUnitRange, nthreads = Threads.threadpoolsize())
+    N = length(inds)
+    m = cld(N, nthreads)
+    part = Iterators.partition(inds, m)
+    @assert length(part) ≤ nthreads
+    part
+end
+
+# Case of a list of filaments
 function _compute_LIA_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::BiotSavartCache,
         fs::VectorOfFilaments;
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
     (; to,) = cache
+    (; Γ,) = cache.shortrange.params.common
+    T = typeof(Γ)
+    prefactor = Γ / T(4π)
+    @timeit to "LIA term (only)" begin
+        for (n, f) ∈ pairs(fs)
+            ps = @inbounds _fields_to_pairs(fields, n)
+            _compute_LIA_on_nodes!(ps, cache, f; prefactor)
+        end
+    end
+    fields
+end
+
+# Case of a single filament
+function _compute_LIA_on_nodes!(
+        ps::Tuple{Vararg{Pair{<:OutputField, V}}},
+        cache::BiotSavartCache,
+        f::AbstractFilament;
+        prefactor = nothing,
+    ) where {V <: VectorOfVec}
     (; params,) = cache.shortrange
     # Note: we must use the same quadrature as used when computing the globally induced terms
     (; quad, regularise_binormal, lia_segment_fraction,) = params
     (; Γ, a, Δ,) = params.common
-    ps = _fields_to_pairs(fields)  # e.g. (Velocity() => vs, Streamfunction() => ψs)
-    prefactor = Γ / (4π)
-    @timeit to "LIA term (only)" begin
-        @inbounds for (n, f) ∈ pairs(fs), i ∈ eachindex(f)
-            for (quantity, values) ∈ ps
-                # Here `quantity` is either Velocity() or Streamfunction()
-                values[n][i] = BiotSavart.local_self_induced(
-                    quantity, f, i, prefactor;
-                    a, Δ, quad, regularise_binormal,
-                    lia_segment_fraction,
-                )
-            end
+    T = typeof(Γ)
+    prefactor_ = prefactor === nothing ? (Γ / T(4π)) : prefactor
+    Threads.@threads :static for i ∈ eachindex(f)
+        for (quantity, values) ∈ ps
+            # Here `quantity` is either Velocity() or Streamfunction()
+            @inbounds values[i] = local_self_induced(
+                quantity, f, i, prefactor_;
+                a, Δ, quad, regularise_binormal,
+                lia_segment_fraction,
+            )
         end
     end
-    fields
+    ps
 end
 
 end
