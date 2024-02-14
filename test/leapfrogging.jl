@@ -145,12 +145,13 @@ function test_leapfrogging_rings(
         JET.@test_call target_modules=jet_modules step!(iter)
     end
 
-    @info "Solving with $scheme..." dt_initial = iter.time.dt prob.tspan
+    @info "Leapfrogging rings: solving with $scheme" dt_initial = iter.dt prob.tspan method refinement adaptivity
 
     # Run simulation
+    step!(iter)  # to avoid including compilation time in the next line
     @time solve!(iter)
 
-    println(iter.to)
+    verbose && println(iter.to)
 
     # Check that the callback is called at the initial time
     @test first(times) == first(prob.tspan)
@@ -220,12 +221,17 @@ function test_leapfrogging_rings(
         impulse_mean = mean(impulse_normalised)
         impulse_std = std(impulse_normalised)
 
+        @show energy_std / energy_mean
+        @show impulse_std / impulse_mean
+
         if verbose
             @show impulse_std (impulse_mean - 1)
         end
         @test impulse_std < rtol_impulse
         @test isapprox(impulse_mean, 1; rtol = rtol_impulse)
     end
+
+    println()
 
     nothing
 end
@@ -262,11 +268,13 @@ end
     R_init = π / 3
     fs_init = init_ring_filaments(R_init; method = QuinticSplineMethod())
     tmax = 5 * R_init^2 / Γ  # enough time for a couple of "jumps"
-    tspan = (0.0, tmax)
-    prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
+    tspan_long = (0.0, tmax)
+    tspan_short = (0.0, tmax / 20)   # variant for faster tests
+    prob_long = @inferred VortexFilamentProblem(fs_init, tspan_long, params_bs)
+    prob_short = VortexFilamentProblem(fs_init, tspan_short, params_bs)
 
     @testset "VortexFilamentSolver" begin
-        iter = init(prob, Midpoint(); dt = 0.01)
+        iter = init(prob_long, Midpoint(); dt = 0.01)
         @test iter isa VortexFilamentSolver
 
         # Check overloaded getproperty and propertynames for VortexFilamentSolver.
@@ -277,7 +285,7 @@ end
     # Test diagnostics with/out quadratures here
     @testset "Diagnostics" begin
         rtol = 2e-3
-        iter = init(prob, Midpoint(); dt = 0.01)
+        iter = init(prob_long, Midpoint(); dt = 0.01)
         @test isapprox(
             @inferred(Diagnostics.kinetic_energy_from_streamfunction(iter; quad = nothing)),
             @inferred(Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2)));
@@ -330,10 +338,8 @@ end
 
     ##
 
-    verbose = true
     @testset "Scheme: $scheme" for scheme ∈ schemes
-        test_leapfrogging_rings(prob, scheme; R_init, refinement, verbose)
-        verbose = false  # print stats and plots only in the first run
+        test_leapfrogging_rings(prob_short, scheme; R_init, refinement, verbose = false)
     end
 
     methods = (
@@ -344,19 +350,22 @@ end
     @testset "$method" for method ∈ methods
         local scheme = Strang(RK4(), Midpoint())
         local fs_init = @inferred init_ring_filaments(R_init; method)
-        local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
+        local prob = @inferred VortexFilamentProblem(fs_init, tspan_long, params_bs)
         test_leapfrogging_rings(prob, scheme; R_init, refinement, label = string(method))
     end
 
     @testset "No refinement" begin
         local scheme = Strang(RK4())
-        test_leapfrogging_rings(prob, scheme; R_init, refinement = NoRefinement(), label = "NoRefinement")
+        test_leapfrogging_rings(
+            prob_short, scheme;
+            R_init, refinement = NoRefinement(), label = "NoRefinement", verbose = false,
+        )
     end
 
     @testset "FourierMethod (with noise = 0)" begin
         local scheme = Strang(RK4())
         local fs_init = @inferred init_ring_filaments(R_init; method = FourierMethod(), noise = 0.0)
-        local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
+        local prob = @inferred VortexFilamentProblem(fs_init, tspan_long, params_bs)
         test_leapfrogging_rings(prob, scheme; R_init, refinement = NoRefinement(), label = "FourierMethod")
     end
 end
