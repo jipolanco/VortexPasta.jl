@@ -12,10 +12,6 @@ using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
 using UnicodePlots: lineplot, lineplot!
 
-
-# ================================================================================ #
-## Fourier space stuff
-
 function wave_action_spectrum(ks::AbstractVector, rhat::AbstractVector)
     @assert ks[2] == -ks[end]  # contains positive and negative wavenumbers
     @assert length(ks) == length(rhat)
@@ -38,36 +34,6 @@ function wave_action_spectrum(ks::AbstractVector, rhat::AbstractVector)
     end
     ks_pos, nk
 end
-
-function dissipate_fourier!(ws, ks; dt, α, ν,)
-    for i ∈ eachindex(ws, ks)
-        k = ks[i]
-        iszero(k) && continue  # avoid division by zero
-        k² = k * k
-        k⁴ = k² * k²
-        ws[i] = ws[i] * exp(-dt * (α / k² + ν * k⁴))
-    end
-    ws
-end
-
-function dissipate_and_analyse!(f::ClosedFilament, L; kwargs...)
-    Xs = nodes(f)
-    ws = @. getindex(Xs, 1) + im * getindex(Xs, 2)
-    fft!(ws)  # in-place FFT
-    N = length(Xs)
-    @. ws = ws / N  # normalise FFT
-    ks = fftfreq(N, 2π * N / L)  # wavenumbers associated to FFT
-    dissipate_fourier!(ws, ks; kwargs...)
-    ks_pos, nk = wave_action_spectrum(ks, ws)
-    # Apply backwards FFT and modify `f` the filament with the results.
-    bfft!(ws)
-    for i ∈ eachindex(f, ws)
-        f[i] = (real(ws[i]), imag(ws[i]), f[i].z)
-    end
-    (; ks_pos, nk,)
-end
-
-# ================================================================================ #
 
 function redistribute_along_z!(f::AbstractFilament; rtol = 1e-12, nmax = 10)
     N = length(f)
@@ -119,24 +85,26 @@ end
 
 function generate_biot_savart_parameters(::Type{T}) where {T}
     # Parameters are relevant for HeII if we interpret dimensions in cm and s.
-    L = 2π
-    Γ = 9.97e-4
-    a = 1e-8
+    cm = 1.0    # one cm = 1 length unit
+    sec = 1.0   # one second = 1 time unit
+    L = 2π      # period in length units
+    Γ = 9.97e-4 * cm^2/sec
+    a = 1e-8 * cm
     Δ = 1/4
     Ngrid = floor(Int, 32 * 2/3)
     Ns = (Ngrid, Ngrid, Ngrid)
     kmax = (Ngrid ÷ 2) * 2π / L
     Ls = (L, L, L)
-    α = kmax / 5
+    α = kmax / 6
     rcut = 5 / α
     ParamsBiotSavart(
         T;
         Γ, α, a, Δ, rcut, Ls, Ns,
         # backend_short = CellListsBackend(2),
         backend_short = NaiveShortRangeBackend(),  # needed when rcut > L/2 (which is the case here, since Ngrid is small)
-        # backend_long = NonuniformFFTsBackend(; σ = 2.0, m = HalfSupport(4)),
-        backend_long = NonuniformFFTsBackend(; σ = 1.5, m = HalfSupport(4)),
-        # backend_long = FINUFFTBackend(),
+        backend_long = NonuniformFFTsBackend(; σ = 1.5, m = HalfSupport(8)),
+        # backend_long = FINUFFTBackend(tol = 1e-8),
+        # backend_long = ExactSumBackend(),
         quadrature = GaussLegendre(2),
     )
 end
@@ -274,7 +242,7 @@ results = run_unforced_lines(
     N = 64, tend, A,
     ks_init,
     method = FourierMethod(),
-    scheme = Strang(RK4(); nsubsteps = 4),
+    scheme = Strang(RK4(); nsubsteps = 2),
     dt_factor = 1.0,
 );
 
@@ -285,7 +253,7 @@ using FFTW: fft!, fft, bfft, fftfreq, fftshift
 using DSP: DSP
 
 (; times, N, ws_time,) = results
-inds = eachindex(times)[end÷4:end]  # drop the initial 1/4 of the simulation
+inds = eachindex(times)[2end÷4:end]  # drop the initial half of the simulation
 ws = reshape(ws_time, N, :)[:, inds]
 ts = times[inds] ./ T_kw  # normalised time
 Nt = length(times[inds])
@@ -326,26 +294,29 @@ fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
 hm = heatmap!(
     ax, ks_shift, ωs_shift, amplitudes;
-    colorrange = (-30, -15),
+    colorrange = (-35, -10),
 )
-lines!(ax, ks_pos, ωs_kw; color = (:white, 0.5), linestyle = :dash)
+lines!(ax, ks_pos, ωs_kw; color = (:white, 0.9), linestyle = :dash)
 Colorbar(fig[1, 2], hm)
 DataInspector(fig)
 fig
 
 ## Plot spectra over time
 
+m = length(times) ÷ 20  # plot ~20 times
+ts = times ./ T_kw  # normalised time
+inds = eachindex(ts)[m:m:end]
+ts_lims = (ts[begin], ts[end])
+ws = reshape(ws_time, N, :)
+
 nk_avg = zeros(length(ks_pos))  # average spectrum
 nk = similar(nk_avg)
-ts_lims = (ts[begin], ts[end])
 cmap = Makie.to_colormap(:roma)
-m = length(ts) ÷ 20  # plot ~20 times
-is = eachindex(ts)[1:m:end]
 
 fig = Figure(size = (1200, 500))
 ax_normal = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"n(k)")
 ax_compen = Axis(fig[1, 2]; xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"k^{11/3} \, n(k)")
-for i ∈ is
+for i ∈ inds
     local wi = @. ws[:, i]
     local ŵi = fft(wi) ./ N
     for i ∈ eachindex(nk)
@@ -360,7 +331,7 @@ for i ∈ is
         scatterlines!(ax_compen, ks_pos, ys; color, label)
     end
 end
-nk_avg ./= length(is)
+nk_avg ./= length(inds)
 let kws = (color = :orangered, linewidth = 3, label = "Mean")
     lines!(ax_normal, ks_pos, nk_avg; kws...)
     let ys = @. ks_pos^(11/3) * nk_avg
@@ -371,4 +342,5 @@ let ks = 10.0.^(range(log10(last(ks_init) * 2), log10(30); length = 3))
     lines!(ax_normal, ks, 1e-13 * ks.^(-11/3); color = :grey, linestyle = :dash)
 end
 cb = Colorbar(fig[1, end + 1]; colormap = cmap, colorrange = ts_lims, label = L"Time $(t / T_{KW})$")
+DataInspector(fig)
 fig
