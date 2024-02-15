@@ -52,18 +52,19 @@ struct NullLongRangeCache <: LongRangeCache end
 backend(c::LongRangeCache) = backend(c.common.params)
 
 """
-    init_cache_long(pc::ParamsCommon, p::ParamsLongRange, to::TimerOutput) -> LongRangeCache
+    init_cache_long(p::ParamsLongRange, pointdata::PointData, [to::TimerOutput]) -> LongRangeCache
 
 Initialise the cache for the long-range backend defined in `p`.
 
 Note that, if `pc.α === Zero()`, then long-range computations are disabled and
 this returns a [`NullLongRangeCache`](@ref).
 """
-function init_cache_long(pc::ParamsCommon, args...)
+function init_cache_long(p::ParamsLongRange, pointdata::PointData, to = TimerOutput())
+    pc = p.common
     if pc.α === Zero()
         NullLongRangeCache()  # disables Ewald method / long-range computations
     else
-        init_cache_long_ewald(pc, args...)
+        init_cache_long_ewald(pc, p, pointdata, to)
     end
 end
 
