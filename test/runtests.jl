@@ -7,11 +7,13 @@ macro includetest(path::String)
     modname = Symbol("Mod_" * replace(path, '.' => '_'))
     escname = esc(modname)
     ex = quote
-        @info "Running $($path)"
         module $escname
+            elapsedtime = time_ns()
             $escname.include($path)
+            elapsedtime = (time_ns() - elapsedtime) / 1e9
+            printstyled(" * Completed $(rpad($path, 20))"; bold = true, color = :light_green)
+            printstyled(" $elapsedtime s\n"; color = :light_green)
         end
-        using .$modname
     end
     ex.head = :toplevel
     ex
