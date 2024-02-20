@@ -343,6 +343,8 @@ function test_long_range_accuracy_near_zero(::Type{T}, quantity) where {T}
 end
 
 @testset "Trefoil" begin
+    # Note: for testing purposes it's important to discretise the vortex with a *small*
+    # number of discretisation points.
     f = @inferred init_trefoil_filament(30)
     Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
     Ns = (3, 3, 4) .* 30

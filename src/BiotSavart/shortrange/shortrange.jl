@@ -84,11 +84,11 @@ end
         quantity::OutputField,      # Velocity() or Streamfunction()
         component::EwaldComponent,  # ShortRange() or LongRange()
         params::ParamsShortRange,
-        x⃗::Vec3,                    # point where quantity is computed
-        s⃗::Vec3,                    # curve location s⃗(t)
-        qs⃗′::Vec3{<:Real};          # curve derivative s⃗′(t) (optionally multiplied by a quadrature weight)
+        x⃗::V,    # point where quantity is computed
+        s⃗::V,    # curve location s⃗(t)
+        qs⃗′::V;  # curve derivative s⃗′(t) (optionally multiplied by a quadrature weight)
         Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
-    )
+    ) where {V <: Vec3{<:Real}}
     (; common, rcut_sq,) = params
     (; Ls, α,) = common
     r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
@@ -98,7 +98,7 @@ end
         return zero(r⃗)
     end
     @assert typeof(r⃗) === typeof(qs⃗′)  # should be true for type stability reasons...
-    modified_bs_integrand(quantity, component, qs⃗′, r⃗, r², α)
+    modified_bs_integrand(quantity, component, qs⃗′, r⃗, r², α) :: V
 end
 
 # Compute Biot-Savart integral over a single filament segment.
@@ -116,7 +116,7 @@ function integrate_biot_savart(
         s⃗ = seg(ζ)
         s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
         biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs)
-    end
+    end :: typeof(x⃗)
 end
 
 """
@@ -169,26 +169,38 @@ function add_short_range_fields!(
         Threads.@spawn for i ∈ inds
             x⃗ = Xs[i]
 
-            # Start with the "singular" region (i.e. the segments which include x⃗: `sa` and `sb`).
-            # We first subtract the effect of the long-range estimation, and then replace it with the LIA term.
-            # Removing the long-range integral is needed to have a total velocity which does not
-            # depend on the (unphysical) Ewald parameter α.
-            # Note that the integral with the long-range kernel is *not* singular (since it's a
-            # smoothing kernel), so there's no problem with evaluating this integral.
-            # Note: we use a prefactor of 1 (instead of Γ/4π), since we intend to add the prefactor later.
-            # We also subtract short-range contributions, since we compute them further below
-            # and we're not supposed to include them in the computations.
-            # So, in the end, we use FullIntegrand to add both contributions.
+            # Determine segments `sa` and `sb` in contact with the singular point x⃗.
+            # Then:
+            #
+            # 1. We subtract the long-range contributions of these segments to the velocity
+            #    and streamfunction.
+            #
+            # 2. We compute the local (LIA) term associated to these segments.
+            #    If `lia_segment_fraction !== nothing`, we actually compute the local term
+            #    over a fraction of these segments. Moreover, the rest of the segments
+            #    (`nonlia_lims`) are taken into account by regular integration using
+            #    quadratures.
+            #
+            # Step 1 is required because the local term already includes the full (short-range
+            # + long-range) contribution of these segments. Moreover, long-range
+            # computations also add the long-range contribution to the
+            # velocity/streamfunction. Since we don't want to include this contribution
+            # twice, we subtract it here. Note that without this correction, results will
+            # depend on the (unphysical) Ewald parameter α. Finally, note that the integral
+            # with the long-range kernel is *not* singular (since it's a smoothing kernel),
+            # so there's no problem with evaluating this integral close to x⃗.
+
             sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
             sb = Segment(f, i)  # segment i
 
             vecs_i = map(ps) do (quantity, _)
-                u⃗ = -(
-                    + integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs)
-                    + integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs)
+                @inline
+                u⃗ = (
+                    - integrate_biot_savart(quantity, LongRange(), sa, x⃗, params; Lhs)
+                    - integrate_biot_savart(quantity, LongRange(), sb, x⃗, params; Lhs)
                 )
                 if lia_segment_fraction !== nothing
-                    # In this case we need to include the integral over a fraction of the local segments.
+                    # In this case we need to include the full BS integral over a fraction of the local segments.
                     u⃗ = u⃗ + (
                         + integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, limits = nonlia_lims[1])
                         + integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, limits = nonlia_lims[2])
@@ -204,15 +216,18 @@ function add_short_range_fields!(
                 quantity => u⃗
             end
 
-            # Then integrate short-range effect of nearby charges.
-            # Note that this includes the contributions of the two segments within the singular
-            # region which we're not supposed to include (we subtracted the same contributions
-            # above, so it cancels out).
+            # Then include the short-range (but non-local) effect of all nearby charges
+            # (which are located on the quadrature points of all nearby segments,
+            # excluding the local segments `sa` and `sb`).
             for charge ∈ nearby_charges(cache, x⃗)
-                s⃗, q⃗ = charge
+                s⃗, q⃗, seg = charge
+                is_local_segment = seg === sa || seg === sb
                 qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
                 vecs_i = map(vecs_i) do (quantity, u⃗)
-                    u⃗ = u⃗ + biot_savart_contribution(quantity, ShortRange(), params, x⃗, s⃗, qs⃗′; Lhs)
+                    @inline
+                    if !is_local_segment
+                        u⃗ = u⃗ + biot_savart_contribution(quantity, ShortRange(), params, x⃗, s⃗, qs⃗′; Lhs)
+                    end
                     quantity => u⃗
                 end
             end

@@ -35,6 +35,9 @@ _eachindex(f::ClosedFilament, ::SegmentIterator) = eachindex(f)
 @inline Base.firstindex(s::SegmentIterator) = first(eachindex(s))
 @inline Base.lastindex(s::SegmentIterator) = last(eachindex(s))
 
+# This is used by pairs(s::SegmentIterator).
+@inline Base.keys(s::SegmentIterator) = eachindex(s)
+
 @inline function Base.iterate(it::SegmentIterator, i = firstindex(it))
     if i ≤ lastindex(it)
         @inbounds(it[i]), i + 1
