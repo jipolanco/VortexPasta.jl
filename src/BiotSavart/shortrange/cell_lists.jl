@@ -37,7 +37,7 @@ end
 
 function init_cache_short(
         pc::ParamsCommon, params::ParamsShortRange{T, <:CellListsBackend},
-        ::PointData{T}, to::TimerOutput,
+        pdata::PointData{T}, to::TimerOutput,
     ) where {T}
     (; backend, rcut,) = params
     (; Ls,) = pc
@@ -48,20 +48,24 @@ function init_cache_short(
         L / floor(L / rcut)
     end
     @assert all(≥(rcut), rs_cut)
-    Charge = Pair{Vec3{T}, Vec3{T}}       # a charge is a pair s⃗ => qs⃗′
-    to_coordinate(charge) = charge.first  # retrieves the coordinate s⃗ associated to a charge
+    Seg = eltype(pdata.segments)
+    @assert Seg <: Segment
+    Charge = Tuple{Vec3{T}, Vec3{T}, Seg}  # a "charge" is a tuple (s⃗, qs⃗′, segment)
+    @assert isconcretetype(Charge)
+    to_coordinate(charge) = first(charge)  # retrieves the coordinate s⃗ associated to a charge
     cl = PeriodicCellList(Charge, rs_cut, Ls, nsubdiv; to_coordinate)
     CellListsCache(params, cl, to)
 end
 
 function process_point_charges!(c::CellListsCache, data::PointData)
     (; cl,) = c
-    (; points, charges,) = data
+    (; points, charges, segments,) = data
     empty!(cl)
-    @inbounds for i ∈ eachindex(points, charges)
+    @inbounds for i ∈ eachindex(points, charges, segments)
         s⃗ = points[i]
         qs⃗′ = real(charges[i])  # note: `charges` may contain complex numbers (but purely real) because it's needed by some NUFFT backends
-        charge = s⃗ => qs⃗′
+        seg = segments[i]
+        charge = (s⃗, qs⃗′, seg)
         CellLists.add_element!(cl, charge)
     end
     nothing

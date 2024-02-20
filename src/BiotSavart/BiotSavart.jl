@@ -24,7 +24,7 @@ using ..Quadratures:
     Quadratures, quadrature, NoQuadrature, GaussLegendre, AbstractQuadrature
 
 using ..Filaments:
-    Filaments, AbstractFilament, ClosedFilament, CurvatureBinormal,
+    Filaments, AbstractFilament, ClosedFilament, Segment, CurvatureBinormal,
     knots, nodes, segments, integrate
 
 using Static: StaticBool, False, dynamic
