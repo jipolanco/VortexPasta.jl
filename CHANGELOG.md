@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Change some internals in the computation of the short-range Biot–Savart
-  component to avoid potential precision issues (just in case; not sure this
+  component to avoid potential precision issues (just in case; not sure these
   issues were really significant).
 
 ## 0.17.0 - 2024-02-14
