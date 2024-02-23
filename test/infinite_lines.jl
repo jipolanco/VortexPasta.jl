@@ -58,6 +58,15 @@ function test_infinite_line_io(fs, vs)
     nothing
 end
 
+# Compute an extended energy spectrum with a chosen number of Fourier modes.
+function extended_energy_spectrum(cache_bs::BiotSavart.BiotSavartCache, fs, Ns::Dims{3})
+    cache_in = cache_bs.longrange
+    cache = similar(cache_in, Ns)
+    BiotSavart.add_point_charges!(cache, fs)
+    BiotSavart.compute_vorticity_fourier!(cache)
+    Diagnostics.energy_spectrum(cache)  # computes energy spectrum from vorticity in Fourier space
+end
+
 function test_infinite_lines(method)
     lines = let
         A = 0.08
@@ -138,7 +147,8 @@ function test_infinite_lines(method)
     )
     cache = @inferred BiotSavart.init_cache(params, filaments)
     vs = map(f -> similar(nodes(f)), filaments)
-    velocity_on_nodes!(vs, cache, filaments)
+    ψs = map(f -> similar(nodes(f)), filaments)
+    compute_on_nodes!((velocity = vs, streamfunction = ψs), cache, filaments)
 
     @testset "Velocities" begin
         vnorms = norm.(first(vs))
@@ -152,23 +162,42 @@ function test_infinite_lines(method)
         end
     end
 
+    E = Diagnostics.kinetic_energy(ψs, filaments, params.Γ, params.Ls)
+
     @testset "Energy spectrum" begin
         ks, Ek = Diagnostics.energy_spectrum(cache)
+        Ns_ext = @. (Ns ÷ 2) * 3  # compute spectrum with 1.5× resolution
+        ks_ext, Ek_ext = extended_energy_spectrum(cache, filaments, Ns_ext)
         @views plt = lineplot(
             ks[2:end], Ek[2:end];
             xscale = log10, yscale = log10,
             title = "Infinite lines", xlabel = "k", ylabel = "E(k)",
-            name = "Spectrum",
+            name = "Spectrum", xlim = (0.8, max(Ns_ext...) * 0.6),
         )
+        @views lineplot!(plt, ks_ext[2:end], Ek_ext[2:end]; name = "Spectrum (extended)")
         @views let ks = ks[4:end]
             lineplot!(plt, ks, 0.08 ./ ks; name = "~ k^{-1}")
         end
         @views let inds = (lastindex(ks) ÷ 4):(lastindex(ks) - 1)
             C, α = estimate_power_law_exponent(ks[inds], Ek[inds])
             @test isapprox(α, -1; rtol = 1e-2)  # approximately k^{-1}
-            lineplot!(plt, ks[inds], @.(C * ks[inds]^α); name = "Fit")
+            lineplot!(plt, ks[inds], @.(0.5 * C * ks[inds]^α); name = "Fit (shifted)")
         end
         println(plt)
+
+        # The extended spectrum should contain more energy than the original one, but less
+        # energy than the total energy of the system (since in both cases we're discarding
+        # energy at very small scales).
+        E_spec = sum(Ek)
+        E_spec_ext = sum(Ek_ext)
+
+        # @show E E_spec_ext E_spec E_spec_ext/E E_spec/E
+        @test E_spec < E_spec_ext < E
+
+        # Check that we're in the right order of magnitude (actual limits will depend on
+        # parameters...).
+        @test 0.2 < E_spec/E < 0.3
+        @test 0.2 < E_spec_ext/E < 0.3
     end
 
     @testset "FilamentIO" begin

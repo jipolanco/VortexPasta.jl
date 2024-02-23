@@ -17,6 +17,7 @@ struct LongRangeCacheCommon{
     wavenumbers :: WaveNumbers
     pointdata   :: PointCharges        # non-uniform data in physical space
     uhat        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
+    ewald_prefactor :: T               # prefactor Γ/V (also included in ewald_op)
     ewald_op    :: Array{T, 3}         # Ewald operator in Fourier space ([Nx, Ny, Nz])
     state       :: LongRangeCacheState
     to          :: Timer
@@ -34,9 +35,10 @@ function LongRangeCacheCommon(
     @assert α !== Zero()
     Nks = map(length, wavenumbers)
     uhat = StructArray{Vec3{Complex{T}}}(undef, Nks)
-    ewald_op = init_ewald_fourier_operator(T, wavenumbers, Γ, α, Ls)
+    ewald_prefactor = Γ / prod(Ls)
+    ewald_op = init_ewald_fourier_operator(T, wavenumbers, α, ewald_prefactor)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, wavenumbers, pointdata, uhat, ewald_op, state, timer)
+    LongRangeCacheCommon(params, wavenumbers, pointdata, uhat, ewald_prefactor, ewald_op, state, timer)
 end
 
 """
@@ -49,7 +51,7 @@ This is the case when the Ewald splitting parameter ``α`` is set to `Zero()`.
 """
 struct NullLongRangeCache <: LongRangeCache end
 
-backend(c::LongRangeCache) = backend(c.common.params)
+backend(::NullLongRangeCache) = NullLongRangeBackend()
 
 """
     init_cache_long(p::ParamsLongRange, pointdata::PointData, [to::TimerOutput]) -> LongRangeCache
@@ -69,6 +71,30 @@ function init_cache_long(p::ParamsLongRange, pointdata::PointData, to = TimerOut
 end
 
 """
+    Base.similar(cache::LongRangeCache, Ns::Dims{3}) -> LongRangeCache
+
+Create a [`LongRangeCache`](@ref) similar to an existent one, but possibly holding a
+different amount of wavenumbers in Fourier space.
+
+In principle, the grid resolution `Ns` can be different from the original one
+(`cache.common.params.Ns`).
+This can be useful for computing high-resolution fields in Fourier space (e.g. for extending
+the data to higher wavenumbers than allowed by the original cache).
+
+For convenience, point data already in `cache.common.pointdata` is copied to the new cache.
+This means that, if one already filled the original cache using
+[`add_point_charges!`](@ref), then one can directly call [`transform_to_fourier!`](@ref)
+with the new cache to get the vorticity field in Fourier space at the wanted resolution `Ns`.
+"""
+function Base.similar(cache::LongRangeCache, Ns::Dims{3})
+    params_old = cache.common.params :: ParamsLongRange
+    (; backend, quad, common,) = params_old
+    params_new = ParamsLongRange(backend, quad, common, Ns)
+    pointdata = copy(cache.common.pointdata)
+    BiotSavart.init_cache_long(params_new, pointdata)
+end
+
+"""
     transform_to_fourier!(cache::LongRangeCache)
 
 Transform stored non-uniform data to Fourier space.
@@ -79,14 +105,34 @@ Non-uniform data must be first added via [`add_point_charges!`](@ref).
 """
 function transform_to_fourier! end
 
-"""
+@doc raw"""
     to_smoothed_streamfunction!(cache::LongRangeCache)
 
 Convert Fourier-transformed vorticity field to coarse-grained streamfunction field in
 Fourier space.
 
-This function should also scale the magnitude of the velocity field according
-to the chosen vortex circulation `Γ` and to the cell unit dimensions `Ls`.
+This operation can be simply written as:
+
+```math
+\hat{\bm{ψ}}_{α}(\bm{k}) = ϕ_α(|\bm{k}|) \, \hat{\bm{ω}}(\bm{k})
+```
+
+where
+
+```math
+ϕ_α(k) = \frac{Γ}{V} \, \frac{e^{-k^2 / 4α^2}}{k^2}
+```
+
+is the Ewald operator. The effect of this operator is to:
+
+1. invert the Laplacian in ``-∇² \bm{ψ} = \bm{\omega}``;
+2. smoothen the fields according to the Ewald parameter ``α`` (an inverse length scale);
+3. rescale values by the vortex circulation ``Γ`` and the volume ``V`` of a periodic cell
+   so that the streamfunction has the right units (``L^2 T^{-1}``).
+
+This function should be called after [`compute_vorticity_fourier!`](@ref).
+If one only needs the velocity and not the streamfunction, one can also directly call
+[`to_smoothed_velocity!`](@ref).
 """
 function to_smoothed_streamfunction!(c::LongRangeCache)
     (; uhat, state, ewald_op,) = c.common
@@ -103,17 +149,25 @@ function to_smoothed_streamfunction!(c::LongRangeCache)
     uhat
 end
 
-"""
+@doc raw"""
     to_smoothed_velocity!(cache::LongRangeCache)
 
 Convert Fourier-transformed vorticity field to coarse-grained velocity field in
 Fourier space.
 
-This function should also scale the magnitude of the velocity field according
-to the chosen vortex circulation `Γ` and to the cell unit dimensions `Ls`.
+If called right after [`compute_vorticity_fourier!`](@ref), this function performs the
+operation:
 
-This function should generally be called after [`compute_vorticity_fourier!`](@ref).
-Optionally, one can use [`to_smoothed_streamfunction!`](@ref) *before* computing the velocity.
+```math
+\hat{\bm{v}}_{α}(\bm{k}) = i \bm{k} × ϕ_α(|\bm{k}|) \, \, \hat{\bm{ω}}(\bm{k}),
+```
+
+where ``ϕ_α`` is the Ewald operator defined in [`to_smoothed_streamfunction!`](@ref).
+
+Optionally, if one is also interested in the streamfunction, one can call
+[`to_smoothed_streamfunction!`](@ref) *before* this function.
+In that case, the cache already contains the smoothed streamfunction, and only the curl
+operator (``i \bm{k} ×``) is applied by this function.
 """
 function to_smoothed_velocity!(c::LongRangeCache)
     (; uhat, state, ewald_op, wavenumbers,) = c.common
@@ -149,9 +203,8 @@ Results are written to `cache.pointdata.charges`.
 function interpolate_to_physical! end
 
 function init_ewald_fourier_operator!(
-        u::AbstractArray{T, 3} where {T}, ks, Γ::Real, α::Real, Ls::NTuple{3},
+        u::AbstractArray{T, 3} where {T}, ks, α::Real, prefactor::Real,
     )
-    prefactor = Γ / prod(Ls)
     β = -1 / (4 * α^2)
     for I ∈ CartesianIndices(u)
         k⃗ = map(getindex, ks, Tuple(I))
@@ -234,8 +287,13 @@ non_uniform_type(::Type{T}, ::LongRangeBackend) where {T <: AbstractFloat} = T
 Estimate vorticity in Fourier space.
 
 The vorticity, written to `cache.common.uhat`, is estimated using some variant of
-non-uniform Fourier transforms (depending on the chosen backend). Note that this function
-doesn't perform smoothing over the vorticity.
+non-uniform Fourier transforms (depending on the chosen backend).
+
+Note that this function doesn't perform smoothing over the vorticity using the Ewald operator.
+Moreover, the resulting vorticity doesn't have the right dimensions, as it must be
+multiplied by ``Γ/V`` (where ``Γ`` is the circulation and ``V`` is the volume of a periodic
+cell) to have dimensions ``T^{-1}``. In fact, this factor is included in the Ewald operator
+(see [`to_smoothed_streamfunction!`](@ref) for details).
 
 Must be called after [`add_point_charges!`](@ref).
 

@@ -30,6 +30,10 @@ The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 """
 abstract type LongRangeBackend end
 
+# This is a dummy backend associated to a NullLongRangeCache (meaning that long-range
+# computations are disabled).
+struct NullLongRangeBackend <: LongRangeBackend end
+
 """
     expected_period(::LongRangeBackend) -> Union{Nothing, Real}
 
@@ -82,3 +86,10 @@ The following functions must be implemented by a cache:
 
 """
 abstract type LongRangeCache end
+
+backend(c::LongRangeCache) = backend(c.common.params)
+
+function add_point_charges!(c::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
+    (; quad,) = c.common.params
+    add_point_charges!(c.common.pointdata, fs, quad)
+end

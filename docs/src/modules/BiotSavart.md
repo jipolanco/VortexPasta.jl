@@ -81,6 +81,7 @@ to_smoothed_streamfunction!
 to_smoothed_velocity!
 interpolate_to_physical!
 transform_to_fourier!
+similar(::LongRangeCache, ::Dims{3})
 ```
 
 ## Other internal types
