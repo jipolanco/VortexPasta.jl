@@ -1,5 +1,5 @@
 """
-    SplittingScheme
+    SplittingScheme <: TemporalScheme
 
 Abstract type defining a splitting scheme (such as Strang splitting).
 

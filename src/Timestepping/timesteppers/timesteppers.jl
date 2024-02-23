@@ -1,5 +1,10 @@
 using StaticArrays: SVector, SMatrix  # may be used for RK tableaus
 
+"""
+    TemporalScheme
+
+Abstract type representing a timestepping scheme.
+"""
 abstract type TemporalScheme end
 
 # By default, schemes allow changing the timestep.

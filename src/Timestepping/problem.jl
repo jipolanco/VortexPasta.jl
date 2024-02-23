@@ -1,5 +1,4 @@
 """
-    VortexFilamentProblem
     VortexFilamentProblem(fs::AbstractVector{<:AbstractFilament}, tspan::NTuple{2}, p::ParamsBiotSavart)
 
 Define a vortex filament problem.

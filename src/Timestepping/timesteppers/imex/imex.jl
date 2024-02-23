@@ -1,5 +1,5 @@
 """
-    ImplicitExplicitScheme
+    ImplicitExplicitScheme <: TemporalScheme
 
 Abstract type defining an implicit-explicit (a.k.a. IMEX) temporal scheme.
 

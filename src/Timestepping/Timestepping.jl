@@ -233,6 +233,12 @@ Initialise vortex filament problem.
 Returns a [`VortexFilamentSolver`](@ref) which can be advanced in time using
 either [`step!`](@ref) or [`solve!`](@ref).
 
+# Mandatory positional arguments
+
+- `prob`: a [`VortexFilamentProblem`](@ref) containing the problem definition.
+
+- `scheme`: a timestepping scheme (see [`TemporalScheme`](@ref)).
+
 # Mandatory keyword arguments
 
 - `dt::Real`: the simulation timestep.

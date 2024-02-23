@@ -8,26 +8,64 @@ CurrentModule = VortexPasta.Timestepping
 Timestepping
 ```
 
-## Types
+## Setting-up a simulation
+
+The usual way of setting-up a simulation is to first create
+a [`VortexFilamentProblem`](@ref) and then to call [`init`](@ref) to initialise
+a [`VortexFilamentSolver`](@ref):
+
+```julia
+using VortexPasta.Filaments
+using VortexPasta.BiotSavart
+using VortexPasta.Timestepping
+
+fs = [Filaments.init(...) for n ∈ 1:10]          # initialise a set of filaments
+params = ParamsBiotSavart(...)                   # set Biot-Savart parameters
+tspan = (tmin, tmax)                             # set start and end time of simulation
+prob = VortexFilamentProblem(fs, tspan, params)  # create problem
+iter = init(prob, RK4(); dt = 0.01, ...)         # initialise VortexFilamentSolver
+```
+
+---
 
 ```@docs
 VortexFilamentProblem
+init
 VortexFilamentSolver
-TimeInfo
 ```
 
-## Exported functions
+## Running a simulation
+
+There are basically two ways of running a simulation:
+
+1. either by calling [`solve!(iter)`](@ref), which will run the full simulation
+   up to the final time `tmax`;
+
+2. or by repeatedly calling [`step!(iter)`](@ref) (for example inside a `for` loop)
+   to advance the simulation one timestep at a time.
+
+
+The second option can seem to be more convenient as it allows to do things like
+running analyses or saving snapshots at intermediate stages of the simulation.
+However, those things are also easy to do with the first option, by passing
+a `callback` to the [`init`](@ref) function.
+See [this section](@ref tutorial-vortex-ring-simulation-state) of the vortex
+ring tutorial for examples.
+
 
 ```@docs
-init
 solve!
 step!
 ```
 
 ## Temporal schemes
 
-The following timesteppers are exported.
+The following timesteppers are available.
 When possible, names are the same as those used by [DifferentialEquations.jl solvers](https://docs.sciml.ai/DiffEqDocs/stable/solvers/ode_solve/).
+
+```@docs
+TemporalScheme
+```
 
 ### Explicit Runge–Kutta schemes
 
@@ -96,7 +134,10 @@ LocalTerm
 ShortRangeTerm
 ```
 
-## Adaptivity
+## [Adaptivity criteria](@id Adaptivity)
+
+A detailed below, a few temporal adaptivity criteria are available which can be
+used as the `adaptivity` argument of [`init`](@ref).
 
 ```@docs
 AdaptivityCriterion
@@ -110,6 +151,7 @@ MaximumTimestep
 
 ```@docs
 TemporalSchemeCache
+TimeInfo
 ```
 
 ## Index

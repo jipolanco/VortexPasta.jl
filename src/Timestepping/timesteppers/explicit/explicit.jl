@@ -1,5 +1,5 @@
 """
-    ExplicitScheme
+    ExplicitScheme <: TemporalScheme
 
 Abstract type defining an explicit temporal scheme.
 """

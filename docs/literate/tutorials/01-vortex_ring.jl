@@ -492,9 +492,9 @@ displacement[1]  # prints displacement of the first (and only) filament
 # As we can see, the filament nodes have basically only moved in the ``z`` direction by
 # almost exactly ``L / 2``.
 #
-# ### Accessing the instantaneous simulation state
+# ### [Accessing the instantaneous simulation state](@id tutorial-vortex-ring-simulation-state)
 #
-# Above we have simply run a simulation from start to finish, without caring of what
+# Above we have simply run a simulation from start to finish, without caring about what
 # happened in-between.
 # In reality, one usually wants to be able to do things with the intermediate states, for
 # instance, to track the evolution of the total vortex length, the energy, or simply to
