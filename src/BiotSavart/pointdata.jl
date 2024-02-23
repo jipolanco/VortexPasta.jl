@@ -29,6 +29,11 @@ function PointData(::Type{T}, ::Type{S}, ::Type{F}) where {T, S, F <: AbstractFi
     PointData(points, charges, segments)
 end
 
+function Base.copy(data::PointData)
+    (; points, charges, segments,) = data
+    PointData(copy(points), copy(charges), copy(segments))
+end
+
 """
     set_num_points!(data::PointData, N::Integer)
 
@@ -54,6 +59,7 @@ end
 
 """
     add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, quad::AbstractQuadrature)
+    add_point_charges!(cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
 
 Add vector charges at multiple non-uniform locations.
 

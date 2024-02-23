@@ -40,12 +40,5 @@ function Diagnostics.helicity(iter::VortexFilamentSolver; kws...)
     Diagnostics.helicity(iter.fs, iter.vs, Γ; kws...)
 end
 
-function Diagnostics.energy_spectrum(iter::VortexFilamentSolver; kws...)
-    Diagnostics.energy_spectrum(iter.cache_bs; kws...)
-end
-
-function Diagnostics.energy_spectrum!(
-        Ek::AbstractVector, ks::AbstractVector, iter::VortexFilamentSolver; kws...,
-    )
-    Diagnostics.energy_spectrum!(Ek, ks, iter.cache_bs; kws...)
-end
+# This allows passing a VortexFilamentSolver to energy_spectrum / energy_spectrum!.
+Diagnostics.get_long_range_cache(iter::VortexFilamentSolver) = iter.cache_bs.longrange

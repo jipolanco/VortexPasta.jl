@@ -12,7 +12,7 @@ using ..Filaments:
     AbstractFilament, Derivative, Vec3,
     knots, segments, integrate
 
-using ..BiotSavart: BiotSavartCache, LongRangeCache, Infinity, ∞
+using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, Infinity, ∞
 
 using Bumper: Bumper, @no_escape, @alloc
 using LinearAlgebra: ⋅, ×

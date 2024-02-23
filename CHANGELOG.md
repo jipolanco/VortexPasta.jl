@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Allow computing energy spectrum from unsmoothed vorticity in Fourier space.
+  Also, make it easier to compute energy spectra with a different resolution (`kmax`) in
+  wavenumber space than the resolution used for long-range computations.
+
 ### Changed
 
 - Change some internals in the computation of the short-range Biot–Savart
