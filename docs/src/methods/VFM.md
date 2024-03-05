@@ -163,7 +163,7 @@ one can show that the Biot--Savart integrand is approximately
 
 ```math
 \frac{[\bm{s}(ξ) - \bm{s}_i] × \bm{s}'(ξ)}{|\bm{s}(ξ) - \bm{s}_i|^3}
-≈ \frac{\bm{s}_i' × \bm{s}_i''}{2 (ξ - ξ_i)},
+≈ \frac{\bm{s}_i' × \bm{s}_i''}{2 |ξ - ξ_i|},
 ```
 
 where ``ξ`` is the curve arc length and derivatives (primes) are with respect to ``ξ``.

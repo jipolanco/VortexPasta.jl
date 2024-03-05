@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.Timestepping
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -152,10 +153,4 @@ MaximumTimestep
 ```@docs
 TemporalSchemeCache
 TimeInfo
-```
-
-## Index
-
-```@index
-Pages = ["Timestepping.md"]
 ```

@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.FindNearbySegments
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -21,10 +22,4 @@ CellListSegmentFinder
 set_filaments!
 nearby_segments
 FindNearbySegments.segment_is_close
-```
-
-## Index
-
-```@index
-Pages = ["FindNearbySegments.md"]
 ```

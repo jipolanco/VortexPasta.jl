@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.FilamentIO
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -20,10 +21,4 @@ Base.setindex!(io::FilamentIO.VTKHDFFile, data, name::AbstractString)
 
 ```@docs
 read_vtkhdf
-```
-
-## Index
-
-```@index
-Pages = ["FilamentIO.md"]
 ```

@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.BasicTypes
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -17,10 +18,4 @@ VectorOfVectors
 Zero
 Infinity
 ∞
-```
-
-## Index
-
-```@index
-Pages = ["BasicTypes.md"]
 ```

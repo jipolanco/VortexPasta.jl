@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.CellLists
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -20,10 +21,4 @@ PeriodicCellList
 add_element!
 empty!
 nearby_elements
-```
-
-## Index
-
-```@index
-Pages = ["CellLists.md"]
 ```

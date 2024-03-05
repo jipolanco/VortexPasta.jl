@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.PredefinedCurves
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -21,10 +22,4 @@ PeriodicLine
 
 ```@docs
 define_curve
-```
-
-## Index
-
-```@index
-Pages = ["PredefinedCurves.md"]
 ```

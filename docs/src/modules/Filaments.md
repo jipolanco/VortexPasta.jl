@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.Filaments
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -146,10 +147,4 @@ Filaments.segment_length
 ```@docs
 filamentplot!
 filamentplot
-```
-
-## Index
-
-```@index
-Pages = ["Filaments.md"]
 ```

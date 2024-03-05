@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.BiotSavart
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -88,10 +89,4 @@ similar(::LongRangeCache, ::Dims{3})
 
 ```@docs
 BiotSavartCache
-```
-
-## Index
-
-```@index
-Pages = ["BiotSavart.md"]
 ```

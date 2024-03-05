@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.PaddedArrays
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -19,10 +20,4 @@ PaddedVector
 
 ```@docs
 pad_periodic!
-```
-
-## Index
-
-```@index
-Pages = ["PaddedArrays.md"]
 ```

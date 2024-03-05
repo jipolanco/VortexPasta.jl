@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.Quadratures
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -26,10 +27,4 @@ NoQuadrature
 
 ```@docs
 length
-```
-
-## Index
-
-```@index
-Pages = ["Quadratures.md"]
 ```

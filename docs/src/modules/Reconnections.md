@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.Reconnections
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -29,10 +30,4 @@ ReconnectBasedOnDistance
 
 ```@docs
 should_reconnect
-```
-
-## Index
-
-```@index
-Pages = ["Reconnections.md"]
 ```

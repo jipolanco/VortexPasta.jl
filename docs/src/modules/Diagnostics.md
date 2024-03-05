@@ -2,6 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.Diagnostics
+CollapsedDocStrings = true
 ```
 
 ```@docs
@@ -40,10 +41,4 @@ vortex_impulse
 energy_spectrum!
 energy_spectrum
 init_energy_spectrum
-```
-
-## Index
-
-```@index
-Pages = ["Diagnostics.md"]
 ```
