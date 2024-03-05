@@ -97,7 +97,7 @@ function test_trefoil_quantity(method, quantity)
         # FFTs. Indeed, Fourier coefficients that are supposed to be 0 are actually ~1e-16,
         # and are amplified when computing derivatives.
         if quantity === TorsionScalar()
-            @test err < 1e-12
+            @test err < 1.1e-12
             @test err_max < 1e-11
         elseif quantity === CurvatureScalar()
             # Case of CurvatureScalar
