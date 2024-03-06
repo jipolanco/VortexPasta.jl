@@ -257,8 +257,8 @@ function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws.
     vs_naive = map(similar ∘ nodes, fs)
     vs_cl = map(similar ∘ nodes, fs)
 
-    BiotSavart.velocity_on_nodes!(vs_naive, cache_naive, fs; longrange = Val(false))
-    BiotSavart.velocity_on_nodes!(vs_cl, cache_cl, fs; longrange = Val(false))
+    BiotSavart.velocity_on_nodes!(vs_naive, cache_naive, fs; longrange = false)
+    BiotSavart.velocity_on_nodes!(vs_cl, cache_cl, fs; longrange = false)
 
     for (a, b) ∈ zip(vs_naive, vs_cl)
         # Note: since `a` and `b` are PaddedVectors, we need to exclude their ghost cells

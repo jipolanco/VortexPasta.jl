@@ -142,6 +142,7 @@ Base.@propagate_inbounds _make_field_pair(key, vs::AbstractVector, i::Integer) =
         cache::BiotSavartCache,
         fs::AbstractVector{<:AbstractFilament};
         LIA = Val(true),
+        shortrange = true, longrange = true,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
 
 Compute velocity and/or streamfunction on filament nodes.
@@ -167,20 +168,30 @@ cache = BiotSavart.init_cache(...)
 compute_on_nodes!(fields, cache, fs)
 ```
 
-## Disabling LIA / computing *only* LIA
+## Disabling local terms / computing *only* local terms
 
 One may disable computation of the locally-induced velocity and streamfunction (LIA term)
 by passing `LIA = Val(false)`. Conversely, one can pass `LIA = Val(:only)` to compute *only*
 the LIA term. This can be useful for splitting the induced filament
 velocities/streamfunctions onto local and non-local parts.
+
+## Disabling short-range or long-range interactions
+
+It is also possible to disable the short-range or long-range component of Ewald splitting,
+if one only wants to compute one of the two components.
+To do this, pass either `shortrange = false` or `longrange = false`.
+
+Note that the short-range component includes the local (LIA) term as well as the short-range
+correction term for long-range interactions. Therefore, setting `shortrange = false`
+disables both these terms.
 """
 function compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::BiotSavartCache,
         fs::VectorOfFilaments;
         LIA = Val(true),
-        longrange = Val(true),
-        shortrange = Val(true),
+        longrange = true,
+        shortrange = true,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
     if LIA === Val(:only)
         return _compute_LIA_on_nodes!(fields, cache, fs)
@@ -195,7 +206,7 @@ function compute_on_nodes!(
     # computations then modify `pointdata`.
     @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)
 
-    if shortrange === Val(true)
+    if shortrange
         @timeit to "Short-range component" begin
             @timeit to "Set point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
             @timeit to "Compute Biot–Savart" for i ∈ eachindex(fs)
@@ -205,7 +216,7 @@ function compute_on_nodes!(
         end
     end
 
-    if cache.longrange !== NullLongRangeCache() && longrange === Val(true)
+    if cache.longrange !== NullLongRangeCache() && longrange
         @timeit to "Long-range component" begin
             @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
             @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)

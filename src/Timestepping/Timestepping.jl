@@ -522,7 +522,7 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = Val(false))
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = false)
 end
 
 # Compute fast component only.
@@ -550,7 +550,7 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = Val(false))
+    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
     _add_external_fields!(fields, iter.external_forcing, fs, t, iter.to)
 end
 
