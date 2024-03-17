@@ -8,6 +8,10 @@ function broadcast_factorised!(ws, us, vs)
     ws
 end
 
+function broadcast_sum(us, vs)
+    us .+ vs
+end
+
 @testset "VectorOfVectors" begin
     ##
     data = [rand(n) for n ∈ 1:4]
@@ -60,6 +64,7 @@ end
     end
 
     @testset "Broadcasting" begin
+        @test_opt broadcast_sum(us, us)
         vs = @inferred us .+ 2 .* us
         @test typeof(vs) === typeof(us)
         @test vs ≈ 3 * us

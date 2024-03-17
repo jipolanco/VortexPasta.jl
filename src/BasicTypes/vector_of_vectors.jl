@@ -107,6 +107,14 @@ function Base.similar(bc::Broadcast.Broadcasted{VectorOfVectorsStyle}, ::Type{El
     similar(x, T)
 end
 
+# This avoids obscure type instability when doing things like z = x .+ y.
+# Note that the default definition is Broadcast.materialize(bc) = copy(instantiate(bc)),
+# which is exactly the same thing we do below.
+function Broadcast.materialize(bc::Broadcast.Broadcasted{VectorOfVectorsStyle})
+    bc2 = Broadcast.instantiate(bc)
+    copy(bc2)
+end
+
 # Find the first VectorOfVectors among the broadcasted arguments.
 find_vov(bc::Broadcast.Broadcasted, args...) = find_vov(bc.args..., args...)
 find_vov(u::VectorOfVectors, args...) = u
