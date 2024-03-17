@@ -327,11 +327,11 @@ function Base.show(io::IO, p::ParamsBiotSavart{T}) where {T}
     (; Ns,) = longrange
     kmax = minimum(zip(Ns, Ls)) do (N, L)
         local m = (N - 1) ÷ 2
-        2π * m / L
+        convert(T, 2π * m / L)  # convert in case m/L = Zero()
     end
     σ = 1 / (α * sqrt(2))
-    β_shortrange = α * rcut
-    β_longrange = kmax / (2 * α)
+    β_shortrange = α === Zero() ? (rcut === Infinity() ? Infinity() : Zero()) : α * rcut
+    β_longrange = kmax === Zero() ? Zero() : kmax / (2 * α)
     rcut_L = rcut === Infinity() ? rcut : rcut / minimum(Ls)  # avoid Infinity() / Infinity()
     print(io, "ParamsBiotSavart{$T} with:")
     print(io, "\n - Physical parameters:")
