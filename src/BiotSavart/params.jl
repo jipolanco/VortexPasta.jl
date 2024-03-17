@@ -324,7 +324,14 @@ function Base.show(io::IO, p::ParamsBiotSavart{T}) where {T}
     (; common, shortrange, longrange,) = p
     (; Γ, a, Δ, Ls, α, quad,) = common
     (; rcut,) = shortrange
+    (; Ns,) = longrange
+    kmax = minimum(zip(Ns, Ls)) do (N, L)
+        local m = (N - 1) ÷ 2
+        2π * m / L
+    end
     σ = 1 / (α * sqrt(2))
+    β_shortrange = α * rcut
+    β_longrange = kmax / (2 * α)
     rcut_L = rcut === Infinity() ? rcut : rcut / minimum(Ls)  # avoid Infinity() / Infinity()
     print(io, "ParamsBiotSavart{$T} with:")
     print(io, "\n - Physical parameters:")
@@ -333,12 +340,14 @@ function Base.show(io::IO, p::ParamsBiotSavart{T}) where {T}
     print(io, "\n   * Vortex core parameter:      Δ  = ", Δ)
     print(io, "\n   * Domain period:              Ls = ", Ls)
     print(io, "\n - Numerical parameters:")
-    print(io, "\n   * Ewald splitting parameter:  α  = ", α, " (σ = 1/α√2 = ", σ, ")")
+    print(io, "\n   * Ewald splitting parameter:  α = ", α, " (σ = 1/α√2 = ", σ, ")")
     print(io, "\n   * Quadrature rule:            ", quad)
     print(io, "\n   * Short-range backend:        ", shortrange.backend)
-    print(io, "\n   * Short-range cut-off radius: ", shortrange.rcut, " (r_cut/L = ", rcut_L, ")")
+    print(io, "\n   * Short-range cut-off:        r_cut = ", shortrange.rcut, " (r_cut/L = ", rcut_L, ")")
+    print(io, "\n   * Short-range cut-off coeff.: β_shortrange = ", β_shortrange)
     print(io, "\n   * Long-range backend:         ", longrange.backend)
-    print(io, "\n   * Long-range resolution:      Ns = ", longrange.Ns)
+    print(io, "\n   * Long-range resolution:      Ns = ", Ns, " (kmax = ", kmax, ")")
+    print(io, "\n   * Long-range cut-off coeff.:  β_longrange = ", β_longrange)
     nothing
 end
 
