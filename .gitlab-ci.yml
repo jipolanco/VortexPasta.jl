@@ -7,6 +7,7 @@
     # can only be done if the files are in the project directory.
     - export JULIA_DEPOT_PATH=.julia
     - export JULIA_NUM_THREADS=1  # using more than 1 thread is slower in the CI machines (probably because there are other CI processes running!)
+    - export JULIA_NUM_PRECOMPILE_TASKS=1
   cache:
     key: julia-cache
     paths:
@@ -25,9 +26,12 @@
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   script:
     - echo "JULIA_NUM_THREADS = $JULIA_NUM_THREADS"
+    - echo "JULIA_NUM_PRECOMPILE_TASKS = $JULIA_NUM_PRECOMPILE_TASKS"
+    - echo ""
     - |
       julia --project -e '
         using Pkg
+        Pkg.precompile(; timing = true)
         Pkg.instantiate()
         Pkg.build()
         Pkg.test(coverage = true)
@@ -115,6 +119,7 @@ docs:
         using Pkg
         Pkg.Registry.update()
         Pkg.develop(path = ".")
+        Pkg.precompile(; timing = true)
         Pkg.instantiate()
         Pkg.build()
       '
