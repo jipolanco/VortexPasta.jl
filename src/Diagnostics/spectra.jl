@@ -130,20 +130,22 @@ function energy_spectrum!(
         throw(DimensionMismatch("incompatible dimensions of vectors"))
     iszero(ks[begin]) || throw(ArgumentError("output wavenumbers should include k = 0"))
     Δk = ks[begin + 1] - ks[begin]  # we assume this is constant
+    Δk_inv = 1 / Δk
     kxs = wavenumbers[1]
     with_hermitian_symmetry = kxs[end] > 0
     fill!(Ek, 0)
+    T = eltype(ks)
     @inbounds for I ∈ CartesianIndices(uhat)
         k⃗ = map(getindex, wavenumbers, Tuple(I))
         kx = k⃗[1]
-        factor = (!with_hermitian_symmetry || kx == 0) ? 0.5 : 1.0
+        factor = (!with_hermitian_symmetry || kx == 0) ? T(0.5) : T(1.0)
         k² = sum(abs2, k⃗)
         knorm = sqrt(k²)
-        n = firstindex(Ek) + floor(Int, knorm / Δk)  # this implicitly assumes ks[begin] == 0
+        n = firstindex(Ek) + floor(Int, knorm * Δk_inv + T(0.5))  # this implicitly assumes ks[begin] == 0
         n ≤ lastindex(Ek) || continue
         u² = sum(abs2, uhat[I])
         v² = f(u², k⃗, k², I)  # possibly modifies the computed coefficient
-        Ek[n] += factor * v²
+        Ek[n] += factor * v² * Δk_inv
     end
     ks, Ek
 end

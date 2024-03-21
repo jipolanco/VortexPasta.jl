@@ -15,8 +15,8 @@ using UnicodePlots: lineplot, lineplot!
 function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.0, k::Int = 1)
     tlims = (-0.5, 0.5)
     S(t) = SVector(
-        x + A * cospi(4π * k * t / Lz),
-        y + A * sinpi(4π * k * t / Lz),
+        x + A * cospi(2 * k * t),
+        y + A * sinpi(2 * k * t),
         (0.5 + sign * t) * Lz,
     )
     offset = setindex(zero(S(0.0)), sign * Lz, 3)
@@ -68,15 +68,16 @@ function extended_energy_spectrum(cache_bs::BiotSavart.BiotSavartCache, fs, Ns::
 end
 
 function test_infinite_lines(method)
+    L = 4π
     lines = let
-        A = 0.08
+        A = 0.08 * L / 2π
         k = 2
-        h = π / 2
+        h = L/4
         [
-            init_vortex_line(; x = 1h, y = 1h, Lz = 2π, sign = +1, A, k,),
-            init_vortex_line(; x = 1h, y = 3h, Lz = 2π, sign = -1, A, k,),
-            init_vortex_line(; x = 3h, y = 1h, Lz = 2π, sign = -1, A, k,),
-            init_vortex_line(; x = 3h, y = 3h, Lz = 2π, sign = +1, A, k,),
+            init_vortex_line(; x = 1h, y = 1h, Lz = L, sign = +1, A, k,),
+            init_vortex_line(; x = 1h, y = 3h, Lz = L, sign = -1, A, k,),
+            init_vortex_line(; x = 3h, y = 1h, Lz = L, sign = -1, A, k,),
+            init_vortex_line(; x = 3h, y = 3h, Lz = L, sign = +1, A, k,),
         ]
     end
 
@@ -92,7 +93,7 @@ function test_infinite_lines(method)
         update_coefficients!(f)
         Xoffset = end_to_end_offset(f)
         @test Xoffset[1] == Xoffset[2] == 0
-        @test abs(Xoffset[3]) == 2π
+        @test abs(Xoffset[3]) == L
         # Xoffset = Vec3(0, 0, 2π)
         ta, tb = knotlims(f)
         T = tb - ta
@@ -133,9 +134,9 @@ function test_infinite_lines(method)
         @test g(t₀) + off ≈ g(t₀ + T)
     end
 
-    Ls = (2π, 2π, 2π)
+    Ls = (L, L, L)
     Ns = (1, 1, 1) .* 64
-    kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
+    kmax = (Ns[1] ÷ 2) * 2π / L
     α = kmax / 4
     rcut = 4 / α
 
@@ -166,21 +167,26 @@ function test_infinite_lines(method)
 
     @testset "Energy spectrum" begin
         ks, Ek = Diagnostics.energy_spectrum(cache)
+        local (; Γ, Ls,) = params
+        local Lvort = Diagnostics.filament_length(filaments; quad = GaussLegendre(4))
+        local Cspec = Γ^2 * Lvort / (4π * prod(Ls))  # analytical prefactor of energy spectrum at large k
         Ns_ext = @. (Ns ÷ 2) * 3  # compute spectrum with 1.5× resolution
         ks_ext, Ek_ext = extended_energy_spectrum(cache, filaments, Ns_ext)
         @views plt = lineplot(
             ks[2:end], Ek[2:end];
             xscale = log10, yscale = log10,
             title = "Infinite lines", xlabel = "k", ylabel = "E(k)",
-            name = "Spectrum", xlim = (0.8, max(Ns_ext...) * 0.6),
+            name = "Spectrum", xlim = (0.8 * 2π/L, max(Ns_ext...) * 0.6),
         )
         @views lineplot!(plt, ks_ext[2:end], Ek_ext[2:end]; name = "Spectrum (extended)")
         @views let ks = ks[4:end]
-            lineplot!(plt, ks, 0.08 ./ ks; name = "~ k^{-1}")
+            local ys = Cspec ./ ks
+            lineplot!(plt, ks, ys; name = "Analytical (~k^{-1})")
         end
         @views let inds = (lastindex(ks) ÷ 4):(lastindex(ks) - 1)
             C, α = estimate_power_law_exponent(ks[inds], Ek[inds])
-            @test isapprox(α, -1; rtol = 1e-2)  # approximately k^{-1}
+            @test isapprox(α, -1; rtol = 1e-2)     # approximately k^{-1}
+            @test isapprox(C, Cspec; rtol = 0.04)  # the fitted prefactor is close to the analytical one
             lineplot!(plt, ks[inds], @.(0.5 * C * ks[inds]^α); name = "Fit (shifted)")
         end
         println(plt)
@@ -188,8 +194,9 @@ function test_infinite_lines(method)
         # The extended spectrum should contain more energy than the original one, but less
         # energy than the total energy of the system (since in both cases we're discarding
         # energy at very small scales).
-        E_spec = sum(Ek)
-        E_spec_ext = sum(Ek_ext)
+        Δk = ks[2] - ks[1]
+        E_spec = sum(Ek) * Δk
+        E_spec_ext = sum(Ek_ext) * Δk
 
         # @show E E_spec_ext E_spec E_spec_ext/E E_spec/E
         @test E_spec < E_spec_ext < E

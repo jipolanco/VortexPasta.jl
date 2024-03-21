@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Slightly change convention when computing energy spectra:
+  * wavenumber bins are now centred at the wavenumber `k` of interest
+  * we now divide the energy spectrum by the wavenumber increment `Δk`, which
+    makes sense if we consider the total energy as the integral of the energy
+    spectrum. This makes no difference when the domain size is 2π (in which case
+    `Δk = 1`)
+
 ## 0.17.1 - 2024-02-23
 
 ### Added
