@@ -29,7 +29,7 @@
     - echo "JULIA_NUM_PRECOMPILE_TASKS = $JULIA_NUM_PRECOMPILE_TASKS"
     - echo ""
     - |
-      julia --project -e '
+      julia --heap-size-hint=800M --project -e '
         using Pkg
         Pkg.precompile(; timing = true)
         Pkg.instantiate()
@@ -39,7 +39,7 @@
 
   after_script:
     - |
-      julia --project=coverage -e '
+      julia --heap-size-hint=800M --project=coverage -e '
         using Pkg
         Pkg.add("Coverage")
         using Coverage
@@ -115,7 +115,7 @@ docs:
     - apt-get install -qq xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev xsettingsd x11-xserver-utils
 
     - |
-      DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e '
+      DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --heap-size-hint=800M --project=docs -e '
         using Pkg
         Pkg.Registry.update()
         Pkg.develop(path = ".")
@@ -124,7 +124,7 @@ docs:
         Pkg.build()
       '
 
-    - DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs --color=yes docs/make.jl
+    - DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --heap-size-hint=800M --project=docs --color=yes docs/make.jl
 
   artifacts:
     paths:
