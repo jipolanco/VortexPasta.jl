@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     spectrum. This makes no difference when the domain size is 2π (in which case
     `Δk = 1`).
 
+- Change default quadrature rule in `ParamsBiotSavart` from `GaussLegendre(2)`
+  to `GaussLegendre(3)`.
+
 ## 0.17.1 - 2024-02-23
 
 ### Added

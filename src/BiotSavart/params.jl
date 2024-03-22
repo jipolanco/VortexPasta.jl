@@ -142,7 +142,7 @@ Mandatory and optional keyword arguments are detailed in the extended help below
 
 ### General
 
-- `quadrature::AbstractQuadrature = GaussLegendre(2)`: quadrature rule for short- and
+- `quadrature::AbstractQuadrature = GaussLegendre(3)`: quadrature rule for short- and
   long-range interactions. For example, if `quadrature = GaussLegendre(4)`, then 4 evaluations
   of the Biot–Savart integrand will be done for each filament segment.
 
@@ -209,7 +209,7 @@ end
 function ParamsBiotSavart(
         ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
         a::Real,
-        quadrature::AbstractQuadrature = GaussLegendre(2),
+        quadrature::AbstractQuadrature = GaussLegendre(3),
         quadrature_short = nothing,  # deprecated
         quadrature_long = nothing,   # deprecated
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
