@@ -30,6 +30,20 @@ end
 maybe_convert(::Type{T}, x::Real) where {T <: AbstractFloat} = convert(T, x)
 maybe_convert(::Type{T}, x::RealConst) where {T <: AbstractFloat} = x  # don't convert constants (Zero, Infinity)
 
+function Base.show(io::IO, p::ParamsCommon)
+    (; Γ, a, Δ, Ls, α, quad,) = p
+    σ = 1 / (α * sqrt(2))
+    print(io, "\n - Physical parameters:")
+    print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
+    print(io, "\n   * Vortex core radius:         a  = ", a)
+    print(io, "\n   * Vortex core parameter:      Δ  = ", Δ)
+    print(io, "\n   * Domain period:              Ls = ", Ls)
+    print(io, "\n - Numerical parameters:")
+    print(io, "\n   * Ewald splitting parameter:  α = ", α, " (σ = 1/α√2 = ", σ, ")")
+    print(io, "\n   * Quadrature rule:            ", quad)
+    nothing
+end
+
 Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
 Base.eltype(p::ParamsCommon) = eltype(typeof(p))
 
@@ -76,6 +90,17 @@ struct ParamsShortRange{
     end
 end
 
+function Base.show(io::IO, p::ParamsShortRange)
+    (; common, rcut,) = p
+    (; Ls, α,) = common
+    β_shortrange = α === Zero() ? (rcut === Infinity() ? Infinity() : Zero()) : α * rcut
+    rcut_L = rcut === Infinity() ? rcut : rcut / minimum(Ls)  # avoid Infinity() / Infinity()
+    print(io, "\n   * Short-range backend:        ", p.backend)
+    print(io, "\n   * Short-range cut-off:        r_cut = ", rcut, " (r_cut/L = ", rcut_L, ")")
+    print(io, "\n   * Short-range cut-off coeff.: β_shortrange = ", β_shortrange)
+    nothing
+end
+
 # Create a new ParamsShortRange based on the type of ParamsCommon.
 function change_float_type(p::ParamsShortRange, common::ParamsCommon{T}) where {T}
     ParamsShortRange(p.backend, p.quad, common, p.rcut, p.regularise_binormal, p.lia_segment_fraction)
@@ -91,6 +116,20 @@ struct ParamsLongRange{
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, α, Ls)
     Ns      :: Dims{3}     # grid dimensions for FFTs
+end
+
+function Base.show(io::IO, p::ParamsLongRange{T}) where {T}
+    (; common, Ns,) = p
+    (; α, Ls,) = common
+    kmax = minimum(zip(Ns, Ls)) do (N, L)
+        local m = (N - 1) ÷ 2
+        convert(T, 2π * m / L)  # convert in case m/L = Zero()
+    end
+    β_longrange = kmax === Zero() ? Zero() : kmax / (2 * α)
+    print(io, "\n   * Long-range backend:         ", p.backend)
+    print(io, "\n   * Long-range resolution:      Ns = ", Ns, " (kmax = ", kmax, ")")
+    print(io, "\n   * Long-range cut-off coeff.:  β_longrange = ", β_longrange)
+    nothing
 end
 
 function change_float_type(p::ParamsLongRange, common::ParamsCommon{T}) where {T}
@@ -321,33 +360,10 @@ function Base.propertynames(p::ParamsBiotSavart, private::Bool = false)
 end
 
 function Base.show(io::IO, p::ParamsBiotSavart{T}) where {T}
-    (; common, shortrange, longrange,) = p
-    (; Γ, a, Δ, Ls, α, quad,) = common
-    (; rcut,) = shortrange
-    (; Ns,) = longrange
-    kmax = minimum(zip(Ns, Ls)) do (N, L)
-        local m = (N - 1) ÷ 2
-        convert(T, 2π * m / L)  # convert in case m/L = Zero()
-    end
-    σ = 1 / (α * sqrt(2))
-    β_shortrange = α === Zero() ? (rcut === Infinity() ? Infinity() : Zero()) : α * rcut
-    β_longrange = kmax === Zero() ? Zero() : kmax / (2 * α)
-    rcut_L = rcut === Infinity() ? rcut : rcut / minimum(Ls)  # avoid Infinity() / Infinity()
     print(io, "ParamsBiotSavart{$T} with:")
-    print(io, "\n - Physical parameters:")
-    print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
-    print(io, "\n   * Vortex core radius:         a  = ", a)
-    print(io, "\n   * Vortex core parameter:      Δ  = ", Δ)
-    print(io, "\n   * Domain period:              Ls = ", Ls)
-    print(io, "\n - Numerical parameters:")
-    print(io, "\n   * Ewald splitting parameter:  α = ", α, " (σ = 1/α√2 = ", σ, ")")
-    print(io, "\n   * Quadrature rule:            ", quad)
-    print(io, "\n   * Short-range backend:        ", shortrange.backend)
-    print(io, "\n   * Short-range cut-off:        r_cut = ", shortrange.rcut, " (r_cut/L = ", rcut_L, ")")
-    print(io, "\n   * Short-range cut-off coeff.: β_shortrange = ", β_shortrange)
-    print(io, "\n   * Long-range backend:         ", longrange.backend)
-    print(io, "\n   * Long-range resolution:      Ns = ", Ns, " (kmax = ", kmax, ")")
-    print(io, "\n   * Long-range cut-off coeff.:  β_longrange = ", β_longrange)
+    show(io, p.common)
+    show(io, p.shortrange)
+    show(io, p.longrange)
     nothing
 end
 
