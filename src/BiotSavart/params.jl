@@ -116,24 +116,30 @@ struct ParamsLongRange{
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, α, Ls)
     Ns      :: Dims{3}     # grid dimensions for FFTs
+    truncate_spherical :: Bool  # if true, perform spherical truncation in Fourier space
+end
+
+function maximum_wavenumber(p::ParamsLongRange{T}) where {T}
+    minimum(zip(p.Ns, p.common.Ls)) do (N, L)
+        local m = (N - 1) ÷ 2
+        convert(T, 2π * m / L)  # convert in case m/L = Zero()
+    end
 end
 
 function Base.show(io::IO, p::ParamsLongRange{T}) where {T}
     (; common, Ns,) = p
-    (; α, Ls,) = common
-    kmax = minimum(zip(Ns, Ls)) do (N, L)
-        local m = (N - 1) ÷ 2
-        convert(T, 2π * m / L)  # convert in case m/L = Zero()
-    end
+    (; α,) = common
+    kmax = maximum_wavenumber(p)
     β_longrange = kmax === Zero() ? Zero() : kmax / (2 * α)
     print(io, "\n   * Long-range backend:         ", p.backend)
     print(io, "\n   * Long-range resolution:      Ns = ", Ns, " (kmax = ", kmax, ")")
     print(io, "\n   * Long-range cut-off coeff.:  β_longrange = ", β_longrange)
+    print(io, "\n   * Long-range spherical truncation: ", p.truncate_spherical)
     nothing
 end
 
 function change_float_type(p::ParamsLongRange, common::ParamsCommon{T}) where {T}
-    ParamsLongRange(p.backend, p.quad, common, p.Ns)
+    ParamsLongRange(p.backend, p.quad, common, p.Ns, p.truncate_spherical)
 end
 
 backend(p::ParamsLongRange) = p.backend
@@ -199,7 +205,12 @@ Mandatory and optional keyword arguments are detailed in the extended help below
 ### Long-range interactions
 
 - `backend_long::LongRangeBackend = NonuniformFFTsBackend()`: backend used to compute
-  long-range interactions. See [`LongRangeBackend`](@ref) for a list of possible backends.
+  long-range interactions. See [`LongRangeBackend`](@ref) for a list of possible backends;
+
+- `longrange_truncate_spherical = false`: if `true`, perform a spherical truncation in
+  Fourier space, discarding all wavenumbers such that ``|\\bm{k}| > k_{\\text{max}}``.
+  This is not recommended as it leads to precision loss, and should be used for testing only
+  (in particular, for verifying error estimates which assume this kind of truncation).
 
 ### Local self-induced velocity
 
@@ -253,6 +264,7 @@ function ParamsBiotSavart(
         quadrature_long = nothing,   # deprecated
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
         backend_long::LongRangeBackend = NonuniformFFTsBackend(),
+        longrange_truncate_spherical::Bool = false,
         regularise_binormal::Val{RegulariseBinormal} = Val(false),
         Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,
@@ -271,7 +283,7 @@ function ParamsBiotSavart(
         backend_short, quad, common, rcut, StaticBool(RegulariseBinormal),
         lia_segment_fraction,
     )
-    lr = ParamsLongRange(backend_long, quad, common, Ns)
+    lr = ParamsLongRange(backend_long, quad, common, Ns, longrange_truncate_spherical)
     ParamsBiotSavart(common, sr, lr)
 end
 

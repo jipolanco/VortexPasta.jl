@@ -89,7 +89,7 @@ with the new cache to get the vorticity field in Fourier space at the wanted res
 function Base.similar(cache::LongRangeCache, Ns::Dims{3})
     params_old = cache.common.params :: ParamsLongRange
     (; backend, quad, common,) = params_old
-    params_new = ParamsLongRange(backend, quad, common, Ns)
+    params_new = ParamsLongRange(backend, quad, common, Ns, params_old.truncate_spherical)
     pointdata = copy(cache.common.pointdata)
     BiotSavart.init_cache_long(params_new, pointdata)
 end
@@ -305,9 +305,26 @@ function compute_vorticity_fourier!(cache::LongRangeCache)
     rescale_coordinates!(cache)  # may be needed by the backend (e.g. FINUFFT requires period L = 2π)
     fold_coordinates!(cache)     # may be needed by the backend (e.g. FINUFFT requires x ∈ [-3π, 3π])
     transform_to_fourier!(cache)
+    truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
     state.quantity = :vorticity
     state.smoothed = false
     uhat
+end
+
+function truncate_spherical!(cache)
+    (; uhat, params, wavenumbers,) = cache.common
+    if !params.truncate_spherical
+        return  # don't apply spherical truncation
+    end
+    kmax = maximum_wavenumber(params)
+    kmax² = kmax^2
+    T = eltype(uhat)
+    @inbounds for I ∈ CartesianIndices(uhat)
+       k⃗ = map(getindex, wavenumbers, Tuple(I))
+       k² = sum(abs2, k⃗)
+       uhat[I] = ifelse(k² > kmax², zero(T), uhat[I])
+    end
+    nothing
 end
 
 function set_interpolation_points!(

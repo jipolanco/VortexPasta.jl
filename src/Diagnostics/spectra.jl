@@ -94,10 +94,11 @@ function energy_spectrum!(
         if unfilter
             energy_spectrum!(Ek, ks, cache) do u², k⃗, k², I
                 # It's slightly faster to reuse values in ewald_op than to recompute exponentials...
-                @inbounds β = ifelse(
-                    iszero(k²),
-                    one(γ²),  # set the factor to 1 if k² == 0
-                    γ² / (k² * ewald_op[I])^2,  # note: γ cancels out with prefactor already included in ewald_op
+                local w = @inbounds k² * ewald_op[I]
+                β = ifelse(
+                    iszero(w),
+                    one(γ²),   # set the factor to 1 if k² == 0
+                    γ² / w^2,  # note: γ cancels out with prefactor already included in ewald_op
                 )
                 # @assert β ≈ exp(k² / (2 * params.common.α^2))
                 u² * β

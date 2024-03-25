@@ -145,6 +145,7 @@ function test_infinite_lines(method)
         a = 1e-6,
         Δ = 1/4,
         Ls, Ns, rcut, α,
+        longrange_truncate_spherical = true,  # just for testing this option, shouldn't change much...
     )
     cache = @inferred BiotSavart.init_cache(params, filaments)
     vs = map(f -> similar(nodes(f)), filaments)
@@ -177,13 +178,14 @@ function test_infinite_lines(method)
             xscale = log10, yscale = log10,
             title = "Infinite lines", xlabel = "k", ylabel = "E(k)",
             name = "Spectrum", xlim = (0.8 * 2π/L, max(Ns_ext...) * 0.6),
+            ylim = (1e-4, 4e-2),
         )
         @views lineplot!(plt, ks_ext[2:end], Ek_ext[2:end]; name = "Spectrum (extended)")
         @views let ks = ks[4:end]
             local ys = Cspec ./ ks
             lineplot!(plt, ks, ys; name = "Analytical (~k^{-1})")
         end
-        @views let inds = (lastindex(ks) ÷ 4):(lastindex(ks) - 1)
+        @views let inds = (lastindex(ks) ÷ 4):(lastindex(ks) - 2)
             C, α = estimate_power_law_exponent(ks[inds], Ek[inds])
             @test isapprox(α, -1; rtol = 1e-2)     # approximately k^{-1}
             @test isapprox(C, Cspec; rtol = 0.04)  # the fitted prefactor is close to the analytical one
