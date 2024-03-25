@@ -91,21 +91,22 @@ function generate_biot_savart_parameters(::Type{T}) where {T}
     Γ = 9.97e-4 * cm^2/sec
     a = 1e-8 * cm
     Δ = 1/4
-    Ngrid = floor(Int, 32 * 2/3)
+    Ngrid = floor(Int, 32)
     Ns = (Ngrid, Ngrid, Ngrid)
     kmax = (Ngrid ÷ 2) * 2π / L
     Ls = (L, L, L)
-    α = kmax / 6
-    rcut = 5 / α
+    β = 4.5
+    α = kmax / 2β
+    rcut = β / α
     ParamsBiotSavart(
         T;
         Γ, α, a, Δ, rcut, Ls, Ns,
         # backend_short = CellListsBackend(2),
-        backend_short = NaiveShortRangeBackend(),  # needed when rcut > L/2 (which is the case here, since Ngrid is small)
+        backend_short = NaiveShortRangeBackend(),  # needed when rcut ≈ L/2 (which is the case here, since Ngrid is small)
         backend_long = NonuniformFFTsBackend(; σ = 1.5, m = HalfSupport(8)),
         # backend_long = FINUFFTBackend(tol = 1e-8),
         # backend_long = ExactSumBackend(),
-        quadrature = GaussLegendre(2),
+        quadrature = GaussLegendre(4),
     )
 end
 
@@ -128,9 +129,16 @@ function run_unforced_lines(
     rng = Random.Xoshiro(42)
     ks_init_all = let kf = convert(Vector{T}, ks_init)  # initialised wavenumbers (in the z direction)
         append!(kf, -kf)  # also initialise negative wavenumbers
+        kf
     end
     filaments = let ks = ks_init_all
+        # α = -2
+        # α = -11/3
+        α = -5
         ws = randn(rng, Complex{T}, length(ks))  # random complex perturbation (includes random amplitudes + phases)
+        for i ∈ eachindex(ks, ws)
+            ws[i] *= abs(ks[i])^(α/2)
+        end
         ws .*= A / sqrt(sum(abs2, ws))           # renormalise to get the wanted perturbation amplitude
         @assert sum(abs2, ws) ≈ A^2
         r_pert(t) = sum(eachindex(ks)) do i
@@ -239,10 +247,11 @@ tend = 1.0 * T_kw  # simulation time
 
 results = run_unforced_lines(
     params;
-    N = 64, tend, A,
+    N = 128, tend, A,
     ks_init,
     method = FourierMethod(),
-    scheme = Strang(RK4(); nsubsteps = 2),
+    # scheme = Strang(RK4(); nsubsteps = 1),
+    scheme = RK4(),
     dt_factor = 1.0,
 );
 
@@ -294,16 +303,17 @@ fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
 hm = heatmap!(
     ax, ks_shift, ωs_shift, amplitudes;
-    colorrange = (-35, -10),
+    colorrange = (-40, -10),
 )
-lines!(ax, ks_pos, ωs_kw; color = (:white, 0.9), linestyle = :dash)
-Colorbar(fig[1, 2], hm)
+lines!(ax, ks_pos, ωs_kw; color = (:white, 0.2), linestyle = :dash)
+Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}(k,\,ω)|^2", labelsize = 20)
 DataInspector(fig)
 fig
 
 ## Plot spectra over time
 
 m = length(times) ÷ 20  # plot ~20 times
+m = max(2, m)
 ts = times ./ T_kw  # normalised time
 inds = eachindex(ts)[m:m:end]
 ts_lims = (ts[begin], ts[end])
@@ -341,6 +351,7 @@ end
 let ks = 10.0.^(range(log10(last(ks_init) * 2), log10(30); length = 3))
     lines!(ax_normal, ks, 1e-13 * ks.^(-11/3); color = :grey, linestyle = :dash)
 end
-cb = Colorbar(fig[1, end + 1]; colormap = cmap, colorrange = ts_lims, label = L"Time $(t / T_{KW})$")
+cb = Colorbar(fig[1, end + 1]; colormap = cmap, colorrange = ts_lims, label = L"Time $(t / T_1)$", labelsize = 20)
 DataInspector(fig)
 fig
+
