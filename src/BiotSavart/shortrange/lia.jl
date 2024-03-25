@@ -115,8 +115,7 @@ nonlia_integration_limits(γ::Real) = ((zero(γ), one(γ) - γ), (γ, one(γ)))
 # Alternative estimation using quadratures.
 function _local_self_induced(
         ::Velocity, quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real, regularise_binormal::StaticBool = False(),
-        segment_fraction::Union{Nothing, Real} = nothing,
+        a::Real, Δ::Real, segment_fraction::Union{Nothing, Real} = nothing,
         kws...,
     )
     lims = lia_integration_limits(segment_fraction)
@@ -126,22 +125,7 @@ function _local_self_induced(
     ℓ₊ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
         norm(f(j, ζ, Derivative(1)))
     end
-    # Estimate the scaled binormal vector b⃗ = ρ b̂, where ρ is the curvature and b̂ = t̂ × n̂.
-    regularise = dynamic(regularise_binormal)
-    b⃗ = if regularise
-        b⃗₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
-            f(j, ζ, CurvatureBinormal())
-        end
-        b⃗₊ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
-            f(j, ζ, CurvatureBinormal())
-        end
-        ts = knots(f)
-        γ = something(segment_fraction, true)  # true in the sense of 1
-        dt = γ * (ts[i + 1] - ts[i - 1])
-        (b⃗₋ + b⃗₊) ./ dt  # average on [i - 1, i + 1]
-    else
-        f[i, CurvatureBinormal()]
-    end
+    b⃗ = f[i, CurvatureBinormal()]
     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
     β * b⃗
 end

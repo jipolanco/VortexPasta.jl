@@ -60,7 +60,6 @@ struct ParamsShortRange{
         Quadrature <: AbstractQuadrature,
         Common <: ParamsCommon{T},
         CutoffDist <: MaybeConst{T},
-        RegulariseBinormal <: StaticBool,
         LIASegmentFraction <: Union{Nothing, Real}
     }
     backend :: Backend
@@ -68,12 +67,11 @@ struct ParamsShortRange{
     common  :: Common      # common parameters (Γ, α, Ls)
     rcut    :: CutoffDist  # cutoff distance
     rcut_sq :: CutoffDist  # squared cutoff distance
-    regularise_binormal  :: RegulariseBinormal
     lia_segment_fraction :: LIASegmentFraction
 
     function ParamsShortRange(
             backend::ShortRangeBackend, quad::AbstractQuadrature,
-            common::ParamsCommon{T}, rcut_::Real, regularise::StaticBool,
+            common::ParamsCommon{T}, rcut_::Real,
             lia_segment_fraction,
         ) where {T}
         (; Ls,) = common
@@ -83,9 +81,9 @@ struct ParamsShortRange{
         rcut_sq = rcut * rcut
         new{
             T, typeof(backend), typeof(quad), typeof(common), typeof(rcut),
-            typeof(regularise), typeof(lia_segment_fraction)
+            typeof(lia_segment_fraction)
         }(
-            backend, quad, common, rcut, rcut_sq, regularise, lia_segment_fraction,
+            backend, quad, common, rcut, rcut_sq, lia_segment_fraction,
         )
     end
 end
@@ -103,7 +101,7 @@ end
 
 # Create a new ParamsShortRange based on the type of ParamsCommon.
 function change_float_type(p::ParamsShortRange, common::ParamsCommon{T}) where {T}
-    ParamsShortRange(p.backend, p.quad, common, p.rcut, p.regularise_binormal, p.lia_segment_fraction)
+    ParamsShortRange(p.backend, p.quad, common, p.rcut, p.lia_segment_fraction)
 end
 
 struct ParamsLongRange{
@@ -238,12 +236,6 @@ Mandatory and optional keyword arguments are detailed in the extended help below
   Biot–Savart law (using quadratures within each subsegment). This may improve accuracy,
   especially when the discretisation distance is relatively large.
 
-- `regularise_binormal = Val(false)`: if `Val(true)`, regularise the estimation of the local
-  binormal vector for computation of the LIA term. The binormal vector is averaged along the
-  local filament segments. This may lead to more stable simulations of single vortex rings,
-  but it's not recommended (nor very useful) for more complex cases. In particular, it can
-  lead to spurious energy fluctuations.
-
 """
 struct ParamsBiotSavart{
         T,
@@ -265,11 +257,10 @@ function ParamsBiotSavart(
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
         backend_long::LongRangeBackend = NonuniformFFTsBackend(),
         longrange_truncate_spherical::Bool = false,
-        regularise_binormal::Val{RegulariseBinormal} = Val(false),
         Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,
         kws...,
-    ) where {T, RegulariseBinormal}
+    ) where {T}
     # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
     # - define ParamsPhysical instead of ParamsCommon
     # - include α in both ParamsShortRange and ParamsLongRange?
@@ -279,10 +270,7 @@ function ParamsBiotSavart(
     end
     quad = _parse_quadrature_args(quadrature, quadrature_short, quadrature_long)
     common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad)
-    sr = ParamsShortRange(
-        backend_short, quad, common, rcut, StaticBool(RegulariseBinormal),
-        lia_segment_fraction,
-    )
+    sr = ParamsShortRange(backend_short, quad, common, rcut, lia_segment_fraction)
     lr = ParamsLongRange(backend_long, quad, common, Ns, longrange_truncate_spherical)
     ParamsBiotSavart(common, sr, lr)
 end

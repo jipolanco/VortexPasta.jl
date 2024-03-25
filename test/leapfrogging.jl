@@ -257,7 +257,6 @@ end
         backend_short = CellListsBackend(2),
         backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4)),
         quadrature = GaussLegendre(2),
-        # regularise_binormal = Val(true),
     )
 
     # Check overloaded getproperty and propertynames for ParamsBiotSavart.

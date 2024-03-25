@@ -52,7 +52,6 @@ function test_kelvin_waves(
         scheme = RK4();
         method = QuinticSplineMethod(), Lz = 2π, A = 0.01, k = 1,
         quad = GaussLegendre(4),
-        regularise_binormal = Val(false),  # enables larger timesteps (and accuracy loss...)
     )
     test_jet = true
     Lx = Ly = Lz
@@ -94,7 +93,6 @@ function test_kelvin_waves(
             backend_short = NaiveShortRangeBackend(),
             backend_long = FINUFFTBackend(tol = 1e-6),
             quadrature = quad,
-            regularise_binormal,
             # For NoQuadrature, it doesn't make much sense to use lia_segment_fraction ≠ 1.
             lia_segment_fraction = quad === NoQuadrature() ? 1.0 : 0.1,
         )

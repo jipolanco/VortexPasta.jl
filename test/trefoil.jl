@@ -350,7 +350,7 @@ end
     Ns = (3, 3, 4) .* 30
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
     params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
-    α_default = kmax / 6
+    α_default = kmax / 8
     @testset "Long range" begin
         # Test NUFFT backends with default parameters
         tol = 1e-5  # allowed relative error

@@ -148,7 +148,7 @@ function add_short_range_fields!(
     ps = _fields_to_pairs(fields)
 
     (; params,) = cache
-    (; quad, regularise_binormal, lia_segment_fraction,) = params
+    (; quad, lia_segment_fraction,) = params
     (; Γ, a, Δ, Ls,) = params.common
     prefactor = Γ / (4π)
     Lhs = map(L -> L / 2, Ls)
@@ -209,7 +209,7 @@ function add_short_range_fields!(
                 if _LIA
                     u⃗ = u⃗ + local_self_induced(
                         quantity, f, i, one(prefactor);
-                        a, Δ, quad, regularise_binormal,
+                        a, Δ, quad,
                         segment_fraction = lia_segment_fraction,
                     )
                 end
