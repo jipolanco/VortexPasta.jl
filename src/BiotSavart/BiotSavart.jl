@@ -27,7 +27,6 @@ using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, Segment, CurvatureBinormal,
     knots, nodes, segments, integrate
 
-using Static: StaticBool, False, dynamic
 using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutput, @timeit, reset_timer!
 
@@ -277,7 +276,7 @@ function _compute_LIA_on_nodes!(
     ) where {V <: VectorOfVec}
     (; params,) = cache.shortrange
     # Note: we must use the same quadrature as used when computing the globally induced terms
-    (; quad, regularise_binormal, lia_segment_fraction,) = params
+    (; quad, lia_segment_fraction,) = params
     (; Γ, a, Δ,) = params.common
     T = typeof(Γ)
     prefactor_ = prefactor === nothing ? (Γ / T(4π)) : prefactor
@@ -286,8 +285,7 @@ function _compute_LIA_on_nodes!(
             # Here `quantity` is either Velocity() or Streamfunction()
             @inbounds values[i] = local_self_induced(
                 quantity, f, i, prefactor_;
-                a, Δ, quad, regularise_binormal,
-                lia_segment_fraction,
+                a, Δ, quad, lia_segment_fraction,
             )
         end
     end

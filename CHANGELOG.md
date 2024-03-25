@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `longrange_truncate_spherical` option to `ParamsBiotSavart`. This should
   only be used for testing.
 
+### Removed
+
+- Remove old `regularise_binormal` option, which is almost always a bad idea
+  when estimating the locally-induced velocity.
+
 ## 0.17.1 - 2024-02-23
 
 ### Added
