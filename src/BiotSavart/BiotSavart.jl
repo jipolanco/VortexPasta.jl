@@ -220,18 +220,28 @@ function compute_on_nodes!(
             @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
             @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)
             if ψs !== nothing
-                @timeit to "Streamfunction to physical" begin
-                    to_smoothed_streamfunction!(cache.longrange)
-                    interpolate_to_physical!(cache.longrange)
-                    add_long_range_output!(ψs, cache.longrange)
+                @timeit to "Streamfunction" begin
+                    @timeit to "Convert to physical" begin
+                        to_smoothed_streamfunction!(cache.longrange)
+                        interpolate_to_physical!(cache.longrange)
+                        add_long_range_output!(ψs, cache.longrange)
+                    end
+                    @timeit to "Self-interaction" remove_long_range_self_interaction!(
+                        ψs, fs, Streamfunction(), params.common,
+                    )
                 end
             end
             if vs !== nothing
                 # Velocity must be computed after streamfunction if both are enabled.
-                @timeit to "Velocity to physical" begin
-                    to_smoothed_velocity!(cache.longrange)
-                    interpolate_to_physical!(cache.longrange)
-                    add_long_range_output!(vs, cache.longrange)
+                @timeit to "Velocity" begin
+                    @timeit to "Convert to physical" begin
+                        to_smoothed_velocity!(cache.longrange)
+                        interpolate_to_physical!(cache.longrange)
+                        add_long_range_output!(vs, cache.longrange)
+                    end
+                    @timeit to "Self-interaction" remove_long_range_self_interaction!(
+                        vs, fs, Velocity(), params.common,
+                    )
                 end
             end
         end
