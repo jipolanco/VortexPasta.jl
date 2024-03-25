@@ -83,17 +83,20 @@ end
 @inline function biot_savart_contribution(
         quantity::OutputField,      # Velocity() or Streamfunction()
         component::EwaldComponent,  # ShortRange() or LongRange()
-        params::ParamsShortRange,
+        params::ParamsCommon,
         x⃗::V,    # point where quantity is computed
         s⃗::V,    # curve location s⃗(t)
         qs⃗′::V;  # curve derivative s⃗′(t) (optionally multiplied by a quadrature weight)
-        Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
+        Lhs = map(L -> L / 2, params.Ls),  # this allows to precompute Ls / 2
+        rcut² = nothing,
     ) where {V <: Vec3{<:Real}}
-    (; common, rcut_sq,) = params
-    (; Ls, α,) = common
+    # Cut-off distance should be given if and only if we're computing the short-range
+    # component.
+    @assert (rcut² !== nothing) === (component === ShortRange())
+    (; Ls, α,) = params
     r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
     r² = sum(abs2, r⃗)
-    if component === ShortRange() && r² > rcut_sq
+    if rcut² !== nothing && r² > rcut²
         # The short-range backend may allow some pair interactions beyond the cutoff.
         return zero(r⃗)
     end
@@ -108,15 +111,62 @@ function integrate_biot_savart(
         component::EwaldComponent,
         seg::Segment,
         x⃗::Vec3,
-        params::ParamsShortRange;
-        Lhs = map(L -> L / 2, params.common.Ls),  # this allows to precompute Ls / 2
+        params::ParamsCommon;
+        Lhs = map(L -> L / 2, params.Ls),  # this allows to precompute Ls / 2
+        rcut² = nothing,
         limits = nothing,
     )
     integrate(seg, params.quad; limits) do seg, ζ
         s⃗ = seg(ζ)
         s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
-        biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs)
+        biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs, rcut²)
     end :: typeof(x⃗)
+end
+
+# This subtracts the spurious self-interaction term which is implicitly included in
+# long-range computations. This corresponds to the integral over the two adjacent segments
+# to each node, which should not be included in the total result (since they are replaced by
+# the LIA term). This function explicitly computes that integral and subtracts it from the
+# result.
+#
+# This is required because the local term already includes the full (short-range +
+# long-range) contribution of these segments. Moreover, long-range
+# computations also add the long-range contribution to the
+# velocity/streamfunction. Since we don't want to include this contribution
+# twice, we subtract it here. Note that without this correction, results will
+# depend on the (unphysical) Ewald parameter α. Finally, note that the integral
+# with the long-range kernel is *not* singular (since it's a smoothing kernel),
+# so there's no problem with evaluating this integral close to x⃗.
+function remove_long_range_self_interaction!(
+        vs::VectorOfVec,
+        f::ClosedFilament,
+        quantity::OutputField,
+        params::ParamsCommon,
+    )
+    Xs = nodes(f)
+    segs = segments(f)
+    Lhs = map(L -> L / 2, params.Ls)
+    prefactor = params.Γ / (4π)
+    @inbounds for i ∈ eachindex(Xs, vs)
+        x⃗ = Xs[i]
+        sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
+        sb = Segment(f, i)  # segment i
+        u⃗a = integrate_biot_savart(quantity, LongRange(), sa, x⃗, params; Lhs, rcut² = nothing)
+        u⃗b = integrate_biot_savart(quantity, LongRange(), sb, x⃗, params; Lhs, rcut² = nothing)
+        vs[i] = vs[i] - prefactor * (u⃗a + u⃗b)
+    end
+    vs
+end
+
+function remove_long_range_self_interaction!(
+        vs::AbstractVector{<:VectorOfVec},
+        fs::VectorOfFilaments,
+        args...,
+    )
+    for (v, f) ∈ zip(vs, fs)
+        remove_long_range_self_interaction!(v, f, args...)
+    end
+    vs
 end
 
 """
@@ -142,10 +192,11 @@ Before calling this function, one must first call
 function add_short_range_fields!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::ShortRangeCache,
-        f::AbstractFilament;
-        LIA::Val{_LIA} = Val(true),  # can be used to disable LIA
+        f::ClosedFilament;
+        LIA::Val{_LIA} = Val(true),   # can be used to disable LIA
     ) where {Names, N, V <: VectorOfVec, _LIA}
     ps = _fields_to_pairs(fields)
+
 
     (; params,) = cache
     (; quad, lia_segment_fraction,) = params
@@ -170,40 +221,29 @@ function add_short_range_fields!(
             x⃗ = Xs[i]
 
             # Determine segments `sa` and `sb` in contact with the singular point x⃗.
-            # Then:
-            #
-            # 1. We subtract the long-range contributions of these segments to the velocity
-            #    and streamfunction.
-            #
-            # 2. We compute the local (LIA) term associated to these segments.
-            #    If `lia_segment_fraction !== nothing`, we actually compute the local term
-            #    over a fraction of these segments. Moreover, the rest of the segments
-            #    (`nonlia_lims`) are taken into account by regular integration using
-            #    quadratures.
-            #
-            # Step 1 is required because the local term already includes the full (short-range
-            # + long-range) contribution of these segments. Moreover, long-range
-            # computations also add the long-range contribution to the
-            # velocity/streamfunction. Since we don't want to include this contribution
-            # twice, we subtract it here. Note that without this correction, results will
-            # depend on the (unphysical) Ewald parameter α. Finally, note that the integral
-            # with the long-range kernel is *not* singular (since it's a smoothing kernel),
-            # so there's no problem with evaluating this integral close to x⃗.
-
+            # Then compute the local (LIA) term associated to these segments.
+            # If `lia_segment_fraction !== nothing`, we actually compute the local term
+            # over a fraction of these segments. Moreover, the rest of the segments
+            # (`nonlia_lims`) are taken into account by regular integration using
+            # quadratures.
             sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
             sb = Segment(f, i)  # segment i
 
             vecs_i = map(ps) do (quantity, _)
                 @inline
-                u⃗ = (
-                    - integrate_biot_savart(quantity, LongRange(), sa, x⃗, params; Lhs)
-                    - integrate_biot_savart(quantity, LongRange(), sb, x⃗, params; Lhs)
-                )
+                u⃗ = zero(x⃗)
                 if lia_segment_fraction !== nothing
                     # In this case we need to include the full BS integral over a fraction of the local segments.
                     u⃗ = u⃗ + (
-                        + integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, limits = nonlia_lims[1])
-                        + integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, limits = nonlia_lims[2])
+                        integrate_biot_savart(
+                            quantity, FullIntegrand(), sa, x⃗, params.common;
+                            Lhs, limits = nonlia_lims[1],
+                        )
+                        +
+                        integrate_biot_savart(
+                            quantity, FullIntegrand(), sb, x⃗, params.common;
+                            Lhs, limits = nonlia_lims[2],
+                        )
                     )
                 end
                 if _LIA
@@ -226,7 +266,10 @@ function add_short_range_fields!(
                 vecs_i = map(vecs_i) do (quantity, u⃗)
                     @inline
                     if !is_local_segment
-                        u⃗ = u⃗ + biot_savart_contribution(quantity, ShortRange(), params, x⃗, s⃗, qs⃗′; Lhs)
+                        u⃗ = u⃗ + biot_savart_contribution(
+                            quantity, ShortRange(), params.common, x⃗, s⃗, qs⃗′;
+                            Lhs, rcut² = params.rcut_sq,
+                        )
                     end
                     quantity => u⃗
                 end
