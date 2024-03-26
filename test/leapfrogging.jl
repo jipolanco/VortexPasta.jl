@@ -66,9 +66,8 @@ function test_leapfrogging_rings(
         refinement,
         label = string(scheme),
         verbose = false,
+        test_jet = true,
     )
-    test_jet = true
-    jet_modules = (VortexPasta, VortexPasta.ALL_MODULES...)
 
     # Define callback function to be run at each simulation timestep
     times = Float64[]
@@ -109,8 +108,8 @@ function test_leapfrogging_rings(
     end
 
     if test_jet
-        JET.@test_opt target_modules=jet_modules init(prob, scheme; dt = 0.01)
-        JET.@test_call target_modules=jet_modules init(prob, scheme; dt = 0.01)
+        JET.@test_opt ignored_modules=(Base,) init(prob, scheme; dt = 0.01)
+        JET.@test_call ignored_modules=(Base,) init(prob, scheme; dt = 0.01)
     end
 
     l_min = minimum_knot_increment(prob.fs)
@@ -140,12 +139,12 @@ function test_leapfrogging_rings(
     )
 
     if test_jet
-        JET.@test_opt target_modules=jet_modules callback(iter)
-        JET.@test_opt target_modules=jet_modules step!(iter)
-        JET.@test_call target_modules=jet_modules step!(iter)
+        JET.@test_opt ignored_modules=(Base,) callback(iter)
+        JET.@test_opt ignored_modules=(Base,) step!(iter)
+        JET.@test_call ignored_modules=(Base,) step!(iter)
     end
 
-    @info "Leapfrogging rings: solving with $scheme" dt_initial = iter.dt prob.tspan method refinement adaptivity
+    @info "Leapfrogging rings: solving with $scheme" # dt_initial = iter.dt prob.tspan method refinement adaptivity
 
     # Run simulation
     step!(iter)  # to avoid including compilation time in the next line
@@ -155,6 +154,8 @@ function test_leapfrogging_rings(
 
     # Check that the callback is called at the initial time
     @test first(times) == first(prob.tspan)
+
+    @show prob.tspan iter.nstep
 
     iseuler = scheme isa Euler || scheme isa IMEXEuler  # reduced precision of results
     @testset "Energy & impulse conservation" begin
@@ -208,6 +209,11 @@ function test_leapfrogging_rings(
 
         energy_mean = mean(energy_normalised)
         energy_std = std(energy_normalised)
+        impulse_mean = mean(impulse_normalised)
+        impulse_std = std(impulse_normalised)
+
+        @show energy_std / energy_mean
+        @show impulse_std / impulse_mean
 
         if verbose
             @show energy_initial
@@ -217,12 +223,6 @@ function test_leapfrogging_rings(
 
         @test energy_std < rtol_energy
         @test isapprox(energy_mean, 1; rtol = rtol_energy)
-
-        impulse_mean = mean(impulse_normalised)
-        impulse_std = std(impulse_normalised)
-
-        @show energy_std / energy_mean
-        @show impulse_std / impulse_mean
 
         if verbose
             @show impulse_std (impulse_mean - 1)
@@ -256,7 +256,7 @@ end
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
         backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4)),
-        quadrature = GaussLegendre(2),
+        quadrature = GaussLegendre(3),
     )
 
     # Check overloaded getproperty and propertynames for ParamsBiotSavart.
@@ -266,7 +266,7 @@ end
     # Initialise simulation
     R_init = π / 3
     fs_init = init_ring_filaments(R_init; method = QuinticSplineMethod())
-    tmax = 5 * R_init^2 / Γ  # enough time for a couple of "jumps"
+    tmax = R_init^2 / Γ
     tspan_long = (0.0, tmax)
     tspan_short = (0.0, tmax / 20)   # variant for faster tests
     prob_long = @inferred VortexFilamentProblem(fs_init, tspan_long, params_bs)
