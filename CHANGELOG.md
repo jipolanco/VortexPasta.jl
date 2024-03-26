@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `longrange_truncate_spherical` option to `ParamsBiotSavart`. This should
   only be used for testing.
 
+- Add optional `callback_vorticity` argument to `BiotSavart.compute_on_nodes!`.
+  It gives access to the truncated Fourier coefficients of the vorticity field,
+  it is converted onto the coefficients of the long-range velocity or streamfunction.
+
 ### Removed
 
 - Remove old `regularise_binormal` option, which is almost always a bad idea

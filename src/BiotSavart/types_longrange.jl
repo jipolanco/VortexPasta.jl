@@ -67,6 +67,18 @@ Abstract type describing the storage of data required to compute long-range inte
 The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRangeCache`
 (or `NullLongRangeCache()`, if long-range computations were disabled by setting `α = Zero()`).
 
+# Useful fields
+
+Most useful fields of a `cache::LongRangeCache` are in the `cache.common` field.
+In particular, `cache.common` contains the fields:
+
+- `wavenumbers::NTuple{3, AbstractVector}`: Fourier wavenumbers in each direction;
+- `uhat::StructArray{Vec3{Complex{T}}, 3}`: a full vector field in Fourier space;
+- `pointdata::PointData`: data associated to vector charges applied on non-uniform points.
+  These are available in `pointdata.charges` and `pointdata.points`;
+- `ewald_prefactor::Real`: the quantity ``Γ / V`` where ``V`` is the volume of a periodic
+  cell.
+
 # Extended help
 
 ## Implementation details

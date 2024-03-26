@@ -8,6 +8,7 @@ using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 using VortexPasta.FilamentIO
 using VortexPasta.BiotSavart
+using VortexPasta.BiotSavart: LongRangeCache
 using VortexPasta.Diagnostics
 using UnicodePlots: lineplot, lineplot!
 
@@ -65,6 +66,26 @@ function extended_energy_spectrum(cache_bs::BiotSavart.BiotSavartCache, fs, Ns::
     BiotSavart.add_point_charges!(cache, fs)
     BiotSavart.compute_vorticity_fourier!(cache)
     Diagnostics.energy_spectrum(cache)  # computes energy spectrum from vorticity in Fourier space
+end
+
+# Compute kinetic energy included in truncated Fourier coefficients of the vorticity.
+# This is the example in the docs of BiotSavart.compute_on_nodes!.
+function truncated_kinetic_energy_from_vorticity(cache::LongRangeCache)
+    (; wavenumbers, uhat, ewald_prefactor,) = cache.common
+    with_hermitian_symmetry = wavenumbers[1][end] > 0  # this depends on the long-range backend
+    γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
+    E = 0.0
+    for I ∈ CartesianIndices(uhat)
+        k⃗ = map(getindex, wavenumbers, Tuple(I))
+        kx = k⃗[1]
+        factor = (!with_hermitian_symmetry || kx == 0) ? 0.5 : 1.0
+        k² = sum(abs2, k⃗)
+        if !iszero(k²)
+            ω⃗ = uhat[I]  # Fourier coefficient of the vorticity
+            E += γ² * factor * sum(abs2, ω⃗) / k²
+        end
+    end
+    E
 end
 
 function test_infinite_lines(method)
@@ -150,7 +171,19 @@ function test_infinite_lines(method)
     cache = @inferred BiotSavart.init_cache(params, filaments)
     vs = map(f -> similar(nodes(f)), filaments)
     ψs = map(f -> similar(nodes(f)), filaments)
-    compute_on_nodes!((velocity = vs, streamfunction = ψs), cache, filaments)
+
+    E_from_vorticity = Ref(0.0)  # large-scale kinetic energy from vorticity field
+
+    function callback_vorticity(cache)
+        E = truncated_kinetic_energy_from_vorticity(cache)
+        E_from_vorticity[] = E
+        nothing
+    end
+
+    compute_on_nodes!(
+        (velocity = vs, streamfunction = ψs), cache, filaments;
+        callback_vorticity,
+    )
 
     @testset "Velocities" begin
         vnorms = norm.(first(vs))
@@ -200,7 +233,9 @@ function test_infinite_lines(method)
         E_spec = sum(Ek) * Δk
         E_spec_ext = sum(Ek_ext) * Δk
 
-        # @show E E_spec_ext E_spec E_spec_ext/E E_spec/E
+        # @show E E_spec_ext E_spec E_from_vorticity[] E_spec_ext/E E_spec/E
+        # @show (E_spec - E_from_vorticity[]) / E_spec
+        @test isapprox(E_spec, E_from_vorticity[]; rtol = 1e-6)
         @test E_spec < E_spec_ext < E
 
         # Check that we're in the right order of magnitude (actual limits will depend on
