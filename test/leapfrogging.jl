@@ -15,6 +15,7 @@ using VortexPasta.Timestepping: VortexFilamentSolver
 using VortexPasta.Diagnostics
 
 using JET: JET
+using StaticArrays: StaticArrays  # for JET only
 
 function init_ring_filaments(R_init; method = CubicSplineMethod(), noise = 1/3)
     N = 32
@@ -109,7 +110,7 @@ function test_leapfrogging_rings(
 
     if test_jet
         JET.@test_opt ignored_modules=(Base,) init(prob, scheme; dt = 0.01)
-        JET.@test_call ignored_modules=(Base,) init(prob, scheme; dt = 0.01)
+        JET.@test_call ignored_modules=(Base, StaticArrays) init(prob, scheme; dt = 0.01)
     end
 
     l_min = minimum_knot_increment(prob.fs)
@@ -141,7 +142,7 @@ function test_leapfrogging_rings(
     if test_jet
         JET.@test_opt ignored_modules=(Base,) callback(iter)
         JET.@test_opt ignored_modules=(Base,) step!(iter)
-        JET.@test_call ignored_modules=(Base,) step!(iter)
+        JET.@test_call ignored_modules=(Base, StaticArrays) step!(iter)
     end
 
     @info "Leapfrogging rings: solving with $scheme" # dt_initial = iter.dt prob.tspan method refinement adaptivity
