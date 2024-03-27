@@ -11,6 +11,7 @@ export
     GaussLegendre, NoQuadrature,
     Zero, Infinity, ∞,
     Velocity, Streamfunction,
+    LongRangeCache, ShortRangeCache,
     init_cache,
     periods,
     velocity_on_nodes!,
@@ -141,7 +142,9 @@ Base.@propagate_inbounds _make_field_pair(key, vs::AbstractVector, i::Integer) =
         cache::BiotSavartCache,
         fs::AbstractVector{<:AbstractFilament};
         LIA = Val(true),
-        shortrange = true, longrange = true,
+        shortrange = true,
+        longrange = true,
+        callback_vorticity = identity,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
 
 Compute velocity and/or streamfunction on filament nodes.
@@ -167,6 +170,8 @@ cache = BiotSavart.init_cache(...)
 compute_on_nodes!(fields, cache, fs)
 ```
 
+# Extended help
+
 ## Disabling local terms / computing *only* local terms
 
 One may disable computation of the locally-induced velocity and streamfunction (LIA term)
@@ -183,6 +188,55 @@ To do this, pass either `shortrange = false` or `longrange = false`.
 Note that the short-range component includes the local (LIA) term as well as the short-range
 correction term for long-range interactions. Therefore, setting `shortrange = false`
 disables both these terms.
+
+## Accessing vorticity in Fourier space
+
+The computation of long-range quantities involves estimating the Fourier coefficients of the
+vorticity field associated to the vortex filaments. These coefficients are truncated to some
+maximum wavenumber ``k_{\\text{max}}`` in each Cartesian direction. This information can be
+useful for other things, for instance computing energy spectra.
+
+One can use the `callback_vorticity` argument to access the vorticity in Fourier space,
+before it is replaced by the coefficients of streamfunction and/or velocity.
+This argument should be a function `callback_vorticity(cache)` which takes a
+[`LongRangeCache`](@ref). The callback should not modify anything inside the cache, or
+otherwise the streamfunction and velocity computed by this function will likely be wrong.
+Of course, this callback will be ignored if long-range computations are disabled.
+
+Note that, when the callback is called, the vorticity coefficients in `cache.common.uhat`
+don't have the right physical dimensions as they have not yet been multiplied by
+``Γ/V`` (where ``V`` is the volume of a unit cell). Note that ``Γ/V`` is directly available
+in `cache.common.ewald_prefactor`. Besides, the vorticity coefficients at this stage have
+not yet been Gaussian-filtered according to Ewald's method.
+
+An example of how to compute the (large-scale) kinetic energy associated to the
+Fourier-truncated vorticity field:
+
+```julia
+E_from_vorticity = Ref(0.0)  # "global" variable updated when calling compute_on_nodes!
+
+function callback_vorticity(cache::LongRangeCache)
+    (; wavenumbers, uhat, ewald_prefactor,) = cache.common
+    with_hermitian_symmetry = wavenumbers[1][end] > 0  # this depends on the long-range backend
+    γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
+    E = 0.0
+    for I ∈ CartesianIndices(uhat)
+        k⃗ = map(getindex, wavenumbers, Tuple(I))
+        kx = k⃗[1]
+        factor = (!with_hermitian_symmetry || kx == 0) ? 0.5 : 1.0
+        k² = sum(abs2, k⃗)
+        if !iszero(k²)
+            ω⃗ = uhat[I]  # Fourier coefficient of the vorticity
+            E += γ² * factor * sum(abs2, ω⃗) / k²
+        end
+    end
+    E_from_vorticity[] = E  # update value of "global" variable
+    nothing
+end
+
+compute_on_nodes!(...; callback_vorticity)
+```
+
 """
 function compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
@@ -191,7 +245,11 @@ function compute_on_nodes!(
         LIA = Val(true),
         longrange = true,
         shortrange = true,
-    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+        callback_vorticity::Fvort = identity,
+    ) where {
+        Names, N, V <: AbstractVector{<:VectorOfVec},
+        Fvort <: Function,
+    }
     if LIA === Val(:only)
         return _compute_LIA_on_nodes!(fields, cache, fs)
     end
@@ -218,6 +276,9 @@ function compute_on_nodes!(
     if cache.longrange !== NullLongRangeCache() && longrange
         @timeit to "Long-range component" begin
             @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
+            if callback_vorticity !== identity
+                @timeit to "Vorticity callback" callback_vorticity(cache.longrange)
+            end
             @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)
             if ψs !== nothing
                 @timeit to "Streamfunction" begin
