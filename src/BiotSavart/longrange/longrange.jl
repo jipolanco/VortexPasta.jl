@@ -31,14 +31,23 @@ function LongRangeCacheCommon(
         timer::TimerOutput,
     ) where {T}
     (; Γ, Ls, α,) = pcommon
+    (; backend,) = params
     @assert T === eltype(pcommon)
     @assert α !== Zero()
     Nks = map(length, wavenumbers)
-    uhat = StructArray{Vec3{Complex{T}}}(undef, Nks)
+    uhat = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
     ewald_prefactor = Γ / prod(Ls)
     ewald_op = init_ewald_fourier_operator(T, wavenumbers, α, ewald_prefactor)
     state = LongRangeCacheState()
     LongRangeCacheCommon(params, wavenumbers, pointdata, uhat, ewald_prefactor, ewald_op, state, timer)
+end
+
+# Initialise Fourier vector field with the right memory layout.
+# This default implementation can be overriden by other backends
+# That's the case of FINUFFT, which needs a specific memory layout to perform simultaneous
+# NUFFTs of the 3 vector field components.
+function init_fourier_vector_field(::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
+    StructArray{Vec3{Complex{T}}}(undef, Nks)
 end
 
 """
@@ -358,7 +367,10 @@ function add_long_range_output!(
     vs
 end
 
-function _ensure_hermitian_symmetry!(wavenumbers::NTuple{N}, us::Array{<:Complex, N}) where {N}
+function _ensure_hermitian_symmetry!(
+        wavenumbers::NTuple{N},
+        us::AbstractArray{<:Any, N},  # this can be a StructVector
+    ) where {N}
     # Ensure Hermitian symmetry one dimension at a time.
     _ensure_hermitian_symmetry!(wavenumbers, Val(N), us)
 end
@@ -368,15 +380,16 @@ end
     kd = wavenumbers[d]
     Δk = kd[2]
     is_r2c = last(kd) > 0  # real-to-complex transform
+    T = eltype(us)
     if is_r2c
         @assert d == 1  # r2c transform is necessarily in the first dimension
         inds = ntuple(j -> j == 1 ? lastindex(kd) : Colon(), Val(ndims(us)))
-        @inbounds @views us[inds...] .= 0
+        @inbounds @views us[inds...] .= Ref(zero(T))  # use Ref to avoid broadcasting over zero(T) (in case T <: Vec3)
     elseif iseven(N)  # case of complex-to-complex transform (nothing to do if N is odd)
         imin = (N ÷ 2) + 1  # asymmetric mode
         @assert -kd[imin] ≈ kd[imin - 1] + Δk
         inds = ntuple(j -> j == d ? imin : Colon(), Val(ndims(us)))
-        @inbounds @views us[inds...] .= 0
+        @inbounds @views us[inds...] .= Ref(zero(T))
     end
     _ensure_hermitian_symmetry!(wavenumbers, Val(d - 1), us)
 end

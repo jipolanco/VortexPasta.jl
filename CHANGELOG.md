@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Change default quadrature rule in `ParamsBiotSavart` from `GaussLegendre(2)`
   to `GaussLegendre(3)`.
 
+- `FINUFFTBackend`: perform NUFFTs of all vector components at once. This
+  improves performance of this backend. For the same precision, performance is
+  now comparable to that of `NonuniformFFTsBackend` provided that the FINUFFT
+  libraries are compiled from source (see [here](https://github.com/ludvigak/FINUFFT.jl?tab=readme-ov-file#advanced-installation-and-locally-compiling-binaries) for details).
+
 ### Added
 
 - Add `longrange_truncate_spherical` option to `ParamsBiotSavart`. This should

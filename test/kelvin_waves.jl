@@ -156,7 +156,7 @@ function test_kelvin_waves(
     let
         ks, Ek = @inferred Diagnostics.energy_spectrum(iter)
         Δk = step(ks)
-        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2))
+        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(3))
         @test E/10 < sum(Ek) * Δk < E
         # plt = lineplot(ks[2:end], Ek[2:end]; xscale = log10, yscale = log10)
         # println(plt)
@@ -219,7 +219,7 @@ function test_kelvin_waves(
         energy_std = std(energy_time)
         @show energy_initial
         @show energy_std / energy_initial
-        @show energy_last / energy_initial - 1
+        # @show energy_last / energy_initial - 1
         if iseuler
             @test energy_std / energy_initial < 1e-6
             @test isapprox(energy_last, energy_initial; rtol = 1e-5)
