@@ -31,14 +31,23 @@ function LongRangeCacheCommon(
         timer::TimerOutput,
     ) where {T}
     (; Γ, Ls, α,) = pcommon
+    (; backend,) = params
     @assert T === eltype(pcommon)
     @assert α !== Zero()
     Nks = map(length, wavenumbers)
-    uhat = StructArray{Vec3{Complex{T}}}(undef, Nks)
+    uhat = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
     ewald_prefactor = Γ / prod(Ls)
     ewald_op = init_ewald_fourier_operator(T, wavenumbers, α, ewald_prefactor)
     state = LongRangeCacheState()
     LongRangeCacheCommon(params, wavenumbers, pointdata, uhat, ewald_prefactor, ewald_op, state, timer)
+end
+
+# Initialise Fourier vector field with the right memory layout.
+# This default implementation can be overriden by other backends
+# That's the case of FINUFFT, which needs a specific memory layout to perform simultaneous
+# NUFFTs of the 3 vector field components.
+function init_fourier_vector_field(::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
+    StructArray{Vec3{Complex{T}}}(undef, Nks)
 end
 
 """
