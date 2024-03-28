@@ -358,7 +358,10 @@ function add_long_range_output!(
     vs
 end
 
-function _ensure_hermitian_symmetry!(wavenumbers::NTuple{N}, us::Array{<:Complex, N}) where {N}
+function _ensure_hermitian_symmetry!(
+        wavenumbers::NTuple{N},
+        us::AbstractArray{<:Any, N},  # this can be a StructVector
+    ) where {N}
     # Ensure Hermitian symmetry one dimension at a time.
     _ensure_hermitian_symmetry!(wavenumbers, Val(N), us)
 end
@@ -368,15 +371,16 @@ end
     kd = wavenumbers[d]
     Δk = kd[2]
     is_r2c = last(kd) > 0  # real-to-complex transform
+    T = eltype(us)
     if is_r2c
         @assert d == 1  # r2c transform is necessarily in the first dimension
         inds = ntuple(j -> j == 1 ? lastindex(kd) : Colon(), Val(ndims(us)))
-        @inbounds @views us[inds...] .= 0
+        @inbounds @views us[inds...] .= Ref(zero(T))  # use Ref to avoid broadcasting over zero(T) (in case T <: Vec3)
     elseif iseven(N)  # case of complex-to-complex transform (nothing to do if N is odd)
         imin = (N ÷ 2) + 1  # asymmetric mode
         @assert -kd[imin] ≈ kd[imin - 1] + Δk
         inds = ntuple(j -> j == d ? imin : Colon(), Val(ndims(us)))
-        @inbounds @views us[inds...] .= 0
+        @inbounds @views us[inds...] .= Ref(zero(T))
     end
     _ensure_hermitian_symmetry!(wavenumbers, Val(d - 1), us)
 end
