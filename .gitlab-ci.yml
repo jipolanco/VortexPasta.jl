@@ -1,20 +1,26 @@
 # Cache registry and compiled Julia files, mainly to avoid recompilating
 # everything every time we run the tests and docs. This should be extended
 # (using `extends`) by all jobs which want to use the cache.
+#
+# To allow all branches to use the same cache, one needs to modify the project settings on Gitlab.
+# See https://docs.gitlab.com/ee/ci/caching/#use-the-same-cache-for-all-branches.
 .julia-cache:
   before_script:
     # This is needed for caching Julia files (compilation, ...), since caching
     # can only be done if the files are in the project directory.
     - export JULIA_DEPOT_PATH=.julia
+    - mkdir -pv $JULIA_DEPOT_PATH
     - export JULIA_NUM_THREADS=1  # using more than 1 thread is slower in the CI machines (probably because there are other CI processes running!)
     - export JULIA_NUM_PRECOMPILE_TASKS=1
   cache:
     key: julia-cache
     paths:
       - .julia/artifacts
-      - .julia/compiled
       - .julia/packages
       - .julia/registries
+      - .julia/compiled
+      - .julia/scratchspaces
+      - .julia/logs
 
 .test_template:
   stage: test
@@ -27,6 +33,7 @@
   script:
     - echo "JULIA_NUM_THREADS = $JULIA_NUM_THREADS"
     - echo "JULIA_NUM_PRECOMPILE_TASKS = $JULIA_NUM_PRECOMPILE_TASKS"
+    - du -shc $JULIA_DEPOT_PATH/* || true  # adapted from julia-actions/cache on github
     - echo ""
     - |
       julia --heap-size-hint=800M --project -e '
