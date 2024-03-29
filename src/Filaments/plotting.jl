@@ -40,6 +40,10 @@ plot!(ax, f)  # f is a filament
 
 - `refinement::Int = 1`: level of refinement of the curves (must be ≥ 1)
 
+- `periods = (nothing, nothing, nothing)`. This can be a tuple of values representing the
+  domain period, for instance `(2π, 2π, 2π)`. In that case, filaments will be "broken" when
+  they exit the main unit cell, so that all vortex elements are within the cell.
+
 - `color = :black`
 
 - `linewidth = 1.5f0`

@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It gives access to the truncated Fourier coefficients of the vorticity field,
   it is converted onto the coefficients of the long-range velocity or streamfunction.
 
+- Add optional `periods` argument to `filamentplot!`, which allows to "break"
+  a curve onto multiple sub-curves which fall inside the periodic domain.
+
 ### Removed
 
 - Remove old `regularise_binormal` option, which is almost always a bad idea
