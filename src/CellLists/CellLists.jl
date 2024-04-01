@@ -164,7 +164,14 @@ end
     while x ≥ L
         x -= L
     end
-    clamp(1 + floor(Int, x / rcut), 1, N)  # make sure the index is in 1:N
+    # Here unsafe_trunc(Int, ⋅) is used instead of floor(Int, ⋅) because it should be
+    # faster.
+    # For non-negative values, both should give the same result.
+    # The unsafe_trunc function generally uses a single intrinsic CPU instruction and never
+    # throws errors. It can silently give a wrong result if the values are not representable
+    # by an Int, but that will never be the case in practice here (since 0 ≤ x/rcut < L/rcut
+    # and L/rcut is very small compared to typemax(Int) = 2^63 - 1).
+    clamp(1 + unsafe_trunc(Int, x / rcut), 1, N)  # make sure the index is in 1:N
 end
 
 """
