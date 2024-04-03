@@ -143,6 +143,8 @@ function compute_coefficients!(
         Xoffset = zero(eltype(Xs)),
     )
     (; method, cs, cderivs,) = coefs
+    nderivs = length(cderivs)
+    @assert nderivs ≤ 2  # more are not supported right now
     M = npad(method)
     length(cs) == length(Xs) == length(ts) ||
         throw(DimensionMismatch("incompatible vector dimensions"))
@@ -152,10 +154,14 @@ function compute_coefficients!(
     @inbounds for i ∈ eachindex(cs)
         ℓs_i = ntuple(j -> @inbounds(ts[i - M + j] - ts[i - M - 1 + j]), Val(2M))  # = ℓs[(i - M):(i + M - 1)]
         Xs_i = ntuple(j -> @inbounds(cs[i - M - 1 + j]), Val(2M + 1))  # = cs[(i - M):(i + M)]
-        coefs_dot = coefs_first_derivative(method, ℓs_i)
-        coefs_ddot = coefs_second_derivative(method, ℓs_i)
-        cderivs[1][i] = sum(splat(*), zip(coefs_dot, Xs_i))  # = ∑ⱼ c[j] * x⃗[j]
-        cderivs[2][i] = sum(splat(*), zip(coefs_ddot, Xs_i))
+        if nderivs ≥ 1
+            coefs_dot = coefs_first_derivative(method, ℓs_i)
+            cderivs[1][i] = sum(splat(*), zip(coefs_dot, Xs_i))  # = ∑ⱼ c[j] * x⃗[j]
+        end
+        if nderivs ≥ 2
+            coefs_ddot = coefs_second_derivative(method, ℓs_i)
+            cderivs[2][i] = sum(splat(*), zip(coefs_ddot, Xs_i))
+        end
     end
     # These paddings are needed for Hermite interpolations and stuff like that.
     # (In principle we just need M = 1 for two-point Hermite interpolations.)

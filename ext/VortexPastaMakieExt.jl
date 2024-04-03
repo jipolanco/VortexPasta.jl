@@ -66,7 +66,7 @@ function MakieCore.plot!(p::FilamentPlot)
         if all(isnothing, Ls)
             nodes(f)
         else
-            map(s⃗ -> to_main_periodic_cell(s⃗, Ls), nodes(f))
+            map(s⃗ -> Filaments.to_main_periodic_cell(s⃗, Ls), nodes(f))
         end
     end
     MakieCore.scatter!(
@@ -100,23 +100,6 @@ function MakieCore.plot!(p::FilamentPlot)
     p
 end
 
-to_main_periodic_cell(x⃗, Ls::Tuple) = oftype(x⃗, map(to_main_periodic_cell, x⃗, Ls))
-to_main_periodic_cell(x, L::Nothing) = x  # don't do anything
-
-function to_main_periodic_cell(x, L::Real)
-    while x > L
-        x -= L
-    end
-    while x < 0
-        x += L
-    end
-    x
-end
-
-is_jump(x⃗, x⃗_prev, Lhs::Tuple) = any(splat(is_jump), zip(x⃗, x⃗_prev, Lhs))
-is_jump(x, x_prev, Lh::Nothing) = false
-is_jump(x, x_prev, Lh::Real) = abs(x - x_prev) ≥ Lh
-
 function _refine_filament_for_plotting(
         f::ClosedFilament, refinement::Int, Ls::Tuple,
     )
@@ -134,15 +117,15 @@ function _refine_filament_for_plotting(
     n = 0
     subinds = range(0, 1; length = refinement + 1)[1:refinement]
     Lhs = map(L -> L === nothing ? nothing : L / 2, Ls)  # half periods
-    x⃗_prev = to_main_periodic_cell(first(Xs_nodes), Ls)
+    x⃗_prev = Filaments.to_main_periodic_cell(first(Xs_nodes), Ls)
     njumps = 0
     for i ∈ eachindex(f)
         for ζ ∈ subinds
-            x⃗ = to_main_periodic_cell(f(i, ζ), Ls)
+            x⃗ = Filaments.to_main_periodic_cell(f(i, ζ), Ls)
             # Check if we "jumped" from the previous position.
             # Insert a NaN point in that case.
             if with_periods
-                if is_jump(x⃗, x⃗_prev, Lhs)
+                if Filaments.is_jump(x⃗, x⃗_prev, Lhs)
                     njumps += 1
                     push!(Xs, x⃗_nan)
                 end
@@ -153,8 +136,8 @@ function _refine_filament_for_plotting(
     end
     @assert length(Xs) == refinement * length(f) + njumps
     # Close the loop.
-    let x⃗ = to_main_periodic_cell(f(lastindex(f), 1.0), Ls)
-        if !is_jump(x⃗, x⃗_prev, Lhs)
+    let x⃗ = Filaments.to_main_periodic_cell(f(lastindex(f), 1.0), Ls)
+        if !Filaments.is_jump(x⃗, x⃗_prev, Lhs)
             push!(Xs, x⃗)
         end
     end
@@ -169,7 +152,7 @@ function _tangents_for_arrows(f::AbstractFilament, vectorpos::Real, Ls)
         x = f(i, vectorpos, Derivative(0))
         v = f(i, vectorpos, UnitTangent())
         for n ∈ eachindex(x)
-            Xs[n][i] = to_main_periodic_cell(x[n], Ls[n])
+            Xs[n][i] = Filaments.to_main_periodic_cell(x[n], Ls[n])
             Vs[n][i] = v[n]
         end
     end
@@ -201,7 +184,7 @@ function _curvatures_for_arrows(f::AbstractFilament, vectorpos::Real, Ls)
         v = f(i, vectorpos, CurvatureVector())
         # ρ = norm(v)  # curvature (= 1 / R)
         for n ∈ eachindex(x)
-            Xs[n][i] = to_main_periodic_cell(x[n], Ls[n])
+            Xs[n][i] = Filaments.to_main_periodic_cell(x[n], Ls[n])
             Vs[n][i] = v[n]
         end
     end
@@ -226,7 +209,7 @@ function _velocities_for_arrows(f::AbstractFilament, v::AbstractVector, Ls)
     Xs = ntuple(_ -> Vector{Float32}(undef, N), 3)  # layout accepted by Makie.arrows
     Vs = map(similar, Xs)
     for i ∈ eachindex(f), n ∈ eachindex(Xs)
-        Xs[n][i] = to_main_periodic_cell(f[i][n], Ls[n])
+        Xs[n][i] = Filaments.to_main_periodic_cell(f[i][n], Ls[n])
         Vs[n][i] = v[i][n]
     end
     (Xs..., Vs...)

@@ -22,6 +22,100 @@ function tangent_streamfunction!(ψt_all, fs, ψs_all::VectorOfVectors)
     ψt_all
 end
 
+function test_hdf5_file(
+        check_fields::F, prefix, fs, fields;
+        refinement,
+        periods = (nothing, nothing, nothing),
+        dataset_type,
+        kws...,
+    ) where {F <: Function}
+    with_periods = any(!isnothing, periods)
+    bname = "$(prefix)_ref$(refinement)_$dataset_type"
+    if with_periods
+        bname = bname * "_periods"
+    end
+    _allow_breaking_filaments = get(kws, :_allow_breaking_filaments, true)
+    if !_allow_breaking_filaments
+        bname = bname * "_beforeVP0.18"
+    end
+    fname = bname * ".vtkhdf"
+
+    should_fail = with_periods && !_allow_breaking_filaments
+
+    if should_fail
+        @test_throws ArgumentError FilamentIO.write_vtkhdf(
+            fname, fs;
+            refinement, dataset_type, parametrisation = false,
+            periods,
+            kws...,
+        )
+        return
+    end
+
+    # Write results
+    FilamentIO.write_vtkhdf(
+        fname, fs;
+        refinement, dataset_type, parametrisation = false,
+        periods,
+        _allow_breaking_filaments,
+    ) do io
+        io["velocity"] = fields.vs
+        io["streamfunction"] = fields.ψs
+        io["streamfunction_t"] = fields.ψt
+        io["streamfunction_t_vec"] = fields.ψt_vec
+        io["curvature_vector"] = CurvatureVector()
+        io["curvature_scalar"] = CurvatureScalar()
+        io["time"] = fields.time
+        io["info"] = fields.info_str
+        nothing
+    end
+
+    HDF5.h5open(fname, "r") do ff
+        gbase = HDF5.open_group(ff, "VTKHDF")
+        ref = read(gbase["RefinementLevel"]) :: Int
+        @test ref == refinement
+        # Check that both datasets are equal in the file.
+        # This is mainly interesting when refinement > 1, so that we're checking also
+        # interpolated values in-between nodes.
+        local ψt_read = read(gbase["PointData/streamfunction_t"]) :: Vector{Float64}
+        local ψt_vec_read = read(gbase["PointData/streamfunction_t_vec"]) :: Vector{Float64}
+        @test ψt_read == ψt_vec_read
+    end
+
+    # Read results back
+    fs_read = @inferred FilamentIO.read_vtkhdf(
+        check_fields, fname, Float64, CubicSplineMethod(),
+    )
+
+    @test eltype(eltype(fs_read)) === Vec3{Float64}
+    @test fs == fs_read
+
+    fs_read_f32 = @inferred FilamentIO.read_vtkhdf(fname, Float32, CubicSplineMethod())
+    @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
+    @test fs ≈ fs_read_f32
+
+    # Same without passing a function. Also, modify parametrisation (knots) of the
+    # filament, to make sure we read it back with the same parametrisation.
+    gs = map(copy, fs)
+    for g ∈ gs
+        ts = knots(g)
+        for i ∈ eachindex(ts)
+            ts[i] = sqrt(ts[i])
+        end
+        pad_periodic!(ts, ts[end + 1] - ts[begin])
+        update_coefficients!(g; knots = ts)
+    end
+    FilamentIO.write_vtkhdf(fname * ".alt", gs; refinement)
+    gs_read = FilamentIO.read_vtkhdf(fname * ".alt", Float64, CubicSplineMethod())
+    for (f, g) ∈ zip(gs, gs_read)
+        @test knots(f) == knots(g)      # parametrisation is the same!
+        @test f.coefs.cs == g.coefs.cs  # interpolation coefficients are the same!
+    end
+    @test gs == gs_read
+
+    nothing
+end
+
 function test_hdf5()
     # Copied from the ring collision test.
     R = π / 3  # ring radius
@@ -138,64 +232,46 @@ function test_hdf5()
         @test info_str == info_read
     end
 
+    fields = (;
+        vs, ψs, ψt, ψt_vec, time, info_str,
+    )
+
     @testset "→ refinement = $refinement" for refinement ∈ (1, 3)
-        @testset "Dataset type: $dataset_type" for dataset_type ∈ dataset_types
-            fname = "ring_collision_ref$(refinement)_$dataset_type.vtkhdf"
+        @testset "Periodicity: $with_periods" for with_periods ∈ (false, true)
+            @testset "Dataset type: $dataset_type" for dataset_type ∈ dataset_types
+                # We intentonally use a smaller period than the real domain period L to make
+                # sure that the filaments cross the boundaries, so that the filaments are
+                # broken into multiple cells. This should never be done in real cases!
+                periods = with_periods ? (0.5 .* Ls) : (nothing, nothing, nothing)
+                prefix = "ring_collision"
+                test_hdf5_file(check_fields, prefix, fs, fields; refinement, periods, dataset_type)
+            end  # dataset_type
+        end  # with_periods
+    end  # refinement
 
-            # Write results
-            FilamentIO.write_vtkhdf(fname, fs; refinement, dataset_type, parametrisation = false) do io
-                io["velocity"] = vs
-                io["streamfunction"] = ψs
-                io["streamfunction_t"] = ψt
-                io["streamfunction_t_vec"] = ψt_vec
-                io["curvature_vector"] = CurvatureVector()
-                io["curvature_scalar"] = CurvatureScalar()
-                io["time"] = time
-                io["info"] = info_str
+    # Check that we can read files generated by previous VortexPasta versions.
+    # We use the "hidden" _allow_breaking_filaments option to avoid writing some fields
+    # added in VortexPasta 0.18 (such as FilamentIds, FilamentPeriodicOffsets, Periods).
+    @testset "Reading old VTKHDF files" begin
+        @testset "→ refinement = $refinement" for refinement ∈ (1, 3)
+            @testset "Dataset type: $dataset_type" for dataset_type ∈ dataset_types
+                prefix = "ring_collision"
+                _allow_breaking_filaments = false
+
+                # If we pass the periods `argument`, things should fail.
+                # (This is tested inside test_hdf5_file.)
+                test_hdf5_file(
+                    check_fields, prefix, fs, fields;
+                    refinement, periods = Ls, dataset_type,
+                    _allow_breaking_filaments,
+                )
+
+                test_hdf5_file(
+                    check_fields, prefix, fs, fields;
+                    refinement, dataset_type,
+                    _allow_breaking_filaments,
+                )
             end
-
-            HDF5.h5open(fname, "r") do ff
-                gbase = HDF5.open_group(ff, "VTKHDF")
-                ref = read(gbase["RefinementLevel"]) :: Int
-                @test ref == refinement
-                # Check that both datasets are equal in the file.
-                # This is mainly interesting when refinement > 1, so that we're checking also
-                # interpolated values in-between nodes.
-                local ψt_read = read(gbase["PointData/streamfunction_t"]) :: Vector{Float64}
-                local ψt_vec_read = read(gbase["PointData/streamfunction_t_vec"]) :: Vector{Float64}
-                @test ψt_read == ψt_vec_read
-            end
-
-            # Read results back
-            fs_read = @inferred FilamentIO.read_vtkhdf(
-                check_fields, fname, Float64, CubicSplineMethod(),
-            )
-
-            @test eltype(eltype(fs_read)) === Vec3{Float64}
-            @test fs == fs_read
-
-            fs_read_f32 = @inferred FilamentIO.read_vtkhdf(fname, Float32, CubicSplineMethod())
-            @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
-            @test fs ≈ fs_read_f32
-
-            # Same without passing a function. Also, modify parametrisation (knots) of the
-            # filament, to make sure we read it back with the same parametrisation.
-            gs = map(copy, fs)
-            for g ∈ gs
-                ts = knots(g)
-                for i ∈ eachindex(ts)
-                    ts[i] = sqrt(ts[i])
-                end
-                pad_periodic!(ts, ts[end + 1] - ts[begin])
-                update_coefficients!(g; knots = ts)
-            end
-            FilamentIO.write_vtkhdf(fname * ".alt", gs; refinement)
-            gs_read = FilamentIO.read_vtkhdf(fname * ".alt", Float64, CubicSplineMethod())
-            for (f, g) ∈ zip(gs, gs_read)
-                @test knots(f) == knots(g)      # parametrisation is the same!
-                @test f.coefs.cs == g.coefs.cs  # interpolation coefficients are the same!
-            end
-            @test gs == gs_read
         end
     end
 
