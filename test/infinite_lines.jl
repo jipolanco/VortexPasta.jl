@@ -35,11 +35,14 @@ function estimate_power_law_exponent(xs_in, ys_in)
 end
 
 # Check that I/O preserves the end-to-end offset.
-function test_infinite_line_io(fs, vs)
+function test_infinite_line_io(fs, vs; periods)
+    with_periods = any(!isnothing, periods)
     method = Filaments.discretisation_method(first(fs))
     T = eltype(eltype(eltype(fs)))
     @assert T <: AbstractFloat
-    FilamentIO.write_vtkhdf("infinite.vtkhdf", fs) do io
+    suffix = with_periods ? "_periods" : ""
+    fname = "infinite$(suffix).vtkhdf"
+    FilamentIO.write_vtkhdf(fname, fs; periods, refinement = 2) do io
         io["velocity"] = vs
     end
     function check_velocity(io)
@@ -51,7 +54,7 @@ function test_infinite_line_io(fs, vs)
             @test @views u[:] == v[:]
         end
     end
-    fs_read = @inferred FilamentIO.read_vtkhdf(check_velocity, "infinite.vtkhdf", T, method)
+    fs_read = @inferred FilamentIO.read_vtkhdf(check_velocity, fname, T, method)
     @test fs_read == fs
     for (f, g) ∈ zip(fs, fs_read)
         @test end_to_end_offset(f) == end_to_end_offset(g)
@@ -245,7 +248,8 @@ function test_infinite_lines(method)
     end
 
     @testset "FilamentIO" begin
-        test_infinite_line_io(filaments, vs)
+        test_infinite_line_io(filaments, vs; periods = (nothing, nothing, nothing))
+        test_infinite_line_io(filaments, vs; periods = Ls)
     end
 
     nothing

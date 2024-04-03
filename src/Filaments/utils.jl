@@ -51,6 +51,8 @@ end
 
 fold_periodic!(f, periods::Vec3) = fold_periodic!(f, Tuple(periods))
 
+# ======================================================================================== #
+
 function _count_periodic_offsets(x::Real, L::Real)
     offset = 0
     while x < 0
@@ -65,6 +67,35 @@ function _count_periodic_offsets(x::Real, L::Real)
 end
 
 _count_periodic_offsets(x::Real, ::Infinity) = 0
+
+# ======================================================================================== #
+
+# Return coordinate corresponding to x⃗ but in the main periodic cell.
+# Here the periods are Ls = (Lx, Ly, Lz). If a component is `nothing`, then we do nothing in
+# that direction (as if it was a non-periodic dimension).
+to_main_periodic_cell(x⃗, Ls::Tuple) = oftype(x⃗, map(to_main_periodic_cell, x⃗, Ls))
+to_main_periodic_cell(x, L::Nothing) = x  # don't do anything (non-periodic case)
+
+function to_main_periodic_cell(x::T, L::Real) where {T}
+    while x ≥ L
+        x -= L
+    end
+    while x < 0
+        x += L
+    end
+    x::T
+end
+
+# ======================================================================================== #
+
+# Returns `true` if the distance between two points is larger than half the domain period in
+# at least one direction. This is generally used to see if there is a periodic "jump"
+# between two consecutive points of a filament (used for plots / VTK exports only).
+is_jump(x⃗, x⃗_prev, Lhs::Tuple) = any(splat(is_jump), zip(x⃗, x⃗_prev, Lhs))
+is_jump(x, x_prev, Lh::Nothing) = false
+is_jump(x, x_prev, Lh::Real) = abs(x - x_prev) ≥ Lh
+
+# ======================================================================================== #
 
 _find_knot_segment(ileft::Integer, tlims, ts, t) = (ileft, t)
 
@@ -81,6 +112,8 @@ function _find_knot_segment(::Nothing, tlims, ts, t)
     i = searchsortedlast(ts, t) :: Int
     i, t
 end
+
+# ======================================================================================== #
 
 # TESTING / EXPERIMENTAL
 # This function may be removed in the future.

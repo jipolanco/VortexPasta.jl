@@ -16,8 +16,24 @@ struct VTKHDFFile{
     refinement :: Int
 end
 
+const FilamentId = Int32
+const FilamentPeriodicOffset = Int32
+
 struct PointData end
 struct FieldData end
+
+# Here "padded" means that Xs[end] corresponds the endpoint (which is equal to the start
+# point for closed curves).
+function write_padded_data_to_hdf5(points, Xs, n, ldims, Np)
+    (; dset, dspace, dtype,) = points
+    memspace = HDF5.dataspace((ldims..., Np))
+    memtype = dtype
+    lranges = map(N -> 1:N, ldims)
+    HDF5.select_hyperslab!(dspace, (lranges..., (n + 1):(n + Np)))
+    HDF5.API.h5d_write(dset.id, memtype.id, memspace.id, dspace.id, dset.xfer, Xs)
+    close(memspace)
+    nothing
+end
 
 include("write_points.jl")
 include("write_parametrisation.jl")
@@ -31,6 +47,7 @@ include("write_data.jl")
         refinement = 1,
         dataset_type = :PolyData,
         parametrisation = true,
+        periods = (nothing, nothing, nothing),
     )
 
 Write new VTK HDF file containing a list of filaments.
@@ -43,6 +60,13 @@ Following the VTK HDF specification, this function creates a "VTKHDF" group on t
 HDF5 file. Then, it creates the datasets allowing to describe the filaments as an
 unstructured grid.
 
+See also the [VTK documentation](https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#vtkhdf-file-format)
+for details on the VTK HDF format.
+
+# Extended help
+
+## Relevant datasets
+
 Some relevant datasets which are written are:
 
 - `/VTKHDF/Points`: contains the coordinates of all filament nodes. Points are represented as
@@ -51,14 +75,14 @@ Some relevant datasets which are written are:
   appears twice in the file. This is done to disambiguate between *closed* and *infinite but
   unclosed* filaments (see [`end_to_end_offset`](@ref)).
 
-- `/VTKHDF/Lines/Offsets`: contains the offset associated to each filament within the `Points`
-  dataset. Its length is `1 + Nf` where `Nf` is the number of filaments. The points
-  associated to the `i`-th filament are those with indices `(Offsets[i] + 1):Offsets[i + 1]`.
-  Once again, note that number of nodes of filament `i` *including the endpoint* is
-  `Offsets[i + 1] - Offsets[i]`.
-
-See also the [VTK documentation](https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#vtkhdf-file-format)
-for details on the VTK HDF format.
+- `/VTKHDF/CellData/FilamentIds`: contains the filament id associated to each VTK cell. It is
+  a dataset of length `Nc`, where `Nc` is the number of cells.
+  In our case a cell is a spatial curve made of discrete points.
+  The ids are `$FilamentId` values from `1` to `Nf`, where `Nf` is the number of filaments.
+  The values are always sorted increasingly (`FilamentIds[i + 1] ≥ FilamentIds[i]` for all `i`).
+  Note that, in general, one cell corresponds to one filament (so that `Nc == Nf`), but this
+  may not be the case when the `periods` argument is used and a filament is broken onto
+  multiple curves (see **Periodic wrapping of filaments** below for details).
 
 ## Attaching extra data
 
@@ -82,12 +106,25 @@ syntax. See further below for some examples.
 - `dataset_type::Symbol`: can be either `:PolyData` (default) or `:UnstructuredGrid`.
   There's usually no reason to change this.
 
+## Periodic wrapping of filaments
+
+When using periodic boundary conditions, one can use the optional `periods` argument to
+periodically wrap the filaments. In this case, one should pass a tuple `periods = (Lx, Ly,
+Lz)` with the period in each direction (one can pass `nothing` if there are non-periodic
+directions).
+
+In this case, filaments outside the main periodic box will be translated to fit in the
+periodic box. Moreover, if a filament locally goes out of the periodic box, it will be
+broken onto multiple curves so that they all fit within the domain. One can then look at the
+`/VTKHDF/CellData/FilamentIds` dataset to determine which curves belong to the same
+filament.
+
 ## Typical usage
 
 ```julia
 # Note: the file extension is arbitrary, but ParaView prefers ".vtkhdf" (or ".hdf") if one
 # wants to use the files for visualisation.
-write_vtkhdf("filaments.vtkhdf", fs; refinement = 2, curvatures = true) do io
+write_vtkhdf("filaments.vtkhdf", fs; refinement = 2, periods = (2π, 2π, 2π)) do io
     io["Velocity"] = vs  # adds velocity as VTK point data, assuming vs is a VectorOfVectors
     io["Curvatures"] = CurvatureVector()  # convenient syntax for writing geometric quantities along filaments
     io["Time"] = 0.3     # adds time as VTK field data, since it's a scalar
@@ -127,18 +164,35 @@ function open_or_create_group(parent, name)
     end
 end
 
+# Some internal (undocumented) arguments:
+#
+# - _allow_breaking_filaments: can be set to false to generate files as in old VortexPasta
+#   versions (< 0.18). Used in tests only, to check that we're still able to read old VTKHDF
+#   files.
+#
 function init_vtkhdf(
         io::HDF5.File,
         fs::AbstractVector{<:AbstractFilament};
         refinement::Int = 1,
         parametrisation = true,
         dataset_type::Symbol = :PolyData,  # either :UnstructuredGrid (old default) or :PolyData
+        periods::Tuple = (nothing, nothing, nothing),
+        _allow_breaking_filaments = true,
     )
     gtop = HDF5.create_group(io, "VTKHDF")
     HDF5.attrs(gtop)["Version"] = [2, 1]
 
+    with_periods = any(!isnothing, periods)
+    if with_periods && !_allow_breaking_filaments
+        throw(ArgumentError("the `periods` argument requires `_allow_breaking_filaments = true`"))
+    end
+
     # This is the first VortexPasta version needed to read back the files.
-    HDF5.attrs(gtop)["VortexPasta minimum version"] = [0, 14, 0]
+    HDF5.attrs(gtop)["VortexPasta minimum version"] = if with_periods
+        [0, 18, 0]
+    else
+        [0, 14, 0]
+    end
 
     # This attribute *must* be written as ASCII instead of UTF8, or ParaView will fail to
     # open the file.
@@ -151,18 +205,7 @@ function init_vtkhdf(
 
     V = eltype(eltype(fs))  # usually V == SVector{3, T}
     T = eltype(V)
-    N = length(V)  # usually == 3 (works when V <: StaticArray)
-
-    num_points = sum(f -> refinement * length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint
-    num_cells = length(fs)
-
-    if dataset_type == :PolyData
-        gcells = HDF5.create_group(gtop, "Lines")  # write cell info info to /VTKHDF/Lines
-    elseif dataset_type == :UnstructuredGrid
-        gcells = gtop  # write cell info directly to /VTKHDF
-    else
-        throw(ArgumentError("dataset_type must be either :PolyData (default) or :UnstructuredGrid"))
-    end
+    N = length(V)  # usually == 3
 
     # Add empty categories
     if dataset_type == :PolyData
@@ -176,71 +219,123 @@ function init_vtkhdf(
         end
     end
 
-    gtop["NumberOfPoints"] = [num_points]
-    gtop["RefinementLevel"] = refinement  # this is not a VTK attribute, it's just for our own use
-
-    gcells["NumberOfCells"] = [num_cells]
-    gcells["NumberOfConnectivityIds"] = [num_points]
-
-    let dset = HDF5.create_dataset(gcells, "Connectivity", Int, (num_points,))
-        local data = collect(0:(num_points - 1))
-        dtype = HDF5.datatype(data)
-        HDF5.write_dataset(dset, dtype, data)
-        close(dtype)
-        close(dset)
-    end
-
-    let dset = HDF5.create_dataset(gcells, "Offsets", Int, (num_cells + 1,))
-        local data = Vector{Int}(undef, num_cells + 1)
-        data[1] = 0
-        for (i, f) ∈ enumerate(fs)
-            data[i + 1] = data[i] + refinement * length(nodes(f)) + 1
-        end
-        dtype = HDF5.datatype(data)
-        HDF5.write_dataset(dset, dtype, data)
-        close(dtype)
-        close(dset)
-    end
-
-    if dataset_type == :UnstructuredGrid
-        # Write cell types, `4` corresponds to VTK_POLY_LINE
-        let dset = HDF5.create_dataset(gtop, "Types", UInt8, (num_cells,))
-            local data = fill(UInt8(4), num_cells)
-            HDF5.write_dataset(dset, HDF5.datatype(data), data)
-            close(dset)
-        end
-    end
-
-    points = let dtype = HDF5.datatype(T)
-        dspace = HDF5.dataspace((N, num_points))
-        (;
-            dtype, dspace,
-            dset = HDF5.create_dataset(gtop, "Points", dtype, dspace),
-        )
-    end
-
-    let n = write_points(points, fs, refinement)
-        @assert n == num_points
-    end
+    num_points = sum(f -> refinement * length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint
 
     g_pointdata = HDF5.create_group(gtop, "PointData")
+    g_celldata = HDF5.create_group(gtop, "CellData")
 
-    if parametrisation
-        info_param = let dtype = HDF5.datatype(T)
-            dspace = HDF5.dataspace((num_points,))
-            (;
-                dtype, dspace,
-                dset = HDF5.create_dataset(g_pointdata, "Parametrisation", dtype, dspace),
-            )
-        end
-        let n = write_parametrisation(info_param, fs, refinement)
-            @assert n == num_points
-        end
-        foreach(close, info_param)  # close dataset + dataspace + datatype
+    if dataset_type == :PolyData
+        gcells = HDF5.create_group(gtop, "Lines")  # write cell info to /VTKHDF/Lines
+    elseif dataset_type == :UnstructuredGrid
+        gcells = gtop  # write cell info directly to /VTKHDF
+    else
+        throw(ArgumentError("dataset_type must be either :PolyData (default) or :UnstructuredGrid"))
     end
 
+    gtop["NumberOfPoints"] = [num_points]
+
+    buf = Bumper.default_buffer()
+    @no_escape buf let
+        # These are not VTK attributes, it's just for our own use
+        gtop["RefinementLevel"] = refinement
+
+        if _allow_breaking_filaments
+            gtop["Periods"] = let
+                local Ls = @alloc(T, length(periods))
+                for (i, L) ∈ pairs(periods)
+                    # We write a zero in "non-periodic" dimensions.
+                    Ls[i] = L === nothing ? zero(T) : T(L)
+                end
+                Ls
+            end
+        end
+
+        num_filaments = length(fs)
+        gtop["NumberOfFilaments"] = [num_filaments]
+
+        # Integer periodic offset applied to the first point of the filament.
+        # This is just to be able to reconstruct the filaments with their original periodic
+        # offset.
+        offsets = @alloc(FilamentPeriodicOffset, N, num_filaments)
+
+        # Points to be written.
+        Xs_all = @alloc(V, num_points)
+
+        # This determines whether the endpoint f[end + 1] of a filament `f` should be
+        # included in the cell connectivity arrays. This is only useful for visualisations,
+        # to avoid ugly "jumps" between points f[end] and f[end + 1] of a filament if they
+        # are "far" after periodic wrapping.
+        include_endpoint_in_connectivity = @alloc(Bool, num_filaments)
+
+        (; filament_ids, cell_offsets,) = set_points!(
+            Xs_all, offsets, include_endpoint_in_connectivity, fs, refinement, periods,
+        )
+
+        num_cells = length(filament_ids)
+        @assert length(cell_offsets) == num_cells + 1
+
+        # Write full Points dataset.
+        points_to_vtkhdf_dataset(gtop, Xs_all)
+
+        gcells["Offsets"] = cell_offsets
+
+        if _allow_breaking_filaments
+            g_celldata["FilamentIds"] = filament_ids
+            gtop["FilamentPeriodicOffsets"] = offsets
+        end
+
+        gcells["NumberOfCells"] = [num_cells]
+
+        # Number of points included in the connectivity vector.
+        num_points_connectivity =
+            num_points - (num_filaments - sum(include_endpoint_in_connectivity))
+        gcells["NumberOfConnectivityIds"] = [num_points_connectivity]
+
+        gcells["Connectivity"] = let
+            connectivity = @alloc(Int, num_points_connectivity)
+            local n = 0
+            local m = -1  # VTK uses zero-based indexing (we start at m = 0)
+            for (i, f) ∈ enumerate(fs)
+                Np = length(nodes(f)) * refinement
+                Np_cells = Np + include_endpoint_in_connectivity[i]
+                inds = (n + 1):(n + Np_cells)
+                connect = (m + 1):(m + Np_cells)
+                @views copyto!(connectivity[inds], connect)
+                n += Np_cells
+                m += Np + 1  # always includes endpoint
+            end
+            @assert n == num_points_connectivity
+            @assert m == num_points - 1
+            connectivity
+        end
+
+        if dataset_type == :UnstructuredGrid
+            # Write cell types, `4` corresponds to VTK_POLY_LINE
+            let dset = HDF5.create_dataset(gtop, "Types", UInt8, (num_cells,))
+                local data = @alloc(UInt8, num_cells)
+                fill!(data, UInt8(4))
+                HDF5.write_dataset(dset, HDF5.datatype(data), data)
+                close(dset)
+            end
+        end
+
+        if parametrisation
+            info_param = let dtype = HDF5.datatype(T)
+                dspace = HDF5.dataspace((num_points,))
+                (;
+                    dtype, dspace,
+                    dset = HDF5.create_dataset(g_pointdata, "Parametrisation", dtype, dspace),
+                )
+            end
+            let n = write_parametrisation(info_param, fs, refinement)
+                @assert n == num_points
+            end
+            foreach(close, info_param)  # close dataset + dataspace + datatype
+        end
+    end  # @no_escape
+
+    close(g_celldata)
     close(g_pointdata)
-    foreach(close, points)  # close dataset + dataspace + datatype
 
     VTKHDFFile(gtop, fs, refinement)
 end
@@ -455,6 +550,23 @@ function read_filaments(
         gcells = gtop  # cell info is in /VTKHDF
     end
 
+    periods = let Ls = Vector{T}(undef, 3)
+        if haskey(gtop, "Periods")
+            # Files generated by VortexPasta ≥ 0.18.
+            let dset = HDF5.open_dataset(gtop, "Periods")
+                @assert length(dset) == length(Ls)
+                read_dataset!(Ls, dset)
+                close(dset)
+            end
+        else
+            # Old versions (before VortexPasta 0.18)
+            fill!(Ls, 0)  # 0 means no periodicity
+        end
+        ntuple(i -> Ls[i], Val(3))
+    end
+
+    with_periods = any(!iszero, periods)
+
     dset_points = HDF5.open_dataset(gtop, "Points")
     dset_offset = HDF5.open_dataset(gcells, "Offsets")
 
@@ -463,45 +575,131 @@ function read_filaments(
     num_cells = length(dset_offset) - 1
     num_cells > 0 || error("expected at least one filament in the file")
 
+    if with_periods
+        filament_ids = Vector{FilamentId}(undef, num_cells)
+        let dset = HDF5.open_dataset(gtop, "CellData/FilamentIds")
+            @assert length(dset) == num_cells
+            read_dataset!(filament_ids, dset)
+            close(dset)
+        end
+    else
+        filament_ids = collect(FilamentId(1):FilamentId(num_cells)) :: Vector{FilamentId}
+    end
+
+    # Determine number of actual filaments from filament ids.
+    num_filaments = filament_ids[end] - filament_ids[begin] + 1
+    @assert num_cells ≥ num_filaments
+
     if refinement == 1
         num_points = num_points_refined
     else
         # We subtract endpoint from each cell before dividing by refinement level
-        num_points, _remainder = divrem(num_points_refined - num_cells, refinement)
-        @assert _remainder == 0  # the division is exact
-        num_points += num_cells  # reinclude the endpoints in final count
+        num_points, _remainder = divrem(num_points_refined - num_filaments, refinement)
+        @assert _remainder == 0      # the division is exact
+        num_points += num_filaments  # reinclude the endpoints in final count
     end
 
-    # Read points as an Array{T} even if it was written as an Array{S} with S ≠ T
-    # (for instance, if data was written as S = Float64 and we want to read it as T = Float32).
-    # Similar thing for offsets. This ensures type stability...
-    points = Array{T}(undef, 3, num_points)
-    offsets = Array{Int}(undef, num_cells + 1)
+    buf = Bumper.default_buffer()
+    fs = @no_escape buf let
+        # Read points as an AbstractArray{T} even if it was written as an AbstractArray{S} with S ≠ T
+        # (for instance, if data was written as S = Float64 and we want to read it as T = Float32).
+        # Similar thing for offsets. This ensures type stability...
+        points = @alloc(Vec3{T}, num_points)
+        cell_offsets = @alloc(Int, num_cells + 1)
+        filament_offsets = @alloc(Int, num_filaments + 1)
+        periodic_offsets = @alloc(Vec3{FilamentPeriodicOffset}, num_filaments)
 
-    read_dataset!(offsets, dset_offset)
-
-    if refinement == 1
-        read_dataset!(points, dset_points)
-    else
-        _recompute_offsets!(offsets, refinement)
-        @assert last(offsets) == num_points
-        dspace = HDF5.dataspace(dset_points)
-        n = 0
-        for i ∈ 1:num_cells
-            a = offsets[i] + 1
-            b = offsets[i + 1]
-            out = @view points[:, a:b]
-            Np = size(out, 2)
-            inds_file = range(n + 1; length = Np, step = refinement)
-            HDF5.select_hyperslab!(dspace, (1:Ñ, inds_file))
-            read_dataset!(out, dset_points, dspace)
-            n = last(inds_file)
+        num_points_connectivity =
+            only(HDF5.read_dataset(gcells, "NumberOfConnectivityIds")::Vector{Int})
+        connectivity = @alloc(Int, num_points_connectivity)
+        let dset = HDF5.open_dataset(gcells, "Connectivity")
+            read_dataset!(connectivity, dset)
         end
-    end
 
-    fs = map(1:num_cells) do i
-        _load_filament(T, points, offsets, method, i)
-    end
+        if with_periods
+            let dset = HDF5.open_dataset(gtop, "FilamentPeriodicOffsets")
+                memspace = HDF5.dataspace(dset)
+                memtype = HDF5.datatype(FilamentPeriodicOffset)
+                read_dataset!(periodic_offsets, dset; memspace, memtype)
+                close(memspace)
+                close(memtype)
+                close(dset)
+            end
+        else
+            fill!(periodic_offsets, zero(eltype(periodic_offsets)))
+        end
+
+        read_dataset!(cell_offsets, dset_offset)
+
+        # Modify cell_offsets if there are gaps in the connectivity vector.
+        # This corresponds to locations where the endpoint of a filament was not included in
+        # the connectivity vector (to avoid ugly jumps in visualisations).
+        # This must be done before compute_filament_offsets!.
+        # We can ignore this if periodic wrapping was not performed in the VTKHDF file.
+        if with_periods
+            ngaps = 0
+            for i ∈ eachindex(cell_offsets)[2:end-1]
+                off = cell_offsets[i]
+                a = connectivity[off]      # last index of cell i - 1
+                b = connectivity[off + 1]  # first index of cell i
+                Δ = b - a - 1
+                @assert Δ ∈ (0, 1)
+                if Δ == 1  # there's a gap! (endpoint was excluded from connectivity)
+                    ngaps += 1
+                end
+                cell_offsets[i] += ngaps
+            end
+            # Check for gap after the last cell.
+            # If there is no gap, then (cell_offsets[end] + ngaps) == num_points_refined.
+            let off = cell_offsets[end]
+                Δ = num_points_refined - (off + ngaps)
+                @assert Δ ∈ (0, 1)
+                if Δ == 1  # there's a gap!
+                    ngaps += 1
+                end
+                cell_offsets[end] += ngaps
+            end
+        end
+
+        compute_filament_offsets!(filament_offsets, cell_offsets, filament_ids, refinement)
+        @assert last(filament_offsets) == num_points
+
+        # Read locations in file, skipping interpolated points if refinement > 1.
+        if refinement == 1
+            memspace = HDF5.dataspace((Ñ, num_points))
+            memtype = HDF5.datatype(T)
+            read_dataset!(points, dset_points; memspace, memtype)
+            close(memspace)
+            close(memtype)
+        else
+            dspace = HDF5.dataspace(dset_points)
+            n = 0
+            for i ∈ 1:num_filaments
+                a = filament_offsets[i] + 1
+                b = filament_offsets[i + 1]
+                out = @view points[a:b]
+                Np = length(out)
+                inds_file = range(n + 1; length = Np, step = refinement)
+                HDF5.select_hyperslab!(dspace, (1:Ñ, inds_file))
+                memspace = HDF5.dataspace((Ñ, Np))
+                memtype = HDF5.datatype(T)
+                read_dataset!(out, dset_points, dspace; memspace, memtype)
+                close(memtype)
+                close(memspace)
+                n = last(inds_file)
+            end
+            close(dspace)
+        end
+
+        # Reconstruct all filaments
+        map(eachindex(periodic_offsets)) do i
+            periodic_offset = periodic_offsets[i]
+            _load_filament(points, filament_offsets, method, i, periodic_offset, periods)
+        end
+    end  # @no_escape
+
+    close(dset_points)
+    close(dset_offset)
 
     # Load and use parametrisation values (knots `ts`) if they are included in the file.
     if haskey(gtop, "PointData/Parametrisation")
@@ -531,36 +729,86 @@ function read_filaments(
     VTKHDFFile(gtop, fs, refinement)
 end
 
-function _recompute_offsets!(offsets, refinement)
-    Base.require_one_based_indexing(offsets)
-    num_cells = length(offsets) - 1
-    off_i = offsets[begin]  # offset of previous cell before recomputation
-    for i ∈ 1:num_cells
-        Np_refined = offsets[i + 1] - off_i
+function compute_filament_offsets!(filament_offsets, cell_offsets, filament_ids, refinement)
+    Base.require_one_based_indexing(cell_offsets)
+    Base.require_one_based_indexing(filament_ids)
+    num_filaments = filament_ids[end] - filament_ids[begin] + 1
+    num_cells = length(cell_offsets) - 1
+    @assert length(filament_ids) == num_cells ≥ num_filaments
+    @assert length(filament_offsets) == num_filaments + 1
+    filament_offsets[begin] = 0
+    icell = firstindex(cell_offsets)
+    off_i = cell_offsets[icell]  # offset of previous cell
+    for i ∈ eachindex(filament_offsets)[1:end-1]
+        # Count the number of *refined* points in the filament i.
+        id = filament_ids[icell]  # id of the current filament
+        icell += 1
+        off = cell_offsets[icell]
+        Np_refined = off - off_i
+        off_i = off
+        # If the filament was broken into multiple cells, we iterate through the other cells
+        # as well (which have the same filament id).
+        while icell ≤ lastindex(filament_ids) && filament_ids[icell] == id
+            icell += 1
+            off = cell_offsets[icell]
+            Np_refined += off - off_i
+            off_i = off
+        end
         Np, _remainder = divrem(Np_refined - 1, refinement)
         @assert _remainder == 0
         Np += 1  # reinclude the endpoint in final count
-        off_i = offsets[i + 1]
-        offsets[i + 1] = offsets[i] + Np
+        filament_offsets[i + 1] = filament_offsets[i] + Np
     end
-    offsets
+    @assert icell == lastindex(cell_offsets)  # we reached the last cell
+    filament_offsets
 end
 
-# Load filament `i` from the list of points using the given offsets
-function _load_filament(
-        ::Type{T}, points::AbstractMatrix, offsets::AbstractVector, method, i::Int,
-    ) where {T}
-    S = eltype(points)
-    Xs = reinterpret(Vec3{S}, points)
-    a = offsets[i]      # points[:, a + 1] is the first point of this filament
-    b = offsets[i + 1]  # points[:, b] is the filament endpoint
-    num_nodes = b - a - 1  # not counting the endpoint
-    Xoffset = Xs[b] - Xs[a + 1]
-    f = Filaments.init(ClosedFilament{T}, num_nodes, method; offset = Xoffset)
-    @inbounds for j ∈ eachindex(f)
-        f[j] = Xs[a + j]
+periodic_offset_to_apply(x⃗, x⃗_prev, Ls::Tuple, Lhs::Tuple) =
+    oftype(x⃗, map(periodic_offset_to_apply, x⃗, x⃗_prev, Ls, Lhs))
+
+function periodic_offset_to_apply(x, x_prev, L::Real, Lh::Real)
+    iszero(L) && return zero(L)  # no offset if the period is "zero" (meaning no periodicity here)
+    δx = x - x_prev  # we assume |δx| < L = 2 * Lh
+    if δx ≥ Lh
+        -L
+    elseif δx ≤ -Lh
+        +L
+    else
+        zero(L)
     end
-    f
+end
+
+# Load filament from the list of points using the given offsets.
+# TODO reuse VTK cell information to detect jumps? (should be slightly faster)
+function _load_filament(
+        Xs::AbstractVector{Vec3{T}},
+        filament_offsets::AbstractVector{<:Integer},
+        method,
+        i::Integer,                        # filament index
+        periodic_offset::Vec3{<:Integer},  # periodic offset of first point (integer value)
+        periods::NTuple{3},                # real values (0 for no periodicity)
+    ) where {T}
+    a = filament_offsets[i]      # Xs[a + 1] is the first point of this filament
+    b = filament_offsets[i + 1]  # Xs[b] is the filament endpoint
+    num_nodes = b - a - 1        # not counting the endpoint
+    f = Filaments.init(ClosedFilament{T}, num_nodes, method)
+    Xoffset = zero(eltype(Xs))
+    current_offset = periodic_offset .* Vec3(periods)  # offset in distance units
+    s⃗_prev = Xs[a + 1]
+    Lhs = map(L -> L / 2, periods)
+    @inbounds for j ∈ eachindex(f)
+        s⃗ = Xs[a + j]  # this point is always inside the main periodic box
+        p⃗ = periodic_offset_to_apply(s⃗, s⃗_prev, periods, Lhs)  # relative offset wrt previous point
+        current_offset = current_offset + p⃗
+        s⃗_prev = s⃗
+        f[j] = s⃗ + current_offset
+    end
+    # Determine end-to-end offset from the endpoint.
+    s⃗ = Xs[b]
+    current_offset = current_offset + periodic_offset_to_apply(s⃗, s⃗_prev, periods, Lhs)
+    x⃗_end = s⃗ + current_offset
+    Xoffset = x⃗_end - f[begin]
+    Filaments.change_offset(f, Xoffset)
 end
 
 function Base.read(
@@ -636,8 +884,8 @@ function read_dataset!(
         dset::HDF5.Dataset,
         dspace = HDF5.dataspace(dset);  # this can also be a hyperslab
         memspace = HDF5.dataspace(out),
+        memtype = HDF5.datatype(out),
     )
-    memtype = HDF5.datatype(out)
     HDF5.API.h5d_read(dset, memtype, memspace, dspace, dset.xfer, out)
     out
 end

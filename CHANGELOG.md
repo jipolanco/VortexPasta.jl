@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add optional `periods` argument to `filamentplot!`, which allows to "break"
   a curve onto multiple sub-curves which fall inside the periodic domain.
 
+- Similarly, add optional `periods` argument to `FilamentIO.write_vtkhdf`.
+  VTKHDF files with broken lines can be read back onto the original "unbroken"
+  filaments.
+
 ### Removed
 
 - Remove old `regularise_binormal` option, which is almost always a bad idea
