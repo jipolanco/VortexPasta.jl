@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.18.1 - 2024-04-08
+
+### Fixed
+
+- `FilamentIO`: fix possible assertion error when writing VTKHDF files using the
+  `periods` argument.
+
 ## 0.18.0 - 2024-04-03
 
 ### Changed
