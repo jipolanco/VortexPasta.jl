@@ -5,14 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## 0.18.1 - 2024-04-08
+## [0.18.1] - 2024-04-08
 
 ### Fixed
 
 - `FilamentIO`: fix possible assertion error when writing VTKHDF files using the
   `periods` argument.
 
-## 0.18.0 - 2024-04-03
+## [0.18.0] - 2024-04-03
 
 ### Changed
 
@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove old `regularise_binormal` option, which is almost always a bad idea
   when estimating the locally-induced velocity.
 
-## 0.17.1 - 2024-02-23
+## [0.17.1] - 2024-02-23
 
 ### Added
 
@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   component to avoid potential precision issues (just in case; not sure these
   issues were really significant).
 
-## 0.17.0 - 2024-02-14
+## [0.17.0] - 2024-02-14
 
 ### Changed
 
@@ -80,7 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parallelise LIA-only computations. This only makes a difference either when (1) doing LIA-only simulations,
   or (2) using splitting/multirate/IMEX timestepping schemes which consider the LIA (local) term as the "fast" term.
 
-## 0.16.0 - 2024-02-06
+## [0.16.0] - 2024-02-06
 
 ### Added
 
@@ -101,7 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add custom definitions of `view`, `==` and `isapprox` for `PaddedArray`s.
 
-## 0.15.1 - 2024-01-30
+## [0.15.1] - 2024-01-30
 
 ### Added
 
@@ -116,7 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consistent with the behaviour with periodicity enabled. In particular,
   reconnections with small critical distances should work better than before.
 
-## 0.15.0 - 2024-01-26
+## [0.15.0] - 2024-01-26
 
 ### Added
 
@@ -134,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   quadratures, we now interpolate the tangent component of the streamfunction on nodes,
   instead of interpolating the streamfunction vector and *then* taking the tangent component.
 
-## 0.14.0 - 2024-01-22
+## [0.14.0] - 2024-01-22
 
 ### Changed
 
@@ -147,14 +147,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `fold_periodic` option to `Timestepping.init`.
 
-## 0.13.1 - 2024-01-22
+## [0.13.1] - 2024-01-22
 
 ### Fixed
 
 - Improve reconnection criteria when setting a critical distance which is much
   smaller than the typical segment length.
 
-## 0.13.0 - 2024-01-19
+## [0.13.0] - 2024-01-19
 
 ### Changed
 
@@ -170,7 +170,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The issue seems to be related to creating a very large array of arrays, which
   is avoided in the new implementation.
 
-## 0.12.1 - 2024-01-18
+## [0.12.1] - 2024-01-18
 
 ### Fixed
 
@@ -181,13 +181,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix possible memory leak when using `sizehint!` when emptying a `PeriodicCellList`.
   This was mostly visible when using cell lists for reconnections (in which case each cell is usually very small).
 
-## 0.12.0 - 2024-01-12
+## [0.12.0] - 2024-01-12
 
 ### Added
 
 - Add alternative energy estimation method adapted for non-periodic domains.
 
-## 0.11.2 - 2024-01-04
+## [0.11.2] - 2024-01-04
 
 ### Added
 
@@ -198,13 +198,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix wrong results when using splitting timestepping schemes (IMEX or
   multirate) and setting an `external_velocity`.
 
-## 0.11.1 - 2024-01-03
+## [0.11.1] - 2024-01-03
 
 ### Changed
 
 - `NonuniformFFTsBackend` now uses NonuniformFFTs.jl v0.3, which improves performance.
 
-## 0.11.0 - 2023-12-20
+## [0.11.0] - 2023-12-20
 
 ### Added
 
@@ -214,7 +214,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `NonuniformFFTsBackend` is now the default backend for long-range computations.
 
-## 0.10.0 - 2023-11-27
+## [0.10.0] - 2023-11-27
 
 ### Added
 
@@ -222,7 +222,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It works similarly to `callback`, but allows modifying filament definitions
   before computing their induced velocities.
 
-## 0.9.0 - 2023-11-24
+## [0.9.0] - 2023-11-24
 
 ### Added
 
