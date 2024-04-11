@@ -22,3 +22,11 @@ Base.setindex!(io::FilamentIO.VTKHDFFile, data, name::AbstractString)
 ```@docs
 read_vtkhdf
 ```
+
+## Time series files
+
+```@docs
+TimeSeriesFile
+Base.setindex!(tsf::TimeSeriesFile, filename::AbstractString, time::Real)
+save(filename::AbstractString, tsf::TimeSeriesFile)
+```

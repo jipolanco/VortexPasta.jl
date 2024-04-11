@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `FilamentIO.TimeSeriesFile` for writing JSON time series files which can
+  be read by ParaView.
+
 ## [0.18.1] - 2024-04-08
 
 ### Fixed

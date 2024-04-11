@@ -278,6 +278,31 @@ function test_hdf5()
     nothing
 end
 
-@testset "FilamentIO: HDF5" begin
+function test_json_vtk_time_series()
+    tsf = @inferred TimeSeriesFile()
+    tsf[0.0] = "rings_0.vtkhdf"
+    tsf[0.1] = "rings_10.vtkhdf"
+    tsf[0.2] = "rings_20.vtkhdf"
+    save("rings.vtkhdf.series", tsf)
+    @test isfile("rings.vtkhdf.series")
+    s = read("rings.vtkhdf.series", String)
+    s_expected = """
+    {
+      "file-series-version" : "1.0",
+      "files" : [
+        { "name" : "rings_0.vtkhdf", "time" : 0.0 },
+        { "name" : "rings_10.vtkhdf", "time" : 0.1 },
+        { "name" : "rings_20.vtkhdf", "time" : 0.2 }
+      ]
+    }
+    """
+    @test s == s_expected
+    nothing
+end
+
+@testset "VTKHDF I/O" begin
     test_hdf5()
+end
+@testset "JSON VTK time series files" begin
+    test_json_vtk_time_series()
 end
