@@ -1,7 +1,7 @@
 name = "VortexPasta"
 uuid = "3d0f1e53-df37-477e-a492-0d33e6039c24"
 authors = ["Juan Ignacio Polanco<juan-ignacio.polanco@cnrs.fr>"]
-version = "0.18.2"
+version = "0.18.3"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"

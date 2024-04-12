@@ -5,6 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `AdaptiveTanhSinh` quadrature to `Quadratures` module.
+  The [tanh-sinh quadrature](https://en.wikipedia.org/wiki/Tanh-sinh_quadrature) behaves nicely
+  in the presence of endpoint singularities, and can be easily (and efficiently) made adaptive.
+
+- Use `AdaptiveTanhSinh` when `lia_segment_fraction` is enabled in `ParamsBiotSavart`.
+  This is to reduce errors when integrating very close to a singularity (however
+  at an increased cost, since more function evaluations are generally needed).
+
 ## [0.18.2] - 2024-04-11
 
 ### Added
