@@ -112,11 +112,13 @@ function integrate_biot_savart(
         seg::Segment,
         x⃗::Vec3,
         params::ParamsCommon;
+        quad = params.quad,
         Lhs = map(L -> L / 2, params.Ls),  # this allows to precompute Ls / 2
         rcut² = nothing,
         limits = nothing,
     )
-    integrate(seg, params.quad; limits) do seg, ζ
+    integrate(seg, quad; limits) do seg, ζ
+        @inline
         s⃗ = seg(ζ)
         s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
         biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs, rcut²)
@@ -200,7 +202,7 @@ function add_short_range_fields!(
 
     (; params,) = cache
     (; quad, lia_segment_fraction,) = params
-    (; Γ, a, Δ, Ls,) = params.common
+    (; Γ, a, Δ, Ls, quad_near_singularity,) = params.common
     prefactor = Γ / (4π)
     Lhs = map(L -> L / 2, Ls)
 
@@ -238,11 +240,13 @@ function add_short_range_fields!(
                         integrate_biot_savart(
                             quantity, FullIntegrand(), sa, x⃗, params.common;
                             Lhs, limits = nonlia_lims[1],
+                            quad = quad_near_singularity,
                         )
                         +
                         integrate_biot_savart(
                             quantity, FullIntegrand(), sb, x⃗, params.common;
                             Lhs, limits = nonlia_lims[2],
+                            quad = quad_near_singularity,
                         )
                     )
                 end

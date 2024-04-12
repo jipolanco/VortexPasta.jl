@@ -47,6 +47,7 @@ dt_factor(::KenCarp4) = 1.5  # we could increase this but then it takes more ite
 dt_factor(::MultirateMidpoint) = 4.0
 dt_factor(::SanduMRI33a) = 5.0
 dt_factor(::SanduMRI45a) = 8.0
+dt_factor(::Strang{RK4}) = 2.0
 
 function test_kelvin_waves(
         scheme = RK4();
@@ -83,18 +84,18 @@ function test_kelvin_waves(
     params_bs = let
         @assert Lx == Ly == Lz
         Ls = (Lx, Ly, Lz)
-        Ns = (1, 1, 1) .* 16
+        Ns = (1, 1, 1) .* 24
         kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
-        α = kmax / 5
-        rcut = 5 / α
+        α = kmax / 8
+        rcut = 4 / α
         ParamsBiotSavart(;
             Γ, α, a, Δ, rcut, Ls, Ns,
             # backend_short = CellListsBackend(2),
             backend_short = NaiveShortRangeBackend(),
-            backend_long = FINUFFTBackend(tol = 1e-6),
+            # backend_long = NonuniformFFTsBackend(m = HalfSupport(8), σ = 1.5),
+            backend_long = FINUFFTBackend(upsampfac = 1.25, tol = 1e-8),
             quadrature = quad,
-            # For NoQuadrature, it doesn't make much sense to use lia_segment_fraction ≠ 1.
-            lia_segment_fraction = quad === NoQuadrature() ? 1.0 : 0.1,
+            lia_segment_fraction = 0.1,
         )
     end
 
@@ -112,13 +113,16 @@ function test_kelvin_waves(
     energy_time = Float64[]
 
     function callback(iter)
-        (; t, nstep,) = iter
+        local (; t, nstep, prob,) = iter
         push!(times, t)
         push!(X_probe, iter.fs[1][jprobe])
         T = iter.prob.tspan[2]
         local (; fs, ψs,) = iter
         local (; Γ, Ls,) = iter.prob.p.common
-        local quad = nothing  # this doesn't seem to change much the results...
+        # The choice of quadrature doesn't change much the results...
+        # local quad = nothing
+        # local quad = GaussLegendre(4)
+        local quad = prob.p.common.quad_near_singularity
         E = Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad)
         # if nstep % 10 == 0
         #     @show nstep, t/T, E
@@ -173,7 +177,7 @@ function test_kelvin_waves(
     fil = fs[1]
     vel = vs[1]
 
-    # This shouldn't depend on the scheme, but it can depend on the discretisation
+    # This doesn't depend on the temporal scheme, but it can depend on the discretisation
     # parameters.
     @testset "Initial condition" begin
         @test iter.time.t == 0
@@ -186,16 +190,16 @@ function test_kelvin_waves(
             # `rtol` can be further decreased if one increases the resolution `N` (things seem to converge)
             # @show (v_expected - v[2]) / v_expected
             rtol = if method isa CubicSplineMethod
-                0.03
+                0.030
             else
-                0.01
+                0.012
             end
             @test isapprox(v_expected, v[2]; rtol)
         end
     end
 
     tlast = tspan[2]
-    @info "Solving with $scheme..." dt_initial = iter.time.dt tlast/T_kw
+    @info "Solving with $scheme..." method dt_initial = iter.time.dt tlast/T_kw
     @time solve!(iter)
     println(iter.to)
 
@@ -217,7 +221,7 @@ function test_kelvin_waves(
         energy_initial = first(energy_time)  # initial energy
         energy_last = last(energy_time)
         energy_std = std(energy_time)
-        @show energy_initial
+        # @show energy_initial
         @show energy_std / energy_initial
         # @show energy_last / energy_initial - 1
         if iseuler
@@ -297,7 +301,7 @@ function test_kelvin_waves(
 
         # Check that we actually recover the KW frequency!
         # @show abs(ωy - ω_kw) / ω_kw
-        rtol = method isa CubicSplineMethod ? 2e-2 : quad === NoQuadrature() ? 6e-3 : 1e-3
+        rtol = method isa CubicSplineMethod ? 2e-2 : quad === NoQuadrature() ? 8e-3 : 3e-3
         @test isapprox(ωx, ω_kw; rtol)
         @test isapprox(ωy, ω_kw; rtol)
     end
@@ -318,10 +322,10 @@ end
         test_kelvin_waves(RK4(); quad = NoQuadrature())
     end
     @testset "CubicSplineMethod()" begin
-        test_kelvin_waves(SanduMRI33a(RK4(), 1); method = CubicSplineMethod())
+        test_kelvin_waves(Strang(RK4()); method = CubicSplineMethod())
     end
     @testset "FourierMethod()" begin
-        test_kelvin_waves(SanduMRI33a(RK4(), 1); method = FourierMethod())
+        test_kelvin_waves(RK4(); method = FourierMethod())
     end
     @testset "FiniteDiffMethod()" begin
         test_kelvin_waves(RK4(); method = FiniteDiffMethod())

@@ -51,14 +51,14 @@ function set_num_points!(data::PointData, N)
     data
 end
 
-function _count_charges(quad::AbstractQuadrature, fs::AbstractVector{<:ClosedFilament})
+function _count_charges(quad::StaticSizeQuadrature, fs::AbstractVector{<:ClosedFilament})
     Nq = length(quad)        # number of evaluation points per filament segment
     Np = sum(f -> length(segments(f)), fs)  # total number of segments among all filaments (assumes closed filaments!!)
     Np * Nq
 end
 
 """
-    add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, quad::AbstractQuadrature)
+    add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, quad::StaticSizeQuadrature)
     add_point_charges!(cache::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
 
 Add vector charges at multiple non-uniform locations.
@@ -66,7 +66,7 @@ Add vector charges at multiple non-uniform locations.
 This is used in particular for type-1 NUFFTs, to transform from non-uniform data in physical
 space to uniform data in Fourier space. It must be called before [`compute_vorticity_fourier!`](@ref).
 """
-function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, quad::AbstractQuadrature)
+function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, quad::StaticSizeQuadrature)
     Ncharges = _count_charges(quad, fs)
     set_num_points!(data, Ncharges)
     n = 0
@@ -77,7 +77,7 @@ function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilame
     nothing
 end
 
-function _add_point_charges!(data::PointData, f, n::Int, quad::AbstractQuadrature)
+function _add_point_charges!(data::PointData, f, n::Int, quad::StaticSizeQuadrature)
     @assert eachindex(data.points) == eachindex(data.charges) == eachindex(data.segments)
     nlast = n + length(segments(f)) * length(quad)
     checkbounds(data.points, nlast)

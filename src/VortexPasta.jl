@@ -9,7 +9,7 @@ include("BasicTypes/BasicTypes.jl")
 
 include("Quadratures/Quadratures.jl")
 using .Quadratures
-export GaussLegendre
+export GaussLegendre, AdaptiveTanhSinh
 
 include("Filaments/Filaments.jl")
 include("FindNearbySegments/FindNearbySegments.jl")
