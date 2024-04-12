@@ -45,32 +45,24 @@ function integrate(
     _integrate(integrand, limits, f, i, quad; _args)
 end
 
-function _integrate(integrand::F, limits::Nothing, f, i, quad; _args) where {F}
+# Here `limits` can be either:
+# - `nothing`, for default limits [0, 1]
+# - a tuple (a, b), with 0 ≤ a < b ≤ 1.
+function _integrate(integrand::F, limits, f, i, quad; _args) where {F}
     ts = knots(f)
     T = eltype(ts)
-    ζs, ws = quadrature(T, quad)
     Δt = ts[i + 1] - ts[i]
-    Δt * sum(eachindex(ws)) do j
+    # We integrate wrt ζ ∈ [0, 1], then rescale by Δt to obtain an integral wrt t.
+    lims = to_lims_arg(T, limits)
+    Δt * Quadratures.integrate(quad, lims) do ζ
         @inline
-        fx = @inline integrand(_args..., ζs[j])
-        ws[j] * fx
+        @inline integrand(_args..., ζ)
     end
 end
 
-function _integrate(integrand::F, limits::NTuple{2, Real}, f, i, quad; _args) where {F}
-    ts = knots(f)
-    T = eltype(ts)
-    ζs, ws = quadrature(T, quad)
-    a::T, b::T = limits
-    δ = b - a
-    Δt = (ts[i + 1] - ts[i]) * δ
-    Δt * sum(eachindex(ws)) do j
-        @inline
-        ζ = a + δ * ζs[j]  # in [a, b]
-        fx = @inline integrand(_args..., ζ)
-        ws[j] * fx
-    end
-end
+# Convert limits to `lims` arg of Quadratures.integrate.
+to_lims_arg(::Type{T}, ::Nothing) where {T} = T  # default limits (0, 1)
+to_lims_arg(::Type{T}, (a, b)::NTuple{2, Real}) where {T} = (T(a), T(b))
 
 function integrate(integrand::F, s::Segment, quad::AbstractQuadrature; kws...) where {F}
     integrate(integrand, s.f, s.i, quad; _args = (s,), kws...)

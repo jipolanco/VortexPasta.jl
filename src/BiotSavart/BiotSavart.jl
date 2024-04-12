@@ -8,7 +8,7 @@ module BiotSavart
 
 export
     ParamsBiotSavart,
-    GaussLegendre, NoQuadrature,
+    GaussLegendre, NoQuadrature, AdaptiveTanhSinh,
     Zero, Infinity, ∞,
     Velocity, Streamfunction,
     LongRangeCache, ShortRangeCache,
@@ -22,7 +22,8 @@ using ..BasicTypes:
     Vec3, Derivative, Zero, Infinity, ∞
 
 using ..Quadratures:
-    Quadratures, quadrature, NoQuadrature, GaussLegendre, AbstractQuadrature
+    Quadratures, quadrature, NoQuadrature, GaussLegendre, AdaptiveTanhSinh,
+    AbstractQuadrature, StaticSizeQuadrature, PreallocatedQuadrature
 
 using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, Segment, CurvatureBinormal,

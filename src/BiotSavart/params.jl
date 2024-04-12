@@ -10,7 +10,8 @@ struct ParamsCommon{
         Alpha <: Real,  #  <: MaybeConst{T} (fails!!)
         Sigma <: Real,  #  <: MaybeConst{T} (fails!!)
         Periods <: NTuple{3, MaybeConst{T}},
-        Quad <: AbstractQuadrature,
+        Quad <: StaticSizeQuadrature,
+        QuadMaybeAdaptive <: Union{StaticSizeQuadrature, PreallocatedQuadrature{T}},
     }
     Γ  :: T        # vortex circulation
     a  :: T        # vortex core size
@@ -19,11 +20,15 @@ struct ParamsCommon{
     σ  :: Sigma    # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
     Ls :: Periods  # size of unit cell (= period in each direction)
     quad :: Quad   # quadrature rule used for short- and long-range computations
-    function ParamsCommon{T}(Γ, a, Δ, α_in, Ls_in, quad) where {T}
+    quad_near_singularity :: QuadMaybeAdaptive  # quadrature rule to be used near singularities (adaptive by default)
+    function ParamsCommon{T}(Γ, a, Δ, α_in, Ls_in, quad, quad_near_singularity) where {T}
         α = maybe_convert(T, α_in)  # don't convert constants (e.g. if α = Zero())
         Ls = map(L -> maybe_convert(T, L), Ls_in)
         σ = 1 / (α * sqrt(T(2)))
-        new{T, typeof(α), typeof(σ), typeof(Ls), typeof(quad)}(Γ, a, Δ, α, σ, Ls, quad)
+        quad_ns = convert(T, quad_near_singularity)  # does nothing if the quadrature has the right type
+        new{T, typeof(α), typeof(σ), typeof(Ls), typeof(quad), typeof(quad_ns)}(
+            Γ, a, Δ, α, σ, Ls, quad, quad_ns,
+        )
     end
 end
 
@@ -31,7 +36,7 @@ maybe_convert(::Type{T}, x::Real) where {T <: AbstractFloat} = convert(T, x)
 maybe_convert(::Type{T}, x::RealConst) where {T <: AbstractFloat} = x  # don't convert constants (Zero, Infinity)
 
 function Base.show(io::IO, p::ParamsCommon)
-    (; Γ, a, Δ, Ls, α, quad,) = p
+    (; Γ, a, Δ, Ls, α,) = p
     σ = 1 / (α * sqrt(2))
     print(io, "\n - Physical parameters:")
     print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
@@ -40,7 +45,8 @@ function Base.show(io::IO, p::ParamsCommon)
     print(io, "\n   * Domain period:              Ls = ", Ls)
     print(io, "\n - Numerical parameters:")
     print(io, "\n   * Ewald splitting parameter:  α = ", α, " (σ = 1/α√2 = ", σ, ")")
-    print(io, "\n   * Quadrature rule:            ", quad)
+    print(io, "\n   * Quadrature rule:            ", p.quad)
+    print(io, "\n   * Quadrature rule (alt.):     ", p.quad_near_singularity, " (used near singularities)")
     nothing
 end
 
@@ -48,8 +54,8 @@ Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
 Base.eltype(p::ParamsCommon) = eltype(typeof(p))
 
 function Base.convert(::Type{T}, p::ParamsCommon) where {T <: AbstractFloat}
-    (; Γ, a, Δ, α, Ls, quad,) = p
-    ParamsCommon{T}(Γ, a, Δ, α, Ls, quad)  # converts all floats to type T
+    (; Γ, a, Δ, α, Ls, quad, quad_near_singularity,) = p
+    ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quad_near_singularity)  # converts all floats to type T
 end
 
 ## ================================================================================ ##
@@ -57,7 +63,7 @@ end
 struct ParamsShortRange{
         T <: Real,
         Backend <: ShortRangeBackend,
-        Quadrature <: AbstractQuadrature,
+        Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
         CutoffDist <: MaybeConst{T},
         LIASegmentFraction <: Union{Nothing, Real}
@@ -70,7 +76,7 @@ struct ParamsShortRange{
     lia_segment_fraction :: LIASegmentFraction
 
     function ParamsShortRange(
-            backend::ShortRangeBackend, quad::AbstractQuadrature,
+            backend::ShortRangeBackend, quad::StaticSizeQuadrature,
             common::ParamsCommon{T}, rcut_::Real,
             lia_segment_fraction,
         ) where {T}
@@ -89,13 +95,14 @@ struct ParamsShortRange{
 end
 
 function Base.show(io::IO, p::ParamsShortRange)
-    (; common, rcut,) = p
+    (; common, rcut, lia_segment_fraction,) = p
     (; Ls, α,) = common
     β_shortrange = α === Zero() ? (rcut === Infinity() ? Infinity() : Zero()) : α * rcut
     rcut_L = rcut === Infinity() ? rcut : rcut / minimum(Ls)  # avoid Infinity() / Infinity()
     print(io, "\n   * Short-range backend:        ", p.backend)
     print(io, "\n   * Short-range cut-off:        r_cut = ", rcut, " (r_cut/L = ", rcut_L, ")")
     print(io, "\n   * Short-range cut-off coeff.: β_shortrange = ", β_shortrange)
+    print(io, "\n   * Local segment fraction:     ", something(lia_segment_fraction, 1))
     nothing
 end
 
@@ -107,7 +114,7 @@ end
 struct ParamsLongRange{
         T,
         Backend <: LongRangeBackend,
-        Quadrature <: AbstractQuadrature,
+        Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
     }
     backend :: Backend
@@ -185,7 +192,7 @@ Mandatory and optional keyword arguments are detailed in the extended help below
 
 ### General
 
-- `quadrature::AbstractQuadrature = GaussLegendre(3)`: quadrature rule for short- and
+- `quadrature::StaticSizeQuadrature = GaussLegendre(3)`: quadrature rule for short- and
   long-range interactions. For example, if `quadrature = GaussLegendre(4)`, then 4 evaluations
   of the Biot–Savart integrand will be done for each filament segment.
 
@@ -234,7 +241,16 @@ Mandatory and optional keyword arguments are detailed in the extended help below
   means that the LIA term is evaluated over the full segments. If smaller than 1, the
   velocity induced by the excluded part of the segments will be evaluated using the regular
   Biot–Savart law (using quadratures within each subsegment). This may improve accuracy,
-  especially when the discretisation distance is relatively large.
+  especially when the discretisation distance is relatively large. Since this means
+  integrating near the singularity of the BS integral, this integral is by default estimated
+  using adaptive quadratures (see `quadrature_near_singularity` below).
+
+- `quadrature_near_singularity = AdaptiveTanhSinh(T; nlevels = 5)`: quadrature rule to be used
+  when integrating near a singularity, in particular when `lia_segment_fraction` is enabled.
+  By default an adaptive quadrature rule [`AdaptiveTanhSinh`](@ref) is used, which is
+  generally accurate but can be costly.
+  One can also pass a [`StaticSizeQuadrature`](@ref) such as [`GaussLegendre`](@ref), but in
+  that case accuracy is not guaranteed.
 
 """
 struct ParamsBiotSavart{
@@ -251,9 +267,10 @@ end
 function ParamsBiotSavart(
         ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
         a::Real,
-        quadrature::AbstractQuadrature = GaussLegendre(3),
+        quadrature::StaticSizeQuadrature = GaussLegendre(3),
         quadrature_short = nothing,  # deprecated
         quadrature_long = nothing,   # deprecated
+        quadrature_near_singularity::AbstractQuadrature = AdaptiveTanhSinh(T; nlevels = 5),
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
         backend_long::LongRangeBackend = NonuniformFFTsBackend(),
         longrange_truncate_spherical::Bool = false,
@@ -269,7 +286,7 @@ function ParamsBiotSavart(
         @warn "`quadrature_short` and `quadrature_long` are deprecated and will be removed. Pass `quadrature` instead."
     end
     quad = _parse_quadrature_args(quadrature, quadrature_short, quadrature_long)
-    common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad)
+    common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quadrature_near_singularity)
     sr = ParamsShortRange(backend_short, quad, common, rcut, lia_segment_fraction)
     lr = ParamsLongRange(backend_long, quad, common, Ns, longrange_truncate_spherical)
     ParamsBiotSavart(common, sr, lr)
@@ -282,10 +299,11 @@ function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T <: AbstractFloat}
     ParamsBiotSavart(common, shortrange, longrange)
 end
 
-_parse_quadrature_args(quad::AbstractQuadrature, ::Nothing, ::Nothing) = quad
-_parse_quadrature_args(::AbstractQuadrature, short::AbstractQuadrature, ::Nothing) = short
-_parse_quadrature_args(::AbstractQuadrature, ::Nothing, long::AbstractQuadrature) = long
-function _parse_quadrature_args(::AbstractQuadrature, short::AbstractQuadrature, long::AbstractQuadrature)
+# TODO remove? this was for compatibility with old versions
+_parse_quadrature_args(quad::StaticSizeQuadrature, ::Nothing, ::Nothing) = quad
+_parse_quadrature_args(::StaticSizeQuadrature, short::StaticSizeQuadrature, ::Nothing) = short
+_parse_quadrature_args(::StaticSizeQuadrature, ::Nothing, long::StaticSizeQuadrature) = long
+function _parse_quadrature_args(::StaticSizeQuadrature, short::StaticSizeQuadrature, long::StaticSizeQuadrature)
     short === long || throw(ArgumentError("`quadrature_short` and `quadrature_long` must be equal. Use `quadrature` instead to set both."))
     short
 end
