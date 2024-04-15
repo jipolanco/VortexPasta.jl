@@ -28,6 +28,7 @@ struct AdaptiveTanhSinh{T <: AbstractFloat} <: PreallocatedQuadrature{T}
     xs :: Vector{T}  # locations in [0, 1] (sorted according to access order, for performance reasons)
     ws :: Vector{T}  # weights (also sorted). Note that the weights are scaled by the step Δt at the smallest level.
     w₀ :: T          # weight associated to location t = x = 0
+    hmax :: T        # integration step `h` at the first level (then it's divided by 2 at each level)
     rtol :: T
     nlevels :: Int
 
@@ -38,7 +39,7 @@ struct AdaptiveTanhSinh{T <: AbstractFloat} <: PreallocatedQuadrature{T}
 
         tmax = tanh_sinh_determine_tmax(T)
         ts = range(0, tmax; length = N + 1)[(begin + 1):end]  # we store t > 0 only (we use symmetry for t < 0)
-        h = step(ts)
+        hmax = last(ts)  # same as tmax...
 
         # Permutation so that so that nodes and weights are sorted in access order.
         ps = sortperm_for_adaptive_quadrature(nlevels)
@@ -49,11 +50,20 @@ struct AdaptiveTanhSinh{T <: AbstractFloat} <: PreallocatedQuadrature{T}
         for i ∈ eachindex(ps, xs, ws)
             j = ps[i]
             t = ts[j]
-            xs[i] = tanh_sinh_node(t)
-            ws[i] = h * tanh_sinh_weight(t)  # note: weighted for step h associated to maximum level
+            x, w = tanh_sinh_node_weight(t)
+            xs[i] = x
+            ws[i] = w
         end
 
-        w₀ = h * tanh_sinh_weight(zero(T))
+        # Make sure we're not evaluating at the endpoints (in case of singularities...).
+        # This could fail if we choose a tmax which is too large for the wanted precision T,
+        # such that T(0.99999...) == T(1).
+        # Also note that xs[begin] contains the largest value in xs (due to the way nodes
+        # are sorted).
+        @assert xs[begin] < 1
+        @assert xs[begin] === prevfloat(one(T))
+
+        _, w₀ = tanh_sinh_node_weight(zero(T))
 
         # Convert to [0, 1] range.
         # TODO do we need this?
@@ -62,7 +72,7 @@ struct AdaptiveTanhSinh{T <: AbstractFloat} <: PreallocatedQuadrature{T}
         #     xs[i] = (xs[i] + 1) / 2
         # end
 
-        new{T}(xs, ws, w₀, rtol, nlevels)
+        new{T}(xs, ws, w₀, hmax, rtol, nlevels)
     end
 end
 
@@ -89,20 +99,19 @@ end
 # Determine truncation of integral in the infinite domain.
 # Since the weights decay very fast (exponentially?), it makes sense to apply a cut-off
 # somewhere.
-# This value is chosen since tanh_sinh_weight(3.3) ~ 1e-17.
-# TODO do something that depends on the precision, based on decay of tanh_sinh_weight(t)?
-# For example, use a smaller value for Float32?
-tanh_sinh_determine_tmax(::Type{T}) where {T <: AbstractFloat} = 3.3
+# Value found by hand such that xmax == prevfloat(1.0).
+# That is, the rightmost node `xmax` is smaller than 1 by the tiniest possible amount
+# allowed by the type T.
+tanh_sinh_determine_tmax(::Type{Float64}) = 3.1909e0
+tanh_sinh_determine_tmax(::Type{Float32}) = 2.40f0
 
-# For t ∈ [-∞, ∞], this returns a location in [-1, 1].
-function tanh_sinh_node(t)
+# For t ∈ [-∞, ∞], this returns a location in [-1, 1] and its corresponding weight.
+function tanh_sinh_node_weight(t)
     pi_half = oftype(t, π) / 2
-    tanh(pi_half * sinh(t))
-end
-
-function tanh_sinh_weight(t)
-    pi_half = oftype(t, π) / 2
-    (pi_half * cosh(t)) / cosh(pi_half * sinh(t))^2
+    c_sinh_t = pi_half * sinh(t)
+    x = tanh(c_sinh_t)
+    w = (pi_half * cosh(t)) / cosh(c_sinh_t)^2
+    x, w
 end
 
 function sortperm_for_adaptive_quadrature(nlevels)
@@ -133,7 +142,7 @@ end
 # Assume the nodes and weights are re-sorted in the order they are accessed by adaptive
 # quadrature.
 function integrate(f::F, quad::AdaptiveTanhSinh{T}, lims::NTuple{2,Real}) where {F <: Function, T <: AbstractFloat}
-    (; xs, ws, w₀, rtol,) = quad
+    (; xs, ws, w₀, hmax, rtol,) = quad
     Base.require_one_based_indexing(xs)
     Base.require_one_based_indexing(ws)
 
@@ -146,14 +155,15 @@ function integrate(f::F, quad::AdaptiveTanhSinh{T}, lims::NTuple{2,Real}) where 
     c = onehalf * T(a + b)
 
     # Initial estimate: consider only central node.
-    Iprev = 2 * N * w₀ * f(c)
+    h = hmax * Δ
+    Iprev = 2 * h * w₀ * f(c)
 
     # Second estimate
     n = unsigned(N)
     l = firstindex(xs)
     I = let
         w, x = @inbounds ws[l], xs[l]
-        @inline onehalf * Iprev + n * w * (
+        @inline onehalf * Iprev + h * w * (
             f(c + Δ * x) +    # rightmost node
             f(c - Δ * x)      # leftmost node
         )
@@ -161,31 +171,31 @@ function integrate(f::F, quad::AdaptiveTanhSinh{T}, lims::NTuple{2,Real}) where 
 
     # Start iterating
     n = n >>> 1
+    h = onehalf * h  # divide integration step by 2 for next level
     m = unsigned(1)
     @fastmath while n ≠ 0
         Iprev = I
         I = zero(I)
         # Start by adding odd terms of the current level.
-        # Note that weights must be multiplied by n (done afterwards).
+        # Note that weights must be multiplied by h (done afterwards).
         for _ ∈ 1:m
             l += 1
             w, x = @inbounds ws[l], xs[l]
             y = Δ * x
             @inline I += w * (f(c + y) + f(c - y))
         end
-        I = n * I + onehalf * Iprev  # add all even terms of the current level
+        I = h * I + onehalf * Iprev  # add all even terms of the current level
         Idiff_sq = sum(abs2, I - Iprev)  # should also work with SVectors
         I_rtol_sq = sum(abs2, I * rtol)
         if Idiff_sq < I_rtol_sq
             break
         end
         n = n >>> 1
+        h = onehalf * h
         m = m << 1
     end
 
-    # @assert l == N + 1
-
-    Δ * I
+    I
 end
 
 # Default [0, 1] limits.

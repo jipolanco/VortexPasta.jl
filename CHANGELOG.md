@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Change integration limits of `AdaptiveTanhSinh` quadratures.
+  This is to ensure that we never evaluate the integrand on endpoints (in case
+  there are singularities there).
+  Also, we now use different (smaller) integration limits for `Float32`.
+
 ## [0.18.3] - 2024-04-12
 
 ### Added
