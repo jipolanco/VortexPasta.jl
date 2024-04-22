@@ -165,7 +165,8 @@ function remove_long_range_self_interaction!(
         fs::VectorOfFilaments,
         args...,
     )
-    for (v, f) ∈ zip(vs, fs)
+    Threads.@threads :static for i ∈ eachindex(vs, fs)
+        @inbounds v, f = vs[i], fs[i]
         remove_long_range_self_interaction!(v, f, args...)
     end
     vs

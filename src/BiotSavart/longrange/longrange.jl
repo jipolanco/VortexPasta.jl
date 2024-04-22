@@ -150,8 +150,8 @@ function to_smoothed_streamfunction!(c::LongRangeCache)
     @assert from_vorticity
     inds = eachindex(ewald_op, uhat)
     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
-    @inbounds for i ∈ inds
-        uhat[i] = ewald_op[i] * uhat[i]
+    Threads.@threads :static for i ∈ inds
+        @inbounds uhat[i] = ewald_op[i] * uhat[i]
     end
     state.quantity = :streamfunction
     state.smoothed = true
@@ -185,15 +185,19 @@ function to_smoothed_velocity!(c::LongRangeCache)
     from_streamfunction = state.quantity === :streamfunction && state.smoothed
     @assert from_vorticity || from_streamfunction
     if from_vorticity
-        @inbounds for I ∈ CartesianIndices(ewald_op)
-            op = ewald_op[I]
-            op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), wavenumbers, Tuple(I)))
-            uhat[I] = op_times_k⃗ × (im * uhat[I])
+        Threads.@threads :static for I ∈ CartesianIndices(ewald_op)
+            @inbounds begin
+                op = ewald_op[I]
+                op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), wavenumbers, Tuple(I)))
+                uhat[I] = op_times_k⃗ × (im * uhat[I])
+            end
         end
     elseif from_streamfunction
-        @inbounds for I ∈ CartesianIndices(ewald_op)
-            k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), wavenumbers, Tuple(I)))
-            uhat[I] = k⃗ × (im * uhat[I])
+        Threads.@threads :static for I ∈ CartesianIndices(ewald_op)
+            @inbounds begin
+                k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), wavenumbers, Tuple(I)))
+                uhat[I] = k⃗ × (im * uhat[I])
+            end
         end
     end
     state.quantity = :velocity
@@ -328,10 +332,10 @@ function truncate_spherical!(cache)
     kmax = maximum_wavenumber(params)
     kmax² = kmax^2
     T = eltype(uhat)
-    @inbounds for I ∈ CartesianIndices(uhat)
-       k⃗ = map(getindex, wavenumbers, Tuple(I))
-       k² = sum(abs2, k⃗)
-       uhat[I] = ifelse(k² > kmax², zero(T), uhat[I])
+    Threads.@threads :static for I ∈ CartesianIndices(uhat)
+        k⃗ = map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I))
+        k² = sum(abs2, k⃗)
+        @inbounds uhat[I] = ifelse(k² > kmax², zero(T), uhat[I])
     end
     nothing
 end
