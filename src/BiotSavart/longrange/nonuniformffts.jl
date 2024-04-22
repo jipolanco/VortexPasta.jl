@@ -36,9 +36,10 @@ The default parameters (`σ = 1.5`, `m = HalfSupport(4)`) correspond to a relati
 tolerance of ``∼10^{-6}``.
 """
 struct NonuniformFFTsBackend{
-        HS <: HalfSupport, KwArgs <: NamedTuple,
+        HS <: HalfSupport, OversamplingFactor <: Real, KwArgs <: NamedTuple,
     } <: LongRangeBackend
     m :: HS
+    σ :: OversamplingFactor
     kws :: KwArgs
     function NonuniformFFTsBackend(;
             σ = 1.5,
@@ -46,18 +47,21 @@ struct NonuniformFFTsBackend{
             fftw_flags = FFTW.MEASURE,
             other...,
         )
-        kws = (; σ, fftw_flags, other...,)
+        kws = (; fftw_flags, other...,)
         hs = to_halfsupport(m)
-        new{typeof(hs), typeof(kws)}(hs, kws)
+        new{typeof(hs), typeof(σ), typeof(kws)}(hs, σ, kws)
     end
 end
 
 to_halfsupport(M::Int) = HalfSupport(M)
 to_halfsupport(m::HalfSupport) = m
 
+oversampling_factor(backend::NonuniformFFTsBackend) = backend.σ
+half_support(backend::NonuniformFFTsBackend) = half_support(backend.m)  # returns half support as an integer
+half_support(::HalfSupport{M}) where {M} = M
+
 function Base.show(io::IO, backend::NonuniformFFTsBackend)
-    (; m, kws,) = backend
-    (; σ,) = kws
+    (; m, σ,) = backend
     print(io, "NonuniformFFTsBackend(; m = $m, σ = $σ)")
 end
 
@@ -81,9 +85,9 @@ function init_cache_long_ewald(
     ) where {T}
     (; Ls,) = pc
     (; backend, Ns,) = params
-    (; m, kws,) = backend
+    (; m, σ, kws,) = backend
     d = length(Ns)  # dimensionality (usually 3)
-    plan = NonuniformFFTs.PlanNUFFT(T, Ns; ntransforms = Val(d), m, kws...)  # plan for real-to-complex transform
+    plan = NonuniformFFTs.PlanNUFFT(T, Ns; ntransforms = Val(d), m, σ, kws...)  # plan for real-to-complex transform
     wavenumbers = ntuple(Val(d)) do i
         i == 1 ? rfftfreq(Ns[i], 2π * Ns[i] / Ls[i]) : fftfreq(Ns[i], 2π * Ns[i] / Ls[i])
     end
