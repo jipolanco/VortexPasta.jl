@@ -178,7 +178,13 @@ function add_short_range_fields!(
         fs::VectorOfFilaments;
         kws...,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    for i ∈ eachindex(fs)
+    # We parallelise at the level of the list of filaments.
+    # This is good when there are many filaments.
+    # Moreover, the :static scheduling option makes sense when roughly all the filaments
+    # have the same number of points. If that's not the case, it may be worth it to either
+    # (1) reorder filaments such that every "chunk" has the same number of points, or
+    # (2) use :dynamic scheduling.
+    Threads.@threads :static for i ∈ eachindex(fs)
         fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
         add_short_range_fields!(fields_i, cache, fs[i]; kws...)
     end
@@ -230,7 +236,7 @@ function add_short_range_fields!(
     segs = segments(f)
     nonlia_lims = nonlia_integration_limits(lia_segment_fraction)
 
-    Threads.@threads :static for i ∈ eachindex(Xs)
+    for i ∈ eachindex(Xs)
         x⃗ = Xs[i]
 
         # Determine segments `sa` and `sb` in contact with the singular point x⃗.
