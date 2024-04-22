@@ -28,5 +28,6 @@ read_vtkhdf
 ```@docs
 TimeSeriesFile
 Base.setindex!(tsf::TimeSeriesFile, filename::AbstractString, time::Real)
+Base.empty!(tsf::TimeSeriesFile)
 save(filename::AbstractString, tsf::TimeSeriesFile)
 ```

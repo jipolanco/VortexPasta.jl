@@ -2,6 +2,7 @@ using Test
 using Statistics: mean, std
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
+using VortexPasta.FilamentIO
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics: Diagnostics
@@ -47,12 +48,15 @@ using LinearAlgebra: ⋅
     times::Vector{Float64} = Float64[]
     energy_time::Vector{Float64} = Float64[]
     helicity_time::Vector{Float64} = Float64[]
+    tsf::TimeSeriesFile = TimeSeriesFile()
 
     function callback(iter)
         (; nstep, t,) = iter.time
         if nstep == 0
             empty!(times)
             empty!(energy_time)
+            empty!(helicity_time)
+            empty!(tsf)
         end
         E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2))
         H = Diagnostics.helicity(iter; quad = GaussLegendre(2))
@@ -65,18 +69,21 @@ using LinearAlgebra: ⋅
             yield()
         end
         local (; fs, ψs, vs,) = iter
-        if @isdefined(write_vtkhdf)  # requires loading VortexPasta.FilamentIO
-            write_vtkhdf("ring_perturbed_$nstep.vtkhdf", fs; refinement = 4) do io
-                io["velocity"] = vs
-                io["streamfunction"] = ψs
-                ψt = similar(ψs, Float64)
-                for (f, ψs, ψt) ∈ zip(fs, ψs, ψt)
-                    for i ∈ eachindex(f, ψs, ψt)
-                        ψt[i] = f[i, UnitTangent()] ⋅ ψs[i]
+        if nstep % 100 == 0  # don't output very often; just for tests
+            let fname = "ring_perturbed_$nstep.vtkhdf"
+                write_vtkhdf(fname, fs; refinement = 4, periods = Ls) do io
+                    io["velocity"] = vs
+                    io["streamfunction"] = ψs
+                    ψt = similar(ψs, Float64)
+                    for (f, ψs, ψt) ∈ zip(fs, ψs, ψt)
+                        for i ∈ eachindex(f, ψs, ψt)
+                            ψt[i] = f[i, UnitTangent()] ⋅ ψs[i]
+                        end
+                        ψt[end + 1] = ψt[begin]  # assume it's a PaddedVector
                     end
-                    ψt[end + 1] = ψt[begin]  # assume it's a PaddedVector
+                    io["streamfunction_t"] = ψt
                 end
-                io["streamfunction_t"] = ψt
+                tsf[t] = fname
             end
         end
         nothing
@@ -88,8 +95,10 @@ using LinearAlgebra: ⋅
     # When we only use the AdaptBasedOnVelocity criterion, then `init` will complete it with
     # a `MaximumTimestep` criterion. We check this below.
     adaptivity_in = AdaptBasedOnVelocity(100.0)  # huge value of δ to make sure it doesn't actually limit the timestep
-    dt = 0.02
-    iter = @inferred init(prob, SanduMRI33a(RK4(), 4); dt, adaptivity = adaptivity_in, callback)
+    d_min = Filaments.minimum_node_distance(prob.fs)
+    dt_kw = BiotSavart.kelvin_wave_period(params_bs, d_min)
+    dt = 10 * dt_kw
+    iter = @inferred init(prob, SanduMRI33a(RK4(), 3); dt, adaptivity = adaptivity_in, callback)
 
     let adaptivity = iter.adaptivity
         @test adaptivity isa Timestepping.CombinedAdaptivityCriteria
@@ -101,6 +110,7 @@ using LinearAlgebra: ⋅
     end
 
     @time solve!(iter)
+    save("ring_perturbed.vtkhdf.series", tsf)
 
     @test iter.dt == dt  # dt was kept to the initial value (because AdaptBasedOnVelocity criterion gives larger dt)
 

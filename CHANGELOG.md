@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Define `empty!` for `TimeSeriesFile`. Useful when using this within a callback in timestepping.
+
 ### Changed
 
 - Parallelise some more serial operations.
@@ -12,8 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Slightly modify parallelisation of short-range computations.
   Parallelisation is now done at the level of the list of filaments instead of
   at the level of each filament, which makes sense when there are many filaments.
-
-### Changed
 
 - Change integration limits of `AdaptiveTanhSinh` quadratures.
   This is to ensure that we never evaluate the integrand on endpoints (in case

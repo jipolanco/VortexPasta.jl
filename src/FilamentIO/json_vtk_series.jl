@@ -46,6 +46,17 @@ function TimeSeriesFile()
 end
 
 """
+    Base.empty!(tsf::TimeSeriesFile)
+
+Reset [`TimeSeriesFile`](@ref), removing all entries.
+"""
+function Base.empty!(tsf::TimeSeriesFile)
+    empty!(tsf.files)
+    empty!(tsf.times)
+    tsf
+end
+
+"""
     Base.setindex!(tsf::TimeSeriesFile, filename::AbstractString, time::Real)
 
 Add file to time series file.
