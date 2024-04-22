@@ -172,6 +172,19 @@ function remove_long_range_self_interaction!(
     vs
 end
 
+function add_short_range_fields!(
+        fields::NamedTuple{Names, NTuple{N, V}},
+        cache::ShortRangeCache,
+        fs::VectorOfFilaments;
+        kws...,
+    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+    for i ∈ eachindex(fs)
+        fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
+        add_short_range_fields!(fields_i, cache, fs[i]; kws...)
+    end
+    fields
+end
+
 """
     add_short_range_fields!(
         fields::NamedTuple{Names, NTuple{N, V}},

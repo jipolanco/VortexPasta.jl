@@ -268,10 +268,7 @@ function compute_on_nodes!(
     if shortrange
         @timeit to "Short-range component" begin
             @timeit to "Process point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
-            @timeit to "Compute Biot–Savart" for i ∈ eachindex(fs)
-                fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
-                add_short_range_fields!(fields_i, cache.shortrange, fs[i]; LIA)
-            end
+            @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
         end
     end
 
