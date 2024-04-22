@@ -217,75 +217,71 @@ function add_short_range_fields!(
     segs = segments(f)
     nonlia_lims = nonlia_integration_limits(lia_segment_fraction)
 
-    part = indices_per_thread(eachindex(Xs))
+    Threads.@threads :static for i ∈ eachindex(Xs)
+        x⃗ = Xs[i]
 
-    @sync for inds ∈ part
-        Threads.@spawn for i ∈ inds
-            x⃗ = Xs[i]
+        # Determine segments `sa` and `sb` in contact with the singular point x⃗.
+        # Then compute the local (LIA) term associated to these segments.
+        # If `lia_segment_fraction !== nothing`, we actually compute the local term
+        # over a fraction of these segments. Moreover, the rest of the segments
+        # (`nonlia_lims`) are taken into account by regular integration using
+        # quadratures.
+        sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
+        sb = Segment(f, i)  # segment i
 
-            # Determine segments `sa` and `sb` in contact with the singular point x⃗.
-            # Then compute the local (LIA) term associated to these segments.
-            # If `lia_segment_fraction !== nothing`, we actually compute the local term
-            # over a fraction of these segments. Moreover, the rest of the segments
-            # (`nonlia_lims`) are taken into account by regular integration using
-            # quadratures.
-            sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
-            sb = Segment(f, i)  # segment i
-
-            vecs_i = map(ps) do (quantity, _)
-                @inline
-                u⃗ = zero(x⃗)
-                if lia_segment_fraction !== nothing
-                    # In this case we need to include the full BS integral over a fraction of the local segments.
-                    u⃗ = u⃗ + (
-                        integrate_biot_savart(
-                            quantity, FullIntegrand(), sa, x⃗, params.common;
-                            Lhs, limits = nonlia_lims[1],
-                            quad = quad_near_singularity,
-                        )
-                        +
-                        integrate_biot_savart(
-                            quantity, FullIntegrand(), sb, x⃗, params.common;
-                            Lhs, limits = nonlia_lims[2],
-                            quad = quad_near_singularity,
-                        )
+        vecs_i = map(ps) do (quantity, _)
+            @inline
+            u⃗ = zero(x⃗)
+            if lia_segment_fraction !== nothing
+                # In this case we need to include the full BS integral over a fraction of the local segments.
+                u⃗ = u⃗ + (
+                    integrate_biot_savart(
+                        quantity, FullIntegrand(), sa, x⃗, params.common;
+                        Lhs, limits = nonlia_lims[1],
+                        quad = quad_near_singularity,
                     )
-                end
-                if _LIA
-                    u⃗ = u⃗ + local_self_induced(
-                        quantity, f, i, one(prefactor);
-                        a, Δ, quad,
-                        segment_fraction = lia_segment_fraction,
+                    +
+                    integrate_biot_savart(
+                        quantity, FullIntegrand(), sb, x⃗, params.common;
+                        Lhs, limits = nonlia_lims[2],
+                        quad = quad_near_singularity,
+                    )
+                )
+            end
+            if _LIA
+                u⃗ = u⃗ + local_self_induced(
+                    quantity, f, i, one(prefactor);
+                    a, Δ, quad,
+                    segment_fraction = lia_segment_fraction,
+                )
+            end
+            quantity => u⃗
+        end
+
+        # Then include the short-range (but non-local) effect of all nearby charges
+        # (which are located on the quadrature points of all nearby segments,
+        # excluding the local segments `sa` and `sb`).
+        for charge ∈ nearby_charges(cache, x⃗)
+            s⃗, q⃗, seg = charge
+            is_local_segment = seg === sa || seg === sb
+            qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
+            vecs_i = map(vecs_i) do (quantity, u⃗)
+                @inline
+                if !is_local_segment
+                    u⃗ = u⃗ + biot_savart_contribution(
+                        quantity, ShortRange(), params.common, x⃗, s⃗, qs⃗′;
+                        Lhs, rcut² = params.rcut_sq,
                     )
                 end
                 quantity => u⃗
             end
+        end
 
-            # Then include the short-range (but non-local) effect of all nearby charges
-            # (which are located on the quadrature points of all nearby segments,
-            # excluding the local segments `sa` and `sb`).
-            for charge ∈ nearby_charges(cache, x⃗)
-                s⃗, q⃗, seg = charge
-                is_local_segment = seg === sa || seg === sb
-                qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
-                vecs_i = map(vecs_i) do (quantity, u⃗)
-                    @inline
-                    if !is_local_segment
-                        u⃗ = u⃗ + biot_savart_contribution(
-                            quantity, ShortRange(), params.common, x⃗, s⃗, qs⃗′;
-                            Lhs, rcut² = params.rcut_sq,
-                        )
-                    end
-                    quantity => u⃗
-                end
-            end
-
-            # Add computed vectors (velocity and/or streamfunction) to corresponding arrays.
-            map(ps, vecs_i) do (quantity_p, us), (quantity_i, u⃗)
-                @inline
-                @assert quantity_p === quantity_i
-                us[i] = us[i] + prefactor * u⃗
-            end
+        # Add computed vectors (velocity and/or streamfunction) to corresponding arrays.
+        map(ps, vecs_i) do (quantity_p, us), (quantity_i, u⃗)
+            @inline
+            @assert quantity_p === quantity_i
+            us[i] = us[i] + prefactor * u⃗
         end
     end
 

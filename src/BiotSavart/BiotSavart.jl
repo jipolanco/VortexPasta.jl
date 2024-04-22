@@ -312,14 +312,6 @@ function compute_on_nodes!(
     fields
 end
 
-function indices_per_thread(inds::AbstractUnitRange, nthreads = Threads.threadpoolsize())
-    N = length(inds)
-    m = cld(N, nthreads)
-    part = Iterators.partition(inds, m)
-    @assert length(part) ≤ nthreads
-    part
-end
-
 # Case of a list of filaments
 function _compute_LIA_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
