@@ -182,8 +182,8 @@ function add_short_range_fields!(
     # This is good when there are many filaments.
     # Moreover, the :static scheduling option makes sense when roughly all the filaments
     # have the same number of points. If that's not the case, it may be worth it to either
-    # (1) reorder filaments such that every "chunk" has the same number of points, or
-    # (2) use :dynamic scheduling.
+    # (1) reorder filaments such that every "chunk" has oroughly the same number of points,
+    # or (2) use :dynamic scheduling.
     Threads.@threads :static for i ∈ eachindex(fs)
         fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
         add_short_range_fields!(fields_i, cache, fs[i]; kws...)
