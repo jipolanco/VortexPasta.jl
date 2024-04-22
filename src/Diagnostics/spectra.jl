@@ -137,7 +137,7 @@ function energy_spectrum!(
     fill!(Ek, 0)
     T = eltype(ks)
     @inbounds for I ∈ CartesianIndices(uhat)
-        k⃗ = map(getindex, wavenumbers, Tuple(I))
+        k⃗ = map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I))
         kx = k⃗[1]
         factor = (!with_hermitian_symmetry || kx == 0) ? T(0.5) : T(1.0)
         k² = sum(abs2, k⃗)
