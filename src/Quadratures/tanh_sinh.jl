@@ -155,18 +155,19 @@ function integrate(f::F, quad::AdaptiveTanhSinh{T}, lims::NTuple{2,Real}) where 
     c = onehalf * T(a + b)
 
     # Initial estimate: consider only central node.
+    # Note that we split integrals onto two: ]-∞, 0] ∪ [0, +∞[, since we
+    # expect one side to converge faster than the other (we integrate near a singularity on
+    # one side).
     h = hmax * Δ
-    Iprev = 2 * h * w₀ * f(c)
+    @inline I₀ = 2 * h * w₀ * f(c)
 
     # Second estimate
     n = unsigned(N)
     l = firstindex(xs)
     I = let
         w, x = @inbounds ws[l], xs[l]
-        @inline onehalf * Iprev + h * w * (
-            f(c + Δ * x) +    # rightmost node
-            f(c - Δ * x)      # leftmost node
-        )
+        δ = Δ * x
+        @inline onehalf * I₀ + h * w * (f(c - δ) + f(c + δ))
     end
 
     # Start iterating
@@ -174,20 +175,18 @@ function integrate(f::F, quad::AdaptiveTanhSinh{T}, lims::NTuple{2,Real}) where 
     h = onehalf * h  # divide integration step by 2 for next level
     m = unsigned(1)
     @fastmath while n ≠ 0
-        Iprev = I
+        I_prev = I
         I = zero(I)
         # Start by adding odd terms of the current level.
         # Note that weights must be multiplied by h (done afterwards).
         for _ ∈ 1:m
             l += 1
             w, x = @inbounds ws[l], xs[l]
-            y = Δ * x
-            @inline I += w * (f(c + y) + f(c - y))
+            δ = Δ * x
+            @inline I += w * (f(c - δ) + f(c + δ))
         end
-        I = h * I + onehalf * Iprev  # add all even terms of the current level
-        Idiff_sq = sum(abs2, I - Iprev)  # should also work with SVectors
-        I_rtol_sq = sum(abs2, I * rtol)
-        if Idiff_sq < I_rtol_sq
+        I = h * I + onehalf * I_prev  # add all even terms of the current level
+        if check_convergence(I, I_prev, rtol)
             break
         end
         n = n >>> 1
@@ -196,6 +195,12 @@ function integrate(f::F, quad::AdaptiveTanhSinh{T}, lims::NTuple{2,Real}) where 
     end
 
     I
+end
+
+function check_convergence(I, Iprev, rtol)
+    I_diff_sq = sum(abs2, I - Iprev)  # should also work with SVectors
+    I_atol_sq = sum(abs2, I) * rtol^2
+    I_diff_sq < I_atol_sq
 end
 
 # Default [0, 1] limits.
