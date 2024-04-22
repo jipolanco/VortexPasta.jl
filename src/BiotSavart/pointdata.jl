@@ -53,7 +53,7 @@ end
 
 function _count_charges(quad::StaticSizeQuadrature, fs::AbstractVector{<:ClosedFilament})
     Nq = length(quad)        # number of evaluation points per filament segment
-    Np = sum(f -> length(segments(f)), fs)  # total number of segments among all filaments (assumes closed filaments!!)
+    Np = sum(f -> length(segments(f)), fs; init = 0)  # total number of segments among all filaments (assumes closed filaments!!)
     Np * Nq
 end
 
@@ -63,17 +63,23 @@ end
 
 Add vector charges at multiple non-uniform locations.
 
-This is used in particular for type-1 NUFFTs, to transform from non-uniform data in physical
-space to uniform data in Fourier space. It must be called before [`compute_vorticity_fourier!`](@ref).
+This can be used for both short-range and long-range computations.
+
+In the case of long-range computations, this must be done before type-1 NUFFTs, to transform
+from non-uniform data in physical space to uniform data in Fourier space. It must be called
+before [`compute_vorticity_fourier!`](@ref).
 """
 function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, quad::StaticSizeQuadrature)
     Ncharges = _count_charges(quad, fs)
     set_num_points!(data, Ncharges)
-    n = 0
-    for f ∈ fs
-        n = _add_point_charges!(data, f, n, quad)
+    inds = ChunkSplitters.chunks(fs; n = Threads.nthreads())
+    Threads.@threads :static for subinds ∈ inds
+        prev_indices = firstindex(fs):(first(subinds) - 1)  # filament indices given to all previous chunks
+        n = _count_charges(quad, view(fs, prev_indices))    # we will start writing at index n + 1
+        for i ∈ subinds
+            n = _add_point_charges!(data, fs[i], n, quad)
+        end
     end
-    @assert n == Ncharges
     nothing
 end
 
