@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Parallelise some more serial operations.
+
+- Slightly modify parallelisation of short-range computations.
+  Parallelisation is now done at the level of the list of filaments instead of
+  at the level of each filament, which makes sense when there are many filaments.
+
+### Changed
+
 - Change integration limits of `AdaptiveTanhSinh` quadratures.
   This is to ensure that we never evaluate the integrand on endpoints (in case
   there are singularities there).
