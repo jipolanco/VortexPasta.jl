@@ -47,6 +47,7 @@ CellListsBackend
 
 ```@docs
 ShortRangeCache
+max_cutoff_distance
 init_cache_short
 process_point_charges!
 add_short_range_fields!

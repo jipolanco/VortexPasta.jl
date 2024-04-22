@@ -251,6 +251,17 @@ function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws.
         backend_short = CellListsBackend(2),
     )
 
+    let params = params_naive
+        rc_max = @inferred BiotSavart.max_cutoff_distance(params.shortrange.backend, params.Ls) 
+        Lmin = min(params.Ls...)
+        @test rc_max ≈ Lmin / 2
+    end
+    let params = params_cl
+        rc_max = @inferred BiotSavart.max_cutoff_distance(params.shortrange.backend, params.Ls)
+        Lmin = min(params.Ls...)
+        @test Lmin / 3 < rc_max < Lmin / 2  # the actual value depends on the nsubdiv parameter (here nsubdiv = 2)
+    end
+
     cache_naive = @inferred BiotSavart.init_cache(params_naive, fs)
     cache_cl = @inferred BiotSavart.init_cache(params_cl, fs)
 

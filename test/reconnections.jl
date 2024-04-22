@@ -75,7 +75,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         Ns = (1, 1, 1) .* 32
         kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
         α = kmax / 5
-        rcut = 4 / α
+        rcut = 2.5 / α
         ParamsBiotSavart(;
             Γ = 2.0, α, a = 1e-6, Δ = 1/4, rcut, Ls, Ns,
             backend_short = NaiveShortRangeBackend(),

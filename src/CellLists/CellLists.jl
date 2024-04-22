@@ -96,7 +96,7 @@ subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M
 
 function PeriodicCellList(
         ::Type{T},
-        rs_cut_in::NTuple{N, Real},
+        rs_cut::NTuple{N, Real},
         Ls::NTuple{N, Real},
         nsubdiv::StaticInt = static(1);
         to_coordinate::F = identity,
@@ -106,22 +106,29 @@ function PeriodicCellList(
     ))
 
     M = dynamic(nsubdiv)
-    rs_cut = map(r -> r / M, rs_cut_in)
+
+    # Determine cell sizes.
+    rs_cell = map(rs_cut, Ls) do r, L
+        r′ = r / M
+        # Increase cell size so that it exactly divides the domain size.
+        L / floor(L / r′)
+    end
 
     # Number of cells in each direction.
-    # Using `floor` below means that, if `rcut` doesn't exactly divide the domain size L in
-    # a given direction, then the *last* cell in that direction will be larger than `rcut`.
-    ncells = map(rs_cut, Ls) do rcut, L
-        floor(Int, L / rcut)
+    # Using `floor` below means that, if `r_cell` doesn't exactly divide the domain size L in
+    # a given direction, then the *last* cell in that direction will be larger than `r_cell`.
+    ncells = map(rs_cell, Ls) do r_cell, L
+        floor(Int, L / r_cell)
     end
 
     # When M = 1, the number of cells in each direction should be at least 3 to avoid
     # repeating pair interactions (due to periodicity).
     # More generally, for any M, the number of cells should be at least 2M + 1.
+    # In the end, this corresponds to the condition r_cut_in/L < M / (2M + 1).
     all(≥(2M + 1), ncells) || error(
-        lazy"""cell lists: number of cells $ncells is too small for periodic padding.
-               Minimum allowed is 2 * nsubdiv + 1 = $(2M + 1).
-               Try reducing the cutoff radius (got rs_cut = $rs_cut_in)."""
+        lazy"""cell lists: the cut-off distance r_cut is too large for periodic padding.
+               It should satisfy r_cut/L ≤ nsubdiv / (2 * nsubdiv + 1) = $(M / (2M + 1));
+               got rs_cut/Ls = $(rs_cut ./ Ls)."""
     )
 
     elements = Vector{T}(undef, 0)
@@ -141,7 +148,7 @@ function PeriodicCellList(
     Base.require_one_based_indexing(elements)  # assumed since EMPTY = 0
 
     PeriodicCellList(
-        elements, head_indices, next_index, isready, to_coordinate, rs_cut, nsubdiv, Ls,
+        elements, head_indices, next_index, isready, to_coordinate, rs_cell, nsubdiv, Ls,
     )
 end
 
