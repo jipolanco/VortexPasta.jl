@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Define `empty!` for `TimeSeriesFile`. Useful when using this within a callback in timestepping.
 
+- In `Filaments.from_vector_field`, make it easier (and document how) to define
+  vortex lines from the *curl* of a vector field.
+  This can be convenient when one knows the velocity field, and is too lazy to
+  analytically derive the corresponding vorticity field.
+  The vorticity field is obtained using automatic differentiation.
+
 ### Changed
 
 - Parallelise some more serial operations.

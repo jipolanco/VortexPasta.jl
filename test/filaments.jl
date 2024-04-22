@@ -330,33 +330,60 @@ function test_filaments_broadcasting()
 end
 
 function test_init_from_vector_field(method = CubicSplineMethod())
-    function taylor_green_vorticity(x, y, z)
+    function taylor_green_velocity(x⃗::Vec3)
+        x, y, z = x⃗
+        sx, cx = sincos(x)
+        sy, cy = sincos(y)
+        sz = sin(z)
+        Vec3(
+            cx * sy * sz,
+            -sx * cy * sz,
+            0,
+        )
+    end
+    function taylor_green_vorticity(x⃗::Vec3)
+        x, y, z = x⃗
         sx, cx = sincos(x)
         sy, cy = sincos(y)
         sz, cz = sincos(z)
         Vec3(
-            -cx * sy * sz,
-            -sx * cy * sz,
-            2 * sx * sy * cz,
+            sx * cy * cz,
+            cx * sy * cz,
+            -2 * cx * cy * sz,
         )
     end
-    taylor_green_vorticity(x⃗) = taylor_green_vorticity(x⃗...)
-    x₀ = Vec3{Float32}(π + π / 3, π + π / 2, π + 0.2)
+    x₀ = Vec3{Float32}(π/2 + π/3, π/2 + π/5, π/2 + 0.2)
     dτ = 0.1
+
+    # Directly from vorticity field
     f = @inferred Filaments.from_vector_field(
         ClosedFilament, taylor_green_vorticity, x₀, dτ, method,
     )
+
+    # Alternative: obtain vorticity field using automatic differentiation of the velocity.
+    ωf = @inferred Filaments.curl(taylor_green_velocity)
+    g = @inferred Filaments.from_vector_field(ClosedFilament, ωf, x₀, dτ, method)
+    @test f ≈ g
+
     V = typeof(x₀)
     @test eltype(f) === V
     # Check type returned by interpolations
     @test @inferred(f(2, 0.1)) isa V
     @test @inferred(f(2, 0.1, Derivative(1))) isa V
     @test @inferred(f(2, 0.1, Derivative(2))) isa V
+
     # Check that the filament is actually tangent to the vector field to a very good
     # approximation.
-    err = @inferred Filaments.distance_to_field(taylor_green_vorticity, f)
-    @test err isa Float32
-    @test err < 2f-4
+    let err = @inferred Filaments.distance_to_field(taylor_green_vorticity, f)
+        @test err isa Float32
+        @test err < 2f-4
+    end
+
+    let err = @inferred Filaments.distance_to_field(ωf, g)
+        @test err isa Float32
+        @test err < 2f-4
+    end
+
     nothing
 end
 

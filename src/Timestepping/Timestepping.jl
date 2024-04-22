@@ -439,20 +439,6 @@ function init(
     iter
 end
 
-# Returns gradient of vector function f: ℝ³ ↦ ℝ³
-function vector_gradient(f::F, x⃗::Vec3) where {F <: Function}
-    ∇s = ntuple(Val(3)) do i
-        # Gradient of i-th vector component.
-        ForwardDiff.gradient(x -> f(x)[i], x⃗)
-    end
-    hcat(∇s...)  # gradient tensor (Aᵢⱼ = ∂ᵢfⱼ)
-end
-
-function curl(f::F, x⃗::Vec3) where {F <: Function}
-    A = vector_gradient(f, x⃗)
-    oftype(x⃗, (A[2, 3] - A[3, 2], A[3, 1] - A[1, 3], A[1, 2] - A[2, 1]))
-end
-
 # Check that the external streamfunction satisfies v = ∇ × ψ on a single arbitrary point.
 # We check this using automatic differentiation of ψ at a given point.
 function check_external_streamfunction(forcing::NamedTuple, Ls)
@@ -462,7 +448,7 @@ function check_external_streamfunction(forcing::NamedTuple, Ls)
     x⃗ = Vec3(ntuple(i -> 0.07 * i * Ls[i], Val(N)))  # arbitrary point in [0, L]³
     t = 0.0  # arbitrary time
     v⃗_actual = velocity(x⃗, t)
-    v⃗_from_streamfunction = curl(y⃗ -> streamfunction(y⃗, t), x⃗)
+    v⃗_from_streamfunction = Filaments.curl(y⃗ -> streamfunction(y⃗, t), x⃗)
     isapprox(v⃗_actual, v⃗_from_streamfunction) || @warn(
         """
         it seems like the external streamfunction doesn't match the external velocity.
