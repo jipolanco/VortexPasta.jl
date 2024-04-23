@@ -159,7 +159,7 @@ function make_all(; generate_tutorials = true,)
     )
 end
 
-make_all()
+make_all(; generate_tutorials = true,)
 
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual

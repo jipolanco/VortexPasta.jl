@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   there are singularities there).
   Also, we now use different (smaller) integration limits for `Float32`.
 
+- Improve precision of `Filaments.from_vector_field` near the point where the
+  filament is closed.
+
 ## [0.18.3] - 2024-04-12
 
 ### Added

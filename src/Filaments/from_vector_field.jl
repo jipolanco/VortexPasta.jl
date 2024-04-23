@@ -167,10 +167,26 @@ function _from_vector_field!(
         ps = round.(Int, p⃗ ./ Ls)
         offset = ps .* periods
     end
-    # Reposition the last point to avoid curve weirdness (for example, having to go
-    # "backwards" to close the curve).
-    xlast = xinit + offset
-    xs[end] = (xs[end - 1] + xlast) / 2
+    # Remove the last point if it went too far to avoid curve weirdness (basically, having
+    # to go "backwards" to close the curve, generating huge unphysical curvatures).
+    #
+    # Two possible geometrical criteria:
+    #
+    # 1. If (xs[1] - xs[N]) ⋅ (xs[N] - xs[N - 1]) < 0, it basically means that the tangent
+    #    vector abruptly changed orientation. However, this can actually be "physical" if
+    #    xs[N] is right on a cusp.
+    #
+    # 2. If norm(xs[2] - xs[N]) < norm(xs[2] - xs[1]), meaning that the last point is closer
+    #    to point 2 than point 1.
+    #
+    # We require both criteria to be satisfied to remove point xs[N].
+    xclose_1 = xs[begin + 0] + offset  # account for possible offset: xs[N + 1] - xs[1] = offset
+    xclose_2 = xs[begin + 1] + offset
+    crit1 = (xclose_1 - xs[end]) ⋅ (xs[end] - xs[end - 1]) < 0
+    crit2 = sum(abs2, xclose_2 - xs[end]) < sum(abs2, xclose_2 - xclose_1)
+    if crit1 && crit2
+        pop!(xs)
+    end
     offset
 end
 

@@ -329,7 +329,7 @@ function test_filaments_broadcasting()
     nothing
 end
 
-function test_init_from_vector_field(method = CubicSplineMethod())
+function test_init_from_vector_field(::Type{T} = Float32, method = CubicSplineMethod()) where {T}
     function taylor_green_velocity(x⃗::Vec3)
         x, y, z = x⃗
         sx, cx = sincos(x)
@@ -352,36 +352,54 @@ function test_init_from_vector_field(method = CubicSplineMethod())
             -2 * cx * cy * sz,
         )
     end
-    x₀ = Vec3{Float32}(π/2 + π/3, π/2 + π/5, π/2 + 0.2)
-    dτ = 0.1
+    x₀ = Vec3{T}(π/2 + π/3, π/2 + π/5, π/2 + 0.2)
+    V = typeof(x₀)
+    dτ::T = 0.11
+    nsubsteps = 5
+    redistribute = true
+
+    @test @inferred(taylor_green_velocity(x₀)) isa V
+    @test @inferred(Filaments.curl(taylor_green_velocity)(x₀)) isa V
+    @test @inferred(taylor_green_vorticity(x₀)) isa V
+    @test Filaments.curl(taylor_green_velocity)(x₀) === taylor_green_vorticity(x₀)  # identical results using AD
 
     # Directly from vorticity field
     f = @inferred Filaments.from_vector_field(
-        ClosedFilament, taylor_green_vorticity, x₀, dτ, method,
+        ClosedFilament, taylor_green_vorticity, x₀, dτ, method;
+        nsubsteps, redistribute,
     )
 
-    # Alternative: obtain vorticity field using automatic differentiation of the velocity.
+    # Alternative: obtain vorticity field using automatic differentiation (AD) of the velocity.
     ωf = @inferred Filaments.curl(taylor_green_velocity)
-    g = @inferred Filaments.from_vector_field(ClosedFilament, ωf, x₀, dτ, method)
+    g = @inferred Filaments.from_vector_field(ClosedFilament, ωf, x₀, dτ, method; nsubsteps, redistribute,)
     @test f ≈ g
 
-    V = typeof(x₀)
     @test eltype(f) === V
     # Check type returned by interpolations
     @test @inferred(f(2, 0.1)) isa V
     @test @inferred(f(2, 0.1, Derivative(1))) isa V
     @test @inferred(f(2, 0.1, Derivative(2))) isa V
 
+    err_allowed = if T === Float32
+        method === FiniteDiffMethod() ? 4f-4 : 1f-4
+    elseif T === Float64
+        method === QuinticSplineMethod() ? 4e-6 :
+        method === CubicSplineMethod() ? 4e-5 :
+        4e-4  # FiniteDiffMethod
+    end
+
     # Check that the filament is actually tangent to the vector field to a very good
     # approximation.
     let err = @inferred Filaments.distance_to_field(taylor_green_vorticity, f)
-        @test err isa Float32
-        @test err < 2f-4
+        # @show method, err
+        @test err isa T
+        @test err < err_allowed
     end
 
     let err = @inferred Filaments.distance_to_field(ωf, g)
-        @test err isa Float32
-        @test err < 2f-4
+        # @show method, err
+        @test err isa T
+        @test err < err_allowed
     end
 
     nothing
@@ -426,7 +444,8 @@ end
     @testset "From vector field" begin
         methods = (QuinticSplineMethod(), CubicSplineMethod(), FiniteDiffMethod())
         @testset "$method" for method ∈ methods
-            test_init_from_vector_field(method)
+            test_init_from_vector_field(Float32, method)
+            test_init_from_vector_field(Float64, method)
         end
     end
     @testset "StructVector nodes" begin
