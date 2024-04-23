@@ -79,15 +79,15 @@ julia> s⃗₀ = Vec3(0.1, 1.8, 0.42);  # starting point for creating the filame
 
 julia> dτ = 0.1;  # pseudo time-step (has units of length; determines line resolution)
 
-julia> nsubsteps = 2;  # this is just to ensure convergence (should be larger for larger dτ)
+julia> nsubsteps = 4;  # this is just to ensure convergence (should be larger for larger dτ)
 
 julia> f = Filaments.from_vector_field(ClosedFilament, ωf, s⃗₀, dτ, QuinticSplineMethod(); nsubsteps);
 
 julia> summary(f)
-"30-element ClosedFilament{SVector{3, Float64}, QuinticSplineMethod}"
+"29-element ClosedFilament{SVector{3, Float64}, QuinticSplineMethod}"
 
 julia> Filaments.distance_to_field(ωf, f)  # check that we're close to the actual vortex line
-0.0020589313843518355
+3.956104917463104e-5
 ```
 
 ## Implementation details
@@ -141,11 +141,9 @@ function _from_vector_field!(
     dt_solver = dτ / nsubsteps
     for _ ∈ 2:max_steps
         xnew = last(xs)
-        # Note: the resulting "velocity" is not exactly unitary but usually very close to
-        # it. We normalise it just in case.
         for _ ∈ 1:nsubsteps
             v = advancement_velocity_RK4(f, xnew, dt_solver)
-            xnew = xnew + normalize(v) * dt_solver
+            xnew = xnew + v * dt_solver
         end
         r⃗ = xnew - xinit
         r⃗ₚ = deperiodise_separation(r⃗, Ls, Lhs)

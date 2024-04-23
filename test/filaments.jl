@@ -381,11 +381,15 @@ function test_init_from_vector_field(::Type{T} = Float32, method = CubicSplineMe
     @test @inferred(f(2, 0.1, Derivative(2))) isa V
 
     err_allowed = if T === Float32
-        method === FiniteDiffMethod() ? 4f-4 : 1f-4
+        method === QuinticSplineMethod() ? 4f-5 :
+        method === CubicSplineMethod() ? 2f-4 :
+        method === FiniteDiffMethod() ? 4f-4 :
+        nothing
     elseif T === Float64
-        method === QuinticSplineMethod() ? 4e-6 :
+        method === QuinticSplineMethod() ? 3e-6 :
         method === CubicSplineMethod() ? 4e-5 :
-        4e-4  # FiniteDiffMethod
+        method === FiniteDiffMethod() ? 4e-4 :
+        nothing
     end
 
     # Check that the filament is actually tangent to the vector field to a very good
