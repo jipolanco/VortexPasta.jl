@@ -196,6 +196,12 @@ function Base.insert!(v::PaddedVector, i::Integer, x)
     v
 end
 
+function Base.push!(v::PaddedVector, x)
+    resize!(v, length(v) + 1)
+    v[end] = x
+    v
+end
+
 Base.popat!(v::PaddedVector, i::Integer) = popat!(parent(v), i + npad(v))
 
 # This is used by HDF5.jl when reading data directly onto a PaddedVector using HDF5.API.h5d_read()

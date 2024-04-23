@@ -67,6 +67,7 @@ Base.similar(x::VectorOfVectors, ::Type{T}) where {T} =
     VectorOfVectors(map(v -> similar(v, T), x.u))
 Base.similar(x::VectorOfVectors{T}) where {T} = similar(x, T)
 Base.fill!(x::VectorOfVectors, value) = (foreach(y -> fill!(y, value), x); x)
+Base.push!(x::VectorOfVectors, item) = push!(x.u, item)
 
 Base.IndexStyle(::Type{<:VectorOfVectors}) = IndexLinear()
 Base.IteratorSize(::Type{<:VectorOfVectors}) = Base.HasLength()
