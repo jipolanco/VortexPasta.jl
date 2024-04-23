@@ -4,6 +4,7 @@ using Statistics: mean, std
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
+using VortexPasta.Quadratures
 using VortexPasta.Diagnostics: Diagnostics
 using Random
 
@@ -210,6 +211,71 @@ function test_local_induced_approximation(ring)
     nothing
 end
 
+function biot_savart_parameters(; L, β = 4, α = 24/L, kws...)
+    rcut = β / α
+    if L === Infinity()
+        M = Zero()
+    else
+        kmax_wanted = β * 2α
+        M = nextprod((2, 3), (L / π) * kmax_wanted)
+    end
+    ParamsBiotSavart(;
+        Γ = 1.0,
+        α,
+        Ls = (L, L, L),
+        Ns = (M, M, M),
+        rcut,
+        a = 1e-8, Δ = 1/4,
+        kws...
+    )
+end
+
+function test_lia_segment_fraction()
+    N = 64 * 1
+    method = QuinticSplineMethod()
+    ring = init_ring_filament(N; method)
+    fs = [ring.f]
+
+    L = Infinity()
+    params = biot_savart_parameters(; L, lia_segment_fraction = 0.2)
+    # println(params)
+    cache = BiotSavart.init_cache(params, fs)
+
+    vs_all = map(similar ∘ nodes, fs)
+    ψs_all = map(similar ∘ nodes, fs)
+    fields = (velocity = vs_all, streamfunction = ψs_all)
+    compute_on_nodes!(fields, cache, fs)
+
+    # seg = Filaments.Segment(fs[1], 3)
+    # x⃗ = fs[1](3, 0.3)
+    # @time y⃗ = BiotSavart.integrate_biot_savart(
+    #     BiotSavart.Velocity(),
+    #     BiotSavart.FullIntegrand(),
+    #     seg, x⃗,
+    #     params.common,
+    # )
+    # @time y⃗ = BiotSavart.integrate_biot_savart(
+    #     BiotSavart.Velocity(),
+    #     BiotSavart.FullIntegrand(),
+    #     seg, x⃗,
+    #     params.common,
+    # )
+
+    vz = map(v -> v.z, vs_all[1])
+    vz_avg = mean(vz)
+    vz_std = std(vz; corrected = false)
+    # @show vz_avg vz_std/vz_avg
+    @test vz_std/vz_avg < 1e-12
+
+    # This is valid in the non-periodic case only
+    v_expected = vortex_ring_velocity(params.Γ, ring.R, params.a; params.Δ)
+    err_v = abs(vz_avg - v_expected) / v_expected
+    # @show err_v
+    @test err_v < 2e-6  # requires using lia_segment_fraction
+
+    nothing
+end
+
 @testset "Vortex ring velocity" begin
     N = 32  # number of discretisation points
     # `noise`: non-uniformity of filament discretisation (noise == 0 means uniform discretisation)
@@ -245,12 +311,7 @@ end
             test_local_induced_approximation(ring)
         end
     end
-end
-
-if @isdefined(Makie)
-    let fig = Figure()
-        ax = Axis3(fig[1, 1])
-        filamentplot!(ax, ring.f)
-        fig
+    @testset "LIA segment fraction" begin
+        test_lia_segment_fraction()
     end
 end
