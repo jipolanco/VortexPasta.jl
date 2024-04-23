@@ -93,7 +93,7 @@ syntax. See further below for some examples.
 ## Optional keyword arguments
 
 - `refinement::Int = 1`: allows to output more than 1 point for each filament segment. This
-  is mostly useful for producing nice visualisations. The level of refinement is writen to
+  is mostly useful for producing nice visualisations. The level of refinement is written to
   the `/VTKHDF/RefinementLevel` dataset, which allows to read back the data skipping
   intra-segment nodes.
 
@@ -386,11 +386,8 @@ function Base.setindex!(writer::VTKHDFFile, q::GeometricQuantity, name::Abstract
     buf = Bumper.default_buffer()
     @no_escape buf begin
         vs = map(fs) do f
-            M = Filaments.npad(nodes(f))
             v1 = f[begin, q]
             T = typeof(v1)
-            # vdata = @alloc(T, length(f) + 2M)
-            # v = PaddedVector{M}(vdata)  # we need PaddedVector for doing refinement
             v = @alloc(T, length(f))
             v[begin] = v1
             for i ∈ eachindex(v)[2:end]
@@ -857,16 +854,16 @@ function _read_data_on_filaments!(
     lranges = map(N -> 1:N, ldims)
     for v ∈ vs
         Np = length(v)  # number of filament nodes (may or may not include the endpoint)
-        vdata = reinterpret(reshape, T, v)
-        # vdata = @view v[begin:(end + endpoint)]
+        memspace = HDF5.dataspace((ldims_dset..., Np))
+        memtype = HDF5.datatype(T)
         if refinement == 1
             HDF5.select_hyperslab!(dspace, (lranges..., (n + 1):(n + Np),))  # read part of the dataset
-            read_dataset!(vdata, dset, dspace)
+            read_dataset!(v, dset, dspace; memspace, memtype)
             n += Np + (!endpoint)  # the + (!endpoint) is because the endpoint is always included in the file (but maybe ignored here)
         else
             inds_file = range(n + 1; length = Np, step = refinement)
             HDF5.select_hyperslab!(dspace, (lranges..., inds_file,))
-            read_dataset!(vdata, dset, dspace)
+            read_dataset!(v, dset, dspace; memspace, memtype)
             n = last(inds_file) + refinement * (!endpoint)
         end
         maybe_pad_periodic!(v)
@@ -880,7 +877,7 @@ maybe_pad_periodic!(v::PaddedVector) = pad_periodic!(v)
 maybe_pad_periodic!(v::AbstractVector) = v
 
 function read_dataset!(
-        out::AbstractArray,
+        out::Union{AbstractArray, Ptr},
         dset::HDF5.Dataset,
         dspace = HDF5.dataspace(dset);  # this can also be a hyperslab
         memspace = HDF5.dataspace(out),
