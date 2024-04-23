@@ -3,6 +3,7 @@
 using Test
 using Statistics: mean, std
 using Random
+using StableRNGs: StableRNG
 using LinearAlgebra: norm, normalize, ⋅, ×
 using UnicodePlots: lineplot
 using VortexPasta
@@ -20,7 +21,7 @@ using StaticArrays: StaticArrays  # for JET only
 function init_ring_filaments(R_init; method = CubicSplineMethod(), noise = 1/3)
     N = 32
     zs_init = [0.9, 1.1] .* π
-    rng = MersenneTwister(42)
+    rng = StableRNG(42)
     map(zs_init) do z
         S = define_curve(Ring(); translate = (π / 20, π, z), scale = R_init)
         τs = collect(range(0, 1; length = 2N + 1)[2:2:2N])

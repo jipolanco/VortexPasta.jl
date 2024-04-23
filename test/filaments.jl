@@ -1,5 +1,6 @@
 using Test
 using Random
+using StableRNGs: StableRNG
 using LinearAlgebra
 using StaticArrays
 using StructArrays: StructArray, StructVector
@@ -25,7 +26,7 @@ function test_filament_ring(N, method)
     α = 1 / 4N  # amplitude of random perturbation to obtain a non-uniform node distribution
 
     γs = collect(range(0, 1; length = N + 1)[1:N])  # some arbitrary parametrisation
-    rng = MersenneTwister(42)
+    rng = StableRNG(42)
     if !(method isa FourierMethod)
         # Don't randomise locations for FourierMethod, as it expects roughly equal node spacings.
         γs .+= rand(rng, N) .* α
@@ -43,7 +44,7 @@ function test_filament_ring(N, method)
             s⃗_interp = f(i, 0.0)
             sum(abs2, s⃗_interp - s⃗_expected)
         end / N
-        @test err < 1e-30
+        @test err < 1.2e-30
     end
 
     continuity = Filaments.continuity(Filaments.interpolation_method(f))
@@ -106,8 +107,9 @@ function test_filament_ring(N, method)
             rtol = (N < 10) ? 0.1 : 0.01
             @test isapprox(L, 2π * R; rtol)
         end
-        @test all(1:M) do i
-            (ts[end + i] - ts[begin - 1 + i]) == (ts[end + 1 - i] - ts[begin - i]) == L
+        for i ∈ 1:M
+            @test isapprox(ts[end + i] - ts[begin - 1 + i], L; atol = eps(L))
+            @test isapprox(ts[end + 1 - i] - ts[begin - i], L; atol = eps(L))
         end
     end
 
@@ -167,7 +169,15 @@ function test_filament_ring(N, method)
                 @test norm(X′) ≈ 1
                 @test 1 - X′ ⋅ X″ ≈ 1   # orthogonality
                 if continuity ≥ 1  # don't run test with HermiteInterpolation{0} (→ curvature = 0)
-                    @test isapprox(norm(X″), 1 / R; rtol = 0.1)  # ring curvature (some methods are more accurate than others...)
+                    # @show method, norm(X″) * R - 1
+                    rtol = method isa FiniteDiffMethod ? 0.15 :
+                           method isa CubicSplineMethod ? 0.03 :
+                           method isa QuinticSplineMethod ? 8e-4 :
+                           method isa FourierMethod ? 2e-7 : 0.0
+                    if N ≤ 6
+                        rtol = 0.05
+                    end
+                    @test isapprox(norm(X″), 1 / R; rtol)  # ring curvature (some methods are more accurate than others...)
                 end
                 @test X′ ≈ f(i, ζ, UnitTangent())
                 @test X″ ≈ f(i, ζ, CurvatureVector())

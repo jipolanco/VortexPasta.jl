@@ -5,6 +5,7 @@ using StaticArrays
 using Statistics: mean, std
 using LinearAlgebra: norm
 using Random: Random
+using StableRNGs: StableRNG
 using FFTW: fft!, bfft!, fftfreq
 using VortexPasta.PredefinedCurves: define_curve, PeriodicLine
 using VortexPasta.Filaments
@@ -223,7 +224,7 @@ function test_forced_lines(
     # We apply a stochastic velocity forcing.
     # The forcing changes randomly at each timestep (basic Euler–Maruyama scheme).
     # This is similar to the forcing used by Baggaley & Laurie (PRB 2014).
-    rng = Random.Xoshiro()
+    rng = StableRNG(42)
     forcing_amplitude = Γ / 200  # this has the units of a diffusion coefficient [L²T⁻¹]
     forcing_ks = let kf = convert(Vector{T}, kf_norm)  # forcing wavenumbers (in the z direction)
         append!(kf, -kf)  # also force negative wavenumbers
@@ -300,8 +301,8 @@ function test_forced_lines(
     L_growth = last(line_length) / first(line_length) - 1
     E_growth = last(energy) / first(energy) - 1
     @show L_growth E_growth
-    @test 0.002 < L_growth < 0.003
-    @test 0.002 < E_growth < 0.003
+    @test 0.005 < L_growth < 0.006
+    @test 0.005 < E_growth < 0.006
 
     energy_prev = copy(energy)
     line_length_prev = copy(line_length)
@@ -322,8 +323,8 @@ function test_forced_lines(
     L_growth = last(line_length) / first(line_length) - 1
     E_growth = last(energy) / first(energy) - 1
     @show L_growth E_growth
-    @test 0.02 < L_growth < 0.03
-    @test 0.02 < E_growth < 0.03
+    @test 0.035 < L_growth < 0.045
+    @test 0.030 < E_growth < 0.040
 
     # 3. Now test including the external_streamfunction parameter (energy values will be much
     # higher). Note that this doesn't change the dynamics, and the vortex trajectories

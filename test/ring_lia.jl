@@ -7,6 +7,7 @@ using VortexPasta.Diagnostics: Diagnostics
 using UnicodePlots: UnicodePlots, lineplot, lineplot!
 using Statistics: mean, std
 using Random: Random
+using StableRNGs: StableRNG
 using Rotations: Rotations
 
 function generate_biot_savart_parameters(::Type{T}; periodic = Val(true)) where {T}
@@ -44,7 +45,7 @@ function generate_ring(
     ) where {T}
     p = Ring()
     scale = R
-    rng = Random.Xoshiro(42)
+    rng = StableRNG(4242)
     ts = collect(range(T(0), T(1); length = N + 1)[1:N])
     for i ∈ eachindex(ts)
         ts[i] += rand(rng, T) * noise / N

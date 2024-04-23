@@ -7,6 +7,7 @@ using VortexPasta.BiotSavart
 using VortexPasta.Quadratures
 using VortexPasta.Diagnostics: Diagnostics
 using Random
+using StableRNGs: StableRNG
 
 function init_ring_filament(
         N::Int, R = π / 3;
@@ -20,7 +21,7 @@ function init_ring_filament(
     ζs = collect(ζs_base)
     @assert length(ζs) == N
     if !iszero(noise)
-        rng_ = rng === nothing ? MersenneTwister(42) : rng
+        rng_ = rng === nothing ? StableRNG(42) : rng
         ζs .+= noise * dζ * rand(rng_, N)  # `noise` should be ∈ ]-1, 1[
     end
     f = @inferred Filaments.init(S, ClosedFilament, ζs, method; kwargs...)
