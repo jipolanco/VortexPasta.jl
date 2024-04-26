@@ -14,6 +14,7 @@ Base.convert(::Type{Zero}, ::Zero) = Zero()
 
 (::Zero) * (::Number) = Zero()
 (::Number) * (::Zero) = Zero()
+(::Zero) * (::Zero) = Zero()
 (x::Number) + (::Zero) = x
 (x::Number) - (::Zero) = x
 (::Zero) + (::Zero) = Zero()
@@ -34,16 +35,26 @@ Alias for Infinity().
 """
 const ∞ = Infinity()
 
+Base.convert(::Type{T}, ::Infinity) where {T <: AbstractFloat} = T(Inf)
+
 Base.isinf(::Infinity) = true
 
 # Here we assume that Number > 0, which is the case in our application.
 (::Number) * (::Infinity) = Infinity()
+(::Infinity) * (::Number) = Infinity()
+(::Number) + (::Infinity) = Infinity()
+(::Infinity) + (::Number) = Infinity()
+(::Infinity) - (::Number) = Infinity()
+(::Infinity) + (::Infinity) = Infinity()
 (::Infinity) * (::Infinity) = Infinity()
 (::Infinity) / (::Number) = Infinity()
+(::Infinity) ÷ (::Number) = Infinity()
 (::Number) / (::Infinity) = Zero()
 
+(::Real) < (::Infinity) = true
 (::Real) > (::Infinity) = false
 (::Infinity) < (::Real) = false   # needs to be Real to disambiguate
 (::Infinity) < (::Infinity) = false
+(::Infinity) > (::Infinity) = false
 
 (::Number) / (::Zero) = Infinity()
