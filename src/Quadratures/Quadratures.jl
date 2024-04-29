@@ -114,10 +114,12 @@ function integrate(
         f::F, quad::StaticSizeQuadrature, ::Type{T},
     ) where {F <: Function, T <: AbstractFloat}
     xs, ws = quadrature(T, quad)
-    sum(eachindex(xs, ws)) do j
-        @inline
-        @inline ws[j] * f(xs[j])
+    vs = map(f, xs)
+    u = zero(first(vs))
+    for j ∈ eachindex(ws, vs)
+        u = u + ws[j] * vs[j]
     end
+    u
 end
 
 # Use different limits.
@@ -127,11 +129,13 @@ function integrate(
     xs, ws = quadrature(T, quad)
     a, b = lims
     δ = b - a
-    δ * sum(eachindex(xs, ws)) do j
-        @inline
-        y = a + δ * xs[j]  # in [a, b]
-        @inline ws[j] * f(y)
+    ys = map(x -> a + δ * x, xs)
+    vs = map(f, ys)
+    u = zero(first(vs))
+    for j ∈ eachindex(ws, vs)
+        u = u + ws[j] * vs[j]
     end
+    δ * u
 end
 
 include("tanh_sinh.jl")
