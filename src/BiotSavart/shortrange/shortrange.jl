@@ -23,7 +23,7 @@ This is useful for short-range backends like [`CellListsBackend`](@ref), which n
 Must be called after [`add_point_charges!`](@ref) and before computing any short-range quantities
 (using [`add_short_range_fields!`](@ref)).
 """
-process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overriden by the backend
+process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend
 
 """
     nearby_charges(c::ShortRangeCache, x⃗::Vec3)
@@ -217,9 +217,6 @@ function add_short_range_fields!(
         f::ClosedFilament;
         LIA::Val{_LIA} = Val(true),   # can be used to disable LIA
     ) where {Names, N, V <: VectorOfVec, _LIA}
-    ps = _fields_to_pairs(fields)
-
-
     (; params,) = cache
     (; quad, lia_segment_fraction,) = params
     (; Γ, a, Δ, Ls, quad_near_singularity,) = params.common
@@ -227,14 +224,14 @@ function add_short_range_fields!(
     Lhs = map(L -> L / 2, Ls)
 
     Xs = nodes(f)
-    for (_, us) ∈ ps
-        eachindex(us) == eachindex(Xs) || throw(DimensionMismatch(
-            "vector has wrong length"
-        ))
+    for us ∈ values(fields)
+        eachindex(us) == eachindex(Xs) ||
+            throw(DimensionMismatch("vector has wrong length"))
     end
 
     segs = segments(f)
     nonlia_lims = nonlia_integration_limits(lia_segment_fraction)
+    ps = _fields_to_pairs(fields)
 
     for i ∈ eachindex(Xs)
         x⃗ = Xs[i]
