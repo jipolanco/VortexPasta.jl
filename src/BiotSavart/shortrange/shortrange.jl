@@ -1,6 +1,10 @@
 using LinearAlgebra: ×, norm
-using SpecialFunctions: erfc, erf
+using StaticArrays: MVector, MMatrix, SVector, SMatrix
 using ..Filaments: deperiodise_separation, Segment, segments
+
+# Includes SIMD-vectorised erf implementation (quite accurate as well)
+using VectorizationBase: VectorizationBase, VecUnroll
+const VB = VectorizationBase
 
 """
     init_cache_short(
@@ -39,21 +43,26 @@ struct ShortRange <: EwaldComponent end
 struct LongRange <: EwaldComponent end
 struct FullIntegrand <: EwaldComponent end  # ShortRange + LongRange
 
-ewald_screening_function(::Velocity, ::ShortRange, αr::Real) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)
-ewald_screening_function(::Velocity, ::ShortRange,   ::Zero) = 1
+# Use erf from VectorizationBase, and simply define erfc = 1 - erf.
+erf(x) = VB.verf(x)
+erfc(x) = one(x) - VB.verf(x)
 
-ewald_screening_function(::Velocity, ::LongRange, αr::Real) = erf(αr) - 2αr / sqrt(π) * exp(-αr^2)
-ewald_screening_function(::Velocity, ::LongRange,   ::Zero) = Zero()
+erf(::Zero) = Zero()
+erfc(::Zero) = true  # in the sense of true == 1
 
+two_over_sqrt_pi(::VB.AbstractSIMD{W,T}) where {W,T} = 2 / sqrt(T(π))
+two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
+two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway
+
+ewald_screening_function(::Velocity,       ::ShortRange, αr::Real) = erfc(αr) + two_over_sqrt_pi(αr) * αr * exp(-αr^2)
 ewald_screening_function(::Streamfunction, ::ShortRange, αr::Real) = erfc(αr)
-ewald_screening_function(::Streamfunction, ::ShortRange,   ::Zero) = 1
 
+ewald_screening_function(::Velocity,       ::LongRange, αr::Real) = erf(αr) - two_over_sqrt_pi(αr) * αr * exp(-αr^2)
 ewald_screening_function(::Streamfunction, ::LongRange, αr::Real) = erf(αr)
-ewald_screening_function(::Streamfunction, ::LongRange,   ::Zero) = Zero()
 
 # This simply corresponds to the unmodified BS integrals.
-ewald_screening_function(::Velocity, ::FullIntegrand, αr) = 1
-ewald_screening_function(::Streamfunction, ::FullIntegrand, αr) = 1
+ewald_screening_function(::Velocity,       ::FullIntegrand, αr) = true
+ewald_screening_function(::Streamfunction, ::FullIntegrand, αr) = true
 
 biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3
 biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r
@@ -277,21 +286,7 @@ function add_short_range_fields!(
         # Then include the short-range (but non-local) effect of all nearby charges
         # (which are located on the quadrature points of all nearby segments,
         # excluding the local segments `sa` and `sb`).
-        for charge ∈ nearby_charges(cache, x⃗)
-            s⃗, q⃗, seg = charge
-            is_local_segment = seg === sa || seg === sb
-            qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
-            vecs_i = map(vecs_i) do (quantity, u⃗)
-                @inline
-                if !is_local_segment
-                    u⃗ = u⃗ + biot_savart_contribution(
-                        quantity, ShortRange(), params.common, x⃗, s⃗, qs⃗′;
-                        Lhs, rcut² = params.rcut_sq,
-                    )
-                end
-                quantity => u⃗
-            end
-        end
+        vecs_i = add_pair_interactions_shortrange(vecs_i, cache, x⃗, params, sa, sb, Lhs)
 
         # Add computed vectors (velocity and/or streamfunction) to corresponding arrays.
         map(ps, vecs_i) do (quantity_p, us), (quantity_i, u⃗)
@@ -302,6 +297,159 @@ function add_short_range_fields!(
     end
 
     fields
+end
+
+# Optimised computation of short-range pair interactions.
+function add_pair_interactions_shortrange(vecs, cache, x⃗, params, sa, sb, Lhs)
+    (; α,) = params.common
+    _add_pair_interactions_shortrange(α, vecs, cache, x⃗, params, sa, sb, Lhs)
+end
+
+# Non-periodic case (no Ewald summation; naive computation)
+function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, sa, sb, Lhs)
+    (; Ls,) = params.common
+    rcut² = params.rcut_sq
+    @assert all(L -> L === Infinity(), Ls)  # infinite non-periodic domain
+    @assert all(L -> L === Infinity(), Lhs)
+    @assert rcut² === Infinity()
+    it = nearby_charges(cache, x⃗)
+    for charge ∈ it
+        s⃗, q⃗, seg = charge
+        is_local_segment = seg === sa || seg === sb
+        is_local_segment && continue
+        qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
+        r⃗ = x⃗ - s⃗
+        r² = sum(abs2, r⃗)
+        r = sqrt(r²)
+        r_inv = 1 / r
+        r³_inv = 1 / (r² * r)
+        vecs = map(vecs) do (quantity, u⃗)
+            δu⃗ = full_integrand(quantity, r_inv, r³_inv, qs⃗′, r⃗)
+            u⃗ = u⃗ + δu⃗
+            quantity => u⃗
+        end
+    end
+    vecs
+end
+
+# Non-Ewald (non-periodic) case
+full_integrand(::Velocity, r_inv, r³_inv, qs⃗′, r⃗) = r³_inv * (qs⃗′ × r⃗)
+full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗′
+
+# Periodic case (with Ewald summation)
+function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T <: AbstractFloat}
+    (; Ls,) = params.common
+    N = length(x⃗)  # number of dimensions (= 3)
+    rcut² = params.rcut_sq
+    # with_velocity = any(x -> first(x) === Velocity(), vecs)
+
+    W = VB.dynamic(VB.pick_vector_width(T))
+    Vec = VB.Vec  # SIMD vector type
+
+    r²s = MVector{W, T}(undef)
+
+    NW = N * W
+    r⃗s = MMatrix{W, N, T, NW}(undef)
+    q⃗s = similar(r⃗s)
+
+    it = nearby_charges(cache, x⃗)
+    y = iterate(it)
+
+    while y !== nothing
+        i = 0
+        mask = zero(UInt)  # set to 1 the values that should be computed (0 means ignored)
+        @assert 8 * sizeof(mask) ≥ W  # this is basically always the case, but just to be sure...
+
+        # Collect (up to) W charges, to perform operation over W charges at once.
+        @inbounds while i < W && y !== nothing
+            i += 1
+            charge, state = y
+            s⃗, q⃗, seg = charge
+            is_local_segment = seg === sa || seg === sb
+            r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
+            r² = zero(eltype(eltype(r⃗)))
+            # Ignore this element if this is a local segment or if we're beyond the cut-off
+            # distance.
+            # TODO: do we need the second condition?
+            ignore = is_local_segment || r² > rcut²
+            if !ignore
+                mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
+            end
+            for j ∈ eachindex(r⃗, q⃗)
+                qj = real(q⃗[j])  # just in case data is complex
+                q⃗s[i, j] = qj
+                rj = r⃗[j]
+                r⃗s[i, j] = rj
+                r² += rj * rj
+            end
+            r²s[i] = r²
+            y = iterate(it, state)
+        end
+
+        # while i < W
+        #     # If we're here, it's because the iterator finished before being able to read W
+        #     # elements.
+        #     # We could do something here, but for now everything is taken care of by the
+        #     # mask being zero by default (unless set explicitly to 1 above).
+        #     @assert y === nothing
+        #     i += 1
+        # end
+
+        # There's nothing interesting to compute if mask is fully zero.
+        iszero(mask) && continue
+
+        # Convert MVector to SIMD type from VectorizationBase.
+        # The next operations should all take advantage of SIMD.
+        r²s_simd = Vec(r²s...) :: Vec
+        rs = sqrt(r²s_simd)
+        rs_inv = 1 / rs
+        r³s_inv = 1 / (r²s_simd * rs)
+        αr = α * rs
+        erfc_αr = erfc(αr)
+        αr_sq = αr * αr
+        exp_term = two_over_sqrt_pi(αr) * αr * VB.vexp(-αr_sq)
+
+        mask_simd = VB.Mask{W}(mask)
+
+        # In VectorizationBase, a VecUnroll basically consists of a tuple of Vec's.
+        # It gets automatically constructed from a Vec when the number of elements is too
+        # large (that is, if we chose our W correctly, using pick_vector_width).
+        # In our case it makes sense to use this to describe vector values (e.g. separation
+        # vector, tangent vector, velocity).
+        q⃗s_simd = Vec(q⃗s...) :: VecUnroll{(N - 1), W}
+        r⃗s_simd = Vec(r⃗s...) :: VecUnroll{(N - 1), W}
+
+        vecs = map(vecs) do (quantity, u⃗)
+            @inline
+            δu⃗_simd = mask_simd * short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)
+            δu⃗ = VB.vsum(δu⃗_simd) :: VecUnroll{(N - 1), 1}  # reduction operation: sum the W elements
+            δu⃗_data = getfield(δu⃗, :data) :: NTuple{3, T}   # access the actual data (which is simply a tuple)
+            u⃗ = u⃗ + oftype(u⃗, δu⃗_data)
+            quantity => u⃗
+        end
+    end
+
+    vecs
+end
+
+# Note: all input values may be SIMD types (Vec, VecUnroll).
+function short_range_integrand(::Velocity, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
+    ((erfc_αr + exp_term) * r³_inv) * crossprod(qs⃗′, r⃗)
+end
+
+crossprod(u::VecUnroll, v::VecUnroll) = VecUnroll(crossprod(getfield(u, :data), getfield(v, :data)))
+
+# These are generally tuples of SIMD vectors (VectorizationBase.Vec).
+function crossprod(u::T, v::T) where {T <: NTuple{3}}
+    (
+        u[2] * v[3] - u[3] * v[2],
+        u[3] * v[1] - u[1] * v[3],
+        u[1] * v[2] - u[2] * v[1],
+    ) :: T
+end
+
+function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
+    (erfc_αr * r_inv) * qs⃗′
 end
 
 include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)

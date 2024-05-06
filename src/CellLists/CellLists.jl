@@ -21,6 +21,33 @@ using Static: StaticInt, static, dynamic
 # element within a given cell. This assumes one-based indexing, so that 0 is an invalid index!
 const EMPTY = 0
 
+## ================================================================================ ##
+## Iteration over a single cell
+
+struct CellIterator{
+        T,
+        ElementList <: AbstractVector{T},
+        IndexType <: Integer
+    }
+    elements   :: ElementList        # contains all elements in all cells
+    head_index :: IndexType          # index of first element in cell
+    next_index :: Vector{IndexType}  # allows to get the rest of the elements in cell
+end
+
+Base.IteratorSize(::Type{<:CellIterator}) = Base.SizeUnknown()
+Base.IteratorEltype(::Type{<:CellIterator}) = Base.HasEltype()
+Base.eltype(::Type{<:CellIterator{T}}) where {T} = T
+
+function Base.iterate(it::CellIterator, n = it.head_index)
+    (; elements, next_index,) = it
+    n == EMPTY && return nothing  # no more elements in this cell
+    el = @inbounds elements[n]
+    @inbounds el, next_index[n]
+end
+
+## ================================================================================ ##
+## Cell list type definition
+
 """
     PeriodicCellList{N, T}
     PeriodicCellList(
@@ -77,6 +104,7 @@ struct PeriodicCellList{
         ToCoordFunc <: Function,
         CutoffRadii <: NTuple{N, Real},
         Periods <: NTuple{N, Real},
+        IteratorList <: AbstractVector{<:CellIterator},
     }
     elements      :: ElementList  # contains all "elements" (unsorted) [length Np]
     head_indices  :: HeadArray    # array pointing to the index of the first element in each cell (or EMPTY if no elements in that cell)
@@ -86,6 +114,7 @@ struct PeriodicCellList{
     rs_cut        :: CutoffRadii  # cutoff radii (can be different in each direction)
     nsubdiv       :: StaticInt{M}
     Ls            :: Periods
+    iterators     :: IteratorList
 end
 
 Base.size(cl::PeriodicCellList) = size(cl.head_indices)
@@ -147,8 +176,17 @@ function PeriodicCellList(
 
     Base.require_one_based_indexing(elements)  # assumed since EMPTY = 0
 
+    iterators = let
+        iter = CellIterator(elements, first(head_indices), next_index)  # we just need the type of this
+        Iter = typeof(iter)
+        H = 2M + 1
+        niter = Base.literal_pow(^, H, Val(N))  # total number of iterators needed = H^N
+        Vector{Iter}(undef, niter)
+    end
+
     PeriodicCellList(
         elements, head_indices, next_index, isready, to_coordinate, rs_cell, nsubdiv, Ls,
+        iterators,
     )
 end
 
@@ -225,27 +263,6 @@ end
 ## ================================================================================ ##
 ## Iteration over elements in cell lists
 
-struct CellIterator{
-        T,
-        ElementList <: AbstractVector{T},
-        IndexType <: Integer
-    }
-    elements   :: ElementList        # contains all elements in all cells
-    head_index :: IndexType          # index of first element in cell
-    next_index :: Vector{IndexType}  # allows to get the rest of the elements in cell
-end
-
-Base.IteratorSize(::Type{<:CellIterator}) = Base.SizeUnknown()
-Base.IteratorEltype(::Type{<:CellIterator}) = Base.HasEltype()
-Base.eltype(::Type{<:CellIterator{T}}) where {T} = T
-
-function Base.iterate(it::CellIterator, n = it.head_index)
-    (; elements, next_index,) = it
-    n == EMPTY && return nothing  # no more elements in this cell
-    el = @inbounds elements[n]
-    @inbounds el, next_index[n]
-end
-
 """
     nearby_elements(cl::PeriodicCellList{N}, x⃗)
 
@@ -259,7 +276,7 @@ Here `x⃗` should be a coordinate, usually represented by an `SVector{N}` or an
 """
 function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}
     length(x⃗) == N || throw(DimensionMismatch(lazy"wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)"))
-    (; rs_cut, Ls,) = cl
+    (; rs_cut, Ls, iterators,) = cl
     finalise_cells!(cl)
     inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
@@ -267,9 +284,12 @@ function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}
     cell_indices = CartesianIndices(
         map(i -> (i - M):(i + M), Tuple(I₀))
     )
-    iters = (CellIterator(cl.elements, cl.head_indices[I], cl.next_index) for I ∈ cell_indices)
-    it = Iterators.flatten(iters)
-    # eltype(it)  # this gives Any, but luckily that doesn't seem to affect type stability
+    @assert eachindex(iterators) === Base.OneTo(length(cell_indices))
+    for (n, I) ∈ enumerate(cell_indices)
+        @inbounds iterators[n] = CellIterator(cl.elements, cl.head_indices[I], cl.next_index)
+    end
+    it = Iterators.flatten(iterators)
+    # eltype(it)
     it
 end
 

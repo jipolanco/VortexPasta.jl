@@ -3,6 +3,17 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+## [0.19.1] - 2024-05-06
+
+### Changed
+
+- Optimise short-range computations.
+  One of the main costs of the short-range part is the computation of `erfc`.
+  We now use the implementation in the VectorizationBase.jl package.
+  We also try to explicitly vectorise (using SIMD) all operations.
+
 ## [0.19.0] - 2024-04-24
 
 ### Added
