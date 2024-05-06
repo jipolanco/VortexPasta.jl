@@ -59,4 +59,8 @@ using Test
             @test true === @inferred x < Infinity()
         end
     end
+
+    @testset "Functions" begin
+        @test 1 == @inferred exp(Zero())
+    end
 end

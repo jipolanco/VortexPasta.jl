@@ -342,15 +342,14 @@ periods(p::ParamsBiotSavart) = p.common.Ls
 
 """
     BiotSavart.domain_is_periodic(p::ParamsBiotSavart) -> Bool
+    BiotSavart.domain_is_periodic(Ls::NTuple) -> Bool
 
 Check whether the domain is periodic.
 
 Returns `true` if the domain is periodic in *all* directions, `false` otherwise.
 """
-function domain_is_periodic(p::ParamsBiotSavart)
-    Ls = periods(p)
-    !is_open_domain(Ls)
-end
+domain_is_periodic(p::ParamsBiotSavart) = domain_is_periodic(periods(p))
+domain_is_periodic(Ls::NTuple) = !is_open_domain(Ls)
 
 _extra_params(α::Zero; Ns = nothing, rcut = ∞) = (; Ns = (0, 0, 0), rcut,)  # Ns is always (0, 0, 0), no matter the input
 _extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case

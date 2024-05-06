@@ -20,6 +20,9 @@ Base.convert(::Type{Zero}, ::Zero) = Zero()
 (::Zero) + (::Zero) = Zero()
 (::Zero) / (::Number) = Zero()
 (::Zero) ÷ (::Number) = Zero()
+-(::Zero) = Zero()
+
+Base.exp(::Zero) = true  # in the sense of the multiplicative identity (= 1)
 
 """
     Infinity <: RealConst <: Real
