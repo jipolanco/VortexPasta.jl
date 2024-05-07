@@ -80,12 +80,10 @@ function reconnect!(
     end
     @timeit to "iterate over candidates" for candidate ∈ candidates
         candidate === nothing && continue
-        @timeit to "should_reconnect" begin
-            info = should_reconnect(crit, candidate; periods = Ls)
-            info === nothing && continue
-            info, candidate = find_better_candidates(info, candidate) do other_candidate
-                should_reconnect(crit, other_candidate; periods = Ls)
-            end
+        info = should_reconnect(crit, candidate; periods = Ls)
+        info === nothing && continue
+        info, candidate = find_better_candidates(info, candidate) do other_candidate
+            should_reconnect(crit, other_candidate; periods = Ls)
         end
         (; a, b,) = candidate
         @timeit to "reconnect" if a.f === b.f
