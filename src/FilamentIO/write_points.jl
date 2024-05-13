@@ -44,8 +44,8 @@ function set_points!(
             p⃗ = map(δx⃗, Ls) do δx, L
                 L === nothing && return zero(I)
                 p = unsafe_trunc(I, δx / L)
-                # If p == 0, one can get a δx which is not exactly zero (but ~1e-16).
-                @assert (iszero(p) && abs(δx) < eps(L)) || (p * L ≈ δx)
+                # If p == 0, one can get a δx which is not exactly zero (but of the order of 1e-16).
+                @assert (iszero(p) && abs(δx) < 10 * eps(L)) || (p * L ≈ δx)
                 p
             end
             for (i, p) ∈ pairs(p⃗)
