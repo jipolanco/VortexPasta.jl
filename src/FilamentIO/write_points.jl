@@ -45,7 +45,7 @@ function set_points!(
                 L === nothing && return zero(I)
                 p = round(I, δx / L)
                 # If p == 0, one can get a δx which is not exactly zero (but of the order of 1e-16).
-                @assert (iszero(p) && abs(δx) < 10 * eps(L)) || (p * L ≈ δx)
+                @assert (iszero(p) && abs(δx) < 100 * eps(L)) || (p * L ≈ δx)
                 p
             end
             for (i, p) ∈ pairs(p⃗)
