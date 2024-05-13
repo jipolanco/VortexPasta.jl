@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.19.3] - 2024-05-13
+
+### Fixed
+
+- Relax assertion condition when writing VTKHDF files with periodic wrapping.
+  This avoids possible assertion errors.
+
 ## [0.19.2] - 2024-05-13
 
 ### Changed
