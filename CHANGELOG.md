@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.19.2] - 2024-05-13
+
+### Changed
+
+- Accept MakieCore v0.8 (required to use Makie v0.21).
+
 ## [0.19.1] - 2024-05-06
 
 ### Changed
