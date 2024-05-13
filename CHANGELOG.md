@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.19.4] - 2024-05-13
+
+### Fixed
+
+- Yet another fix for error when writing VTKHDF files with periodic wrapping.
+  The `unsafe_trunc` function was incorrectly used, where `round` should be used instead.
+
 ## [0.19.3] - 2024-05-13
 
 ### Fixed
