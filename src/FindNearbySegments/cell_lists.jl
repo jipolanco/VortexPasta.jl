@@ -68,6 +68,7 @@ function set_filaments!(c::CellListSegmentFinder, fs)
     for f ∈ fs, s ∈ segments(f)
         CellLists.add_element!(c.cl, s)
     end
+    CellLists.finalise_cells!(c.cl)
     c
 end
 
