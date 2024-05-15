@@ -54,8 +54,9 @@ function _MRI_stage!(
     for _ ∈ 1:Mfast
         rhs_inner!(vs, ftmp, tsub, iter)
         update_velocities!(
+            vs,
             rhs_inner!, advect!, cache_inner, iter;
-            resize_cache = false, t = tsub, dt = hfast, fs = ftmp, vs = vs,
+            resize_cache = false, t = tsub, dt = hfast, fs = ftmp,
         )
         advect!(ftmp, vs, hfast; fbase = ftmp)
         tsub += hfast

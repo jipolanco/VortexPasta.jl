@@ -15,8 +15,8 @@ nbuf_filaments(::SSPRK33) = 1
 nbuf_velocities(::SSPRK33) = 1
 
 function _update_velocities!(
-        ::SSPRK33, rhs!::F, advect!::G, cache, iter::AbstractSolver;
-        t = get_t(iter), dt = get_dt(iter), fs = iter.fs, vs = iter.vs,
+        ::SSPRK33, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver;
+        t = get_t(iter), dt = get_dt(iter), fs = iter.fs,
     ) where {F <: Function, G <: Function}
     (; fc, vc,) = cache
 

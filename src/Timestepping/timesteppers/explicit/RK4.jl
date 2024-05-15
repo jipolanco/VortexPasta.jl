@@ -12,8 +12,8 @@ nbuf_filaments(::RK4) = 1
 nbuf_velocities(::RK4) = 1
 
 function _update_velocities!(
-        ::RK4, rhs!::F, advect!::G, cache, iter::AbstractSolver;
-        t = get_t(iter), dt = get_dt(iter), fs = iter.fs, vs = iter.vs,
+        ::RK4, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver;
+        t = get_t(iter), dt = get_dt(iter), fs = iter.fs,
     ) where {F <: Function, G <: Function}
     (; fc, vc,) = cache
     ftmp = fc[1]

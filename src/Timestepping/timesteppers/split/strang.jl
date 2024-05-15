@@ -33,8 +33,8 @@ nbuf_filaments(scheme::Strang) = 1 + max(nbuf_filaments(scheme.fast), nbuf_filam
 nbuf_velocities(scheme::Strang) = 1 + max(nbuf_velocities(scheme.fast), nbuf_velocities(scheme.slow))
 
 function _update_velocities!(
-        scheme::Strang, rhs_full!::F, advect!::G, cache, iter::AbstractSolver;
-        t = get_t(iter), dt = get_dt(iter), fs = iter.fs, vs = iter.vs,
+        scheme::Strang, vs, rhs_full!::F, advect!::G, cache, iter::AbstractSolver;
+        t = get_t(iter), dt = get_dt(iter), fs = iter.fs,
     ) where {F, G}
     (; fc, vc,) = cache
 
@@ -73,8 +73,8 @@ function _update_velocities!(
         for _ ∈ 1:nsubsteps
             rhs!(vtmp, ftmp, τ, iter)
             update_velocities!(
-                rhs!, advect!, cache, iter;
-                resize_cache = false, t = τ, dt = dτ, fs = ftmp, vs = vtmp,
+                vtmp, rhs!, advect!, cache, iter;
+                resize_cache = false, t = τ, dt = dτ, fs = ftmp,
             )
             advect!(ftmp, vtmp, dτ; fbase = ftmp)
             τ += dτ
@@ -87,8 +87,8 @@ function _update_velocities!(
         local rhs! = gen_rhs(component)
         rhs!(vtmp, ftmp, τ, iter)
         update_velocities!(
-            rhs!, advect!, cache, iter;
-            resize_cache = false, t = τ, dt = dτ, fs = ftmp, vs = vtmp,
+            vtmp, rhs!, advect!, cache, iter;
+            resize_cache = false, t = τ, dt = dτ, fs = ftmp,
         )
         advect!(ftmp, vtmp, dτ; fbase = ftmp)
     end
@@ -101,8 +101,8 @@ function _update_velocities!(
         for _ ∈ 1:nsubsteps
             rhs!(vtmp, ftmp, τ, iter)
             update_velocities!(
-                rhs!, advect!, cache, iter;
-                resize_cache = false, t = τ, dt = dτ, fs = ftmp, vs = vtmp,
+                vtmp, rhs!, advect!, cache, iter;
+                resize_cache = false, t = τ, dt = dτ, fs = ftmp,
             )
             advect!(ftmp, vtmp, dτ; fbase = ftmp)
             τ += dτ

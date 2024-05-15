@@ -12,8 +12,8 @@ nbuf_filaments(::Euler) = 0
 nbuf_velocities(::Euler) = 0
 
 function _update_velocities!(
-        ::Euler, rhs!::F, advect!::G, cache, iter::AbstractSolver;
-        vs = iter.vs, kws...,
+        ::Euler, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver;
+        kws...,
     ) where {F <: Function, G <: Function}
     # We assume that `vs` already contains the velocity at the current
     # timestep. In other words, if I do `rhs!(vs, fs, iter)`, then `vs` will

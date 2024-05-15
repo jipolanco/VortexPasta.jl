@@ -14,9 +14,9 @@ nbuf_filaments(::IMEXEuler) = 1
 nbuf_velocities(::IMEXEuler) = 1
 
 function _update_velocities!(
-        ::IMEXEuler, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        ::IMEXEuler, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
-    (; fs, vs,) = iter
+    (; fs,) = iter
     (; fc, vc,) = cache
 
     t = get_t(iter)

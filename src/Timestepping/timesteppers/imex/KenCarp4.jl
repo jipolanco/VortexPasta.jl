@@ -13,9 +13,9 @@ nbuf_filaments(::KenCarp4) = 1
 nbuf_velocities(scheme::KenCarp4) = 2 * nstages(scheme)
 
 function _update_velocities!(
-        scheme::KenCarp4, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        scheme::KenCarp4, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
-    (; fs, vs,) = iter
+    (; fs,) = iter
     (; fc, vc,) = cache
 
     t = get_t(iter)

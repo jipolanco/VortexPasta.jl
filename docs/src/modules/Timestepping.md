@@ -153,4 +153,5 @@ MaximumTimestep
 ```@docs
 TemporalSchemeCache
 TimeInfo
+maximum_displacement
 ```

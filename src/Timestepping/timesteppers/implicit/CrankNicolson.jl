@@ -11,8 +11,8 @@ nbuf_filaments(::CrankNicolson) = 1
 nbuf_velocities(::CrankNicolson) = 1
 
 function _update_velocities!(
-        ::CrankNicolson, rhs!::F, advect!::G, cache, iter::AbstractSolver;
-        t = get_t(iter), dt = get_dt(iter), fs = iter.fs, vs = iter.vs,
+        ::CrankNicolson, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver;
+        t = get_t(iter), dt = get_dt(iter), fs = iter.fs,
     ) where {F <: Function, G <: Function}
     (; fc, vc,) = cache
     ftmp = fc[1]
