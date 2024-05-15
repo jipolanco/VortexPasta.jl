@@ -104,7 +104,6 @@ struct PeriodicCellList{
         ToCoordFunc <: Function,
         CutoffRadii <: NTuple{N, Real},
         Periods <: NTuple{N, Real},
-        IteratorList <: AbstractVector{<:CellIterator},
     }
     elements      :: ElementList  # contains all "elements" (unsorted) [length Np]
     head_indices  :: HeadArray    # array pointing to the index of the first element in each cell (or EMPTY if no elements in that cell)
@@ -114,7 +113,6 @@ struct PeriodicCellList{
     rs_cut        :: CutoffRadii  # cutoff radii (can be different in each direction)
     nsubdiv       :: StaticInt{M}
     Ls            :: Periods
-    iterators     :: IteratorList
 end
 
 Base.size(cl::PeriodicCellList) = size(cl.head_indices)
@@ -176,17 +174,8 @@ function PeriodicCellList(
 
     Base.require_one_based_indexing(elements)  # assumed since EMPTY = 0
 
-    iterators = let
-        iter = CellIterator(elements, first(head_indices), next_index)  # we just need the type of this
-        Iter = typeof(iter)
-        H = 2M + 1
-        niter = Base.literal_pow(^, H, Val(N))  # total number of iterators needed = H^N
-        Vector{Iter}(undef, niter)
-    end
-
     PeriodicCellList(
         elements, head_indices, next_index, isready, to_coordinate, rs_cell, nsubdiv, Ls,
-        iterators,
     )
 end
 
@@ -251,8 +240,16 @@ function add_element!(cl::PeriodicCellList{N, T}, el::T, x⃗) where {N, T}
     cl
 end
 
-# This is internally called when we have added all elements.
-# For now it just applies periodic padding before iterating over cells.
+"""
+    CellLists.finalise_cells!(cl::PeriodicCellList)
+
+"Finalise" cells before iterating over its elements.
+
+This function performs operations needed to iterate over elements of the cell lists, such as
+filling ghost cells.
+It must be called once after all elements have been added to the cell list using
+[`add_element!`](@ref) and before one starts iterating using [`nearby_elements`](@ref).
+"""
 function finalise_cells!(cl::PeriodicCellList)
     cl.isready[] && return cl
     pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity (can be slow...)
@@ -262,6 +259,45 @@ end
 
 ## ================================================================================ ##
 ## Iteration over elements in cell lists
+
+struct MultiCellIterator{
+        T, N,
+        ElementList <: AbstractVector{T},
+        IndexType,
+        HeadArray <: AbstractArray{IndexType, N},
+        CellIndices <: CartesianIndices{N},
+    }
+    elements     :: ElementList        # contains all elements in all cells
+    head_indices :: HeadArray          # array pointing to the index of the first element in each cell
+    next_index   :: Vector{IndexType}  # allows to get the rest of the elements in cell
+    cell_indices :: CellIndices        # indices of cells that will be visited
+end
+
+Base.IteratorSize(::Type{<:MultiCellIterator}) = Base.SizeUnknown()
+Base.IteratorEltype(::Type{<:MultiCellIterator}) = Base.HasEltype()
+Base.eltype(::Type{<:MultiCellIterator{T}}) where {T} = T
+
+@inline function Base.iterate(it::MultiCellIterator)
+    icell = firstindex(it.cell_indices)
+    I = @inbounds it.cell_indices[icell]
+    n = @inbounds it.head_indices[I]
+    iterate(it, (icell, n))
+end
+
+@inline function Base.iterate(it::MultiCellIterator, state)
+    (; elements, head_indices, next_index, cell_indices,) = it
+    icell, n = state
+    while n == EMPTY
+        if icell == lastindex(cell_indices)
+            return nothing  # if this was the last cell, stop iterating
+        end
+        icell += 1  # jump to the next cell
+        I = @inbounds cell_indices[icell]
+        n = @inbounds head_indices[I]
+    end
+    el = @inbounds elements[n]
+    @inbounds el, (icell, next_index[n])
+end
 
 """
     nearby_elements(cl::PeriodicCellList{N}, x⃗)
@@ -276,19 +312,17 @@ Here `x⃗` should be a coordinate, usually represented by an `SVector{N}` or an
 """
 function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}
     length(x⃗) == N || throw(DimensionMismatch(lazy"wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)"))
-    (; rs_cut, Ls, iterators,) = cl
-    finalise_cells!(cl)
+    (; rs_cut, Ls,) = cl
+    cl.isready[] || error("one must call `finalise_cells!` on the `PeriodicCellList` before iterating using `nearby_elements`")
     inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
     M = subdivisions(cl)
     cell_indices = CartesianIndices(
         map(i -> (i - M):(i + M), Tuple(I₀))
     )
-    @assert eachindex(iterators) === Base.OneTo(length(cell_indices))
-    for (n, I) ∈ enumerate(cell_indices)
-        @inbounds iterators[n] = CellIterator(cl.elements, cl.head_indices[I], cl.next_index)
-    end
-    it = Iterators.flatten(iterators)
+    # iters = (CellIterator(cl.elements, cl.head_indices[I], cl.next_index) for I ∈ cell_indices)
+    # it = Iterators.flatten(iters)  # this gives eltype(it) == Any (but that doesn't seem to affect performance...)
+    it = MultiCellIterator(cl.elements, cl.head_indices, cl.next_index, cell_indices)  # slightly slower than Iterators.flatten (but with known eltype)
     # eltype(it)
     it
 end

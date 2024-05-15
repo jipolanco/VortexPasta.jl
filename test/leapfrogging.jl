@@ -130,6 +130,12 @@ function test_leapfrogging_rings(
         AdaptBasedOnVelocity(10 * l_min) |  # usually inactive; just for testing
         AdaptBasedOnVelocity(20 * l_min)    # usually inactive; just for testing
 
+    # This tests Base.show.
+    @test match(
+        r"^(\S*)AdaptBasedOnSegmentLength\(.*\) \| (\S*)AdaptBasedOnVelocity\(.*\) \| (\S*)AdaptBasedOnVelocity\(.*\)$",
+        repr(adaptivity),
+    ) !== nothing
+
     iter = @inferred init(
         prob, scheme;
         dt = 0.025,  # will be changed by the adaptivity

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.20.0] - 2024-05-15
 
+### Fixed
+
+- Fix thread safety issue when iterating over elements of a `PeriodicCellList`.
+  Basically, when multiple threads iterated over the same `PeriodicCellList`
+  (when computing short-range interactions), all threads modified the state of
+  the iterator at the same time leading to wrong results.
+  We fix this by removing mutable state in `PeriodicCellList` (the old
+  `iterators` vector), so that all threads can iterate at the same time.
+
 ### Changed
 
 - Timestepping: make sure the `AdaptBasedOnVelocity` criterion is actually satisfied a posteriori.

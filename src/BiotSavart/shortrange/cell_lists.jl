@@ -68,6 +68,7 @@ function process_point_charges!(c::CellListsCache, data::PointData)
         charge = (s⃗, qs⃗′, seg)
         CellLists.add_element!(cl, charge)
     end
+    CellLists.finalise_cells!(cl)
     nothing
 end
 
