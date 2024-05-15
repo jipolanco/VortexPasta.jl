@@ -90,6 +90,10 @@ function filament_colour(f::AbstractFilament, refinement)
         colour = seg(ζ, UnitTangent())[3]  # in [-1, 1]
         push!(cs, colour)
     end
+    let seg = last(segments(f))  # "close" the curve
+        colour = seg(1.0, UnitTangent())[3]
+        push!(cs, colour)
+    end
     cs
 end
 
