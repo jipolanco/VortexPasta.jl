@@ -31,6 +31,22 @@ As expected, the timestep ``Δt`` will be chosen so that it satisfies both crite
 abstract type AdaptivityCriterion end
 
 """
+    maximum_displacement(::AdaptivityCriterion) -> Float64
+
+Return the maximum node displacement ``δ_{\\text{crit}}`` allowed by the adaptivity criterion.
+
+More precisely, ``δ_{\\text{crit}}`` controls the maximum displacement of a filament node
+during a single timestep of duration ``Δt``.
+
+This function is mainly relevant when using the [`AdaptBasedOnVelocity`](@ref) criterion.
+For other criteria this returns `Inf`, meaning that they don't limit the maximum allowed
+displacement.
+"""
+function maximum_displacement end
+
+maximum_displacement(::AdaptivityCriterion) = Inf
+
+"""
     NoAdaptivity <: AdaptivityCriterion
     NoAdaptivity()
 
@@ -90,22 +106,43 @@ function estimate_timestep(crit::AdaptBasedOnSegmentLength, iter::AbstractSolver
     dt
 end
 
-"""
+@doc raw"""
     AdaptBasedOnVelocity <: AdaptivityCriterion
-    AdaptBasedOnVelocity(δ::Float64)
+    AdaptBasedOnVelocity(δ_crit::Float64; safety_factor = 0.8)
 
-Adapt timestep ``Δt`` based on the maximum velocity ``v_{\\max}`` of filament nodes and on
-the given distance ``δ``.
+Adapt timestep ``Δt`` based on the maximum velocity ``v_{\max}`` of filament nodes.
 
-The timestep is set to ``Δt = δ / v_{\\max}``.
+The objective is that the resulting maximum displacement ``δ_{\max} = v_{\max} Δt`` stays
+below the given critical displacement `δ_crit`.
 
-Note that, in principle, using this criterion can lead to an infinite timestep when the
-velocities are zero. For this reason, it's a good idea to combine this criterion with the
-[`MaximumTimestep`](@ref) criterion. For example:
+This criterion is used in two ways:
 
+1. A priori, to decide the ``Δt`` to be used in the next iteration given the velocities of
+   filament nodes at the start of the iteration (at time ``t``).
+   This ensures ``Δt ≤ δ_{\text{crit}} / v_{\max}`` where `v_{\max}` is computed at the
+   start of the iteration.
+
+2. A posteriori, after the actual node displacements ``δ`` from time ``t`` to time
+   ``t + Δt`` have been computed (e.g. using some Runge--Kutta scheme).
+   If some ``δ`` is larger than ``δ_{\text{crit}}``, then the iteration is recomputed after
+   halving the timestep (``Δt → Δt/2``).
+   In this case, the original displacements are thrown away (rejected).
+   This process can be eventually repeated until the criterion is satisfied.
+
+The optional `safety_factor` should be a value `≤ 1`, which will further reduce the timestep
+chosen a priori in step 1. This is to try to avoid too many rejected timesteps in step 2,
+e.g. in case the actual advection velocity is larger than the velocity at the beginning of the
+timestep.
+
+In principle, using this criterion can lead to an infinite timestep when the velocities are
+zero. For this reason, it's a good idea to combine this criterion with the
+[`AdaptBasedOnSegmentLength`](@ref) or the [`MaximumTimestep`](@ref) criterion. For example:
+
+    adaptivity = AdaptBasedOnVelocity(2.0) | AdaptBasedOnSegmentLength(0.9)
     adaptivity = AdaptBasedOnVelocity(2.0) | MaximumTimestep(0.01)
 
-In fact, this is done automatically in [`init`](@ref) if only an `AdaptBasedOnVelocity` is passed.
+In fact, the second option is done automatically in [`init`](@ref) if only an
+`AdaptBasedOnVelocity` is passed.
 In that case, the maximum timestep is taken to be the `dt` passed to `init`.
 
 One application of this criterion is to ensure that reconnections happen in-between two
@@ -115,18 +152,23 @@ which reconnections are performed.
 """
 struct AdaptBasedOnVelocity <: AdaptivityCriterion
     δ :: Float64
+    safety_factor :: Float64
+    function AdaptBasedOnVelocity(δ; safety_factor = 0.8)
+        safety_factor ≤ 1 || throw(ArgumentError(lazy"safety_factor should be ≤ 1; got safety_factor = $safety_factor"))
+        new(δ, safety_factor)
+    end
 end
 
+function Base.show(io::IO, crit::AdaptBasedOnVelocity)
+    (; δ, safety_factor,) = crit
+    print(io, lazy"AdaptBasedOnVelocity($δ; safety_factor = $safety_factor)")
+end
+
+maximum_displacement(crit::AdaptBasedOnVelocity) = crit.δ
+
 function estimate_timestep(crit::AdaptBasedOnVelocity, iter::AbstractSolver)
-    (; δ,) = crit
-    (; vs,)  = iter
-    T = eltype(eltype(eltype(vs)))
-    @assert T <: AbstractFloat
-    v²_max = maximum(vs; init = zero(T)) do vnodes
-        maximum(v⃗ -> sum(abs2, v⃗), vnodes)  # maximum squared velocity norm among the nodes of a single filament
-    end
-    v_max = sqrt(v²_max)
-    δ / v_max
+    v_max = maximum_vector_norm(iter.vs)
+    crit.safety_factor * crit.δ / v_max
 end
 
 """
@@ -146,6 +188,8 @@ struct CombinedAdaptivityCriteria{
     } <: AdaptivityCriterion
     criteria :: Criteria
 end
+
+maximum_displacement(crit::CombinedAdaptivityCriteria) = minimum(maximum_displacement, crit.criteria)
 
 # Pretty-printing
 Base.show(io::IO, crit::CombinedAdaptivityCriteria) = _show_combined(io, crit.criteria...)

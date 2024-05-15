@@ -23,9 +23,9 @@ nbuf_filaments(scheme::SanduMRI45a) = 1 + nbuf_filaments(inner_scheme(scheme))
 nbuf_velocities(scheme::SanduMRI45a) = nstages(scheme) + nbuf_velocities(inner_scheme(scheme))
 
 function _update_velocities!(
-        scheme::SanduMRI45a, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        scheme::SanduMRI45a, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
-    (; fs, vs,) = iter
+    (; fs,) = iter
     (; fc, vc,) = cache
 
     t = get_t(iter)

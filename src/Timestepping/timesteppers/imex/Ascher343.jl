@@ -17,9 +17,9 @@ nbuf_filaments(::Ascher343) = 1
 nbuf_velocities(scheme::Ascher343) = 2 * nstages(scheme)
 
 function _update_velocities!(
-        scheme::Ascher343, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        scheme::Ascher343, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
-    (; fs, vs,) = iter
+    (; fs,) = iter
     (; fc, vc,) = cache
 
     t = get_t(iter)

@@ -21,7 +21,7 @@ nbuf_filaments(scheme::MultirateMidpoint) = 1 + nbuf_filaments(inner_scheme(sche
 nbuf_velocities(scheme::MultirateMidpoint) = 1 + nbuf_velocities(inner_scheme(scheme))
 
 function _update_velocities!(
-        scheme::MultirateMidpoint, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        scheme::MultirateMidpoint, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
     (; fs, vs,) = iter
     (; fc, vc,) = cache
@@ -59,8 +59,8 @@ function _update_velocities!(
         for m ∈ 1:Mfast
             rhs_inner!(vs, ftmp, tsub, iter)
             update_velocities!(
-                rhs_inner!, advect!, cache_inner, iter;
-                resize_cache = false, t = tsub, dt = hfast, fs = ftmp, vs = vs,
+                vs, rhs_inner!, advect!, cache_inner, iter;
+                resize_cache = false, t = tsub, dt = hfast, fs = ftmp,
             )
             advect!(ftmp, vs, hfast; fbase = ftmp)
             tsub += hfast
@@ -84,8 +84,8 @@ function _update_velocities!(
         for m ∈ 1:Mfast
             rhs_inner!(vs, ftmp, tsub, iter)
             update_velocities!(
-                rhs_inner!, advect!, cache_inner, iter;
-                resize_cache = false, t = tsub, dt = hfast, fs = ftmp, vs = vs,
+                vs, rhs_inner!, advect!, cache_inner, iter;
+                resize_cache = false, t = tsub, dt = hfast, fs = ftmp,
             )
             advect!(ftmp, vs, hfast; fbase = ftmp)
             tsub += hfast

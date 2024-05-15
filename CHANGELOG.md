@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.20.0] - 2024-05-15
+
+### Changed
+
+- Timestepping: make sure the `AdaptBasedOnVelocity` criterion is actually satisfied a posteriori.
+  If it's not (i.e. if the actual node displacements are too large within
+  a timestep), then the displacements are rejected and recomputed with a smaller timestep.
+  This can mean longer but more accurate simulations.
+
 ## [0.19.4] - 2024-05-13
 
 ### Fixed

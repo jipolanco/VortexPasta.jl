@@ -61,33 +61,41 @@ Contains information on the current time and timestep of a solver.
 
 Some useful fields are:
 
-- `t`: current time;
+- `t::Float64`: current time;
 
-- `dt`: timestep to be used in next iteration;
+- `dt::Float64`: timestep to be used in next iteration;
 
-- `dt_prev` : timestep used in the last performed iteration;
+- `dt_prev::Float64` : timestep used in the last performed iteration;
 
-- `nstep`: number of timesteps performed until now.
+- `nstep::Int`: number of timesteps performed until now;
+
+- `nrejected::Int`: number of rejected iterations.
+
+When using the [`AdaptBasedOnVelocity`](@ref) criterion, an iteration can be rejected if
+the actual filament displacement is too large compared to what is imposed by the criterion.
+In that case, the iteration will be recomputed with a smaller timestep (`dt → dt/2`).
 """
 @kwdef mutable struct TimeInfo
-    nstep   :: Int
+    nstep     :: Int
+    nrejected :: Int
     t       :: Float64
     dt      :: Float64
     dt_prev :: Float64
 end
 
 function Base.show(io::IO, time::TimeInfo)
-    (; nstep, t, dt, dt_prev,) = time
+    (; nstep, nrejected, t, dt, dt_prev,) = time
     print(io, "TimeInfo:")
-    print(io, "\n - nstep   = ", nstep)
-    print(io, "\n - t       = ", t)
-    print(io, "\n - dt      = ", dt)
-    print(io, "\n - dt_prev = ", dt_prev)
+    print(io, "\n - nstep     = ", nstep)
+    print(io, "\n - t         = ", t)
+    print(io, "\n - dt        = ", dt)
+    print(io, "\n - dt_prev   = ", dt_prev)
+    print(io, "\n - nrejected = ", nrejected)
 end
 
 function Base.summary(io::IO, time::TimeInfo)
-    (; nstep, t, dt, dt_prev,) = time
-    print(io, "TimeInfo(nstep = $nstep, t = $t, dt = $dt, dt_prev = $dt_prev)")
+    (; nstep, nrejected, t, dt, dt_prev,) = time
+    print(io, "TimeInfo(nstep = $nstep, t = $t, dt = $dt, dt_prev = $dt_prev, nrejected = $nrejected)")
 end
 
 abstract type FastBiotSavartTerm end
@@ -420,7 +428,7 @@ function init(
         throw(ArgumentError("currently, using LIA requires setting fast_term = LocalTerm()"))
     end
 
-    time = TimeInfo(nstep = 0, t = first(tspan), dt = dt, dt_prev = dt)
+    time = TimeInfo(nstep = 0, nrejected = 0, t = first(tspan), dt = dt, dt_prev = dt)
 
     external_forcing = (
         velocity = external_velocity,
@@ -729,25 +737,60 @@ function solve!(iter::VortexFilamentSolver)
     iter
 end
 
+# Returns the maximum |v⃗| from a VectorOfVectors.
+# We mainly use it to get the maximum velocity norm among all filament nodes.
+function maximum_vector_norm(vs::VectorOfVectors{<:Vec3})
+    T = eltype(eltype(eltype(vs)))
+    @assert T <: AbstractFloat
+    v²_max = zero(T)
+    for vnodes ∈ vs, v⃗ ∈ vnodes
+        v²_max = max(v²_max, sum(abs2, v⃗)::T)
+    end
+    sqrt(v²_max)
+end
+
 """
     step!(iter::VortexFilamentSolver)
 
 Advance solver by a single timestep.
 """
-function step!(iter::VortexFilamentSolver)
-    (; fs, vs, time, dtmin, advect!, rhs!,) = iter
+function step!(iter::VortexFilamentSolver{T}) where {T}
+    (; fs, vs, time, adaptivity, dtmin, advect!, rhs!,) = iter
+    vs_start = iter.ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
+    copyto!(vs_start, vs)
     t_end = iter.prob.tspan[2]
     if time.dt < dtmin && time.t + time.dt < t_end
         error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
     end
-    # Note: the timesteppers assume that iter.vs already contains the velocity
-    # induced by the filaments at the current timestep.
-    update_velocities!(rhs!, advect!, iter.cache_timestepper, iter)
+
+    # Maximum allowed displacement in a single timestep (can be Inf).
+    δ_crit::T = maximum_displacement(adaptivity)
+
+    while true
+        # Note: the timesteppers assume that iter.vs already contains the velocity
+        # induced by the filaments at the start of the current timestep.
+        update_velocities!(vs, rhs!, advect!, iter.cache_timestepper, iter)
+
+        # Compute actual maximum displacement.
+        v_max = maximum_vector_norm(vs)::T
+        δ_max = v_max * T(time.dt)
+
+        if δ_max > δ_crit
+            # Reject velocities and reduce timestep by half.
+            time.nrejected += 1
+            time.dt /= 2
+            copyto!(vs, vs_start)  # reset velocities to the beginning of timestep
+        else
+            break
+        end
+    end
+
     advect!(fs, vs, time.dt)
     after_advection!(iter)
     time.t += time.dt
     time.nstep += 1
     finalise_step!(iter)
+
     iter
 end
 
@@ -798,14 +841,14 @@ function finalise_step!(iter::VortexFilamentSolver)
         end
     end
 
-    isempty(fs) && error("all vortices disappeared!")  # TODO nicer way to handle this?
+    isempty(fs) && error("all vortices disappeared!")  # TODO: nicer way to handle this?
 
     iter.affect!(iter)
 
     # Update velocities and streamfunctions to the next timestep (and first RK step).
     # Note that we only compute the streamfunction at full steps, and not in the middle of
     # RK substeps.
-    # TODO make computation of ψ optional?
+    # TODO: make computation of ψ optional?
     fields = (velocity = vs, streamfunction = ψs,)
 
     # Note: here we always include the LIA terms, even when using IMEX or multirate schemes.
@@ -820,9 +863,9 @@ function finalise_step!(iter::VortexFilamentSolver)
         Filaments.pad_periodic!(u)
     end
 
-    iter.callback(iter)
     time.dt_prev = time.dt
     time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
+    iter.callback(iter)
 
     iter
 end
@@ -830,3 +873,4 @@ end
 include("diagnostics.jl")
 
 end
+

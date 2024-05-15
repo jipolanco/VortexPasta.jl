@@ -21,9 +21,9 @@ nbuf_filaments(::DP5) = 1
 nbuf_velocities(::DP5) = 7
 
 function _update_velocities!(
-        ::DP5, rhs!::F, advect!::G, cache, iter::AbstractSolver,
+        ::DP5, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver,
     ) where {F <: Function, G <: Function}
-    (; fs, vs, to,) = iter
+    (; fs, to,) = iter
     (; fc, vc,) = cache
 
     t = get_t(iter)
