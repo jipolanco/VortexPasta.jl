@@ -115,11 +115,18 @@ Adapt timestep ``Δt`` based on the maximum velocity ``v_{\max}`` of filament no
 The objective is that the resulting maximum displacement ``δ_{\max} = v_{\max} Δt`` stays
 below the given critical displacement `δ_crit`.
 
+One application of this criterion is to ensure that reconnections happen in-between two
+solver iterations (that is, to avoid that two filaments cross each other without
+reconnecting). In this case, ``δ`` should be proportional to the chosen distance below
+which reconnections are performed.
+
+# Implementation details
+
 This criterion is used in two ways:
 
 1. A priori, to decide the ``Δt`` to be used in the next iteration given the velocities of
    filament nodes at the start of the iteration (at time ``t``).
-   This ensures ``Δt ≤ δ_{\text{crit}} / v_{\max}`` where `v_{\max}` is computed at the
+   This ensures ``Δt ≤ δ_{\text{crit}} / v_{\max}`` where ``v_{\max}`` is computed at the
    start of the iteration.
 
 2. A posteriori, after the actual node displacements ``δ`` from time ``t`` to time
@@ -129,10 +136,14 @@ This criterion is used in two ways:
    In this case, the original displacements are thrown away (rejected).
    This process can be eventually repeated until the criterion is satisfied.
 
-The optional `safety_factor` should be a value `≤ 1`, which will further reduce the timestep
+# Optional safety factor
+
+The optional `safety_factor` should be `≤1`, which will further reduce the timestep
 chosen a priori in step 1. This is to try to avoid too many rejected timesteps in step 2,
 e.g. in case the actual advection velocity is larger than the velocity at the beginning of the
 timestep.
+
+# In combination with other criteria
 
 In principle, using this criterion can lead to an infinite timestep when the velocities are
 zero. For this reason, it's a good idea to combine this criterion with the
@@ -144,11 +155,6 @@ zero. For this reason, it's a good idea to combine this criterion with the
 In fact, the second option is done automatically in [`init`](@ref) if only an
 `AdaptBasedOnVelocity` is passed.
 In that case, the maximum timestep is taken to be the `dt` passed to `init`.
-
-One application of this criterion is to ensure that reconnections happen in-between two
-solver iterations (that is, to avoid that two filaments cross each other without
-reconnecting). In this case, ``δ`` should be proportional to the chosen distance below
-which reconnections are performed.
 """
 struct AdaptBasedOnVelocity <: AdaptivityCriterion
     δ :: Float64
@@ -167,8 +173,14 @@ end
 maximum_displacement(crit::AdaptBasedOnVelocity) = crit.δ
 
 function estimate_timestep(crit::AdaptBasedOnVelocity, iter::AbstractSolver)
+    (; dt_prev,) = iter  # dt_prev is the latest used timestep
+    T = typeof(dt_prev)
     v_max = maximum_vector_norm(iter.vs)
-    crit.safety_factor * crit.δ / v_max
+    dt_estimate::T = crit.safety_factor * crit.δ / v_max
+    # Avoid increasing the dt too abruptly compared to the previous timestep.
+    # This seems to help reduce the number of rejected timesteps, in case the dt was reduced
+    # in the previous iteration due to the a posteriori displacements.
+    min(dt_estimate, 2 * dt_prev)::T
 end
 
 """
