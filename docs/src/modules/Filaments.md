@@ -56,6 +56,8 @@ interpolate
 knots
 knotlims
 end_to_end_offset
+minimum
+maximum
 minimum_node_distance
 minimum_knot_increment
 maximum_knot_increment

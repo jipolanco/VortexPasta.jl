@@ -23,6 +23,8 @@ export
     minimum_knot_increment,
     maximum_knot_increment,
     minimum_node_distance,
+    knot_increment,
+    node_distance,
     nodes,
     segments,
     integrate,
@@ -194,25 +196,70 @@ Return the nodes (or discretisation points) ``\\bm{s}_i`` of the filament.
 """
 nodes(f::AbstractFilament) = f.Xs
 
+function node_distance end
+function knot_increment end
+
+for (fun, op) ∈ [(:minimum, :min), (:maximum, :max)]
+    # Reduce over a single filament.
+    @eval begin
+        @doc """
+            Base.$($fun)(node_distance, f::AbstractFilament) -> Real
+            Base.$($fun)(node_distance, fs::AbstractVector{<:AbstractFilament}) -> Real
+
+        Return the $($fun) distance ``δ`` between neighbouring discretisation points of a filament.
+
+        If a vector of filaments is passed (variant 2), then the $($fun) among all filaments is returned.
+        """
+        function Base.$(fun)(::typeof(node_distance), f::AbstractFilament)
+            T = eltype(eltype(f))
+            δ = -$(op)(-zero(T), convert(T, -Inf))  # this is Inf if op == min; 0 if op == max
+            for i ∈ eachindex(segments(f))
+                @inbounds δ = $op(δ, norm(f[i + 1] - f[i]))
+            end
+            δ
+        end
+
+        @doc """
+            Base.$($fun)(knot_increment, f::AbstractFilament) -> Real
+            Base.$($fun)(knot_increment, fs::AbstractVector{<:AbstractFilament}) -> Real
+
+        Return the $($fun) increment ``Δt = t_{i + 1} - t_{i}`` between filament knots.
+
+        This is generally a good approximation for the $($fun) segment length, at least when
+        the default [`ChordalParametrisation`](@ref) is used. If this is not the case, it is
+        better to pass `node_distance` instead of `knot_increment`, which always returns the
+        distance between two neighbouring nodes.
+        """
+        function Base.$(fun)(::typeof(knot_increment), f::AbstractFilament)
+            ts = knots(f)
+            T = eltype(ts)
+            δ = -$(op)(-zero(T), convert(T, -Inf))  # this is Inf if op == min; 0 if op == max
+            for i ∈ eachindex(segments(f))
+                @inbounds δ = $op(δ, ts[i + 1] - ts[i])  # assume knots are increasing
+            end
+            δ
+        end
+    end
+
+    # Reduce over a collection of filaments.
+    for g ∈ (:node_distance, :knot_increment)
+        @eval function Base.$(fun)(::typeof($g), fs::AbstractVector{<:AbstractFilament})
+            $(fun)(f -> $(fun)($g, f), fs)
+        end
+    end
+end
+
 """
     minimum_node_distance(f::AbstractFilament) -> Real
     minimum_node_distance(fs::AbstractVector{<:AbstractFilament}) -> Real
 
-Return the minimum distance ``δ`` between neighbouring filament discretisation points.
+Return the minimum distance ``δ`` between neighbouring discretisation points of a filament.
 
-See also [`minimum_knot_increment`](@ref).
+This is equivalent to calling `minimum(node_distance, f)`.
+
+See also [`minimum`](@ref) and [`minimum_knot_increment`](@ref).
 """
-function minimum_node_distance(f::AbstractFilament)
-    T = eltype(eltype(f))
-    δ = convert(T, Inf)
-    for i ∈ eachindex(segments(f))
-        @inbounds δ = min(δ, norm(f[i + 1] - f[i]))
-    end
-    δ
-end
-
-minimum_node_distance(fs::AbstractVector{<:AbstractFilament}) =
-    minimum(minimum_node_distance, fs)
+minimum_node_distance(f) = minimum(node_distance, f)
 
 @doc raw"""
     knots(f::AbstractFilament{T}) -> AbstractVector{T}
@@ -229,16 +276,15 @@ knots(f::AbstractFilament) = f.ts
 
 Return the minimum increment ``Δt = t_{i + 1} - t_{i}`` between filament knots.
 
-The second form allows to estimate the minimum increment among a vector of filaments.
+This is equivalent to calling `minimum(knot_increment, f)`.
 
 This is generally a good and fast approximation for the minimum segment length.
 However, this approximation is generally incorrect if one is using the
 [`FourierMethod`](@ref) discretisation method.
 
-See also [`minimum_node_distance`](@ref).
+See also [`minimum`](@ref), [`minimum_node_distance`](@ref) and [`maximum_knot_increment`](@ref).
 """
-minimum_knot_increment(f::AbstractFilament) = reduce_knot_increments(min, f)
-minimum_knot_increment(fs::AbstractVector{<:AbstractFilament}) = minimum(minimum_knot_increment, fs)
+minimum_knot_increment(f) = minimum(knot_increment, f)
 
 """
     maximum_knot_increment(f::AbstractFilament) -> Real
@@ -246,19 +292,12 @@ minimum_knot_increment(fs::AbstractVector{<:AbstractFilament}) = minimum(minimum
 
 Return the maximum increment ``Δt = t_{i + 1} - t_{i}`` between filament knots.
 
-The second form allows to estimate the maximum increment among a vector of filaments.
+This is equivalent to calling `maximum(knot_increment, f)`.
 
 This is generally a good approximation for the maximum segment length.
+See also [`maximum`](@ref) and [`minimum_knot_increment`](@ref).
 """
-maximum_knot_increment(f::AbstractFilament) = reduce_knot_increments(max, f)
-maximum_knot_increment(fs::AbstractVector{<:AbstractFilament}) = maximum(maximum_knot_increment, fs)
-
-function reduce_knot_increments(g::G, f::AbstractFilament) where {G <: Function}
-    ts = knots(f)
-    mapreduce(g, eachindex(segments(f))) do i
-        @inbounds ts[i + 1] - ts[i]
-    end
-end
+maximum_knot_increment(f) = maximum(knot_increment, f)
 
 """
     knotlims(f::AbstractFilament) -> (t_begin, t_end)

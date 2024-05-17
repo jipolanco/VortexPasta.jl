@@ -61,7 +61,7 @@ For convenience, we work with the Taylor–Green **_velocity_** field, and the v
 obtained via automatic differentiation (but we could directly work with the analytical
 vorticity instead).
 
-```jldoctest
+```jldoctest; filter = r"\#\d+ (\(generic function with 1 method\))" => s"\1"
 julia> function taylor_green_velocity(x⃗::Vec3)
            x, y, z = x⃗
            Vec3(
