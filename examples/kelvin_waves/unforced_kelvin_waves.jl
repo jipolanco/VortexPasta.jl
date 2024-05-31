@@ -2,7 +2,6 @@
 
 using Random: Random
 using FFTW: fft!, bfft!, fftfreq
-using StaticArrays: SVector
 using VortexPasta.PredefinedCurves: define_curve, PeriodicLine
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
