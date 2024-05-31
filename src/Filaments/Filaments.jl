@@ -610,7 +610,7 @@ than 3 nodes (but the specific discretisation method might impose some other sma
 check_nodes(::Type{Bool}, f::AbstractFilament) = _check_nodes(Bool, f)
 check_nodes(f::AbstractFilament) = _check_nodes(Nothing, f)
 
-# Limit set by the discretisation method. Can be overriden by other discretisation methods.
+# Limit set by the discretisation method. Can be overridden by other discretisation methods.
 minimum_nodes(::DiscretisationMethod) = 3
 
 function _check_nodes(::Type{T}, f::AbstractFilament) where {T}

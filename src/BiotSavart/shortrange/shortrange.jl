@@ -343,7 +343,9 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
     rcut² = params.rcut_sq
     # with_velocity = any(x -> first(x) === Velocity(), vecs)
 
-    W = VB.dynamic(VB.pick_vector_width(T))
+    # We use VectorizationBase and MVector/MMatrix to enforce the use of SIMD.
+    # This enables important gains in modern CPUs, especially in the computation of erf/erfc.
+    W = VB.dynamic(VB.pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
     Vec = VB.Vec  # SIMD vector type
 
     r²s = MVector{W, T}(undef)
