@@ -623,7 +623,12 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
         n += 1
         @debug "Added/removed $nref nodes"
         if !Filaments.check_nodes(Bool, f)
-            return nothing  # filament should be removed (too small / not enough nodes)
+            # This may happen if the refinement removed nodes, and now the number of nodes
+            # is too small (usually < 3) to represent the filament.
+            # It doesn't make sense to keep refining the filament (and it will fail
+            # anyways).
+            # The filament will be removed in finalise_step!.
+            break
         end
         nref = Filaments.refine!(f, refinement)
     end
@@ -667,14 +672,9 @@ end
 # Usually this is `(vs, ψs)`, which contain the velocities and streamfunction values at all
 # filament nodes.
 function after_advection!(fs, fields::Tuple; kws...)
-    @inbounds for i ∈ reverse(eachindex(fs))
+    @inbounds for i ∈ eachindex(fs)
         fields_i = map(vs -> @inbounds(vs[i]), fields)  # typically this is (vs[i], ψs[i])
-        ret = _after_advection!(fs[i], fields_i; kws...)
-        if ret === nothing
-            # This should only happen if the filament was "refined" (well, unrefined in this case).
-            popat!(fs, i)
-            map(vs -> popat!(vs, i), fields)
-        end
+        _after_advection!(fs[i], fields_i; kws...)
     end
     fs
 end
@@ -684,9 +684,7 @@ function _after_advection!(f::AbstractFilament, fields::Tuple; L_fold, refinemen
         Filaments.update_coefficients!(f)  # only called if nodes were modified by fold_periodic!
     end
     refinement_steps = refine!(f, refinement)
-    if refinement_steps === nothing  # filament should be removed (too small / not enough nodes)
-        return nothing
-    elseif refinement_steps > 0  # refinement was performed
+    if refinement_steps > 0  # refinement was performed
         map(vs -> resize!(vs, length(f)), fields)
     end
     f
@@ -834,7 +832,7 @@ function finalise_step!(iter::VortexFilamentSolver)
     for i ∈ reverse(eachindex(fs))
         if !Filaments.check_nodes(Bool, fs[i])
             # Remove filament and its associated vector of velocities
-            # @info lazy"Removing filament with $(length(fs[i])) nodes"
+            @debug lazy"Removing filament with $(length(fs[i])) nodes"
             popat!(fs, i)
             popat!(vs, i)
             popat!(ψs, i)
