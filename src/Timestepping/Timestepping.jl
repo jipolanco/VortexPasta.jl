@@ -19,6 +19,7 @@ using ..Filaments:
     nodes,
     segments,
     knots,
+    filament_length,
     RefinementCriterion,
     NoRefinement
 
@@ -53,6 +54,7 @@ abstract type AbstractSolver end
 include("timesteppers/timesteppers.jl")
 include("adaptivity.jl")
 include("problem.jl")
+include("simulation_stats.jl")
 
 """
     TimeInfo
@@ -138,6 +140,9 @@ Some useful fields are:
 
 - `time`: a [`TimeInfo`](@ref) object containing information such as the current time and timestep;
 
+- `stats`: a [`SimulationStats`](@ref) object containing information such as the total
+  number of reconnections since the beginning of the simulation;
+
 - `to`: a `TimerOutput`, which records the time spent on different functions;
 
 - `cache_bs`: the Biot–Savart cache, which contains data from short- and
@@ -166,6 +171,7 @@ struct VortexFilamentSolver{
     vs    :: Velocities
     ψs    :: Velocities  # not really velocity, but streamfunction
     time  :: TimeInfo
+    stats :: SimulationStats{T}
     dtmin :: T
     refinement        :: Refinement
     adaptivity        :: Adaptivity
@@ -191,6 +197,8 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     _print_summary(io, iter.ψs; pre = "\n - `ψs`: ", post = " -- streamfunction at nodes")
     print(io, "\n - `time`: ")
     summary(io, iter.time)
+    print(io, "\n - `stats`: ")
+    summary(io, iter.stats)
     print(io, "\n - `dtmin`: ", iter.dtmin)
     print(io, "\n - `refinement`: ", iter.refinement)
     print(io, "\n - `adaptivity`: ", iter.adaptivity)
@@ -429,6 +437,7 @@ function init(
     end
 
     time = TimeInfo(nstep = 0, nrejected = 0, t = first(tspan), dt = dt, dt_prev = dt)
+    stats = SimulationStats(T)
 
     external_forcing = (
         velocity = external_velocity,
@@ -437,7 +446,7 @@ function init(
     check_external_streamfunction(external_forcing, Ls)
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, ψs, time, T(dtmin), refinement, adaptivity_, cache_reconnect,
+        prob, fs_sol, vs, ψs, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_forcing,
         timer, advect!, rhs!,
     )
@@ -659,10 +668,13 @@ function _advect_filament!(
 end
 
 function after_advection!(iter::VortexFilamentSolver)
-    (; fs, vs, ψs, prob, refinement, fold_periodic, to,) = iter
+    (; fs, vs, ψs, prob, refinement, fold_periodic, stats, to,) = iter
     # Perform reconnections, possibly changing the number of filaments.
-    @timeit to "reconnect!" number_of_reconnections = reconnect!(iter)
-    @debug lazy"Number of reconnections: $number_of_reconnections"
+    @timeit to "reconnect!" rec = reconnect!(iter)
+    @debug lazy"Number of reconnections: $(rec.reconnection_count)"
+    stats.reconnection_count += rec.reconnection_count
+    stats.filaments_removed_count += rec.filament_removed_count
+    stats.filaments_removed_length += rec.filament_removed_length
     L_fold = periods(prob.p)  # box size (periodicity)
     after_advection!(fs, (vs, ψs); L_fold, refinement, fold_periodic,)
 end
@@ -817,12 +829,12 @@ function Reconnections.reconnect!(iter::VortexFilamentSolver)
     fields = (vs, ψs)
     Reconnections.reconnect!(reconnect, fs; to) do f, i, mode
         reconnect_callback((fs, fields), f, i, mode)
-    end :: Int  # returns the number of reconnections
+    end
 end
 
 # Called whenever filament positions have just been initialised or updated.
 function finalise_step!(iter::VortexFilamentSolver)
-    (; vs, ψs, fs, time, adaptivity, rhs!,) = iter
+    (; vs, ψs, fs, time, stats, adaptivity, rhs!,) = iter
 
     @assert eachindex(fs) == eachindex(vs)
 
@@ -831,8 +843,13 @@ function finalise_step!(iter::VortexFilamentSolver)
     # be removed during reconnections for the same reason.
     for i ∈ reverse(eachindex(fs))
         if !Filaments.check_nodes(Bool, fs[i])
-            # Remove filament and its associated vector of velocities
+            # Remove filament and its associated vectors of velocities/streamfunctions.
             @debug lazy"Removing filament with $(length(fs[i])) nodes"
+            # Compute vortex length using the straight segment approximation (no quadratures),
+            # since the filament doesn't accept a continuous description at this point.
+            local Lfil = filament_length(fs[i]; quad = nothing)
+            stats.filament_removed_count += 1
+            stats.filament_removed_length += Lfil
             popat!(fs, i)
             popat!(vs, i)
             popat!(ψs, i)

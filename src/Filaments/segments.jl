@@ -102,6 +102,8 @@ end
 Estimate length of a filament segment.
 
 One may pass a quadrature rule as `quad` for better accuracy.
+Otherwise, if `quad = nothing`, this simply returns the straight distance between the two
+segment extremities.
 """
 segment_length(s::Segment; quad = nothing) = _segment_length(quad, s)
 

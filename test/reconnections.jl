@@ -188,8 +188,8 @@ end
             fs_all = [fc]
             cache = @inferred Reconnections.init_cache(crit, fs_all)
             # @test_opt ignored_modules=(Base,) reconnect!(cache, fs_all)
-            num_reconnections = reconnect!(cache, fs_all)
-            @test num_reconnections == 1
+            rec = @inferred reconnect!(cache, fs_all)
+            @test rec.reconnection_count == 1
             @test length(fs_all) == 2  # filament split into two!
             f1, f2 = fs_all[1], fs_all[2]
 
@@ -238,8 +238,8 @@ end
         @testset "reconnect!" begin
             fs = collect(copy.(fs_orig))
             cache = @inferred Reconnections.init_cache(crit, fs)
-            nrec = @inferred reconnect!(cache, fs)
-            @test nrec == 1  # one reconnection
+            rec = @inferred reconnect!(cache, fs)
+            @test rec.reconnection_count == 1  # one reconnection
             @test length(fs) == 1
             @test length(fs[1]) == sum(length, fs_orig)
             @test maximum_knot_increment(fs) < 2 * l_min  # check that there are no crazy jumps
@@ -277,9 +277,10 @@ end
 
         # We need two reconnect! passes to arrive to the final state.
         for n ∈ 1:4
-            nrec = reconnect!(cache, fs) do f, i, mode
+            rec = reconnect!(cache, fs) do f, i, mode
                 nothing
             end
+            nrec = rec.reconnection_count
             if n ≤ 2
                 @test nrec == 1
             else
@@ -319,9 +320,9 @@ end
             crit = ReconnectBasedOnDistance(4 * ϵ)
             fs = copy.(fs_orig)
             cache = @inferred Reconnections.init_cache(crit, fs, periods)
-            nrec = @inferred reconnect!(cache, fs)
+            rec = @inferred reconnect!(cache, fs)
 
-            @test nrec == 1
+            @test rec.reconnection_count == 1
             @test length(fs) == 2
             @test abs(end_to_end_offset(fs[1])[1]) ≈ 2π  # infinite line in x
             @test abs(end_to_end_offset(fs[2])[1]) ≈ 2π  # infinite line in x
@@ -351,7 +352,8 @@ end
 
             # We need 2 passes to arrive to the final state.
             for n ∈ 1:4
-                nrec = @inferred reconnect!(cache, fs)
+                rec = @inferred reconnect!(cache, fs)
+                nrec = rec.reconnection_count
                 if n ≤ 2
                     @test nrec == 1
                 else
@@ -394,7 +396,8 @@ end
             cache = @inferred Reconnections.init_cache(crit, fs, periods)
             nfilaments = (2, 1, 2, 3)  # expected number of filaments after each pass
             for n ∈ 1:10
-                nrec = @inferred reconnect!(cache, fs)
+                rec = @inferred reconnect!(cache, fs)
+                nrec = rec.reconnection_count
                 if n ≤ 4
                     @test length(fs) == nfilaments[n]
                     @test nrec == 1
@@ -473,7 +476,8 @@ end
         crit = ReconnectBasedOnDistance(0.5 * l_min)
         cache = @inferred Reconnections.init_cache(crit, fs)
         for n ∈ 1:5
-            nrec = reconnect!(cache, fs)
+            rec = reconnect!(cache, fs)
+            nrec = rec.reconnection_count
             if n ≤ 2
                 @test nrec == 1
             else
@@ -519,8 +523,8 @@ end
         periods = 2π .* (1, 1, 1)
         fs = copy.(fs_orig)
         cache = @inferred Reconnections.init_cache(crit, fs, periods)
-        nrec = reconnect!(cache, fs)
-        @test nrec == 1
+        rec = reconnect!(cache, fs)
+        @test rec.reconnection_count == 1
         @test length(fs) == 1
         @test fs == fs_manual  # compare with manually merged vortices
     end

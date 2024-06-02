@@ -25,9 +25,15 @@ helicity
 
 ## Filament length
 
-```@docs
-filament_length
+See [`filament_length`](@ref) in the [`Filaments`](@ref) module.
+For convenience, `filament_length` is re-exported by `Diagnostics`, meaning that one can do:
+
+```julia
+using VortexPasta.Diagnostics
+filament_length(...)
 ```
+
+without needing to import `VortexPasta.Filaments`.
 
 ## Vortex impulse
 

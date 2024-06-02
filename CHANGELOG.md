@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `stats` field to `VortexFilamentSolver`. This allows to know in particular
+  the total number of reconnections since the start of a simulation. It also
+  stores information about the total number of filaments removed from the
+  simulations (because they had not enough nodes) and their total length.
+
 ## [0.20.1] - 2024-05-16
 
 ### Changed
