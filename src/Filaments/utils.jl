@@ -115,6 +115,73 @@ end
 
 # ======================================================================================== #
 
+"""
+    filament_length(f::AbstractFilament; quad = nothing) -> Real
+    filament_length(fs::AbstractVector{<:AbstractFilament}; quad = nothing) -> Real
+
+Estimate the length of one or more filaments.
+
+By default, the filament length is estimated using a straight segment approximation, which
+is fast but doesn't account for the actual curve geometry in-between discretisation points,
+underestimating the actual length.
+A quadrature rule may be optionally passed using `quad` (e.g. `quad = GaussLegendre(4)`)
+to obtain a more accurate result.
+
+See also [`segment_length`](@ref), which is used by this function.
+"""
+function filament_length(f::AbstractFilament; quad = nothing)
+    T = eltype(eltype(f))
+    @assert T <: AbstractFloat
+    L = zero(T)
+    for s ∈ segments(f)
+        L += segment_length(s; quad)
+    end
+    L
+end
+
+function filament_length(fs::AbstractVector{<:AbstractFilament}; kws...)
+    T = eltype(eltype(eltype(fs)))
+    @assert T <: AbstractFloat
+    L = zero(T)
+    for f ∈ fs
+        L += filament_length(f; kws...)
+    end
+    L
+end
+
+# ======================================================================================== #
+
+# TODO: move this to a separate "misc" module?
+
+"""
+    number_type(x) -> Type{<:Number}
+
+Obtain the number type associated to a container `x`.
+
+This is expected to return a concrete type `T <: Number`.
+
+This function can be useful when the actual number type is hidden behind many nested
+array types.
+
+Some examples:
+
+- if `x` is a single `AbstractFilament{T}`, this returns `T`;
+- if `x` is a vector or tuple of `AbstractFilament{T}`, this also returns `T`; 
+- if `x` is a vector of vectors of `SVector{3, T}`, this returns `T`.
+
+Note that, in the last two cases, this corresponds to `eltype(eltype(eltype(x)))`, which is
+less readable and prone to errors.
+"""
+function number_type end
+
+number_type(::Type{T}) where {T} = error(lazy"could not identify number type from $T")
+number_type(::Type{T}) where {T <: Number} = T
+number_type(::Type{T}) where {T <: AbstractArray} = number_type(eltype(T))
+number_type(::Type{T}) where {T <: NTuple} = number_type(eltype(T))
+number_type(x::Any) = number_type(typeof(x))
+
+# ======================================================================================== #
+
 # TESTING / EXPERIMENTAL
 # This function may be removed in the future.
 # The idea is to update the parametrisation of `f` to follow more closely the

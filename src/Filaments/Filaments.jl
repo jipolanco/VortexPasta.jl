@@ -23,6 +23,7 @@ export
     minimum_knot_increment,
     maximum_knot_increment,
     minimum_node_distance,
+    filament_length,
     knot_increment,
     node_distance,
     nodes,

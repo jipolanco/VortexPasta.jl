@@ -1,7 +1,10 @@
 Manifest.toml
+Manifest-v*.toml
+LocalPreferences.toml
 
 # Simulation and test outputs
 *.vtkhdf
+*.vtkhdf.series
 *.vtkhdf.alt
 *.hdf
 *.h5

@@ -1,32 +1,7 @@
+# Note: the filament_length function used to be defined here in Diagnostics, but it was
+# later moved to the Filaments module. We still keep the interface below mostly because it
+# this should also be considered a diagnostic along with the energy and other stuff, so that
+# it appears in the same docs page and can be extended via Diagnostics.filament_length.
+
+using ..Filaments: filament_length
 export filament_length
-
-"""
-    filament_length(f; quad = nothing) -> Real
-    filament_length(iter::VortexFilamentSolver; quad = nothing) -> Real
-
-Estimate length of one or more filaments.
-
-Here `f` can be an [`AbstractFilament`](@ref) or a vector of filaments.
-One can also pass a `VortexFilamentSolver`, in which case the total filament length will be
-returned.
-
-A quadrature rule may be optionally passed using `quad` (e.g. `quad = GaussLegendre(4)`),
-which may result in better accuracy.
-"""
-function filament_length end
-
-function filament_length(fs::VectorOfFilaments; kws...)
-    T = eltype(eltype(eltype(fs)))
-    @assert T <: AbstractFloat
-    L = zero(T)
-    for f ∈ fs
-        L += filament_length(f; kws...)
-    end
-    L
-end
-
-function filament_length(f::AbstractFilament; quad = nothing)
-    sum(segments(f)) do s
-        Filaments.segment_length(s; quad)
-    end
-end

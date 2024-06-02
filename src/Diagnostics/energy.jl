@@ -22,7 +22,6 @@ end
 
 @doc raw"""
     kinetic_energy_from_streamfunction(ψs, fs, Γ, [Ls]; quad = nothing)
-    kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; quad = nothing)
 
 Compute kinetic energy per unit mass (units ``L^2 T^{-2}``) from streamfunction values at
 filament nodes in a periodic domain.
@@ -45,10 +44,7 @@ of a periodic cell in periodic domains).
 
 - `fs`: vortex filament locations;
 
-- `Γ::Real`: quantum of circulation;
-
-Alternatively, one may simply pass a `VortexFilamentSolver`, which contains the current
-state of a vortex filament simulation.
+- `Γ::Real`: quantum of circulation.
 
 ## Optional arguments
 
@@ -79,6 +75,8 @@ Therefore, **it is recommended to always use `kinetic_energy_from_streamfunction
 in non-periodic domains.
 
 """
+function kinetic_energy_from_streamfunction end
+
 function kinetic_energy_from_streamfunction(ψs::AbstractVector, args...; quad = nothing)
     _kinetic_energy_from_streamfunction(quad, ψs, args...)
 end
@@ -186,7 +184,6 @@ end
 
 @doc raw"""
     kinetic_energy_nonperiodic(vs, fs, Γ; quad = nothing)
-    kinetic_energy_nonperiodic(iter::VortexFilamentSolver; quad = nothing)
 
 Compute kinetic energy per unit density (units ``L^5 T^{-2}``) from velocity values at
 filament nodes in an open (non-periodic) domain.
@@ -225,9 +222,6 @@ This function returns the energy *per unit density* ``E / ρ``.
 
 - `Γ::Real`: quantum of circulation.
 
-Alternatively, one may simply pass a `VortexFilamentSolver`, which contains the current
-state of a vortex filament simulation.
-
 ## Optional keyword arguments
 
 See [`kinetic_energy_from_streamfunction`](@ref) for details.
@@ -242,6 +236,8 @@ In this case, the [`kinetic_energy_from_streamfunction`](@ref) function should b
 instead.
 
 """
+function kinetic_energy_nonperiodic end
+
 function kinetic_energy_nonperiodic(vs::AbstractVector, args...; quad = nothing)
     _kinetic_energy_nonperiodic(quad, vs, args...)
 end

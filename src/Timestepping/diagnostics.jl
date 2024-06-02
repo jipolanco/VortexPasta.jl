@@ -1,7 +1,16 @@
 # Overload diagnostics functions for convenience, so that we can simply pass the current
 # state of the solver to get diagnostics.
-using ..Diagnostics: Diagnostics
 
+using ..Diagnostics: Diagnostics
+using ..Filaments: Filaments
+
+"""
+    Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; quad = nothing)
+
+Estimate kinetic energy from current simulation state.
+
+See [`Diagnostics.kinetic_energy_from_streamfunction`](@ref) for details.
+"""
 function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; kws...)
     (; ψs, fs, external_forcing, t,) = iter
     Ls = BiotSavart.periods(iter.prob.p)
@@ -18,6 +27,21 @@ function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolv
     E
 end
 
+"""
+    Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; quad = nothing)
+
+Estimate kinetic energy from current simulation state.
+
+See [`Diagnostics.kinetic_energy_nonperiodic`](@ref) for details.
+
+!!! warning
+
+    This function uses an energy definition that is invalid in periodic domains.
+    Moreover, even in non-periodic domains, it may display artificial energy fluctuations in
+    cases where energy should be conserved. Therefore, it is recommended to **always**
+    use [`kinetic_energy_from_streamfunction`](@ref Diagnostics.kinetic_energy_from_streamfunction(::VortexFilamentSolver)), which doesn't have those issues.
+
+"""
 function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws...)
     (; vs, fs,) = iter
     Ls = BiotSavart.periods(iter.prob.p)
@@ -27,14 +51,38 @@ function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws.
     Diagnostics.kinetic_energy_nonperiodic(vs, fs, Γ; kws...)
 end
 
+# Note: filament_length is actually defined in the Filaments module, but we document its
+# alias in Diagnostics just for consistency with the other diagnostics (it doesn't make any
+# difference really!).
+"""
+    Diagnostics.filament_length(iter::VortexFilamentSolver; quad = nothing) -> Real
+
+Estimate total length of all filaments in a simulation.
+
+See [`Diagnostics.filament_length`](@ref) for details.
+"""
 function Diagnostics.filament_length(iter::VortexFilamentSolver; kws...)
     Diagnostics.filament_length(iter.fs; kws...)
 end
 
+"""
+    Diagnostics.vortex_impulse(iter::VortexFilamentSolver; quad = nothing)
+
+Estimate total normalised impulse of all filaments in a simulation.
+
+See [`Diagnostics.vortex_impulse`](@ref) for details.
+"""
 function Diagnostics.vortex_impulse(iter::VortexFilamentSolver; kws...)
     Diagnostics.vortex_impulse(iter.fs; kws...)
 end
 
+"""
+    Diagnostics.helicity(iter::VortexFilamentSolver; quad = nothing)
+
+Compute helicity of the instantaneous vortex configuration in a simulation.
+
+See [`Diagnostics.helicity`](@ref) for details.
+"""
 function Diagnostics.helicity(iter::VortexFilamentSolver; kws...)
     Γ = BiotSavart.circulation(iter.prob.p)
     Diagnostics.helicity(iter.fs, iter.vs, Γ; kws...)

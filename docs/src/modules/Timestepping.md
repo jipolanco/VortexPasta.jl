@@ -148,10 +148,29 @@ AdaptBasedOnVelocity
 MaximumTimestep
 ```
 
+## Diagnostics
+
+These are all extensions of the methods in the [`Diagnostics`](@ref) module
+which take an instantaneous simulation state `iter` (a [`VortexFilamentSolver`](@ref)).
+This makes it easy to compute diagnostics during a simulation.
+
+```@docs
+Diagnostics.kinetic_energy_from_streamfunction(::VortexFilamentSolver)
+Diagnostics.kinetic_energy_nonperiodic(::VortexFilamentSolver)
+Diagnostics.filament_length(::VortexFilamentSolver)
+Diagnostics.vortex_impulse(::VortexFilamentSolver)
+Diagnostics.helicity(::VortexFilamentSolver)
+```
+
+One can also compute **energy spectra** by passing a [`VortexFilamentSolver`](@ref)
+as the `cache` argument in [`Diagnostics.energy_spectrum`](@ref),
+[`Diagnostics.energy_spectrum!`](@ref) and [`Diagnostics.init_energy_spectrum`](@ref).
+
 ## Internals
 
 ```@docs
 TemporalSchemeCache
 TimeInfo
+SimulationStats
 maximum_displacement
 ```

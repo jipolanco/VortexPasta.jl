@@ -20,7 +20,9 @@ using ..Filaments: Filaments,
                    split!, merge!,
                    update_coefficients!,
                    find_min_distance,
+                   filament_length,
                    deperiodise_separation,
+                   number_type,
                    check_nodes
 
 using TimerOutputs
@@ -39,17 +41,28 @@ include("cache.jl")
         [callback::Function],
         cache::AbstractReconnectionCache,
         fs::AbstractVector{<:AbstractFilament},
-    ) -> Int
+    ) -> NamedTuple
 
 Perform filament reconnections according to chosen criterion.
-
-Returns the number of performed reconnections.
 
 Note that, when a filament self-reconnects, this creates new filaments, which
 are appended at the end of `fs`.
 
 Moreover, this function will remove reconnected filaments if their number of nodes is too small
 (typically ``< 3``, see [`check_nodes`](@ref)).
+
+## Returns
+
+This function returns a `NamedTuple` with fields:
+
+- `reconnection_count`: **number of reconnections**;
+
+- `filament_removed_count`: **number of filaments removed after reconnection**. This happens
+  when a filament reconnects with itself, splitting into two new filaments, and one or both
+  of these filaments have an insufficient number of discretisation nodes;
+
+- `filament_removed_length`: **length of removed filaments**. We use a straight segment
+  approximation (no quadratures) to estimate the filament lengths.
 
 ## Callback function
 
@@ -71,8 +84,13 @@ function reconnect!(
         fs::AbstractVector{<:AbstractFilament};
         to::TimerOutput = TimerOutput(),
     ) where {F <: Function}
-    number_of_reconnections = 0
-    criterion(cache) === NoReconnections() && return number_of_reconnections
+    T = number_type(fs)
+    reconnection_count = 0
+    filament_removed_count = 0
+    filament_removed_length = zero(T)
+    if criterion(cache) === NoReconnections()
+        return (; reconnection_count, filament_removed_count, filament_removed_length,)
+    end
     crit = criterion(cache)
     Ls = periods(cache)
     @timeit to "find_reconnection_candidates!" begin
@@ -89,16 +107,18 @@ function reconnect!(
         @timeit to "reconnect" if a.f === b.f
             # Reconnect filament with itself => split filament into two
             @assert a.i ≠ b.i
-            reconnect_with_itself!(callback, fs, a.f, a.i, b.i, info)
+            nremoved, Lremoved = reconnect_with_itself!(callback, fs, a.f, a.i, b.i, info)
+            filament_removed_count += nremoved
+            filament_removed_length += Lremoved
             invalidate_candidates!(cache, a.f)
         else
             # Reconnect two different filaments => merge them into one
             reconnect_with_other!(callback, fs, a.f, b.f, a.i, b.i, info)
             invalidate_candidates!(cache, a.f, b.f)
         end
-        number_of_reconnections += 1
+        reconnection_count += 1
     end
-    number_of_reconnections
+    (; reconnection_count, filament_removed_count, filament_removed_length,)
 end
 
 # If we already found a relatively good reconnection candidate, look at the neighbouring
@@ -148,7 +168,16 @@ end
 # after a previous reconnection.
 find_filament_index(fs, f) = findfirst(g -> g === f, fs)
 
+# This function reconnects a filament `f` with itself, resulting in two filaments.
+# Note that it is possible for one or the two resulting filaments to be too small (in number
+# of nodes) to be represented by the discretisation method, in which case they are discarded.
+# Hence, this function returns a tuple (nremoved, Lremoved) with:
+# - nremoved: number of discarded filaments (0, 1 or 2);
+# - Lremoved: total length of discarded filaments, using the straight filament approximation.
 function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
+    T = number_type(f)
+    @assert T <: AbstractFloat
+
     n = find_filament_index(fs, f)
     n === nothing && return nothing
 
@@ -165,7 +194,9 @@ function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
         # We discard the two filaments and remove the original filament from fs.
         popat!(fs, n)
         callback(f, n, :removed)
-        return nothing
+        nremoved = 2
+        Lremoved = sum(filament_length, gs)::T  # note: we use the straight segment approximation to compute lengths (no quadratures)
+        return (nremoved, Lremoved)
     end
 
     # Replace the original filament by the first accepted filament.
@@ -175,17 +206,24 @@ function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
         callback(g, n, :modified)
     end
 
-    # If the two new filaments were accepted, append the second one at the end of `fs`.
     if count(keep) == 2
+        # If the two new filaments were accepted, append the second one at the end of `fs`.
         @assert m == 1
         let g = gs[2]
             update_coefficients!(g)
             push!(fs, g)
             callback(g, lastindex(fs), :appended)
         end
+        nremoved = 0
+        Lremoved = zero(T)
+    else
+        # Otherwise, return the length of the removed filament (which is the first one).
+        @assert m == 2
+        nremoved = 1
+        Lremoved = filament_length(gs[1])::T
     end
 
-    nothing
+    (nremoved, Lremoved)
 end
 
 function reconnect_with_other!(callback::F, fs, f, g, i, j, info) where {F}

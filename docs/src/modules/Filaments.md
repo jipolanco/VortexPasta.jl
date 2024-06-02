@@ -62,6 +62,7 @@ minimum_node_distance
 minimum_knot_increment
 maximum_knot_increment
 nodes
+filament_length
 Filaments.distance_to_field
 ```
 
@@ -96,6 +97,7 @@ normalise_derivatives!
 integrate
 find_min_distance
 check_nodes
+number_type
 Filaments.curl
 ```
 
