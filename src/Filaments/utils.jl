@@ -172,13 +172,13 @@ Some examples:
 Note that, in the last two cases, this corresponds to `eltype(eltype(eltype(x)))`, which is
 less readable and prone to errors.
 """
-function number_type end
+number_type(u) = eltype_nested(Number, u)
 
-number_type(::Type{T}) where {T} = error(lazy"could not identify number type from $T")
-number_type(::Type{T}) where {T <: Number} = T
-number_type(::Type{T}) where {T <: AbstractArray} = number_type(eltype(T))
-number_type(::Type{T}) where {T <: NTuple} = number_type(eltype(T))
-number_type(x::Any) = number_type(typeof(x))
+eltype_nested(::Type{X}, ::Type{T}) where {X, T} = error(lazy"could not find elements of $X type from $T")
+eltype_nested(::Type{X}, ::Type{T}) where {X, T <: X} = T
+eltype_nested(::Type{X}, ::Type{T}) where {X, T <: AbstractArray} = (T <: X) ? T : eltype_nested(X, eltype(T))
+eltype_nested(::Type{X}, ::Type{T}) where {X, T <: NTuple} = (T <: X) ? T : eltype_nested(X, eltype(T))
+eltype_nested(::Type{X}, u::Any) where {X} = eltype_nested(X, typeof(u))
 
 # ======================================================================================== #
 

@@ -19,6 +19,8 @@ using ..Filaments:
     nodes,
     segments,
     knots,
+    number_type,
+    eltype_nested,
     filament_length,
     RefinementCriterion,
     NoRefinement
@@ -507,7 +509,7 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
-    T = eltype(eltype(fields.velocity))
+    T = eltype_nested(Vec3, fields.velocity)
     @assert T <: Vec3
     if iter.LIA
         fill!(fields.velocity, zero(T))
@@ -750,7 +752,7 @@ end
 # Returns the maximum |v⃗| from a VectorOfVectors.
 # We mainly use it to get the maximum velocity norm among all filament nodes.
 function maximum_vector_norm(vs::VectorOfVectors{<:Vec3})
-    T = eltype(eltype(eltype(vs)))
+    T = number_type(vs)
     @assert T <: AbstractFloat
     v²_max = zero(T)
     for vnodes ∈ vs, v⃗ ∈ vnodes
