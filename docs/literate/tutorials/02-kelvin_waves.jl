@@ -1,9 +1,5 @@
 # # [Kelvin waves](@id tutorial-kelvin-waves)
 #
-# ```@meta
-# Draft = true
-# ```
-#
 # This tutorial describes the simulation of Kelvin waves propagating along nearly-straight
 # and infinite vortex lines.
 #

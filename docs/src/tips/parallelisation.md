@@ -95,7 +95,7 @@ Some other notes:
 
 ### Pinning SLURM threads
 
-As mentioned [above](Pinning-threads), it is a good idea to pin Julia threads
+As mentioned [above](@ref Pinning-threads), it is a good idea to pin Julia threads
 to the CPUs available to the Julia process.
 
 When using SLURM, one can achieve this by using the `:affinitymask` criterion in ThreadPinning's [`pinthreads`](https://carstenbauer.github.io/ThreadPinning.jl/stable/refs/api/#ThreadPinning.pinthreads):
