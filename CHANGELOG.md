@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.21.0] - 2024-06-03
+
 ### Added
 
 - Add `stats` field to `VortexFilamentSolver`. This allows to know in particular
