@@ -59,6 +59,14 @@ DocMeta.setdocmeta!(
     end,
 )
 
+# Adapted from https://github.com/Ferrite-FEM/Ferrite.jl/blob/master/docs/make.jl
+const with_liveserver = "liveserver" ∈ ARGS
+
+if with_liveserver
+    using Revise
+    Revise.revise()
+end
+
 # doctest(VortexPasta; fix = true)
 
 struct Gitlab <: Remotes.Remote
@@ -99,6 +107,10 @@ function make_all(; generate_tutorials = true,)
         empty!(tutorials)
         # Some cross-references will be broken if we don't generate the tutorials
         push!(warnonly, :cross_references)
+    end
+
+    if with_liveserver
+        warnonly = true
     end
 
     for name ∈ tutorials
@@ -152,6 +164,7 @@ function make_all(; generate_tutorials = true,)
             ],
             "References" => "references.md",
         ],
+        draft = with_liveserver,
         pagesonly = true,
         warnonly,
         plugins = [bib],

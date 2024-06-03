@@ -1,5 +1,9 @@
 # # [Vortex ring](@id tutorial-vortex-ring)
 #
+# ```@meta
+# Draft = true
+# ```
+#
 # The following tutorial goes through the simulation of a **single vortex ring** propagating
 # due to its self-induced propulsion.
 #
