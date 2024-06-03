@@ -673,8 +673,8 @@ function after_advection!(iter::VortexFilamentSolver)
     @timeit to "reconnect!" rec = reconnect!(iter)
     @debug lazy"Number of reconnections: $(rec.reconnection_count)"
     stats.reconnection_count += rec.reconnection_count
-    stats.filaments_removed_count += rec.filament_removed_count
-    stats.filaments_removed_length += rec.filament_removed_length
+    stats.filaments_removed_count += rec.filaments_removed_count
+    stats.filaments_removed_length += rec.filaments_removed_length
     L_fold = periods(prob.p)  # box size (periodicity)
     after_advection!(fs, (vs, ψs); L_fold, refinement, fold_periodic,)
 end
@@ -848,8 +848,8 @@ function finalise_step!(iter::VortexFilamentSolver)
             # Compute vortex length using the straight segment approximation (no quadratures),
             # since the filament doesn't accept a continuous description at this point.
             local Lfil = filament_length(fs[i]; quad = nothing)
-            stats.filament_removed_count += 1
-            stats.filament_removed_length += Lfil
+            stats.filaments_removed_count += 1
+            stats.filaments_removed_length += Lfil
             popat!(fs, i)
             popat!(vs, i)
             popat!(ψs, i)

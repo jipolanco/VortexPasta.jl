@@ -57,11 +57,11 @@ This function returns a `NamedTuple` with fields:
 
 - `reconnection_count`: **number of reconnections**;
 
-- `filament_removed_count`: **number of filaments removed after reconnection**. This happens
+- `filaments_removed_count`: **number of filaments removed after reconnection**. This happens
   when a filament reconnects with itself, splitting into two new filaments, and one or both
   of these filaments have an insufficient number of discretisation nodes;
 
-- `filament_removed_length`: **length of removed filaments**. We use a straight segment
+- `filaments_removed_length`: **length of removed filaments**. We use a straight segment
   approximation (no quadratures) to estimate the filament lengths.
 
 ## Callback function
@@ -86,10 +86,10 @@ function reconnect!(
     ) where {F <: Function}
     T = number_type(fs)
     reconnection_count = 0
-    filament_removed_count = 0
-    filament_removed_length = zero(T)
+    filaments_removed_count = 0
+    filaments_removed_length = zero(T)
     if criterion(cache) === NoReconnections()
-        return (; reconnection_count, filament_removed_count, filament_removed_length,)
+        return (; reconnection_count, filaments_removed_count, filaments_removed_length,)
     end
     crit = criterion(cache)
     Ls = periods(cache)
@@ -108,8 +108,8 @@ function reconnect!(
             # Reconnect filament with itself => split filament into two
             @assert a.i ≠ b.i
             nremoved, Lremoved = reconnect_with_itself!(callback, fs, a.f, a.i, b.i, info)
-            filament_removed_count += nremoved
-            filament_removed_length += Lremoved
+            filaments_removed_count += nremoved
+            filaments_removed_length += Lremoved
             invalidate_candidates!(cache, a.f)
         else
             # Reconnect two different filaments => merge them into one
@@ -118,7 +118,7 @@ function reconnect!(
         end
         reconnection_count += 1
     end
-    (; reconnection_count, filament_removed_count, filament_removed_length,)
+    (; reconnection_count, filaments_removed_count, filaments_removed_length,)
 end
 
 # If we already found a relatively good reconnection candidate, look at the neighbouring
