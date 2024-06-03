@@ -148,6 +148,9 @@ function make_all(; generate_tutorials = true,)
                 "methods/VFM.md",
                 "methods/Ewald.md",
             ],
+            "Tips and tricks" => [
+                "tips/parallelisation.md",
+            ],
             "Modules" => [
                 "modules/PaddedArrays.md",
                 "modules/PredefinedCurves.md",
