@@ -202,6 +202,57 @@ end
         end
     end
 
+    # Test filament removal after a self-reconnection, when one or the two resulting
+    # filaments is too small (≤ 3 nodes for CubicSplineMethod).
+    # Here we test the internal function `reconnect_with_itself!`.
+    @testset "Static: remove filaments" begin
+        Az = 0.001
+        curve = figure_eight_curve(; a = π / 4, Az, translate = (0, 0, 0))
+        (; S, tlims,) = curve
+        @testset "Remove zero or one filament" begin
+            N = 8  # very few points to ensure that a single filament will be removed
+            ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+            info = (p⃗ = zero(Vec3{Float64}),)  # needed in case there are periodic jumps (not the case here)
+            let i = 1, j = 5  # keep both filaments (both have 4 nodes)
+                f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+                fs = [f]
+                nremoved, Lremoved = @inferred Reconnections.reconnect_with_itself!(Returns(nothing), fs, f, i, j, info)
+                @test nremoved == 0
+                @test Lremoved == 0
+                @test length(fs) == 2  # the new `fs` vector contains two filaments
+            end
+            let i = 1, j = 3  # remove the first filament (2 nodes)
+                f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+                fs = [f]
+                nremoved, Lremoved = @inferred Reconnections.reconnect_with_itself!(Returns(nothing), fs, f, i, j, info)
+                @test nremoved == 1
+                @test Lremoved > 0
+                @test length(fs) == 1  # the new `fs` vector contains a single filament
+            end
+            let i = 1, j = 7  # remove the second filament (2 nodes)
+                f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+                fs = [f]
+                nremoved, Lremoved = @inferred Reconnections.reconnect_with_itself!(Returns(nothing), fs, f, i, j, info)
+                @test nremoved == 1
+                @test Lremoved > 0
+                @test length(fs) == 1  # the new `fs` vector contains a single filament
+            end
+        end
+        @testset "Remove the two filaments" begin
+            N = 4  # very few points to ensure that both filaments will be removed
+            ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+            info = (p⃗ = zero(Vec3{Float64}),)  # needed in case there are periodic jumps (not the case here)
+            let i = 1, j = 3  # remove the two filaments (2 nodes each)
+                f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+                fs = [f]
+                nremoved, Lremoved = @inferred Reconnections.reconnect_with_itself!(Returns(nothing), fs, f, i, j, info)
+                @test nremoved == 2
+                @test Lremoved > 0
+                @test length(fs) == 0  # the new `fs` vector is empty
+            end
+        end
+    end
+
     @testset "Dynamic: trefoil knot" begin
         schemes = (RK4(),)
         @testset "Scheme: $scheme" for scheme ∈ schemes

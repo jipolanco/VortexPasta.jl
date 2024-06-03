@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.21.1] - 2024-06-03
+
+### Fixed
+
+- Fix possible assertion error in reconnections when one filament must be
+  removed after a self-reconnection.
+
 ## [0.21.0] - 2024-06-03
 
 ### Added

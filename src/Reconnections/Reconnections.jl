@@ -179,7 +179,7 @@ function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
     @assert T <: AbstractFloat
 
     n = find_filament_index(fs, f)
-    n === nothing && return nothing
+    n === nothing && error("filament `f` not found in vector of filaments `fs`")
 
     gs = split!(f, i, j; p⃗ = info.p⃗)  # = (g₁, g₂)
     @assert length(gs) == 2
@@ -217,10 +217,11 @@ function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
         nremoved = 0
         Lremoved = zero(T)
     else
-        # Otherwise, return the length of the removed filament (which is the first one).
-        @assert m == 2
+        # Otherwise, return the length of the removed filament.
+        @assert count(keep) == 1
+        m_removed = 3 - m  # index of removed filament ∈ (1, 2)
         nremoved = 1
-        Lremoved = filament_length(gs[1])::T
+        Lremoved = filament_length(gs[m_removed])::T
     end
 
     (nremoved, Lremoved)
