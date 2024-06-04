@@ -21,6 +21,7 @@ using ..Filaments:
     knots,
     number_type,
     eltype_nested,
+    close_filament!,
     filament_length,
     RefinementCriterion,
     NoRefinement
@@ -844,12 +845,14 @@ function finalise_step!(iter::VortexFilamentSolver)
     # but this depends on the actual discretisation method). Note that filaments may also
     # be removed during reconnections for the same reason.
     for i ∈ reverse(eachindex(fs))
-        if !Filaments.check_nodes(Bool, fs[i])
+        f = fs[i]
+        if !Filaments.check_nodes(Bool, f)
             # Remove filament and its associated vectors of velocities/streamfunctions.
-            @debug lazy"Removing filament with $(length(fs[i])) nodes"
+            @debug lazy"Removing filament with $(length(f)) nodes"
             # Compute vortex length using the straight segment approximation (no quadratures),
             # since the filament doesn't accept a continuous description at this point.
-            local Lfil = filament_length(fs[i]; quad = nothing)
+            Filaments.close_filament!(f)  # needed before calling filament_length
+            local Lfil = filament_length(f; quad = nothing)
             stats.filaments_removed_count += 1
             stats.filaments_removed_length += Lfil
             popat!(fs, i)

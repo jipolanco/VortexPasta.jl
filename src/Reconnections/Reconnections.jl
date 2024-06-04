@@ -189,6 +189,9 @@ function reconnect_with_itself!(callback::F, fs, f, i, j, info) where {F}
     # (typically if the number of nodes is too small)
     keep = map(g -> check_nodes(Bool, g), gs)
     m = findfirst(keep)  # index of first filament to keep (either 1, 2 or nothing)
+    for g ∈ gs
+        Filaments.close_filament!(g)  # needed before calling filament_length
+    end
 
     if m === nothing
         # We discard the two filaments and remove the original filament from fs.

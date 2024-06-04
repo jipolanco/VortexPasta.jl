@@ -17,7 +17,7 @@ using JET: JET
 using FINUFFT: FINUFFT  # for JET only
 
 # Create a curve which resembles an 8 (or ∞).
-# This specific curve is called the lemniscate of Bernouilli (https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli)
+# This specific curve is called the lemniscate of Bernoulli (https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli)
 # We allow a perturbation in the 3rd direction (Az) so that the curve doesn't exactly cross itself.
 function figure_eight_curve(; a::Real = 1, translate = π * Vec3(1, 1, 1), Az = 0)
     # Note: the crossings are located at t = 0.25 and 0.75.
