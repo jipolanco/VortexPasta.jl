@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.21.3] - 2024-06-04
+
 ### Fixed
 
 - Fix wrong length of removed filaments in simulation stats.
