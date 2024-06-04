@@ -226,7 +226,8 @@ end
                 fs = [f]
                 nremoved, Lremoved = @inferred Reconnections.reconnect_with_itself!(Returns(nothing), fs, f, i, j, info)
                 @test nremoved == 1
-                @test Lremoved > 0
+                # @show Lremoved
+                @test 0.88 < Lremoved < 0.89
                 @test length(fs) == 1  # the new `fs` vector contains a single filament
             end
             let i = 1, j = 7  # remove the second filament (2 nodes)
@@ -234,7 +235,8 @@ end
                 fs = [f]
                 nremoved, Lremoved = @inferred Reconnections.reconnect_with_itself!(Returns(nothing), fs, f, i, j, info)
                 @test nremoved == 1
-                @test Lremoved > 0
+                # @show Lremoved
+                @test 0.96 < Lremoved < 0.97
                 @test length(fs) == 1  # the new `fs` vector contains a single filament
             end
         end
@@ -247,7 +249,8 @@ end
                 fs = [f]
                 nremoved, Lremoved = @inferred Reconnections.reconnect_with_itself!(Returns(nothing), fs, f, i, j, info)
                 @test nremoved == 2
-                @test Lremoved > 0
+                # @show Lremoved
+                @test 2.0 < Lremoved < 2.1
                 @test length(fs) == 0  # the new `fs` vector is empty
             end
         end
