@@ -17,7 +17,7 @@ end
 function check_coefficients(f)
     fc = copy(f)
     # Check that coefficients don't change after calling update_coefficients!.
-    # If they do, it's beacuse the original coefficients are wrong (they don't correctly
+    # If they do, it's because the original coefficients are wrong (they don't correctly
     # interpolate the filament nodes).
     update_coefficients!(fc; knots = knots(fc))
     @test fc.coefs.cs ≈ f.coefs.cs
