@@ -70,6 +70,7 @@ Filaments.distance_to_field
 
 ```@docs
 update_coefficients!
+close_filament!
 change_offset
 fold_periodic!
 redistribute_nodes!

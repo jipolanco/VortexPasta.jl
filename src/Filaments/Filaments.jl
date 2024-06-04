@@ -30,6 +30,7 @@ export
     segments,
     integrate,
     update_coefficients!,
+    close_filament!,
     redistribute_nodes!,
     normalise_derivatives,
     normalise_derivatives!

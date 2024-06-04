@@ -116,6 +116,30 @@ end
 # ======================================================================================== #
 
 """
+    close_filament!(f::ClosedFilament) -> f
+
+Set the filamend endpoint based on its starting point and its end-to-end offset.
+
+This sets `f[end + 1] = f[begin] + Δ⃗` where `Δ⃗` is the end-to-end offset of the filament
+(see [`end_to_end_offset`](@ref)).
+
+Calling this function is *not* needed if one has recently used
+[`update_coefficients!`](@ref), which already closes the filaments.
+This function should be used as a cheaper alternative to `update_coefficients!`, when one
+only wants to close a filament (for instance to compute its length via
+[`filament_length`](@ref)).
+This function can also be used when the filament is no longer considered as "valid" by the
+chosen discretisation method, which happens when the number of nodes falls below some
+threshold (see [`check_nodes`](@ref)).
+"""
+function close_filament!(f::ClosedFilament)
+    f[end + 1] = f[begin] + end_to_end_offset(f)
+    f
+end
+
+# ======================================================================================== #
+
+"""
     filament_length(f::AbstractFilament; quad = nothing) -> Real
     filament_length(fs::AbstractVector{<:AbstractFilament}; quad = nothing) -> Real
 
@@ -128,6 +152,15 @@ A quadrature rule may be optionally passed using `quad` (e.g. `quad = GaussLegen
 to obtain a more accurate result.
 
 See also [`segment_length`](@ref), which is used by this function.
+
+# Requirements
+
+In the straight-segment implementation (`quad = nothing`), one needs the filaments to be
+closed, i.e. `f[end + 1]` should be set to the right value.
+This can be achieved either by [`update_coefficients!`](@ref) or [`close_filament!`](@ref).
+
+In the quadrature-based implementation (`quad <: AbstractQuadrature`), the interpolation
+coefficients must already have been computed via [`update_coefficients!`](@ref).
 """
 function filament_length(f::AbstractFilament; quad = nothing)
     T = eltype(eltype(f))
