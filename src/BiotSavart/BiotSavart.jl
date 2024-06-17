@@ -138,6 +138,87 @@ _make_field_pair(key, ::Nothing, ::Any) = ()
 _make_field_pair(key, vs::AbstractVector, ::Nothing) = (key => vs,)
 Base.@propagate_inbounds _make_field_pair(key, vs::AbstractVector, i::Integer) = (key => vs[i],)
 
+@doc raw"""
+    background_vorticity_correction!(
+        fields::NamedTuple, fs::AbstractVector{<:AbstractFilament}, params::ParamsBiotSavart,
+    )
+
+Correct computed fields in case the mean filament vorticity is non-zero.
+
+This ensures that results do not depend on the Ewald splitting parameter ``α`` when the
+filament "charge" is non-zero in a periodic domain.
+
+In practice, as detailed below, this function only corrects the short-range streamfunction,
+as the velocity is not affected by the background vorticity, and long-range corrections are
+done implicitly in Fourier space.
+
+!!! note
+
+    This function is automatically called by [`compute_on_nodes!`](@ref) and should never be
+    called manually.
+    This documentation is only included for information purposes.
+
+# Extended help
+
+The mean vorticity associated to the filaments is given by
+
+```math
+⟨ \bm{ω} ⟩ = -\frac{Γ}{V} ∮_{\mathcal{C}} \mathrm{d}\bm{s},
+```
+
+where $V = L^3$ is the periodic domain volume.
+
+This quantity is always zero when all filaments are closed. It can be non-zero if there are
+infinite unclosed filaments which are not compensated by oppositely-oriented infinite filaments.
+
+When the mean filament vorticity is non-zero, one must compensate it by adding a uniform background
+vorticity $\bm{ω}_{\text{back}} = -⟨ \bm{ω} ⟩$, so that the total circulation around the
+volume is zero.
+
+In practice, in the long-range component of Ewald summation, this compensation is done
+implicitly by setting the zero mode $\hat{\bm{\omega}}(\bm{k} = \bm{0}) = \bm{0}$. As for
+the short-range component, only the streamfunction needs to be corrected, while the velocity
+is not affected by the background vorticity.
+
+The correction to the short-range streamfunction is given by
+
+```math
+\bm{ψ}^{<}_{\text{back}}
+= \frac{\bm{ω}_{\text{back}}}{4π} ∫_{\mathbb{R}^3} \frac{\operatorname{erfc}(α|\bm{r}|)}{|\bm{r}|} \, \mathrm{d}^3\bm{r}
+= \frac{\bm{ω}_{\text{back}}}{4 α^2}
+```
+
+Therefore, this function simply adds this short-range correction to the streamfunction.
+
+"""
+function background_vorticity_correction!(
+        fields::NamedTuple,
+        fs::AbstractVector{<:AbstractFilament},
+        params::ParamsBiotSavart,
+    )
+    # We only need to modify the streamfunction, so we do nothing if the streamfunction is
+    # not present. (The velocity is not affected by the uniform background vorticity.)
+    ψs_all = get(fields, :streamfunction, nothing)
+    ψs_all === nothing && return fields
+    domain_is_periodic(params) || return fields  # correction only makes sense in periodic domain
+
+    (; Γ, Ls, α,) = params
+
+    # Compute mean vorticity associated to filaments.
+    # This simply corresponds to adding the end_to_end_offset's of each filament.
+    ω⃗_mean = sum(Filaments.end_to_end_offset, fs) * (Γ / prod(Ls))
+    ω⃗_back = -ω⃗_mean  # background vorticity
+
+    # Streamfunction associated to background vorticity
+    ψ⃗_back = ω⃗_back / (4 * α^2)
+
+    @inbounds for ψs ∈ ψs_all, i ∈ eachindex(ψs)
+        ψs[i] = ψs[i] + ψ⃗_back
+    end
+
+    fields
+end
+
 """
     compute_on_nodes!(
         fields::NamedTuple{Names, NTuple{N, V}},
@@ -269,6 +350,7 @@ function compute_on_nodes!(
         @timeit to "Short-range component" begin
             @timeit to "Process point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
             @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
+            @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
         end
     end
 
