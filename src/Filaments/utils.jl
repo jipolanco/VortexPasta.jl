@@ -163,7 +163,7 @@ In the quadrature-based implementation (`quad <: AbstractQuadrature`), the inter
 coefficients must already have been computed via [`update_coefficients!`](@ref).
 """
 function filament_length(f::AbstractFilament; quad = nothing)
-    T = eltype(eltype(f))
+    T = number_type(f)
     @assert T <: AbstractFloat
     L = zero(T)
     for s ∈ segments(f)
@@ -173,7 +173,7 @@ function filament_length(f::AbstractFilament; quad = nothing)
 end
 
 function filament_length(fs::AbstractVector{<:AbstractFilament}; kws...)
-    T = eltype(eltype(eltype(fs)))
+    T = number_type(fs)
     @assert T <: AbstractFloat
     L = zero(T)
     for f ∈ fs

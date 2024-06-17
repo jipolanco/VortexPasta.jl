@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.22.0] - 2024-06-17
+
+### Added
+
+- Better support for non-zero mean vorticity in the domain.
+  We correct the streamfunction so that results do not depend on the splitting parameter $α$.
+  Note that the velocity doesn't need to be corrected, as it's not affected by the background vorticity.
+
 ## [0.21.3] - 2024-06-04
 
 ### Fixed

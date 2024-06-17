@@ -86,8 +86,9 @@ transform_to_fourier!
 similar(::LongRangeCache, ::Dims{3})
 ```
 
-## Other internal types
+## Internals
 
 ```@docs
 BiotSavartCache
+background_vorticity_correction!
 ```

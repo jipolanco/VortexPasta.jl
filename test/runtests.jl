@@ -41,6 +41,7 @@ println()
     @includetest "ring_energy.jl"
     @includetest "ring_perturbed.jl"
     @includetest "ring_collision.jl"
+    @includetest "background_vorticity.jl"
     @includetest "trefoil.jl"
     @includetest "links.jl"
     @includetest "infinite_lines.jl"
