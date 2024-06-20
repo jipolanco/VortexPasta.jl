@@ -92,18 +92,20 @@ function should_reconnect(
     d² > dist_sq && return nothing  # don't reconnect
 
     # Make sure that reconnections reduce the total length (makes sense energetically for vortices).
+    length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])
+    length_after = norm(fy[j + 1] - fx[i] - p⃗) + norm(fx[i + 1] - fy[j] + p⃗)
     if decrease_length
-        length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])
-        length_after = norm(fy[j + 1] - fx[i] - p⃗) + norm(fx[i + 1] - fy[j] + p⃗)
         length_after > length_before && return nothing
     end
 
     X′ = fx(i, ζx, Derivative(1))
     Y′ = fy(j, ζy, Derivative(1))
 
-    # For now, only return the output of find_min_distance + d² if segments should
-    # reconnect.
-    success = (; min_dist..., d²,)
+    # Return the output of find_min_distance + other stuff if segments should reconnect.
+    success = (;
+        min_dist...,
+        d², length_before, length_after,
+    )
 
     xy = X′ ⋅ Y′
     xy < 0 && return success  # always reconnect antiparallel vortices

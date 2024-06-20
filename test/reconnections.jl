@@ -16,6 +16,16 @@ using LinearAlgebra: norm, I, ⋅
 using JET: JET
 using FINUFFT: FINUFFT  # for JET only
 
+# This is just to fake the `info` argument of `reconnect_with_itself!` and
+# `reconnect_with_other!`, which is usually returned by the `should_reconnect` function.
+function dummy_reconnection_info(::Type{T}) where {T}
+    (;
+        p⃗ = zero(Vec3{T}),
+        length_before = zero(T),
+        length_after = zero(T),
+    )
+end
+
 # Create a curve which resembles an 8 (or ∞).
 # This specific curve is called the lemniscate of Bernoulli (https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli)
 # We allow a perturbation in the 3rd direction (Az) so that the curve doesn't exactly cross itself.
@@ -60,8 +70,11 @@ function no_jumps(f::AbstractFilament, lmax)
 end
 
 trefoil_scheme_dt(::Any) = trefoil_scheme_dt(RK4())  # default
-trefoil_scheme_dt(::RK4) = 1
-trefoil_scheme_dt(::SanduMRI33a) = 1
+trefoil_scheme_dt(::RK4) = 1.0
+trefoil_scheme_dt(::DP5) = 1.0
+trefoil_scheme_dt(::SSPRK33) = 0.8
+trefoil_scheme_dt(::KenCarp3) = 0.5
+trefoil_scheme_dt(::Midpoint) = 0.3
 
 function test_trefoil_knot_reconnection(scheme = RK4())
     test_jet = true
@@ -70,20 +83,23 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
     fs_init = [f]
 
-    params_bs = let
-        Ls = (1, 1, 1) .* 2π
-        Ns = (1, 1, 1) .* 32
-        kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
-        α = kmax / 5
-        rcut = 2.5 / α
+    params_bs = let L = 2π
+        Ls = (1, 1, 1) .* L
+        β = 3.0  # accuracy coefficient
+        rcut = L / 2
+        α = β / rcut
+        kmax = 2α * β
+        M = ceil(Int, kmax * L / π)
+        Ns = (1, 1, 1) .* M
         ParamsBiotSavart(;
             Γ = 2.0, α, a = 1e-6, Δ = 1/4, rcut, Ls, Ns,
             backend_short = NaiveShortRangeBackend(),
-            backend_long = FINUFFTBackend(tol = 1e-6),
-            quadrature = GaussLegendre(4),
+            backend_long = FINUFFTBackend(tol = 1e-4),
+            quadrature = GaussLegendre(3),
             lia_segment_fraction = 0.2,
         )
     end
+    # println(params_bs)
 
     times = Float64[]
     energy = similar(times)
@@ -121,9 +137,9 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     tspan = (0.0, 2.0)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
     δ = Filaments.minimum_node_distance(prob.fs)
-    d_crit = δ / 2
+    d_crit = 0.75 * δ
     reconnect = ReconnectBasedOnDistance(d_crit)
-    dt = BiotSavart.kelvin_wave_period(params_bs, δ) * trefoil_scheme_dt(scheme) / 2
+    dt = BiotSavart.kelvin_wave_period(params_bs, δ) * trefoil_scheme_dt(scheme)
     # @show δ d_crit dt
     iter = @inferred init(
         prob, scheme;
@@ -135,20 +151,31 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         callback,
     )
     @time solve!(iter)
+    # println(iter.to)
+
+    energy_rel = energy ./ energy[begin]
 
     let
         plt = lineplot(
-            times, energy;
+            times, energy_rel;
             xlabel = "Time", ylabel = "Energy", title = "Trefoil knot / $scheme",
         )
         println(plt)
     end
 
+    let stats = iter.stats
+        @show stats
+        @test stats.reconnection_count == 3        # total number of reconnections
+        @test stats.reconnection_length_loss > 0   # loss of vortex length due to reconnections
+        @test stats.filaments_removed_count == 0   # no filaments were removed
+        @test stats.filaments_removed_length == 0  # no filaments were removed
+    end
+
     @show t_reconnect[]
     @test n_reconnect[] > 0
-    @test 1.7 < t_reconnect[] < 1.8  # this depends on several parameters...
-    @show last(energy) / first(energy)
-    @test last(energy) < 0.995 * first(energy)
+    @test 1.60 < t_reconnect[] < 1.65  # this depends on several parameters...
+    @show last(energy_rel)
+    @test 0.98 < last(energy_rel) < 0.99
 
     if test_jet
         JET.@test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
@@ -212,7 +239,7 @@ end
         @testset "Remove zero or one filament" begin
             N = 8  # very few points to ensure that a single filament will be removed
             ζs = range(tlims...; length = 2N + 1)[2:2:2N]
-            info = (p⃗ = zero(Vec3{Float64}),)  # needed in case there are periodic jumps (not the case here)
+            info = dummy_reconnection_info(Float64)
             let i = 1, j = 5  # keep both filaments (both have 4 nodes)
                 f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
                 fs = [f]
@@ -243,7 +270,7 @@ end
         @testset "Remove the two filaments" begin
             N = 4  # very few points to ensure that both filaments will be removed
             ζs = range(tlims...; length = 2N + 1)[2:2:2N]
-            info = (p⃗ = zero(Vec3{Float64}),)  # needed in case there are periodic jumps (not the case here)
+            info = dummy_reconnection_info(Float64)
             let i = 1, j = 3  # remove the two filaments (2 nodes each)
                 f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
                 fs = [f]
@@ -257,7 +284,7 @@ end
     end
 
     @testset "Dynamic: trefoil knot" begin
-        schemes = (RK4(),)
+        schemes = (SSPRK33(),)
         @testset "Scheme: $scheme" for scheme ∈ schemes
             test_trefoil_knot_reconnection(scheme)
         end
