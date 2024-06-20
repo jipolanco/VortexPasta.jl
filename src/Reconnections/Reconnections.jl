@@ -57,6 +57,11 @@ This function returns a `NamedTuple` with fields:
 
 - `reconnection_count`: **number of reconnections**;
 
+- `reconnection_length_loss`: **decrease of filament length due to reconnections**. This is
+  simply an estimate for the difference in filament length before and after a reconnection.
+  It is unrelated to (and does not include) filament removal (see below).
+  Uses the straight segment approximation;
+
 - `filaments_removed_count`: **number of filaments removed after reconnection**. This happens
   when a filament reconnects with itself, splitting into two new filaments, and one or both
   of these filaments have an insufficient number of discretisation nodes;
@@ -88,8 +93,15 @@ function reconnect!(
     reconnection_count = 0
     filaments_removed_count = 0
     filaments_removed_length = zero(T)
+    reconnection_length_loss = zero(T)  # decrease of vortex length due to reconnections (not due to removals)
+    ret_base = (;
+        reconnection_count,
+        reconnection_length_loss,
+        filaments_removed_count,
+        filaments_removed_length,
+    )
     if criterion(cache) === NoReconnections()
-        return (; reconnection_count, filaments_removed_count, filaments_removed_length,)
+        return ret_base
     end
     crit = criterion(cache)
     Ls = periods(cache)
@@ -116,9 +128,15 @@ function reconnect!(
             reconnect_with_other!(callback, fs, a.f, b.f, a.i, b.i, info)
             invalidate_candidates!(cache, a.f, b.f)
         end
+        reconnection_length_loss += info.length_before - info.length_after
         reconnection_count += 1
     end
-    (; reconnection_count, filaments_removed_count, filaments_removed_length,)
+    (;
+        reconnection_count,
+        reconnection_length_loss,
+        filaments_removed_count,
+        filaments_removed_length,
+    ) :: typeof(ret_base)
 end
 
 # If we already found a relatively good reconnection candidate, look at the neighbouring

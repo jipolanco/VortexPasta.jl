@@ -676,6 +676,7 @@ function after_advection!(iter::VortexFilamentSolver)
     @timeit to "reconnect!" rec = reconnect!(iter)
     @debug lazy"Number of reconnections: $(rec.reconnection_count)"
     stats.reconnection_count += rec.reconnection_count
+    stats.reconnection_length_loss += rec.reconnection_length_loss
     stats.filaments_removed_count += rec.filaments_removed_count
     stats.filaments_removed_length += rec.filaments_removed_length
     L_fold = periods(prob.p)  # box size (periodicity)

@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.22.1] - 2024-06-20
+
+### Added
+
+- Count decrease of vortex length due to reconnection events during a simulation.
+  Results are stored in the new `iter.stats.reconnection_length_loss` field.
+
 ## [0.22.0] - 2024-06-17
 
 ### Added
