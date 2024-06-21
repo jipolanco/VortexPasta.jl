@@ -4,8 +4,10 @@ using Test
 using LinearAlgebra: norm, normalize, ⋅
 using StaticArrays
 using Statistics: mean, std
+using JET: JET
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
+using VortexPasta.Diagnostics: Diagnostics
 
 function init_ring_filament(; R, z, sign)
     tlims = (0.0, 2.0)
@@ -32,15 +34,19 @@ function test_ring_collision()
     Γ = 2.0
     a = 1e-6
     Δ = 1/4
-    Ls = (2π, 2π, 2π)
-    Ns = (64, 64, 64)
-    kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
-    α = kmax / 6
-    rcut = 4 / α
+    Lbox = 2π
+    Ls = (Lbox, Lbox, Lbox)
+    rcut = Lbox / 3
+    β = 3.5  # accuracy parameter
+    α = β / rcut
+    kmax = 2α * β
+    Ngrid = ceil(Int, kmax * Lbox / π)
+    Ns = (Ngrid, Ngrid, Ngrid)
 
     params = ParamsBiotSavart(;
         Γ, α, a, Δ, rcut, Ls, Ns,
     )
+    # println(params)
 
     cache = BiotSavart.init_cache(params, filaments)
     vs = map(f -> similar(nodes(f)), filaments)
@@ -76,10 +82,21 @@ function test_ring_collision()
         end
     end
 
-    for v ∈ vs
+    # Increase of vortex length dL/dt, can be easily computed for a vortex ring with uniform
+    # radial velocity.
+    stretching_rate_expected = 2π * vradial_expected
+
+    JET.@test_opt Diagnostics.stretching_rate(filaments[1], vs[1])
+    JET.@test_opt Diagnostics.stretching_rate(filaments[1], vs[1]; quad = GaussLegendre(2))
+    JET.@test_call Diagnostics.stretching_rate(filaments[1], vs[1])
+    JET.@test_call Diagnostics.stretching_rate(filaments[1], vs[1]; quad = GaussLegendre(2))
+
+    for (f, v) ∈ zip(filaments, vs)
         v_perp = map(v⃗ -> norm(setindex(v⃗, 0.0, 3)), v)
         @test std(v_perp) < 1e-4
         @test isapprox(mean(v_perp), vradial_expected; rtol = 0.002)
+        dLdt = Diagnostics.stretching_rate(f, v)
+        @test isapprox(dLdt, stretching_rate_expected; rtol = 0.002)
     end
 
     nothing

@@ -66,7 +66,7 @@ function Diagnostics.filament_length(iter::VortexFilamentSolver; kws...)
 end
 
 """
-    Diagnostics.vortex_impulse(iter::VortexFilamentSolver; quad = nothing)
+    Diagnostics.vortex_impulse(iter::VortexFilamentSolver; quad = nothing) -> Vec3
 
 Estimate total normalised impulse of all filaments in a simulation.
 
@@ -77,7 +77,7 @@ function Diagnostics.vortex_impulse(iter::VortexFilamentSolver; kws...)
 end
 
 """
-    Diagnostics.helicity(iter::VortexFilamentSolver; quad = nothing)
+    Diagnostics.helicity(iter::VortexFilamentSolver; quad = nothing) -> Real
 
 Compute helicity of the instantaneous vortex configuration in a simulation.
 
@@ -86,6 +86,21 @@ See [`Diagnostics.helicity`](@ref) for details.
 function Diagnostics.helicity(iter::VortexFilamentSolver; kws...)
     Γ = BiotSavart.circulation(iter.prob.p)
     Diagnostics.helicity(iter.fs, iter.vs, Γ; kws...)
+end
+
+"""
+    Diagnostics.stretching_rate(iter::VortexFilamentSolver; quad = nothing) -> Real
+
+Compute stretching rate of the instantaneous vortex configuration in a simulation.
+
+This corresponds to the instantaneous rate of increase (or decrease) of total vortex length
+in the simulation. It has units of a velocity (``L T^{-1}``).
+
+See [`Diagnostics.stretching_rate`](@ref) for details.
+"""
+function Diagnostics.stretching_rate(iter::VortexFilamentSolver; kws...)
+    (; fs, vs,) = iter
+    Diagnostics.stretching_rate(fs, vs; kws...)
 end
 
 # This allows passing a VortexFilamentSolver to energy_spectrum / energy_spectrum!.
