@@ -9,8 +9,10 @@ module Diagnostics
 using ..PaddedArrays: PaddedVector
 using ..Filaments:
     Filaments,
-    AbstractFilament, Derivative, Vec3,
-    knots, segments, integrate
+    AbstractFilament, ClosedFilament,
+    Derivative, UnitTangent, Vec3,
+    knots, segments, integrate,
+    number_type
 
 using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, Infinity, ∞
 
@@ -25,6 +27,7 @@ include("energy.jl")
 include("helicity.jl")
 include("filament_length.jl")
 include("vortex_impulse.jl")
+include("stretching.jl")
 include("spectra.jl")
 
 end

@@ -5,7 +5,7 @@ using Statistics: mean, std
 using Random
 using StableRNGs: StableRNG
 using LinearAlgebra: norm, normalize, ⋅, ×
-using UnicodePlots: lineplot
+using UnicodePlots: lineplot, lineplot!
 using VortexPasta
 using VortexPasta.PredefinedCurves: define_curve, Ring
 using VortexPasta.Filaments
@@ -76,6 +76,7 @@ function test_leapfrogging_rings(
     energy_time = Float64[]
     impulse_time = Vec3{Float64}[]  # not used, just for inference tests (JET)
     line_length = Float64[]
+    line_stretching_rate = Float64[]
     sum_of_squared_radii = Float64[]
 
     function callback(iter)
@@ -92,6 +93,7 @@ function test_leapfrogging_rings(
         E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad)
         L = Diagnostics.filament_length(iter; quad)
         p⃗ = Diagnostics.vortex_impulse(iter; quad)
+        dLdt = Diagnostics.stretching_rate(iter; quad)
 
         # R²_all = @inferred sum(vortex_ring_squared_radius, fs)  # inference randomly fails on Julia 1.10-beta1...
         R²_all = 0.0
@@ -105,6 +107,7 @@ function test_leapfrogging_rings(
         end
         push!(energy_time, E)
         push!(line_length, L)
+        push!(line_stretching_rate, dLdt)
         push!(impulse_time, p⃗)
         push!(sum_of_squared_radii, R²_all)
     end
@@ -158,7 +161,26 @@ function test_leapfrogging_rings(
     step!(iter)  # to avoid including compilation time in the next line
     @time solve!(iter)
 
+    if !(method isa FourierMethod)
+        # Check that we perform 0 allocations (in fact there are allocations needed for
+        # interpolations, but they are manually managed using Bumper.jl and not by Julia's GC,
+        # which means they are cheap).
+        @inferred Diagnostics.stretching_rate(iter)
+        @inferred Diagnostics.stretching_rate(iter; quad = GaussLegendre(2))
+        @test 0 == @allocated Diagnostics.stretching_rate(iter)
+        @test 0 == @allocated Diagnostics.stretching_rate(iter; quad = GaussLegendre(2))
+    end
+
     verbose && println(iter.to)
+
+    # Estimation of line length as the time integral of the stetching rate using trapezoidal
+    # rule. This is to verify that the computed stretching rate is correct.
+    line_length_integrated = similar(line_length)
+    line_length_integrated[1] = line_length[1]
+    for i ∈ eachindex(line_length_integrated)[1:end-1]
+        dt = times[i + 1] - times[i]
+        line_length_integrated[i + 1] = line_length_integrated[i] + (dt / 2) * (line_stretching_rate[i] + line_stretching_rate[i + 1])
+    end
 
     # Check that the callback is called at the initial time
     @test first(times) == first(prob.tspan)
@@ -206,7 +228,8 @@ function test_leapfrogging_rings(
                 println(plt)
             end
             let
-                plt = lineplot(times, line_length; xlabel = "Time", ylabel = "Length")
+                plt = lineplot(times, line_length; xlabel = "Time", ylabel = "Length", name = "Actual")
+                lineplot!(plt, times, line_length_integrated; name = "Integrated")
                 println(plt)
             end
             let
@@ -237,6 +260,12 @@ function test_leapfrogging_rings(
         end
         @test impulse_std < rtol_impulse
         @test isapprox(impulse_mean, 1; rtol = rtol_impulse)
+
+        # Check that the integral of dL(t)/dt is approximately L(t).
+        if verbose
+            @show norm(line_length_integrated - line_length) / norm(line_length)
+        end
+        @test isapprox(line_length, line_length_integrated; rtol = rtol_energy / 10)
     end
 
     println()
@@ -249,11 +278,15 @@ end
 @testset "Leapfrogging vortex rings" begin
     ##
     # Grid-related parameters
-    Ls = (1, 1, 1) .* 2π
-    Ns = (1, 1, 1) .* 32
-    kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    α = kmax / 5
-    rcut = 4 * sqrt(2) / α
+    β = 3.5
+    L = 2π
+    rcut = L/2
+    α = β / rcut
+    kmax = 2α * β
+    Ngrid = ceil(Int, kmax * L / π)
+
+    Ls = (1, 1, 1) .* L
+    Ns = (1, 1, 1) .* Ngrid
 
     # Physical vortex parameters
     Γ = 1.2
@@ -262,7 +295,7 @@ end
     params_bs = @inferred ParamsBiotSavart(;
         Γ, a, Δ,
         α, rcut, Ls, Ns,
-        backend_short = CellListsBackend(2),
+        backend_short = NaiveShortRangeBackend(),
         backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4)),
         quadrature = GaussLegendre(3),
     )

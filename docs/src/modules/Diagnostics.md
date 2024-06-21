@@ -35,6 +35,12 @@ filament_length(...)
 
 without needing to import `VortexPasta.Filaments`.
 
+## Stretching rate
+
+```@docs
+stretching_rate
+```
+
 ## Vortex impulse
 
 ```@docs

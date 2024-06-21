@@ -160,6 +160,7 @@ Diagnostics.kinetic_energy_nonperiodic(::VortexFilamentSolver)
 Diagnostics.filament_length(::VortexFilamentSolver)
 Diagnostics.vortex_impulse(::VortexFilamentSolver)
 Diagnostics.helicity(::VortexFilamentSolver)
+Diagnostics.stretching_rate(::VortexFilamentSolver)
 ```
 
 One can also compute **energy spectra** by passing a [`VortexFilamentSolver`](@ref)

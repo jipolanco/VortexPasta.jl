@@ -49,10 +49,10 @@ nderivatives(c::DiscretisationCoefs) = nderivatives(typeof(c))
 Initialise interpolation coefficients.
 
 In the first case, the `ys` vector is interpreted as a vector of values at interpolation
-nodes, and it will not be modified by the function. Moreover, the `nderivs` argument
-indicates the number of derivatives that one wants to be able to compute. By default,
-`nderiv` is chosen as the minimum number of derivatives required by the method (see
-[`required_derivatives`](@ref)).
+nodes, and it will not be modified by the function. Note that this requires the allocation of a coefficient vector.
+Moreover, the `nderivs` argument indicates the number of derivatives that one wants to be
+able to compute. By default, `nderiv` is chosen as the minimum number of derivatives
+required by the method (see [`required_derivatives`](@ref)).
 
 In the second case, `cs` is interpreted as a vector of interpolation coefficients, and is
 thus stored in the returned structure. Moreover, to compute one or more derivatives, one can
@@ -124,7 +124,7 @@ end
 Evaluate interpolation at a given location ``t`` or ``ζ``.
 
 In the first case, ``t`` corresponds to the *global* curve parametrisation.
-One can optionally indicate the segment index `i` (such that `ts[i] ≤ t < ts[i + 1]`) usign
+One can optionally indicate the segment index `i` (such that `ts[i] ≤ t < ts[i + 1]`) using
 the `ileft` keyword argument.
 
 In the second case, ``ζ ∈ [0, 1]`` corresponds to the *local* curve parametrisation, within

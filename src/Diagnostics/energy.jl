@@ -5,8 +5,8 @@ using HCubature: HCubature
 export kinetic_energy_from_streamfunction, kinetic_energy_nonperiodic, kinetic_energy
 
 """
-    kinetic_energy(iter::VortexFilamentSolver; quad = nothing)
-    kinetic_energy(ψs, fs, Γ, [Ls]; quad = nothing)
+    kinetic_energy(iter::VortexFilamentSolver; quad = nothing) -> Real
+    kinetic_energy(ψs, fs, Γ, [Ls]; quad = nothing) -> Real
 
 Compute kinetic energy of velocity field induced by a set of vortex filaments.
 
@@ -183,7 +183,7 @@ end
 # 0 at infinity.
 
 @doc raw"""
-    kinetic_energy_nonperiodic(vs, fs, Γ; quad = nothing)
+    kinetic_energy_nonperiodic(vs, fs, Γ; quad = nothing) -> Real
 
 Compute kinetic energy per unit density (units ``L^5 T^{-2}``) from velocity values at
 filament nodes in an open (non-periodic) domain.

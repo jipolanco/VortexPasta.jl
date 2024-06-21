@@ -3,7 +3,7 @@ export helicity
 using LinearAlgebra: ⋅
 
 @doc raw"""
-    helicity(fs, vs, Γ; quad = nothing)
+    helicity(fs, vs, Γ; quad = nothing) -> Real
 
 Compute helicity of a vortex configuration.
 
@@ -31,7 +31,7 @@ keyword argument.
 function helicity end
 
 function helicity(fs::VectorOfFilaments, vs::SetOfFilamentsData, Γ::Real; kws...)
-    T = eltype(eltype(eltype(fs)))
+    T = number_type(fs)
     @assert T <: AbstractFloat
     H = zero(T)
     for (f, v) ∈ zip(fs, vs)
@@ -45,7 +45,7 @@ function helicity(f::AbstractFilament, vs::SingleFilamentData, Γ::Real; quad = 
 end
 
 function _helicity(::Nothing, f::AbstractFilament, vs::SingleFilamentData, Γ::Real)
-    T = eltype(eltype(f))
+    T = number_type(f)
     @assert T <: AbstractFloat
     H = zero(T)
     ts = knots(f)
@@ -60,7 +60,7 @@ end
 
 # Case with quadratures (requires interpolating the velocity along filaments)
 function _helicity(quad, f::AbstractFilament, vs::SingleFilamentData, Γ::Real)
-    T = eltype(eltype(f))
+    T = number_type(f)
     @assert T <: AbstractFloat
     H = zero(T)
 
