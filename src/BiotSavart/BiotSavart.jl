@@ -207,6 +207,8 @@ function background_vorticity_correction!(
     # Compute mean vorticity associated to filaments.
     # This simply corresponds to adding the end_to_end_offset's of each filament.
     ω⃗_mean = sum(Filaments.end_to_end_offset, fs) * (Γ / prod(Ls))
+    iszero(ω⃗_mean) && return fields  # there's nothing to do if the mean vorticity is zero
+
     ω⃗_back = -ω⃗_mean  # background vorticity
 
     # Streamfunction associated to background vorticity
