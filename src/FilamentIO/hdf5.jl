@@ -486,6 +486,8 @@ See [`Filaments.init`](@ref) for possible options.
 
 One can also read other datasets using `read` and `read!`, as shown and explained below.
 
+# Extended help
+
 ## Typical usage
 
 ```julia
@@ -508,6 +510,29 @@ The available reading functions are:
 
 - `read!(io, vs::AbstractVector{<:AbstractVector}, name::AbstractString)` for reading point
   data onto a preallocated vector of vectors.
+
+## Accessing filament data in `do` block
+
+When using the `do` block syntax as in the above example, one may want to have access to the
+filament locations `fs` from within the `do` block. For instance, this can be useful if one
+has a preallocated vector of velocities `vs` which needs to be resized to match the number
+of filaments and filament nodes, before reading values using `read!`.
+
+In fact, `fs` can be easily obtained from the `io` object:
+
+```julia
+read_vtkhdf("filaments.vtkhdf", Float64, CubicSplineMethod()) do io
+    fs = io.fs  # this is the vector of filaments
+    # Say we want to resize an existent vector of velocities (must have the right type...):
+    resize!(vs, length(fs))
+    for (v, f) ∈ zip(vs, fs)
+        resize!(v, length(nodes(f)))  # resize velocities of a single filament
+    end
+    # Now we can read the velocities
+    read!(io, vs, "Velocity")
+end
+```
+
 """
 function read_vtkhdf(
         func::Func, filename::AbstractString, ::Type{T},
