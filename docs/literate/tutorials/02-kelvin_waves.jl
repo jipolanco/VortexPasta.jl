@@ -295,7 +295,8 @@ end
 using VortexPasta.BiotSavart
 M = round(Int, 32 * 4/5)  # resolution of long-range grid
 kmax = π * M / L          # maximum resolved wavenumber (Nyquist frequency) for long-range part
-α = kmax / 5              # Ewald splitting parameter
+β = 3.5                   # accuracy parameter
+α = kmax / (2β)           # Ewald splitting parameter
 
 params = ParamsBiotSavart(;
     Γ = 1.0,    # vortex circulation
@@ -304,8 +305,8 @@ params = ParamsBiotSavart(;
     α = α,      # Ewald splitting parameter
     Ls = (L, L, L),  # same domain size in all directions
     Ns = (M, M, M),  # same long-range resolution in all directions
-    rcut = 5 / α,    # cut-off distance for short-range computations
-    quadrature = GaussLegendre(2),        # quadrature for integrals over filament segments
+    rcut = β / α,    # cut-off distance for short-range computations
+    quadrature = GaussLegendre(3),        # quadrature for integrals over filament segments
     backend_long = NonuniformFFTsBackend(),  # this is the default
     backend_short = CellListsBackend(2),
 )

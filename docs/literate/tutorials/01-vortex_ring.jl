@@ -217,19 +217,21 @@ nothing  # hide
 # them.
 #
 # Following that page, we start by setting the resolution ``M`` of the numerical grid used
-# for long-range computations, and we set the other parameters based on that:
+# for long-range computations and the accuracy parameter ``β``, and we set the other
+# parameters based on that:
 
 M = round(Int, 64 * 4/5)  # we prefer if the FFT size is a power of 2, here M′ = σM = 64 (where σ = 1.25)
 kmax = π * M / L          # this is the maximum resolved wavenumber (the Nyquist frequency)
-α = kmax / 8              # Ewald splitting parameter || "α" can be typed by "\alpha<tab>"
-rcut = 5 / α              # cut-off distance for short-range computations
+β = 3.5                   # non-dimensional accuracy parameter
+α = kmax / (2β)           # Ewald splitting parameter || "α" can be typed by "\alpha<tab>"
+rcut = β / α              # cut-off distance for short-range computations
 rcut / L                  # note: the cut-off distance should be less than half the period L
 
 # Additionally, we can optionally set the parameters for numerical integration.
 # In particular, we can set the quadrature rule used to approximate line integrals within each filament
 # segment (see [Numerical integration](@ref)):
 
-quadrature = GaussLegendre(4)  # use 4-point Gauss–Legendre quadrature
+quadrature = GaussLegendre(3)  # use 3-point Gauss–Legendre quadrature
 nothing  # hide
 
 # See [`GaussLegendre`](@ref) or the [Wikipedia

@@ -3,6 +3,11 @@
 The main originality of the VortexPasta solver is that it adapts the [Ewald summation](https://en.wikipedia.org/wiki/Ewald_summation) method to accelerate the computation of the Biot--Savart law along vortex filaments.
 See for example [Arnold2005](@citet) for a nice introduction to Ewald methods applied to the electrostatic interaction between point charges.
 
+The adaptation of these methods to the vortex filament model is
+described in [Polanco2024](@citet).
+That paper also explains the role of the different parameters entering
+the method on accuracy and performance.
+
 ```@contents
 Pages = ["Ewald.md"]
 Depth = 2:3
@@ -365,6 +370,9 @@ In practice, we use [Gauss--Legendre quadratures](https://en.wikipedia.org/wiki/
 As detailed above, this method introduces a few parameters which must be tuned for accuracy and performance.
 In fact, **most of these parameters are related** and should not be treated independently.
 For instance, the physical- and Fourier-space cut-offs ``r_\text{cut}`` and ``k_\text{max}`` are clearly related to the Ewald splitting parameter ``α``.
+As described in [Polanco2024](@citet), these can be related by a unique
+non-dimensional parameter ``β = α r_\text{cut} = k_\text{max} / 2α``
+controlling the accuracy of the method.
 
 In practice, one recommended way of setting the parameters is as follows:
 
@@ -376,11 +384,11 @@ In practice, one recommended way of setting the parameters is as follows:
    Choosing ``N`` also sets the **maximum resolved wavenumber** ``k_{\text{max}} = πN/L`` as well as the **physical grid spacing** ``δ = L/N`` associated to the long-range fields.
    The value of ``N`` should be tuned to have a good balance between the time spent on short-range and long-range computations.
 
-1. We can now set the **Ewald splitting parameter** ``α`` as proportional to ``k_{\text{max}}``, following the [discussion above](@ref Ewald-notes-kmax).
-   For instance, setting ``α = k_{\text{max}} / 8`` should correspond to a relative truncation error of about ``10^{-7}``.
+1. Now set the non-dimensional parameter ``β`` to the desired accuracy.
+   For example, ``β = 3.5`` roughly gives ``10^{-6}`` relative accuracy.
 
-1. Finally, we set the short-range cut-off distance ``r_{\text{cut}}`` as inversely proportional to ``α``.
-   As discussed in [Short-range velocity](@ref), choosing ``r_{\text{cut}} = 5/α`` should correspond to a relative truncation error of about ``10^{-10}``.
+1. From ``β`` and ``k_{\text{max}}``, one obtains the remaining parameters
+   ``α = k_{\text{max}} / 2β`` and ``r_\text{cut} = β / α``.
 
 For simplicity here we have assumed that the domain size ``L`` and the resolution ``N`` are the same in all directions, but things are easy to generalise to different ``L`` and ``N`` per direction.
 In all cases, one usually wants the physical grid spacing ``δ = L/N`` (or equivalently the maximum resolved wavenumber ``k_{\text{max}}``) to be the same in all directions.
@@ -394,8 +402,7 @@ In all cases, one usually wants the physical grid spacing ``δ = L/N`` (or equiv
 
 Another parameter to choose is the **size of the quadrature rules** for numerical integration.
 Using Gauss--Legendre quadratures, integrals seem to converge quite fast using a small number of quadrature nodes per filament segment.
-Typically, using 4 nodes seems to be more than enough.
-However, this still deserves further testing, as we expect there to be a relation between the number of quadrature nodes, the typical length of filament nodes (i.e. how finely are filaments discretised) and the Ewald splitting parameter ``α``.
+Typically, using 3 nodes seems to be enough when using [quintic splines](@ref QuinticSplineMethod) to describe filaments.
 
 ## Ewald method for the streamfunction
 
