@@ -180,6 +180,9 @@ make_all(; generate_tutorials = true,)
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
-#=deploydocs(
-    repo = "<repository url>"
-)=#
+deploydocs(;
+    repo = "github.com/jipolanco/VortexPasta.jl.git",
+    branch = "gh-pages",
+    devbranch = "master",
+    forcepush = true,
+)

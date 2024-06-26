@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+    tags: '*'
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    env:
+      JULIA_NUM_THREADS: 2
+    strategy:
+      fail-fast: true
+      matrix:
+        experimental: [false]
+        version:
+          # - '1.9'
+          - '1.10'
+        os:
+          - ubuntu-24.04
+        arch:
+          - x64
+        # include:
+        #   - version: 'nightly'
+        #     os: ubuntu-24.04
+        #     experimental: true
+        #     arch: x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - uses: julia-actions/cache@v2
+        with:
+          cache-registries: "true"
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: Precompile project
+        run: |
+          julia --project -e '
+            using Pkg
+            Pkg.instantiate()
+            Pkg.precompile()
+          '
+      - uses: julia-actions/julia-runtest@v1
+      - uses: julia-actions/julia-processcoverage@v1  # generates lcov.info file
+      # - uses: codecov/codecov-action@v4
+      #   with:
+      #     files: lcov.info
+
+      - name: Generate coverage HTML
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq lcov  # provides genhtml
+          lcov --version  # we want lcov ≥ 2.0
+          genhtml --no-function-coverage --legend -o lcov_html lcov.info  # generates lcov_html/ directory
+
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage
+          path: |
+            lcov.info
+            lcov_html
+
+# vim: shiftwidth=2
