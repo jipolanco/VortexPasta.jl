@@ -1,9 +1,9 @@
 # VortexPasta.jl
 
-[![documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://jipolanco.pages.in2p3.fr/VortexPasta.jl)
-[![pipeline status](https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl/badges/master/pipeline.svg)](https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl/-/commits/master)
-[![coverage report](https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl/badges/master/coverage.svg)](https://jipolanco.pages.in2p3.fr/VortexPasta.jl/coverage)
+[![documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://jipolanco.github.io/VortexPasta.jl/dev/)
+[![build status](https://github.com/jipolanco/VortexPasta.jl/workflows/CI/badge.svg)](https://github.com/jipolanco/VortexPasta.jl/actions)
+[![coverage](https://img.shields.io/badge/coverage-green.svg)](https://jipolanco.github.io/VortexPasta.jl/dev/coverage)
 
 A vortex filament solver for the simulation of quantum vortex flows.
 
-See the [documentation](https://jipolanco.pages.in2p3.fr/VortexPasta.jl/) for an introduction, installation instructions, examples and much more.
+See the [documentation](https://jipolanco.github.io/VortexPasta.jl/dev/) for an introduction, installation instructions, examples and much more.

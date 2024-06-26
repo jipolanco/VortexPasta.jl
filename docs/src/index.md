@@ -130,7 +130,7 @@ It is recommended to install VortexPasta.jl in a local environment, for example 
 To install it, one should first add the "VortexRegistry" package registry, which contains information on how to install VortexPasta.jl:
 
 ```julia-repl
-(simulation) pkg> registry add git@gitlab.in2p3.fr:jipolanco/VortexRegistry.jl.git
+(simulation) pkg> registry add git@github.com:jipolanco/VortexRegistry.jl.git
 ```
 
 !!! warning

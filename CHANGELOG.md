@@ -484,6 +484,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- New [`FourierMethod`](https://jipolanco.pages.in2p3.fr/VortexPasta.jl/modules/Filaments/#VortexPasta.Filaments.FourierMethod) filament discretisation method
+- New [`FourierMethod`](https://jipolanco.github.io/VortexPasta.jl/dev/modules/Filaments/#VortexPasta.Filaments.FourierMethod) filament discretisation method
   for describing filaments using Fourier series (!53).
   Enables accurate estimation of curve derivatives via FFTs, but only for simple settings where discretisation points stay more or less equispaced.
