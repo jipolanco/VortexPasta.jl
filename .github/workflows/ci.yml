@@ -47,8 +47,8 @@ jobs:
         run: |
           julia --project=coverage -e '
             using Pkg
-            Pkg.add("Coverage")
-            using Coverage
+            Pkg.add(["Coverage", "Downloads"])
+            using Coverage, Downloads
             coverage = process_folder("src")
             coverage = append!(coverage, process_folder("ext"))
             cl, tl = get_summary(coverage)
