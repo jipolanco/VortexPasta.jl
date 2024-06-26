@@ -90,8 +90,16 @@ function Remotes.fileurl(remote::Gitlab, ref, filename, linerange)
     String(take!(io))
 end
 
+# Try to detect repo from environment variables automatically defined by the CI platform.
+const REPO = if haskey(ENV, "GITLAB_CI") && haskey(ENV, "CI_PROJECT_URL")  # https://docs.gitlab.com/ee/ci/variables/predefined_variables.html
+    Gitlab(ENV["CI_PROJECT_URL"])
+else
+    # Default: point to github repo
+    Remotes.GitHub("jipolanco", "VortexPasta.jl")
+end
+
 function make_all(; generate_tutorials = true,)
-    repo = Gitlab("https://gitlab.in2p3.fr/jipolanco/VortexPasta.jl")
+    repo = REPO
     warnonly = [:missing_docs]  # TODO can we remove this?
 
     bib = CitationBibliography(
@@ -180,6 +188,12 @@ make_all(; generate_tutorials = true,)
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
-#=deploydocs(
-    repo = "<repository url>"
-)=#
+if haskey(ENV, "GITHUB_REPOSITORY")  # if we're on github
+    deploydocs(;
+        repo = "github.com/jipolanco/VortexPasta.jl.git",
+        branch = "gh-pages",
+        devbranch = "master",
+        forcepush = true,
+        push_preview = true,
+    )
+end

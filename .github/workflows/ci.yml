@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+    tags: '*'
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    env:
+      JULIA_NUM_THREADS: 2
+    strategy:
+      fail-fast: true
+      matrix:
+        experimental: [false]
+        version:
+          # - '1.9'
+          - '1.10'
+        os:
+          - ubuntu-24.04
+        arch:
+          - x64
+        # include:
+        #   - version: 'nightly'
+        #     os: ubuntu-24.04
+        #     experimental: true
+        #     arch: x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+      - uses: julia-actions/julia-processcoverage@v1  # generates lcov.info file
+        with:
+          directories: src,ext
+      # - uses: codecov/codecov-action@v4
+      #   with:
+      #     files: lcov.info
+
+      - name: Generate coverage HTML
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq lcov  # provides genhtml
+          lcov --version  # we want lcov ≥ 2.0
+          genhtml --no-function-coverage --legend -o lcov_html lcov.info  # generates lcov_html/ directory
+
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage
+          path: |
+            lcov.info
+            lcov_html
+
+  docs:
+    needs: test  # for loading coverage data
+
+    permissions:
+      contents: write
+      statuses: write
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.10'
+
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          # This is to be able to render GLMakie figures on the server
+          # See https://github.com/MakieOrg/Makie.jl/blob/master/.github/workflows/Docs.yml
+          sudo apt-get install -qq xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev
+
+      - name: Download coverage data from tests
+        uses: actions/download-artifact@v4
+        with:
+          name: code-coverage
+
+      # Move coverage HTML to docs/src/. Documenter will copy files in src/ to build/.
+      - name: Add coverage HTML to docs
+        run: mv -v lcov_html docs/src/coverage
+
+      - name: Precompile
+        run: |
+          DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e '
+            using Pkg
+            Pkg.Registry.update()
+            Pkg.develop(path = ".")
+            Pkg.precompile(; timing = true)
+            Pkg.instantiate()
+            Pkg.build()
+          '
+
+      - name: Build and deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # If authenticating with GitHub Actions token
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # If authenticating with SSH deploy key
+        run: |
+          DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs --color=yes docs/make.jl
+
+# vim: shiftwidth=2
