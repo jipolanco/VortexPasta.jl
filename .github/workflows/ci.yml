@@ -42,9 +42,27 @@ jobs:
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
-      - uses: julia-actions/julia-processcoverage@v1  # generates lcov.info file
-        with:
-          directories: src,ext
+
+      - name: Coverage
+        run: |
+          julia --project=coverage -e '
+            using Pkg
+            Pkg.add(["Coverage", "Downloads"])
+            using Coverage, Downloads
+            coverage = process_folder("src")
+            coverage = append!(coverage, process_folder("ext"))
+            cl, tl = get_summary(coverage)
+            cov = cl / tl * 100  # percent coverage
+            println(cov, "% coverage")
+            cov_r = round(cov; digits = 2)
+            open(io -> println(io, cov_r), "coverage_percent.info", "w")
+            Downloads.download("https://img.shields.io/badge/coverage-$(cov_r)%25-green", "coverage.svg")  # create badge
+            LCOV.writefile("lcov.info", coverage)
+          '
+
+      # - uses: julia-actions/julia-processcoverage@v1  # generates lcov.info file
+      #   with:
+      #     directories: src,ext
       # - uses: codecov/codecov-action@v4
       #   with:
       #     files: lcov.info
@@ -55,12 +73,15 @@ jobs:
           sudo apt-get install -qq lcov  # provides genhtml
           lcov --version  # we want lcov ≥ 2.0
           genhtml --no-function-coverage --legend -o lcov_html lcov.info  # generates lcov_html/ directory
+          cp -av coverage.svg lcov_html/  # copy badge to HTML output, so that it's accessible from github pages
 
       - name: Archive code coverage results
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage
           path: |
+            coverage_percent.info
+            coverage.svg
             lcov.info
             lcov_html
 
