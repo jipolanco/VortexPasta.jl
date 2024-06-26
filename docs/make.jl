@@ -185,4 +185,5 @@ deploydocs(;
     branch = "gh-pages",
     devbranch = "master",
     forcepush = true,
+    push_preview = true,
 )

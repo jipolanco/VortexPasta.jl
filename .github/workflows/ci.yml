@@ -40,16 +40,7 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
-        with:
-          cache-registries: "true"
       - uses: julia-actions/julia-buildpkg@v1
-      - name: Precompile project
-        run: |
-          julia --project -e '
-            using Pkg
-            Pkg.instantiate()
-            Pkg.precompile()
-          '
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1  # generates lcov.info file
       # - uses: codecov/codecov-action@v4
@@ -70,5 +61,57 @@ jobs:
           path: |
             lcov.info
             lcov_html
+
+  docs:
+    needs: test  # for loading coverage data
+
+    permissions:
+      contents: write
+      statuses: write
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.10'
+
+      - uses: julia-actions/cache@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          # This is to be able to render GLMakie figures on the server
+          # See https://github.com/MakieOrg/Makie.jl/blob/master/.github/workflows/Docs.yml
+          sudo apt-get install -qq xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev
+
+      - name: Download coverage data from tests
+        uses: actions/download-artifact@v4
+        with:
+          name: code-coverage
+
+      # Move coverage HTML to docs/src/. Documenter will copy files in src/ to build/.
+      - name: Add coverage HTML to docs
+        run: mv -v lcov_html docs/src/coverage
+
+      - name: Precompile
+        run: |
+          DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs -e '
+            using Pkg
+            Pkg.Registry.update()
+            Pkg.develop(path = ".")
+            Pkg.precompile(; timing = true)
+            Pkg.instantiate()
+            Pkg.build()
+          '
+
+      - name: Build and deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # If authenticating with GitHub Actions token
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # If authenticating with SSH deploy key
+        run: |
+          DISPLAY=:0 xvfb-run -s '-screen 0 1024x768x24' julia --project=docs --color=yes docs/make.jl
 
 # vim: shiftwidth=2
