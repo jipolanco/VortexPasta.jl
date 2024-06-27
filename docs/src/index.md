@@ -31,7 +31,7 @@ Note that the influence of a vortex on the surrounding space decays relatively s
 A naive implementation, where all such pair interactions are computed one by one, leads to a computational complexity of ``\mathcal{O}(N^2)``, that is, the computational cost increases quickly with the number of discretisation points (or vortices).
 For this reason, simulating fully turbulent flows is prohibitively costly with naive methods.
 
-The VortexPasta.jl solver provides an efficient and accurate implementation of the VFM, specifically intended for vortex flows in **periodic domains**.
+The VortexPasta.jl solver provides an efficient and accurate implementation of the VFM [Polanco2024](@cite), specifically intended for vortex flows in **periodic domains**.
 Its efficiency comes from the use of a [splitting technique](@ref methods-Ewald) derived from the
 [Ewald summation](https://en.wikipedia.org/wiki/Ewald_summation) method, which splits the Biot--Savart integral into a *short-range* and a *long-range* parts.
 This kind of methods is routinely used in the context of molecular dynamics simulations to compute electrostatic Coulomb interactions between point charges.
@@ -84,7 +84,7 @@ end
 
 Above, both packages have been installed in the default environment (`@v1.X`), which is convenient because we want to load these packages no matter which Julia project we're currently working on.
 
-For more specific things (such as doing simulations using VortexPasta.jl), it is [recommended](https://modernjuliaworkflows.github.io/pages/writing/writing/#environments) to install things in a *local* environment, which allows (among other things) to avoid conflicts between package versions when working on different Julia projects.
+For more specific things (such as doing simulations using VortexPasta.jl), it is [recommended](https://modernjuliaworkflows.github.io/writing/#environments) to install things in a *local* environment, which allows (among other things) to avoid conflicts between package versions when working on different Julia projects.
 
 To create a new local environment in the current folder, launch Julia using:[^1]
 
