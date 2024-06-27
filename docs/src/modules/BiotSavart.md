@@ -33,6 +33,12 @@ velocity_on_nodes!
 compute_on_nodes!
 ```
 
+## Other convenience functions
+
+```@docs
+kelvin_wave_period
+```
+
 ## Short-range interactions
 
 ### Backends

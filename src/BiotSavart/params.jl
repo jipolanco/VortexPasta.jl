@@ -390,6 +390,28 @@ function Base.summary(io::IO, p::ParamsBiotSavart{T}) where {T}
     print(io, "ParamsBiotSavart{$T}(Γ = $Γ, a = $a, Δ = $Δ, α = $α, …)")
 end
 
+@doc raw"""
+    BiotSavart.kelvin_wave_period(p::ParamsBiotSavart, λ::Real) -> Real
+
+Return the period ``T(λ)`` associated to Kelvin waves of wavelength ``λ``.
+
+This can be convenient for setting the timestep `dt` associated to a filament discretisation
+distance `δ`. The timestep should typically be proportional to the period of the Kelvin
+waves of wavelength `δ`.
+
+The Kelvin wave period is ``T(λ) = 2π/ω(k)`` where ``k = 2π/λ`` is the wavenumber associated
+to ``λ`` and ``ω(k)`` is the Kelvin wave dispersion relation:
+
+```math
+ω(k) = \frac{Γ k^2}{4π} \left[
+  \ln\left( \frac{2}{k a} \right) - γ + \frac{1}{2} - Δ
+\right]
+```
+
+where ``γ ≈ 0.5772`` is the Euler--Mascheroni constant.
+"""
+function kelvin_wave_period end
+
 # Returns the expected period of a small-amplitude Kelvin wave of wavelength λ.
 # Can be useful when setting a simulation timestep.
 kelvin_wave_period(λ::Real; a, Δ, Γ) = 2 * λ^2 / Γ / (
