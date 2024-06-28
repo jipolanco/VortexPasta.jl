@@ -87,6 +87,7 @@ jobs:
 
   docs:
     needs: test  # for loading coverage data
+    if: ${{ always() }}  # build docs even if tests fail
 
     permissions:
       contents: write
