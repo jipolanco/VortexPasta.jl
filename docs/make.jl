@@ -2,6 +2,7 @@ using Documenter
 using Documenter: Remotes
 using DocumenterCitations
 using Literate: Literate
+using Downloads: Downloads
 
 using VortexPasta
 
@@ -134,15 +135,28 @@ function make_all(; generate_tutorials = true,)
         joinpath("tutorials", replace(name, r"\.jl$" => ".md"))
     end
 
+    assets = [
+        "assets/fonts.css",
+        "assets/tomate.js",
+    ]
+
+    # Try to download latest version of simpleanalytics script.
+    try
+        asset = "assets/sa.js"
+        dst = joinpath("src", asset)
+        Downloads.download("https://scripts.simpleanalyticscdn.com/latest.js", dst)
+        push!(assets, asset)
+    catch e
+        @warn "Failed downloading asset" e
+    end
+
     makedocs(;
         sitename = "VortexPasta",
-        format = Documenter.HTML(
+        format = Documenter.HTML(;
             prettyurls = get(ENV, "CI", nothing) == "true",
             repolink = Remotes.repourl(repo),
             edit_link = "master",
-            assets = [
-                "assets/fonts.css",
-            ],
+            assets,
             size_threshold_ignore = [
                 "modules/Filaments.md",  # this page has too much content so it's relatively large
             ],
