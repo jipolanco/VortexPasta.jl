@@ -28,11 +28,11 @@ jobs:
           - ubuntu-24.04
         arch:
           - x64
-        # include:
-        #   - version: 'nightly'
-        #     os: ubuntu-24.04
-        #     experimental: true
-        #     arch: x64
+        include:
+          - version: 'pre'
+            os: ubuntu-24.04
+            experimental: true
+            arch: x64
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
