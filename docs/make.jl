@@ -143,7 +143,7 @@ function make_all(; generate_tutorials = true,)
     # Try to download latest version of simpleanalytics script.
     try
         asset = "assets/sa.js"
-        dst = joinpath("src", asset)
+        dst = joinpath(@__DIR__, "src", asset)
         Downloads.download("https://scripts.simpleanalyticscdn.com/latest.js", dst)
         push!(assets, asset)
     catch e
