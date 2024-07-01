@@ -78,7 +78,7 @@ jobs:
       - name: Archive code coverage results
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage
+          name: code-coverage-${{ matrix.version }}
           path: |
             coverage_percent.info
             coverage.svg
@@ -115,7 +115,7 @@ jobs:
       - name: Download coverage data from tests
         uses: actions/download-artifact@v4
         with:
-          name: code-coverage
+          name: code-coverage-${{ matrix.version }}  # load coverage from the same Julia version used to build the docs
 
       # Move coverage HTML to docs/src/. Documenter will copy files in src/ to build/.
       - name: Add coverage HTML to docs
