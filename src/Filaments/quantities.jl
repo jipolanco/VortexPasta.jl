@@ -36,10 +36,19 @@ end
     _evaluate(q, f, t; ileft)
 end
 
-"""
+@doc raw"""
     UnitTangent <: GeometricQuantity
 
-Represents the unit tangent vector ``t̂`` at a filament location.
+Represents the unit tangent vector ``\bm{T}`` at a filament location.
+
+In terms of an arbitrary parametrisation ``\bm{s}(t)`` (where ``t`` is in general different
+from the arc length ``ξ``), the unit tangent vector is
+
+```math
+\bm{T} = \frac{\bm{s}'}{|\bm{s}'|}
+```
+
+where derivatives are with respect to the parameter ``t``.
 """
 struct UnitTangent <: GeometricQuantity end
 
@@ -48,12 +57,23 @@ struct UnitTangent <: GeometricQuantity end
     normalize(s′)
 end
 
-"""
+@doc raw"""
     CurvatureVector <: GeometricQuantity
 
 Represents the curvature vector associated to a filament.
 
-The curvature vector is given by ``\\bm{ρ} = ρ n̂`` where ``n̂`` is the unit normal
+In terms of an arbitrary parametrisation ``\bm{s}(t)`` (where ``t`` is in general different
+from the arc length ``ξ``), the curvature vector is
+
+```math
+\bm{ρ}
+= \frac{{|\bm{s}'|}^2 \bm{s}'' - (\bm{s}' ⋅ \bm{s}'') \, \bm{s}'}{|\bm{s}'|^4}
+= \frac{\bm{s}' × (\bm{s}'' × \bm{s}')}{|\bm{s}'|^4}
+```
+
+where derivatives are with respect to the parameter ``t``.
+
+The curvature vector can be written as ``\bm{ρ} = ρ \bm{N}`` where ``\bm{N}`` is the unit normal
 vector and ``ρ`` the scalar curvature (the inverse of the curvature radius).
 """
 struct CurvatureVector <: GeometricQuantity end
@@ -62,30 +82,41 @@ struct CurvatureVector <: GeometricQuantity end
     s′ = f(args..., Derivative(1); kws...)
     s″ = f(args..., Derivative(2); kws...)
     s′² = sum(abs2, s′)
-    (s′² * s″ - (s″ ⋅ s′) * s′) ./ (s′² * s′²)
+    (s′ × (s″ × s′)) ./ (s′² * s′²)
 end
 
-"""
+@doc raw"""
     CurvatureScalar <: GeometricQuantity
 
 Represents the scalar curvature associated to a filament.
 
 This is simply the norm of [`CurvatureVector`](@ref).
+It is explicitly given by
+
+```math
+ρ = \frac{\bm{s}' × \bm{s}''}{|\bm{s}'|^3}
+```
+
+where derivatives are with respect to the arbitrary parametrisation ``\bm{s}(t)``.
 """
 struct CurvatureScalar <: GeometricQuantity end
 
 @inline function _evaluate(::CurvatureScalar, f::AbstractFilament, args...; kws...)
-    ρ⃗ = _evaluate(CurvatureVector(), f, args...; kws...)
-    norm(ρ⃗)
+    s′ = f(args..., Derivative(1); kws...)
+    s″ = f(args..., Derivative(2); kws...)
+    s′² = sum(abs2, s′)
+    s′_norm = sqrt(s′²)
+    norm(s′ × s″) / (s′² * s′_norm)
 end
 
-"""
+@doc raw"""
     CurvatureBinormal <: GeometricQuantity
 
 Represents the scaled binormal vector associated to a filament.
 
-The scaled binormal vector is defined as ``\\bm{b} = t̂ × ρ⃗ = ρ \\, (t̂ × n̂) = ρ \\, b̂``,
-where ``b̂`` is the (unit) binormal vector and ``ρ`` is the scalar curvature.
+The scaled binormal vector is defined as
+``\bm{b} = \bm{T} × ρ⃗ = ρ \, (\bm{T} × \bm{N}) = ρ \bm{B}``,
+where ``\bm{B}`` is the (unit) binormal vector and ``ρ`` is the scalar curvature.
 """
 struct CurvatureBinormal <: GeometricQuantity end
 
