@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-27 12:36:40</td>
+            <td class="headerValue">2024-06-28 14:39:29</td>
             <td></td>
           </tr>
           <tr>
@@ -181,8 +181,8 @@
 <span id="L115"><span class="lineNum">     115</span>              :     Ls            :: Periods</span>
 <span id="L116"><span class="lineNum">     116</span>              : end</span>
 <span id="L117"><span class="lineNum">     117</span>              : </span>
-<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">      241059 : Base.size(cl::PeriodicCellList) = size(cl.head_indices)</span></span>
-<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">       87073 : subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">      241061 : Base.size(cl::PeriodicCellList) = size(cl.head_indices)</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">       87072 : subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M</span></span>
 <span id="L120"><span class="lineNum">     120</span>              : </span>
 <span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">          76 : @inline PeriodicCellList(::Type{T}, rs, Ls, nsubdiv::Val{M}; kws...) where {T, M} =</span></span>
 <span id="L122"><span class="lineNum">     122</span>              :     PeriodicCellList(T, rs, Ls, static(M); kws...)</span>
@@ -257,11 +257,11 @@
 <span id="L191"><span class="lineNum">     191</span> <span class="tlaUNC tlaBgUNC">           0 :     cl</span></span>
 <span id="L192"><span class="lineNum">     192</span>              : end</span>
 <span id="L193"><span class="lineNum">     193</span>              : </span>
-<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC tlaBgGNC">      723184 : @inline function determine_cell_index(x, rcut, L, N)</span></span>
-<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">      723184 :     while x &lt; 0</span></span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC tlaBgGNC">      723179 : @inline function determine_cell_index(x, rcut, L, N)</span></span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">      723182 :     while x &lt; 0</span></span>
 <span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">        5051 :         x += L</span></span>
 <span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">        5051 :     end</span></span>
-<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">      724493 :     while x ≥ L</span></span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">      724494 :     while x ≥ L</span></span>
 <span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC">        1309 :         x -= L</span></span>
 <span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">        1309 :     end</span></span>
 <span id="L201"><span class="lineNum">     201</span>              :     # Here unsafe_trunc(Int, ⋅) is used instead of floor(Int, ⋅) because it should be</span>
@@ -271,7 +271,7 @@
 <span id="L205"><span class="lineNum">     205</span>              :     # throws errors. It can silently give a wrong result if the values are not representable</span>
 <span id="L206"><span class="lineNum">     206</span>              :     # by an Int, but that will never be the case in practice here (since 0 ≤ x/rcut &lt; L/rcut</span>
 <span id="L207"><span class="lineNum">     207</span>              :     # and L/rcut is very small compared to typemax(Int) = 2^63 - 1).</span>
-<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">      723185 :     clamp(1 + unsafe_trunc(Int, x / rcut), 1, N)  # make sure the index is in 1:N</span></span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">      723184 :     clamp(1 + unsafe_trunc(Int, x / rcut), 1, N)  # make sure the index is in 1:N</span></span>
 <span id="L209"><span class="lineNum">     209</span>              : end</span>
 <span id="L210"><span class="lineNum">     210</span>              : </span>
 <span id="L211"><span class="lineNum">     211</span>              : &quot;&quot;&quot;</span>
@@ -333,7 +333,7 @@
 <span id="L267"><span class="lineNum">     267</span>              :         HeadArray &lt;: AbstractArray{IndexType, N},</span>
 <span id="L268"><span class="lineNum">     268</span>              :         CellIndices &lt;: CartesianIndices{N},</span>
 <span id="L269"><span class="lineNum">     269</span>              :     }</span>
-<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC tlaBgGNC">       87072 :     elements     :: ElementList        # contains all elements in all cells</span></span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC tlaBgGNC">       87073 :     elements     :: ElementList        # contains all elements in all cells</span></span>
 <span id="L271"><span class="lineNum">     271</span>              :     head_indices :: HeadArray          # array pointing to the index of the first element in each cell</span>
 <span id="L272"><span class="lineNum">     272</span>              :     next_index   :: Vector{IndexType}  # allows to get the rest of the elements in cell</span>
 <span id="L273"><span class="lineNum">     273</span>              :     cell_indices :: CellIndices        # indices of cells that will be visited</span>
@@ -343,26 +343,26 @@
 <span id="L277"><span class="lineNum">     277</span> <span class="tlaUNC">           0 : Base.IteratorEltype(::Type{&lt;:MultiCellIterator}) = Base.HasEltype()</span></span>
 <span id="L278"><span class="lineNum">     278</span> <span class="tlaUNC">           0 : Base.eltype(::Type{&lt;:MultiCellIterator{T}}) where {T} = T</span></span>
 <span id="L279"><span class="lineNum">     279</span>              : </span>
-<span id="L280"><span class="lineNum">     280</span> <span class="tlaGNC tlaBgGNC">       87072 : @inline function Base.iterate(it::MultiCellIterator)</span></span>
-<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">       87072 :     icell = firstindex(it.cell_indices)</span></span>
-<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">       87072 :     I = @inbounds it.cell_indices[icell]</span></span>
-<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">       87072 :     n = @inbounds it.head_indices[I]</span></span>
-<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">     4244592 :     iterate(it, (icell, n))</span></span>
+<span id="L280"><span class="lineNum">     280</span> <span class="tlaGNC tlaBgGNC">       87073 : @inline function Base.iterate(it::MultiCellIterator)</span></span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">       87073 :     icell = firstindex(it.cell_indices)</span></span>
+<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">       87073 :     I = @inbounds it.cell_indices[icell]</span></span>
+<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">       87073 :     n = @inbounds it.head_indices[I]</span></span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">     4244576 :     iterate(it, (icell, n))</span></span>
 <span id="L285"><span class="lineNum">     285</span>              : end</span>
 <span id="L286"><span class="lineNum">     286</span>              : </span>
-<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">     6756116 : @inline function Base.iterate(it::MultiCellIterator, state)</span></span>
-<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">     6756560 :     (; elements, head_indices, next_index, cell_indices,) = it</span></span>
-<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">     6757715 :     icell, n = state</span></span>
-<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">    17524575 :     while n == EMPTY</span></span>
-<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">    10876725 :         if icell == lastindex(cell_indices)</span></span>
-<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">       87073 :             return nothing  # if this was the last cell, stop iterating</span></span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">     6752181 : @inline function Base.iterate(it::MultiCellIterator, state)</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">     6752142 :     (; elements, head_indices, next_index, cell_indices,) = it</span></span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">     6749233 :     icell, n = state</span></span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">    17507469 :     while n == EMPTY</span></span>
+<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">    10873754 :         if icell == lastindex(cell_indices)</span></span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">       87072 :             return nothing  # if this was the last cell, stop iterating</span></span>
 <span id="L293"><span class="lineNum">     293</span>              :         end</span>
-<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">    10788177 :         icell += 1  # jump to the next cell</span></span>
-<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">    10789403 :         I = @inbounds cell_indices[icell]</span></span>
-<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">    10789114 :         n = @inbounds head_indices[I]</span></span>
-<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">    10789767 :     end</span></span>
-<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">     6668708 :     el = @inbounds elements[n]</span></span>
-<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">     6669067 :     @inbounds el, (icell, next_index[n])</span></span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">    10785819 :         icell += 1  # jump to the next cell</span></span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">    10785634 :         I = @inbounds cell_indices[icell]</span></span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">    10785418 :         n = @inbounds head_indices[I]</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">    10787021 :     end</span></span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">     6659690 :     el = @inbounds elements[n]</span></span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">     6661958 :     @inbounds el, (icell, next_index[n])</span></span>
 <span id="L300"><span class="lineNum">     300</span>              : end</span>
 <span id="L301"><span class="lineNum">     301</span>              : </span>
 <span id="L302"><span class="lineNum">     302</span>              : &quot;&quot;&quot;</span>
@@ -377,14 +377,14 @@
 <span id="L311"><span class="lineNum">     311</span>              : Here `x⃗` should be a coordinate, usually represented by an `SVector{N}` or an `NTuple{N}`.</span>
 <span id="L312"><span class="lineNum">     312</span>              : &quot;&quot;&quot;</span>
 <span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">       87072 : function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}</span></span>
-<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">       87070 :     length(x⃗) == N || throw(DimensionMismatch(lazy&quot;wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)&quot;))</span></span>
-<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">       87070 :     (; rs_cut, Ls,) = cl</span></span>
-<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">       87070 :     cl.isready[] || error(&quot;one must call `finalise_cells!` on the `PeriodicCellList` before iterating using `nearby_elements`&quot;)</span></span>
-<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">       87070 :     inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))</span></span>
-<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">       87073 :     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)</span></span>
-<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">       87073 :     M = subdivisions(cl)</span></span>
-<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">       87073 :     cell_indices = CartesianIndices(</span></span>
-<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">      261219 :         map(i -&gt; (i - M):(i + M), Tuple(I₀))</span></span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">       87072 :     length(x⃗) == N || throw(DimensionMismatch(lazy&quot;wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)&quot;))</span></span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">       87072 :     (; rs_cut, Ls,) = cl</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">       87072 :     cl.isready[] || error(&quot;one must call `finalise_cells!` on the `PeriodicCellList` before iterating using `nearby_elements`&quot;)</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">       87072 :     inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">       87071 :     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)</span></span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">       87072 :     M = subdivisions(cl)</span></span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">       87072 :     cell_indices = CartesianIndices(</span></span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">      261218 :         map(i -&gt; (i - M):(i + M), Tuple(I₀))</span></span>
 <span id="L322"><span class="lineNum">     322</span>              :     )</span>
 <span id="L323"><span class="lineNum">     323</span>              :     # iters = (CellIterator(cl.elements, cl.head_indices[I], cl.next_index) for I ∈ cell_indices)</span>
 <span id="L324"><span class="lineNum">     324</span>              :     # it = Iterators.flatten(iters)  # this gives eltype(it) == Any (but that doesn't seem to affect performance...)</span>

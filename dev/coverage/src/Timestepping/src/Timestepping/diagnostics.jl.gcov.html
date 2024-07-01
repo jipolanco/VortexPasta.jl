@@ -31,13 +31,13 @@
             <td class="headerValue">lcov.info</td>
             <td></td>
             <td class="headerItem">Lines:</td>
-            <td class="headerCovTableEntryHi">96.2&nbsp;%</td>
-            <td class="headerCovTableEntry">26</td>
-            <td class="headerCovTableEntry">25</td>
+            <td class="headerCovTableEntryLo">70.4&nbsp;%</td>
+            <td class="headerCovTableEntry">27</td>
+            <td class="headerCovTableEntry">19</td>
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -77,15 +77,15 @@
 <span id="L11"><span class="lineNum">      11</span>              : </span>
 <span id="L12"><span class="lineNum">      12</span>              : See [`Diagnostics.kinetic_energy_from_streamfunction`](@ref) for details.</span>
 <span id="L13"><span class="lineNum">      13</span>              : &quot;&quot;&quot;</span>
-<span id="L14"><span class="lineNum">      14</span> <span class="tlaGNC tlaBgGNC">       10052 : function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; kws...)</span></span>
-<span id="L15"><span class="lineNum">      15</span> <span class="tlaGNC">        4654 :     (; ψs, fs, external_forcing, t,) = iter</span></span>
-<span id="L16"><span class="lineNum">      16</span> <span class="tlaGNC">        4654 :     Ls = BiotSavart.periods(iter.prob.p)</span></span>
-<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">        4654 :     Γ = BiotSavart.circulation(iter.prob.p)</span></span>
-<span id="L18"><span class="lineNum">      18</span> <span class="tlaGNC">        5434 :     E = Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; kws...)</span></span>
+<span id="L14"><span class="lineNum">      14</span> <span class="tlaGNC tlaBgGNC">       10046 : function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; kws...)</span></span>
+<span id="L15"><span class="lineNum">      15</span> <span class="tlaGNC">        4651 :     (; ψs, fs, external_forcing, t,) = iter</span></span>
+<span id="L16"><span class="lineNum">      16</span> <span class="tlaGNC">        4651 :     Ls = BiotSavart.periods(iter.prob.p)</span></span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">        4651 :     Γ = BiotSavart.circulation(iter.prob.p)</span></span>
+<span id="L18"><span class="lineNum">      18</span> <span class="tlaGNC">        5431 :     E = Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; kws...)</span></span>
 <span id="L19"><span class="lineNum">      19</span>              :     # Add kinetic energy of external velocity field, if available.</span>
 <span id="L20"><span class="lineNum">      20</span>              :     # Note that we only do this if we also included the streamfunction, since otherwise</span>
 <span id="L21"><span class="lineNum">      21</span>              :     # we don't have enough information to estimate the total kinetic energy.</span>
-<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">        4654 :     if external_forcing.velocity !== nothing &amp;&amp; external_forcing.streamfunction !== nothing</span></span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">        4651 :     if external_forcing.velocity !== nothing &amp;&amp; external_forcing.streamfunction !== nothing</span></span>
 <span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">          11 :         E += Diagnostics.kinetic_energy_of_periodic_velocity_field(Ls) do x⃗</span></span>
 <span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">       39897 :             external_forcing.velocity(x⃗, t)</span></span>
 <span id="L25"><span class="lineNum">      25</span>              :         end</span>
@@ -108,13 +108,13 @@
 <span id="L42"><span class="lineNum">      42</span>              :     use [`kinetic_energy_from_streamfunction`](@ref Diagnostics.kinetic_energy_from_streamfunction(::VortexFilamentSolver)), which doesn't have those issues.</span>
 <span id="L43"><span class="lineNum">      43</span>              : </span>
 <span id="L44"><span class="lineNum">      44</span>              : &quot;&quot;&quot;</span>
-<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC tlaBgGNC">           6 : function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws...)</span></span>
-<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">           3 :     (; vs, fs,) = iter</span></span>
-<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">           3 :     Ls = BiotSavart.periods(iter.prob.p)</span></span>
-<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">           3 :     BiotSavart.domain_is_periodic(iter.prob.p) &amp;&amp;</span></span>
-<span id="L49"><span class="lineNum">      49</span>              :         @warn(lazy&quot;`kinetic_energy_nonperiodic` should only be called when working with non-periodic domains (got Ls = $Ls)&quot;)</span>
-<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">           3 :     Γ = BiotSavart.circulation(iter.prob.p)</span></span>
-<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">           3 :     Diagnostics.kinetic_energy_nonperiodic(vs, fs, Γ; kws...)</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaUNC">           0 : function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws...)</span></span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaUNC">           0 :     (; vs, fs,) = iter</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaUNC">           0 :     Ls = BiotSavart.periods(iter.prob.p)</span></span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaUNC">           0 :     BiotSavart.domain_is_periodic(iter.prob.p) &amp;&amp;</span></span>
+<span id="L49"><span class="lineNum">      49</span> <span class="tlaUNC">           0 :         @warn(lazy&quot;`kinetic_energy_nonperiodic` should only be called when working with non-periodic domains (got Ls = $Ls)&quot;)</span></span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaUNC">           0 :     Γ = BiotSavart.circulation(iter.prob.p)</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaUNC">           0 :     Diagnostics.kinetic_energy_nonperiodic(vs, fs, Γ; kws...)</span></span>
 <span id="L52"><span class="lineNum">      52</span>              : end</span>
 <span id="L53"><span class="lineNum">      53</span>              : </span>
 <span id="L54"><span class="lineNum">      54</span>              : # Note: filament_length is actually defined in the Filaments module, but we document its</span>
@@ -127,7 +127,7 @@
 <span id="L61"><span class="lineNum">      61</span>              : </span>
 <span id="L62"><span class="lineNum">      62</span>              : See [`Diagnostics.filament_length`](@ref) for details.</span>
 <span id="L63"><span class="lineNum">      63</span>              : &quot;&quot;&quot;</span>
-<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">         854 : function Diagnostics.filament_length(iter::VortexFilamentSolver; kws...)</span></span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC tlaBgGNC">         854 : function Diagnostics.filament_length(iter::VortexFilamentSolver; kws...)</span></span>
 <span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">         427 :     Diagnostics.filament_length(iter.fs; kws...)</span></span>
 <span id="L66"><span class="lineNum">      66</span>              : end</span>
 <span id="L67"><span class="lineNum">      67</span>              : </span>

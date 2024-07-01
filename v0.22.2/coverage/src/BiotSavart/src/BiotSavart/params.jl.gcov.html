@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-27 12:36:40</td>
+            <td class="headerValue">2024-06-28 14:39:29</td>
             <td></td>
           </tr>
           <tr>
@@ -456,12 +456,34 @@
 <span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">           7 :     print(io, &quot;ParamsBiotSavart{$T}(Γ = $Γ, a = $a, Δ = $Δ, α = $α, …)&quot;)</span></span>
 <span id="L391"><span class="lineNum">     391</span>              : end</span>
 <span id="L392"><span class="lineNum">     392</span>              : </span>
-<span id="L393"><span class="lineNum">     393</span>              : # Returns the expected period of a small-amplitude Kelvin wave of wavelength λ.</span>
-<span id="L394"><span class="lineNum">     394</span>              : # Can be useful when setting a simulation timestep.</span>
-<span id="L395"><span class="lineNum">     395</span> <span class="tlaGNC">        3498 : kelvin_wave_period(λ::Real; a, Δ, Γ) = 2 * λ^2 / Γ / (</span></span>
-<span id="L396"><span class="lineNum">     396</span>              :     log(λ / (π * a)) + 1/2 - (Δ + MathConstants.γ)</span>
-<span id="L397"><span class="lineNum">     397</span>              : )</span>
-<span id="L398"><span class="lineNum">     398</span> <span class="tlaGNC">        1749 : kelvin_wave_period(p::ParamsBiotSavart, λ::Real) = kelvin_wave_period(λ; a = p.a, Δ = p.Δ, Γ = p.Γ)</span></span>
+<span id="L393"><span class="lineNum">     393</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L394"><span class="lineNum">     394</span>              :     BiotSavart.kelvin_wave_period(p::ParamsBiotSavart, λ::Real) -&gt; Real</span>
+<span id="L395"><span class="lineNum">     395</span>              : </span>
+<span id="L396"><span class="lineNum">     396</span>              : Return the period ``T(λ)`` associated to Kelvin waves of wavelength ``λ``.</span>
+<span id="L397"><span class="lineNum">     397</span>              : </span>
+<span id="L398"><span class="lineNum">     398</span>              : This can be convenient for setting the timestep `dt` associated to a filament discretisation</span>
+<span id="L399"><span class="lineNum">     399</span>              : distance `δ`. The timestep should typically be proportional to the period of the Kelvin</span>
+<span id="L400"><span class="lineNum">     400</span>              : waves of wavelength `δ`.</span>
+<span id="L401"><span class="lineNum">     401</span>              : </span>
+<span id="L402"><span class="lineNum">     402</span>              : The Kelvin wave period is ``T(λ) = 2π/ω(k)`` where ``k = 2π/λ`` is the wavenumber associated</span>
+<span id="L403"><span class="lineNum">     403</span>              : to ``λ`` and ``ω(k)`` is the Kelvin wave dispersion relation:</span>
+<span id="L404"><span class="lineNum">     404</span>              : </span>
+<span id="L405"><span class="lineNum">     405</span>              : ```math</span>
+<span id="L406"><span class="lineNum">     406</span>              : ω(k) = \frac{Γ k^2}{4π} \left[</span>
+<span id="L407"><span class="lineNum">     407</span>              :   \ln\left( \frac{2}{k a} \right) - γ + \frac{1}{2} - Δ</span>
+<span id="L408"><span class="lineNum">     408</span>              : \right]</span>
+<span id="L409"><span class="lineNum">     409</span>              : ```</span>
+<span id="L410"><span class="lineNum">     410</span>              : </span>
+<span id="L411"><span class="lineNum">     411</span>              : where ``γ ≈ 0.5772`` is the Euler--Mascheroni constant.</span>
+<span id="L412"><span class="lineNum">     412</span>              : &quot;&quot;&quot;</span>
+<span id="L413"><span class="lineNum">     413</span>              : function kelvin_wave_period end</span>
+<span id="L414"><span class="lineNum">     414</span>              : </span>
+<span id="L415"><span class="lineNum">     415</span>              : # Returns the expected period of a small-amplitude Kelvin wave of wavelength λ.</span>
+<span id="L416"><span class="lineNum">     416</span>              : # Can be useful when setting a simulation timestep.</span>
+<span id="L417"><span class="lineNum">     417</span> <span class="tlaGNC">        3498 : kelvin_wave_period(λ::Real; a, Δ, Γ) = 2 * λ^2 / Γ / (</span></span>
+<span id="L418"><span class="lineNum">     418</span>              :     log(λ / (π * a)) + 1/2 - (Δ + MathConstants.γ)</span>
+<span id="L419"><span class="lineNum">     419</span>              : )</span>
+<span id="L420"><span class="lineNum">     420</span> <span class="tlaGNC">        1749 : kelvin_wave_period(p::ParamsBiotSavart, λ::Real) = kelvin_wave_period(λ; a = p.a, Δ = p.Δ, Γ = p.Γ)</span></span>
         </pre>
               </td>
             </tr>

@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -69,25 +69,25 @@
 <span id="L3"><span class="lineNum">       3</span>              : # The first derivative is a quadratic spline (order k = 3), and the formula to evaluate it</span>
 <span id="L4"><span class="lineNum">       4</span>              : # on a knot is quite simple.</span>
 <span id="L5"><span class="lineNum">       5</span>              : # This should give the same result as f(node.i, 0.0, Derivative(1)), but slightly faster.</span>
-<span id="L6"><span class="lineNum">       6</span> <span class="tlaGNC tlaBgGNC">     1027400 : function _derivative_at_node(</span></span>
+<span id="L6"><span class="lineNum">       6</span> <span class="tlaGNC tlaBgGNC">     1027081 : function _derivative_at_node(</span></span>
 <span id="L7"><span class="lineNum">       7</span>              :         ::Derivative{1}, ::CubicSplineMethod, f::ClosedFilament, node::AtNode,</span>
 <span id="L8"><span class="lineNum">       8</span>              :     )</span>
-<span id="L9"><span class="lineNum">       9</span> <span class="tlaGNC">     1027453 :     (; ts, coefs, Xoffset,) = f</span></span>
-<span id="L10"><span class="lineNum">      10</span> <span class="tlaGNC">     1027573 :     (; i,) = node</span></span>
-<span id="L11"><span class="lineNum">      11</span> <span class="tlaGNC">     1027630 :     cs = coefs.cderivs[1]  # spline coefficients associated to first derivative</span></span>
-<span id="L12"><span class="lineNum">      12</span> <span class="tlaGNC">     4085739 :     t = ntuple(j -&gt; ts[i - 2 + j], Val(3))  # = (ts[i - 1], ts[i], ts[i + 1])</span></span>
-<span id="L13"><span class="lineNum">      13</span> <span class="tlaGNC">     1026024 :     y = (</span></span>
+<span id="L9"><span class="lineNum">       9</span> <span class="tlaGNC">     1027123 :     (; ts, coefs, Xoffset,) = f</span></span>
+<span id="L10"><span class="lineNum">      10</span> <span class="tlaGNC">     1026955 :     (; i,) = node</span></span>
+<span id="L11"><span class="lineNum">      11</span> <span class="tlaGNC">     1026675 :     cs = coefs.cderivs[1]  # spline coefficients associated to first derivative</span></span>
+<span id="L12"><span class="lineNum">      12</span> <span class="tlaGNC">     4082391 :     t = ntuple(j -&gt; ts[i - 2 + j], Val(3))  # = (ts[i - 1], ts[i], ts[i + 1])</span></span>
+<span id="L13"><span class="lineNum">      13</span> <span class="tlaGNC">     1025256 :     y = (</span></span>
 <span id="L14"><span class="lineNum">      14</span>              :         (t[3] - t[2]) * cs[i - 1] +</span>
 <span id="L15"><span class="lineNum">      15</span>              :         (t[2] - t[1]) * cs[i]</span>
 <span id="L16"><span class="lineNum">      16</span>              :     ) / (t[3] - t[1])</span>
-<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">     1025960 :     deperiodise_curve(y, Xoffset, ts, t[2], Val(1))  # only useful if Xoffset ≠ 0 (&quot;infinite&quot; / non-closed filaments)</span></span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">     1025655 :     deperiodise_curve(y, Xoffset, ts, t[2], Val(1))  # only useful if Xoffset ≠ 0 (&quot;infinite&quot; / non-closed filaments)</span></span>
 <span id="L18"><span class="lineNum">      18</span>              : end</span>
 <span id="L19"><span class="lineNum">      19</span>              : </span>
 <span id="L20"><span class="lineNum">      20</span>              : # The second derivative at a node is simply equal to the corresponding spline coefficient.</span>
-<span id="L21"><span class="lineNum">      21</span> <span class="tlaGNC">      926755 : function _derivative_at_node(</span></span>
+<span id="L21"><span class="lineNum">      21</span> <span class="tlaGNC">      926407 : function _derivative_at_node(</span></span>
 <span id="L22"><span class="lineNum">      22</span>              :         ::Derivative{2}, ::CubicSplineMethod, f::ClosedFilament, node::AtNode,</span>
 <span id="L23"><span class="lineNum">      23</span>              :     )</span>
-<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">      926813 :     f.coefs.cderivs[2][node.i]</span></span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">      926339 :     f.coefs.cderivs[2][node.i]</span></span>
 <span id="L25"><span class="lineNum">      25</span>              : end</span>
 <span id="L26"><span class="lineNum">      26</span>              : </span>
 <span id="L27"><span class="lineNum">      27</span>              : # Obtain coefficients `cs` of periodic spline from positions `Xs` and knots `ts`.</span>

@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -129,16 +129,16 @@
 <span id="L63"><span class="lineNum">      63</span>              : </span>
 <span id="L64"><span class="lineNum">      64</span>              : Return the number of points associated to the quadrature.</span>
 <span id="L65"><span class="lineNum">      65</span>              : &quot;&quot;&quot;</span>
-<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC tlaBgGNC">      101323 : Base.length(q::StaticSizeQuadrature) = length(typeof(q))</span></span>
-<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">      101321 : Base.length(::Type{&lt;:StaticSizeQuadrature{N}}) where {N} = N</span></span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC tlaBgGNC">      101431 : Base.length(q::StaticSizeQuadrature) = length(typeof(q))</span></span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">      101434 : Base.length(::Type{&lt;:StaticSizeQuadrature{N}}) where {N} = N</span></span>
 <span id="L68"><span class="lineNum">      68</span>              : </span>
 <span id="L69"><span class="lineNum">      69</span>              : &quot;&quot;&quot;</span>
 <span id="L70"><span class="lineNum">      70</span>              :     GaussLegendre(N) &lt;: StaticSizeQuadrature{N}</span>
 <span id="L71"><span class="lineNum">      71</span>              : </span>
 <span id="L72"><span class="lineNum">      72</span>              : ``N``-point Gauss–Legendre quadrature.</span>
 <span id="L73"><span class="lineNum">      73</span>              : &quot;&quot;&quot;</span>
-<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">        6423 : struct GaussLegendre{N} &lt;: StaticSizeQuadrature{N} end</span></span>
-<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">        6423 : GaussLegendre(N::Int) = GaussLegendre{N}()</span></span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">        6420 : struct GaussLegendre{N} &lt;: StaticSizeQuadrature{N} end</span></span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">        6420 : GaussLegendre(N::Int) = GaussLegendre{N}()</span></span>
 <span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">          15 : _generator(::Type{&lt;:GaussLegendre}) = gausslegendre</span></span>
 <span id="L77"><span class="lineNum">      77</span>              : </span>
 <span id="L78"><span class="lineNum">      78</span>              : &quot;&quot;&quot;</span>
@@ -176,32 +176,32 @@
 <span id="L110"><span class="lineNum">     110</span>              : function integrate end</span>
 <span id="L111"><span class="lineNum">     111</span>              : </span>
 <span id="L112"><span class="lineNum">     112</span>              : # Use default limits (0, 1).</span>
-<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">     6216646 : function integrate(</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">     6214091 : function integrate(</span></span>
 <span id="L114"><span class="lineNum">     114</span>              :         f::F, quad::StaticSizeQuadrature, ::Type{T},</span>
 <span id="L115"><span class="lineNum">     115</span>              :     ) where {F &lt;: Function, T &lt;: AbstractFloat}</span>
-<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">     6216488 :     xs, ws = quadrature(T, quad)</span></span>
-<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">     7516837 :     vs = map(f, xs)</span></span>
-<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">     6199564 :     u = zero(first(vs))</span></span>
-<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">     6201223 :     for j ∈ eachindex(ws, vs)</span></span>
-<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">    15419501 :         u = u + ws[j] * vs[j]</span></span>
-<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">    15424062 :     end</span></span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">     6212648 :     xs, ws = quadrature(T, quad)</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">     7515260 :     vs = map(f, xs)</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">     6201257 :     u = zero(first(vs))</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">     6199774 :     for j ∈ eachindex(ws, vs)</span></span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">    15411672 :         u = u + ws[j] * vs[j]</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">    15416170 :     end</span></span>
 <span id="L122"><span class="lineNum">     122</span> <span class="tlaUNC tlaBgUNC">           0 :     u</span></span>
 <span id="L123"><span class="lineNum">     123</span>              : end</span>
 <span id="L124"><span class="lineNum">     124</span>              : </span>
 <span id="L125"><span class="lineNum">     125</span>              : # Use different limits.</span>
-<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC tlaBgGNC">     1646365 : function integrate(</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC tlaBgGNC">     1646443 : function integrate(</span></span>
 <span id="L127"><span class="lineNum">     127</span>              :         f::F, quad::StaticSizeQuadrature, lims::NTuple{2,T},</span>
 <span id="L128"><span class="lineNum">     128</span>              :     ) where {F &lt;: Function, T &lt;: AbstractFloat}</span>
-<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">     1646355 :     xs, ws = quadrature(T, quad)</span></span>
-<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">     1646378 :     a, b = lims</span></span>
-<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">     1646354 :     δ = b - a</span></span>
-<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">     8045958 :     ys = map(x -&gt; a + δ * x, xs)</span></span>
-<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">     1646532 :     vs = map(f, ys)</span></span>
-<span id="L134"><span class="lineNum">     134</span> <span class="tlaGNC">     1646306 :     u = zero(first(vs))</span></span>
-<span id="L135"><span class="lineNum">     135</span> <span class="tlaGNC">     1646117 :     for j ∈ eachindex(ws, vs)</span></span>
-<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">     6398395 :         u = u + ws[j] * vs[j]</span></span>
-<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">    11150330 :     end</span></span>
-<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">     1646429 :     δ * u</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">     1646445 :     xs, ws = quadrature(T, quad)</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">     1646495 :     a, b = lims</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">     1646494 :     δ = b - a</span></span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">     8046372 :     ys = map(x -&gt; a + δ * x, xs)</span></span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">     1646552 :     vs = map(f, ys)</span></span>
+<span id="L134"><span class="lineNum">     134</span> <span class="tlaGNC">     1646390 :     u = zero(first(vs))</span></span>
+<span id="L135"><span class="lineNum">     135</span> <span class="tlaGNC">     1646268 :     for j ∈ eachindex(ws, vs)</span></span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">     6398945 :         u = u + ws[j] * vs[j]</span></span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">    11151597 :     end</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">     1646506 :     δ * u</span></span>
 <span id="L139"><span class="lineNum">     139</span>              : end</span>
 <span id="L140"><span class="lineNum">     140</span>              : </span>
 <span id="L141"><span class="lineNum">     141</span>              : include(&quot;tanh_sinh.jl&quot;)</span>
@@ -229,10 +229,10 @@
 <span id="L163"><span class="lineNum">     163</span>              : </span>
 <span id="L164"><span class="lineNum">     164</span>              : This only works for fixed-size (non-adaptive) quadrature rules such as [`GaussLegendre`](@ref).</span>
 <span id="L165"><span class="lineNum">     165</span>              : &quot;&quot;&quot;</span>
-<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">    15828249 : @generated quadrature(::Type{T}, q::StaticSizeQuadrature) where {T &lt;: AbstractFloat} =</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">    15823737 : @generated quadrature(::Type{T}, q::StaticSizeQuadrature) where {T &lt;: AbstractFloat} =</span></span>
 <span id="L167"><span class="lineNum">     167</span>              :     _generate(T, q)</span>
 <span id="L168"><span class="lineNum">     168</span>              : </span>
-<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">       52762 : quadrature(q::StaticSizeQuadrature) = quadrature(Float64, q)</span></span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">       52804 : quadrature(q::StaticSizeQuadrature) = quadrature(Float64, q)</span></span>
 <span id="L170"><span class="lineNum">     170</span>              : </span>
 <span id="L171"><span class="lineNum">     171</span>              : end</span>
         </pre>

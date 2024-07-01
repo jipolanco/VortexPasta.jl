@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -116,7 +116,7 @@
 <span id="L50"><span class="lineNum">      50</span>              : # Used internally to evaluate filament coordinates or derivatives on a given</span>
 <span id="L51"><span class="lineNum">      51</span>              : # discretisation node. This is used when calling f[i, Derivative(n)].</span>
 <span id="L52"><span class="lineNum">      52</span>              : struct AtNode</span>
-<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">     3614105 :     i :: Int</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">     3613745 :     i :: Int</span></span>
 <span id="L54"><span class="lineNum">      54</span>              : end</span>
 <span id="L55"><span class="lineNum">      55</span>              : </span>
 <span id="L56"><span class="lineNum">      56</span>              : include(&quot;parametrisations.jl&quot;)</span>
@@ -226,17 +226,17 @@
 <span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">        4796 : parametrisation(f::AbstractFilament) = parametrisation(typeof(f))</span></span>
 <span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">        1740 : parametrisation(fs::AbstractVector{&lt;:AbstractFilament}) = parametrisation(eltype(fs))</span></span>
 <span id="L162"><span class="lineNum">     162</span>              : </span>
-<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">         679 : coefficients(f::AbstractFilament) = f.coefs</span></span>
-<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">         679 : nderivatives(f::AbstractFilament) = nderivatives(coefficients(f))</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">         675 : coefficients(f::AbstractFilament) = f.coefs</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">         675 : nderivatives(f::AbstractFilament) = nderivatives(coefficients(f))</span></span>
 <span id="L165"><span class="lineNum">     165</span>              : </span>
-<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">       58192 : Base.IndexStyle(::Type{&lt;:AbstractFilament}) = IndexLinear()</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">       58187 : Base.IndexStyle(::Type{&lt;:AbstractFilament}) = IndexLinear()</span></span>
 <span id="L167"><span class="lineNum">     167</span>              : </span>
 <span id="L168"><span class="lineNum">     168</span>              : # This is needed since eltype(f) == Vec3{T}</span>
-<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">         670 : Base.similar(f::AbstractFilament, ::Type{Vec3{T}}, dims::Dims{1}) where {T} =</span></span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">         666 : Base.similar(f::AbstractFilament, ::Type{Vec3{T}}, dims::Dims{1}) where {T} =</span></span>
 <span id="L170"><span class="lineNum">     170</span>              :     similar(f, T, dims)</span>
 <span id="L171"><span class="lineNum">     171</span>              : </span>
-<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">        2884 : function Base.copyto!(v::F, u::F) where {F &lt;: AbstractFilament}</span></span>
-<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">        2884 :     map(copyto!, allvectors(v), allvectors(u))</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">        2882 : function Base.copyto!(v::F, u::F) where {F &lt;: AbstractFilament}</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">        2882 :     map(copyto!, allvectors(v), allvectors(u))</span></span>
 <span id="L174"><span class="lineNum">     174</span> <span class="tlaUNC tlaBgUNC">           0 :     v</span></span>
 <span id="L175"><span class="lineNum">     175</span>              : end</span>
 <span id="L176"><span class="lineNum">     176</span>              : </span>
@@ -262,7 +262,7 @@
 <span id="L196"><span class="lineNum">     196</span>              : </span>
 <span id="L197"><span class="lineNum">     197</span>              : Return the nodes (or discretisation points) ``\\bm{s}_i`` of the filament.</span>
 <span id="L198"><span class="lineNum">     198</span>              : &quot;&quot;&quot;</span>
-<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC tlaBgGNC">    19095771 : nodes(f::AbstractFilament) = f.Xs</span></span>
+<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC tlaBgGNC">    19111240 : nodes(f::AbstractFilament) = f.Xs</span></span>
 <span id="L200"><span class="lineNum">     200</span>              : </span>
 <span id="L201"><span class="lineNum">     201</span>              : function node_distance end</span>
 <span id="L202"><span class="lineNum">     202</span>              : function knot_increment end</span>
@@ -336,7 +336,7 @@
 <span id="L270"><span class="lineNum">     270</span>              : </span>
 <span id="L271"><span class="lineNum">     271</span>              : Filaments are parametrised by ``\bm{s}(t)`` for ``t ∈ [0, T]``.</span>
 <span id="L272"><span class="lineNum">     272</span>              : &quot;&quot;&quot;</span>
-<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">    10158013 : knots(f::AbstractFilament) = f.ts</span></span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">    10162157 : knots(f::AbstractFilament) = f.ts</span></span>
 <span id="L274"><span class="lineNum">     274</span>              : </span>
 <span id="L275"><span class="lineNum">     275</span>              : &quot;&quot;&quot;</span>
 <span id="L276"><span class="lineNum">     276</span>              :     minimum_knot_increment(f::AbstractFilament) -&gt; Real</span>
@@ -381,11 +381,11 @@
 <span id="L315"><span class="lineNum">     315</span>              : </span>
 <span id="L316"><span class="lineNum">     316</span>              : Set coordinates of discretisation point ``\\bm{s}_i``.</span>
 <span id="L317"><span class="lineNum">     317</span>              : &quot;&quot;&quot;</span>
-<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">       15977 : Base.@propagate_inbounds Base.setindex!(f::AbstractFilament, v, i::Int) = nodes(f)[i] = v</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">       15945 : Base.@propagate_inbounds Base.setindex!(f::AbstractFilament, v, i::Int) = nodes(f)[i] = v</span></span>
 <span id="L319"><span class="lineNum">     319</span>              : </span>
-<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">       12268 : Base.eltype(::Type{&lt;:AbstractFilament{T}}) where {T} = Vec3{T}  # type returned when indexing into a filament</span></span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">       12266 : Base.eltype(::Type{&lt;:AbstractFilament{T}}) where {T} = Vec3{T}  # type returned when indexing into a filament</span></span>
 <span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">        2643 : Base.eltype(f::AbstractFilament) = eltype(typeof(f))</span></span>
-<span id="L322"><span class="lineNum">     322</span> <span class="tlaGNC">     8959178 : Base.size(f::AbstractFilament) = size(nodes(f))</span></span>
+<span id="L322"><span class="lineNum">     322</span> <span class="tlaGNC">     8960723 : Base.size(f::AbstractFilament) = size(nodes(f))</span></span>
 <span id="L323"><span class="lineNum">     323</span>              : </span>
 <span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">           8 : function Base.showarg(io::IO, f::AbstractFilament, toplevel)</span></span>
 <span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">           8 :     toplevel || print(io, &quot;::&quot;)</span></span>
@@ -431,16 +431,16 @@
 <span id="L365"><span class="lineNum">     365</span>              : One may also obtain derivatives and other geometric quantities at point ``\\bm{s}_i``</span>
 <span id="L366"><span class="lineNum">     366</span>              : by passing an optional [`Derivative`](@ref) or [`GeometricQuantity`](@ref).</span>
 <span id="L367"><span class="lineNum">     367</span>              : &quot;&quot;&quot;</span>
-<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">     9861674 : Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">     9869184 : Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]</span></span>
 <span id="L369"><span class="lineNum">     369</span>              : </span>
-<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">     3666575 : Base.@propagate_inbounds Base.getindex(</span></span>
+<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">     3666195 : Base.@propagate_inbounds Base.getindex(</span></span>
 <span id="L371"><span class="lineNum">     371</span>              :     f::AbstractFilament, i::Int, d::Union{Derivative, GeometricQuantity},</span>
 <span id="L372"><span class="lineNum">     372</span>              : ) = f(AtNode(i), d)</span>
 <span id="L373"><span class="lineNum">     373</span>              : </span>
 <span id="L374"><span class="lineNum">     374</span>              : # This is the default parametrisation for any generic discretisation method.</span>
 <span id="L375"><span class="lineNum">     375</span>              : # Specific discretisation methods (e.g. Fourier) may choose a different default</span>
 <span id="L376"><span class="lineNum">     376</span>              : # parametrisation.</span>
-<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">         246 : default_parametrisation(::DiscretisationMethod) = ChordalParametrisation()</span></span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">         245 : default_parametrisation(::DiscretisationMethod) = ChordalParametrisation()</span></span>
 <span id="L378"><span class="lineNum">     378</span>              : </span>
 <span id="L379"><span class="lineNum">     379</span>              : @doc raw&quot;&quot;&quot;</span>
 <span id="L380"><span class="lineNum">     380</span>              :     Filaments.init(</span>
@@ -675,17 +675,17 @@
 <span id="L609"><span class="lineNum">     609</span>              : some small value. In particular, one can't have a closed filament with less</span>
 <span id="L610"><span class="lineNum">     610</span>              : than 3 nodes (but the specific discretisation method might impose some other small value).</span>
 <span id="L611"><span class="lineNum">     611</span>              : &quot;&quot;&quot;</span>
-<span id="L612"><span class="lineNum">     612</span> <span class="tlaGNC">       11704 : check_nodes(::Type{Bool}, f::AbstractFilament) = _check_nodes(Bool, f)</span></span>
-<span id="L613"><span class="lineNum">     613</span> <span class="tlaGNC">       93753 : check_nodes(f::AbstractFilament) = _check_nodes(Nothing, f)</span></span>
+<span id="L612"><span class="lineNum">     612</span> <span class="tlaGNC">       11702 : check_nodes(::Type{Bool}, f::AbstractFilament) = _check_nodes(Bool, f)</span></span>
+<span id="L613"><span class="lineNum">     613</span> <span class="tlaGNC">       93752 : check_nodes(f::AbstractFilament) = _check_nodes(Nothing, f)</span></span>
 <span id="L614"><span class="lineNum">     614</span>              : </span>
 <span id="L615"><span class="lineNum">     615</span>              : # Limit set by the discretisation method. Can be overridden by other discretisation methods.</span>
 <span id="L616"><span class="lineNum">     616</span> <span class="tlaGNC">       39928 : minimum_nodes(::DiscretisationMethod) = 3</span></span>
 <span id="L617"><span class="lineNum">     617</span>              : </span>
-<span id="L618"><span class="lineNum">     618</span> <span class="tlaGNC">      105457 : function _check_nodes(::Type{T}, f::AbstractFilament) where {T}</span></span>
-<span id="L619"><span class="lineNum">     619</span> <span class="tlaGNC">      105457 :     method = discretisation_method(f)</span></span>
-<span id="L620"><span class="lineNum">     620</span> <span class="tlaGNC">      105457 :     M = minimum_nodes(method)</span></span>
-<span id="L621"><span class="lineNum">     621</span> <span class="tlaGNC">      105457 :     N = length(f)</span></span>
-<span id="L622"><span class="lineNum">     622</span> <span class="tlaGNC">      105457 :     if N &lt; M</span></span>
+<span id="L618"><span class="lineNum">     618</span> <span class="tlaGNC">      105454 : function _check_nodes(::Type{T}, f::AbstractFilament) where {T}</span></span>
+<span id="L619"><span class="lineNum">     619</span> <span class="tlaGNC">      105454 :     method = discretisation_method(f)</span></span>
+<span id="L620"><span class="lineNum">     620</span> <span class="tlaGNC">      105454 :     M = minimum_nodes(method)</span></span>
+<span id="L621"><span class="lineNum">     621</span> <span class="tlaGNC">      105454 :     N = length(f)</span></span>
+<span id="L622"><span class="lineNum">     622</span> <span class="tlaGNC">      105454 :     if N &lt; M</span></span>
 <span id="L623"><span class="lineNum">     623</span> <span class="tlaGNC">           4 :         if T === Bool</span></span>
 <span id="L624"><span class="lineNum">     624</span> <span class="tlaGNC">           4 :             return false</span></span>
 <span id="L625"><span class="lineNum">     625</span>              :         else</span>
@@ -735,19 +735,19 @@
 <span id="L669"><span class="lineNum">     669</span>              : end</span>
 <span id="L670"><span class="lineNum">     670</span>              : </span>
 <span id="L671"><span class="lineNum">     671</span>              : # Update filament parametrisation knots `ts` from node coordinates `Xs`.</span>
-<span id="L672"><span class="lineNum">     672</span> <span class="tlaGNC">       11216 : function _update_knots_periodic!(</span></span>
+<span id="L672"><span class="lineNum">     672</span> <span class="tlaGNC">       11215 : function _update_knots_periodic!(</span></span>
 <span id="L673"><span class="lineNum">     673</span>              :         parametrisation::AbstractParametrisation, ts::PaddedVector,</span>
 <span id="L674"><span class="lineNum">     674</span>              :         Xs::PaddedVector, ::Nothing = nothing,</span>
 <span id="L675"><span class="lineNum">     675</span>              :     )</span>
-<span id="L676"><span class="lineNum">     676</span> <span class="tlaGNC">       11216 :     @assert eachindex(ts) == eachindex(Xs)</span></span>
-<span id="L677"><span class="lineNum">     677</span> <span class="tlaGNC">       11216 :     ts[begin] = 0</span></span>
-<span id="L678"><span class="lineNum">     678</span> <span class="tlaGNC">       11216 :     inds = eachindex(ts)</span></span>
-<span id="L679"><span class="lineNum">     679</span> <span class="tlaGNC">       11216 :     @assert npad(ts) == npad(Xs) ≥ 1</span></span>
-<span id="L680"><span class="lineNum">     680</span> <span class="tlaGNC">       11216 :     @inbounds for i ∈ inds</span></span>
-<span id="L681"><span class="lineNum">     681</span> <span class="tlaGNC">      364060 :         ts[i + 1] = ts[i] + parametrisation(Xs, i)</span></span>
-<span id="L682"><span class="lineNum">     682</span> <span class="tlaGNC">      716904 :     end</span></span>
-<span id="L683"><span class="lineNum">     683</span> <span class="tlaGNC">       11216 :     L = ts[end + 1] - ts[begin]  # knot period</span></span>
-<span id="L684"><span class="lineNum">     684</span> <span class="tlaGNC">       11216 :     pad_periodic!(ts, L)</span></span>
+<span id="L676"><span class="lineNum">     676</span> <span class="tlaGNC">       11215 :     @assert eachindex(ts) == eachindex(Xs)</span></span>
+<span id="L677"><span class="lineNum">     677</span> <span class="tlaGNC">       11215 :     ts[begin] = 0</span></span>
+<span id="L678"><span class="lineNum">     678</span> <span class="tlaGNC">       11215 :     inds = eachindex(ts)</span></span>
+<span id="L679"><span class="lineNum">     679</span> <span class="tlaGNC">       11215 :     @assert npad(ts) == npad(Xs) ≥ 1</span></span>
+<span id="L680"><span class="lineNum">     680</span> <span class="tlaGNC">       11215 :     @inbounds for i ∈ inds</span></span>
+<span id="L681"><span class="lineNum">     681</span> <span class="tlaGNC">      364028 :         ts[i + 1] = ts[i] + parametrisation(Xs, i)</span></span>
+<span id="L682"><span class="lineNum">     682</span> <span class="tlaGNC">      716841 :     end</span></span>
+<span id="L683"><span class="lineNum">     683</span> <span class="tlaGNC">       11215 :     L = ts[end + 1] - ts[begin]  # knot period</span></span>
+<span id="L684"><span class="lineNum">     684</span> <span class="tlaGNC">       11215 :     pad_periodic!(ts, L)</span></span>
 <span id="L685"><span class="lineNum">     685</span>              : end</span>
 <span id="L686"><span class="lineNum">     686</span>              : </span>
 <span id="L687"><span class="lineNum">     687</span>              : # In this case, override the computation of knots and copy the input knot vector.</span>

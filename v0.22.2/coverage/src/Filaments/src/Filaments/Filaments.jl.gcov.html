@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-27 12:36:40</td>
+            <td class="headerValue">2024-06-28 14:39:29</td>
             <td></td>
           </tr>
           <tr>
@@ -116,7 +116,7 @@
 <span id="L50"><span class="lineNum">      50</span>              : # Used internally to evaluate filament coordinates or derivatives on a given</span>
 <span id="L51"><span class="lineNum">      51</span>              : # discretisation node. This is used when calling f[i, Derivative(n)].</span>
 <span id="L52"><span class="lineNum">      52</span>              : struct AtNode</span>
-<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">     3612002 :     i :: Int</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">     3615381 :     i :: Int</span></span>
 <span id="L54"><span class="lineNum">      54</span>              : end</span>
 <span id="L55"><span class="lineNum">      55</span>              : </span>
 <span id="L56"><span class="lineNum">      56</span>              : include(&quot;parametrisations.jl&quot;)</span>
@@ -262,7 +262,7 @@
 <span id="L196"><span class="lineNum">     196</span>              : </span>
 <span id="L197"><span class="lineNum">     197</span>              : Return the nodes (or discretisation points) ``\\bm{s}_i`` of the filament.</span>
 <span id="L198"><span class="lineNum">     198</span>              : &quot;&quot;&quot;</span>
-<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC tlaBgGNC">    19108437 : nodes(f::AbstractFilament) = f.Xs</span></span>
+<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC tlaBgGNC">    19096938 : nodes(f::AbstractFilament) = f.Xs</span></span>
 <span id="L200"><span class="lineNum">     200</span>              : </span>
 <span id="L201"><span class="lineNum">     201</span>              : function node_distance end</span>
 <span id="L202"><span class="lineNum">     202</span>              : function knot_increment end</span>
@@ -336,7 +336,7 @@
 <span id="L270"><span class="lineNum">     270</span>              : </span>
 <span id="L271"><span class="lineNum">     271</span>              : Filaments are parametrised by ``\bm{s}(t)`` for ``t ∈ [0, T]``.</span>
 <span id="L272"><span class="lineNum">     272</span>              : &quot;&quot;&quot;</span>
-<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">    10155784 : knots(f::AbstractFilament) = f.ts</span></span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">    10155258 : knots(f::AbstractFilament) = f.ts</span></span>
 <span id="L274"><span class="lineNum">     274</span>              : </span>
 <span id="L275"><span class="lineNum">     275</span>              : &quot;&quot;&quot;</span>
 <span id="L276"><span class="lineNum">     276</span>              :     minimum_knot_increment(f::AbstractFilament) -&gt; Real</span>
@@ -385,7 +385,7 @@
 <span id="L319"><span class="lineNum">     319</span>              : </span>
 <span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">       12268 : Base.eltype(::Type{&lt;:AbstractFilament{T}}) where {T} = Vec3{T}  # type returned when indexing into a filament</span></span>
 <span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">        2643 : Base.eltype(f::AbstractFilament) = eltype(typeof(f))</span></span>
-<span id="L322"><span class="lineNum">     322</span> <span class="tlaGNC">     8960522 : Base.size(f::AbstractFilament) = size(nodes(f))</span></span>
+<span id="L322"><span class="lineNum">     322</span> <span class="tlaGNC">     8959460 : Base.size(f::AbstractFilament) = size(nodes(f))</span></span>
 <span id="L323"><span class="lineNum">     323</span>              : </span>
 <span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">           8 : function Base.showarg(io::IO, f::AbstractFilament, toplevel)</span></span>
 <span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">           8 :     toplevel || print(io, &quot;::&quot;)</span></span>
@@ -431,9 +431,9 @@
 <span id="L365"><span class="lineNum">     365</span>              : One may also obtain derivatives and other geometric quantities at point ``\\bm{s}_i``</span>
 <span id="L366"><span class="lineNum">     366</span>              : by passing an optional [`Derivative`](@ref) or [`GeometricQuantity`](@ref).</span>
 <span id="L367"><span class="lineNum">     367</span>              : &quot;&quot;&quot;</span>
-<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">     9867785 : Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">     9862122 : Base.@propagate_inbounds Base.getindex(f::AbstractFilament, i::Int) = nodes(f)[i]</span></span>
 <span id="L369"><span class="lineNum">     369</span>              : </span>
-<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">     3664637 : Base.@propagate_inbounds Base.getindex(</span></span>
+<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">     3667647 : Base.@propagate_inbounds Base.getindex(</span></span>
 <span id="L371"><span class="lineNum">     371</span>              :     f::AbstractFilament, i::Int, d::Union{Derivative, GeometricQuantity},</span>
 <span id="L372"><span class="lineNum">     372</span>              : ) = f(AtNode(i), d)</span>
 <span id="L373"><span class="lineNum">     373</span>              : </span>

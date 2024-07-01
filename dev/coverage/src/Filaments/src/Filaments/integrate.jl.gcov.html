@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -103,35 +103,35 @@
 <span id="L37"><span class="lineNum">      37</span>              : end</span>
 <span id="L38"><span class="lineNum">      38</span>              : ```</span>
 <span id="L39"><span class="lineNum">      39</span>              : &quot;&quot;&quot;</span>
-<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC tlaBgGNC">    19449382 : function integrate(</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC tlaBgGNC">    19453232 : function integrate(</span></span>
 <span id="L41"><span class="lineNum">      41</span>              :         integrand::F, f::AbstractFilament, i::Int, quad::AbstractQuadrature;</span>
 <span id="L42"><span class="lineNum">      42</span>              :         limits = nothing,</span>
 <span id="L43"><span class="lineNum">      43</span>              :         _args = (f, i),  # integrand arguments; used internally</span>
 <span id="L44"><span class="lineNum">      44</span>              :     ) where {F}</span>
-<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">     9732799 :     _integrate(integrand, limits, f, i, quad; _args)</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">     9733990 :     _integrate(integrand, limits, f, i, quad; _args)</span></span>
 <span id="L46"><span class="lineNum">      46</span>              : end</span>
 <span id="L47"><span class="lineNum">      47</span>              : </span>
 <span id="L48"><span class="lineNum">      48</span>              : # Here `limits` can be either:</span>
 <span id="L49"><span class="lineNum">      49</span>              : # - `nothing`, for default limits [0, 1]</span>
 <span id="L50"><span class="lineNum">      50</span>              : # - a tuple (a, b), with 0 ≤ a &lt; b ≤ 1.</span>
-<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">    19462694 : function _integrate(integrand::F, limits, f, i, quad; _args) where {F}</span></span>
-<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">     9736200 :     ts = knots(f)</span></span>
-<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">     9736486 :     T = eltype(ts)</span></span>
-<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">     9736203 :     Δt = ts[i + 1] - ts[i]</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">    19464662 : function _integrate(integrand::F, limits, f, i, quad; _args) where {F}</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">     9738941 :     ts = knots(f)</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">     9738021 :     T = eltype(ts)</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">     9737373 :     Δt = ts[i + 1] - ts[i]</span></span>
 <span id="L55"><span class="lineNum">      55</span>              :     # We integrate wrt ζ ∈ [0, 1], then rescale by Δt to obtain an integral wrt t.</span>
-<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">     9728888 :     lims = to_lims_arg(T, limits)</span></span>
-<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">     9728955 :     Δt * Quadratures.integrate(quad, lims) do ζ</span></span>
-<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">   142286034 :         @inline</span></span>
-<span id="L59"><span class="lineNum">      59</span> <span class="tlaGNC">   146614171 :         @inline integrand(_args..., ζ)</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">     9730380 :     lims = to_lims_arg(T, limits)</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">     9731764 :     Δt * Quadratures.integrate(quad, lims) do ζ</span></span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">   142142248 :         @inline</span></span>
+<span id="L59"><span class="lineNum">      59</span> <span class="tlaGNC">   146419413 :         @inline integrand(_args..., ζ)</span></span>
 <span id="L60"><span class="lineNum">      60</span>              :     end</span>
 <span id="L61"><span class="lineNum">      61</span>              : end</span>
 <span id="L62"><span class="lineNum">      62</span>              : </span>
 <span id="L63"><span class="lineNum">      63</span>              : # Convert limits to `lims` arg of Quadratures.integrate.</span>
-<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">     6302348 : to_lims_arg(::Type{T}, ::Nothing) where {T} = T  # default limits (0, 1)</span></span>
-<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">     3425763 : to_lims_arg(::Type{T}, (a, b)::NTuple{2, Real}) where {T} = (T(a), T(b))</span></span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">     6305062 : to_lims_arg(::Type{T}, ::Nothing) where {T} = T  # default limits (0, 1)</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">     3425865 : to_lims_arg(::Type{T}, (a, b)::NTuple{2, Real}) where {T} = (T(a), T(b))</span></span>
 <span id="L66"><span class="lineNum">      66</span>              : </span>
-<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">     6568141 : function integrate(integrand::F, s::Segment, quad::AbstractQuadrature; kws...) where {F}</span></span>
-<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">     3284832 :     integrate(integrand, s.f, s.i, quad; _args = (s,), kws...)</span></span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">     6568652 : function integrate(integrand::F, s::Segment, quad::AbstractQuadrature; kws...) where {F}</span></span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">     3285114 :     integrate(integrand, s.f, s.i, quad; _args = (s,), kws...)</span></span>
 <span id="L69"><span class="lineNum">      69</span>              : end</span>
 <span id="L70"><span class="lineNum">      70</span>              : </span>
 <span id="L71"><span class="lineNum">      71</span>              : &quot;&quot;&quot;</span>
@@ -187,27 +187,27 @@
 <span id="L121"><span class="lineNum">     121</span>              :         T,</span>
 <span id="L122"><span class="lineNum">     122</span>              :         F &lt;: AbstractFilament{T},</span>
 <span id="L123"><span class="lineNum">     123</span>              :     } &lt;: AbstractFilament{T, Nothing, AbstractParametrisation}</span>
-<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">      132573 :     f :: F</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">      133016 :     f :: F</span></span>
 <span id="L125"><span class="lineNum">     125</span>              : end</span>
 <span id="L126"><span class="lineNum">     126</span>              : </span>
-<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">      132571 : @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number)</span></span>
-<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">      132634 :     u(i, ζ, Derivative(0))</span></span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">      132803 : @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number)</span></span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">      132803 :     u(i, ζ, Derivative(0))</span></span>
 <span id="L129"><span class="lineNum">     129</span>              : end</span>
 <span id="L130"><span class="lineNum">     130</span>              : </span>
-<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">      132643 : @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{0})</span></span>
-<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">      132664 :     (; f,) = u</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">      132802 : @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{0})</span></span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">      132801 :     (; f,) = u</span></span>
 <span id="L133"><span class="lineNum">     133</span>              :     # Note: precision could be improved by shifting the &quot;straight&quot; segment in the direction</span>
 <span id="L134"><span class="lineNum">     134</span>              :     # opposite to the curvature vector.</span>
 <span id="L135"><span class="lineNum">     135</span>              :     # See McGreivy et al, Phys. Plasmas 28, 082111 (2021) [https://doi.org/10.1063/5.0058014].</span>
 <span id="L136"><span class="lineNum">     136</span>              :     # However estimating curvatures increases the computation cost, and we want to keep</span>
 <span id="L137"><span class="lineNum">     137</span>              :     # NoQuadrature as cheap as possible.</span>
-<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">      132663 :     (1 - ζ) * f[i] + ζ * f[i + 1]</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">      132802 :     (1 - ζ) * f[i] + ζ * f[i + 1]</span></span>
 <span id="L139"><span class="lineNum">     139</span>              : end</span>
 <span id="L140"><span class="lineNum">     140</span>              : </span>
-<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">      132709 : @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{1})</span></span>
-<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">      132715 :     (; f,) = u</span></span>
-<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">      132741 :     ts = knots(f)</span></span>
-<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">      132735 :     (f[i + 1] - f[i]) ./ (ts[i + 1] - ts[i])</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">      133032 : @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, ::Derivative{1})</span></span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">      133031 :     (; f,) = u</span></span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">      133025 :     ts = knots(f)</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">      133026 :     (f[i + 1] - f[i]) ./ (ts[i + 1] - ts[i])</span></span>
 <span id="L145"><span class="lineNum">     145</span>              : end</span>
 <span id="L146"><span class="lineNum">     146</span>              : </span>
 <span id="L147"><span class="lineNum">     147</span>              : # Not sure if this is used...</span>
@@ -215,27 +215,27 @@
 <span id="L149"><span class="lineNum">     149</span> <span class="tlaUNC">           0 :     (1 - ζ) * u.f[i, d] + ζ * u.f[i + 1, d]</span></span>
 <span id="L150"><span class="lineNum">     150</span>              : end</span>
 <span id="L151"><span class="lineNum">     151</span>              : </span>
-<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC tlaBgGNC">      264208 : function integrate(</span></span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC tlaBgGNC">      265935 : function integrate(</span></span>
 <span id="L153"><span class="lineNum">     153</span>              :         integrand::F, f::AbstractFilament, i::Int, quad::NoQuadrature;</span>
 <span id="L154"><span class="lineNum">     154</span>              :         limits = nothing,</span>
 <span id="L155"><span class="lineNum">     155</span>              :         _args = (NoQuadFilament(f), i),</span>
 <span id="L156"><span class="lineNum">     156</span>              :     ) where {F}</span>
-<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">      132466 :     ts = knots(f)</span></span>
-<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">      132517 :     args = _noquad_replace_args(_args...)  # replaces filaments by NoQuadFilament</span></span>
-<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">      132611 :     Δt = ts[i + 1] - ts[i]</span></span>
-<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">      132851 :     if limits !== nothing</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">      133007 :     ts = knots(f)</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">      133008 :     args = _noquad_replace_args(_args...)  # replaces filaments by NoQuadFilament</span></span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">      133015 :     Δt = ts[i + 1] - ts[i]</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">      133030 :     if limits !== nothing</span></span>
 <span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">          16 :         a, b = limits</span></span>
 <span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">          16 :         Δt *= b - a</span></span>
 <span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">          16 :         ζ = (a + b) / 2</span></span>
 <span id="L164"><span class="lineNum">     164</span>              :     else</span>
-<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">      132837 :         ζ = 0.5</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">      133014 :         ζ = 0.5</span></span>
 <span id="L166"><span class="lineNum">     166</span>              :     end</span>
-<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">      132866 :     Δt * integrand(args..., ζ)</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">      133032 :     Δt * integrand(args..., ζ)</span></span>
 <span id="L168"><span class="lineNum">     168</span>              : end</span>
 <span id="L169"><span class="lineNum">     169</span>              : </span>
 <span id="L170"><span class="lineNum">     170</span>              : # These are the only 2 possible options for _args:</span>
 <span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">         227 : _noquad_replace_args(f::NoQuadFilament, i::Int) = (f, i)</span></span>
-<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">      132292 : _noquad_replace_args(s::Segment) = (Segment(NoQuadFilament(s.f), s.i),)  # replace AbstractFilament by NoQuadFilament</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">      132782 : _noquad_replace_args(s::Segment) = (Segment(NoQuadFilament(s.f), s.i),)  # replace AbstractFilament by NoQuadFilament</span></span>
         </pre>
               </td>
             </tr>

@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -169,7 +169,7 @@
 <span id="L103"><span class="lineNum">     103</span>              :         Coefs &lt;: DiscretisationCoefs{Vec3{T}, Method},</span>
 <span id="L104"><span class="lineNum">     104</span>              :     } &lt;: AbstractFilament{T, Method, Parametrisation}</span>
 <span id="L105"><span class="lineNum">     105</span>              : </span>
-<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC tlaBgGNC">        1083 :     parametrisation :: Parametrisation  # parametrisation function</span></span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC tlaBgGNC">        1078 :     parametrisation :: Parametrisation  # parametrisation function</span></span>
 <span id="L107"><span class="lineNum">     107</span>              : </span>
 <span id="L108"><span class="lineNum">     108</span>              :     # Parametrisation knots tᵢ.</span>
 <span id="L109"><span class="lineNum">     109</span>              :     ts :: Knots</span>
@@ -184,41 +184,41 @@
 <span id="L118"><span class="lineNum">     118</span>              :     Xoffset :: Vec3{T}</span>
 <span id="L119"><span class="lineNum">     119</span>              : end</span>
 <span id="L120"><span class="lineNum">     120</span>              : </span>
-<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">        1864 : function ClosedFilament(</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">        1854 : function ClosedFilament(</span></span>
 <span id="L122"><span class="lineNum">     122</span>              :         parametrisation::F, Xs::PaddedVector{M, Vec3{T}}, method::DiscretisationMethod;</span>
 <span id="L123"><span class="lineNum">     123</span>              :         offset = zero(Vec3{T}), nderivs::Val{Nderivs} = Val(2),</span>
 <span id="L124"><span class="lineNum">     124</span>              :     ) where {F &lt;: Function, M, T, Nderivs}</span>
-<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">         932 :     @assert M == npad(method)</span></span>
-<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">         932 :     ts = similar(Xs, T)</span></span>
-<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">         932 :     coefs = init_coefficients(method, Xs, nderivs)</span></span>
-<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">         932 :     C = continuity(method)</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">         927 :     @assert M == npad(method)</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">         927 :     ts = similar(Xs, T)</span></span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">         927 :     coefs = init_coefficients(method, Xs, nderivs)</span></span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">         927 :     C = continuity(method)</span></span>
 <span id="L129"><span class="lineNum">     129</span>              :     # Always allow Nderivs ≤ 2</span>
-<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">         932 :     max(C, 2) ≥ Nderivs || throw(ArgumentError(lazy&quot;$method only allows up to $C derivatives&quot;))</span></span>
-<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">         932 :     Xoffset = convert(Vec3{T}, offset)</span></span>
-<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">         932 :     ClosedFilament(to_parametrisation(parametrisation), ts, Xs, coefs, Xoffset)</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">         927 :     max(C, 2) ≥ Nderivs || throw(ArgumentError(lazy&quot;$method only allows up to $C derivatives&quot;))</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">         927 :     Xoffset = convert(Vec3{T}, offset)</span></span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">         927 :     ClosedFilament(to_parametrisation(parametrisation), ts, Xs, coefs, Xoffset)</span></span>
 <span id="L133"><span class="lineNum">     133</span>              : end</span>
 <span id="L134"><span class="lineNum">     134</span>              : </span>
 <span id="L135"><span class="lineNum">     135</span> <span class="tlaUNC tlaBgUNC">           0 : ClosedFilament(Xs::PaddedVector, method::DiscretisationMethod; kws...) =</span></span>
 <span id="L136"><span class="lineNum">     136</span>              :     ClosedFilament(default_parametrisation(method), Xs, method; kws...)</span>
 <span id="L137"><span class="lineNum">     137</span>              : </span>
-<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC tlaBgGNC">   273942487 : discretisation_method(::Type{&lt;:ClosedFilament{T, D}}) where {T, D} = D()</span></span>
-<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">   273927908 : discretisation_method(f::ClosedFilament) = discretisation_method(typeof(f))</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC tlaBgGNC">   273820801 : discretisation_method(::Type{&lt;:ClosedFilament{T, D}}) where {T, D} = D()</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">   273729203 : discretisation_method(f::ClosedFilament) = discretisation_method(typeof(f))</span></span>
 <span id="L140"><span class="lineNum">     140</span>              : </span>
 <span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">          20 : interpolation_method(f::ClosedFilament) = interpolation_method(discretisation_method(f))</span></span>
 <span id="L142"><span class="lineNum">     142</span>              : </span>
 <span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">          16 : init(::Type{ClosedFilament}, N::Integer, args...; kws...) =</span></span>
 <span id="L144"><span class="lineNum">     144</span>              :     init(ClosedFilament{Float64}, N, args...; kws...)</span>
 <span id="L145"><span class="lineNum">     145</span>              : </span>
-<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">         136 : init(func::Func, ::Type{ClosedFilament}, args...; kws...) where {Func} =</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">         134 : init(func::Func, ::Type{ClosedFilament}, args...; kws...) where {Func} =</span></span>
 <span id="L147"><span class="lineNum">     147</span>              :     init(func, ClosedFilament{Float64}, args...; kws...)</span>
 <span id="L148"><span class="lineNum">     148</span>              : </span>
-<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">         382 : function init(</span></span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">         380 : function init(</span></span>
 <span id="L150"><span class="lineNum">     150</span>              :         ::Type{ClosedFilament{T}}, N::Integer, method::DiscretisationMethod;</span>
 <span id="L151"><span class="lineNum">     151</span>              :         parametrisation::F = default_parametrisation(method), kws...,</span>
 <span id="L152"><span class="lineNum">     152</span>              :     ) where {T, F}</span>
-<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">         191 :     M = npad(method)</span></span>
-<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">         191 :     Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))</span></span>
-<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">         191 :     ClosedFilament(parametrisation, Xs, method; kws...)</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">         190 :     M = npad(method)</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">         190 :     Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">         190 :     ClosedFilament(parametrisation, Xs, method; kws...)</span></span>
 <span id="L156"><span class="lineNum">     156</span>              : end</span>
 <span id="L157"><span class="lineNum">     157</span>              : </span>
 <span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">         136 : function init(</span></span>
@@ -230,27 +230,27 @@
 <span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">          68 :     update_coefficients!(f)</span></span>
 <span id="L165"><span class="lineNum">     165</span>              : end</span>
 <span id="L166"><span class="lineNum">     166</span>              : </span>
-<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">         158 : function init(</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">         156 : function init(</span></span>
 <span id="L168"><span class="lineNum">     168</span>              :         S::Func, ::Type{ClosedFilament{T}},</span>
 <span id="L169"><span class="lineNum">     169</span>              :         τs::AbstractVector, method::DiscretisationMethod;</span>
 <span id="L170"><span class="lineNum">     170</span>              :         kws...,</span>
 <span id="L171"><span class="lineNum">     171</span>              :     ) where {Func &lt;: Function, T}</span>
-<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">         107 :     offset = S(1) .- S(0)</span></span>
-<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">          79 :     f = init(ClosedFilament{T}, length(τs), method; offset, kws...)</span></span>
-<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">          79 :     @assert eachindex(f) == eachindex(τs)</span></span>
-<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">         158 :     for (i, τ) ∈ pairs(τs)</span></span>
-<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">        3252 :         f[i] = S(τ)</span></span>
-<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">        5529 :     end</span></span>
-<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">          79 :     update_coefficients!(f)</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">         106 :     offset = S(1) .- S(0)</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">          78 :     f = init(ClosedFilament{T}, length(τs), method; offset, kws...)</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">          78 :     @assert eachindex(f) == eachindex(τs)</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">         156 :     for (i, τ) ∈ pairs(τs)</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">        3220 :         f[i] = S(τ)</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">        5466 :     end</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">          78 :     update_coefficients!(f)</span></span>
 <span id="L179"><span class="lineNum">     179</span> <span class="tlaUNC tlaBgUNC">           0 :     f</span></span>
 <span id="L180"><span class="lineNum">     180</span>              : end</span>
 <span id="L181"><span class="lineNum">     181</span>              : </span>
-<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC tlaBgGNC">          86 : function init(</span></span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC tlaBgGNC">          84 : function init(</span></span>
 <span id="L183"><span class="lineNum">     183</span>              :         S::Func, ::Type{ClosedFilament{T}}, N::Integer, args...;</span>
 <span id="L184"><span class="lineNum">     184</span>              :         kws...,</span>
 <span id="L185"><span class="lineNum">     185</span>              :     ) where {Func, T}</span>
-<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">          82 :     τs = range(0, 1; length = 2N + 1)[2:2:2N]</span></span>
-<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">          43 :     init(S, ClosedFilament{T}, τs, args...; kws...)</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">          81 :     τs = range(0, 1; length = 2N + 1)[2:2:2N]</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">          42 :     init(S, ClosedFilament{T}, τs, args...; kws...)</span></span>
 <span id="L188"><span class="lineNum">     188</span>              : end</span>
 <span id="L189"><span class="lineNum">     189</span>              : </span>
 <span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">         567 : function knotlims(f::ClosedFilament)</span></span>
@@ -270,7 +270,7 @@
 <span id="L204"><span class="lineNum">     204</span>              : is the `length` of the filament (i.e. the number of degrees of freedom, or the total number</span>
 <span id="L205"><span class="lineNum">     205</span>              : of *independent* filament nodes).</span>
 <span id="L206"><span class="lineNum">     206</span>              : &quot;&quot;&quot;</span>
-<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">      101056 : end_to_end_offset(f::ClosedFilament) = f.Xoffset</span></span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">      101054 : end_to_end_offset(f::ClosedFilament) = f.Xoffset</span></span>
 <span id="L208"><span class="lineNum">     208</span>              : </span>
 <span id="L209"><span class="lineNum">     209</span>              : &quot;&quot;&quot;</span>
 <span id="L210"><span class="lineNum">     210</span>              :     change_offset(f::ClosedFilament, offset::Vec3{&lt;:Real}) -&gt; f′</span>
@@ -288,39 +288,39 @@
 <span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">         151 :     ClosedFilament(f.parametrisation, f.ts, f.Xs, f.coefs, Xoffset)</span></span>
 <span id="L223"><span class="lineNum">     223</span>              : end</span>
 <span id="L224"><span class="lineNum">     224</span>              : </span>
-<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">       19388 : allvectors(f::ClosedFilament) = (f.ts, f.Xs, allvectors(f.coefs)...)</span></span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">       19384 : allvectors(f::ClosedFilament) = (f.ts, f.Xs, allvectors(f.coefs)...)</span></span>
 <span id="L226"><span class="lineNum">     226</span>              : </span>
-<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">         673 : function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T &lt;: Number}</span></span>
-<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">         673 :     Xs = similar(nodes(f), Vec3{T}, dims)</span></span>
-<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">         673 :     method = discretisation_method(f)</span></span>
-<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">         673 :     nderivs = Val(nderivatives(f))</span></span>
-<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">         673 :     ClosedFilament(f.parametrisation, Xs, method; offset = f.Xoffset, nderivs)</span></span>
+<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">         669 : function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T &lt;: Number}</span></span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">         669 :     Xs = similar(nodes(f), Vec3{T}, dims)</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">         669 :     method = discretisation_method(f)</span></span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">         669 :     nderivs = Val(nderivatives(f))</span></span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">         669 :     ClosedFilament(f.parametrisation, Xs, method; offset = f.Xoffset, nderivs)</span></span>
 <span id="L232"><span class="lineNum">     232</span>              : end</span>
 <span id="L233"><span class="lineNum">     233</span>              : </span>
-<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">      187506 : function update_coefficients!(f::ClosedFilament; knots = nothing)</span></span>
-<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">       93753 :     (; parametrisation, ts, Xs,) = f</span></span>
-<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">       93753 :     Xoffset = end_to_end_offset(f)</span></span>
-<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">       93753 :     M = npad(Xs)</span></span>
-<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">       93753 :     check_nodes(f)</span></span>
+<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">      187504 : function update_coefficients!(f::ClosedFilament; knots = nothing)</span></span>
+<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">       93752 :     (; parametrisation, ts, Xs,) = f</span></span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">       93752 :     Xoffset = end_to_end_offset(f)</span></span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">       93752 :     M = npad(Xs)</span></span>
+<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">       93752 :     check_nodes(f)</span></span>
 <span id="L239"><span class="lineNum">     239</span>              : </span>
 <span id="L240"><span class="lineNum">     240</span>              :     # 1. Periodically pad Xs.</span>
-<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">      386446 :     pad_periodic!(Xs, Xoffset)</span></span>
+<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">      386441 :     pad_periodic!(Xs, Xoffset)</span></span>
 <span id="L242"><span class="lineNum">     242</span>              : </span>
 <span id="L243"><span class="lineNum">     243</span>              :     # 2. Compute parametrisation knots `ts`.</span>
-<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">       93753 :     @assert M == npad(ts)</span></span>
-<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">       93753 :     @assert M ≥ 1  # minimum padding required for computation of ts</span></span>
-<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">       93753 :     _update_knots_periodic!(parametrisation, ts, Xs, knots)</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">       93752 :     @assert M == npad(ts)</span></span>
+<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">       93752 :     @assert M ≥ 1  # minimum padding required for computation of ts</span></span>
+<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">       93752 :     _update_knots_periodic!(parametrisation, ts, Xs, knots)</span></span>
 <span id="L247"><span class="lineNum">     247</span>              : </span>
 <span id="L248"><span class="lineNum">     248</span>              :     # 3. Estimate coefficients needed for derivatives and interpolations.</span>
-<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">       93753 :     _update_coefficients_only!(f)</span></span>
+<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">       93752 :     _update_coefficients_only!(f)</span></span>
 <span id="L250"><span class="lineNum">     250</span>              : </span>
 <span id="L251"><span class="lineNum">     251</span> <span class="tlaUNC tlaBgUNC">           0 :     f</span></span>
 <span id="L252"><span class="lineNum">     252</span>              : end</span>
 <span id="L253"><span class="lineNum">     253</span>              : </span>
-<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC tlaBgGNC">      188110 : function _update_coefficients_only!(f::ClosedFilament; kws...)</span></span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC tlaBgGNC">      188108 : function _update_coefficients_only!(f::ClosedFilament; kws...)</span></span>
 <span id="L255"><span class="lineNum">     255</span>              :     # Dispatch to the implementation associated to the chosen discretisation method.</span>
-<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">       94055 :     method = discretisation_method(f)</span></span>
-<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">       94055 :     _update_coefficients_only!(method, f; kws...)</span></span>
+<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">       94054 :     method = discretisation_method(f)</span></span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">       94054 :     _update_coefficients_only!(method, f; kws...)</span></span>
 <span id="L258"><span class="lineNum">     258</span>              : end</span>
 <span id="L259"><span class="lineNum">     259</span>              : </span>
 <span id="L260"><span class="lineNum">     260</span>              : ## Evaluation of values and derivatives on discretisation points (nodes)</span>
@@ -328,15 +328,15 @@
 <span id="L262"><span class="lineNum">     262</span>              : </span>
 <span id="L263"><span class="lineNum">     263</span>              : # We let the different discretisation methods provide (possibly optimised) implementations</span>
 <span id="L264"><span class="lineNum">     264</span>              : # for derivatives at nodes:</span>
-<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">     6875796 : (f::ClosedFilament)(node::AtNode, d::Derivative) =</span></span>
+<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">     6874615 : (f::ClosedFilament)(node::AtNode, d::Derivative) =</span></span>
 <span id="L266"><span class="lineNum">     266</span>              :     _derivative_at_node(d, discretisation_method(f), f::ClosedFilament, node::AtNode)</span>
 <span id="L267"><span class="lineNum">     267</span>              : </span>
 <span id="L268"><span class="lineNum">     268</span>              : ## Interpolation of values and derivatives in-between nodes</span>
 <span id="L269"><span class="lineNum">     269</span>              : </span>
 <span id="L270"><span class="lineNum">     270</span>              : # 1. If we know the interpolation segment (here ζ ∈ [0, 1])</span>
-<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">   388986315 : function (f::ClosedFilament{T})(i::Int, ζ_in::Number, d::Derivative = Derivative(0)) where {T}</span></span>
-<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">   389545274 :     ζ = _convert_float(T, ζ_in)</span></span>
-<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">   267959772 :     _interpolate(discretisation_method(f), f, i, ζ, d)</span></span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">   389320237 : function (f::ClosedFilament{T})(i::Int, ζ_in::Number, d::Derivative = Derivative(0)) where {T}</span></span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">   389386274 :     ζ = _convert_float(T, ζ_in)</span></span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">   267758481 :     _interpolate(discretisation_method(f), f, i, ζ, d)</span></span>
 <span id="L274"><span class="lineNum">     274</span>              : end</span>
 <span id="L275"><span class="lineNum">     275</span>              : </span>
 <span id="L276"><span class="lineNum">     276</span>              : # 2. If we don't know the interpolation segment (here `t` is the curve parameter).</span>
@@ -351,7 +351,7 @@
 <span id="L285"><span class="lineNum">     285</span>              : # Convert value to type T. We don't perform conversion if the value is not a float.</span>
 <span id="L286"><span class="lineNum">     286</span>              : # This is to workaround issue when working with ForwardDiff.Dual (which is never an</span>
 <span id="L287"><span class="lineNum">     287</span>              : # AbstractFloat).</span>
-<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">   267382050 : _convert_float(::Type{T}, x::AbstractFloat) where {T} = convert(T, x)</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">   267178209 : _convert_float(::Type{T}, x::AbstractFloat) where {T} = convert(T, x)</span></span>
 <span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">          16 : _convert_float(::Type{T}, x) where {T} = x</span></span>
 <span id="L290"><span class="lineNum">     290</span>              : </span>
 <span id="L291"><span class="lineNum">     291</span>              : ## Knot insertion and removal.</span>

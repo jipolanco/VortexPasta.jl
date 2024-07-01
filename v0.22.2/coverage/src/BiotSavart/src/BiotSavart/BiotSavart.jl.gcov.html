@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-27 12:36:40</td>
+            <td class="headerValue">2024-06-28 14:39:29</td>
             <td></td>
           </tr>
           <tr>
@@ -100,8 +100,8 @@
 <span id="L34"><span class="lineNum">      34</span>              : using TimerOutputs: TimerOutput, @timeit, reset_timer!</span>
 <span id="L35"><span class="lineNum">      35</span>              : </span>
 <span id="L36"><span class="lineNum">      36</span>              : abstract type OutputField end</span>
-<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">       96326 : struct Streamfunction &lt;: OutputField end</span></span>
-<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">      102462 : struct Velocity &lt;: OutputField end</span></span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">       96301 : struct Streamfunction &lt;: OutputField end</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">      102459 : struct Velocity &lt;: OutputField end</span></span>
 <span id="L39"><span class="lineNum">      39</span>              : </span>
 <span id="L40"><span class="lineNum">      40</span>              : const VectorOfFilaments = AbstractVector{&lt;:AbstractFilament}</span>
 <span id="L41"><span class="lineNum">      41</span>              : const VectorOfVec = AbstractVector{&lt;:Vec3}</span>
@@ -187,21 +187,21 @@
 <span id="L121"><span class="lineNum">     121</span>              : # Returns a tuple (Streamfunction() =&gt; ψs, Velocity() =&gt; vs) if both fields are available.</span>
 <span id="L122"><span class="lineNum">     122</span>              : # Otherwise, it returns a subset of this which only includes the available fields.</span>
 <span id="L123"><span class="lineNum">     123</span>              : # If `i` is an integer, then `ψs` and `vs` only contain the data associated to a single filament `i`.</span>
-<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">      145619 : Base.@propagate_inbounds function _fields_to_pairs(fields::NamedTuple{Names}, i = nothing) where {Names}</span></span>
-<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">      145615 :     N = length(fields)</span></span>
-<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">       93804 :     @assert N &gt; 0</span></span>
-<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">       93806 :     vs = get(fields, :velocity, nothing)</span></span>
-<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">       93793 :     ψs = get(fields, :streamfunction, nothing)</span></span>
-<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">       93785 :     ps = (</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">      145628 : Base.@propagate_inbounds function _fields_to_pairs(fields::NamedTuple{Names}, i = nothing) where {Names}</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">      145629 :     N = length(fields)</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">       93808 :     @assert N &gt; 0</span></span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">       93807 :     vs = get(fields, :velocity, nothing)</span></span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">       93799 :     ψs = get(fields, :streamfunction, nothing)</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">       93756 :     ps = (</span></span>
 <span id="L130"><span class="lineNum">     130</span>              :         _make_field_pair(Velocity(), vs, i)...,</span>
 <span id="L131"><span class="lineNum">     131</span>              :         _make_field_pair(Streamfunction(), ψs, i)...,</span>
 <span id="L132"><span class="lineNum">     132</span>              :     )</span>
-<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">       93787 :     length(ps) == N || throw(ArgumentError(lazy&quot;some of these fields were not recognised: $Names&quot;))</span></span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">       93752 :     length(ps) == N || throw(ArgumentError(lazy&quot;some of these fields were not recognised: $Names&quot;))</span></span>
 <span id="L134"><span class="lineNum">     134</span> <span class="tlaUNC tlaBgUNC">           0 :     ps</span></span>
 <span id="L135"><span class="lineNum">     135</span>              : end</span>
 <span id="L136"><span class="lineNum">     136</span>              : </span>
-<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC tlaBgGNC">       82948 : _make_field_pair(key, ::Nothing, ::Any) = ()</span></span>
-<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">       59560 : _make_field_pair(key, vs::AbstractVector, ::Nothing) = (key =&gt; vs,)</span></span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC tlaBgGNC">       82918 : _make_field_pair(key, ::Nothing, ::Any) = ()</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">       59564 : _make_field_pair(key, vs::AbstractVector, ::Nothing) = (key =&gt; vs,)</span></span>
 <span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">       45029 : Base.@propagate_inbounds _make_field_pair(key, vs::AbstractVector, i::Integer) = (key =&gt; vs[i],)</span></span>
 <span id="L140"><span class="lineNum">     140</span>              : </span>
 <span id="L141"><span class="lineNum">     141</span>              : @doc raw&quot;&quot;&quot;</span>
@@ -493,13 +493,13 @@
 <span id="L427"><span class="lineNum">     427</span> <span class="tlaGNC">       41893 :     T = typeof(Γ)</span></span>
 <span id="L428"><span class="lineNum">     428</span> <span class="tlaGNC">       41893 :     prefactor_ = prefactor === nothing ? (Γ / T(4π)) : prefactor</span></span>
 <span id="L429"><span class="lineNum">     429</span> <span class="tlaGNC">       41893 :     Threads.@threads :static for i ∈ eachindex(f)</span></span>
-<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">     1960013 :         for (quantity, values) ∈ ps</span></span>
+<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">     1958409 :         for (quantity, values) ∈ ps</span></span>
 <span id="L431"><span class="lineNum">     431</span>              :             # Here `quantity` is either Velocity() or Streamfunction()</span>
-<span id="L432"><span class="lineNum">     432</span> <span class="tlaGNC">     2109919 :             @inbounds values[i] = local_self_induced(</span></span>
+<span id="L432"><span class="lineNum">     432</span> <span class="tlaGNC">     2108526 :             @inbounds values[i] = local_self_induced(</span></span>
 <span id="L433"><span class="lineNum">     433</span>              :                 quantity, f, i, prefactor_;</span>
 <span id="L434"><span class="lineNum">     434</span>              :                 a, Δ, quad, lia_segment_fraction,</span>
 <span id="L435"><span class="lineNum">     435</span>              :             )</span>
-<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">     2109730 :         end</span></span>
+<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">     2106988 :         end</span></span>
 <span id="L437"><span class="lineNum">     437</span> <span class="tlaUNC tlaBgUNC">           0 :     end</span></span>
 <span id="L438"><span class="lineNum">     438</span> <span class="tlaUNC">           0 :     ps</span></span>
 <span id="L439"><span class="lineNum">     439</span>              : end</span>

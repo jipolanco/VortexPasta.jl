@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-27 12:36:40</td>
+            <td class="headerValue">2024-06-28 14:39:29</td>
             <td></td>
           </tr>
           <tr>
@@ -201,8 +201,8 @@
 <span id="L135"><span class="lineNum">     135</span> <span class="tlaUNC tlaBgUNC">           0 : ClosedFilament(Xs::PaddedVector, method::DiscretisationMethod; kws...) =</span></span>
 <span id="L136"><span class="lineNum">     136</span>              :     ClosedFilament(default_parametrisation(method), Xs, method; kws...)</span>
 <span id="L137"><span class="lineNum">     137</span>              : </span>
-<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC tlaBgGNC">   273878216 : discretisation_method(::Type{&lt;:ClosedFilament{T, D}}) where {T, D} = D()</span></span>
-<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">   273908146 : discretisation_method(f::ClosedFilament) = discretisation_method(typeof(f))</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC tlaBgGNC">   273747366 : discretisation_method(::Type{&lt;:ClosedFilament{T, D}}) where {T, D} = D()</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">   273713850 : discretisation_method(f::ClosedFilament) = discretisation_method(typeof(f))</span></span>
 <span id="L140"><span class="lineNum">     140</span>              : </span>
 <span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">          20 : interpolation_method(f::ClosedFilament) = interpolation_method(discretisation_method(f))</span></span>
 <span id="L142"><span class="lineNum">     142</span>              : </span>
@@ -328,15 +328,15 @@
 <span id="L262"><span class="lineNum">     262</span>              : </span>
 <span id="L263"><span class="lineNum">     263</span>              : # We let the different discretisation methods provide (possibly optimised) implementations</span>
 <span id="L264"><span class="lineNum">     264</span>              : # for derivatives at nodes:</span>
-<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">     6872837 : (f::ClosedFilament)(node::AtNode, d::Derivative) =</span></span>
+<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">     6874690 : (f::ClosedFilament)(node::AtNode, d::Derivative) =</span></span>
 <span id="L266"><span class="lineNum">     266</span>              :     _derivative_at_node(d, discretisation_method(f), f::ClosedFilament, node::AtNode)</span>
 <span id="L267"><span class="lineNum">     267</span>              : </span>
 <span id="L268"><span class="lineNum">     268</span>              : ## Interpolation of values and derivatives in-between nodes</span>
 <span id="L269"><span class="lineNum">     269</span>              : </span>
 <span id="L270"><span class="lineNum">     270</span>              : # 1. If we know the interpolation segment (here ζ ∈ [0, 1])</span>
-<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">   389923201 : function (f::ClosedFilament{T})(i::Int, ζ_in::Number, d::Derivative = Derivative(0)) where {T}</span></span>
-<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">   390064094 :     ζ = _convert_float(T, ζ_in)</span></span>
-<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">   267990449 :     _interpolate(discretisation_method(f), f, i, ζ, d)</span></span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">   389596758 : function (f::ClosedFilament{T})(i::Int, ζ_in::Number, d::Derivative = Derivative(0)) where {T}</span></span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">   389753976 :     ζ = _convert_float(T, ζ_in)</span></span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">   267753608 :     _interpolate(discretisation_method(f), f, i, ζ, d)</span></span>
 <span id="L274"><span class="lineNum">     274</span>              : end</span>
 <span id="L275"><span class="lineNum">     275</span>              : </span>
 <span id="L276"><span class="lineNum">     276</span>              : # 2. If we don't know the interpolation segment (here `t` is the curve parameter).</span>
@@ -351,7 +351,7 @@
 <span id="L285"><span class="lineNum">     285</span>              : # Convert value to type T. We don't perform conversion if the value is not a float.</span>
 <span id="L286"><span class="lineNum">     286</span>              : # This is to workaround issue when working with ForwardDiff.Dual (which is never an</span>
 <span id="L287"><span class="lineNum">     287</span>              : # AbstractFloat).</span>
-<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">   267469139 : _convert_float(::Type{T}, x::AbstractFloat) where {T} = convert(T, x)</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">   267191140 : _convert_float(::Type{T}, x::AbstractFloat) where {T} = convert(T, x)</span></span>
 <span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">          16 : _convert_float(::Type{T}, x) where {T} = x</span></span>
 <span id="L290"><span class="lineNum">     290</span>              : </span>
 <span id="L291"><span class="lineNum">     291</span>              : ## Knot insertion and removal.</span>

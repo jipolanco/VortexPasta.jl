@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -87,19 +87,19 @@
 <span id="L21"><span class="lineNum">      21</span>              :     Ls :: Periods  # size of unit cell (= period in each direction)</span>
 <span id="L22"><span class="lineNum">      22</span>              :     quad :: Quad   # quadrature rule used for short- and long-range computations</span>
 <span id="L23"><span class="lineNum">      23</span>              :     quad_near_singularity :: QuadMaybeAdaptive  # quadrature rule to be used near singularities (adaptive by default)</span>
-<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC tlaBgGNC">          93 :     function ParamsCommon{T}(Γ, a, Δ, α_in, Ls_in, quad, quad_near_singularity) where {T}</span></span>
-<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">          93 :         α = maybe_convert(T, α_in)  # don't convert constants (e.g. if α = Zero())</span></span>
-<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">         372 :         Ls = map(L -&gt; maybe_convert(T, L), Ls_in)</span></span>
-<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">          93 :         σ = 1 / (α * sqrt(T(2)))</span></span>
-<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">          93 :         quad_ns = convert(T, quad_near_singularity)  # does nothing if the quadrature has the right type</span></span>
-<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">          93 :         new{T, typeof(α), typeof(σ), typeof(Ls), typeof(quad), typeof(quad_ns)}(</span></span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC tlaBgGNC">          89 :     function ParamsCommon{T}(Γ, a, Δ, α_in, Ls_in, quad, quad_near_singularity) where {T}</span></span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">          89 :         α = maybe_convert(T, α_in)  # don't convert constants (e.g. if α = Zero())</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">         356 :         Ls = map(L -&gt; maybe_convert(T, L), Ls_in)</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">          89 :         σ = 1 / (α * sqrt(T(2)))</span></span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">          89 :         quad_ns = convert(T, quad_near_singularity)  # does nothing if the quadrature has the right type</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">          89 :         new{T, typeof(α), typeof(σ), typeof(Ls), typeof(quad), typeof(quad_ns)}(</span></span>
 <span id="L30"><span class="lineNum">      30</span>              :             Γ, a, Δ, α, σ, Ls, quad, quad_ns,</span>
 <span id="L31"><span class="lineNum">      31</span>              :         )</span>
 <span id="L32"><span class="lineNum">      32</span>              :     end</span>
 <span id="L33"><span class="lineNum">      33</span>              : end</span>
 <span id="L34"><span class="lineNum">      34</span>              : </span>
-<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">         320 : maybe_convert(::Type{T}, x::Real) where {T &lt;: AbstractFloat} = convert(T, x)</span></span>
-<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">         145 : maybe_convert(::Type{T}, x::RealConst) where {T &lt;: AbstractFloat} = x  # don't convert constants (Zero, Infinity)</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">         310 : maybe_convert(::Type{T}, x::Real) where {T &lt;: AbstractFloat} = convert(T, x)</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">         135 : maybe_convert(::Type{T}, x::RealConst) where {T &lt;: AbstractFloat} = x  # don't convert constants (Zero, Infinity)</span></span>
 <span id="L37"><span class="lineNum">      37</span>              : </span>
 <span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">           4 : function Base.show(io::IO, p::ParamsCommon)</span></span>
 <span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">           4 :     (; Γ, a, Δ, Ls, α,) = p</span></span>
@@ -116,12 +116,12 @@
 <span id="L50"><span class="lineNum">      50</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
 <span id="L51"><span class="lineNum">      51</span>              : end</span>
 <span id="L52"><span class="lineNum">      52</span>              : </span>
-<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC tlaBgGNC">          72 : Base.eltype(::Type{&lt;:ParamsCommon{T}}) where {T} = T</span></span>
-<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">          72 : Base.eltype(p::ParamsCommon) = eltype(typeof(p))</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC tlaBgGNC">          71 : Base.eltype(::Type{&lt;:ParamsCommon{T}}) where {T} = T</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">          71 : Base.eltype(p::ParamsCommon) = eltype(typeof(p))</span></span>
 <span id="L55"><span class="lineNum">      55</span>              : </span>
-<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">          25 : function Base.convert(::Type{T}, p::ParamsCommon) where {T &lt;: AbstractFloat}</span></span>
-<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">          25 :     (; Γ, a, Δ, α, Ls, quad, quad_near_singularity,) = p</span></span>
-<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">          25 :     ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quad_near_singularity)  # converts all floats to type T</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">          23 : function Base.convert(::Type{T}, p::ParamsCommon) where {T &lt;: AbstractFloat}</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">          23 :     (; Γ, a, Δ, α, Ls, quad, quad_near_singularity,) = p</span></span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">          23 :     ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quad_near_singularity)  # converts all floats to type T</span></span>
 <span id="L59"><span class="lineNum">      59</span>              : end</span>
 <span id="L60"><span class="lineNum">      60</span>              : </span>
 <span id="L61"><span class="lineNum">      61</span>              : ## ================================================================================ ##</span>
@@ -141,17 +141,17 @@
 <span id="L75"><span class="lineNum">      75</span>              :     rcut_sq :: CutoffDist  # squared cutoff distance</span>
 <span id="L76"><span class="lineNum">      76</span>              :     lia_segment_fraction :: LIASegmentFraction</span>
 <span id="L77"><span class="lineNum">      77</span>              : </span>
-<span id="L78"><span class="lineNum">      78</span> <span class="tlaGNC">          93 :     function ParamsShortRange(</span></span>
+<span id="L78"><span class="lineNum">      78</span> <span class="tlaGNC">          89 :     function ParamsShortRange(</span></span>
 <span id="L79"><span class="lineNum">      79</span>              :             backend::ShortRangeBackend, quad::StaticSizeQuadrature,</span>
 <span id="L80"><span class="lineNum">      80</span>              :             common::ParamsCommon{T}, rcut_::Real,</span>
 <span id="L81"><span class="lineNum">      81</span>              :             lia_segment_fraction,</span>
 <span id="L82"><span class="lineNum">      82</span>              :         ) where {T}</span>
-<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">          93 :         (; Ls,) = common</span></span>
-<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">          93 :         rcut = maybe_convert(T, rcut_)</span></span>
-<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">          93 :         2 * rcut ≤ min(Ls...) ||</span></span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">          89 :         (; Ls,) = common</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">          89 :         rcut = maybe_convert(T, rcut_)</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">          89 :         2 * rcut ≤ min(Ls...) ||</span></span>
 <span id="L86"><span class="lineNum">      86</span>              :             error(lazy&quot;cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.&quot;)</span>
-<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">          93 :         rcut_sq = rcut * rcut</span></span>
-<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">          93 :         new{</span></span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">          89 :         rcut_sq = rcut * rcut</span></span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">          89 :         new{</span></span>
 <span id="L89"><span class="lineNum">      89</span>              :             T, typeof(backend), typeof(quad), typeof(common), typeof(rcut),</span>
 <span id="L90"><span class="lineNum">      90</span>              :             typeof(lia_segment_fraction)</span>
 <span id="L91"><span class="lineNum">      91</span>              :         }(</span>
@@ -173,8 +173,8 @@
 <span id="L107"><span class="lineNum">     107</span>              : end</span>
 <span id="L108"><span class="lineNum">     108</span>              : </span>
 <span id="L109"><span class="lineNum">     109</span>              : # Create a new ParamsShortRange based on the type of ParamsCommon.</span>
-<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC tlaBgGNC">          25 : function change_float_type(p::ParamsShortRange, common::ParamsCommon{T}) where {T}</span></span>
-<span id="L111"><span class="lineNum">     111</span> <span class="tlaGNC">          25 :     ParamsShortRange(p.backend, p.quad, common, p.rcut, p.lia_segment_fraction)</span></span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC tlaBgGNC">          23 : function change_float_type(p::ParamsShortRange, common::ParamsCommon{T}) where {T}</span></span>
+<span id="L111"><span class="lineNum">     111</span> <span class="tlaGNC">          23 :     ParamsShortRange(p.backend, p.quad, common, p.rcut, p.lia_segment_fraction)</span></span>
 <span id="L112"><span class="lineNum">     112</span>              : end</span>
 <span id="L113"><span class="lineNum">     113</span>              : </span>
 <span id="L114"><span class="lineNum">     114</span>              : struct ParamsLongRange{</span>
@@ -183,7 +183,7 @@
 <span id="L117"><span class="lineNum">     117</span>              :         Quadrature &lt;: StaticSizeQuadrature,</span>
 <span id="L118"><span class="lineNum">     118</span>              :         Common &lt;: ParamsCommon{T},</span>
 <span id="L119"><span class="lineNum">     119</span>              :     }</span>
-<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">          97 :     backend :: Backend</span></span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">          93 :     backend :: Backend</span></span>
 <span id="L121"><span class="lineNum">     121</span>              :     quad    :: Quadrature  # quadrature rule used for numerical integration</span>
 <span id="L122"><span class="lineNum">     122</span>              :     common  :: Common      # common parameters (Γ, α, Ls)</span>
 <span id="L123"><span class="lineNum">     123</span>              :     Ns      :: Dims{3}     # grid dimensions for FFTs</span>
@@ -209,11 +209,11 @@
 <span id="L143"><span class="lineNum">     143</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
 <span id="L144"><span class="lineNum">     144</span>              : end</span>
 <span id="L145"><span class="lineNum">     145</span>              : </span>
-<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC tlaBgGNC">          25 : function change_float_type(p::ParamsLongRange, common::ParamsCommon{T}) where {T}</span></span>
-<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">          25 :     ParamsLongRange(p.backend, p.quad, common, p.Ns, p.truncate_spherical)</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC tlaBgGNC">          23 : function change_float_type(p::ParamsLongRange, common::ParamsCommon{T}) where {T}</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">          23 :     ParamsLongRange(p.backend, p.quad, common, p.Ns, p.truncate_spherical)</span></span>
 <span id="L148"><span class="lineNum">     148</span>              : end</span>
 <span id="L149"><span class="lineNum">     149</span>              : </span>
-<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">       51916 : backend(p::ParamsLongRange) = p.backend</span></span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">       51908 : backend(p::ParamsLongRange) = p.backend</span></span>
 <span id="L151"><span class="lineNum">     151</span> <span class="tlaUNC tlaBgUNC">           0 : quadrature_rule(p::ParamsLongRange) = p.quad</span></span>
 <span id="L152"><span class="lineNum">     152</span>              : </span>
 <span id="L153"><span class="lineNum">     153</span>              : ## ================================================================================ ##</span>
@@ -325,12 +325,12 @@
 <span id="L259"><span class="lineNum">     259</span>              :         ShortRange &lt;: ParamsShortRange,</span>
 <span id="L260"><span class="lineNum">     260</span>              :         LongRange &lt;: ParamsLongRange,</span>
 <span id="L261"><span class="lineNum">     261</span>              :     }</span>
-<span id="L262"><span class="lineNum">     262</span> <span class="tlaGNC tlaBgGNC">          93 :     common     :: Common</span></span>
+<span id="L262"><span class="lineNum">     262</span> <span class="tlaGNC tlaBgGNC">          89 :     common     :: Common</span></span>
 <span id="L263"><span class="lineNum">     263</span>              :     shortrange :: ShortRange</span>
 <span id="L264"><span class="lineNum">     264</span>              :     longrange  :: LongRange</span>
 <span id="L265"><span class="lineNum">     265</span>              : end</span>
 <span id="L266"><span class="lineNum">     266</span>              : </span>
-<span id="L267"><span class="lineNum">     267</span> <span class="tlaGNC">         136 : function ParamsBiotSavart(</span></span>
+<span id="L267"><span class="lineNum">     267</span> <span class="tlaGNC">         132 : function ParamsBiotSavart(</span></span>
 <span id="L268"><span class="lineNum">     268</span>              :         ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};</span>
 <span id="L269"><span class="lineNum">     269</span>              :         a::Real,</span>
 <span id="L270"><span class="lineNum">     270</span>              :         quadrature::StaticSizeQuadrature = GaussLegendre(3),</span>
@@ -347,26 +347,26 @@
 <span id="L281"><span class="lineNum">     281</span>              :     # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?</span>
 <span id="L282"><span class="lineNum">     282</span>              :     # - define ParamsPhysical instead of ParamsCommon</span>
 <span id="L283"><span class="lineNum">     283</span>              :     # - include α in both ParamsShortRange and ParamsLongRange?</span>
-<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">          68 :     (; Ns, rcut,) = _extra_params(α; kws...)</span></span>
-<span id="L285"><span class="lineNum">     285</span> <span class="tlaGNC">          68 :     if !isnothing(quadrature_short) || !isnothing(quadrature_long)</span></span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">          66 :     (; Ns, rcut,) = _extra_params(α; kws...)</span></span>
+<span id="L285"><span class="lineNum">     285</span> <span class="tlaGNC">          66 :     if !isnothing(quadrature_short) || !isnothing(quadrature_long)</span></span>
 <span id="L286"><span class="lineNum">     286</span> <span class="tlaUNC tlaBgUNC">           0 :         @warn &quot;`quadrature_short` and `quadrature_long` are deprecated and will be removed. Pass `quadrature` instead.&quot;</span></span>
 <span id="L287"><span class="lineNum">     287</span>              :     end</span>
-<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC tlaBgGNC">          68 :     quad = _parse_quadrature_args(quadrature, quadrature_short, quadrature_long)</span></span>
-<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">          68 :     common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quadrature_near_singularity)</span></span>
-<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">          68 :     sr = ParamsShortRange(backend_short, quad, common, rcut, lia_segment_fraction)</span></span>
-<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">          68 :     lr = ParamsLongRange(backend_long, quad, common, Ns, longrange_truncate_spherical)</span></span>
-<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">          68 :     ParamsBiotSavart(common, sr, lr)</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC tlaBgGNC">          66 :     quad = _parse_quadrature_args(quadrature, quadrature_short, quadrature_long)</span></span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">          66 :     common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quadrature_near_singularity)</span></span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">          66 :     sr = ParamsShortRange(backend_short, quad, common, rcut, lia_segment_fraction)</span></span>
+<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">          66 :     lr = ParamsLongRange(backend_long, quad, common, Ns, longrange_truncate_spherical)</span></span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">          66 :     ParamsBiotSavart(common, sr, lr)</span></span>
 <span id="L293"><span class="lineNum">     293</span>              : end</span>
 <span id="L294"><span class="lineNum">     294</span>              : </span>
-<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">          25 : function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T &lt;: AbstractFloat}</span></span>
-<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">          25 :     common = convert(T, p.common)</span></span>
-<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">          25 :     shortrange = change_float_type(p.shortrange, common)</span></span>
-<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">          25 :     longrange = change_float_type(p.longrange, common)</span></span>
-<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">          25 :     ParamsBiotSavart(common, shortrange, longrange)</span></span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">          23 : function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T &lt;: AbstractFloat}</span></span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">          23 :     common = convert(T, p.common)</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">          23 :     shortrange = change_float_type(p.shortrange, common)</span></span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">          23 :     longrange = change_float_type(p.longrange, common)</span></span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">          23 :     ParamsBiotSavart(common, shortrange, longrange)</span></span>
 <span id="L300"><span class="lineNum">     300</span>              : end</span>
 <span id="L301"><span class="lineNum">     301</span>              : </span>
 <span id="L302"><span class="lineNum">     302</span>              : # TODO remove? this was for compatibility with old versions</span>
-<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">          68 : _parse_quadrature_args(quad::StaticSizeQuadrature, ::Nothing, ::Nothing) = quad</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">          66 : _parse_quadrature_args(quad::StaticSizeQuadrature, ::Nothing, ::Nothing) = quad</span></span>
 <span id="L304"><span class="lineNum">     304</span> <span class="tlaUNC tlaBgUNC">           0 : _parse_quadrature_args(::StaticSizeQuadrature, short::StaticSizeQuadrature, ::Nothing) = short</span></span>
 <span id="L305"><span class="lineNum">     305</span> <span class="tlaUNC">           0 : _parse_quadrature_args(::StaticSizeQuadrature, ::Nothing, long::StaticSizeQuadrature) = long</span></span>
 <span id="L306"><span class="lineNum">     306</span> <span class="tlaUNC">           0 : function _parse_quadrature_args(::StaticSizeQuadrature, short::StaticSizeQuadrature, long::StaticSizeQuadrature)</span></span>
@@ -375,36 +375,36 @@
 <span id="L309"><span class="lineNum">     309</span>              : end</span>
 <span id="L310"><span class="lineNum">     310</span>              : </span>
 <span id="L311"><span class="lineNum">     311</span>              : # Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.</span>
-<span id="L312"><span class="lineNum">     312</span> <span class="tlaGNC tlaBgGNC">        2920 : is_open_domain(Ls::Tuple) = is_open_domain(Ls...)</span></span>
-<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">         374 : is_open_domain(::Infinity, etc...) = true</span></span>
-<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">        7638 : is_open_domain(::Real, etc...) = is_open_domain(etc...)</span></span>
-<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">        2546 : is_open_domain() = false</span></span>
+<span id="L312"><span class="lineNum">     312</span> <span class="tlaGNC tlaBgGNC">        2913 : is_open_domain(Ls::Tuple) = is_open_domain(Ls...)</span></span>
+<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">         370 : is_open_domain(::Infinity, etc...) = true</span></span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">        7629 : is_open_domain(::Real, etc...) = is_open_domain(etc...)</span></span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">        2543 : is_open_domain() = false</span></span>
 <span id="L316"><span class="lineNum">     316</span>              : </span>
-<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">          15 : function default_short_range_backend(Ls::Tuple)</span></span>
-<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">          15 :     if is_open_domain(Ls)</span></span>
-<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">           2 :         NaiveShortRangeBackend()</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">          13 : function default_short_range_backend(Ls::Tuple)</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">          13 :     if is_open_domain(Ls)</span></span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">           1 :         NaiveShortRangeBackend()</span></span>
 <span id="L320"><span class="lineNum">     320</span>              :     else</span>
-<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">          13 :         CellListsBackend(2)  # use 2 subdivisions by default (generally faster)</span></span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">          12 :         CellListsBackend(2)  # use 2 subdivisions by default (generally faster)</span></span>
 <span id="L322"><span class="lineNum">     322</span>              :     end</span>
 <span id="L323"><span class="lineNum">     323</span>              : end</span>
 <span id="L324"><span class="lineNum">     324</span>              : </span>
 <span id="L325"><span class="lineNum">     325</span>              : # Returns the float type used (e.g. Float64)</span>
-<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">          92 : Base.eltype(::Type{&lt;:ParamsBiotSavart{T}}) where {T} = T</span></span>
-<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">          92 : Base.eltype(p::ParamsBiotSavart) = eltype(typeof(p))</span></span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">          90 : Base.eltype(::Type{&lt;:ParamsBiotSavart{T}}) where {T} = T</span></span>
+<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">          90 : Base.eltype(p::ParamsBiotSavart) = eltype(typeof(p))</span></span>
 <span id="L328"><span class="lineNum">     328</span>              : </span>
 <span id="L329"><span class="lineNum">     329</span>              : &quot;&quot;&quot;</span>
 <span id="L330"><span class="lineNum">     330</span>              :     BiotSavart.circulation(p::ParamsBiotSavart) -&gt; Γ</span>
 <span id="L331"><span class="lineNum">     331</span>              : </span>
 <span id="L332"><span class="lineNum">     332</span>              : Return the circulation `Γ` associated to each vortex.</span>
 <span id="L333"><span class="lineNum">     333</span>              : &quot;&quot;&quot;</span>
-<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">        5425 : circulation(p::ParamsBiotSavart) = p.common.Γ</span></span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">        5419 : circulation(p::ParamsBiotSavart) = p.common.Γ</span></span>
 <span id="L335"><span class="lineNum">     335</span>              : </span>
 <span id="L336"><span class="lineNum">     336</span>              : &quot;&quot;&quot;</span>
 <span id="L337"><span class="lineNum">     337</span>              :     BiotSavart.periods(p::ParamsBiotSavart) -&gt; (Lx, Ly, Lz)</span>
 <span id="L338"><span class="lineNum">     338</span>              : </span>
 <span id="L339"><span class="lineNum">     339</span>              : Return the domain periods in each direction.</span>
 <span id="L340"><span class="lineNum">     340</span>              : &quot;&quot;&quot;</span>
-<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">       13528 : periods(p::ParamsBiotSavart) = p.common.Ls</span></span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">       13516 : periods(p::ParamsBiotSavart) = p.common.Ls</span></span>
 <span id="L342"><span class="lineNum">     342</span>              : </span>
 <span id="L343"><span class="lineNum">     343</span>              : &quot;&quot;&quot;</span>
 <span id="L344"><span class="lineNum">     344</span>              :     BiotSavart.domain_is_periodic(p::ParamsBiotSavart) -&gt; Bool</span>
@@ -414,27 +414,27 @@
 <span id="L348"><span class="lineNum">     348</span>              : </span>
 <span id="L349"><span class="lineNum">     349</span>              : Returns `true` if the domain is periodic in *all* directions, `false` otherwise.</span>
 <span id="L350"><span class="lineNum">     350</span>              : &quot;&quot;&quot;</span>
-<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">        2905 : domain_is_periodic(p::ParamsBiotSavart) = domain_is_periodic(periods(p))</span></span>
-<span id="L352"><span class="lineNum">     352</span> <span class="tlaGNC">        2905 : domain_is_periodic(Ls::NTuple) = !is_open_domain(Ls)</span></span>
+<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">        2900 : domain_is_periodic(p::ParamsBiotSavart) = domain_is_periodic(periods(p))</span></span>
+<span id="L352"><span class="lineNum">     352</span> <span class="tlaGNC">        2900 : domain_is_periodic(Ls::NTuple) = !is_open_domain(Ls)</span></span>
 <span id="L353"><span class="lineNum">     353</span>              : </span>
-<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">          44 : _extra_params(α::Zero; Ns = nothing, rcut = ∞) = (; Ns = (0, 0, 0), rcut,)  # Ns is always (0, 0, 0), no matter the input</span></span>
-<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">          92 : _extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case</span></span>
+<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">          42 : _extra_params(α::Zero; Ns = nothing, rcut = ∞) = (; Ns = (0, 0, 0), rcut,)  # Ns is always (0, 0, 0), no matter the input</span></span>
+<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">          90 : _extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case</span></span>
 <span id="L356"><span class="lineNum">     356</span>              : </span>
-<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">         136 : ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls, kws...) where {T} =</span></span>
+<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">         132 : ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls, kws...) where {T} =</span></span>
 <span id="L358"><span class="lineNum">     358</span>              :     ParamsBiotSavart(T, Γ, α, _convert_periods(Ls); kws...)</span>
 <span id="L359"><span class="lineNum">     359</span>              : </span>
 <span id="L360"><span class="lineNum">     360</span> <span class="tlaGNC">          50 : _convert_periods(Ls::NTuple{3, Real}) = Ls</span></span>
-<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">          18 : _convert_periods(L::Real) = (L, L, L)</span></span>
+<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">          16 : _convert_periods(L::Real) = (L, L, L)</span></span>
 <span id="L362"><span class="lineNum">     362</span>              : </span>
-<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">         120 : ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)</span></span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">         116 : ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)</span></span>
 <span id="L364"><span class="lineNum">     364</span>              : </span>
 <span id="L365"><span class="lineNum">     365</span>              : # This is for convenience: doing p.α is equivalent to p.common.α.</span>
-<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">       63305 : @inline function Base.getproperty(p::ParamsBiotSavart, name::Symbol)</span></span>
-<span id="L367"><span class="lineNum">     367</span> <span class="tlaGNC">       63305 :     common = getfield(p, :common)</span></span>
-<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">       63305 :     if hasproperty(common, name)</span></span>
-<span id="L369"><span class="lineNum">     369</span> <span class="tlaGNC">       30042 :         getproperty(common, name)</span></span>
+<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">       63264 : @inline function Base.getproperty(p::ParamsBiotSavart, name::Symbol)</span></span>
+<span id="L367"><span class="lineNum">     367</span> <span class="tlaGNC">       63264 :     common = getfield(p, :common)</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">       63264 :     if hasproperty(common, name)</span></span>
+<span id="L369"><span class="lineNum">     369</span> <span class="tlaGNC">       30035 :         getproperty(common, name)</span></span>
 <span id="L370"><span class="lineNum">     370</span>              :     else</span>
-<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">       33263 :         getfield(p, name)</span></span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">       33229 :         getfield(p, name)</span></span>
 <span id="L372"><span class="lineNum">     372</span>              :     end</span>
 <span id="L373"><span class="lineNum">     373</span>              : end</span>
 <span id="L374"><span class="lineNum">     374</span>              : </span>

@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-27 12:36:40</td>
+            <td class="headerValue">2024-06-28 14:39:29</td>
             <td></td>
           </tr>
           <tr>
@@ -83,10 +83,10 @@
 <span id="L17"><span class="lineNum">      17</span>              : </span>
 <span id="L18"><span class="lineNum">      18</span>              : See also [`CubicSplineMethod`](@ref) and [`QuinticSplineMethod`](@ref).</span>
 <span id="L19"><span class="lineNum">      19</span>              : &quot;&quot;&quot;</span>
-<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC tlaBgGNC">   233932879 : struct SplineMethod{Order} &lt;: DiscretisationMethod end</span></span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC tlaBgGNC">   233923887 : struct SplineMethod{Order} &lt;: DiscretisationMethod end</span></span>
 <span id="L21"><span class="lineNum">      21</span>              : </span>
-<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">   232782364 : order(::Type{&lt;:SplineMethod{Order}}) where {Order} = Order</span></span>
-<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">   232680461 : order(m::SplineMethod) = order(typeof(m))</span></span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">   232768209 : order(::Type{&lt;:SplineMethod{Order}}) where {Order} = Order</span></span>
+<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">   232665500 : order(m::SplineMethod) = order(typeof(m))</span></span>
 <span id="L24"><span class="lineNum">      24</span>              : </span>
 <span id="L25"><span class="lineNum">      25</span>              : # For instance, cubic splines (order = 4) are C² at the knots.</span>
 <span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">         653 : continuity(::Type{M}) where {M &lt;: SplineMethod} = order(M) - 2</span></span>
@@ -188,20 +188,20 @@
 <span id="L122"><span class="lineNum">     122</span>              : end</span>
 <span id="L123"><span class="lineNum">     123</span>              : </span>
 <span id="L124"><span class="lineNum">     124</span>              : # Evaluate interpolation using global parametrisation t ∈ [0, T]</span>
-<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">   464953754 : function evaluate(</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">   465216367 : function evaluate(</span></span>
 <span id="L126"><span class="lineNum">     126</span>              :         method::SplineMethod, coefs::SplineCoefs, ts::PaddedVector,</span>
 <span id="L127"><span class="lineNum">     127</span>              :         t_in::Number, ::Derivative{n} = Derivative(0);</span>
 <span id="L128"><span class="lineNum">     128</span>              :         ileft::Union{Nothing, Int} = nothing,</span>
 <span id="L129"><span class="lineNum">     129</span>              :     ) where {n}</span>
-<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">   232636081 :     (; cs, cderivs,) = coefs</span></span>
-<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">   232421711 :     ta, tb = ts[begin], ts[end + 1]</span></span>
-<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">   232065854 :     i, t = _find_knot_segment(ileft, (ta, tb), ts, t_in)</span></span>
-<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">   232427834 :     n &gt; length(cderivs) &amp;&amp; throw(ArgumentError(</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">   232807562 :     (; cs, cderivs,) = coefs</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">   232782294 :     ta, tb = ts[begin], ts[end + 1]</span></span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">   232068332 :     i, t = _find_knot_segment(ileft, (ta, tb), ts, t_in)</span></span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">   232456725 :     n &gt; length(cderivs) &amp;&amp; throw(ArgumentError(</span></span>
 <span id="L134"><span class="lineNum">     134</span>              :         lazy&quot;derivatives of order $n are not enabled. Initialise a filament with nderivs ≥ $n, and make sure the discretisation scheme has the required continuity degree.&quot;</span>
 <span id="L135"><span class="lineNum">     135</span>              :     ))</span>
-<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">   232390341 :     coefs = (cs, cderivs...)[n + 1]</span></span>
-<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">   232565814 :     ord = order(method) - n</span></span>
-<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">   232796416 :     evaluate_spline(coefs, ts, i, t, Val(ord))</span></span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">   232362911 :     coefs = (cs, cderivs...)[n + 1]</span></span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">   232480872 :     ord = order(method) - n</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">   232670343 :     evaluate_spline(coefs, ts, i, t, Val(ord))</span></span>
 <span id="L139"><span class="lineNum">     139</span>              : end</span>
 <span id="L140"><span class="lineNum">     140</span>              : </span>
 <span id="L141"><span class="lineNum">     141</span>              : ## ================================================================================ ##</span>
@@ -248,15 +248,15 @@
 <span id="L182"><span class="lineNum">     182</span>              : end</span>
 <span id="L183"><span class="lineNum">     183</span>              : </span>
 <span id="L184"><span class="lineNum">     184</span>              : # This should be used to undo periodisation of non-periodic splines.</span>
-<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC tlaBgGNC">   227206476 : function deperiodise_curve(y::Vec3, Xoffset::Vec3, ts::AbstractVector, t::Number, derivative::Val)</span></span>
-<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">   227270838 :     Xoffset === zero(Xoffset) &amp;&amp; return y</span></span>
-<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">   185414131 :     @inbounds T = ts[end + 1] - ts[begin]  # knot period</span></span>
-<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">   186112105 :     _deperiodise_curve(y, Xoffset, T, t, derivative)</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC tlaBgGNC">   227489820 : function deperiodise_curve(y::Vec3, Xoffset::Vec3, ts::AbstractVector, t::Number, derivative::Val)</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">   227548758 :     Xoffset === zero(Xoffset) &amp;&amp; return y</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">   185862480 :     @inbounds T = ts[end + 1] - ts[begin]  # knot period</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">   186137341 :     _deperiodise_curve(y, Xoffset, T, t, derivative)</span></span>
 <span id="L189"><span class="lineNum">     189</span>              : end</span>
 <span id="L190"><span class="lineNum">     190</span>              : </span>
-<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">    90243381 : _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val{0}) where {T} = y + (t / Tper) * Xoffset  # zero-th derivative</span></span>
-<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">    96060337 : _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val{1}) where {T} = y + (1 / Tper) * Xoffset  # first derivative</span></span>
-<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">      511112 : _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val)    where {T} = y  # higher-order derivatives</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">    90417681 : _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val{0}) where {T} = y + (t / Tper) * Xoffset  # zero-th derivative</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">    96079636 : _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val{1}) where {T} = y + (1 / Tper) * Xoffset  # first derivative</span></span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">      511135 : _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val)    where {T} = y  # higher-order derivatives</span></span>
 <span id="L194"><span class="lineNum">     194</span>              : </span>
 <span id="L195"><span class="lineNum">     195</span>              : # ============================================================================ #</span>
 <span id="L196"><span class="lineNum">     196</span>              : # B-spline and spline evaluation code below adapted from BSplineKit.jl</span>
@@ -327,7 +327,7 @@
 <span id="L261"><span class="lineNum">     261</span>              : # we assume that the coefficient cs[j] corresponds to the *largest* B-spline at x = ts[j].</span>
 <span id="L262"><span class="lineNum">     262</span>              : # In other words, there is a shift in the coefficient indices wrt the</span>
 <span id="L263"><span class="lineNum">     263</span>              : # BSplineKit implementation (see definition of `h` below).</span>
-<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">   232841587 : @generated function evaluate_spline(</span></span>
+<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">   232696822 : @generated function evaluate_spline(</span></span>
 <span id="L265"><span class="lineNum">     265</span>              :         cs::AbstractVector, ts, i, x, ::Val{k},</span>
 <span id="L266"><span class="lineNum">     266</span>              :     ) where {k}</span>
 <span id="L267"><span class="lineNum">     267</span>              :     # Algorithm adapted from https://en.wikipedia.org/wiki/De_Boor's_algorithm</span>
@@ -337,9 +337,9 @@
 <span id="L271"><span class="lineNum">     271</span>              :         # We add zero to make sure that d_j doesn't change type later.</span>
 <span id="L272"><span class="lineNum">     272</span>              :         # This is important when x is a ForwardDiff.Dual.</span>
 <span id="L273"><span class="lineNum">     273</span>              :         # We also use broadcasting in case `cs` is a vector of StaticArrays.</span>
-<span id="L274"><span class="lineNum">     274</span> <span class="tlaGNC">   232748077 :         z = zero(x) + zero(eltype(ts))</span></span>
-<span id="L275"><span class="lineNum">     275</span> <span class="tlaGNC">   232510846 :         @nexprs $k j -&gt; d_j = @inbounds z .+ cs[j + i - $h]</span></span>
-<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">   231895575 :         T = typeof(d_1)</span></span>
+<span id="L274"><span class="lineNum">     274</span> <span class="tlaGNC">   232498416 :         z = zero(x) + zero(eltype(ts))</span></span>
+<span id="L275"><span class="lineNum">     275</span> <span class="tlaGNC">   232370133 :         @nexprs $k j -&gt; d_j = @inbounds z .+ cs[j + i - $h]</span></span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">   232206898 :         T = typeof(d_1)</span></span>
 <span id="L277"><span class="lineNum">     277</span>              :     end</span>
 <span id="L278"><span class="lineNum">     278</span> <span class="tlaGNC">          43 :     for r = 2:k, j = k:-1:r</span></span>
 <span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">         343 :         d_j = Symbol(:d_, j)</span></span>
@@ -348,16 +348,16 @@
 <span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">         343 :         jr = j - r</span></span>
 <span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">         343 :         ex = quote</span></span>
 <span id="L284"><span class="lineNum">     284</span> <span class="tlaUNC tlaBgUNC">           0 :             $ex</span></span>
-<span id="L285"><span class="lineNum">     285</span> <span class="tlaGNC tlaBgGNC">   236329816 :             @inbounds ti = ts[$jk + i]</span></span>
-<span id="L286"><span class="lineNum">     286</span> <span class="tlaGNC">   234636954 :             @inbounds tj = ts[$jr + i + 1]</span></span>
-<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">   233419459 :             α = (x - ti) / (tj - ti)</span></span>
-<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">   232357537 :             $d_j = ((1 - α) * $d_p + α * $d_j) :: T</span></span>
+<span id="L285"><span class="lineNum">     285</span> <span class="tlaGNC tlaBgGNC">   239422626 :             @inbounds ti = ts[$jk + i]</span></span>
+<span id="L286"><span class="lineNum">     286</span> <span class="tlaGNC">   239335500 :             @inbounds tj = ts[$jr + i + 1]</span></span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">   238226856 :             α = (x - ti) / (tj - ti)</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">   237163289 :             $d_j = ((1 - α) * $d_p + α * $d_j) :: T</span></span>
 <span id="L289"><span class="lineNum">     289</span>              :         end</span>
 <span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">         343 :     end</span></span>
 <span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">          43 :     d_k = Symbol(:d_, k)</span></span>
 <span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">          43 :     quote</span></span>
 <span id="L293"><span class="lineNum">     293</span> <span class="tlaUNC tlaBgUNC">           0 :         $ex</span></span>
-<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC tlaBgGNC">   230076038 :         return $d_k</span></span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC tlaBgGNC">   230729677 :         return $d_k</span></span>
 <span id="L295"><span class="lineNum">     295</span>              :     end</span>
 <span id="L296"><span class="lineNum">     296</span>              : end</span>
 <span id="L297"><span class="lineNum">     297</span>              : </span>

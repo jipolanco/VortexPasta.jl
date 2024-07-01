@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -106,8 +106,8 @@
 <span id="L40"><span class="lineNum">      40</span>              : </span>
 <span id="L41"><span class="lineNum">      41</span>              : This is the recommended (and default) parametrisation for general cases.</span>
 <span id="L42"><span class="lineNum">      42</span>              : &quot;&quot;&quot;</span>
-<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC tlaBgGNC">        1986 : struct ChordalParametrisation &lt;: AbstractParametrisation end</span></span>
-<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">      341730 : (::ChordalParametrisation)(Xs, i) = @inbounds @fastmath norm(Xs[i + 1] - Xs[i])</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC tlaBgGNC">        1985 : struct ChordalParametrisation &lt;: AbstractParametrisation end</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">      341698 : (::ChordalParametrisation)(Xs, i) = @inbounds @fastmath norm(Xs[i + 1] - Xs[i])</span></span>
 <span id="L45"><span class="lineNum">      45</span>              : </span>
 <span id="L46"><span class="lineNum">      46</span>              : @doc raw&quot;&quot;&quot;</span>
 <span id="L47"><span class="lineNum">      47</span>              :     CentripetalParametrisation &lt;: AbstractParametrisation</span>
@@ -165,7 +165,7 @@
 <span id="L99"><span class="lineNum">      99</span>              : end</span>
 <span id="L100"><span class="lineNum">     100</span> <span class="tlaUNC tlaBgUNC">           0 : (p::CustomParametrisation)(Xs, i) = p.f(Xs, i)</span></span>
 <span id="L101"><span class="lineNum">     101</span>              : </span>
-<span id="L102"><span class="lineNum">     102</span> <span class="tlaGNC tlaBgGNC">         932 : to_parametrisation(p::AbstractParametrisation) = p</span></span>
+<span id="L102"><span class="lineNum">     102</span> <span class="tlaGNC tlaBgGNC">         927 : to_parametrisation(p::AbstractParametrisation) = p</span></span>
 <span id="L103"><span class="lineNum">     103</span> <span class="tlaUNC tlaBgUNC">           0 : to_parametrisation(f::F) where {F &lt;: Function} = CustomParametrisation(f)</span></span>
         </pre>
               </td>

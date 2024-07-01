@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-27 12:36:40</td>
+            <td class="headerValue">2024-06-28 14:39:29</td>
             <td></td>
           </tr>
           <tr>
@@ -207,66 +207,66 @@
 <span id="L141"><span class="lineNum">     141</span>              : </span>
 <span id="L142"><span class="lineNum">     142</span>              : # Assume the nodes and weights are re-sorted in the order they are accessed by adaptive</span>
 <span id="L143"><span class="lineNum">     143</span>              : # quadrature.</span>
-<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC tlaBgGNC">     1865517 : function integrate(f::F, quad::AdaptiveTanhSinh{T}, lims::NTuple{2,Real}) where {F &lt;: Function, T &lt;: AbstractFloat}</span></span>
-<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">     1865475 :     (; xs, ws, w₀, hmax, rtol,) = quad</span></span>
-<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">     1865497 :     Base.require_one_based_indexing(xs)</span></span>
-<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">     1865516 :     Base.require_one_based_indexing(ws)</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC tlaBgGNC">     1865539 : function integrate(f::F, quad::AdaptiveTanhSinh{T}, lims::NTuple{2,Real}) where {F &lt;: Function, T &lt;: AbstractFloat}</span></span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">     1865530 :     (; xs, ws, w₀, hmax, rtol,) = quad</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">     1865539 :     Base.require_one_based_indexing(xs)</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">     1865566 :     Base.require_one_based_indexing(ws)</span></span>
 <span id="L148"><span class="lineNum">     148</span>              : </span>
-<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">     1865512 :     N = length(xs)</span></span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">     1865567 :     N = length(xs)</span></span>
 <span id="L150"><span class="lineNum">     150</span>              :     # @assert ispow2(N)</span>
-<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">     1865536 :     onehalf = 1 / T(2)</span></span>
+<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">     1865584 :     onehalf = 1 / T(2)</span></span>
 <span id="L152"><span class="lineNum">     152</span>              : </span>
-<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">     1865551 :     a, b = lims</span></span>
-<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">     1865587 :     Δ = onehalf * T(b - a)</span></span>
-<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">     1865630 :     c = onehalf * T(a + b)</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">     1865587 :     a, b = lims</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">     1865600 :     Δ = onehalf * T(b - a)</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">     1865642 :     c = onehalf * T(a + b)</span></span>
 <span id="L156"><span class="lineNum">     156</span>              : </span>
 <span id="L157"><span class="lineNum">     157</span>              :     # Initial estimate: consider only central node.</span>
 <span id="L158"><span class="lineNum">     158</span>              :     # Note that we split integrals onto two: ]-∞, 0] ∪ [0, +∞[, since we</span>
 <span id="L159"><span class="lineNum">     159</span>              :     # expect one side to converge faster than the other (we integrate near a singularity on</span>
 <span id="L160"><span class="lineNum">     160</span>              :     # one side).</span>
-<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">     1865653 :     h = hmax * Δ</span></span>
-<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">     1865692 :     @inline I₀ = 2 * h * w₀ * f(c)</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">     1865669 :     h = hmax * Δ</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">     1865678 :     @inline I₀ = 2 * h * w₀ * f(c)</span></span>
 <span id="L163"><span class="lineNum">     163</span>              : </span>
 <span id="L164"><span class="lineNum">     164</span>              :     # Second estimate</span>
-<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">     1865930 :     n = unsigned(N)</span></span>
-<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">     1865922 :     l = firstindex(xs)</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">     1865916 :     n = unsigned(N)</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">     1865915 :     l = firstindex(xs)</span></span>
 <span id="L167"><span class="lineNum">     167</span> <span class="tlaUNC tlaBgUNC">           0 :     I = let</span></span>
-<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC tlaBgGNC">     1865914 :         w, x = @inbounds ws[l], xs[l]</span></span>
-<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">     1865903 :         δ = Δ * x</span></span>
-<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">     1865906 :         @inline onehalf * I₀ + h * w * (f(c - δ) + f(c + δ))</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC tlaBgGNC">     1865927 :         w, x = @inbounds ws[l], xs[l]</span></span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">     1865871 :         δ = Δ * x</span></span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">     1865816 :         @inline onehalf * I₀ + h * w * (f(c - δ) + f(c + δ))</span></span>
 <span id="L171"><span class="lineNum">     171</span>              :     end</span>
 <span id="L172"><span class="lineNum">     172</span>              : </span>
 <span id="L173"><span class="lineNum">     173</span>              :     # Start iterating</span>
-<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">     1865882 :     n = n &gt;&gt;&gt; 1</span></span>
-<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">     1865902 :     h = onehalf * h  # divide integration step by 2 for next level</span></span>
-<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">     1865889 :     m = unsigned(1)</span></span>
-<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">     9324789 :     @fastmath while n ≠ 0</span></span>
-<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">     9325012 :         I_prev = I</span></span>
-<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">     9324995 :         I = zero(I)</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">     1865892 :     n = n &gt;&gt;&gt; 1</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">     1865894 :     h = onehalf * h  # divide integration step by 2 for next level</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">     1865900 :     m = unsigned(1)</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">     9326231 :     @fastmath while n ≠ 0</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">     9325366 :         I_prev = I</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">     9325064 :         I = zero(I)</span></span>
 <span id="L180"><span class="lineNum">     180</span>              :         # Start by adding odd terms of the current level.</span>
 <span id="L181"><span class="lineNum">     181</span>              :         # Note that weights must be multiplied by h (done afterwards).</span>
-<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">     9325131 :         for _ ∈ 1:m</span></span>
-<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">    57702352 :             l += 1</span></span>
-<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">    57703565 :             w, x = @inbounds ws[l], xs[l]</span></span>
-<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">    57737368 :             δ = Δ * x</span></span>
-<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">    57738596 :             @inline I += w * (f(c - δ) + f(c + δ))</span></span>
-<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">   106080704 :         end</span></span>
-<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">     9325635 :         I = h * I + onehalf * I_prev  # add all even terms of the current level</span></span>
-<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">     9325816 :         if check_convergence(I, I_prev, rtol)</span></span>
-<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">     1865775 :             break</span></span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">     9325557 :         for _ ∈ 1:m</span></span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">    57665152 :             l += 1</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">    57658704 :             w, x = @inbounds ws[l], xs[l]</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">    57708904 :             δ = Δ * x</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">    57708413 :             @inline I += w * (f(c - δ) + f(c + δ))</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">   106065990 :         end</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">     9325986 :         I = h * I + onehalf * I_prev  # add all even terms of the current level</span></span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">     9326338 :         if check_convergence(I, I_prev, rtol)</span></span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">     1865855 :             break</span></span>
 <span id="L191"><span class="lineNum">     191</span>              :         end</span>
-<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">     7461364 :         n = n &gt;&gt;&gt; 1</span></span>
-<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">     7461399 :         h = onehalf * h</span></span>
-<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">     7461600 :         m = m &lt;&lt; 1</span></span>
-<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">     7461710 :     end</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">     7462135 :         n = n &gt;&gt;&gt; 1</span></span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">     7462047 :         h = onehalf * h</span></span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">     7462199 :         m = m &lt;&lt; 1</span></span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">     7462300 :     end</span></span>
 <span id="L196"><span class="lineNum">     196</span>              : </span>
 <span id="L197"><span class="lineNum">     197</span> <span class="tlaUNC tlaBgUNC">           0 :     I</span></span>
 <span id="L198"><span class="lineNum">     198</span>              : end</span>
 <span id="L199"><span class="lineNum">     199</span>              : </span>
-<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC tlaBgGNC">     9325639 : function check_convergence(I, Iprev, rtol)</span></span>
-<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">     9325707 :     I_diff_sq = sum(abs2, I - Iprev)  # should also work with SVectors</span></span>
-<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">     9325957 :     I_atol_sq = sum(abs2, I) * rtol^2</span></span>
-<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">     9325484 :     I_diff_sq &lt; I_atol_sq</span></span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC tlaBgGNC">     9326294 : function check_convergence(I, Iprev, rtol)</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">     9326435 :     I_diff_sq = sum(abs2, I - Iprev)  # should also work with SVectors</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">     9326812 :     I_atol_sq = sum(abs2, I) * rtol^2</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">     9326523 :     I_diff_sq &lt; I_atol_sq</span></span>
 <span id="L204"><span class="lineNum">     204</span>              : end</span>
 <span id="L205"><span class="lineNum">     205</span>              : </span>
 <span id="L206"><span class="lineNum">     206</span>              : # Default [0, 1] limits.</span>

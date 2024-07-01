@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -171,7 +171,7 @@
 <span id="L105"><span class="lineNum">     105</span>              :         CutoffRadii &lt;: NTuple{N, Real},</span>
 <span id="L106"><span class="lineNum">     106</span>              :         Periods &lt;: NTuple{N, Real},</span>
 <span id="L107"><span class="lineNum">     107</span>              :     }</span>
-<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC tlaBgGNC">          44 :     elements      :: ElementList  # contains all &quot;elements&quot; (unsorted) [length Np]</span></span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC tlaBgGNC">          43 :     elements      :: ElementList  # contains all &quot;elements&quot; (unsorted) [length Np]</span></span>
 <span id="L109"><span class="lineNum">     109</span>              :     head_indices  :: HeadArray    # array pointing to the index of the first element in each cell (or EMPTY if no elements in that cell)</span>
 <span id="L110"><span class="lineNum">     110</span>              :     next_index    :: Vector{Int}  # points from one element to the next element (or EMPTY if this is the last element) [length Np]</span>
 <span id="L111"><span class="lineNum">     111</span>              :     isready       :: RefBool</span>
@@ -181,66 +181,66 @@
 <span id="L115"><span class="lineNum">     115</span>              :     Ls            :: Periods</span>
 <span id="L116"><span class="lineNum">     116</span>              : end</span>
 <span id="L117"><span class="lineNum">     117</span>              : </span>
-<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">      241062 : Base.size(cl::PeriodicCellList) = size(cl.head_indices)</span></span>
-<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">       87073 : subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">      240901 : Base.size(cl::PeriodicCellList) = size(cl.head_indices)</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">       87040 : subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M</span></span>
 <span id="L120"><span class="lineNum">     120</span>              : </span>
-<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">          76 : @inline PeriodicCellList(::Type{T}, rs, Ls, nsubdiv::Val{M}; kws...) where {T, M} =</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">          74 : @inline PeriodicCellList(::Type{T}, rs, Ls, nsubdiv::Val{M}; kws...) where {T, M} =</span></span>
 <span id="L122"><span class="lineNum">     122</span>              :     PeriodicCellList(T, rs, Ls, static(M); kws...)</span>
 <span id="L123"><span class="lineNum">     123</span>              : </span>
-<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">          88 : function PeriodicCellList(</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">          86 : function PeriodicCellList(</span></span>
 <span id="L125"><span class="lineNum">     125</span>              :         ::Type{T},</span>
 <span id="L126"><span class="lineNum">     126</span>              :         rs_cut::NTuple{N, Real},</span>
 <span id="L127"><span class="lineNum">     127</span>              :         Ls::NTuple{N, Real},</span>
 <span id="L128"><span class="lineNum">     128</span>              :         nsubdiv::StaticInt = static(1);</span>
 <span id="L129"><span class="lineNum">     129</span>              :         to_coordinate::F = identity,</span>
 <span id="L130"><span class="lineNum">     130</span>              :     ) where {N, T, F &lt;: Function}</span>
-<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">         176 :     any(isinf, Ls) &amp;&amp; throw(ArgumentError(</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">         172 :     any(isinf, Ls) &amp;&amp; throw(ArgumentError(</span></span>
 <span id="L132"><span class="lineNum">     132</span>              :         &quot;infinite non-periodic domains not currently supported by PeriodicCellList&quot;</span>
 <span id="L133"><span class="lineNum">     133</span>              :     ))</span>
 <span id="L134"><span class="lineNum">     134</span>              : </span>
-<span id="L135"><span class="lineNum">     135</span> <span class="tlaGNC">          44 :     M = dynamic(nsubdiv)</span></span>
+<span id="L135"><span class="lineNum">     135</span> <span class="tlaGNC">          43 :     M = dynamic(nsubdiv)</span></span>
 <span id="L136"><span class="lineNum">     136</span>              : </span>
 <span id="L137"><span class="lineNum">     137</span>              :     # Determine cell sizes.</span>
-<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">          44 :     rs_cell = map(rs_cut, Ls) do r, L</span></span>
-<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">         132 :         r′ = r / M</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">          43 :     rs_cell = map(rs_cut, Ls) do r, L</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">         129 :         r′ = r / M</span></span>
 <span id="L140"><span class="lineNum">     140</span>              :         # Increase cell size so that it exactly divides the domain size.</span>
-<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">         132 :         L / floor(L / r′)</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">         129 :         L / floor(L / r′)</span></span>
 <span id="L142"><span class="lineNum">     142</span>              :     end</span>
 <span id="L143"><span class="lineNum">     143</span>              : </span>
 <span id="L144"><span class="lineNum">     144</span>              :     # Number of cells in each direction.</span>
 <span id="L145"><span class="lineNum">     145</span>              :     # Using `floor` below means that, if `r_cell` doesn't exactly divide the domain size L in</span>
 <span id="L146"><span class="lineNum">     146</span>              :     # a given direction, then the *last* cell in that direction will be larger than `r_cell`.</span>
-<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">          44 :     ncells = map(rs_cell, Ls) do r_cell, L</span></span>
-<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">         132 :         floor(Int, L / r_cell)</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">          43 :     ncells = map(rs_cell, Ls) do r_cell, L</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">         129 :         floor(Int, L / r_cell)</span></span>
 <span id="L149"><span class="lineNum">     149</span>              :     end</span>
 <span id="L150"><span class="lineNum">     150</span>              : </span>
 <span id="L151"><span class="lineNum">     151</span>              :     # When M = 1, the number of cells in each direction should be at least 3 to avoid</span>
 <span id="L152"><span class="lineNum">     152</span>              :     # repeating pair interactions (due to periodicity).</span>
 <span id="L153"><span class="lineNum">     153</span>              :     # More generally, for any M, the number of cells should be at least 2M + 1.</span>
 <span id="L154"><span class="lineNum">     154</span>              :     # In the end, this corresponds to the condition r_cut_in/L &lt; M / (2M + 1).</span>
-<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">          44 :     all(≥(2M + 1), ncells) || error(</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">          43 :     all(≥(2M + 1), ncells) || error(</span></span>
 <span id="L156"><span class="lineNum">     156</span>              :         lazy&quot;&quot;&quot;cell lists: the cut-off distance r_cut is too large for periodic padding.</span>
 <span id="L157"><span class="lineNum">     157</span>              :                It should satisfy r_cut/L ≤ nsubdiv / (2 * nsubdiv + 1) = $(M / (2M + 1));</span>
 <span id="L158"><span class="lineNum">     158</span>              :                got rs_cut/Ls = $(rs_cut ./ Ls).&quot;&quot;&quot;</span>
 <span id="L159"><span class="lineNum">     159</span>              :     )</span>
 <span id="L160"><span class="lineNum">     160</span>              : </span>
-<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">          44 :     elements = Vector{T}(undef, 0)</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">          43 :     elements = Vector{T}(undef, 0)</span></span>
 <span id="L162"><span class="lineNum">     162</span>              :     # elements = StructVector{T}(undef, 0)  # not necessarily faster than a regular Vector in this case</span>
 <span id="L163"><span class="lineNum">     163</span>              : </span>
-<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">          44 :     IndexType = Int</span></span>
-<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">          44 :     head_dims = ncells .+ 2M  # add 2M ghost cells in each direction</span></span>
-<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">          44 :     head_raw = Array{IndexType}(undef, head_dims)</span></span>
-<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">      877604 :     fill!(head_raw, EMPTY)</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">          43 :     IndexType = Int</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">          43 :     head_dims = ncells .+ 2M  # add 2M ghost cells in each direction</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">          43 :     head_raw = Array{IndexType}(undef, head_dims)</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">      875876 :     fill!(head_raw, EMPTY)</span></span>
 <span id="L168"><span class="lineNum">     168</span>              : </span>
-<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">          44 :     head_indices = PaddedArray{M}(head_raw)</span></span>
-<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">          44 :     @assert size(head_indices) == ncells</span></span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">          43 :     head_indices = PaddedArray{M}(head_raw)</span></span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">          43 :     @assert size(head_indices) == ncells</span></span>
 <span id="L171"><span class="lineNum">     171</span>              : </span>
-<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">          44 :     next_index = Vector{Int}(undef, 0)</span></span>
-<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">          44 :     isready = Ref(true)  # technically we're ready for iterating (with zero elements)</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">          43 :     next_index = Vector{Int}(undef, 0)</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">          43 :     isready = Ref(true)  # technically we're ready for iterating (with zero elements)</span></span>
 <span id="L174"><span class="lineNum">     174</span>              : </span>
-<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">          44 :     Base.require_one_based_indexing(elements)  # assumed since EMPTY = 0</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">          43 :     Base.require_one_based_indexing(elements)  # assumed since EMPTY = 0</span></span>
 <span id="L176"><span class="lineNum">     176</span>              : </span>
-<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">          44 :     PeriodicCellList(</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">          43 :     PeriodicCellList(</span></span>
 <span id="L178"><span class="lineNum">     178</span>              :         elements, head_indices, next_index, isready, to_coordinate, rs_cell, nsubdiv, Ls,</span>
 <span id="L179"><span class="lineNum">     179</span>              :     )</span>
 <span id="L180"><span class="lineNum">     180</span>              : end</span>
@@ -250,18 +250,18 @@
 <span id="L184"><span class="lineNum">     184</span>              : </span>
 <span id="L185"><span class="lineNum">     185</span>              : Remove all elements from the cell list.</span>
 <span id="L186"><span class="lineNum">     186</span>              : &quot;&quot;&quot;</span>
-<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">        1607 : function Base.empty!(cl::PeriodicCellList)</span></span>
-<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">        1607 :     empty!(cl.elements)</span></span>
-<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">        1607 :     empty!(cl.next_index)</span></span>
-<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">        1607 :     fill!(parent(cl.head_indices), EMPTY)  # this can be slow with too many cells!</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">        1606 : function Base.empty!(cl::PeriodicCellList)</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">        1606 :     empty!(cl.elements)</span></span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">        1606 :     empty!(cl.next_index)</span></span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">        1606 :     fill!(parent(cl.head_indices), EMPTY)  # this can be slow with too many cells!</span></span>
 <span id="L191"><span class="lineNum">     191</span> <span class="tlaUNC tlaBgUNC">           0 :     cl</span></span>
 <span id="L192"><span class="lineNum">     192</span>              : end</span>
 <span id="L193"><span class="lineNum">     193</span>              : </span>
-<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC tlaBgGNC">      723177 : @inline function determine_cell_index(x, rcut, L, N)</span></span>
-<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">      723178 :     while x &lt; 0</span></span>
-<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">        5051 :         x += L</span></span>
-<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">        5051 :     end</span></span>
-<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">      724487 :     while x ≥ L</span></span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC tlaBgGNC">      722695 : @inline function determine_cell_index(x, rcut, L, N)</span></span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">      722696 :     while x &lt; 0</span></span>
+<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">        4891 :         x += L</span></span>
+<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">        4891 :     end</span></span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">      724006 :     while x ≥ L</span></span>
 <span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC">        1309 :         x -= L</span></span>
 <span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">        1309 :     end</span></span>
 <span id="L201"><span class="lineNum">     201</span>              :     # Here unsafe_trunc(Int, ⋅) is used instead of floor(Int, ⋅) because it should be</span>
@@ -271,7 +271,7 @@
 <span id="L205"><span class="lineNum">     205</span>              :     # throws errors. It can silently give a wrong result if the values are not representable</span>
 <span id="L206"><span class="lineNum">     206</span>              :     # by an Int, but that will never be the case in practice here (since 0 ≤ x/rcut &lt; L/rcut</span>
 <span id="L207"><span class="lineNum">     207</span>              :     # and L/rcut is very small compared to typemax(Int) = 2^63 - 1).</span>
-<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">      723179 :     clamp(1 + unsafe_trunc(Int, x / rcut), 1, N)  # make sure the index is in 1:N</span></span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">      722696 :     clamp(1 + unsafe_trunc(Int, x / rcut), 1, N)  # make sure the index is in 1:N</span></span>
 <span id="L209"><span class="lineNum">     209</span>              : end</span>
 <span id="L210"><span class="lineNum">     210</span>              : </span>
 <span id="L211"><span class="lineNum">     211</span>              : &quot;&quot;&quot;</span>
@@ -288,21 +288,21 @@
 <span id="L222"><span class="lineNum">     222</span>              : </span>
 <span id="L223"><span class="lineNum">     223</span>              : where `to_coordinate` corresponds to the keyword argument of [`PeriodicCellList`](@ref).</span>
 <span id="L224"><span class="lineNum">     224</span>              : &quot;&quot;&quot;</span>
-<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">      153989 : function add_element!(cl::PeriodicCellList{N, T}, el::T) where {N, T}</span></span>
-<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">      153989 :     x⃗ = cl.to_coordinate(el)</span></span>
-<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">      153989 :     add_element!(cl, el, x⃗)</span></span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">      153861 : function add_element!(cl::PeriodicCellList{N, T}, el::T) where {N, T}</span></span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">      153861 :     x⃗ = cl.to_coordinate(el)</span></span>
+<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">      153861 :     add_element!(cl, el, x⃗)</span></span>
 <span id="L228"><span class="lineNum">     228</span>              : end</span>
 <span id="L229"><span class="lineNum">     229</span>              : </span>
-<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">      153989 : function add_element!(cl::PeriodicCellList{N, T}, el::T, x⃗) where {N, T}</span></span>
-<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">      153989 :     (; rs_cut, Ls, elements, next_index, head_indices,) = cl</span></span>
-<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">      153989 :     cl.isready[] = false      # we're not ready for iterating</span></span>
-<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">      153989 :     @assert length(elements) == length(next_index)</span></span>
-<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">      153989 :     push!(elements, el)       # add this element to element vector</span></span>
-<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">      153989 :     inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))</span></span>
-<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">      153989 :     I = CartesianIndex(inds)</span></span>
-<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">      153989 :     n = lastindex(elements)                        # index of the new element</span></span>
-<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">      153989 :     push!(next_index, @inbounds(head_indices[I]))  # the old head now comes after the new element</span></span>
-<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">      153989 :     @inbounds head_indices[I] = n                  # the new element is the new head</span></span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">      153861 : function add_element!(cl::PeriodicCellList{N, T}, el::T, x⃗) where {N, T}</span></span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">      153861 :     (; rs_cut, Ls, elements, next_index, head_indices,) = cl</span></span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">      153861 :     cl.isready[] = false      # we're not ready for iterating</span></span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">      153861 :     @assert length(elements) == length(next_index)</span></span>
+<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">      153861 :     push!(elements, el)       # add this element to element vector</span></span>
+<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">      153861 :     inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))</span></span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">      153861 :     I = CartesianIndex(inds)</span></span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">      153861 :     n = lastindex(elements)                        # index of the new element</span></span>
+<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">      153861 :     push!(next_index, @inbounds(head_indices[I]))  # the old head now comes after the new element</span></span>
+<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">      153861 :     @inbounds head_indices[I] = n                  # the new element is the new head</span></span>
 <span id="L240"><span class="lineNum">     240</span> <span class="tlaUNC tlaBgUNC">           0 :     cl</span></span>
 <span id="L241"><span class="lineNum">     241</span>              : end</span>
 <span id="L242"><span class="lineNum">     242</span>              : </span>
@@ -316,10 +316,10 @@
 <span id="L250"><span class="lineNum">     250</span>              : It must be called once after all elements have been added to the cell list using</span>
 <span id="L251"><span class="lineNum">     251</span>              : [`add_element!`](@ref) and before one starts iterating using [`nearby_elements`](@ref).</span>
 <span id="L252"><span class="lineNum">     252</span>              : &quot;&quot;&quot;</span>
-<span id="L253"><span class="lineNum">     253</span> <span class="tlaGNC tlaBgGNC">        1607 : function finalise_cells!(cl::PeriodicCellList)</span></span>
-<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">        1607 :     cl.isready[] &amp;&amp; return cl</span></span>
-<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">        1607 :     pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity (can be slow...)</span></span>
-<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">        1607 :     cl.isready[] = true</span></span>
+<span id="L253"><span class="lineNum">     253</span> <span class="tlaGNC tlaBgGNC">        1606 : function finalise_cells!(cl::PeriodicCellList)</span></span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">        1606 :     cl.isready[] &amp;&amp; return cl</span></span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">        1606 :     pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity (can be slow...)</span></span>
+<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">        1606 :     cl.isready[] = true</span></span>
 <span id="L257"><span class="lineNum">     257</span> <span class="tlaUNC tlaBgUNC">           0 :     cl</span></span>
 <span id="L258"><span class="lineNum">     258</span>              : end</span>
 <span id="L259"><span class="lineNum">     259</span>              : </span>
@@ -333,7 +333,7 @@
 <span id="L267"><span class="lineNum">     267</span>              :         HeadArray &lt;: AbstractArray{IndexType, N},</span>
 <span id="L268"><span class="lineNum">     268</span>              :         CellIndices &lt;: CartesianIndices{N},</span>
 <span id="L269"><span class="lineNum">     269</span>              :     }</span>
-<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC tlaBgGNC">       87072 :     elements     :: ElementList        # contains all elements in all cells</span></span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC tlaBgGNC">       87039 :     elements     :: ElementList        # contains all elements in all cells</span></span>
 <span id="L271"><span class="lineNum">     271</span>              :     head_indices :: HeadArray          # array pointing to the index of the first element in each cell</span>
 <span id="L272"><span class="lineNum">     272</span>              :     next_index   :: Vector{IndexType}  # allows to get the rest of the elements in cell</span>
 <span id="L273"><span class="lineNum">     273</span>              :     cell_indices :: CellIndices        # indices of cells that will be visited</span>
@@ -343,26 +343,26 @@
 <span id="L277"><span class="lineNum">     277</span> <span class="tlaUNC">           0 : Base.IteratorEltype(::Type{&lt;:MultiCellIterator}) = Base.HasEltype()</span></span>
 <span id="L278"><span class="lineNum">     278</span> <span class="tlaUNC">           0 : Base.eltype(::Type{&lt;:MultiCellIterator{T}}) where {T} = T</span></span>
 <span id="L279"><span class="lineNum">     279</span>              : </span>
-<span id="L280"><span class="lineNum">     280</span> <span class="tlaGNC tlaBgGNC">       87071 : @inline function Base.iterate(it::MultiCellIterator)</span></span>
-<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">       87072 :     icell = firstindex(it.cell_indices)</span></span>
-<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">       87072 :     I = @inbounds it.cell_indices[icell]</span></span>
-<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">       87072 :     n = @inbounds it.head_indices[I]</span></span>
-<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">     4244616 :     iterate(it, (icell, n))</span></span>
+<span id="L280"><span class="lineNum">     280</span> <span class="tlaGNC tlaBgGNC">       87040 : @inline function Base.iterate(it::MultiCellIterator)</span></span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">       87040 :     icell = firstindex(it.cell_indices)</span></span>
+<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">       87040 :     I = @inbounds it.cell_indices[icell]</span></span>
+<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">       87040 :     n = @inbounds it.head_indices[I]</span></span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">     4242891 :     iterate(it, (icell, n))</span></span>
 <span id="L285"><span class="lineNum">     285</span>              : end</span>
 <span id="L286"><span class="lineNum">     286</span>              : </span>
-<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">     6752170 : @inline function Base.iterate(it::MultiCellIterator, state)</span></span>
-<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">     6752031 :     (; elements, head_indices, next_index, cell_indices,) = it</span></span>
-<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">     6754534 :     icell, n = state</span></span>
-<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">    17521904 :     while n == EMPTY</span></span>
-<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">    10877440 :         if icell == lastindex(cell_indices)</span></span>
-<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">       87071 :             return nothing  # if this was the last cell, stop iterating</span></span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">     6744850 : @inline function Base.iterate(it::MultiCellIterator, state)</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">     6746281 :     (; elements, head_indices, next_index, cell_indices,) = it</span></span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">     6746603 :     icell, n = state</span></span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">    17507143 :     while n == EMPTY</span></span>
+<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">    10870808 :         if icell == lastindex(cell_indices)</span></span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">       87040 :             return nothing  # if this was the last cell, stop iterating</span></span>
 <span id="L293"><span class="lineNum">     293</span>              :         end</span>
-<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">    10789158 :         icell += 1  # jump to the next cell</span></span>
-<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">    10788970 :         I = @inbounds cell_indices[icell]</span></span>
-<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">    10789502 :         n = @inbounds head_indices[I]</span></span>
-<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">    10790524 :     end</span></span>
-<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">     6664917 :     el = @inbounds elements[n]</span></span>
-<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">     6665002 :     @inbounds el, (icell, next_index[n])</span></span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">    10782834 :         icell += 1  # jump to the next cell</span></span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">    10781737 :         I = @inbounds cell_indices[icell]</span></span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">    10781850 :         n = @inbounds head_indices[I]</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">    10783213 :     end</span></span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">     6658397 :     el = @inbounds elements[n]</span></span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">     6660207 :     @inbounds el, (icell, next_index[n])</span></span>
 <span id="L300"><span class="lineNum">     300</span>              : end</span>
 <span id="L301"><span class="lineNum">     301</span>              : </span>
 <span id="L302"><span class="lineNum">     302</span>              : &quot;&quot;&quot;</span>
@@ -376,19 +376,19 @@
 <span id="L310"><span class="lineNum">     310</span>              : </span>
 <span id="L311"><span class="lineNum">     311</span>              : Here `x⃗` should be a coordinate, usually represented by an `SVector{N}` or an `NTuple{N}`.</span>
 <span id="L312"><span class="lineNum">     312</span>              : &quot;&quot;&quot;</span>
-<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">       87071 : function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}</span></span>
-<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">       87072 :     length(x⃗) == N || throw(DimensionMismatch(lazy&quot;wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)&quot;))</span></span>
-<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">       87072 :     (; rs_cut, Ls,) = cl</span></span>
-<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">       87072 :     cl.isready[] || error(&quot;one must call `finalise_cells!` on the `PeriodicCellList` before iterating using `nearby_elements`&quot;)</span></span>
-<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">       87073 :     inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))</span></span>
-<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">       87072 :     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)</span></span>
-<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">       87072 :     M = subdivisions(cl)</span></span>
-<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">       87073 :     cell_indices = CartesianIndices(</span></span>
-<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">      261219 :         map(i -&gt; (i - M):(i + M), Tuple(I₀))</span></span>
+<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">       87040 : function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}</span></span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">       87039 :     length(x⃗) == N || throw(DimensionMismatch(lazy&quot;wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)&quot;))</span></span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">       87040 :     (; rs_cut, Ls,) = cl</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">       87040 :     cl.isready[] || error(&quot;one must call `finalise_cells!` on the `PeriodicCellList` before iterating using `nearby_elements`&quot;)</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">       87040 :     inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">       87040 :     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)</span></span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">       87040 :     M = subdivisions(cl)</span></span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">       87040 :     cell_indices = CartesianIndices(</span></span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">      261120 :         map(i -&gt; (i - M):(i + M), Tuple(I₀))</span></span>
 <span id="L322"><span class="lineNum">     322</span>              :     )</span>
 <span id="L323"><span class="lineNum">     323</span>              :     # iters = (CellIterator(cl.elements, cl.head_indices[I], cl.next_index) for I ∈ cell_indices)</span>
 <span id="L324"><span class="lineNum">     324</span>              :     # it = Iterators.flatten(iters)  # this gives eltype(it) == Any (but that doesn't seem to affect performance...)</span>
-<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">       87072 :     it = MultiCellIterator(cl.elements, cl.head_indices, cl.next_index, cell_indices)  # slightly slower than Iterators.flatten (but with known eltype)</span></span>
+<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">       87039 :     it = MultiCellIterator(cl.elements, cl.head_indices, cl.next_index, cell_indices)  # slightly slower than Iterators.flatten (but with known eltype)</span></span>
 <span id="L326"><span class="lineNum">     326</span>              :     # eltype(it)</span>
 <span id="L327"><span class="lineNum">     327</span> <span class="tlaUNC tlaBgUNC">           0 :     it</span></span>
 <span id="L328"><span class="lineNum">     328</span>              : end</span>

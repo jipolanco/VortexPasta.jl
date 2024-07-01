@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -89,23 +89,23 @@
 <span id="L23"><span class="lineNum">      23</span>              :     p     :: Params</span>
 <span id="L24"><span class="lineNum">      24</span>              : </span>
 <span id="L25"><span class="lineNum">      25</span>              :     # This variant assumes that types are correct (will error if they're not).</span>
-<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC tlaBgGNC">          25 :     function VortexFilamentProblem(::Type{T}, fs, tspan, p) where {T}</span></span>
-<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">          25 :         new{T, typeof(fs), typeof(p)}(fs, tspan, p)</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC tlaBgGNC">          23 :     function VortexFilamentProblem(::Type{T}, fs, tspan, p) where {T}</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">          23 :         new{T, typeof(fs), typeof(p)}(fs, tspan, p)</span></span>
 <span id="L28"><span class="lineNum">      28</span>              :     end</span>
 <span id="L29"><span class="lineNum">      29</span>              : end</span>
 <span id="L30"><span class="lineNum">      30</span>              : </span>
-<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">          25 : function VortexFilamentProblem(</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">          23 : function VortexFilamentProblem(</span></span>
 <span id="L32"><span class="lineNum">      32</span>              :         fs_in::VectorOfFilaments,</span>
 <span id="L33"><span class="lineNum">      33</span>              :         tspan_in::NTuple{2, Real},</span>
 <span id="L34"><span class="lineNum">      34</span>              :         p_in::ParamsBiotSavart,</span>
 <span id="L35"><span class="lineNum">      35</span>              :     )</span>
-<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">          25 :     fs = convert(VectorOfVectors, fs_in)</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">          23 :     fs = convert(VectorOfVectors, fs_in)</span></span>
 <span id="L37"><span class="lineNum">      37</span>              :     # Convert all float types to the precision used to describe filaments.</span>
-<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">          25 :     T = eltype(eltype(eltype(fs)))</span></span>
-<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">          25 :     @assert T &lt;: AbstractFloat</span></span>
-<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">          25 :     tspan = convert(NTuple{2, T}, tspan_in)</span></span>
-<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">          25 :     p = convert(T, p_in)</span></span>
-<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">          25 :     VortexFilamentProblem(T, fs, tspan, p)</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">          23 :     T = eltype(eltype(eltype(fs)))</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">          23 :     @assert T &lt;: AbstractFloat</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">          23 :     tspan = convert(NTuple{2, T}, tspan_in)</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">          23 :     p = convert(T, p_in)</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">          23 :     VortexFilamentProblem(T, fs, tspan, p)</span></span>
 <span id="L43"><span class="lineNum">      43</span>              : end</span>
 <span id="L44"><span class="lineNum">      44</span>              : </span>
 <span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">           7 : function Base.show(io::IO, prob::VortexFilamentProblem)</span></span>

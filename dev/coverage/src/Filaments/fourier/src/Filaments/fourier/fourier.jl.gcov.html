@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -93,13 +93,13 @@
 <span id="L27"><span class="lineNum">      27</span>              :     } &lt;: DiscretisationMethod</span>
 <span id="L28"><span class="lineNum">      28</span>              :     interp :: InterpolationMethod</span>
 <span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC tlaBgGNC">           8 :     FourierMethod(interp) = new{typeof(interp)}(interp)</span></span>
-<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">    19926995 :     FourierMethod{I}() where {I} = new{I}(I())</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">    19895350 :     FourierMethod{I}() where {I} = new{I}(I())</span></span>
 <span id="L31"><span class="lineNum">      31</span>              : end</span>
 <span id="L32"><span class="lineNum">      32</span>              : </span>
 <span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">           8 : FourierMethod() = FourierMethod(HermiteInterpolation(2))</span></span>
 <span id="L34"><span class="lineNum">      34</span>              : </span>
 <span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">          12 : default_parametrisation(::FourierMethod) = FourierParametrisation()</span></span>
-<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">    20608500 : interpolation_method(m::FourierMethod) = m.interp</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">    20596960 : interpolation_method(m::FourierMethod) = m.interp</span></span>
 <span id="L37"><span class="lineNum">      37</span>              : </span>
 <span id="L38"><span class="lineNum">      38</span>              : # For practical purposes we set the continuity to a relatively large number.</span>
 <span id="L39"><span class="lineNum">      39</span>              : # Note however that the interpolation method `I` imposes a smaller continuity when doing</span>
@@ -227,19 +227,19 @@
 <span id="L161"><span class="lineNum">     161</span> <span class="tlaUNC tlaBgUNC">           0 :     f</span></span>
 <span id="L162"><span class="lineNum">     162</span>              : end</span>
 <span id="L163"><span class="lineNum">     163</span>              : </span>
-<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC tlaBgGNC">      216894 : function _derivative_at_node(</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC tlaBgGNC">      216812 : function _derivative_at_node(</span></span>
 <span id="L165"><span class="lineNum">     165</span>              :         ::Derivative{n}, ::FourierMethod, f::ClosedFilament, node::AtNode,</span>
 <span id="L166"><span class="lineNum">     166</span>              :     ) where {n}</span>
-<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">      216888 :     (; cs, cderivs,) = f.coefs</span></span>
-<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">      216932 :     n &gt; length(cderivs) &amp;&amp; throw(ArgumentError(</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">      216823 :     (; cs, cderivs,) = f.coefs</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">      216909 :     n &gt; length(cderivs) &amp;&amp; throw(ArgumentError(</span></span>
 <span id="L169"><span class="lineNum">     169</span>              :         lazy&quot;derivatives of order $n are not enabled. Initialise a filament with nderivs ≥ $n, and make sure the discretisation scheme has the required continuity degree.&quot;</span>
 <span id="L170"><span class="lineNum">     170</span>              :     ))</span>
-<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">      216963 :     coefs = (cs, cderivs...)</span></span>
-<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">      216975 :     coefs[n + 1][node.i]</span></span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">      216891 :     coefs = (cs, cderivs...)</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">      216906 :     coefs[n + 1][node.i]</span></span>
 <span id="L173"><span class="lineNum">     173</span>              : end</span>
 <span id="L174"><span class="lineNum">     174</span>              : </span>
 <span id="L175"><span class="lineNum">     175</span>              : # Calls Hermite interpolation functions</span>
-<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">    39369407 : _interpolate(m::FourierMethod, args...; kws...) =</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">    39340173 : _interpolate(m::FourierMethod, args...; kws...) =</span></span>
 <span id="L177"><span class="lineNum">     177</span>              :     _interpolate(interpolation_method(m), args...; kws...)</span>
 <span id="L178"><span class="lineNum">     178</span>              : </span>
 <span id="L179"><span class="lineNum">     179</span>              : ## ================================================================================ ##</span>

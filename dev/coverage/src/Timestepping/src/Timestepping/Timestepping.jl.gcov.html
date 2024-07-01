@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -146,8 +146,8 @@
 <span id="L80"><span class="lineNum">      80</span>              : the actual filament displacement is too large compared to what is imposed by the criterion.</span>
 <span id="L81"><span class="lineNum">      81</span>              : In that case, the iteration will be recomputed with a smaller timestep (`dt → dt/2`).</span>
 <span id="L82"><span class="lineNum">      82</span>              : &quot;&quot;&quot;</span>
-<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">          86 : @kwdef mutable struct TimeInfo</span></span>
-<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">          43 :     nstep     :: Int</span></span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">          82 : @kwdef mutable struct TimeInfo</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">          41 :     nstep     :: Int</span></span>
 <span id="L85"><span class="lineNum">      85</span>              :     nrejected :: Int</span>
 <span id="L86"><span class="lineNum">      86</span>              :     t       :: Float64</span>
 <span id="L87"><span class="lineNum">      87</span>              :     dt      :: Float64</span>
@@ -188,7 +188,7 @@
 <span id="L122"><span class="lineNum">     122</span>              : </span>
 <span id="L123"><span class="lineNum">     123</span>              : This is useful for split timestepping schemes like IMEX or multirate methods.</span>
 <span id="L124"><span class="lineNum">     124</span>              : &quot;&quot;&quot;</span>
-<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">          38 : struct LocalTerm &lt;: FastBiotSavartTerm end</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">          36 : struct LocalTerm &lt;: FastBiotSavartTerm end</span></span>
 <span id="L126"><span class="lineNum">     126</span>              : </span>
 <span id="L127"><span class="lineNum">     127</span>              : &quot;&quot;&quot;</span>
 <span id="L128"><span class="lineNum">     128</span>              :     VortexFilamentSolver</span>
@@ -235,7 +235,7 @@
 <span id="L169"><span class="lineNum">     169</span>              :         AdvectFunction &lt;: Function,</span>
 <span id="L170"><span class="lineNum">     170</span>              :         RHSFunction &lt;: Function,</span>
 <span id="L171"><span class="lineNum">     171</span>              :     } &lt;: AbstractSolver</span>
-<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">          43 :     prob  :: Problem</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">          41 :     prob  :: Problem</span></span>
 <span id="L173"><span class="lineNum">     173</span>              :     fs    :: Filaments</span>
 <span id="L174"><span class="lineNum">     174</span>              :     vs    :: Velocities</span>
 <span id="L175"><span class="lineNum">     175</span>              :     ψs    :: Velocities  # not really velocity, but streamfunction</span>
@@ -292,12 +292,12 @@
 <span id="L226"><span class="lineNum">     226</span>              : </span>
 <span id="L227"><span class="lineNum">     227</span>              : # This is for convenience: allows doing e.g. `iter.t` instead of `iter.time.t` to get the</span>
 <span id="L228"><span class="lineNum">     228</span>              : # current time.</span>
-<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">      519165 : @inline function Base.getproperty(iter::VortexFilamentSolver, name::Symbol)</span></span>
-<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">      519165 :     time = getfield(iter, :time)</span></span>
-<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">      519165 :     if hasproperty(time, name)</span></span>
-<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">       21283 :         getproperty(time, name)</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">      519102 : @inline function Base.getproperty(iter::VortexFilamentSolver, name::Symbol)</span></span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">      519102 :     time = getfield(iter, :time)</span></span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">      519102 :     if hasproperty(time, name)</span></span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">       21280 :         getproperty(time, name)</span></span>
 <span id="L233"><span class="lineNum">     233</span>              :     else</span>
-<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">      497882 :         getfield(iter, name)</span></span>
+<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">      497822 :         getfield(iter, name)</span></span>
 <span id="L235"><span class="lineNum">     235</span>              :     end</span>
 <span id="L236"><span class="lineNum">     236</span>              : end</span>
 <span id="L237"><span class="lineNum">     237</span>              : </span>
@@ -307,7 +307,7 @@
 <span id="L241"><span class="lineNum">     241</span>              : </span>
 <span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">          14 : _printable_function(f::TimerOutputs.InstrumentedFunction) = f.func</span></span>
 <span id="L243"><span class="lineNum">     243</span>              : </span>
-<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">        9792 : get_dt(iter::VortexFilamentSolver) = iter.time.dt</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">        9790 : get_dt(iter::VortexFilamentSolver) = iter.time.dt</span></span>
 <span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">        5951 : get_t(iter::VortexFilamentSolver) = iter.time.t</span></span>
 <span id="L246"><span class="lineNum">     246</span>              : </span>
 <span id="L247"><span class="lineNum">     247</span>              : @doc raw&quot;&quot;&quot;</span>
@@ -453,7 +453,7 @@
 <span id="L387"><span class="lineNum">     387</span>              :     so it can be reasonable to ignore the `external_streamfunction` parameter in order to</span>
 <span id="L388"><span class="lineNum">     388</span>              :     obtain the energy associated to ``\bm{v}_{\text{BS}}`` only.</span>
 <span id="L389"><span class="lineNum">     389</span>              : &quot;&quot;&quot;</span>
-<span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">          86 : function init(</span></span>
+<span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">          82 : function init(</span></span>
 <span id="L391"><span class="lineNum">     391</span>              :         prob::VortexFilamentProblem{T}, scheme::TemporalScheme;</span>
 <span id="L392"><span class="lineNum">     392</span>              :         alias_u0 = false,   # same as in OrdinaryDiffEq.jl</span>
 <span id="L393"><span class="lineNum">     393</span>              :         dt::Real,</span>
@@ -476,60 +476,60 @@
 <span id="L410"><span class="lineNum">     410</span>              :         ExtStf &lt;: Union{Nothing, Function},</span>
 <span id="L411"><span class="lineNum">     411</span>              :         T,</span>
 <span id="L412"><span class="lineNum">     412</span>              :     }</span>
-<span id="L413"><span class="lineNum">     413</span> <span class="tlaGNC">          43 :     (; tspan,) = prob</span></span>
-<span id="L414"><span class="lineNum">     414</span> <span class="tlaGNC">          43 :     (; Ls,) = prob.p</span></span>
-<span id="L415"><span class="lineNum">     415</span> <span class="tlaGNC">          43 :     fs = convert(VectorOfVectors, prob.fs)</span></span>
-<span id="L416"><span class="lineNum">     416</span> <span class="tlaGNC">          43 :     vs_data = map(similar ∘ nodes, fs) :: AllFilamentVelocities</span></span>
-<span id="L417"><span class="lineNum">     417</span> <span class="tlaGNC">          43 :     vs = convert(VectorOfVectors, vs_data)</span></span>
-<span id="L418"><span class="lineNum">     418</span> <span class="tlaGNC">          43 :     ψs = similar(vs)</span></span>
-<span id="L419"><span class="lineNum">     419</span> <span class="tlaGNC">          86 :     fs_sol = alias_u0 ? fs : copy(fs)</span></span>
-<span id="L420"><span class="lineNum">     420</span> <span class="tlaGNC">          43 :     cache_reconnect = Reconnections.init_cache(reconnect, fs_sol, Ls)</span></span>
-<span id="L421"><span class="lineNum">     421</span> <span class="tlaGNC">          43 :     cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)</span></span>
-<span id="L422"><span class="lineNum">     422</span> <span class="tlaGNC">          43 :     cache_timestepper = init_cache(scheme, fs, vs)</span></span>
+<span id="L413"><span class="lineNum">     413</span> <span class="tlaGNC">          41 :     (; tspan,) = prob</span></span>
+<span id="L414"><span class="lineNum">     414</span> <span class="tlaGNC">          41 :     (; Ls,) = prob.p</span></span>
+<span id="L415"><span class="lineNum">     415</span> <span class="tlaGNC">          41 :     fs = convert(VectorOfVectors, prob.fs)</span></span>
+<span id="L416"><span class="lineNum">     416</span> <span class="tlaGNC">          41 :     vs_data = map(similar ∘ nodes, fs) :: AllFilamentVelocities</span></span>
+<span id="L417"><span class="lineNum">     417</span> <span class="tlaGNC">          41 :     vs = convert(VectorOfVectors, vs_data)</span></span>
+<span id="L418"><span class="lineNum">     418</span> <span class="tlaGNC">          41 :     ψs = similar(vs)</span></span>
+<span id="L419"><span class="lineNum">     419</span> <span class="tlaGNC">          82 :     fs_sol = alias_u0 ? fs : copy(fs)</span></span>
+<span id="L420"><span class="lineNum">     420</span> <span class="tlaGNC">          41 :     cache_reconnect = Reconnections.init_cache(reconnect, fs_sol, Ls)</span></span>
+<span id="L421"><span class="lineNum">     421</span> <span class="tlaGNC">          41 :     cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)</span></span>
+<span id="L422"><span class="lineNum">     422</span> <span class="tlaGNC">          41 :     cache_timestepper = init_cache(scheme, fs, vs)</span></span>
 <span id="L423"><span class="lineNum">     423</span>              : </span>
 <span id="L424"><span class="lineNum">     424</span>              :     # Wrap functions with the timer, so that timings are estimated each time the function is called.</span>
-<span id="L425"><span class="lineNum">     425</span> <span class="tlaGNC">          43 :     advect! = timer(advect_filaments!, &quot;Advect filaments&quot;)</span></span>
-<span id="L426"><span class="lineNum">     426</span> <span class="tlaGNC">          43 :     rhs! = timer(update_values_at_nodes!, &quot;Update values at nodes&quot;)</span></span>
-<span id="L427"><span class="lineNum">     427</span> <span class="tlaGNC">          43 :     callback_ = timer(callback, &quot;Callback&quot;)</span></span>
-<span id="L428"><span class="lineNum">     428</span> <span class="tlaGNC">          43 :     affect_ = timer(affect!, &quot;Affect!&quot;)</span></span>
+<span id="L425"><span class="lineNum">     425</span> <span class="tlaGNC">          41 :     advect! = timer(advect_filaments!, &quot;Advect filaments&quot;)</span></span>
+<span id="L426"><span class="lineNum">     426</span> <span class="tlaGNC">          41 :     rhs! = timer(update_values_at_nodes!, &quot;Update values at nodes&quot;)</span></span>
+<span id="L427"><span class="lineNum">     427</span> <span class="tlaGNC">          41 :     callback_ = timer(callback, &quot;Callback&quot;)</span></span>
+<span id="L428"><span class="lineNum">     428</span> <span class="tlaGNC">          41 :     affect_ = timer(affect!, &quot;Affect!&quot;)</span></span>
 <span id="L429"><span class="lineNum">     429</span>              : </span>
-<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">          43 :     adaptivity_ = possibly_add_max_timestep(adaptivity, dt)</span></span>
-<span id="L431"><span class="lineNum">     431</span> <span class="tlaGNC">          43 :     if adaptivity_ !== NoAdaptivity() &amp;&amp; !can_change_dt(scheme)</span></span>
+<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">          41 :     adaptivity_ = possibly_add_max_timestep(adaptivity, dt)</span></span>
+<span id="L431"><span class="lineNum">     431</span> <span class="tlaGNC">          41 :     if adaptivity_ !== NoAdaptivity() &amp;&amp; !can_change_dt(scheme)</span></span>
 <span id="L432"><span class="lineNum">     432</span> <span class="tlaUNC tlaBgUNC">           0 :         throw(ArgumentError(lazy&quot;temporal scheme $scheme doesn't support adaptibility; set `adaptivity = NoAdaptivity()` or choose a different scheme&quot;))</span></span>
 <span id="L433"><span class="lineNum">     433</span>              :     end</span>
 <span id="L434"><span class="lineNum">     434</span>              : </span>
 <span id="L435"><span class="lineNum">     435</span>              :     # It doesn't make much sense to combine the LIA and fast_term arguments, since there's</span>
 <span id="L436"><span class="lineNum">     436</span>              :     # no RHS splitting to do when using LIA.</span>
 <span id="L437"><span class="lineNum">     437</span>              :     # Therefore, if LIA is enabled, we only support the default fast_term = LocalTerm().</span>
-<span id="L438"><span class="lineNum">     438</span> <span class="tlaGNC tlaBgGNC">          43 :     if LIA &amp;&amp; fast_term !== LocalTerm()</span></span>
+<span id="L438"><span class="lineNum">     438</span> <span class="tlaGNC tlaBgGNC">          41 :     if LIA &amp;&amp; fast_term !== LocalTerm()</span></span>
 <span id="L439"><span class="lineNum">     439</span> <span class="tlaUNC tlaBgUNC">           0 :         throw(ArgumentError(&quot;currently, using LIA requires setting fast_term = LocalTerm()&quot;))</span></span>
 <span id="L440"><span class="lineNum">     440</span>              :     end</span>
 <span id="L441"><span class="lineNum">     441</span>              : </span>
-<span id="L442"><span class="lineNum">     442</span> <span class="tlaGNC tlaBgGNC">          43 :     time = TimeInfo(nstep = 0, nrejected = 0, t = first(tspan), dt = dt, dt_prev = dt)</span></span>
-<span id="L443"><span class="lineNum">     443</span> <span class="tlaGNC">          43 :     stats = SimulationStats(T)</span></span>
+<span id="L442"><span class="lineNum">     442</span> <span class="tlaGNC tlaBgGNC">          41 :     time = TimeInfo(nstep = 0, nrejected = 0, t = first(tspan), dt = dt, dt_prev = dt)</span></span>
+<span id="L443"><span class="lineNum">     443</span> <span class="tlaGNC">          41 :     stats = SimulationStats(T)</span></span>
 <span id="L444"><span class="lineNum">     444</span>              : </span>
-<span id="L445"><span class="lineNum">     445</span> <span class="tlaGNC">          43 :     external_forcing = (</span></span>
+<span id="L445"><span class="lineNum">     445</span> <span class="tlaGNC">          41 :     external_forcing = (</span></span>
 <span id="L446"><span class="lineNum">     446</span>              :         velocity = external_velocity,</span>
 <span id="L447"><span class="lineNum">     447</span>              :         streamfunction = external_streamfunction,</span>
 <span id="L448"><span class="lineNum">     448</span>              :     )</span>
-<span id="L449"><span class="lineNum">     449</span> <span class="tlaGNC">          43 :     check_external_streamfunction(external_forcing, Ls)</span></span>
+<span id="L449"><span class="lineNum">     449</span> <span class="tlaGNC">          41 :     check_external_streamfunction(external_forcing, Ls)</span></span>
 <span id="L450"><span class="lineNum">     450</span>              : </span>
-<span id="L451"><span class="lineNum">     451</span> <span class="tlaGNC">          43 :     iter = VortexFilamentSolver(</span></span>
+<span id="L451"><span class="lineNum">     451</span> <span class="tlaGNC">          41 :     iter = VortexFilamentSolver(</span></span>
 <span id="L452"><span class="lineNum">     452</span>              :         prob, fs_sol, vs, ψs, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,</span>
 <span id="L453"><span class="lineNum">     453</span>              :         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_forcing,</span>
 <span id="L454"><span class="lineNum">     454</span>              :         timer, advect!, rhs!,</span>
 <span id="L455"><span class="lineNum">     455</span>              :     )</span>
 <span id="L456"><span class="lineNum">     456</span>              : </span>
-<span id="L457"><span class="lineNum">     457</span> <span class="tlaGNC">          43 :     finalise_step!(iter)</span></span>
+<span id="L457"><span class="lineNum">     457</span> <span class="tlaGNC">          41 :     finalise_step!(iter)</span></span>
 <span id="L458"><span class="lineNum">     458</span>              : </span>
 <span id="L459"><span class="lineNum">     459</span> <span class="tlaUNC tlaBgUNC">           0 :     iter</span></span>
 <span id="L460"><span class="lineNum">     460</span>              : end</span>
 <span id="L461"><span class="lineNum">     461</span>              : </span>
 <span id="L462"><span class="lineNum">     462</span>              : # Check that the external streamfunction satisfies v = ∇ × ψ on a single arbitrary point.</span>
 <span id="L463"><span class="lineNum">     463</span>              : # We check this using automatic differentiation of ψ at a given point.</span>
-<span id="L464"><span class="lineNum">     464</span> <span class="tlaGNC tlaBgGNC">          43 : function check_external_streamfunction(forcing::NamedTuple, Ls)</span></span>
-<span id="L465"><span class="lineNum">     465</span> <span class="tlaGNC">          43 :     (; velocity, streamfunction,) = forcing</span></span>
-<span id="L466"><span class="lineNum">     466</span> <span class="tlaGNC">          43 :     (velocity === nothing || streamfunction === nothing) &amp;&amp; return nothing</span></span>
+<span id="L464"><span class="lineNum">     464</span> <span class="tlaGNC tlaBgGNC">          41 : function check_external_streamfunction(forcing::NamedTuple, Ls)</span></span>
+<span id="L465"><span class="lineNum">     465</span> <span class="tlaGNC">          41 :     (; velocity, streamfunction,) = forcing</span></span>
+<span id="L466"><span class="lineNum">     466</span> <span class="tlaGNC">          41 :     (velocity === nothing || streamfunction === nothing) &amp;&amp; return nothing</span></span>
 <span id="L467"><span class="lineNum">     467</span> <span class="tlaGNC">           1 :     N = length(Ls)</span></span>
 <span id="L468"><span class="lineNum">     468</span> <span class="tlaGNC">           4 :     x⃗ = Vec3(ntuple(i -&gt; 0.07 * i * Ls[i], Val(N)))  # arbitrary point in [0, L]³</span></span>
 <span id="L469"><span class="lineNum">     469</span> <span class="tlaGNC">           1 :     t = 0.0  # arbitrary time</span></span>
@@ -546,7 +546,7 @@
 <span id="L480"><span class="lineNum">     480</span>              : end</span>
 <span id="L481"><span class="lineNum">     481</span>              : </span>
 <span id="L482"><span class="lineNum">     482</span>              : # This variant computes the full BS law + any added velocities.</span>
-<span id="L483"><span class="lineNum">     483</span> <span class="tlaGNC tlaBgGNC">       18988 : function _update_values_at_nodes!(</span></span>
+<span id="L483"><span class="lineNum">     483</span> <span class="tlaGNC tlaBgGNC">       18986 : function _update_values_at_nodes!(</span></span>
 <span id="L484"><span class="lineNum">     484</span>              :         ::Val{:full},</span>
 <span id="L485"><span class="lineNum">     485</span>              :         ::FastBiotSavartTerm,  # ignored in this case</span>
 <span id="L486"><span class="lineNum">     486</span>              :         fields::NamedTuple{Names, NTuple{N, V}},</span>
@@ -554,12 +554,12 @@
 <span id="L488"><span class="lineNum">     488</span>              :         t::Real,</span>
 <span id="L489"><span class="lineNum">     489</span>              :         iter::VortexFilamentSolver,</span>
 <span id="L490"><span class="lineNum">     490</span>              :     ) where {Names, N, V &lt;: VectorOfVectors}</span>
-<span id="L491"><span class="lineNum">     491</span> <span class="tlaGNC">       18988 :     if iter.LIA</span></span>
+<span id="L491"><span class="lineNum">     491</span> <span class="tlaGNC">       18986 :     if iter.LIA</span></span>
 <span id="L492"><span class="lineNum">     492</span> <span class="tlaGNC">       11446 :         BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))</span></span>
 <span id="L493"><span class="lineNum">     493</span>              :     else</span>
-<span id="L494"><span class="lineNum">     494</span> <span class="tlaGNC">        7542 :         BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)</span></span>
+<span id="L494"><span class="lineNum">     494</span> <span class="tlaGNC">        7540 :         BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)</span></span>
 <span id="L495"><span class="lineNum">     495</span>              :     end</span>
-<span id="L496"><span class="lineNum">     496</span> <span class="tlaGNC">       18988 :     _add_external_fields!(fields, iter.external_forcing, fs, t, iter.to)</span></span>
+<span id="L496"><span class="lineNum">     496</span> <span class="tlaGNC">       18986 :     _add_external_fields!(fields, iter.external_forcing, fs, t, iter.to)</span></span>
 <span id="L497"><span class="lineNum">     497</span>              : end</span>
 <span id="L498"><span class="lineNum">     498</span>              : </span>
 <span id="L499"><span class="lineNum">     499</span>              : # Compute slow component only.</span>
@@ -627,25 +627,25 @@
 <span id="L561"><span class="lineNum">     561</span>              : end</span>
 <span id="L562"><span class="lineNum">     562</span>              : </span>
 <span id="L563"><span class="lineNum">     563</span>              : # This is the most general variant which should be called by timesteppers.</span>
-<span id="L564"><span class="lineNum">     564</span> <span class="tlaGNC">      113136 : function update_values_at_nodes!(</span></span>
+<span id="L564"><span class="lineNum">     564</span> <span class="tlaGNC">      113132 : function update_values_at_nodes!(</span></span>
 <span id="L565"><span class="lineNum">     565</span>              :         fields::NamedTuple, fs, t::Real, iter;</span>
 <span id="L566"><span class="lineNum">     566</span>              :         component = Val(:full),  # compute slow + fast components by default</span>
 <span id="L567"><span class="lineNum">     567</span>              :     )</span>
-<span id="L568"><span class="lineNum">     568</span> <span class="tlaGNC">       62490 :     _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)</span></span>
+<span id="L568"><span class="lineNum">     568</span> <span class="tlaGNC">       62486 :     _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)</span></span>
 <span id="L569"><span class="lineNum">     569</span>              : end</span>
 <span id="L570"><span class="lineNum">     570</span>              : </span>
-<span id="L571"><span class="lineNum">     571</span> <span class="tlaGNC">       50309 : function _add_external_fields!(fields::NamedTuple, forcing::NamedTuple, fs, t, to)</span></span>
-<span id="L572"><span class="lineNum">     572</span> <span class="tlaGNC">       50309 :     if haskey(fields, :velocity)</span></span>
-<span id="L573"><span class="lineNum">     573</span> <span class="tlaGNC">       50309 :         _add_external_field!(fields.velocity, forcing.velocity, fs, t, to)</span></span>
+<span id="L571"><span class="lineNum">     571</span> <span class="tlaGNC">       50307 : function _add_external_fields!(fields::NamedTuple, forcing::NamedTuple, fs, t, to)</span></span>
+<span id="L572"><span class="lineNum">     572</span> <span class="tlaGNC">       50307 :     if haskey(fields, :velocity)</span></span>
+<span id="L573"><span class="lineNum">     573</span> <span class="tlaGNC">       50307 :         _add_external_field!(fields.velocity, forcing.velocity, fs, t, to)</span></span>
 <span id="L574"><span class="lineNum">     574</span>              :     end</span>
-<span id="L575"><span class="lineNum">     575</span> <span class="tlaGNC">       50309 :     if haskey(fields, :streamfunction)</span></span>
+<span id="L575"><span class="lineNum">     575</span> <span class="tlaGNC">       50307 :     if haskey(fields, :streamfunction)</span></span>
 <span id="L576"><span class="lineNum">     576</span>              :         # We multiply the external streamfunction by 2 to get the right kinetic energy.</span>
-<span id="L577"><span class="lineNum">     577</span> <span class="tlaGNC">        5994 :         _add_external_field!(fields.streamfunction, forcing.streamfunction, fs, t, to; factor = 2)</span></span>
+<span id="L577"><span class="lineNum">     577</span> <span class="tlaGNC">        5992 :         _add_external_field!(fields.streamfunction, forcing.streamfunction, fs, t, to; factor = 2)</span></span>
 <span id="L578"><span class="lineNum">     578</span>              :     end</span>
 <span id="L579"><span class="lineNum">     579</span> <span class="tlaUNC tlaBgUNC">           0 :     fields</span></span>
 <span id="L580"><span class="lineNum">     580</span>              : end</span>
 <span id="L581"><span class="lineNum">     581</span>              : </span>
-<span id="L582"><span class="lineNum">     582</span> <span class="tlaGNC tlaBgGNC">      112322 : _add_external_field!(vs_all, ::Nothing, args...; kws...) = vs_all  # do nothing</span></span>
+<span id="L582"><span class="lineNum">     582</span> <span class="tlaGNC tlaBgGNC">      112314 : _add_external_field!(vs_all, ::Nothing, args...; kws...) = vs_all  # do nothing</span></span>
 <span id="L583"><span class="lineNum">     583</span>              : </span>
 <span id="L584"><span class="lineNum">     584</span> <span class="tlaGNC">         284 : function _add_external_field!(vs_all, vext::F, fs, time, to; factor = 1) where {F &lt;: Function}</span></span>
 <span id="L585"><span class="lineNum">     585</span> <span class="tlaGNC">         142 :     @assert eachindex(vs_all) == eachindex(fs)</span></span>
@@ -903,17 +903,17 @@
 <span id="L837"><span class="lineNum">     837</span>              : end</span>
 <span id="L838"><span class="lineNum">     838</span>              : </span>
 <span id="L839"><span class="lineNum">     839</span>              : # Called whenever filament positions have just been initialised or updated.</span>
-<span id="L840"><span class="lineNum">     840</span> <span class="tlaGNC">        5994 : function finalise_step!(iter::VortexFilamentSolver)</span></span>
-<span id="L841"><span class="lineNum">     841</span> <span class="tlaGNC">        5994 :     (; vs, ψs, fs, time, stats, adaptivity, rhs!,) = iter</span></span>
+<span id="L840"><span class="lineNum">     840</span> <span class="tlaGNC">        5992 : function finalise_step!(iter::VortexFilamentSolver)</span></span>
+<span id="L841"><span class="lineNum">     841</span> <span class="tlaGNC">        5992 :     (; vs, ψs, fs, time, stats, adaptivity, rhs!,) = iter</span></span>
 <span id="L842"><span class="lineNum">     842</span>              : </span>
-<span id="L843"><span class="lineNum">     843</span> <span class="tlaGNC">        5994 :     @assert eachindex(fs) == eachindex(vs)</span></span>
+<span id="L843"><span class="lineNum">     843</span> <span class="tlaGNC">        5992 :     @assert eachindex(fs) == eachindex(vs)</span></span>
 <span id="L844"><span class="lineNum">     844</span>              : </span>
 <span id="L845"><span class="lineNum">     845</span>              :     # Check if there are filaments to be removed (typically with ≤ 3 discretisation points,</span>
 <span id="L846"><span class="lineNum">     846</span>              :     # but this depends on the actual discretisation method). Note that filaments may also</span>
 <span id="L847"><span class="lineNum">     847</span>              :     # be removed during reconnections for the same reason.</span>
-<span id="L848"><span class="lineNum">     848</span> <span class="tlaGNC">        8031 :     for i ∈ reverse(eachindex(fs))</span></span>
-<span id="L849"><span class="lineNum">     849</span> <span class="tlaGNC">       10787 :         f = fs[i]</span></span>
-<span id="L850"><span class="lineNum">     850</span> <span class="tlaGNC">       10787 :         if !Filaments.check_nodes(Bool, f)</span></span>
+<span id="L848"><span class="lineNum">     848</span> <span class="tlaGNC">        8029 :     for i ∈ reverse(eachindex(fs))</span></span>
+<span id="L849"><span class="lineNum">     849</span> <span class="tlaGNC">       10785 :         f = fs[i]</span></span>
+<span id="L850"><span class="lineNum">     850</span> <span class="tlaGNC">       10785 :         if !Filaments.check_nodes(Bool, f)</span></span>
 <span id="L851"><span class="lineNum">     851</span>              :             # Remove filament and its associated vectors of velocities/streamfunctions.</span>
 <span id="L852"><span class="lineNum">     852</span> <span class="tlaUNC tlaBgUNC">           0 :             @debug lazy&quot;Removing filament with $(length(f)) nodes&quot;</span></span>
 <span id="L853"><span class="lineNum">     853</span>              :             # Compute vortex length using the straight segment approximation (no quadratures),</span>
@@ -926,33 +926,33 @@
 <span id="L860"><span class="lineNum">     860</span> <span class="tlaUNC">           0 :             popat!(vs, i)</span></span>
 <span id="L861"><span class="lineNum">     861</span> <span class="tlaUNC">           0 :             popat!(ψs, i)</span></span>
 <span id="L862"><span class="lineNum">     862</span>              :         end</span>
-<span id="L863"><span class="lineNum">     863</span> <span class="tlaGNC tlaBgGNC">       15580 :     end</span></span>
+<span id="L863"><span class="lineNum">     863</span> <span class="tlaGNC tlaBgGNC">       15578 :     end</span></span>
 <span id="L864"><span class="lineNum">     864</span>              : </span>
-<span id="L865"><span class="lineNum">     865</span> <span class="tlaGNC">        5994 :     isempty(fs) &amp;&amp; error(&quot;all vortices disappeared!&quot;)  # TODO: nicer way to handle this?</span></span>
+<span id="L865"><span class="lineNum">     865</span> <span class="tlaGNC">        5992 :     isempty(fs) &amp;&amp; error(&quot;all vortices disappeared!&quot;)  # TODO: nicer way to handle this?</span></span>
 <span id="L866"><span class="lineNum">     866</span>              : </span>
-<span id="L867"><span class="lineNum">     867</span> <span class="tlaGNC">        5994 :     iter.affect!(iter)</span></span>
+<span id="L867"><span class="lineNum">     867</span> <span class="tlaGNC">        5992 :     iter.affect!(iter)</span></span>
 <span id="L868"><span class="lineNum">     868</span>              : </span>
 <span id="L869"><span class="lineNum">     869</span>              :     # Update velocities and streamfunctions to the next timestep (and first RK step).</span>
 <span id="L870"><span class="lineNum">     870</span>              :     # Note that we only compute the streamfunction at full steps, and not in the middle of</span>
 <span id="L871"><span class="lineNum">     871</span>              :     # RK substeps.</span>
 <span id="L872"><span class="lineNum">     872</span>              :     # TODO: make computation of ψ optional?</span>
-<span id="L873"><span class="lineNum">     873</span> <span class="tlaGNC">        5994 :     fields = (velocity = vs, streamfunction = ψs,)</span></span>
+<span id="L873"><span class="lineNum">     873</span> <span class="tlaGNC">        5992 :     fields = (velocity = vs, streamfunction = ψs,)</span></span>
 <span id="L874"><span class="lineNum">     874</span>              : </span>
 <span id="L875"><span class="lineNum">     875</span>              :     # Note: here we always include the LIA terms, even when using IMEX or multirate schemes.</span>
 <span id="L876"><span class="lineNum">     876</span>              :     # This must be taken into account by scheme implementations.</span>
-<span id="L877"><span class="lineNum">     877</span> <span class="tlaGNC">        5994 :     rhs!(fields, fs, time.t, iter; component = Val(:full))</span></span>
+<span id="L877"><span class="lineNum">     877</span> <span class="tlaGNC">        5992 :     rhs!(fields, fs, time.t, iter; component = Val(:full))</span></span>
 <span id="L878"><span class="lineNum">     878</span>              : </span>
 <span id="L879"><span class="lineNum">     879</span>              :     # This is mainly useful for visualisation (and it's quite cheap).</span>
-<span id="L880"><span class="lineNum">     880</span> <span class="tlaGNC">       11988 :     for u ∈ vs</span></span>
-<span id="L881"><span class="lineNum">     881</span> <span class="tlaGNC">       45303 :         Filaments.pad_periodic!(u)</span></span>
-<span id="L882"><span class="lineNum">     882</span> <span class="tlaGNC">       15580 :     end</span></span>
-<span id="L883"><span class="lineNum">     883</span> <span class="tlaGNC">       11988 :     for u ∈ ψs</span></span>
-<span id="L884"><span class="lineNum">     884</span> <span class="tlaGNC">       45303 :         Filaments.pad_periodic!(u)</span></span>
-<span id="L885"><span class="lineNum">     885</span> <span class="tlaGNC">       15580 :     end</span></span>
+<span id="L880"><span class="lineNum">     880</span> <span class="tlaGNC">       11984 :     for u ∈ vs</span></span>
+<span id="L881"><span class="lineNum">     881</span> <span class="tlaGNC">       45293 :         Filaments.pad_periodic!(u)</span></span>
+<span id="L882"><span class="lineNum">     882</span> <span class="tlaGNC">       15578 :     end</span></span>
+<span id="L883"><span class="lineNum">     883</span> <span class="tlaGNC">       11984 :     for u ∈ ψs</span></span>
+<span id="L884"><span class="lineNum">     884</span> <span class="tlaGNC">       45293 :         Filaments.pad_periodic!(u)</span></span>
+<span id="L885"><span class="lineNum">     885</span> <span class="tlaGNC">       15578 :     end</span></span>
 <span id="L886"><span class="lineNum">     886</span>              : </span>
-<span id="L887"><span class="lineNum">     887</span> <span class="tlaGNC">        5994 :     time.dt_prev = time.dt</span></span>
-<span id="L888"><span class="lineNum">     888</span> <span class="tlaGNC">        5994 :     time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep</span></span>
-<span id="L889"><span class="lineNum">     889</span> <span class="tlaGNC">        5994 :     iter.callback(iter)</span></span>
+<span id="L887"><span class="lineNum">     887</span> <span class="tlaGNC">        5992 :     time.dt_prev = time.dt</span></span>
+<span id="L888"><span class="lineNum">     888</span> <span class="tlaGNC">        5992 :     time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep</span></span>
+<span id="L889"><span class="lineNum">     889</span> <span class="tlaGNC">        5992 :     iter.callback(iter)</span></span>
 <span id="L890"><span class="lineNum">     890</span>              : </span>
 <span id="L891"><span class="lineNum">     891</span> <span class="tlaUNC tlaBgUNC">           0 :     iter</span></span>
 <span id="L892"><span class="lineNum">     892</span>              : end</span>

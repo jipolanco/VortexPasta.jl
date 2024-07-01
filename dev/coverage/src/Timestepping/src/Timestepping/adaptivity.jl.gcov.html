@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -118,9 +118,9 @@
 <span id="L52"><span class="lineNum">      52</span>              : </span>
 <span id="L53"><span class="lineNum">      53</span>              : Disable temporal adaptivity, leaving the timestep ``Δt`` constant.</span>
 <span id="L54"><span class="lineNum">      54</span>              : &quot;&quot;&quot;</span>
-<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">          61 : struct NoAdaptivity &lt;: AdaptivityCriterion end</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">          57 : struct NoAdaptivity &lt;: AdaptivityCriterion end</span></span>
 <span id="L56"><span class="lineNum">      56</span>              : </span>
-<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">        3841 : estimate_timestep(::NoAdaptivity, iter::AbstractSolver) = get_dt(iter)  # don't change current dt</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">        3839 : estimate_timestep(::NoAdaptivity, iter::AbstractSolver) = get_dt(iter)  # don't change current dt</span></span>
 <span id="L58"><span class="lineNum">      58</span>              : </span>
 <span id="L59"><span class="lineNum">      59</span>              : @doc raw&quot;&quot;&quot;</span>
 <span id="L60"><span class="lineNum">      60</span>              :     AdaptBasedOnSegmentLength &lt;: AdaptivityCriterion</span>
@@ -296,7 +296,7 @@
 <span id="L230"><span class="lineNum">     230</span>              : # If only the AdaptBasedOnVelocity criterion is passed to `init`, then combine it with a</span>
 <span id="L231"><span class="lineNum">     231</span>              : # MaximumTimestep criterion. Otherwise, the dt can indefinitely increase when velocities are small.</span>
 <span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">           1 : possibly_add_max_timestep(crit::AdaptBasedOnVelocity, dt) = crit | MaximumTimestep(dt)</span></span>
-<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">          42 : possibly_add_max_timestep(crit::AdaptivityCriterion, dt) = crit</span></span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">          40 : possibly_add_max_timestep(crit::AdaptivityCriterion, dt) = crit</span></span>
         </pre>
               </td>
             </tr>

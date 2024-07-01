@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-27 12:36:40</td>
+            <td class="headerValue">2024-06-28 14:39:29</td>
             <td></td>
           </tr>
           <tr>
@@ -86,26 +86,26 @@
 <span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC">       94473 : @inline _compute_derivative_coefs!(::Val, ::Tuple{}, args...) = nothing</span></span>
 <span id="L21"><span class="lineNum">      21</span>              : </span>
 <span id="L22"><span class="lineNum">      22</span>              : # Generic implementation, simply evaluates spline on the node.</span>
-<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">     3956821 : function _derivative_at_node(</span></span>
+<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">     3962717 : function _derivative_at_node(</span></span>
 <span id="L24"><span class="lineNum">      24</span>              :         d::Derivative, ::SplineMethod, f::ClosedFilament, node::AtNode,</span>
 <span id="L25"><span class="lineNum">      25</span>              :     )</span>
-<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">     4468441 :     f(node.i, 0.0, d)</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">     4473667 :     f(node.i, 0.0, d)</span></span>
 <span id="L27"><span class="lineNum">      27</span>              : end</span>
 <span id="L28"><span class="lineNum">      28</span>              : </span>
-<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">   228068112 : function _interpolate(m::SplineMethod, f::ClosedFilament, i::Int, ζ::Number, d::Derivative)</span></span>
-<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">   228041108 :     (; ts,) = f</span></span>
-<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">   228110709 :     t = @inbounds (1 - ζ) * ts[i] + ζ * ts[i + 1]  # convert ζ ∈ [0, 1] to spline parametrisation</span></span>
-<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">   228169899 :     _interpolate(m, f, t, d; ileft = i)</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">   227991627 : function _interpolate(m::SplineMethod, f::ClosedFilament, i::Int, ζ::Number, d::Derivative)</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">   228002273 :     (; ts,) = f</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">   228099402 :     t = @inbounds (1 - ζ) * ts[i] + ζ * ts[i + 1]  # convert ζ ∈ [0, 1] to spline parametrisation</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">   228218304 :     _interpolate(m, f, t, d; ileft = i)</span></span>
 <span id="L33"><span class="lineNum">      33</span>              : end</span>
 <span id="L34"><span class="lineNum">      34</span>              : </span>
 <span id="L35"><span class="lineNum">      35</span>              : # Here `t_in` is in the spline parametrisation.</span>
-<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">   455365046 : function _interpolate(</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">   456059667 : function _interpolate(</span></span>
 <span id="L37"><span class="lineNum">      37</span>              :         method::SplineMethod, f::ClosedFilament, t_in::Number, deriv::Derivative{n};</span>
 <span id="L38"><span class="lineNum">      38</span>              :         ileft::Union{Nothing, Int} = nothing,</span>
 <span id="L39"><span class="lineNum">      39</span>              :     ) where {n}</span>
-<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">   227726750 :     (; ts, Xoffset,) = f</span></span>
-<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">   227795678 :     y = evaluate(method, f.coefs, f.ts, t_in, deriv; ileft)</span></span>
-<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">   410101961 :     deperiodise_curve(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 (&quot;infinite&quot; / non-closed filaments)</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">   228064486 :     (; ts, Xoffset,) = f</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">   228043936 :     y = evaluate(method, f.coefs, f.ts, t_in, deriv; ileft)</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">   411127237 :     deperiodise_curve(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 (&quot;infinite&quot; / non-closed filaments)</span></span>
 <span id="L43"><span class="lineNum">      43</span>              : end</span>
 <span id="L44"><span class="lineNum">      44</span>              : </span>
 <span id="L45"><span class="lineNum">      45</span>              : # Insertion is based on the knot insertion algorithm for splines.</span>

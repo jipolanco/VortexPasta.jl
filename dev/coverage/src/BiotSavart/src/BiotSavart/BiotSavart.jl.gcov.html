@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -100,8 +100,8 @@
 <span id="L34"><span class="lineNum">      34</span>              : using TimerOutputs: TimerOutput, @timeit, reset_timer!</span>
 <span id="L35"><span class="lineNum">      35</span>              : </span>
 <span id="L36"><span class="lineNum">      36</span>              : abstract type OutputField end</span>
-<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">       96338 : struct Streamfunction &lt;: OutputField end</span></span>
-<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">      102470 : struct Velocity &lt;: OutputField end</span></span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">       96355 : struct Streamfunction &lt;: OutputField end</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">      102510 : struct Velocity &lt;: OutputField end</span></span>
 <span id="L39"><span class="lineNum">      39</span>              : </span>
 <span id="L40"><span class="lineNum">      40</span>              : const VectorOfFilaments = AbstractVector{&lt;:AbstractFilament}</span>
 <span id="L41"><span class="lineNum">      41</span>              : const VectorOfVec = AbstractVector{&lt;:Vec3}</span>
@@ -150,10 +150,10 @@
 <span id="L84"><span class="lineNum">      84</span>              : &quot;&quot;&quot;</span>
 <span id="L85"><span class="lineNum">      85</span>              : function velocity_on_nodes! end</span>
 <span id="L86"><span class="lineNum">      86</span>              : </span>
-<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">       20009 : function _reset_vectors!(vs)</span></span>
-<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">       39919 :     for v ∈ vs</span></span>
-<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">     1335794 :         fill!(v, zero(eltype(v)))</span></span>
-<span id="L90"><span class="lineNum">      90</span> <span class="tlaGNC">       63863 :     end</span></span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">       20005 : function _reset_vectors!(vs)</span></span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">       39911 :     for v ∈ vs</span></span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">     1335666 :         fill!(v, zero(eltype(v)))</span></span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaGNC">       63859 :     end</span></span>
 <span id="L91"><span class="lineNum">      91</span> <span class="tlaUNC tlaBgUNC">           0 :     vs</span></span>
 <span id="L92"><span class="lineNum">      92</span>              : end</span>
 <span id="L93"><span class="lineNum">      93</span>              : </span>
@@ -169,39 +169,39 @@
 <span id="L103"><span class="lineNum">     103</span>              : end</span>
 <span id="L104"><span class="lineNum">     104</span>              : </span>
 <span id="L105"><span class="lineNum">     105</span>              : # Extracts and resets output fields (velocity and/or streamfunction).</span>
-<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC tlaBgGNC">       17107 : function _setup_fields!(fields::NamedTuple, fs)</span></span>
-<span id="L107"><span class="lineNum">     107</span> <span class="tlaGNC">       17107 :     N = length(fields)</span></span>
-<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">       17107 :     @assert N &gt; 0</span></span>
-<span id="L109"><span class="lineNum">     109</span> <span class="tlaGNC">       17107 :     vs = get(fields, :velocity, nothing)</span></span>
-<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC">       17107 :     ψs = get(fields, :streamfunction, nothing)</span></span>
-<span id="L111"><span class="lineNum">     111</span> <span class="tlaGNC">       17107 :     vecs = filter(!isnothing, (vs, ψs))</span></span>
-<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">       17107 :     nfields = length(vecs)</span></span>
-<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">       17107 :     nfields == N || throw(ArgumentError(lazy&quot;some of these fields were not recognised: $Names&quot;))</span></span>
-<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">       17107 :     for us ∈ vecs</span></span>
-<span id="L115"><span class="lineNum">     115</span> <span class="tlaGNC">       20009 :         eachindex(us) == eachindex(fs) || throw(DimensionMismatch(&quot;wrong dimensions of vector&quot;))</span></span>
-<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">       20009 :         _reset_vectors!(us)</span></span>
-<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">       22911 :     end</span></span>
-<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">       17107 :     (; vs, ψs,)</span></span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC tlaBgGNC">       17105 : function _setup_fields!(fields::NamedTuple, fs)</span></span>
+<span id="L107"><span class="lineNum">     107</span> <span class="tlaGNC">       17105 :     N = length(fields)</span></span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">       17105 :     @assert N &gt; 0</span></span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaGNC">       17105 :     vs = get(fields, :velocity, nothing)</span></span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC">       17105 :     ψs = get(fields, :streamfunction, nothing)</span></span>
+<span id="L111"><span class="lineNum">     111</span> <span class="tlaGNC">       17105 :     vecs = filter(!isnothing, (vs, ψs))</span></span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">       17105 :     nfields = length(vecs)</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">       17105 :     nfields == N || throw(ArgumentError(lazy&quot;some of these fields were not recognised: $Names&quot;))</span></span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">       17105 :     for us ∈ vecs</span></span>
+<span id="L115"><span class="lineNum">     115</span> <span class="tlaGNC">       20005 :         eachindex(us) == eachindex(fs) || throw(DimensionMismatch(&quot;wrong dimensions of vector&quot;))</span></span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">       20005 :         _reset_vectors!(us)</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">       22905 :     end</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">       17105 :     (; vs, ψs,)</span></span>
 <span id="L119"><span class="lineNum">     119</span>              : end</span>
 <span id="L120"><span class="lineNum">     120</span>              : </span>
 <span id="L121"><span class="lineNum">     121</span>              : # Returns a tuple (Streamfunction() =&gt; ψs, Velocity() =&gt; vs) if both fields are available.</span>
 <span id="L122"><span class="lineNum">     122</span>              : # Otherwise, it returns a subset of this which only includes the available fields.</span>
 <span id="L123"><span class="lineNum">     123</span>              : # If `i` is an integer, then `ψs` and `vs` only contain the data associated to a single filament `i`.</span>
-<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">      145652 : Base.@propagate_inbounds function _fields_to_pairs(fields::NamedTuple{Names}, i = nothing) where {Names}</span></span>
-<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">      145662 :     N = length(fields)</span></span>
-<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">       93835 :     @assert N &gt; 0</span></span>
-<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">       93833 :     vs = get(fields, :velocity, nothing)</span></span>
-<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">       93828 :     ψs = get(fields, :streamfunction, nothing)</span></span>
-<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">       93797 :     ps = (</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">      145724 : Base.@propagate_inbounds function _fields_to_pairs(fields::NamedTuple{Names}, i = nothing) where {Names}</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">      145724 :     N = length(fields)</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">       93830 :     @assert N &gt; 0</span></span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">       93830 :     vs = get(fields, :velocity, nothing)</span></span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">       93829 :     ψs = get(fields, :streamfunction, nothing)</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">       93828 :     ps = (</span></span>
 <span id="L130"><span class="lineNum">     130</span>              :         _make_field_pair(Velocity(), vs, i)...,</span>
 <span id="L131"><span class="lineNum">     131</span>              :         _make_field_pair(Streamfunction(), ψs, i)...,</span>
 <span id="L132"><span class="lineNum">     132</span>              :     )</span>
-<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">       93814 :     length(ps) == N || throw(ArgumentError(lazy&quot;some of these fields were not recognised: $Names&quot;))</span></span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">       93829 :     length(ps) == N || throw(ArgumentError(lazy&quot;some of these fields were not recognised: $Names&quot;))</span></span>
 <span id="L134"><span class="lineNum">     134</span> <span class="tlaUNC tlaBgUNC">           0 :     ps</span></span>
 <span id="L135"><span class="lineNum">     135</span>              : end</span>
 <span id="L136"><span class="lineNum">     136</span>              : </span>
 <span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC tlaBgGNC">       82974 : _make_field_pair(key, ::Nothing, ::Any) = ()</span></span>
-<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">       59587 : _make_field_pair(key, vs::AbstractVector, ::Nothing) = (key =&gt; vs,)</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">       59624 : _make_field_pair(key, vs::AbstractVector, ::Nothing) = (key =&gt; vs,)</span></span>
 <span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">       45029 : Base.@propagate_inbounds _make_field_pair(key, vs::AbstractVector, i::Integer) = (key =&gt; vs[i],)</span></span>
 <span id="L140"><span class="lineNum">     140</span>              : </span>
 <span id="L141"><span class="lineNum">     141</span>              : @doc raw&quot;&quot;&quot;</span>
@@ -257,23 +257,23 @@
 <span id="L191"><span class="lineNum">     191</span>              : Therefore, this function simply adds this short-range correction to the streamfunction.</span>
 <span id="L192"><span class="lineNum">     192</span>              : </span>
 <span id="L193"><span class="lineNum">     193</span>              : &quot;&quot;&quot;</span>
-<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">       16078 : function background_vorticity_correction!(</span></span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">       16076 : function background_vorticity_correction!(</span></span>
 <span id="L195"><span class="lineNum">     195</span>              :         fields::NamedTuple,</span>
 <span id="L196"><span class="lineNum">     196</span>              :         fs::AbstractVector{&lt;:AbstractFilament},</span>
 <span id="L197"><span class="lineNum">     197</span>              :         params::ParamsBiotSavart,</span>
 <span id="L198"><span class="lineNum">     198</span>              :     )</span>
 <span id="L199"><span class="lineNum">     199</span>              :     # We only need to modify the streamfunction, so we do nothing if the streamfunction is</span>
 <span id="L200"><span class="lineNum">     200</span>              :     # not present. (The velocity is not affected by the uniform background vorticity.)</span>
-<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">       16078 :     ψs_all = get(fields, :streamfunction, nothing)</span></span>
-<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">       16078 :     ψs_all === nothing &amp;&amp; return fields</span></span>
-<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">        2902 :     domain_is_periodic(params) || return fields  # correction only makes sense in periodic domain</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">       16076 :     ψs_all = get(fields, :streamfunction, nothing)</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">       16076 :     ψs_all === nothing &amp;&amp; return fields</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">        2900 :     domain_is_periodic(params) || return fields  # correction only makes sense in periodic domain</span></span>
 <span id="L204"><span class="lineNum">     204</span>              : </span>
-<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">        2532 :     (; Γ, Ls, α,) = params</span></span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">        2531 :     (; Γ, Ls, α,) = params</span></span>
 <span id="L206"><span class="lineNum">     206</span>              : </span>
 <span id="L207"><span class="lineNum">     207</span>              :     # Compute mean vorticity associated to filaments.</span>
 <span id="L208"><span class="lineNum">     208</span>              :     # This simply corresponds to adding the end_to_end_offset's of each filament.</span>
-<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">        4355 :     ω⃗_mean = sum(Filaments.end_to_end_offset, fs) * (Γ / prod(Ls))</span></span>
-<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">        2532 :     iszero(ω⃗_mean) &amp;&amp; return fields  # there's nothing to do if the mean vorticity is zero</span></span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">        4354 :     ω⃗_mean = sum(Filaments.end_to_end_offset, fs) * (Γ / prod(Ls))</span></span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">        2531 :     iszero(ω⃗_mean) &amp;&amp; return fields  # there's nothing to do if the mean vorticity is zero</span></span>
 <span id="L211"><span class="lineNum">     211</span>              : </span>
 <span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">           2 :     ω⃗_back = -ω⃗_mean  # background vorticity</span></span>
 <span id="L213"><span class="lineNum">     213</span>              : </span>
@@ -389,7 +389,7 @@
 <span id="L323"><span class="lineNum">     323</span>              : ```</span>
 <span id="L324"><span class="lineNum">     324</span>              : </span>
 <span id="L325"><span class="lineNum">     325</span>              : &quot;&quot;&quot;</span>
-<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC tlaBgGNC">      105686 : function compute_on_nodes!(</span></span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC tlaBgGNC">      105682 : function compute_on_nodes!(</span></span>
 <span id="L327"><span class="lineNum">     327</span>              :         fields::NamedTuple{Names, NTuple{N, V}},</span>
 <span id="L328"><span class="lineNum">     328</span>              :         cache::BiotSavartCache,</span>
 <span id="L329"><span class="lineNum">     329</span>              :         fs::VectorOfFilaments;</span>
@@ -401,55 +401,55 @@
 <span id="L335"><span class="lineNum">     335</span>              :         Names, N, V &lt;: AbstractVector{&lt;:VectorOfVec},</span>
 <span id="L336"><span class="lineNum">     336</span>              :         Fvort &lt;: Function,</span>
 <span id="L337"><span class="lineNum">     337</span>              :     }</span>
-<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">       52843 :     if LIA === Val(:only)</span></span>
+<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">       52841 :     if LIA === Val(:only)</span></span>
 <span id="L339"><span class="lineNum">     339</span> <span class="tlaGNC">       35736 :         return _compute_LIA_on_nodes!(fields, cache, fs)</span></span>
 <span id="L340"><span class="lineNum">     340</span>              :     end</span>
 <span id="L341"><span class="lineNum">     341</span>              : </span>
-<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">       17107 :     (; to, params, pointdata,) = cache</span></span>
-<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">       17107 :     (; quad,) = params</span></span>
-<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">       20009 :     (; vs, ψs,) = _setup_fields!(fields, fs)</span></span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">       17105 :     (; to, params, pointdata,) = cache</span></span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">       17105 :     (; quad,) = params</span></span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">       20005 :     (; vs, ψs,) = _setup_fields!(fields, fs)</span></span>
 <span id="L345"><span class="lineNum">     345</span>              : </span>
 <span id="L346"><span class="lineNum">     346</span>              :     # This is used by both short-range and long-range computations.</span>
 <span id="L347"><span class="lineNum">     347</span>              :     # Note that we need to compute the short-range first, because the long-range</span>
 <span id="L348"><span class="lineNum">     348</span>              :     # computations then modify `pointdata`.</span>
-<span id="L349"><span class="lineNum">     349</span> <span class="tlaGNC">       17107 :     @timeit to &quot;Add point charges&quot; add_point_charges!(pointdata, fs, quad)</span></span>
+<span id="L349"><span class="lineNum">     349</span> <span class="tlaGNC">       17105 :     @timeit to &quot;Add point charges&quot; add_point_charges!(pointdata, fs, quad)</span></span>
 <span id="L350"><span class="lineNum">     350</span>              : </span>
-<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">       17107 :     if shortrange</span></span>
-<span id="L352"><span class="lineNum">     352</span> <span class="tlaGNC">       16078 :         @timeit to &quot;Short-range component&quot; begin</span></span>
-<span id="L353"><span class="lineNum">     353</span> <span class="tlaGNC">       16078 :             @timeit to &quot;Process point charges&quot; process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists</span></span>
-<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">       16078 :             @timeit to &quot;Compute Biot–Savart&quot; add_short_range_fields!(fields, cache.shortrange, fs; LIA)</span></span>
-<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">       16078 :             @timeit to &quot;Background vorticity&quot; background_vorticity_correction!(fields, fs, params)</span></span>
+<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">       17105 :     if shortrange</span></span>
+<span id="L352"><span class="lineNum">     352</span> <span class="tlaGNC">       16076 :         @timeit to &quot;Short-range component&quot; begin</span></span>
+<span id="L353"><span class="lineNum">     353</span> <span class="tlaGNC">       16076 :             @timeit to &quot;Process point charges&quot; process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists</span></span>
+<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">       16076 :             @timeit to &quot;Compute Biot–Savart&quot; add_short_range_fields!(fields, cache.shortrange, fs; LIA)</span></span>
+<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">       16076 :             @timeit to &quot;Background vorticity&quot; background_vorticity_correction!(fields, fs, params)</span></span>
 <span id="L356"><span class="lineNum">     356</span>              :         end</span>
 <span id="L357"><span class="lineNum">     357</span>              :     end</span>
 <span id="L358"><span class="lineNum">     358</span>              : </span>
-<span id="L359"><span class="lineNum">     359</span> <span class="tlaGNC">       17107 :     if cache.longrange !== NullLongRangeCache() &amp;&amp; longrange</span></span>
-<span id="L360"><span class="lineNum">     360</span> <span class="tlaGNC">        8631 :         @timeit to &quot;Long-range component&quot; begin</span></span>
-<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">        8631 :             @timeit to &quot;Vorticity to Fourier&quot; compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`</span></span>
-<span id="L362"><span class="lineNum">     362</span> <span class="tlaGNC">        8631 :             if callback_vorticity !== identity</span></span>
+<span id="L359"><span class="lineNum">     359</span> <span class="tlaGNC">       17105 :     if cache.longrange !== NullLongRangeCache() &amp;&amp; longrange</span></span>
+<span id="L360"><span class="lineNum">     360</span> <span class="tlaGNC">        8630 :         @timeit to &quot;Long-range component&quot; begin</span></span>
+<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">        8630 :             @timeit to &quot;Vorticity to Fourier&quot; compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`</span></span>
+<span id="L362"><span class="lineNum">     362</span> <span class="tlaGNC">        8630 :             if callback_vorticity !== identity</span></span>
 <span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">           4 :                 @timeit to &quot;Vorticity callback&quot; callback_vorticity(cache.longrange)</span></span>
 <span id="L364"><span class="lineNum">     364</span>              :             end</span>
-<span id="L365"><span class="lineNum">     365</span> <span class="tlaGNC">        8631 :             @timeit to &quot;Set interpolation points&quot; set_interpolation_points!(cache.longrange, fs)</span></span>
-<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">        8631 :             if ψs !== nothing</span></span>
-<span id="L367"><span class="lineNum">     367</span> <span class="tlaGNC">        2532 :                 @timeit to &quot;Streamfunction&quot; begin</span></span>
-<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">        2532 :                     @timeit to &quot;Convert to physical&quot; begin</span></span>
-<span id="L369"><span class="lineNum">     369</span> <span class="tlaGNC">        2532 :                         to_smoothed_streamfunction!(cache.longrange)</span></span>
-<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">        2532 :                         interpolate_to_physical!(cache.longrange)</span></span>
-<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">        2532 :                         add_long_range_output!(ψs, cache.longrange)</span></span>
+<span id="L365"><span class="lineNum">     365</span> <span class="tlaGNC">        8630 :             @timeit to &quot;Set interpolation points&quot; set_interpolation_points!(cache.longrange, fs)</span></span>
+<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">        8630 :             if ψs !== nothing</span></span>
+<span id="L367"><span class="lineNum">     367</span> <span class="tlaGNC">        2531 :                 @timeit to &quot;Streamfunction&quot; begin</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">        2531 :                     @timeit to &quot;Convert to physical&quot; begin</span></span>
+<span id="L369"><span class="lineNum">     369</span> <span class="tlaGNC">        2531 :                         to_smoothed_streamfunction!(cache.longrange)</span></span>
+<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">        2531 :                         interpolate_to_physical!(cache.longrange)</span></span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">        2531 :                         add_long_range_output!(ψs, cache.longrange)</span></span>
 <span id="L372"><span class="lineNum">     372</span>              :                     end</span>
-<span id="L373"><span class="lineNum">     373</span> <span class="tlaGNC">        2532 :                     @timeit to &quot;Self-interaction&quot; remove_long_range_self_interaction!(</span></span>
+<span id="L373"><span class="lineNum">     373</span> <span class="tlaGNC">        2531 :                     @timeit to &quot;Self-interaction&quot; remove_long_range_self_interaction!(</span></span>
 <span id="L374"><span class="lineNum">     374</span>              :                         ψs, fs, Streamfunction(), params.common,</span>
 <span id="L375"><span class="lineNum">     375</span>              :                     )</span>
 <span id="L376"><span class="lineNum">     376</span>              :                 end</span>
 <span id="L377"><span class="lineNum">     377</span>              :             end</span>
-<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">        8631 :             if vs !== nothing</span></span>
+<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">        8630 :             if vs !== nothing</span></span>
 <span id="L379"><span class="lineNum">     379</span>              :                 # Velocity must be computed after streamfunction if both are enabled.</span>
-<span id="L380"><span class="lineNum">     380</span> <span class="tlaGNC">        8631 :                 @timeit to &quot;Velocity&quot; begin</span></span>
-<span id="L381"><span class="lineNum">     381</span> <span class="tlaGNC">        8631 :                     @timeit to &quot;Convert to physical&quot; begin</span></span>
-<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">        8631 :                         to_smoothed_velocity!(cache.longrange)</span></span>
-<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">        8631 :                         interpolate_to_physical!(cache.longrange)</span></span>
-<span id="L384"><span class="lineNum">     384</span> <span class="tlaGNC">        8631 :                         add_long_range_output!(vs, cache.longrange)</span></span>
+<span id="L380"><span class="lineNum">     380</span> <span class="tlaGNC">        8630 :                 @timeit to &quot;Velocity&quot; begin</span></span>
+<span id="L381"><span class="lineNum">     381</span> <span class="tlaGNC">        8630 :                     @timeit to &quot;Convert to physical&quot; begin</span></span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">        8630 :                         to_smoothed_velocity!(cache.longrange)</span></span>
+<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">        8630 :                         interpolate_to_physical!(cache.longrange)</span></span>
+<span id="L384"><span class="lineNum">     384</span> <span class="tlaGNC">        8630 :                         add_long_range_output!(vs, cache.longrange)</span></span>
 <span id="L385"><span class="lineNum">     385</span>              :                     end</span>
-<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">        8631 :                     @timeit to &quot;Self-interaction&quot; remove_long_range_self_interaction!(</span></span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">        8630 :                     @timeit to &quot;Self-interaction&quot; remove_long_range_self_interaction!(</span></span>
 <span id="L387"><span class="lineNum">     387</span>              :                         vs, fs, Velocity(), params.common,</span>
 <span id="L388"><span class="lineNum">     388</span>              :                     )</span>
 <span id="L389"><span class="lineNum">     389</span>              :                 end</span>
@@ -493,13 +493,13 @@
 <span id="L427"><span class="lineNum">     427</span> <span class="tlaGNC">       41893 :     T = typeof(Γ)</span></span>
 <span id="L428"><span class="lineNum">     428</span> <span class="tlaGNC">       41893 :     prefactor_ = prefactor === nothing ? (Γ / T(4π)) : prefactor</span></span>
 <span id="L429"><span class="lineNum">     429</span> <span class="tlaGNC">       41893 :     Threads.@threads :static for i ∈ eachindex(f)</span></span>
-<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">     1959221 :         for (quantity, values) ∈ ps</span></span>
+<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">     1960542 :         for (quantity, values) ∈ ps</span></span>
 <span id="L431"><span class="lineNum">     431</span>              :             # Here `quantity` is either Velocity() or Streamfunction()</span>
-<span id="L432"><span class="lineNum">     432</span> <span class="tlaGNC">     2110140 :             @inbounds values[i] = local_self_induced(</span></span>
+<span id="L432"><span class="lineNum">     432</span> <span class="tlaGNC">     2111239 :             @inbounds values[i] = local_self_induced(</span></span>
 <span id="L433"><span class="lineNum">     433</span>              :                 quantity, f, i, prefactor_;</span>
 <span id="L434"><span class="lineNum">     434</span>              :                 a, Δ, quad, lia_segment_fraction,</span>
 <span id="L435"><span class="lineNum">     435</span>              :             )</span>
-<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">     2108813 :         end</span></span>
+<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">     2109339 :         end</span></span>
 <span id="L437"><span class="lineNum">     437</span> <span class="tlaUNC tlaBgUNC">           0 :     end</span></span>
 <span id="L438"><span class="lineNum">     438</span> <span class="tlaUNC">           0 :     ps</span></span>
 <span id="L439"><span class="lineNum">     439</span>              : end</span>

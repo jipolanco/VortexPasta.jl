@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2024-06-28 09:07:15</td>
+            <td class="headerValue">2024-07-01 11:55:11</td>
             <td></td>
           </tr>
           <tr>
@@ -93,7 +93,7 @@
 <span id="L27"><span class="lineNum">      27</span>              : Must be called after [`add_point_charges!`](@ref) and before computing any short-range quantities</span>
 <span id="L28"><span class="lineNum">      28</span>              : (using [`add_short_range_fields!`](@ref)).</span>
 <span id="L29"><span class="lineNum">      29</span>              : &quot;&quot;&quot;</span>
-<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC tlaBgGNC">       14792 : process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC tlaBgGNC">       14791 : process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend</span></span>
 <span id="L31"><span class="lineNum">      31</span>              : </span>
 <span id="L32"><span class="lineNum">      32</span>              : &quot;&quot;&quot;</span>
 <span id="L33"><span class="lineNum">      33</span>              :     nearby_charges(c::ShortRangeCache, x⃗::Vec3)</span>
@@ -105,33 +105,33 @@
 <span id="L39"><span class="lineNum">      39</span>              : function short_range_velocity end</span>
 <span id="L40"><span class="lineNum">      40</span>              : </span>
 <span id="L41"><span class="lineNum">      41</span>              : abstract type EwaldComponent end</span>
-<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">   119641104 : struct ShortRange &lt;: EwaldComponent end</span></span>
-<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">   120988780 : struct LongRange &lt;: EwaldComponent end</span></span>
-<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">     1779764 : struct FullIntegrand &lt;: EwaldComponent end  # ShortRange + LongRange</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">   119622775 : struct ShortRange &lt;: EwaldComponent end</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">   121215783 : struct LongRange &lt;: EwaldComponent end</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">     1779798 : struct FullIntegrand &lt;: EwaldComponent end  # ShortRange + LongRange</span></span>
 <span id="L45"><span class="lineNum">      45</span>              : </span>
 <span id="L46"><span class="lineNum">      46</span>              : # Use erf from VectorizationBase, and simply define erfc = 1 - erf.</span>
-<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">     4493969 : erf(x) = VB.verf(x)</span></span>
-<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">    51006926 : erfc(x) = one(x) - VB.verf(x)</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">     4492380 : erf(x) = VB.verf(x)</span></span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">    51101420 : erfc(x) = one(x) - VB.verf(x)</span></span>
 <span id="L49"><span class="lineNum">      49</span>              : </span>
 <span id="L50"><span class="lineNum">      50</span> <span class="tlaUNC tlaBgUNC">           0 : erf(::Zero) = Zero()</span></span>
 <span id="L51"><span class="lineNum">      51</span> <span class="tlaUNC">           0 : erfc(::Zero) = true  # in the sense of true == 1</span></span>
 <span id="L52"><span class="lineNum">      52</span>              : </span>
-<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC tlaBgGNC">    50720739 : two_over_sqrt_pi(::VB.AbstractSIMD{W,T}) where {W,T} = 2 / sqrt(T(π))</span></span>
-<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">     3466927 : two_over_sqrt_pi(::T) where {T &lt;: AbstractFloat} = 2 / sqrt(T(π))</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC tlaBgGNC">    50880690 : two_over_sqrt_pi(::VB.AbstractSIMD{W,T}) where {W,T} = 2 / sqrt(T(π))</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">     3464535 : two_over_sqrt_pi(::T) where {T &lt;: AbstractFloat} = 2 / sqrt(T(π))</span></span>
 <span id="L55"><span class="lineNum">      55</span> <span class="tlaUNC tlaBgUNC">           0 : two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway</span></span>
 <span id="L56"><span class="lineNum">      56</span>              : </span>
 <span id="L57"><span class="lineNum">      57</span> <span class="tlaUNC">           0 : ewald_screening_function(::Velocity,       ::ShortRange, αr::Real) = erfc(αr) + two_over_sqrt_pi(αr) * αr * exp(-αr^2)</span></span>
 <span id="L58"><span class="lineNum">      58</span> <span class="tlaUNC">           0 : ewald_screening_function(::Streamfunction, ::ShortRange, αr::Real) = erfc(αr)</span></span>
 <span id="L59"><span class="lineNum">      59</span>              : </span>
-<span id="L60"><span class="lineNum">      60</span> <span class="tlaGNC tlaBgGNC">     3480875 : ewald_screening_function(::Velocity,       ::LongRange, αr::Real) = erf(αr) - two_over_sqrt_pi(αr) * αr * exp(-αr^2)</span></span>
-<span id="L61"><span class="lineNum">      61</span> <span class="tlaGNC">     1012906 : ewald_screening_function(::Streamfunction, ::LongRange, αr::Real) = erf(αr)</span></span>
+<span id="L60"><span class="lineNum">      60</span> <span class="tlaGNC tlaBgGNC">     3482044 : ewald_screening_function(::Velocity,       ::LongRange, αr::Real) = erf(αr) - two_over_sqrt_pi(αr) * αr * exp(-αr^2)</span></span>
+<span id="L61"><span class="lineNum">      61</span> <span class="tlaGNC">     1013797 : ewald_screening_function(::Streamfunction, ::LongRange, αr::Real) = erf(αr)</span></span>
 <span id="L62"><span class="lineNum">      62</span>              : </span>
 <span id="L63"><span class="lineNum">      63</span>              : # This simply corresponds to the unmodified BS integrals.</span>
-<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">   100935598 : ewald_screening_function(::Velocity,       ::FullIntegrand, αr) = true</span></span>
-<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">    14193363 : ewald_screening_function(::Streamfunction, ::FullIntegrand, αr) = true</span></span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">   101135356 : ewald_screening_function(::Velocity,       ::FullIntegrand, αr) = true</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">    14210230 : ewald_screening_function(::Streamfunction, ::FullIntegrand, αr) = true</span></span>
 <span id="L66"><span class="lineNum">      66</span>              : </span>
-<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">   104424850 : biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3</span></span>
-<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">    15205085 : biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r</span></span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">   104572686 : biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3</span></span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">    15216720 : biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r</span></span>
 <span id="L69"><span class="lineNum">      69</span>              : </span>
 <span id="L70"><span class="lineNum">      70</span>              : # Evaluation of long-range integrands at r = 0.</span>
 <span id="L71"><span class="lineNum">      71</span>              : # These are non-singular and can be obtained from Taylor expansions close to r = 0.</span>
@@ -139,23 +139,23 @@
 <span id="L73"><span class="lineNum">      73</span> <span class="tlaGNC">           1 : long_range_bs_integrand_at_zero(::Velocity, α, s⃗′) = zero(s⃗′)</span></span>
 <span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">           1 : long_range_bs_integrand_at_zero(::Streamfunction, α, s⃗′) = 2 * α / sqrt(π) * s⃗′</span></span>
 <span id="L75"><span class="lineNum">      75</span>              : </span>
-<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">   119735197 : @inline function modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)</span></span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">   119791000 : @inline function modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)</span></span>
 <span id="L77"><span class="lineNum">      77</span>              :     # This is generally not reached as we don't evaluate exactly on nodes.</span>
 <span id="L78"><span class="lineNum">      78</span>              :     # But it could be useful in the future.</span>
-<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">   119617797 :     if component === LongRange() &amp;&amp; iszero(r²)</span></span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">   119794253 :     if component === LongRange() &amp;&amp; iszero(r²)</span></span>
 <span id="L80"><span class="lineNum">      80</span>              :         # In this case the result of `biot_savart_integrand` is `NaN`, but the actual</span>
 <span id="L81"><span class="lineNum">      81</span>              :         # integrand when multiplied by the splitting function is well defined.</span>
 <span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">           2 :         return oftype(s⃗′, long_range_bs_integrand_at_zero(quantity, α, s⃗′))</span></span>
 <span id="L83"><span class="lineNum">      83</span>              :     end</span>
-<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">   119525704 :     r = sqrt(r²)</span></span>
-<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">   119500031 :     g = ewald_screening_function(quantity, component, α * r)</span></span>
-<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">   119488631 :     w⃗ = biot_savart_integrand(quantity, s⃗′, r⃗, r)</span></span>
-<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">   119507835 :     oftype(s⃗′, g * w⃗)  # we assume w⃗ is a vector...</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">   119785177 :     r = sqrt(r²)</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">   119786006 :     g = ewald_screening_function(quantity, component, α * r)</span></span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">   119767601 :     w⃗ = biot_savart_integrand(quantity, s⃗′, r⃗, r)</span></span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">   119687817 :     oftype(s⃗′, g * w⃗)  # we assume w⃗ is a vector...</span></span>
 <span id="L88"><span class="lineNum">      88</span>              : end</span>
 <span id="L89"><span class="lineNum">      89</span>              : </span>
 <span id="L90"><span class="lineNum">      90</span>              : # Compute the contribution of a single filament point to the Biot-Savart integral on a given</span>
 <span id="L91"><span class="lineNum">      91</span>              : # point x⃗. Note: this doesn't include the prefactor Γ/4π.</span>
-<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">   243143139 : @inline function biot_savart_contribution(</span></span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">   243217790 : @inline function biot_savart_contribution(</span></span>
 <span id="L93"><span class="lineNum">      93</span>              :         quantity::OutputField,      # Velocity() or Streamfunction()</span>
 <span id="L94"><span class="lineNum">      94</span>              :         component::EwaldComponent,  # ShortRange() or LongRange()</span>
 <span id="L95"><span class="lineNum">      95</span>              :         params::ParamsCommon,</span>
@@ -167,21 +167,21 @@
 <span id="L101"><span class="lineNum">     101</span>              :     ) where {V &lt;: Vec3{&lt;:Real}}</span>
 <span id="L102"><span class="lineNum">     102</span>              :     # Cut-off distance should be given if and only if we're computing the short-range</span>
 <span id="L103"><span class="lineNum">     103</span>              :     # component.</span>
-<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">   119583207 :     @assert (rcut² !== nothing) === (component === ShortRange())</span></span>
-<span id="L105"><span class="lineNum">     105</span> <span class="tlaGNC">   119625770 :     (; Ls, α,) = params</span></span>
-<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC">   119653479 :     r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)</span></span>
-<span id="L107"><span class="lineNum">     107</span> <span class="tlaGNC">   119756475 :     r² = sum(abs2, r⃗)</span></span>
-<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">   119724328 :     if rcut² !== nothing &amp;&amp; r² &gt; rcut²</span></span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">   119621038 :     @assert (rcut² !== nothing) === (component === ShortRange())</span></span>
+<span id="L105"><span class="lineNum">     105</span> <span class="tlaGNC">   119664939 :     (; Ls, α,) = params</span></span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC">   119675376 :     r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)</span></span>
+<span id="L107"><span class="lineNum">     107</span> <span class="tlaGNC">   119727556 :     r² = sum(abs2, r⃗)</span></span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">   119757116 :     if rcut² !== nothing &amp;&amp; r² &gt; rcut²</span></span>
 <span id="L109"><span class="lineNum">     109</span>              :         # The short-range backend may allow some pair interactions beyond the cutoff.</span>
 <span id="L110"><span class="lineNum">     110</span> <span class="tlaUNC tlaBgUNC">           0 :         return zero(r⃗)</span></span>
 <span id="L111"><span class="lineNum">     111</span>              :     end</span>
-<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC tlaBgGNC">   119730939 :     @assert typeof(r⃗) === typeof(qs⃗′)  # should be true for type stability reasons...</span></span>
-<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">   124176672 :     modified_bs_integrand(quantity, component, qs⃗′, r⃗, r², α) :: V</span></span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC tlaBgGNC">   119784381 :     @assert typeof(r⃗) === typeof(qs⃗′)  # should be true for type stability reasons...</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">   124223139 :     modified_bs_integrand(quantity, component, qs⃗′, r⃗, r², α) :: V</span></span>
 <span id="L114"><span class="lineNum">     114</span>              : end</span>
 <span id="L115"><span class="lineNum">     115</span>              : </span>
 <span id="L116"><span class="lineNum">     116</span>              : # Compute Biot-Savart integral over a single filament segment.</span>
 <span id="L117"><span class="lineNum">     117</span>              : # Note: this doesn't include the prefactor Γ/4π.</span>
-<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">     6412852 : function integrate_biot_savart(</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">     6413636 : function integrate_biot_savart(</span></span>
 <span id="L119"><span class="lineNum">     119</span>              :         quantity::OutputField,</span>
 <span id="L120"><span class="lineNum">     120</span>              :         component::EwaldComponent,</span>
 <span id="L121"><span class="lineNum">     121</span>              :         seg::Segment,</span>
@@ -192,11 +192,11 @@
 <span id="L126"><span class="lineNum">     126</span>              :         rcut² = nothing,</span>
 <span id="L127"><span class="lineNum">     127</span>              :         limits = nothing,</span>
 <span id="L128"><span class="lineNum">     128</span>              :     )</span>
-<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">     3207091 :     integrate(seg, quad; limits) do seg, ζ</span></span>
-<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">   119562091 :         @inline</span></span>
-<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">   119582924 :         s⃗ = seg(ζ)</span></span>
-<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">   119744643 :         s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)</span></span>
-<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">   123928268 :         biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs, rcut²)</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">     3207321 :     integrate(seg, quad; limits) do seg, ζ</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">   119431874 :         @inline</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">   119495557 :         s⃗ = seg(ζ)</span></span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">   119654873 :         s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)</span></span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">   123950146 :         biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs, rcut²)</span></span>
 <span id="L134"><span class="lineNum">     134</span>              :     end :: typeof(x⃗)</span>
 <span id="L135"><span class="lineNum">     135</span>              : end</span>
 <span id="L136"><span class="lineNum">     136</span>              : </span>
@@ -214,40 +214,40 @@
 <span id="L148"><span class="lineNum">     148</span>              : # depend on the (unphysical) Ewald parameter α. Finally, note that the integral</span>
 <span id="L149"><span class="lineNum">     149</span>              : # with the long-range kernel is *not* singular (since it's a smoothing kernel),</span>
 <span id="L150"><span class="lineNum">     150</span>              : # so there's no problem with evaluating this integral close to x⃗.</span>
-<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">       32793 : function remove_long_range_self_interaction!(</span></span>
+<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">       32809 : function remove_long_range_self_interaction!(</span></span>
 <span id="L152"><span class="lineNum">     152</span>              :         vs::VectorOfVec,</span>
 <span id="L153"><span class="lineNum">     153</span>              :         f::ClosedFilament,</span>
 <span id="L154"><span class="lineNum">     154</span>              :         quantity::OutputField,</span>
 <span id="L155"><span class="lineNum">     155</span>              :         params::ParamsCommon,</span>
 <span id="L156"><span class="lineNum">     156</span>              :     )</span>
-<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">       32775 :     Xs = nodes(f)</span></span>
-<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">       32783 :     segs = segments(f)</span></span>
-<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">      131093 :     Lhs = map(L -&gt; L / 2, params.Ls)</span></span>
-<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">       32801 :     prefactor = params.Γ / (4π)</span></span>
-<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">       32800 :     @inbounds for i ∈ eachindex(Xs, vs)</span></span>
-<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">      713796 :         x⃗ = Xs[i]</span></span>
-<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">      713818 :         sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)</span></span>
-<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">      714163 :         sb = Segment(f, i)  # segment i</span></span>
-<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">      714164 :         u⃗a = integrate_biot_savart(quantity, LongRange(), sa, x⃗, params; Lhs, rcut² = nothing)</span></span>
-<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">      713895 :         u⃗b = integrate_biot_savart(quantity, LongRange(), sb, x⃗, params; Lhs, rcut² = nothing)</span></span>
-<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">      714113 :         vs[i] = vs[i] - prefactor * (u⃗a + u⃗b)</span></span>
-<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">      713785 :     end</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">       32797 :     Xs = nodes(f)</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">       32806 :     segs = segments(f)</span></span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">      131204 :     Lhs = map(L -&gt; L / 2, params.Ls)</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">       32811 :     prefactor = params.Γ / (4π)</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">       32810 :     @inbounds for i ∈ eachindex(Xs, vs)</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">      713831 :         x⃗ = Xs[i]</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">      714021 :         sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">      714192 :         sb = Segment(f, i)  # segment i</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">      714135 :         u⃗a = integrate_biot_savart(quantity, LongRange(), sa, x⃗, params; Lhs, rcut² = nothing)</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">      714039 :         u⃗b = integrate_biot_savart(quantity, LongRange(), sb, x⃗, params; Lhs, rcut² = nothing)</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">      714013 :         vs[i] = vs[i] - prefactor * (u⃗a + u⃗b)</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">      713902 :     end</span></span>
 <span id="L169"><span class="lineNum">     169</span> <span class="tlaUNC tlaBgUNC">           0 :     vs</span></span>
 <span id="L170"><span class="lineNum">     170</span>              : end</span>
 <span id="L171"><span class="lineNum">     171</span>              : </span>
-<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC tlaBgGNC">       11163 : function remove_long_range_self_interaction!(</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC tlaBgGNC">       11161 : function remove_long_range_self_interaction!(</span></span>
 <span id="L173"><span class="lineNum">     173</span>              :         vs::AbstractVector{&lt;:VectorOfVec},</span>
 <span id="L174"><span class="lineNum">     174</span>              :         fs::VectorOfFilaments,</span>
 <span id="L175"><span class="lineNum">     175</span>              :         args...,</span>
 <span id="L176"><span class="lineNum">     176</span>              :     )</span>
-<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">       11163 :     Threads.@threads :static for i ∈ eachindex(vs, fs)</span></span>
-<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">       32806 :         @inbounds v, f = vs[i], fs[i]</span></span>
-<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">       32801 :         remove_long_range_self_interaction!(v, f, args...)</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">       11161 :     Threads.@threads :static for i ∈ eachindex(vs, fs)</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">       32815 :         @inbounds v, f = vs[i], fs[i]</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">       32814 :         remove_long_range_self_interaction!(v, f, args...)</span></span>
 <span id="L180"><span class="lineNum">     180</span> <span class="tlaUNC tlaBgUNC">           0 :     end</span></span>
 <span id="L181"><span class="lineNum">     181</span> <span class="tlaUNC">           0 :     vs</span></span>
 <span id="L182"><span class="lineNum">     182</span>              : end</span>
 <span id="L183"><span class="lineNum">     183</span>              : </span>
-<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC tlaBgGNC">       32156 : function add_short_range_fields!(</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC tlaBgGNC">       32152 : function add_short_range_fields!(</span></span>
 <span id="L185"><span class="lineNum">     185</span>              :         fields::NamedTuple{Names, NTuple{N, V}},</span>
 <span id="L186"><span class="lineNum">     186</span>              :         cache::ShortRangeCache,</span>
 <span id="L187"><span class="lineNum">     187</span>              :         fs::VectorOfFilaments;</span>
@@ -259,9 +259,9 @@
 <span id="L193"><span class="lineNum">     193</span>              :     # have the same number of points. If that's not the case, it may be worth it to either</span>
 <span id="L194"><span class="lineNum">     194</span>              :     # (1) reorder filaments such that every &quot;chunk&quot; has oroughly the same number of points,</span>
 <span id="L195"><span class="lineNum">     195</span>              :     # or (2) use :dynamic scheduling.</span>
-<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">       16078 :     Threads.@threads :static for i ∈ eachindex(fs)</span></span>
-<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">      111198 :         fields_i = map(us -&gt; us[i], fields)  # velocity/streamfunction of i-th filament</span></span>
-<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">       51871 :         add_short_range_fields!(fields_i, cache, fs[i]; kws...)</span></span>
+<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">       16076 :     Threads.@threads :static for i ∈ eachindex(fs)</span></span>
+<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">      111458 :         fields_i = map(us -&gt; us[i], fields)  # velocity/streamfunction of i-th filament</span></span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">       51894 :         add_short_range_fields!(fields_i, cache, fs[i]; kws...)</span></span>
 <span id="L199"><span class="lineNum">     199</span> <span class="tlaUNC tlaBgUNC">           0 :     end</span></span>
 <span id="L200"><span class="lineNum">     200</span> <span class="tlaUNC">           0 :     fields</span></span>
 <span id="L201"><span class="lineNum">     201</span>              : end</span>
@@ -286,30 +286,30 @@
 <span id="L220"><span class="lineNum">     220</span>              : Before calling this function, one must first call</span>
 <span id="L221"><span class="lineNum">     221</span>              : [`add_point_charges!`](@ref) and then [`process_point_charges!`](@ref).</span>
 <span id="L222"><span class="lineNum">     222</span>              : &quot;&quot;&quot;</span>
-<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC tlaBgGNC">      103489 : function add_short_range_fields!(</span></span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC tlaBgGNC">      103611 : function add_short_range_fields!(</span></span>
 <span id="L224"><span class="lineNum">     224</span>              :         fields::NamedTuple{Names, NTuple{N, V}},</span>
 <span id="L225"><span class="lineNum">     225</span>              :         cache::ShortRangeCache,</span>
 <span id="L226"><span class="lineNum">     226</span>              :         f::ClosedFilament;</span>
 <span id="L227"><span class="lineNum">     227</span>              :         LIA::Val{_LIA} = Val(true),   # can be used to disable LIA</span>
 <span id="L228"><span class="lineNum">     228</span>              :     ) where {Names, N, V &lt;: VectorOfVec, _LIA}</span>
-<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">       51837 :     (; params,) = cache</span></span>
-<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">       51637 :     (; quad, lia_segment_fraction,) = params</span></span>
-<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">       51661 :     (; Γ, a, Δ, Ls, quad_near_singularity,) = params.common</span></span>
-<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">       51666 :     prefactor = Γ / (4π)</span></span>
-<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">      206527 :     Lhs = map(L -&gt; L / 2, Ls)</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">       51845 :     (; params,) = cache</span></span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">       51836 :     (; quad, lia_segment_fraction,) = params</span></span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">       51843 :     (; Γ, a, Δ, Ls, quad_near_singularity,) = params.common</span></span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">       51847 :     prefactor = Γ / (4π)</span></span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">      207108 :     Lhs = map(L -&gt; L / 2, Ls)</span></span>
 <span id="L234"><span class="lineNum">     234</span>              : </span>
-<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">       51797 :     Xs = nodes(f)</span></span>
-<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">       51769 :     for us ∈ values(fields)</span></span>
-<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">       59397 :         eachindex(us) == eachindex(Xs) ||</span></span>
+<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">       51798 :     Xs = nodes(f)</span></span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">       51799 :     for us ∈ values(fields)</span></span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">       59322 :         eachindex(us) == eachindex(Xs) ||</span></span>
 <span id="L238"><span class="lineNum">     238</span>              :             throw(DimensionMismatch(&quot;vector has wrong length&quot;))</span>
-<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">       67157 :     end</span></span>
+<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">       67094 :     end</span></span>
 <span id="L240"><span class="lineNum">     240</span>              : </span>
-<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">       51905 :     segs = segments(f)</span></span>
-<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">       51899 :     nonlia_lims = nonlia_integration_limits(lia_segment_fraction)</span></span>
-<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">       51887 :     ps = _fields_to_pairs(fields)</span></span>
+<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">       51917 :     segs = segments(f)</span></span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">       51916 :     nonlia_lims = nonlia_integration_limits(lia_segment_fraction)</span></span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">       51932 :     ps = _fields_to_pairs(fields)</span></span>
 <span id="L244"><span class="lineNum">     244</span>              : </span>
-<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">       51915 :     for i ∈ eachindex(Xs)</span></span>
-<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">     1072577 :         x⃗ = Xs[i]</span></span>
+<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">       51924 :     for i ∈ eachindex(Xs)</span></span>
+<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">     1072652 :         x⃗ = Xs[i]</span></span>
 <span id="L247"><span class="lineNum">     247</span>              : </span>
 <span id="L248"><span class="lineNum">     248</span>              :         # Determine segments `sa` and `sb` in contact with the singular point x⃗.</span>
 <span id="L249"><span class="lineNum">     249</span>              :         # Then compute the local (LIA) term associated to these segments.</span>
@@ -317,15 +317,15 @@
 <span id="L251"><span class="lineNum">     251</span>              :         # over a fraction of these segments. Moreover, the rest of the segments</span>
 <span id="L252"><span class="lineNum">     252</span>              :         # (`nonlia_lims`) are taken into account by regular integration using</span>
 <span id="L253"><span class="lineNum">     253</span>              :         # quadratures.</span>
-<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">     1072722 :         sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)</span></span>
-<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">     1072897 :         sb = Segment(f, i)  # segment i</span></span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">     1072755 :         sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)</span></span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">     1072820 :         sb = Segment(f, i)  # segment i</span></span>
 <span id="L256"><span class="lineNum">     256</span>              : </span>
-<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">     1072886 :         vecs_i = map(ps) do (quantity, _)</span></span>
-<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">     1269665 :             @inline</span></span>
-<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">     1269689 :             u⃗ = zero(x⃗)</span></span>
-<span id="L260"><span class="lineNum">     260</span> <span class="tlaGNC">     1269692 :             if lia_segment_fraction !== nothing</span></span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">     1072851 :         vecs_i = map(ps) do (quantity, _)</span></span>
+<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">     1269601 :             @inline</span></span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">     1269623 :             u⃗ = zero(x⃗)</span></span>
+<span id="L260"><span class="lineNum">     260</span> <span class="tlaGNC">     1269636 :             if lia_segment_fraction !== nothing</span></span>
 <span id="L261"><span class="lineNum">     261</span>              :                 # In this case we need to include the full BS integral over a fraction of the local segments.</span>
-<span id="L262"><span class="lineNum">     262</span> <span class="tlaGNC">      889904 :                 u⃗ = u⃗ + (</span></span>
+<span id="L262"><span class="lineNum">     262</span> <span class="tlaGNC">      889951 :                 u⃗ = u⃗ + (</span></span>
 <span id="L263"><span class="lineNum">     263</span>              :                     integrate_biot_savart(</span>
 <span id="L264"><span class="lineNum">     264</span>              :                         quantity, FullIntegrand(), sa, x⃗, params.common;</span>
 <span id="L265"><span class="lineNum">     265</span>              :                         Lhs, limits = nonlia_lims[1],</span>
@@ -339,120 +339,120 @@
 <span id="L273"><span class="lineNum">     273</span>              :                     )</span>
 <span id="L274"><span class="lineNum">     274</span>              :                 )</span>
 <span id="L275"><span class="lineNum">     275</span>              :             end</span>
-<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">     1269712 :             if _LIA</span></span>
-<span id="L277"><span class="lineNum">     277</span> <span class="tlaGNC">     1189224 :                 u⃗ = u⃗ + local_self_induced(</span></span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">     1269620 :             if _LIA</span></span>
+<span id="L277"><span class="lineNum">     277</span> <span class="tlaGNC">     1189142 :                 u⃗ = u⃗ + local_self_induced(</span></span>
 <span id="L278"><span class="lineNum">     278</span>              :                     quantity, f, i, one(prefactor);</span>
 <span id="L279"><span class="lineNum">     279</span>              :                     a, Δ, quad,</span>
 <span id="L280"><span class="lineNum">     280</span>              :                     segment_fraction = lia_segment_fraction,</span>
 <span id="L281"><span class="lineNum">     281</span>              :                 )</span>
 <span id="L282"><span class="lineNum">     282</span>              :             end</span>
-<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">     1269524 :             quantity =&gt; u⃗</span></span>
+<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">     1269520 :             quantity =&gt; u⃗</span></span>
 <span id="L284"><span class="lineNum">     284</span>              :         end</span>
 <span id="L285"><span class="lineNum">     285</span>              : </span>
 <span id="L286"><span class="lineNum">     286</span>              :         # Then include the short-range (but non-local) effect of all nearby charges</span>
 <span id="L287"><span class="lineNum">     287</span>              :         # (which are located on the quadrature points of all nearby segments,</span>
 <span id="L288"><span class="lineNum">     288</span>              :         # excluding the local segments `sa` and `sb`).</span>
-<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">     1072784 :         vecs_i = add_pair_interactions_shortrange(vecs_i, cache, x⃗, params, sa, sb, Lhs)</span></span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">     1072814 :         vecs_i = add_pair_interactions_shortrange(vecs_i, cache, x⃗, params, sa, sb, Lhs)</span></span>
 <span id="L290"><span class="lineNum">     290</span>              : </span>
 <span id="L291"><span class="lineNum">     291</span>              :         # Add computed vectors (velocity and/or streamfunction) to corresponding arrays.</span>
-<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">     1072846 :         map(ps, vecs_i) do (quantity_p, us), (quantity_i, u⃗)</span></span>
-<span id="L293"><span class="lineNum">     293</span> <span class="tlaGNC">     1269691 :             @inline</span></span>
-<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">     1269719 :             @assert quantity_p === quantity_i</span></span>
-<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">     1269725 :             us[i] = us[i] + prefactor * u⃗</span></span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">     1072827 :         map(ps, vecs_i) do (quantity_p, us), (quantity_i, u⃗)</span></span>
+<span id="L293"><span class="lineNum">     293</span> <span class="tlaGNC">     1269659 :             @inline</span></span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">     1269669 :             @assert quantity_p === quantity_i</span></span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">     1269671 :             us[i] = us[i] + prefactor * u⃗</span></span>
 <span id="L296"><span class="lineNum">     296</span>              :         end</span>
-<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">     1072865 :     end</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">     1072871 :     end</span></span>
 <span id="L298"><span class="lineNum">     298</span>              : </span>
 <span id="L299"><span class="lineNum">     299</span> <span class="tlaUNC tlaBgUNC">           0 :     fields</span></span>
 <span id="L300"><span class="lineNum">     300</span>              : end</span>
 <span id="L301"><span class="lineNum">     301</span>              : </span>
 <span id="L302"><span class="lineNum">     302</span>              : # Optimised computation of short-range pair interactions.</span>
-<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC tlaBgGNC">     1072773 : function add_pair_interactions_shortrange(vecs, cache, x⃗, params, sa, sb, Lhs)</span></span>
-<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">     1072755 :     (; α,) = params.common</span></span>
-<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">     1072763 :     _add_pair_interactions_shortrange(α, vecs, cache, x⃗, params, sa, sb, Lhs)</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC tlaBgGNC">     1072801 : function add_pair_interactions_shortrange(vecs, cache, x⃗, params, sa, sb, Lhs)</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">     1072792 :     (; α,) = params.common</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">     1072794 :     _add_pair_interactions_shortrange(α, vecs, cache, x⃗, params, sa, sb, Lhs)</span></span>
 <span id="L306"><span class="lineNum">     306</span>              : end</span>
 <span id="L307"><span class="lineNum">     307</span>              : </span>
 <span id="L308"><span class="lineNum">     308</span>              : # Non-periodic case (no Ewald summation; naive computation)</span>
-<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">      136357 : function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, sa, sb, Lhs)</span></span>
-<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">      136361 :     (; Ls,) = params.common</span></span>
-<span id="L311"><span class="lineNum">     311</span> <span class="tlaGNC">      136363 :     rcut² = params.rcut_sq</span></span>
-<span id="L312"><span class="lineNum">     312</span> <span class="tlaGNC">      681293 :     @assert all(L -&gt; L === Infinity(), Ls)  # infinite non-periodic domain</span></span>
-<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">      681943 :     @assert all(L -&gt; L === Infinity(), Lhs)</span></span>
-<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">      136552 :     @assert rcut² === Infinity()</span></span>
-<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">      136560 :     it = nearby_charges(cache, x⃗)</span></span>
-<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">      273111 :     for charge ∈ it</span></span>
-<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">    25221829 :         s⃗, q⃗, seg = charge</span></span>
-<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">    49602095 :         is_local_segment = seg === sa || seg === sb</span></span>
-<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">    25070914 :         is_local_segment &amp;&amp; continue</span></span>
-<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">    24488274 :         qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)</span></span>
-<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">    24343332 :         r⃗ = x⃗ - s⃗</span></span>
-<span id="L322"><span class="lineNum">     322</span> <span class="tlaGNC">    24719018 :         r² = sum(abs2, r⃗)</span></span>
-<span id="L323"><span class="lineNum">     323</span> <span class="tlaGNC">    24752710 :         r = sqrt(r²)</span></span>
-<span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">    24755289 :         r_inv = 1 / r</span></span>
-<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">    24824505 :         r³_inv = 1 / (r² * r)</span></span>
-<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">    24852331 :         vecs = map(vecs) do (quantity, u⃗)</span></span>
-<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">    30867135 :             δu⃗ = full_integrand(quantity, r_inv, r³_inv, qs⃗′, r⃗)</span></span>
-<span id="L328"><span class="lineNum">     328</span> <span class="tlaGNC">    30627393 :             u⃗ = u⃗ + δu⃗</span></span>
-<span id="L329"><span class="lineNum">     329</span> <span class="tlaGNC">    30696610 :             quantity =&gt; u⃗</span></span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">      136401 : function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, sa, sb, Lhs)</span></span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">      136405 :     (; Ls,) = params.common</span></span>
+<span id="L311"><span class="lineNum">     311</span> <span class="tlaGNC">      136413 :     rcut² = params.rcut_sq</span></span>
+<span id="L312"><span class="lineNum">     312</span> <span class="tlaGNC">      681681 :     @assert all(L -&gt; L === Infinity(), Ls)  # infinite non-periodic domain</span></span>
+<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">      682095 :     @assert all(L -&gt; L === Infinity(), Lhs)</span></span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">      136566 :     @assert rcut² === Infinity()</span></span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">      136558 :     it = nearby_charges(cache, x⃗)</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">      273076 :     for charge ∈ it</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">    25156138 :         s⃗, q⃗, seg = charge</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">    49933674 :         is_local_segment = seg === sa || seg === sb</span></span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">    25160204 :         is_local_segment &amp;&amp; continue</span></span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">    24469504 :         qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)</span></span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">    24584323 :         r⃗ = x⃗ - s⃗</span></span>
+<span id="L322"><span class="lineNum">     322</span> <span class="tlaGNC">    24726874 :         r² = sum(abs2, r⃗)</span></span>
+<span id="L323"><span class="lineNum">     323</span> <span class="tlaGNC">    24760803 :         r = sqrt(r²)</span></span>
+<span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">    24749161 :         r_inv = 1 / r</span></span>
+<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">    24712649 :         r³_inv = 1 / (r² * r)</span></span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">    24650801 :         vecs = map(vecs) do (quantity, u⃗)</span></span>
+<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">    30728644 :             δu⃗ = full_integrand(quantity, r_inv, r³_inv, qs⃗′, r⃗)</span></span>
+<span id="L328"><span class="lineNum">     328</span> <span class="tlaGNC">    30700142 :             u⃗ = u⃗ + δu⃗</span></span>
+<span id="L329"><span class="lineNum">     329</span> <span class="tlaGNC">    30767929 :             quantity =&gt; u⃗</span></span>
 <span id="L330"><span class="lineNum">     330</span>              :         end</span>
-<span id="L331"><span class="lineNum">     331</span> <span class="tlaGNC">    25031855 :     end</span></span>
+<span id="L331"><span class="lineNum">     331</span> <span class="tlaGNC">    25001691 :     end</span></span>
 <span id="L332"><span class="lineNum">     332</span> <span class="tlaUNC tlaBgUNC">           0 :     vecs</span></span>
 <span id="L333"><span class="lineNum">     333</span>              : end</span>
 <span id="L334"><span class="lineNum">     334</span>              : </span>
 <span id="L335"><span class="lineNum">     335</span>              : # Non-Ewald (non-periodic) case</span>
-<span id="L336"><span class="lineNum">     336</span> <span class="tlaGNC tlaBgGNC">    24866887 : full_integrand(::Velocity, r_inv, r³_inv, qs⃗′, r⃗) = r³_inv * (qs⃗′ × r⃗)</span></span>
-<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">     6161178 : full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗′</span></span>
+<span id="L336"><span class="lineNum">     336</span> <span class="tlaGNC tlaBgGNC">    24608364 : full_integrand(::Velocity, r_inv, r³_inv, qs⃗′, r⃗) = r³_inv * (qs⃗′ × r⃗)</span></span>
+<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">     6232938 : full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗′</span></span>
 <span id="L338"><span class="lineNum">     338</span>              : </span>
 <span id="L339"><span class="lineNum">     339</span>              : # Periodic case (with Ewald summation)</span>
-<span id="L340"><span class="lineNum">     340</span> <span class="tlaGNC">      936105 : function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T &lt;: AbstractFloat}</span></span>
-<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">      936113 :     (; Ls,) = params.common</span></span>
-<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">      936119 :     N = length(x⃗)  # number of dimensions (= 3)</span></span>
-<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">      936118 :     rcut² = params.rcut_sq</span></span>
+<span id="L340"><span class="lineNum">     340</span> <span class="tlaGNC">      936196 : function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T &lt;: AbstractFloat}</span></span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">      936202 :     (; Ls,) = params.common</span></span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">      936208 :     N = length(x⃗)  # number of dimensions (= 3)</span></span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">      936207 :     rcut² = params.rcut_sq</span></span>
 <span id="L344"><span class="lineNum">     344</span>              :     # with_velocity = any(x -&gt; first(x) === Velocity(), vecs)</span>
 <span id="L345"><span class="lineNum">     345</span>              : </span>
 <span id="L346"><span class="lineNum">     346</span>              :     # We use VectorizationBase and MVector/MMatrix to enforce the use of SIMD.</span>
 <span id="L347"><span class="lineNum">     347</span>              :     # This enables important gains in modern CPUs, especially in the computation of erf/erfc.</span>
-<span id="L348"><span class="lineNum">     348</span> <span class="tlaGNC">      936105 :     W = VB.dynamic(VB.pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)</span></span>
-<span id="L349"><span class="lineNum">     349</span> <span class="tlaGNC">      936120 :     Vec = VB.Vec  # SIMD vector type</span></span>
+<span id="L348"><span class="lineNum">     348</span> <span class="tlaGNC">      936207 :     W = VB.dynamic(VB.pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)</span></span>
+<span id="L349"><span class="lineNum">     349</span> <span class="tlaGNC">      936211 :     Vec = VB.Vec  # SIMD vector type</span></span>
 <span id="L350"><span class="lineNum">     350</span>              : </span>
-<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">      936123 :     r²s = MVector{W, T}(undef)</span></span>
+<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">      936211 :     r²s = MVector{W, T}(undef)</span></span>
 <span id="L352"><span class="lineNum">     352</span>              : </span>
-<span id="L353"><span class="lineNum">     353</span> <span class="tlaGNC">      936124 :     NW = N * W</span></span>
-<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">      936140 :     r⃗s = MMatrix{W, N, T, NW}(undef)</span></span>
-<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">      936149 :     q⃗s = similar(r⃗s)</span></span>
+<span id="L353"><span class="lineNum">     353</span> <span class="tlaGNC">      936211 :     NW = N * W</span></span>
+<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">      936210 :     r⃗s = MMatrix{W, N, T, NW}(undef)</span></span>
+<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">      936212 :     q⃗s = similar(r⃗s)</span></span>
 <span id="L356"><span class="lineNum">     356</span>              : </span>
-<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">      936152 :     it = nearby_charges(cache, x⃗)</span></span>
-<span id="L358"><span class="lineNum">     358</span> <span class="tlaGNC">     5118915 :     y = iterate(it)</span></span>
+<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">      936219 :     it = nearby_charges(cache, x⃗)</span></span>
+<span id="L358"><span class="lineNum">     358</span> <span class="tlaGNC">     5117392 :     y = iterate(it)</span></span>
 <span id="L359"><span class="lineNum">     359</span>              : </span>
-<span id="L360"><span class="lineNum">     360</span> <span class="tlaGNC">    53246171 :     while y !== nothing</span></span>
-<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">    53082680 :         i = 0</span></span>
-<span id="L362"><span class="lineNum">     362</span> <span class="tlaGNC">    53060066 :         mask = zero(UInt)  # set to 1 the values that should be computed (0 means ignored)</span></span>
-<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">    53072765 :         @assert 8 * sizeof(mask) ≥ W  # this is basically always the case, but just to be sure...</span></span>
+<span id="L360"><span class="lineNum">     360</span> <span class="tlaGNC">    53757727 :     while y !== nothing</span></span>
+<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">    53082200 :         i = 0</span></span>
+<span id="L362"><span class="lineNum">     362</span> <span class="tlaGNC">    53064761 :         mask = zero(UInt)  # set to 1 the values that should be computed (0 means ignored)</span></span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">    53049784 :         @assert 8 * sizeof(mask) ≥ W  # this is basically always the case, but just to be sure...</span></span>
 <span id="L364"><span class="lineNum">     364</span>              : </span>
 <span id="L365"><span class="lineNum">     365</span>              :         # Collect (up to) W charges, to perform operation over W charges at once.</span>
-<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">    53054897 :         @inbounds while i &lt; W &amp;&amp; y !== nothing</span></span>
-<span id="L367"><span class="lineNum">     367</span> <span class="tlaGNC">   209963962 :             i += 1</span></span>
-<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">   210370986 :             charge, state = y</span></span>
-<span id="L369"><span class="lineNum">     369</span> <span class="tlaGNC">   210453690 :             s⃗, q⃗, seg = charge</span></span>
-<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">   416911774 :             is_local_segment = seg === sa || seg === sb</span></span>
-<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">   211027190 :             r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)</span></span>
-<span id="L372"><span class="lineNum">     372</span> <span class="tlaGNC">   210216077 :             r² = zero(eltype(eltype(r⃗)))</span></span>
+<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">    53060365 :         @inbounds while i &lt; W &amp;&amp; y !== nothing</span></span>
+<span id="L367"><span class="lineNum">     367</span> <span class="tlaGNC">   209498518 :             i += 1</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">   209986839 :             charge, state = y</span></span>
+<span id="L369"><span class="lineNum">     369</span> <span class="tlaGNC">   210143050 :             s⃗, q⃗, seg = charge</span></span>
+<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">   416644061 :             is_local_segment = seg === sa || seg === sb</span></span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">   210624806 :             r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)</span></span>
+<span id="L372"><span class="lineNum">     372</span> <span class="tlaGNC">   210479862 :             r² = zero(eltype(eltype(r⃗)))</span></span>
 <span id="L373"><span class="lineNum">     373</span>              :             # Ignore this element if this is a local segment or if we're beyond the cut-off</span>
 <span id="L374"><span class="lineNum">     374</span>              :             # distance.</span>
 <span id="L375"><span class="lineNum">     375</span>              :             # TODO: do we need the second condition?</span>
-<span id="L376"><span class="lineNum">     376</span> <span class="tlaGNC">   413324976 :             ignore = is_local_segment || r² &gt; rcut²</span></span>
-<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">   210216179 :             if !ignore</span></span>
-<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">   203805825 :                 mask = mask | (one(mask) &lt;&lt; (i - 1))  # set mask to 1 for this element</span></span>
+<span id="L376"><span class="lineNum">     376</span> <span class="tlaGNC">   413805270 :             ignore = is_local_segment || r² &gt; rcut²</span></span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">   210540785 :             if !ignore</span></span>
+<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">   203986869 :                 mask = mask | (one(mask) &lt;&lt; (i - 1))  # set mask to 1 for this element</span></span>
 <span id="L379"><span class="lineNum">     379</span>              :             end</span>
-<span id="L380"><span class="lineNum">     380</span> <span class="tlaGNC">   210233664 :             for j ∈ eachindex(r⃗, q⃗)</span></span>
-<span id="L381"><span class="lineNum">     381</span> <span class="tlaGNC">   619671865 :                 qj = real(q⃗[j])  # just in case data is complex</span></span>
-<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">   618983508 :                 q⃗s[i, j] = qj</span></span>
-<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">   620977515 :                 rj = r⃗[j]</span></span>
-<span id="L384"><span class="lineNum">     384</span> <span class="tlaGNC">   619083890 :                 r⃗s[i, j] = rj</span></span>
-<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">   619745758 :                 r² += rj * rj</span></span>
-<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">   823085158 :             end</span></span>
-<span id="L387"><span class="lineNum">     387</span> <span class="tlaGNC">   208738538 :             r²s[i] = r²</span></span>
-<span id="L388"><span class="lineNum">     388</span> <span class="tlaGNC">   411487102 :             y = iterate(it, state)</span></span>
-<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">   210537303 :         end</span></span>
+<span id="L380"><span class="lineNum">     380</span> <span class="tlaGNC">   210418092 :             for j ∈ eachindex(r⃗, q⃗)</span></span>
+<span id="L381"><span class="lineNum">     381</span> <span class="tlaGNC">   625038744 :                 qj = real(q⃗[j])  # just in case data is complex</span></span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">   625174145 :                 q⃗s[i, j] = qj</span></span>
+<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">   625051066 :                 rj = r⃗[j]</span></span>
+<span id="L384"><span class="lineNum">     384</span> <span class="tlaGNC">   623291456 :                 r⃗s[i, j] = rj</span></span>
+<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">   622993395 :                 r² += rj * rj</span></span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">   827781444 :             end</span></span>
+<span id="L387"><span class="lineNum">     387</span> <span class="tlaGNC">   209314912 :             r²s[i] = r²</span></span>
+<span id="L388"><span class="lineNum">     388</span> <span class="tlaGNC">   412551278 :             y = iterate(it, state)</span></span>
+<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">   209910333 :         end</span></span>
 <span id="L390"><span class="lineNum">     390</span>              : </span>
 <span id="L391"><span class="lineNum">     391</span>              :         # while i &lt; W</span>
 <span id="L392"><span class="lineNum">     392</span>              :         #     # If we're here, it's because the iterator finished before being able to read W</span>
@@ -464,60 +464,60 @@
 <span id="L398"><span class="lineNum">     398</span>              :         # end</span>
 <span id="L399"><span class="lineNum">     399</span>              : </span>
 <span id="L400"><span class="lineNum">     400</span>              :         # There's nothing interesting to compute if mask is fully zero.</span>
-<span id="L401"><span class="lineNum">     401</span> <span class="tlaGNC">    52816321 :         iszero(mask) &amp;&amp; continue</span></span>
+<span id="L401"><span class="lineNum">     401</span> <span class="tlaGNC">    52775461 :         iszero(mask) &amp;&amp; continue</span></span>
 <span id="L402"><span class="lineNum">     402</span>              : </span>
 <span id="L403"><span class="lineNum">     403</span>              :         # Convert MVector to SIMD type from VectorizationBase.</span>
 <span id="L404"><span class="lineNum">     404</span>              :         # The next operations should all take advantage of SIMD.</span>
-<span id="L405"><span class="lineNum">     405</span> <span class="tlaGNC">    51461421 :         r²s_simd = Vec(r²s...) :: Vec</span></span>
-<span id="L406"><span class="lineNum">     406</span> <span class="tlaGNC">    51510387 :         rs = sqrt(r²s_simd)</span></span>
-<span id="L407"><span class="lineNum">     407</span> <span class="tlaGNC">    51268051 :         rs_inv = 1 / rs</span></span>
-<span id="L408"><span class="lineNum">     408</span> <span class="tlaGNC">    51190049 :         r³s_inv = 1 / (r²s_simd * rs)</span></span>
-<span id="L409"><span class="lineNum">     409</span> <span class="tlaGNC">    51188650 :         αr = α * rs</span></span>
-<span id="L410"><span class="lineNum">     410</span> <span class="tlaGNC">    51189609 :         erfc_αr = erfc(αr)</span></span>
-<span id="L411"><span class="lineNum">     411</span> <span class="tlaGNC">    50603721 :         αr_sq = αr * αr</span></span>
-<span id="L412"><span class="lineNum">     412</span> <span class="tlaGNC">    50691816 :         exp_term = two_over_sqrt_pi(αr) * αr * VB.vexp(-αr_sq)</span></span>
+<span id="L405"><span class="lineNum">     405</span> <span class="tlaGNC">    51394683 :         r²s_simd = Vec(r²s...) :: Vec</span></span>
+<span id="L406"><span class="lineNum">     406</span> <span class="tlaGNC">    51455626 :         rs = sqrt(r²s_simd)</span></span>
+<span id="L407"><span class="lineNum">     407</span> <span class="tlaGNC">    51344201 :         rs_inv = 1 / rs</span></span>
+<span id="L408"><span class="lineNum">     408</span> <span class="tlaGNC">    51316527 :         r³s_inv = 1 / (r²s_simd * rs)</span></span>
+<span id="L409"><span class="lineNum">     409</span> <span class="tlaGNC">    51334262 :         αr = α * rs</span></span>
+<span id="L410"><span class="lineNum">     410</span> <span class="tlaGNC">    51337285 :         erfc_αr = erfc(αr)</span></span>
+<span id="L411"><span class="lineNum">     411</span> <span class="tlaGNC">    50807339 :         αr_sq = αr * αr</span></span>
+<span id="L412"><span class="lineNum">     412</span> <span class="tlaGNC">    50854519 :         exp_term = two_over_sqrt_pi(αr) * αr * VB.vexp(-αr_sq)</span></span>
 <span id="L413"><span class="lineNum">     413</span>              : </span>
-<span id="L414"><span class="lineNum">     414</span> <span class="tlaGNC">    50717226 :         mask_simd = VB.Mask{W}(mask)</span></span>
+<span id="L414"><span class="lineNum">     414</span> <span class="tlaGNC">    50959346 :         mask_simd = VB.Mask{W}(mask)</span></span>
 <span id="L415"><span class="lineNum">     415</span>              : </span>
 <span id="L416"><span class="lineNum">     416</span>              :         # In VectorizationBase, a VecUnroll basically consists of a tuple of Vec's.</span>
 <span id="L417"><span class="lineNum">     417</span>              :         # It gets automatically constructed from a Vec when the number of elements is too</span>
 <span id="L418"><span class="lineNum">     418</span>              :         # large (that is, if we chose our W correctly, using pick_vector_width).</span>
 <span id="L419"><span class="lineNum">     419</span>              :         # In our case it makes sense to use this to describe vector values (e.g. separation</span>
 <span id="L420"><span class="lineNum">     420</span>              :         # vector, tangent vector, velocity).</span>
-<span id="L421"><span class="lineNum">     421</span> <span class="tlaGNC">    50825571 :         q⃗s_simd = Vec(q⃗s...) :: VecUnroll{(N - 1), W}</span></span>
-<span id="L422"><span class="lineNum">     422</span> <span class="tlaGNC">    50930524 :         r⃗s_simd = Vec(r⃗s...) :: VecUnroll{(N - 1), W}</span></span>
+<span id="L421"><span class="lineNum">     421</span> <span class="tlaGNC">    51055511 :         q⃗s_simd = Vec(q⃗s...) :: VecUnroll{(N - 1), W}</span></span>
+<span id="L422"><span class="lineNum">     422</span> <span class="tlaGNC">    51110641 :         r⃗s_simd = Vec(r⃗s...) :: VecUnroll{(N - 1), W}</span></span>
 <span id="L423"><span class="lineNum">     423</span>              : </span>
-<span id="L424"><span class="lineNum">     424</span> <span class="tlaGNC">    50931585 :         vecs = map(vecs) do (quantity, u⃗)</span></span>
-<span id="L425"><span class="lineNum">     425</span> <span class="tlaGNC">    58949265 :             @inline</span></span>
-<span id="L426"><span class="lineNum">     426</span> <span class="tlaGNC">    58922921 :             δu⃗_simd = mask_simd * short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)</span></span>
-<span id="L427"><span class="lineNum">     427</span> <span class="tlaGNC">    59149189 :             δu⃗ = VB.vsum(δu⃗_simd) :: VecUnroll{(N - 1), 1}  # reduction operation: sum the W elements</span></span>
-<span id="L428"><span class="lineNum">     428</span> <span class="tlaGNC">    59179402 :             δu⃗_data = getfield(δu⃗, :data) :: NTuple{3, T}   # access the actual data (which is simply a tuple)</span></span>
-<span id="L429"><span class="lineNum">     429</span> <span class="tlaGNC">    59202006 :             u⃗ = u⃗ + oftype(u⃗, δu⃗_data)</span></span>
-<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">    59206549 :             quantity =&gt; u⃗</span></span>
+<span id="L424"><span class="lineNum">     424</span> <span class="tlaGNC">    51130602 :         vecs = map(vecs) do (quantity, u⃗)</span></span>
+<span id="L425"><span class="lineNum">     425</span> <span class="tlaGNC">    59201753 :             @inline</span></span>
+<span id="L426"><span class="lineNum">     426</span> <span class="tlaGNC">    59257311 :             δu⃗_simd = mask_simd * short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)</span></span>
+<span id="L427"><span class="lineNum">     427</span> <span class="tlaGNC">    59327387 :             δu⃗ = VB.vsum(δu⃗_simd) :: VecUnroll{(N - 1), 1}  # reduction operation: sum the W elements</span></span>
+<span id="L428"><span class="lineNum">     428</span> <span class="tlaGNC">    59383894 :             δu⃗_data = getfield(δu⃗, :data) :: NTuple{3, T}   # access the actual data (which is simply a tuple)</span></span>
+<span id="L429"><span class="lineNum">     429</span> <span class="tlaGNC">    59432413 :             u⃗ = u⃗ + oftype(u⃗, δu⃗_data)</span></span>
+<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">    59442053 :             quantity =&gt; u⃗</span></span>
 <span id="L431"><span class="lineNum">     431</span>              :         end</span>
-<span id="L432"><span class="lineNum">     432</span> <span class="tlaGNC">    52590269 :     end</span></span>
+<span id="L432"><span class="lineNum">     432</span> <span class="tlaGNC">    52833609 :     end</span></span>
 <span id="L433"><span class="lineNum">     433</span>              : </span>
 <span id="L434"><span class="lineNum">     434</span> <span class="tlaUNC tlaBgUNC">           0 :     vecs</span></span>
 <span id="L435"><span class="lineNum">     435</span>              : end</span>
 <span id="L436"><span class="lineNum">     436</span>              : </span>
 <span id="L437"><span class="lineNum">     437</span>              : # Note: all input values may be SIMD types (Vec, VecUnroll).</span>
-<span id="L438"><span class="lineNum">     438</span> <span class="tlaGNC tlaBgGNC">    50921938 : function short_range_integrand(::Velocity, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)</span></span>
-<span id="L439"><span class="lineNum">     439</span> <span class="tlaGNC">    50937896 :     ((erfc_αr + exp_term) * r³_inv) * crossprod(qs⃗′, r⃗)</span></span>
+<span id="L438"><span class="lineNum">     438</span> <span class="tlaGNC tlaBgGNC">    51137109 : function short_range_integrand(::Velocity, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)</span></span>
+<span id="L439"><span class="lineNum">     439</span> <span class="tlaGNC">    51154839 :     ((erfc_αr + exp_term) * r³_inv) * crossprod(qs⃗′, r⃗)</span></span>
 <span id="L440"><span class="lineNum">     440</span>              : end</span>
 <span id="L441"><span class="lineNum">     441</span>              : </span>
-<span id="L442"><span class="lineNum">     442</span> <span class="tlaGNC">    50969771 : crossprod(u::VecUnroll, v::VecUnroll) = VecUnroll(crossprod(getfield(u, :data), getfield(v, :data)))</span></span>
+<span id="L442"><span class="lineNum">     442</span> <span class="tlaGNC">    51187475 : crossprod(u::VecUnroll, v::VecUnroll) = VecUnroll(crossprod(getfield(u, :data), getfield(v, :data)))</span></span>
 <span id="L443"><span class="lineNum">     443</span>              : </span>
 <span id="L444"><span class="lineNum">     444</span>              : # These are generally tuples of SIMD vectors (VectorizationBase.Vec).</span>
-<span id="L445"><span class="lineNum">     445</span> <span class="tlaGNC">    50989181 : function crossprod(u::T, v::T) where {T &lt;: NTuple{3}}</span></span>
-<span id="L446"><span class="lineNum">     446</span> <span class="tlaGNC">    51017682 :     (</span></span>
+<span id="L445"><span class="lineNum">     445</span> <span class="tlaGNC">    51200227 : function crossprod(u::T, v::T) where {T &lt;: NTuple{3}}</span></span>
+<span id="L446"><span class="lineNum">     446</span> <span class="tlaGNC">    51200237 :     (</span></span>
 <span id="L447"><span class="lineNum">     447</span>              :         u[2] * v[3] - u[3] * v[2],</span>
 <span id="L448"><span class="lineNum">     448</span>              :         u[3] * v[1] - u[1] * v[3],</span>
 <span id="L449"><span class="lineNum">     449</span>              :         u[1] * v[2] - u[2] * v[1],</span>
 <span id="L450"><span class="lineNum">     450</span>              :     ) :: T</span>
 <span id="L451"><span class="lineNum">     451</span>              : end</span>
 <span id="L452"><span class="lineNum">     452</span>              : </span>
-<span id="L453"><span class="lineNum">     453</span> <span class="tlaGNC">     8109187 : function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)</span></span>
-<span id="L454"><span class="lineNum">     454</span> <span class="tlaGNC">     8115046 :     (erfc_αr * r_inv) * qs⃗′</span></span>
+<span id="L453"><span class="lineNum">     453</span> <span class="tlaGNC">     8119083 : function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)</span></span>
+<span id="L454"><span class="lineNum">     454</span> <span class="tlaGNC">     8123845 :     (erfc_αr * r_inv) * qs⃗′</span></span>
 <span id="L455"><span class="lineNum">     455</span>              : end</span>
 <span id="L456"><span class="lineNum">     456</span>              : </span>
 <span id="L457"><span class="lineNum">     457</span>              : include(&quot;lia.jl&quot;)  # defines local_self_induced_velocity (computation of LIA term)</span>
