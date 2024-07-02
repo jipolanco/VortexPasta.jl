@@ -314,6 +314,7 @@ either [`step!`](@ref) or [`solve!`](@ref).
 
 - `stretching_velocity`: allows to add an external "stretching" velocity to the filaments.
   This can be considered as an external energy (or length) injection mechanism.
+  However, it can also lead to spurious Kelvin waves.
   See "Imposing a stretching velocity" below for more details.
 
 # Extended help
@@ -422,12 +423,19 @@ curvature ``ρ``, so that the local stretching rate is approximately independent
 filament location ``ξ``.
 To achieve this, one may set
 
-    stretching_velocity = ρ -> min(C / ρ, v_max)
+```julia
+stretching_velocity = ρ -> min(γ / ρ, v_max)
+```
 
-where `C` is a constant (units ``T^{-1}``) setting the amount of stretching, and `v_max` is
+where `γ` is a constant (units ``T^{-1}``) setting the stretching magnitude, and `v_max` is
 a maximum stretching velocity used to avoid very large velocities in low-curvature regions.
-One could do something fancier and replace the `min` with a smooth regularisation, such as
-`ρ -> C / (ρ₀ + ρ)` for some "small" curvature ``ρ₀``.
+One could do something fancier and replace the `min` with a smooth regularisation such as
+
+```julia
+stretching_velocity = ρ -> -expm1(-ρ / ρ₀) * (γ / ρ)  # note: expm1(x) = exp(x) - 1
+```
+
+for some small curvature ``ρ₀``. The maximum allowed velocity will then be `vmax = γ / ρ₀`.
 """
 function init(
         prob::VortexFilamentProblem{T}, scheme::TemporalScheme;
