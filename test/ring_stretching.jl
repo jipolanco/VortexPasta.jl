@@ -72,7 +72,7 @@ function test_ring_stretching()
     scheme = RK4()
 
     # For v(ρ) = 1 / (τ * ρ), the length should exponentially increase as L(t) = L₀ * exp(t / τ).
-    stretching_velocity = let L = params.Ls[1], ρ₀ = 1/L, τ = 4.0
+    stretching_velocity = let L = params.Ls[1], ρ₀ = 1/L, τ = 5.0
         # ρ -> (1 - exp(-ρ / ρ₀)) / (τ * ρ)
         ρ -> -expm1(-ρ / ρ₀) / (τ * ρ)
     end
@@ -90,12 +90,12 @@ function test_ring_stretching()
     # Analytical solution
     L_expected = @. vortex_length[1] * exp(times / stretching_velocity.τ)
     # @show norm(L_expected - vortex_length) / norm(vortex_length)
-    @test isapprox(vortex_length, L_expected; rtol = 2e-4)
+    @test isapprox(vortex_length, L_expected; rtol = 1e-4)
 
     let plt = lineplot(
             times, energy ./ energy[1];
             title = "Ring stretching", xlabel = "Time", ylabel = "Relative change", name = "Energy",
-            ylim = (0.5, 1.5)
+            ylim = (1.0, 1.25)
         )
         lineplot!(plt, times, vortex_length ./ vortex_length[1]; name = "Length")
         local (; τ,) = stretching_velocity
