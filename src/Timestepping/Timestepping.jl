@@ -315,7 +315,7 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `stretching_velocity`: allows to add an external "stretching" velocity to the filaments.
   This can be considered as an external energy (or length) injection mechanism.
   However, it can also lead to spurious Kelvin waves.
-  See "Imposing a stretching velocity" below for more details.
+  See "Adding a stretching velocity" below for more details.
 
 # Extended help
 
