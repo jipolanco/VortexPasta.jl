@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Timestepping: add optional `stretching_velocity` argument to `init`.
+  It allows to impose an external velocity on the filaments, parallel to their
+  local curvature vector, which works as an artificial stretching (or
+  shrinking) mechanism.
+
 ## [0.22.2] - 2024-06-24
 
 ### Added

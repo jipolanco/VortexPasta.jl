@@ -24,8 +24,9 @@ function generate_biot_savart_parameters(::Type{T}; periodic = Val(true)) where 
     Ls = (L, L, L)
     Ns = (Ngrid, Ngrid, Ngrid)
     kmax = (Ngrid ÷ 2) * 2π / L
-    α = kmax / 6
-    rcut = 3 / α
+    β = 3
+    α = kmax / 2β
+    rcut = β / α
     backend_long = NonuniformFFTsBackend(σ = T(1.5), m = HalfSupport(4))
     # Test unexported functions
     @test BiotSavart.oversampling_factor(backend_long) == 1.5
