@@ -224,7 +224,12 @@ end
 
 allvectors(f::ClosedFilament) = (f.ts, f.Xs, allvectors(f.coefs)...)
 
-function Base.similar(
+function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
+    similar_filament(f, T, dims)
+end
+
+# Like `similar` but accepts custom kwargs (offset, nderivs, ...).
+function similar_filament(
         f::ClosedFilament, ::Type{T}, dims::Dims{1};
         offset = f.Xoffset,
         method = discretisation_method(f),
