@@ -42,7 +42,6 @@ using ..BiotSavart:
     VectorOfFilaments,
     VectorOfPositions,
     VectorOfVelocities,
-    AllFilamentVelocities,
     periods
 
 # Reuse same init, solve! and step! functions from the SciML ecosystem, to avoid clashes.
@@ -156,7 +155,9 @@ struct VortexFilamentSolver{
         T,
         Problem <: VortexFilamentProblem{T},
         Filaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
-        Velocities <: VectorOfVectors{Vec3{T}},
+        # We use a Filament type to describe the velocity and streamfunction on filaments,
+        # to allow interpolation of these fields on filament locations.
+        VectorOnFilaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
         CacheReconnect <: AbstractReconnectionCache,
@@ -173,8 +174,8 @@ struct VortexFilamentSolver{
     } <: AbstractSolver
     prob  :: Problem
     fs    :: Filaments
-    vs    :: Velocities
-    ψs    :: Velocities  # not really velocity, but streamfunction
+    vs    :: VectorOnFilaments
+    ψs    :: VectorOnFilaments
     time  :: TimeInfo
     stats :: SimulationStats{T}
     dtmin :: T
@@ -465,10 +466,17 @@ function init(
     (; tspan,) = prob
     (; Ls,) = prob.p
     fs = convert(VectorOfVectors, prob.fs)
-    vs_data = map(similar ∘ nodes, fs) :: AllFilamentVelocities
-    vs = convert(VectorOfVectors, vs_data)
+
+    # Describe the velocity and streamfunction on filament locations using the
+    # ClosedFilament type, so that we can interpolate these fields on filaments.
+    # For now we don't require any derivatives.
+    vs = map(fs) do f
+        Filaments.similar_filament(f; nderivs = Val(0), offset = zero(eltype(f)))
+    end :: VectorOfVectors
     ψs = similar(vs)
+
     fs_sol = alias_u0 ? fs : copy(fs)
+
     cache_reconnect = Reconnections.init_cache(reconnect, fs_sol, Ls)
     cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
@@ -954,12 +962,14 @@ function finalise_step!(iter::VortexFilamentSolver)
     # This must be taken into account by scheme implementations.
     rhs!(fields, fs, time.t, iter; component = Val(:full))
 
-    # This is mainly useful for visualisation (and it's quite cheap).
-    for u ∈ vs
-        Filaments.pad_periodic!(u)
-    end
-    for u ∈ ψs
-        Filaments.pad_periodic!(u)
+    # Update coefficients in case we need to interpolate fields, e.g. for diagnostics or
+    # reconnections. We make sure we use the same parametrisation (knots) of the filaments
+    # themselves.
+    # TODO: perform reconnections after this?
+    for i ∈ eachindex(fs, vs, ψs)
+        local ts = Filaments.knots(fs[i])
+        Filaments.update_coefficients!(vs[i]; knots = ts)
+        Filaments.update_coefficients!(ψs[i]; knots = ts)
     end
 
     time.dt_prev = time.dt
