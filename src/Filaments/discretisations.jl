@@ -43,8 +43,8 @@ nderivatives(::Type{<:DiscretisationCoefs{T, M, N}}) where {T, M, N} = N
 nderivatives(c::DiscretisationCoefs) = nderivatives(typeof(c))
 
 """
-    init_coefficients(method::DiscretisationMethod, ys::AbstractVector, [nderiv::Val]) -> DiscretisationCoefs
-    init_coefficients(method::DiscretisationMethod, cs::PaddedVector, cderivs::NTuple) -> DiscretisationCoefs
+    init_coefficients(method::DiscretisationMethod, ys::AbstractVector, [nderivs::Val]) -> DiscretisationCoefs
+    init_coefficients(method::DiscretisationMethod, cs::PaddedVector, cderivs::NTuple)  -> DiscretisationCoefs
 
 Initialise interpolation coefficients.
 
@@ -58,21 +58,28 @@ In the second case, `cs` is interpreted as a vector of interpolation coefficient
 thus stored in the returned structure. Moreover, to compute one or more derivatives, one can
 pass `cderivs` vectors which should have the same type and length as `cs`.
 
-Note that some discretisation methods require one or more derivatives, and will fail if
-`nderiv = Val(0)` or if `cderivs` is empty. This is the case of methods relying on Hermite
-interpolation, which is the default for [`FiniteDiffMethod`](@ref) and
-[`FourierMethod`](@ref). One can call [`required_derivatives`](@ref) to know how many
-derivatives are required by the discretisation method.
+!!! note "Hermite interpolations"
+
+    Some discretisation methods ([`FiniteDiffMethod`](@ref), [`FourierMethod`](@ref))
+    require one or more derivatives to evaluate Hermite interpolations, as determined by
+    [`required_derivatives`](@ref).
+
+    In the first variant, if one passes e.g. `nderivs = Val(0)`, then this argument will be
+    silently replaced by the required number of derivatives to make things work.
+
+    In the second variant, things will fail if `length(cderivs) < required_derivatives(method)`.
+
 """
 function init_coefficients end
 
 function init_coefficients(
         method::DiscretisationMethod, ys::AbstractVector,
-        nderivs::Val = Val(required_derivatives(method)),
-    )
+        ::Val{Nderiv_in} = Val(required_derivatives(method)),
+    ) where {Nderiv_in}
     M = npad(method)
     cs = similar_padded(ys, Val(M))
-    cderivs = ntuple(_ -> similar(cs), nderivs)
+    Nderiv = max(Nderiv_in, required_derivatives(method))  # the method may require additional derivatives
+    cderivs = ntuple(_ -> similar(cs), Val(Nderiv))
     init_coefficients(method, cs, cderivs)
 end
 
