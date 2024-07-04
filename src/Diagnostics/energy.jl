@@ -157,8 +157,7 @@ function _kinetic_energy_from_streamfunction(::IsInterpolable{false}, quad, ψf,
             local data = @alloc(V, Np + 2M)
             PaddedVector{M}(data)
         end
-        # Note: we interpolate the streamfunction vector ψ⃗, which we then integrate along
-        # filaments.
+        # We interpolate the streamfunction vector ψ⃗.
         coefs = Filaments.init_coefficients(method, cs, cderiv)
         copyto!(cs, ψf)
         Filaments.compute_coefficients!(coefs, ts)

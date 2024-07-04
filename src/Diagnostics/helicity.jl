@@ -91,23 +91,23 @@ function _helicity(::IsInterpolable{false}, quad, f::AbstractFilament, vs::Singl
     buf = Bumper.default_buffer()
 
     @no_escape buf begin
-        data = @alloc(T, Np + 2M)
+        V = eltype(vs)
+        data = @alloc(V, Np + 2M)
         cs = PaddedVector{M}(data)
         nderiv = Filaments.required_derivatives(method)
         cderiv = ntuple(Val(nderiv)) do _
-            local data = @alloc(T, Np + 2M)
+            local data = @alloc(V, Np + 2M)
             PaddedVector{M}(data)
         end
-        # Note: we interpolate the tangent component of the velocity (i.e. v⃗ ⋅ s⃗′),
-        # which we then integrate along filaments.
+        # We interpolate the the velocity vector v⃗.
         coefs = Filaments.init_coefficients(method, cs, cderiv)
-        for i ∈ eachindex(cs, f, vs)
-            @inbounds cs[i] = vs[i] ⋅ f[i, Derivative(1)]
-        end
+        copyto!(cs, vs)
         Filaments.compute_coefficients!(coefs, ts)
         for i ∈ eachindex(segments(f))
             H += integrate(f, i, quad) do f, i, ζ
-                Filaments.evaluate(coefs, ts, i, ζ)
+                v⃗ = Filaments.evaluate(coefs, ts, i, ζ)
+                s⃗′ = f(i, ζ, Derivative(1))
+                v⃗ ⋅ s⃗′
             end :: T
         end
     end
