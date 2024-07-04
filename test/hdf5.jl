@@ -163,7 +163,7 @@ function test_hdf5()
     # Try writing data which is *not* backed by a PaddedVector.
     # When refinement is enabled, values on the last segment should be obtained by
     # interpolation using the last and first data points, since there's no padding.
-    ψt_vec = VectorOfVectors(map(ψ -> Vector{Float64}(undef, length(ψ)), ψs)) :: AbstractVector{<:Vector}
+    ψt_vec = map(ψ -> Vector{Float64}(undef, length(ψ)), ψs) :: AbstractVector{<:Vector}
     tangent_streamfunction!(ψt_vec, fs, ψs)
     @test ψt == ψt_vec
 

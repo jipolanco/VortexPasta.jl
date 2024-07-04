@@ -49,6 +49,7 @@ function test_perturbed_vortex_ring()
     times = Float64[]
     energy_time = Float64[]
     helicity_time = Float64[]
+    stretching_time = Float64[]
     tsf = TimeSeriesFile()
 
     function callback(iter)
@@ -59,12 +60,15 @@ function test_perturbed_vortex_ring()
             empty!(helicity_time)
             empty!(tsf)
         end
-        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2))
-        H = Diagnostics.helicity(iter; quad = GaussLegendre(2))
+        quad = GaussLegendre(3)
+        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad)
+        H = Diagnostics.helicity(iter; quad)
+        dLdt = Diagnostics.stretching_rate(iter; quad)
         # @show nstep, t, E
         push!(times, t)
         push!(energy_time, E)
         push!(helicity_time, H)
+        push!(stretching_time, dLdt)
         if @isdefined(Makie)
             fobs[] = iter.fs[1]  # update filament positions
             yield()
@@ -113,6 +117,8 @@ function test_perturbed_vortex_ring()
     @time solve!(iter)
     save("ring_perturbed.vtkhdf.series", tsf)
 
+
+
     @test iter.dt == dt  # dt was kept to the initial value (because AdaptBasedOnVelocity criterion gives larger dt)
 
     # Check that velocity and streamfunction can be interpolated, and that the interpolated
@@ -122,7 +128,7 @@ function test_perturbed_vortex_ring()
             for us ∈ (iter.vs[i], iter.ψs[i])
                 @test length(us) == length(f)
                 @test Filaments.knots(us) == Filaments.knots(f)
-                @test Filaments.parametrisation(us) == Filaments.parametrisation(f)
+                @test Filaments.parametrisation(us) === Filaments.parametrisation(f)
                 @test us[4] ≈ us(4, 0.0)
                 @test us[5] ≈ us(4, 1.0)
             end
