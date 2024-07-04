@@ -63,8 +63,7 @@ end
 Base.parent(x::VectorOfVectors) = x.u
 Base.length(x::VectorOfVectors) = length(x.u)
 Base.size(x::VectorOfVectors) = (length(x),)
-Base.similar(x::VectorOfVectors, ::Type{T}) where {T} =
-    VectorOfVectors(map(v -> similar(v, T), x.u))
+Base.similar(x::VectorOfVectors, ::Type{T}) where {T} = map(v -> similar(v, T), x) :: VectorOfVectors
 Base.similar(x::VectorOfVectors{T}) where {T} = similar(x, T)
 Base.fill!(x::VectorOfVectors, value) = (foreach(y -> fill!(y, value), x); x)
 Base.push!(x::VectorOfVectors, item) = push!(x.u, item)
@@ -93,6 +92,9 @@ end
 Base.resize!(vs::VectorOfVectors, n::Integer) = resize!(vs.u, n)
 Base.pop!(vs::VectorOfVectors) = pop!(vs.u)
 Base.popat!(vs::VectorOfVectors, i::Integer, args...) = popat!(vs.u, i, args...)
+
+# Make sure `map` returns a VectorOfVectors instead of a standard Vector.
+Base.map(f::F, vs::VectorOfVectors, args...) where {F} = VectorOfVectors(map(f, vs.u, args...))
 
 ## Broadcasting
 
