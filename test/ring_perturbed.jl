@@ -117,8 +117,6 @@ function test_perturbed_vortex_ring()
     @time solve!(iter)
     save("ring_perturbed.vtkhdf.series", tsf)
 
-
-
     @test iter.dt == dt  # dt was kept to the initial value (because AdaptBasedOnVelocity criterion gives larger dt)
 
     # Check that velocity and streamfunction can be interpolated, and that the interpolated

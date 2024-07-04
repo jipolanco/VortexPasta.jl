@@ -77,20 +77,19 @@ in non-periodic domains.
 """
 function kinetic_energy_from_streamfunction end
 
-function kinetic_energy_from_streamfunction(ψs::AbstractVector, args...; quad = nothing)
-    _kinetic_energy_from_streamfunction(quad, ψs, args...)
-end
-
 # Case of a set of filaments
-function _kinetic_energy_from_streamfunction(
-        quad, ψs::SetOfFilamentsData, fs::VectorOfFilaments, Γ, args...,
-    )
-    T = float(typeof(Γ))
+function kinetic_energy_from_streamfunction(ψs::SetOfFilamentsData, fs::VectorOfFilaments, args...; kws...)
+    T = number_type(ψs)
     E = zero(T)
-    for i ∈ eachindex(fs, ψs)
-        E += _kinetic_energy_from_streamfunction(quad, ψs[i], fs[i], Γ, args...)
+    for i ∈ eachindex(ψs, fs)
+        E += kinetic_energy_from_streamfunction(ψs[i], fs[i], args...; kws...)
     end
     E
+end
+
+# Case of a single filament
+function kinetic_energy_from_streamfunction(ψs::SingleFilamentData, fs::AbstractFilament, args...; quad = nothing)
+    _kinetic_energy_from_streamfunction(quad, ψs, fs, args...)
 end
 
 function _domain_volume(Ls)
@@ -102,7 +101,6 @@ function _domain_volume(Ls)
     end
 end
 
-# Case of a single filament
 # 1. No quadratures (cheaper)
 function _kinetic_energy_from_streamfunction(::Nothing, ψf, f, Γ, Ls = (∞, ∞, ∞))
     prefactor = Γ / (2 * _domain_volume(Ls))
@@ -251,18 +249,19 @@ instead.
 """
 function kinetic_energy_nonperiodic end
 
-function kinetic_energy_nonperiodic(vs::AbstractVector, args...; quad = nothing)
-    _kinetic_energy_nonperiodic(quad, vs, args...)
-end
-
-function _kinetic_energy_nonperiodic(
-        quad, vs::SetOfFilamentsData, fs::VectorOfFilaments, Γ::AbstractFloat,
-    )
-    E = zero(typeof(Γ))
+# Case of a set of filaments
+function kinetic_energy_nonperiodic(vs::SetOfFilamentsData, fs::VectorOfFilaments, args...; kws...)
+    T = number_type(vs)
+    E = zero(T)
     for i ∈ eachindex(vs, fs)
-        E += _kinetic_energy_nonperiodic(quad, vs[i], fs[i], Γ)
+        E += kinetic_energy_nonperiodic(vs[i], fs[i], args...; kws...)
     end
     E
+end
+
+# Case of a single filament
+function kinetic_energy_nonperiodic(vs::SingleFilamentData, fs::AbstractFilament, args...; quad = nothing)
+    _kinetic_energy_nonperiodic(quad, vs, fs, args...)
 end
 
 # Case without quadratures
