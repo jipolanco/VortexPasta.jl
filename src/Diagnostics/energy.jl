@@ -104,12 +104,10 @@ end
 
 # Case of a single filament
 # 1. No quadratures (cheaper)
-function _kinetic_energy_from_streamfunction(
-        ::Nothing, ψf::SingleFilamentData, f::AbstractFilament, Γ,
-        Ls = (∞, ∞, ∞),
-    )
+function _kinetic_energy_from_streamfunction(::Nothing, ψf, f, Γ, Ls = (∞, ∞, ∞))
     prefactor = Γ / (2 * _domain_volume(Ls))
-    E = zero(prefactor)
+    T = number_type(ψf)
+    E = zero(T)
     ts = knots(f)
     for i ∈ eachindex(f, ψf)
         ψ⃗ = ψf[i]
@@ -121,10 +119,25 @@ function _kinetic_energy_from_streamfunction(
 end
 
 # With quadratures (requires interpolating the streamfunction along filaments)
-function _kinetic_energy_from_streamfunction(
-        quad, ψf::SingleFilamentData, f::SingleFilamentData, Γ,
-        Ls = (∞, ∞, ∞),
-    )
+function _kinetic_energy_from_streamfunction(quad, ψf, args...)
+    _kinetic_energy_from_streamfunction(isinterpolable(ψf), quad, ψf, args...)
+end
+
+function _kinetic_energy_from_streamfunction(::IsInterpolable{true}, quad, ψf, f, Γ, Ls = (∞, ∞, ∞))
+    prefactor = Γ / (2 * _domain_volume(Ls))
+    T = number_type(ψf)
+    E = zero(T)
+    for i ∈ eachindex(segments(f))
+        E += integrate(f, i, quad) do f, i, ζ
+            ψ⃗ = ψf(i, ζ)
+            s⃗′ = f(i, ζ, Derivative(1))
+            ψ⃗ ⋅ s⃗′
+        end :: T
+    end
+    prefactor * E
+end
+
+function _kinetic_energy_from_streamfunction(::IsInterpolable{false}, quad, ψf, f, Γ, Ls = (∞, ∞, ∞))
     prefactor = Γ / (2 * _domain_volume(Ls))
     method = Filaments.discretisation_method(f)
     ts = Filaments.knots(f)
@@ -133,7 +146,7 @@ function _kinetic_energy_from_streamfunction(
 
     # We use Bumper to avoid allocations managed by Julia's garbage collector.
     buf = Bumper.default_buffer()
-    T = eltype(eltype(ψf))
+    T = number_type(ψf)
     @assert T <: Real
     E = zero(T)
 
