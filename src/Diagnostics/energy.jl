@@ -149,23 +149,24 @@ function _kinetic_energy_from_streamfunction(::IsInterpolable{false}, quad, ψf,
     E = zero(T)
 
     @no_escape buf begin
-        data = @alloc(T, Np + 2M)
+        V = eltype(ψf)
+        data = @alloc(V, Np + 2M)
         cs = PaddedVector{M}(data)
         nderiv = Filaments.required_derivatives(method)
         cderiv = ntuple(Val(nderiv)) do _
-            local data = @alloc(T, Np + 2M)
+            local data = @alloc(V, Np + 2M)
             PaddedVector{M}(data)
         end
-        # Note: we interpolate the tangent component of the streamfunction (i.e. ψ⃗ ⋅ s⃗′),
-        # which we then integrate along filaments.
+        # Note: we interpolate the streamfunction vector ψ⃗, which we then integrate along
+        # filaments.
         coefs = Filaments.init_coefficients(method, cs, cderiv)
-        for i ∈ eachindex(cs, f, ψf)
-            @inbounds cs[i] = ψf[i] ⋅ f[i, Derivative(1)]
-        end
+        copyto!(cs, ψf)
         Filaments.compute_coefficients!(coefs, ts)
         for i ∈ eachindex(segments(f))
             E += integrate(f, i, quad) do f, i, ζ
-                Filaments.evaluate(coefs, ts, i, ζ)
+                ψ⃗ = Filaments.evaluate(coefs, ts, i, ζ)
+                s⃗′ = f(i, ζ, Derivative(1))
+                ψ⃗ ⋅ s⃗′
             end :: T
         end
     end
