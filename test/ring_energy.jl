@@ -91,6 +91,6 @@ function test_vortex_ring_energy()
     nothing
 end
 
-# @testset "Vortex ring energy" begin
-#     test_vortex_ring_energy()
-# end
+@testset "Vortex ring energy" begin
+    test_vortex_ring_energy()
+end
