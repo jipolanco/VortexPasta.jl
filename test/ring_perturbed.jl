@@ -9,7 +9,7 @@ using VortexPasta.Diagnostics: Diagnostics
 using UnicodePlots: lineplot
 using LinearAlgebra: ⋅
 
-@testset "Perturbed vortex ring" begin
+function test_perturbed_vortex_ring()
     R = π / 4
     N = 48
     r_perturb(t) = 0.10 * sinpi(6t)  # mode m = 3
@@ -45,10 +45,10 @@ using LinearAlgebra: ⋅
         display(fig)
     end
 
-    times::Vector{Float64} = Float64[]
-    energy_time::Vector{Float64} = Float64[]
-    helicity_time::Vector{Float64} = Float64[]
-    tsf::TimeSeriesFile = TimeSeriesFile()
+    times = Float64[]
+    energy_time = Float64[]
+    helicity_time = Float64[]
+    tsf = TimeSeriesFile()
 
     function callback(iter)
         (; nstep, t,) = iter.time
@@ -74,7 +74,7 @@ using LinearAlgebra: ⋅
                 write_vtkhdf(fname, fs; refinement = 4, periods = Ls) do io
                     io["velocity"] = vs
                     io["streamfunction"] = ψs
-                    ψt = similar(ψs, Float64)
+                    ψt = map(f -> similar(nodes(f), Float64), fs)
                     for (f, ψs, ψt) ∈ zip(fs, ψs, ψt)
                         for i ∈ eachindex(f, ψs, ψt)
                             ψt[i] = f[i, UnitTangent()] ⋅ ψs[i]
@@ -135,4 +135,10 @@ using LinearAlgebra: ⋅
         )
         println(plt)
     end
+
+    nothing
+end
+
+@testset "Perturbed vortex ring" begin
+    test_perturbed_vortex_ring()
 end
