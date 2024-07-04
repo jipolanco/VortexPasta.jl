@@ -22,8 +22,9 @@ function test_perturbed_vortex_ring()
     Ls = (1, 1, 1) .* 2π
     Ns = (1, 1, 1) .* 32
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    α = kmax / 5
-    rcut = 4 * sqrt(2) / α
+    β = 3.0
+    α = kmax / 2β
+    rcut = β / α
     Γ = 1.2
     a = 1e-6
     Δ = 1/2
@@ -113,6 +114,20 @@ function test_perturbed_vortex_ring()
     save("ring_perturbed.vtkhdf.series", tsf)
 
     @test iter.dt == dt  # dt was kept to the initial value (because AdaptBasedOnVelocity criterion gives larger dt)
+
+    # Check that velocity and streamfunction can be interpolated, and that the interpolated
+    # values on the nodes match the actual values at the nodes.
+    @testset "Interpolate velocity & streamfunction" begin
+        let fs = iter.fs, i = lastindex(fs), f = fs[i]
+            for us ∈ (iter.vs[i], iter.ψs[i])
+                @test length(us) == length(f)
+                @test Filaments.knots(us) == Filaments.knots(f)
+                @test Filaments.parametrisation(us) == Filaments.parametrisation(f)
+                @test us[4] ≈ us(4, 0.0)
+                @test us[5] ≈ us(4, 1.0)
+            end
+        end
+    end
 
     # Helicity should be zero at all times.
     Hnorm = helicity_time ./ Γ^2
