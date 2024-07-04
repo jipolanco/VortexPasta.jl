@@ -60,6 +60,24 @@ end
 
 # Case with quadratures (requires interpolating the velocity along filaments)
 function _helicity(quad, f::AbstractFilament, vs::SingleFilamentData, Γ::Real)
+    _helicity(isinterpolable(vs), quad, f, vs, Γ)
+end
+
+function _helicity(::IsInterpolable{true}, quad, f::AbstractFilament, vs::SingleFilamentData, Γ::Real)
+    T = number_type(f)
+    @assert T <: AbstractFloat
+    H = zero(T)
+    for i ∈ eachindex(segments(f))
+        H += integrate(f, i, quad) do f, i, ζ
+            v⃗ = vs(i, ζ)
+            s⃗′ = f(i, ζ, Derivative(1))
+            v⃗ ⋅ s⃗′
+        end :: T
+    end
+    T(Γ) * H
+end
+
+function _helicity(::IsInterpolable{false}, quad, f::AbstractFilament, vs::SingleFilamentData, Γ::Real)
     T = number_type(f)
     @assert T <: AbstractFloat
     H = zero(T)
