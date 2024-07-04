@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Timestepping: the velocity and streamfunction fields are now represented as
+  `ClosedFilament`s. This can be convenient for interpolating their values
+  in-between discretisation points.
+
 ### Added
 
 - Timestepping: add optional `stretching_velocity` argument to `init`.
