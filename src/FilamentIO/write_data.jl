@@ -86,7 +86,14 @@ function write_data_refined(info, vs, fs, refinement; ldims::Dims = ())
         @no_escape buf begin
             Np = refinement * length(v) + 1  # number of output points (the +1 is to close the loop)
             Xs = @alloc(V, Np)
-            refine_data_on_filament!(Xs, v, f, refinement, buf)
+            if hasmethod(Filaments.knots, Tuple{typeof(v)})
+                # In this case, `v` can be interpolated using the `v(i, ζ)` syntax.
+                # This is usually because `v` is stored in a ClosedFilament object.
+                refine_data_on_filament_interpolable!(Xs, v, f, refinement)
+            else
+                @assert !(v isa Filaments.AbstractFilament)  # this case should be included in the other branch
+                refine_data_on_filament!(Xs, v, f, refinement, buf)
+            end
             write_padded_data_to_hdf5(info, Xs, n, ldims, Np)
             n += Np
         end
@@ -124,5 +131,28 @@ function refine_data_on_filament!(
         Xs[n += 1] = vs[begin]  # close the loop
         @assert n == lastindex(Xs)
     end
+    Xs
+end
+
+# Special case where `vs` is an interpolable vector, which can be evaluated using the
+# `vs(i, ζ)` syntax. Usually this means `vs` is also a ClosedFilament.
+function refine_data_on_filament_interpolable!(
+        Xs::AbstractVector{T}, vs::AbstractVector{T}, f::ClosedFilament,
+        refinement::Int,
+    ) where {T}
+    # Check that `vs` and `f` have the same knots (we just verify a single knot since it's
+    # cheaper).
+    @assert knots(f)[end] == knots(vs)[end]
+    n = firstindex(Xs)::Int - 1
+    for j ∈ eachindex(vs)
+        Xs[n += 1] = vs[j]  # copy value on node
+        for m ∈ 2:refinement
+            # Copy value interpolated in-between nodes
+            ζ = on_segment_location(m, refinement)  # in ]0, 1[
+            Xs[n += 1] = vs(j, ζ)
+        end
+    end
+    Xs[n += 1] = vs[begin]  # close the loop
+    @assert n == lastindex(Xs)
     Xs
 end

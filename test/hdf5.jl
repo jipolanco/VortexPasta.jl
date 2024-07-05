@@ -60,6 +60,7 @@ function test_hdf5_file(
         _allow_breaking_filaments,
     ) do io
         io["velocity"] = fields.vs
+        io["velocity_interp"] = fields.vs_interp
         io["streamfunction"] = fields.ψs
         io["streamfunction_t"] = fields.ψt
         io["streamfunction_t_vec"] = fields.ψt_vec
@@ -80,6 +81,10 @@ function test_hdf5_file(
         local ψt_read = read(gbase["PointData/streamfunction_t"]) :: Vector{Float64}
         local ψt_vec_read = read(gbase["PointData/streamfunction_t_vec"]) :: Vector{Float64}
         @test ψt_read == ψt_vec_read
+        # Similar for velocity as an interpolable vector.
+        local vs_read = read(gbase["PointData/velocity"]) :: Matrix{Float64}
+        local vs_interp_read = read(gbase["PointData/velocity_interp"]) :: Matrix{Float64}
+        @test vs_read == vs_interp_read
     end
 
     # Read results back
@@ -160,6 +165,14 @@ function test_hdf5()
     foreach(pad_periodic!, ψs)
     foreach(pad_periodic!, ψt)
 
+    # Interpolable velocity field
+    vs_interp = map(fs, vs) do f, vdata
+        v = Filaments.similar_filament(f; offset = zero(eltype(f)), nderivs = Val(0))
+        copyto!(v, vdata)
+        Filaments.update_coefficients!(v; knots = knots(f))
+        v
+    end
+
     # Try writing data which is *not* backed by a PaddedVector.
     # When refinement is enabled, values on the last segment should be obtained by
     # interpolation using the last and first data points, since there's no padding.
@@ -181,10 +194,12 @@ function test_hdf5()
 
     function check_fields(io)
         vs_read = @inferred read(io, "velocity", PointData(), Vec3{Float64})
+        vs_interp_read = @inferred read(io, "velocity_interp", PointData(), Vec3{Float64})
         ψs_read = @inferred read(io, "streamfunction", PointData(), Vec3{Float64})
         ψt_read = @inferred read(io, "streamfunction_t", PointData(), Float64)
 
         @test vs == vs_read
+        @test map(Filaments.nodes, vs_interp) == vs_interp_read
         @test ψs == ψs_read
         @test ψt == ψt_read
 
@@ -233,7 +248,7 @@ function test_hdf5()
     end
 
     fields = (;
-        vs, ψs, ψt, ψt_vec, time, info_str,
+        vs, vs_interp, ψs, ψt, ψt_vec, time, info_str,
     )
 
     @testset "→ refinement = $refinement" for refinement ∈ (1, 3)

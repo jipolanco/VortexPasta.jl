@@ -203,6 +203,10 @@ Return the nodes (or discretisation points) ``\\bm{s}_i`` of the filament.
 """
 nodes(f::AbstractFilament) = f.Xs
 
+# This is used by HDF5.jl when passing AbstractFilament object for reading or writing.
+Base.unsafe_convert(::Type{Ptr{S}}, f::AbstractFilament) where {S} =
+    Base.unsafe_convert(Ptr{S}, nodes(f))
+
 function node_distance end
 function knot_increment end
 
