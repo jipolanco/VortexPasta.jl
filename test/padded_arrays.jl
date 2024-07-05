@@ -143,13 +143,15 @@ using Test
         data = collect(1:20)
         v = @inferred PaddedArray{2}(data)
         w = similar(v)
-        fill!(w, 0)
+        fill!(parent(w), 0)
         # 1. Copy only non-ghost cells.
         @views w[:] .= v[:]  # this doesn't include ghost cells
+        @test parent(w) != parent(v)
         @test w != v  # arrays are different because ghost cells were not copied!
         @test !isapprox(w, v)
         # 2. Copy including ghost cells.
         copyto!(w, v)  # this includes ghost cells
+        @test parent(w) == parent(v)
         @test w == v   # arrays are now equal
         @test isapprox(w, v)
     end

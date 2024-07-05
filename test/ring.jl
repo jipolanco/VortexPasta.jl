@@ -116,8 +116,8 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
     @testset "Normalised energy" begin
         Ls = BiotSavart.periods(params)  # all Infinity() in this case
         E_expected = (Γ^2 * R/2) * (log(8R / a) - (Δ + 1))  # energy per unit density
-        E_estimated = Diagnostics.kinetic_energy_from_streamfunction(ψs, f, Γ, Ls)  # energy per unit density
-        # E_alt = Diagnostics.kinetic_energy_nonperiodic(vs, f, Γ)
+        E_estimated = Diagnostics.kinetic_energy_from_streamfunction(f, ψs, Γ, Ls)  # energy per unit density
+        # E_alt = Diagnostics.kinetic_energy_nonperiodic(f, vs, Γ)
         # @show E_expected E_estimated E_alt
         # @show f.parametrisation (E_expected - E_estimated) / E_expected
         rtol = nquad == 1 ? 0.02 : 1e-4

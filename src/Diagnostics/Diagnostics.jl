@@ -23,6 +23,17 @@ const VectorOfFilaments = AbstractVector{<:AbstractFilament}
 const SingleFilamentData = AbstractVector{<:Vec3}
 const SetOfFilamentsData = AbstractVector{<:SingleFilamentData}
 
+# Trait indicating whether we can interpolate a list of values, e.g. a vector of velocities
+# on filament discretisation points. A filament (or a filament-like object) can be
+# interpolated, while a regular vector cannot.
+struct IsInterpolable{B}
+    IsInterpolable(b::Bool) = new{b}()
+end
+
+isinterpolable(::Type{<:AbstractVector}) = IsInterpolable(false)
+isinterpolable(::Type{<:AbstractFilament}) = IsInterpolable(true)
+isinterpolable(u::AbstractVector) = isinterpolable(typeof(u))  # note: this also applies to filaments (since AbstractFilament <: AbstractVector)
+
 include("energy.jl")
 include("helicity.jl")
 include("filament_length.jl")

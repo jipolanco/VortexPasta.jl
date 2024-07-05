@@ -15,7 +15,7 @@ function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolv
     (; ψs, fs, external_forcing, t,) = iter
     Ls = BiotSavart.periods(iter.prob.p)
     Γ = BiotSavart.circulation(iter.prob.p)
-    E = Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; kws...)
+    E = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs, Γ, Ls; kws...)
     # Add kinetic energy of external velocity field, if available.
     # Note that we only do this if we also included the streamfunction, since otherwise
     # we don't have enough information to estimate the total kinetic energy.
@@ -48,7 +48,7 @@ function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws.
     BiotSavart.domain_is_periodic(iter.prob.p) &&
         @warn(lazy"`kinetic_energy_nonperiodic` should only be called when working with non-periodic domains (got Ls = $Ls)")
     Γ = BiotSavart.circulation(iter.prob.p)
-    Diagnostics.kinetic_energy_nonperiodic(vs, fs, Γ; kws...)
+    Diagnostics.kinetic_energy_nonperiodic(fs, vs, Γ; kws...)
 end
 
 # Note: filament_length is actually defined in the Filaments module, but we document its

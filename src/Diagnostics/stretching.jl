@@ -65,6 +65,28 @@ end
 
 # Case with quadratures (requires interpolating the velocity along filaments)
 function _stretching_rate(quad, f::ClosedFilament, vs)
+    _stretching_rate(isinterpolable(vs), quad, f, vs)
+end
+
+function _stretching_rate(::IsInterpolable{true}, quad, f::ClosedFilament, vs)
+    T = number_type(vs)
+    x = zero(T)
+    for i ∈ eachindex(segments(f))
+        x += integrate(f, i, quad) do f, i, ζ
+            v⃗ = vs(i, ζ)
+            s⃗′ = f(i, ζ, Derivative(1))
+            s⃗″ = f(i, ζ, Derivative(2))
+            s′³ = sqrt(sum(abs2, s⃗′))^3  # = |s⃗′|³
+            # Note: the integrand is (v⃗ ⋅ ρ⃗) * |s⃗′|, where ρ⃗ is the curvature vector and
+            # |s⃗′| = dζ/dt is the conversion from arc length ζ to arbitrary
+            # parametrisation t.
+            (v⃗ ⋅ (s⃗′ × (s⃗′ × s⃗″))) / s′³
+        end
+    end
+    x
+end
+
+function _stretching_rate(::IsInterpolable{false}, quad, f::ClosedFilament, vs)
     T = number_type(vs)
     x = zero(T)
 

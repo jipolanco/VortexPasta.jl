@@ -9,7 +9,7 @@ using VortexPasta.Diagnostics: Diagnostics
 using UnicodePlots: lineplot
 using LinearAlgebra: ⋅
 
-@testset "Perturbed vortex ring" begin
+function test_perturbed_vortex_ring()
     R = π / 4
     N = 48
     r_perturb(t) = 0.10 * sinpi(6t)  # mode m = 3
@@ -22,8 +22,9 @@ using LinearAlgebra: ⋅
     Ls = (1, 1, 1) .* 2π
     Ns = (1, 1, 1) .* 32
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    α = kmax / 5
-    rcut = 4 * sqrt(2) / α
+    β = 3.0
+    α = kmax / 2β
+    rcut = β / α
     Γ = 1.2
     a = 1e-6
     Δ = 1/2
@@ -45,10 +46,11 @@ using LinearAlgebra: ⋅
         display(fig)
     end
 
-    times::Vector{Float64} = Float64[]
-    energy_time::Vector{Float64} = Float64[]
-    helicity_time::Vector{Float64} = Float64[]
-    tsf::TimeSeriesFile = TimeSeriesFile()
+    times = Float64[]
+    energy_time = Float64[]
+    helicity_time = Float64[]
+    stretching_time = Float64[]
+    tsf = TimeSeriesFile()
 
     function callback(iter)
         (; nstep, t,) = iter.time
@@ -58,23 +60,38 @@ using LinearAlgebra: ⋅
             empty!(helicity_time)
             empty!(tsf)
         end
-        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2))
-        H = Diagnostics.helicity(iter; quad = GaussLegendre(2))
+        quad = GaussLegendre(3)
+        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad)
+        H = Diagnostics.helicity(iter; quad)
+        dLdt = Diagnostics.stretching_rate(iter; quad)
         # @show nstep, t, E
         push!(times, t)
         push!(energy_time, E)
         push!(helicity_time, H)
+        push!(stretching_time, dLdt)
         if @isdefined(Makie)
             fobs[] = iter.fs[1]  # update filament positions
             yield()
         end
         local (; fs, ψs, vs,) = iter
+        local (; Γ, Ls,) = iter.prob.p
         if nstep % 100 == 0  # don't output very often; just for tests
+            # Compare with diagnostics implementations which don't take an interpolable
+            # field as input, so they must build the interpolation themselves.
+            vs_p = map(nodes, vs)  # velocity values on nodes (without interpolation data)
+            ψs_p = map(nodes, ψs)
+            E_alt = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs_p, Γ, Ls; quad)
+            H_alt = Diagnostics.helicity(fs, vs_p, Γ; quad)
+            dLdt_alt = Diagnostics.stretching_rate(fs, vs_p; quad)
+            @test dLdt == dLdt_alt
+            @test E == E_alt
+            @test abs(H) < 1e-5  # in theory it's equal to zero
+            @test H ≈ H_alt
             let fname = "ring_perturbed_$nstep.vtkhdf"
                 write_vtkhdf(fname, fs; refinement = 4, periods = Ls) do io
                     io["velocity"] = vs
                     io["streamfunction"] = ψs
-                    ψt = similar(ψs, Float64)
+                    ψt = map(f -> similar(nodes(f), Float64), fs)
                     for (f, ψs, ψt) ∈ zip(fs, ψs, ψt)
                         for i ∈ eachindex(f, ψs, ψt)
                             ψt[i] = f[i, UnitTangent()] ⋅ ψs[i]
@@ -114,6 +131,20 @@ using LinearAlgebra: ⋅
 
     @test iter.dt == dt  # dt was kept to the initial value (because AdaptBasedOnVelocity criterion gives larger dt)
 
+    # Check that velocity and streamfunction can be interpolated, and that the interpolated
+    # values on the nodes match the actual values at the nodes.
+    @testset "Interpolate velocity & streamfunction" begin
+        let fs = iter.fs, i = lastindex(fs), f = fs[i]
+            for us ∈ (iter.vs[i], iter.ψs[i])
+                @test length(us) == length(f)
+                @test Filaments.knots(us) == Filaments.knots(f)
+                @test Filaments.parametrisation(us) === Filaments.parametrisation(f)
+                @test us[4] ≈ us(4, 0.0)
+                @test us[5] ≈ us(4, 1.0)
+            end
+        end
+    end
+
     # Helicity should be zero at all times.
     Hnorm = helicity_time ./ Γ^2
     # @show extrema(Hnorm)
@@ -135,4 +166,10 @@ using LinearAlgebra: ⋅
         )
         println(plt)
     end
+
+    nothing
+end
+
+@testset "Perturbed vortex ring" begin
+    test_perturbed_vortex_ring()
 end

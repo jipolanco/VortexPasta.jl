@@ -225,10 +225,18 @@ end
 allvectors(f::ClosedFilament) = (f.ts, f.Xs, allvectors(f.coefs)...)
 
 function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
+    similar_filament(f, T, dims)
+end
+
+# Like `similar` but accepts custom kwargs (offset, nderivs, ...).
+function similar_filament(
+        f::ClosedFilament, ::Type{T}, dims::Dims{1};
+        offset = f.Xoffset,
+        method = discretisation_method(f),
+        nderivs::Val = Val(nderivatives(f)),
+    ) where {T <: Number}
     Xs = similar(nodes(f), Vec3{T}, dims)
-    method = discretisation_method(f)
-    nderivs = Val(nderivatives(f))
-    ClosedFilament(f.parametrisation, Xs, method; offset = f.Xoffset, nderivs)
+    ClosedFilament(f.parametrisation, Xs, method; offset, nderivs)
 end
 
 function update_coefficients!(f::ClosedFilament; knots = nothing)

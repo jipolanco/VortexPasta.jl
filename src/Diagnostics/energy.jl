@@ -6,11 +6,11 @@ export kinetic_energy_from_streamfunction, kinetic_energy_nonperiodic, kinetic_e
 
 """
     kinetic_energy(iter::VortexFilamentSolver; quad = nothing) -> Real
-    kinetic_energy(ψs, fs, Γ, [Ls]; quad = nothing) -> Real
+    kinetic_energy(fs, ψs, Γ, [Ls]; quad = nothing) -> Real
 
 Compute kinetic energy of velocity field induced by a set of vortex filaments.
 
-Right now this function simply calls [`kinetic_energy_from_streamfunction`](@ref).
+This function simply calls [`kinetic_energy_from_streamfunction`](@ref).
 """
 function kinetic_energy(args...; kws...)
     kinetic_energy_from_streamfunction(args...; kws...)
@@ -21,7 +21,7 @@ end
 # Periodic case
 
 @doc raw"""
-    kinetic_energy_from_streamfunction(ψs, fs, Γ, [Ls]; quad = nothing)
+    kinetic_energy_from_streamfunction(fs, ψs, Γ, [Ls]; quad = nothing)
 
 Compute kinetic energy per unit mass (units ``L^2 T^{-2}``) from streamfunction values at
 filament nodes in a periodic domain.
@@ -77,20 +77,19 @@ in non-periodic domains.
 """
 function kinetic_energy_from_streamfunction end
 
-function kinetic_energy_from_streamfunction(ψs::AbstractVector, args...; quad = nothing)
-    _kinetic_energy_from_streamfunction(quad, ψs, args...)
-end
-
 # Case of a set of filaments
-function _kinetic_energy_from_streamfunction(
-        quad, ψs::SetOfFilamentsData, fs::VectorOfFilaments, Γ, args...,
-    )
-    T = float(typeof(Γ))
+function kinetic_energy_from_streamfunction(fs::VectorOfFilaments, ψs::SetOfFilamentsData, args...; kws...)
+    T = number_type(ψs)
     E = zero(T)
     for i ∈ eachindex(fs, ψs)
-        E += _kinetic_energy_from_streamfunction(quad, ψs[i], fs[i], Γ, args...)
+        E += kinetic_energy_from_streamfunction(fs[i], ψs[i], args...; kws...)
     end
     E
+end
+
+# Case of a single filament
+function kinetic_energy_from_streamfunction(fs::AbstractFilament, ψs::SingleFilamentData, args...; quad = nothing)
+    _kinetic_energy_from_streamfunction(quad, fs, ψs, args...)
 end
 
 function _domain_volume(Ls)
@@ -102,14 +101,11 @@ function _domain_volume(Ls)
     end
 end
 
-# Case of a single filament
 # 1. No quadratures (cheaper)
-function _kinetic_energy_from_streamfunction(
-        ::Nothing, ψf::SingleFilamentData, f::AbstractFilament, Γ,
-        Ls = (∞, ∞, ∞),
-    )
+function _kinetic_energy_from_streamfunction(::Nothing, f, ψf, Γ, Ls = (∞, ∞, ∞))
     prefactor = Γ / (2 * _domain_volume(Ls))
-    E = zero(prefactor)
+    T = number_type(ψf)
+    E = zero(T)
     ts = knots(f)
     for i ∈ eachindex(f, ψf)
         ψ⃗ = ψf[i]
@@ -121,10 +117,25 @@ function _kinetic_energy_from_streamfunction(
 end
 
 # With quadratures (requires interpolating the streamfunction along filaments)
-function _kinetic_energy_from_streamfunction(
-        quad, ψf::SingleFilamentData, f::SingleFilamentData, Γ,
-        Ls = (∞, ∞, ∞),
-    )
+function _kinetic_energy_from_streamfunction(quad, f, ψf, args...)
+    _kinetic_energy_from_streamfunction(isinterpolable(ψf), quad, f, ψf, args...)
+end
+
+function _kinetic_energy_from_streamfunction(::IsInterpolable{true}, quad, f, ψf, Γ, Ls = (∞, ∞, ∞))
+    prefactor = Γ / (2 * _domain_volume(Ls))
+    T = number_type(ψf)
+    E = zero(T)
+    for i ∈ eachindex(segments(f))
+        E += integrate(f, i, quad) do f, i, ζ
+            ψ⃗ = ψf(i, ζ)
+            s⃗′ = f(i, ζ, Derivative(1))
+            ψ⃗ ⋅ s⃗′
+        end :: T
+    end
+    prefactor * E
+end
+
+function _kinetic_energy_from_streamfunction(::IsInterpolable{false}, quad, f, ψf, Γ, Ls = (∞, ∞, ∞))
     prefactor = Γ / (2 * _domain_volume(Ls))
     method = Filaments.discretisation_method(f)
     ts = Filaments.knots(f)
@@ -133,28 +144,28 @@ function _kinetic_energy_from_streamfunction(
 
     # We use Bumper to avoid allocations managed by Julia's garbage collector.
     buf = Bumper.default_buffer()
-    T = eltype(eltype(ψf))
+    T = number_type(ψf)
     @assert T <: Real
     E = zero(T)
 
     @no_escape buf begin
-        data = @alloc(T, Np + 2M)
+        V = eltype(ψf)
+        data = @alloc(V, Np + 2M)
         cs = PaddedVector{M}(data)
         nderiv = Filaments.required_derivatives(method)
         cderiv = ntuple(Val(nderiv)) do _
-            local data = @alloc(T, Np + 2M)
+            local data = @alloc(V, Np + 2M)
             PaddedVector{M}(data)
         end
-        # Note: we interpolate the tangent component of the streamfunction (i.e. ψ⃗ ⋅ s⃗′),
-        # which we then integrate along filaments.
+        # We interpolate the streamfunction vector ψ⃗.
         coefs = Filaments.init_coefficients(method, cs, cderiv)
-        for i ∈ eachindex(cs, f, ψf)
-            @inbounds cs[i] = ψf[i] ⋅ f[i, Derivative(1)]
-        end
+        copyto!(cs, ψf)
         Filaments.compute_coefficients!(coefs, ts)
         for i ∈ eachindex(segments(f))
             E += integrate(f, i, quad) do f, i, ζ
-                Filaments.evaluate(coefs, ts, i, ζ)
+                ψ⃗ = Filaments.evaluate(coefs, ts, i, ζ)
+                s⃗′ = f(i, ζ, Derivative(1))
+                ψ⃗ ⋅ s⃗′
             end :: T
         end
     end
@@ -183,7 +194,7 @@ end
 # 0 at infinity.
 
 @doc raw"""
-    kinetic_energy_nonperiodic(vs, fs, Γ; quad = nothing) -> Real
+    kinetic_energy_nonperiodic(fs, vs, Γ; quad = nothing) -> Real
 
 Compute kinetic energy per unit density (units ``L^5 T^{-2}``) from velocity values at
 filament nodes in an open (non-periodic) domain.
@@ -238,23 +249,24 @@ instead.
 """
 function kinetic_energy_nonperiodic end
 
-function kinetic_energy_nonperiodic(vs::AbstractVector, args...; quad = nothing)
-    _kinetic_energy_nonperiodic(quad, vs, args...)
-end
-
-function _kinetic_energy_nonperiodic(
-        quad, vs::SetOfFilamentsData, fs::VectorOfFilaments, Γ::AbstractFloat,
-    )
-    E = zero(typeof(Γ))
+# Case of a set of filaments
+function kinetic_energy_nonperiodic(fs::VectorOfFilaments, vs::SetOfFilamentsData, args...; kws...)
+    T = number_type(vs)
+    E = zero(T)
     for i ∈ eachindex(vs, fs)
-        E += _kinetic_energy_nonperiodic(quad, vs[i], fs[i], Γ)
+        E += kinetic_energy_nonperiodic(fs[i], vs[i], args...; kws...)
     end
     E
 end
 
+# Case of a single filament
+function kinetic_energy_nonperiodic(fs::AbstractFilament, vs::SingleFilamentData, args...; quad = nothing)
+    _kinetic_energy_nonperiodic(quad, fs, vs, args...)
+end
+
 # Case without quadratures
 function _kinetic_energy_nonperiodic(
-        ::Nothing, vs::SingleFilamentData, f::AbstractFilament, Γ,
+        ::Nothing, f::AbstractFilament, vs::SingleFilamentData, Γ,
     )
     T = typeof(Γ)
     E = zero(T)
@@ -271,7 +283,7 @@ end
 
 # Case with quadratures
 function _kinetic_energy_nonperiodic(
-        quad, vs::SingleFilamentData, f::AbstractFilament, Γ,
+        quad, f::AbstractFilament, vs::SingleFilamentData, Γ,
     )
     T = typeof(Γ)
     E = zero(T)

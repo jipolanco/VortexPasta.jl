@@ -166,8 +166,13 @@ nderivatives(f::AbstractFilament) = nderivatives(coefficients(f))
 Base.IndexStyle(::Type{<:AbstractFilament}) = IndexLinear()
 
 # This is needed since eltype(f) == Vec3{T}
-Base.similar(f::AbstractFilament, ::Type{Vec3{T}}, dims::Dims{1}) where {T} =
-    similar(f, T, dims)
+Base.similar(f::AbstractFilament, ::Type{Vec3{T}}, dims::Dims{1}) where {T} = similar(f, T, dims)
+
+# Like `similar` but accepts custom kwargs (offset, nderivs, ...).
+similar_filament(f::AbstractFilament, dims::Dims{1} = size(f); kws...) =
+    similar_filament(f, number_type(f), dims; kws...)
+similar_filament(f::AbstractFilament, ::Type{T}; kws...) where {T} =
+    similar_filament(f, T, size(f); kws...)
 
 function Base.copyto!(v::F, u::F) where {F <: AbstractFilament}
     map(copyto!, allvectors(v), allvectors(u))
