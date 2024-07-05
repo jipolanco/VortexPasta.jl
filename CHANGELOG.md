@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ClosedFilament`s. This can be convenient for interpolating their values
   in-between discretisation points.
 
+- Change order of arguments in `Diagnostics.kinetic_energy*` functions, to make
+  it more consistent with other diagnostics functions.
+  This only applies to the variants which explicitly take a list of filaments and
+  streamfunction values.
+
 ### Added
 
 - Timestepping: add optional `stretching_velocity` argument to `init`.
