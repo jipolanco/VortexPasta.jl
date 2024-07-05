@@ -80,7 +80,7 @@ function test_perturbed_vortex_ring()
             # field as input, so they must build the interpolation themselves.
             vs_p = map(nodes, vs)  # velocity values on nodes (without interpolation data)
             ψs_p = map(nodes, ψs)
-            E_alt = Diagnostics.kinetic_energy_from_streamfunction(ψs_p, fs, Γ, Ls; quad)
+            E_alt = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs_p, Γ, Ls; quad)
             H_alt = Diagnostics.helicity(fs, vs_p, Γ; quad)
             dLdt_alt = Diagnostics.stretching_rate(fs, vs_p; quad)
             @test dLdt == dLdt_alt

@@ -123,7 +123,7 @@ function test_kelvin_waves(
         # local quad = nothing
         # local quad = GaussLegendre(4)
         local quad = prob.p.common.quad_near_singularity
-        E = Diagnostics.kinetic_energy_from_streamfunction(ψs, fs, Γ, Ls; quad)
+        E = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs, Γ, Ls; quad)
         # if nstep % 10 == 0
         #     @show nstep, t/T, E
         # end
