@@ -37,6 +37,7 @@ else
     run(`git tag $tag`)
 end
 
-run(`git push --tags`)
+run(`git push -o ci.skip`)  # push latest commits but don't trigger CI
+run(`git push --tags`)      # push tags (also triggers CI)
 
 LocalRegistry.register()
