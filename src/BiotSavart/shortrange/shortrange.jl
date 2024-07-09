@@ -372,16 +372,16 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
             r² = sum(abs2, r⃗)
             # Ignore this element if this is a local segment or if we're beyond the cut-off distance.
             ignore = is_local_segment || r² > rcut²
-            if !ignore
-                mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
+            if ignore
+                y = iterate(it, state)  # jump to next charge
+                continue
             end
-            r² = zero(r²)
+            mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
             for j ∈ eachindex(r⃗, q⃗)
                 qj = real(q⃗[j])  # just in case data is complex
                 q⃗s[i, j] = qj
                 rj = r⃗[j]
                 r⃗s[i, j] = rj
-                r² += rj * rj
             end
             r²s[i] = r²
             y = iterate(it, state)
