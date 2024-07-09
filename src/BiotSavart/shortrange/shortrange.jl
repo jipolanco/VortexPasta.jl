@@ -375,6 +375,7 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
             if !ignore
                 mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
             end
+            r² = zero(r²)
             for j ∈ eachindex(r⃗, q⃗)
                 qj = real(q⃗[j])  # just in case data is complex
                 q⃗s[i, j] = qj
