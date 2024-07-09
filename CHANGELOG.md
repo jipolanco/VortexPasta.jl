@@ -5,6 +5,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.23.1] - 2024-07-09
+
+### Fixed
+
+- Fix computation of squared distance in short-range interactions.
+  As a result of this bug, the short-range part was including too many
+  interactions, and not correctly taking into account the cut-off distance.
+  This means that results were *too precise* compared to the wanted precision.
+  This mainly affected the `NaiveShortRangeBackend` (where *all* interactions
+  were computed regardless of the given cut-off distance), while the
+  `CellListsBackend` was only weakly affected.
+  This bug was introduced in v0.19.1.
+
 ## [0.23.0] - 2024-07-08
 
 ### Changed

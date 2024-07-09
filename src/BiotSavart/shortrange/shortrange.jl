@@ -369,10 +369,8 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
             s⃗, q⃗, seg = charge
             is_local_segment = seg === sa || seg === sb
             r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
-            r² = zero(eltype(eltype(r⃗)))
-            # Ignore this element if this is a local segment or if we're beyond the cut-off
-            # distance.
-            # TODO: do we need the second condition?
+            r² = sum(abs2, r⃗)
+            # Ignore this element if this is a local segment or if we're beyond the cut-off distance.
             ignore = is_local_segment || r² > rcut²
             if !ignore
                 mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
