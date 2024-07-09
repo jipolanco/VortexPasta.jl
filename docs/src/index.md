@@ -129,7 +129,7 @@ Julia will automatically detect the presence of the `Project.toml` file in the c
 
 It is recommended to install VortexPasta.jl in a local environment, for example in the same environment as in the previous example (which already includes GLMakie).
 
-To install it, one should first add the "VortexRegistry" package registry, which contains information on how to install VortexPasta.jl:
+To install it, one should first add the [VortexRegistry](https://github.com/jipolanco/VortexRegistry.jl) package registry, which contains information on how to install VortexPasta.jl:
 
 ```julia-repl
 (simulation) pkg> registry add git@github.com:jipolanco/VortexRegistry.jl.git
