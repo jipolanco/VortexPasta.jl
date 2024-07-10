@@ -93,8 +93,15 @@ Base.resize!(vs::VectorOfVectors, n::Integer) = resize!(vs.u, n)
 Base.pop!(vs::VectorOfVectors) = pop!(vs.u)
 Base.popat!(vs::VectorOfVectors, i::Integer, args...) = popat!(vs.u, i, args...)
 
-# Make sure `map` returns a VectorOfVectors instead of a standard Vector.
-Base.map(f::F, vs::VectorOfVectors, args...) where {F} = VectorOfVectors(map(f, vs.u, args...))
+# When generating a vector of vectors, make sure `map` returns a VectorOfVectors instead of
+# a standard Vector.
+function Base.map(f::F, vs::VectorOfVectors, args...) where {F}
+    ys = map(f, vs.u, args...)
+    _maybe_wrap(ys)
+end
+
+_maybe_wrap(ys::AbstractVector{<:AbstractVector}) = VectorOfVectors(ys)
+_maybe_wrap(ys::AbstractVector{<:Any}) = ys
 
 ## Broadcasting
 

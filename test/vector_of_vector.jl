@@ -63,6 +63,20 @@ end
         @test vs[1] !== us[1]  # data is not aliased, vectors were recursively copied
     end
 
+    # `map` should return a VectorOfVectors if the given function maps vector → vector.
+    # If instead it maps vector → scalar, it should return a simple vector of scalars.
+    @testset "map" begin
+        vs = @inferred map(copy, us)  # `copy` maps vector → vector
+        vs_alt = VectorOfVectors(map(copy, parent(us)))
+        @test vs == vs_alt
+        @test typeof(vs) == typeof(us)  # vs is a VectorOfVectors
+        @test typeof(vs) == typeof(vs_alt)
+        ws = @inferred map(sum, us)  # `sum` maps vector → scalar
+        ws_alt = map(sum, parent(us))
+        @test ws == ws_alt
+        @test typeof(ws) === typeof(ws_alt)
+    end
+
     @testset "Broadcasting" begin
         @test_opt broadcast_sum(us, us)
         vs = @inferred us .+ 2 .* us

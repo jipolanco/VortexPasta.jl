@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fix `map(f, us::VectorOfVectors)` when the function `f` returns scalar values.
+  For instance, this fixes `map(length, us)` when one wants to get the length
+  of each contained vector.
+
 ## [0.23.1] - 2024-07-09
 
 ### Fixed
