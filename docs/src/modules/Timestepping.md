@@ -150,22 +150,9 @@ MaximumTimestep
 
 ## Diagnostics
 
-These are all extensions of the methods in the [`Diagnostics`](@ref) module
-which take an instantaneous simulation state `iter` (a [`VortexFilamentSolver`](@ref)).
-This makes it easy to compute diagnostics during a simulation.
-
-```@docs
-Diagnostics.kinetic_energy_from_streamfunction(::VortexFilamentSolver)
-Diagnostics.kinetic_energy_nonperiodic(::VortexFilamentSolver)
-Diagnostics.filament_length(::VortexFilamentSolver)
-Diagnostics.vortex_impulse(::VortexFilamentSolver)
-Diagnostics.helicity(::VortexFilamentSolver)
-Diagnostics.stretching_rate(::VortexFilamentSolver)
-```
-
-One can also compute **energy spectra** by passing a [`VortexFilamentSolver`](@ref)
-as the `cache` argument in [`Diagnostics.energy_spectrum`](@ref),
-[`Diagnostics.energy_spectrum!`](@ref) and [`Diagnostics.init_energy_spectrum`](@ref).
+All diagnostics documented in the [Diagnostics](@ref) page can be conveniently
+computed using an instantaneous simulation state `iter` (of type [`VortexFilamentSolver`](@ref)).
+See that page for more details.
 
 ## Internals
 

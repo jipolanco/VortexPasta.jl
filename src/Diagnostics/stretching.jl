@@ -1,6 +1,7 @@
 export stretching_rate
 
 @doc raw"""
+    stretching_rate(iter::VortexFilamentSolver; quad = nothing) -> Real
     stretching_rate(fs, vs; quad = nothing) -> Real
 
 Compute stretching rate of one or more vortices.

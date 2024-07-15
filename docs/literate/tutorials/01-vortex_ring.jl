@@ -618,16 +618,16 @@ nothing  # hide
 # Data is written in the HDF5 format, which is a binary format that can be easily explored
 # using command-line tools or the HDF5 interfaces available in many different programming
 # languages.
-# More precisely, data is written to [VTK HDF
-# files](https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#hdf-file-formats),
+# More precisely, data is written to [VTKHDF
+# files](https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#vtkhdf-file-format),
 # which are HDF5 files with a specific organisation that can be readily understood by
 # visualisation tools such as ParaView.
 # In other words, simulation outputs can be readily visualised without the need to convert
 # them or to have a "translation" file explaining how to visualise the binary data.
 #
-# !!! note "VTK HDF file extension"
+# !!! note "VTKHDF file extension"
 #
-#     ParaView doesn't recognise the usual `.h5` file extension as a VTK HDF file.
+#     ParaView doesn't recognise the usual `.h5` file extension as a VTKHDF file.
 #     For this reason, it is recommended to use `.vtkhdf` if one wants to visualise the data.
 #
 # ### Writing filament data and reading it back
@@ -668,7 +668,7 @@ write_vtkhdf("vortex_ring_initial.vtkhdf", fs)  # write filament locations to di
 fs_read = read_vtkhdf("vortex_ring_initial.vtkhdf", Float64, CubicSplineMethod())
 fs_read == fs
 
-# ### Visualising VTK HDF files
+# ### Visualising VTKHDF files
 #
 # Opening this file in ParaView should produce something like this:
 #

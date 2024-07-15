@@ -3,6 +3,7 @@ export helicity
 using LinearAlgebra: ⋅
 
 @doc raw"""
+    helicity(iter::VortexFilamentSolver; quad = nothing) -> Real
     helicity(fs, vs, Γ; quad = nothing) -> Real
 
 Compute helicity of a vortex configuration.

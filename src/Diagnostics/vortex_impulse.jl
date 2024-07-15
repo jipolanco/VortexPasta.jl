@@ -1,6 +1,7 @@
 export vortex_impulse
 
 @doc raw"""
+    vortex_impulse(iter::VortexFilamentSolver; quad = nothing) -> Vec3
     vortex_impulse(f; quad = nothing) -> Vec3
 
 Estimate normalised impulse of one or more vortex filaments.

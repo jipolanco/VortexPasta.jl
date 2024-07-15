@@ -101,7 +101,7 @@ end
 
 function make_all(; generate_tutorials = true,)
     repo = REPO
-    warnonly = [:missing_docs]  # TODO can we remove this?
+    warnonly = Symbol[]
 
     bib = CitationBibliography(
         joinpath(@__DIR__, "src", "biblio.bib");
@@ -194,6 +194,7 @@ function make_all(; generate_tutorials = true,)
         warnonly,
         plugins = [bib],
         repo,
+        doctest = true,
     )
 end
 

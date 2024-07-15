@@ -1,6 +1,7 @@
 export energy_spectrum, energy_spectrum!
 
 """
+    energy_spectrum(iter::VortexFilamentSolver; unfilter = true) -> (ks, Ek)
     energy_spectrum(cache; unfilter = true) -> (ks, Ek)
 
 Compute kinetic energy spectrum associated to vortex filament state.

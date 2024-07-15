@@ -21,6 +21,7 @@ end
 # Periodic case
 
 @doc raw"""
+    kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; quad = nothing)
     kinetic_energy_from_streamfunction(fs, ψs, Γ, [Ls]; quad = nothing)
 
 Compute kinetic energy per unit mass (units ``L^2 T^{-2}``) from streamfunction values at
@@ -194,6 +195,7 @@ end
 # 0 at infinity.
 
 @doc raw"""
+    kinetic_energy_nonperiodic(iter::VortexFilamentSolver; quad = nothing) -> Real
     kinetic_energy_nonperiodic(fs, vs, Γ; quad = nothing) -> Real
 
 Compute kinetic energy per unit density (units ``L^5 T^{-2}``) from velocity values at
