@@ -77,6 +77,9 @@ to_parent_indices(M, is::AbstractVector, js) = M .+ is  # this includes ranges
 to_parent_indices(M, ::Colon, js) = M .+ js  # select all values excluding ghost cells
 
 function Base.copyto!(w::PaddedArray{M}, v::PaddedArray{M}) where {M}
+    # If v and w point to the same array, there's no need to copy data.
+    # This also avoids error when data arrays are UnsafeArrays returned by Bumper.
+    w.data === v.data && return w
     length(w.data) == length(v.data) || throw(DimensionMismatch("arrays have different sizes"))
     copyto!(w.data, v.data)
     w
