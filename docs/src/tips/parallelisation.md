@@ -44,7 +44,7 @@ pinthreads(:cores)
 
 Note that this should be changed [when using SLURM](@ref Pinning-SLURM-threads).
 
-One can then check that threads are correctly pinned to separate CPUs using [`threadinfo`](https://carstenbauer.github.io/ThreadPinning.jl/stable/examples/ex_pinning_julia_threads/#threadinfo).
+One can then check that threads are correctly pinned to separate CPUs using [`threadinfo`](https://carstenbauer.github.io/ThreadPinning.jl/stable/examples/ex_pinning_julia_threads/#threadinfo_example).
 
 ## [Running SLURM jobs](@id slurm-job)
 
@@ -98,7 +98,7 @@ Some other notes:
 As mentioned [above](@ref Pinning-threads), it is a good idea to pin Julia threads
 to the CPUs available to the Julia process.
 
-When using SLURM, one can achieve this by using the `:affinitymask` criterion in ThreadPinning's [`pinthreads`](https://carstenbauer.github.io/ThreadPinning.jl/stable/refs/api/#ThreadPinning.pinthreads):
+When using SLURM, one can achieve this by using the `:affinitymask` criterion in ThreadPinning's [`pinthreads`](https://carstenbauer.github.io/ThreadPinning.jl/stable/refs/api_pinning/#ThreadPinning.pinthreads):
 
 ```julia
 using ThreadPinning
@@ -154,7 +154,7 @@ export MKL_NUM_THREADS=$NUMBER_OF_JULIA_THREADS  # in general
 export MKL_DYNAMIC=false
 ```
 
-The `MKL_DYNAMIC=false` option tells MKL [not to mess around with thread pinning](https://carstenbauer.github.io/ThreadPinning.jl/stable/explanations/blas/#Intel-MKL).
+The `MKL_DYNAMIC=false` option tells MKL [not to mess around with thread pinning](https://carstenbauer.github.io/ThreadPinning.jl/stable/examples/ex_blas/#Intel-MKL).
 
 Secondly, one also needs to add:
 
