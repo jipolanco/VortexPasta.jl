@@ -121,6 +121,12 @@ Non-uniform data must be first added via [`add_point_charges!`](@ref).
 """
 function transform_to_fourier! end
 
+@kernel function to_smoothed_streamfunction_kernel!(uhat, @Const(ewald_op))
+    I = @index(Global, Linear)
+    @inbounds uhat[I] *= ewald_op[I]
+    nothing
+end
+
 @doc raw"""
     to_smoothed_streamfunction!(cache::LongRangeCache)
 
@@ -157,12 +163,43 @@ function to_smoothed_streamfunction!(c::LongRangeCache)
     @assert from_vorticity
     inds = eachindex(ewald_op_d, uhat_d)
     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
-    Threads.@threads :static for i ∈ inds
-        @inbounds uhat_d[i] = ewald_op_d[i] * uhat_d[i]
-    end
+    ka_backend = get_ka_backend(c)
+    kernel = to_smoothed_streamfunction_kernel!(ka_backend)
+    kernel(uhat_d, ewald_op_d; ndrange = size(uhat_d))
     state.quantity = :streamfunction
     state.smoothed = true
     uhat_d
+end
+
+# Applies Biot-Savart + Gaussian smoothing operators in Fourier space.
+# NOTE: KernelAbstractions seems to have issues writing the result of a cross-product onto a
+# StructArray{<:Vec3} (on the CPU at least), which is why we explicitly use the `components` function.
+# It seems to "optimise" by overwriting some components of the RHS before we have completely used them.
+@kernel function velocity_from_vorticity_kernel!(uhat::StructArray{<:Vec3}, @Const(ks), @Const(ewald_op))
+    I = @index(Global, Cartesian)
+    @inbounds op = ewald_op[I]
+    op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), ks, Tuple(I)))
+    @inbounds w = op_times_k⃗ × (im * uhat[I])
+    us = StructArrays.components(uhat)
+    for j ∈ eachindex(us)
+        @inbounds us[j][I] = w[j]
+    end
+    nothing
+end
+
+# Applies curl operator in Fourier space.
+# NOTE: KernelAbstractions seems to have issues writing the result of a cross-product onto a
+# StructArray{<:Vec3} (on the CPU at least), which is why we explicitly use the `components` function.
+# It seems to "optimise" by overwriting some components of the RHS before we have completely used them.
+@kernel function velocity_from_streamfunction_kernel!(uhat::StructArray{<:Vec3}, @Const(ks))
+    I = @index(Global, Cartesian)
+    k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
+    @inbounds w = k⃗ × (im * uhat[I])
+    us = StructArrays.components(uhat)
+    for j ∈ eachindex(us)
+        @inbounds us[j][I] = w[j]
+    end
+    nothing
 end
 
 @doc raw"""
@@ -191,21 +228,13 @@ function to_smoothed_velocity!(c::LongRangeCache)
     from_vorticity = state.quantity === :vorticity && !state.smoothed
     from_streamfunction = state.quantity === :streamfunction && state.smoothed
     @assert from_vorticity || from_streamfunction
+    ka_backend = get_ka_backend(c)
     if from_vorticity
-        Threads.@threads :static for I ∈ CartesianIndices(ewald_op_d)
-            @inbounds begin
-                op = ewald_op_d[I]
-                op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), wavenumbers_d, Tuple(I)))
-                uhat_d[I] = op_times_k⃗ × (im * uhat_d[I])
-            end
-        end
+        kernel_ω = velocity_from_vorticity_kernel!(ka_backend)
+        kernel_ω(uhat_d, wavenumbers_d, ewald_op_d; ndrange = size(uhat_d))
     elseif from_streamfunction
-        Threads.@threads :static for I ∈ CartesianIndices(ewald_op_d)
-            @inbounds begin
-                k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), wavenumbers_d, Tuple(I)))
-                uhat_d[I] = k⃗ × (im * uhat_d[I])
-            end
-        end
+        kernel_ψ = velocity_from_streamfunction_kernel!(ka_backend)
+        kernel_ψ(uhat_d, wavenumbers_d; ndrange = size(uhat_d))
     end
     state.quantity = :velocity
     state.smoothed = true
@@ -222,7 +251,7 @@ Results are written to `cache.pointdata.charges`.
 """
 function interpolate_to_physical! end
 
-@kernel function init_ewald_fourier_operator!(
+@kernel function init_ewald_fourier_operator_kernel!(
         u::AbstractArray{T, 3} where {T},
         @Const(ks),
         @Const(β::Real),  # = -1/(4α²)
@@ -245,7 +274,7 @@ function init_ewald_fourier_operator(
     u = KA.allocate(ka_backend, T, dims)
     @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device
     β = -1 / (4 * α^2)
-    kernel = init_ewald_fourier_operator!(ka_backend)
+    kernel = init_ewald_fourier_operator_kernel!(ka_backend)
     kernel(u, ks, β, prefactor; ndrange = size(u))
     u
 end
@@ -339,6 +368,15 @@ function compute_vorticity_fourier!(cache::LongRangeCache)
     uhat_d
 end
 
+@kernel function truncate_spherical_kernel!(uhat, @Const(ks), @Const(kmax²))
+    I = @index(Global, Cartesian)
+    T = eltype(uhat)
+    k⃗ = map((v, i) -> @inbounds(v[i]), ks, Tuple(I))
+    k² = sum(abs2, k⃗)
+    @inbounds uhat[I] = ifelse(k² > kmax², zero(T), uhat[I])
+    nothing
+end
+
 function truncate_spherical!(cache)
     (; uhat_d, params, wavenumbers_d,) = cache.common
     if !params.truncate_spherical
@@ -346,12 +384,9 @@ function truncate_spherical!(cache)
     end
     kmax = maximum_wavenumber(params)
     kmax² = kmax^2
-    T = eltype(uhat_d)
-    Threads.@threads :static for I ∈ CartesianIndices(uhat_d)
-        k⃗ = map((v, i) -> @inbounds(v[i]), wavenumbers_d, Tuple(I))
-        k² = sum(abs2, k⃗)
-        @inbounds uhat_d[I] = ifelse(k² > kmax², zero(T), uhat_d[I])
-    end
+    ka_backend = get_ka_backend(cache)
+    kernel = truncate_spherical_kernel!(ka_backend)
+    kernel(uhat_d, wavenumbers_d, kmax²; ndrange = size(uhat_d))
     nothing
 end
 

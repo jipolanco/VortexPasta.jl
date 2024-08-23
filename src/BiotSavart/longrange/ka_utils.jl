@@ -2,6 +2,7 @@
 
 """
     get_ka_backend(backend::LongRangeBackend) -> KernelAbstractions.Backend
+    get_ka_backend(cache::LongRangeCache) -> KernelAbstractions.Backend
 
 Get KernelAbstractions (KA) backend associated to a given long-range backend.
 

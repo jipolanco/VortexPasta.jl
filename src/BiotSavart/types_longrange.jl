@@ -134,6 +134,7 @@ abstract type LongRangeCache end
 
 backend(c::LongRangeCache) = backend(c.common.params)
 has_real_to_complex(c::LongRangeCache) = has_real_to_complex(c.common)
+get_ka_backend(c::LongRangeCache) = get_ka_backend(backend(c))
 
 # TODO: this is not optimised for GPU backends
 function add_point_charges!(c::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
