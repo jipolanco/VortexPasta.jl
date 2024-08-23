@@ -10,6 +10,9 @@ using LinearAlgebra: ×
 const FINUFFT_DEFAULT_TOLERANCE = 1e-6
 const FINUFFT_DEFAULT_UPSAMPFAC = 1.25  # 1.25 or 2.0
 
+# This includes CPU and CUDA FINUFFT implementations.
+abstract type AbstractFINUFFTBackend <: LongRangeBackend end
+
 """
     FINUFFTBackend <: LongRangeBackend
 
@@ -50,7 +53,7 @@ docs](https://finufft.readthedocs.io/en/latest/opts.html) and not listed above
 are also accepted.
 
 """
-struct FINUFFTBackend{KwArgs <: NamedTuple} <: LongRangeBackend
+struct FINUFFTBackend{KwArgs <: NamedTuple} <: AbstractFINUFFTBackend
     tol :: Float64
     kws :: KwArgs
     function FINUFFTBackend(;
@@ -75,9 +78,9 @@ function Base.show(io::IO, backend::FINUFFTBackend)
     print(io, "FINUFFTBackend(tol = $tol, upsampfac = $upsampfac, nthreads = $nthreads)")
 end
 
-expected_period(::FINUFFTBackend) = 2π
-folding_limits(::FINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
-non_uniform_type(::Type{T}, ::FINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
+expected_period(::AbstractFINUFFTBackend) = 2π
+folding_limits(::AbstractFINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
+non_uniform_type(::Type{T}, ::AbstractFINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
 
 function init_fourier_vector_field(::FINUFFTBackend, ::Type{T}, Nks::Dims{M}) where {T <: Real, M}
     # Data needs to be in a contiguous array of dimensions (Nks..., M) [usually M = 3].
@@ -181,13 +184,13 @@ end
 
 function transform_to_fourier!(c::FINUFFTCache)
     (; plan_type1, charge_data,) = c
-    (; pointdata, uhat,) = c.common
-    (; points, charges,) = pointdata
+    (; pointdata_d, uhat_d,) = c.common
+    (; points, charges,) = pointdata_d
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points_data = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     Np = length(charges)
     @assert Np == length(points)
-    uhat_data = parent(uhat.:1)
+    uhat_data = parent(uhat_d.:1)
     T = eltype(uhat_data)
     @assert T <: Complex
     finufft_setpts!(plan_type1, points_data...)
@@ -199,19 +202,19 @@ function transform_to_fourier!(c::FINUFFTCache)
         finufft_copy_charges_to_matrix!(A, charges)
         finufft_exec!(plan_type1, A, uhat_data)  # execute NUFFT on all components at once
     end
-    _ensure_hermitian_symmetry!(c.common.wavenumbers, uhat)
+    _ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
     c
 end
 
 function interpolate_to_physical!(c::FINUFFTCache)
     (; plan_type2, charge_data,) = c
-    (; pointdata, uhat,) = c.common
-    (; points, charges,) = pointdata
+    (; pointdata_d, uhat_d,) = c.common
+    (; points, charges,) = pointdata_d
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points_data = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     Np = length(charges)
     @assert Np == length(points)
-    uhat_data = parent(uhat.:1)
+    uhat_data = parent(uhat_d.:1)
     T = eltype(uhat_data)
     @assert T <: Complex
     finufft_setpts!(plan_type2, points_data...)

@@ -20,6 +20,17 @@ struct PointData{
     segments :: Segments  # filament segment on which each location s⃗ is located
 end
 
+# If T <: GPUArray, create PointData object on the GPU (useful for long-range computations
+# with GPU backend). Returns `p` without allocations if T <: Array (CPU).
+# https://cuda.juliagpu.org/dev/tutorials/custom_structs/
+function Adapt.adapt_structure(::Type{T}, p::PointData) where {T}
+    PointData(
+        adapt(T, p.points),
+        adapt(T, p.charges),
+        p.segments,  # for now, keep segments on the CPU (we don't use them on the GPU)
+    )
+end
+
 function PointData(::Type{T}, ::Type{S}, ::Type{F}) where {T, S, F <: AbstractFilament}
     points = StructVector{Vec3{T}}(undef, 0)
     charges = StructVector{Vec3{S}}(undef, 0)

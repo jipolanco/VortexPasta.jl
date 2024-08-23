@@ -11,16 +11,18 @@ struct LongRangeCacheCommon{
         WaveNumbers <: NTuple{3, AbstractVector},
         PointCharges <: PointData{T},
         FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
+        RealScalarField <: AbstractArray{T, 3},
         Timer <: TimerOutput,
     }
-    params      :: Params
-    wavenumbers :: WaveNumbers
-    pointdata   :: PointCharges        # non-uniform data in physical space
-    uhat        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
-    ewald_prefactor :: T               # prefactor Γ/V (also included in ewald_op)
-    ewald_op    :: Array{T, 3}         # Ewald operator in Fourier space ([Nx, Ny, Nz])
-    state       :: LongRangeCacheState
-    to          :: Timer
+    # NOTE: the _d suffix means that data is on the device (i.e. GPU for GPU-based backends)
+    params        :: Params
+    wavenumbers_d :: WaveNumbers
+    pointdata_d   :: PointCharges        # non-uniform data in physical space
+    uhat_d        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
+    ewald_prefactor :: T                 # prefactor Γ/V (also included in ewald_op_d)
+    ewald_op_d      :: RealScalarField    # real-valued Ewald operator in Fourier space ([Nx, Ny, Nz])
+    state           :: LongRangeCacheState
+    to              :: Timer
 end
 
 function LongRangeCacheCommon(
@@ -35,15 +37,18 @@ function LongRangeCacheCommon(
     @assert T === eltype(pcommon)
     @assert α !== Zero()
     Nks = map(length, wavenumbers)
-    uhat = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
+    uhat_d = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
     ewald_prefactor = Γ / prod(Ls)
-    ewald_op = init_ewald_fourier_operator(T, wavenumbers, α, ewald_prefactor)
+    device = get_ka_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
+    wavenumbers_d = adapt(device, wavenumbers)  # copy wavenumbers onto device if needed
+    pointdata_d = adapt(device, pointdata)      # create PointData replica on the device if needed
+    ewald_op_d = init_ewald_fourier_operator(T, backend, wavenumbers_d, α, ewald_prefactor)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, wavenumbers, pointdata, uhat, ewald_prefactor, ewald_op, state, timer)
+    LongRangeCacheCommon(params, wavenumbers_d, pointdata_d, uhat_d, ewald_prefactor, ewald_op_d, state, timer)
 end
 
 # Initialise Fourier vector field with the right memory layout.
-# This default implementation can be overriden by other backends
+# This default implementation can be overridden by other backends.
 # That's the case of FINUFFT, which needs a specific memory layout to perform simultaneous
 # NUFFTs of the 3 vector field components.
 function init_fourier_vector_field(::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
@@ -90,7 +95,7 @@ In principle, the grid resolution `Ns` can be different from the original one
 This can be useful for computing high-resolution fields in Fourier space (e.g. for extending
 the data to higher wavenumbers than allowed by the original cache).
 
-For convenience, point data already in `cache.common.pointdata` is copied to the new cache.
+For convenience, point data already in `cache.common.pointdata_d` is copied to the new cache.
 This means that, if one already filled the original cache using
 [`add_point_charges!`](@ref), then one can directly call [`transform_to_fourier!`](@ref)
 with the new cache to get the vorticity field in Fourier space at the wanted resolution `Ns`.
@@ -99,7 +104,7 @@ function Base.similar(cache::LongRangeCache, Ns::Dims{3})
     params_old = cache.common.params :: ParamsLongRange
     (; backend, quad, common,) = params_old
     params_new = ParamsLongRange(backend, quad, common, Ns, params_old.truncate_spherical)
-    pointdata = copy(cache.common.pointdata)
+    pointdata = copy(cache.common.pointdata_d)
     BiotSavart.init_cache_long(params_new, pointdata)
 end
 
@@ -144,18 +149,18 @@ If one only needs the velocity and not the streamfunction, one can also directly
 [`to_smoothed_velocity!`](@ref).
 """
 function to_smoothed_streamfunction!(c::LongRangeCache)
-    (; uhat, state, ewald_op,) = c.common
-    @assert size(uhat) === size(ewald_op)
+    (; uhat_d, state, ewald_op_d,) = c.common
+    @assert size(uhat_d) === size(ewald_op_d)
     from_vorticity = state.quantity === :vorticity && !state.smoothed
     @assert from_vorticity
-    inds = eachindex(ewald_op, uhat)
+    inds = eachindex(ewald_op_d, uhat_d)
     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
     Threads.@threads :static for i ∈ inds
-        @inbounds uhat[i] = ewald_op[i] * uhat[i]
+        @inbounds uhat_d[i] = ewald_op_d[i] * uhat_d[i]
     end
     state.quantity = :streamfunction
     state.smoothed = true
-    uhat
+    uhat_d
 end
 
 @doc raw"""
@@ -179,24 +184,24 @@ In that case, the cache already contains the smoothed streamfunction, and only t
 operator (``i \bm{k} ×``) is applied by this function.
 """
 function to_smoothed_velocity!(c::LongRangeCache)
-    (; uhat, state, ewald_op, wavenumbers,) = c.common
-    @assert size(uhat) === size(ewald_op)
+    (; uhat_d, state, ewald_op_d, wavenumbers_d,) = c.common
+    @assert size(uhat_d) === size(ewald_op_d)
     from_vorticity = state.quantity === :vorticity && !state.smoothed
     from_streamfunction = state.quantity === :streamfunction && state.smoothed
     @assert from_vorticity || from_streamfunction
     if from_vorticity
-        Threads.@threads :static for I ∈ CartesianIndices(ewald_op)
+        Threads.@threads :static for I ∈ CartesianIndices(ewald_op_d)
             @inbounds begin
-                op = ewald_op[I]
-                op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), wavenumbers, Tuple(I)))
-                uhat[I] = op_times_k⃗ × (im * uhat[I])
+                op = ewald_op_d[I]
+                op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), wavenumbers_d, Tuple(I)))
+                uhat_d[I] = op_times_k⃗ × (im * uhat_d[I])
             end
         end
     elseif from_streamfunction
-        Threads.@threads :static for I ∈ CartesianIndices(ewald_op)
+        Threads.@threads :static for I ∈ CartesianIndices(ewald_op_d)
             @inbounds begin
-                k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), wavenumbers, Tuple(I)))
-                uhat[I] = k⃗ × (im * uhat[I])
+                k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), wavenumbers_d, Tuple(I)))
+                uhat_d[I] = k⃗ × (im * uhat_d[I])
             end
         end
     end
@@ -208,31 +213,39 @@ end
 """
     interpolate_to_physical!(cache::LongRangeCache)
 
-Perform type-2 NUFFT to interpolate values in `cache.uhat` to non-uniform
+Perform type-2 NUFFT to interpolate values in `cache.common.uhat_d` to non-uniform
 points in physical space.
 
 Results are written to `cache.pointdata.charges`.
 """
 function interpolate_to_physical! end
 
-function init_ewald_fourier_operator!(
-        u::AbstractArray{T, 3} where {T}, ks, α::Real, prefactor::Real,
+@kernel function init_ewald_fourier_operator!(
+        u::AbstractArray{T, 3} where {T},
+        @Const(ks),
+        @Const(β::Real),  # = -1/(4α²)
+        @Const(prefactor::Real),
     )
-    β = -1 / (4 * α^2)
-    for I ∈ CartesianIndices(u)
-        k⃗ = map(getindex, ks, Tuple(I))
-        k² = sum(abs2, k⃗)
-        # Operator converting vorticity to coarse-grained streamfunction
-        y = prefactor * exp(β * k²) / k²
-        u[I] = ifelse(iszero(k²), zero(y), y)
-    end
-    u
+    I = @index(Global, Cartesian)
+    k⃗ = map(getindex, ks, Tuple(I))
+    k² = sum(abs2, k⃗)
+    # Operator converting vorticity to coarse-grained streamfunction
+    y = prefactor * exp(β * k²) / k²
+    @inbounds u[I] = ifelse(iszero(k²), zero(y), y)
+    nothing
 end
 
-function init_ewald_fourier_operator(::Type{T}, ks, args...) where {T <: Real}
+function init_ewald_fourier_operator(
+        ::Type{T}, backend::LongRangeBackend, ks, α::Real, prefactor::Real,
+    ) where {T <: Real}
+    ka_backend = get_ka_backend(backend)
     dims = map(length, ks)
-    u = Array{T}(undef, dims)
-    init_ewald_fourier_operator!(u, ks, args...)
+    u = KA.allocate(ka_backend, T, dims)
+    @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device
+    β = -1 / (4 * α^2)
+    kernel = init_ewald_fourier_operator!(ka_backend)
+    kernel(u, ks, β, prefactor; ndrange = size(u))
+    u
 end
 
 function rescale_coordinates!(c::LongRangeCache)
@@ -245,7 +258,7 @@ _rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing
 
 function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
     (; Ls,) = c.common.params.common
-    (; points,) = c.common.pointdata
+    (; points,) = c.common.pointdata_d
     for (xs, L) ∈ zip(StructArrays.components(points), Ls)
         _rescale_coordinates!(xs, L, L_expected)
     end
@@ -270,7 +283,7 @@ end
 _fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
 
 function _fold_coordinates!(c::LongRangeCache, lims::NTuple{2}, L::Real)
-    for xs ∈ StructArrays.components(c.common.pointdata.points)
+    for xs ∈ StructArrays.components(c.common.pointdata_d.points)
         @inbounds for (i, x) ∈ pairs(xs)
             xs[i] = _fold_coordinate(x, lims, L)
         end
@@ -299,7 +312,7 @@ non_uniform_type(::Type{T}, ::LongRangeBackend) where {T <: AbstractFloat} = T
 
 Estimate vorticity in Fourier space.
 
-The vorticity, written to `cache.common.uhat`, is estimated using some variant of
+The vorticity, written to `cache.common.uhat_d`, is estimated using some variant of
 non-uniform Fourier transforms (depending on the chosen backend).
 
 Note that this function doesn't perform smoothing over the vorticity using the Ewald operator.
@@ -314,42 +327,43 @@ After calling this function, one may want to use [`to_smoothed_streamfunction!`]
 [`to_smoothed_velocity!`](@ref) to obtain the respective fields.
 """
 function compute_vorticity_fourier!(cache::LongRangeCache)
-    (; uhat, state,) = cache.common
+    (; uhat_d, state,) = cache.common
     rescale_coordinates!(cache)  # may be needed by the backend (e.g. FINUFFT requires period L = 2π)
     fold_coordinates!(cache)     # may be needed by the backend (e.g. FINUFFT requires x ∈ [-3π, 3π])
     transform_to_fourier!(cache)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
     state.quantity = :vorticity
     state.smoothed = false
-    uhat
+    uhat_d
 end
 
 function truncate_spherical!(cache)
-    (; uhat, params, wavenumbers,) = cache.common
+    (; uhat_d, params, wavenumbers_d,) = cache.common
     if !params.truncate_spherical
         return  # don't apply spherical truncation
     end
     kmax = maximum_wavenumber(params)
     kmax² = kmax^2
-    T = eltype(uhat)
-    Threads.@threads :static for I ∈ CartesianIndices(uhat)
-        k⃗ = map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I))
+    T = eltype(uhat_d)
+    Threads.@threads :static for I ∈ CartesianIndices(uhat_d)
+        k⃗ = map((v, i) -> @inbounds(v[i]), wavenumbers_d, Tuple(I))
         k² = sum(abs2, k⃗)
-        @inbounds uhat[I] = ifelse(k² > kmax², zero(T), uhat[I])
+        @inbounds uhat_d[I] = ifelse(k² > kmax², zero(T), uhat_d[I])
     end
     nothing
 end
 
+# TODO: optimise for GPU?
 function set_interpolation_points!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
     )
-    (; pointdata,) = cache.common
+    (; pointdata_d,) = cache.common
     Npoints = sum(length, fs)
-    set_num_points!(pointdata, Npoints)
+    set_num_points!(pointdata_d, Npoints)
     n = 0
     for f ∈ fs, X ∈ f
-        add_point!(pointdata, X, n += 1)
+        add_point!(pointdata_d, X, n += 1)
     end
     @assert n == Npoints
     rescale_coordinates!(cache)
@@ -360,7 +374,7 @@ end
 function add_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
     )
-    (; charges,) = cache.common.pointdata
+    (; charges,) = cache.common.pointdata_d
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     n = 0
@@ -400,6 +414,7 @@ end
 
 _ensure_hermitian_symmetry!(wavenumbers, ::Val{0}, us) = us  # we're done, do nothing
 
+include("ka_utils.jl")
 include("exact_sum.jl")
 include("finufft.jl")
 include("nonuniformffts.jl")

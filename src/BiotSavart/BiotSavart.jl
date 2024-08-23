@@ -29,6 +29,12 @@ using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, Segment, CurvatureBinormal,
     knots, nodes, segments, integrate
 
+using Adapt: Adapt, adapt
+
+using KernelAbstractions:
+    KernelAbstractions as KA,
+    @kernel, @index, @Const
+
 using ChunkSplitters: ChunkSplitters
 using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutput, @timeit, reset_timer!
@@ -298,11 +304,17 @@ An example of how to compute the (large-scale) kinetic energy associated to the
 Fourier-truncated vorticity field:
 
 ```julia
+using Adapt: adapt  # useful in case FFTs are computed on the GPU
+
 E_from_vorticity = Ref(0.0)  # "global" variable updated when calling compute_on_nodes!
 
 function callback_vorticity(cache::LongRangeCache)
-    (; wavenumbers, uhat, ewald_prefactor,) = cache.common
-    with_hermitian_symmetry = wavenumbers[1][end] > 0  # this depends on the long-range backend
+    (; wavenumbers_d, uhat_d, ewald_prefactor_d,) = cache.common
+    # For simplicity, copy data to the CPU if it's on the GPU (**not verified to work yet!!**).
+    wavenumbers = adapt(Array, wavenumbers_d)
+    uhat = adapt(Array, uhat_d)
+    ewald_prefactor = adapt(Array, ewald_prefactor_d)
+    with_hermitian_symmetry = wavenumbers_d[1][end] > 0  # this depends on the long-range backend
     γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
     E = 0.0
     for I ∈ CartesianIndices(uhat)
@@ -342,6 +354,10 @@ function compute_on_nodes!(
     (; to, params, pointdata,) = cache
     (; quad,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
+
+    # TODO: GPU
+    # - check if longrange.common.pointdata_d !== pointdata, and make a copy in that case (CPU -> GPU)
+    # - run short-range (CPU) and long-range (GPU) parts asynchronously
 
     # This is used by both short-range and long-range computations.
     # Note that we need to compute the short-range first, because the long-range

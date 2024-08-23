@@ -44,7 +44,7 @@ end
 # Ensure Hermitian symmetry one dimension at a time.
 @inline function _ensure_hermitian_symmetry!(c::ExactSumCache, ::Val{d}, us) where {d}
     N = size(us, d)
-    kd = c.common.wavenumbers[d]
+    kd = c.common.wavenumbers_d[d]
     Δk = kd[2]
     imin = if kd[end] > 0  # real-to-complex dimension (rfftfreq)
         @assert d == 1
@@ -67,37 +67,37 @@ end
 _ensure_hermitian_symmetry!(::ExactSumCache, ::Val{0}, us) = us  # we're done, do nothing
 
 function transform_to_fourier!(c::ExactSumCache)
-    (; uhat, wavenumbers, pointdata,) = c.common
-    (; points, charges,) = pointdata
-    @assert size(uhat) == map(length, wavenumbers)
-    fill!(uhat, zero(eltype(uhat)))
-    inds = CartesianIndices(uhat)
+    (; uhat_d, wavenumbers_d, pointdata_d,) = c.common
+    (; points, charges,) = pointdata_d
+    @assert size(uhat_d) == map(length, wavenumbers_d)
+    fill!(uhat_d, zero(eltype(uhat_d)))
+    inds = CartesianIndices(uhat_d)
     @inbounds for i ∈ eachindex(points, charges)
         X = points[i]
         Q = charges[i]
         @inbounds @batch for I ∈ inds
-            k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
-            uhat[I] += Q * cis(-k⃗ ⋅ X)
+            k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))
+            uhat_d[I] += Q * cis(-k⃗ ⋅ X)
         end
     end
     # We zero out some "asymmetric" modes to ease the comparison with other implementations.
-    _ensure_hermitian_symmetry!(c, c.common.uhat)
+    _ensure_hermitian_symmetry!(c, c.common.uhat_d)
     c
 end
 
 function interpolate_to_physical!(c::ExactSumCache)
-    (; uhat, wavenumbers, pointdata,) = c.common
-    (; points, charges,) = pointdata
+    (; uhat_d, wavenumbers_d, pointdata_d,) = c.common
+    (; points, charges,) = pointdata_d
     @assert length(points) == length(charges)
-    kxs = first(wavenumbers)
+    kxs = first(wavenumbers_d)
     kx_lims = first(kxs), last(kxs)
     @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
     @inbounds @batch for i ∈ eachindex(points, charges)
         X = points[i]
-        q⃗ = zero(real(eltype(uhat)))
-        for I ∈ CartesianIndices(uhat)
-            k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
-            v = uhat[I]
+        q⃗ = zero(real(eltype(uhat_d)))
+        for I ∈ CartesianIndices(uhat_d)
+            k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))
+            v = uhat_d[I]
             z = cis(k⃗ ⋅ X)
             δq⃗ = if k⃗[1] ∈ kx_lims
                 # Note: the imaginary part will cancel out with -k⃗ (also computed)

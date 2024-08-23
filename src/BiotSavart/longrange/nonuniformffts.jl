@@ -97,25 +97,25 @@ end
 
 function transform_to_fourier!(c::NonuniformFFTsCache)
     (; plan,) = c
-    (; pointdata, uhat,) = c.common
-    (; points, charges,) = pointdata
+    (; pointdata_d, uhat_d,) = c.common
+    (; points, charges,) = pointdata_d
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     charges_data = StructArrays.components(charges)
-    uhat_data = StructArrays.components(uhat)
+    uhat_data = StructArrays.components(uhat_d)
     NonuniformFFTs.set_points!(plan, points)
     NonuniformFFTs.exec_type1!(uhat_data, plan, charges_data)  # execute NUFFT on all components at once
-    _ensure_hermitian_symmetry!(c.common.wavenumbers, uhat)
+    _ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
     c
 end
 
 function interpolate_to_physical!(c::NonuniformFFTsCache)
     (; plan,) = c
-    (; pointdata, uhat,) = c.common
-    (; points, charges,) = pointdata
+    (; pointdata_d, uhat_d,) = c.common
+    (; points, charges,) = pointdata_d
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     charges = StructArrays.components(charges)
-    uhat = StructArrays.components(uhat)
+    uhat_data = StructArrays.components(uhat_d)
     NonuniformFFTs.set_points!(plan, points)
-    NonuniformFFTs.exec_type2!(charges, plan, uhat)
+    NonuniformFFTs.exec_type2!(charges, plan, uhat_data)
     c
 end

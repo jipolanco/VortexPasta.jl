@@ -25,7 +25,9 @@ The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
 - [`expected_period`](@ref) (optional),
 
-- [`folding_limits`](@ref) (optional).
+- [`folding_limits`](@ref) (optional),
+
+- [`get_ka_backend`](@ref) (optional).
 
 """
 abstract type LongRangeBackend end
@@ -72,12 +74,15 @@ The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRan
 Most useful fields of a `cache::LongRangeCache` are in the `cache.common` field.
 In particular, `cache.common` contains the fields:
 
-- `wavenumbers::NTuple{3, AbstractVector}`: Fourier wavenumbers in each direction;
-- `uhat::StructArray{Vec3{Complex{T}}, 3}`: a full vector field in Fourier space;
-- `pointdata::PointData`: data associated to vector charges applied on non-uniform points.
-  These are available in `pointdata.charges` and `pointdata.points`;
+- `wavenumbers_d::NTuple{3, AbstractVector}`: Fourier wavenumbers in each direction;
+- `uhat_d::StructArray{Vec3{Complex{T}}, 3}`: a full vector field in Fourier space;
+- `pointdata_d::PointData`: data associated to vector charges applied on non-uniform points.
+  These are available in `pointdata_d.charges` and `pointdata_d.points`;
 - `ewald_prefactor::Real`: the quantity ``Γ / V`` where ``V`` is the volume of a periodic
   cell.
+
+The `_d` suffixes means that data is on the computing device associated to the long-range
+backend (i.e. on the GPU for GPU-based backends).
 
 # Extended help
 

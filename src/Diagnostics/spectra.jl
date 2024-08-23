@@ -65,8 +65,8 @@ dimensions, which can be then passed to [`energy_spectrum!`](@ref).
 See [`energy_spectrum!`](@ref) for details on the `cache` argument.
 """
 function init_energy_spectrum(cache::LongRangeCache)
-    (; wavenumbers,) = cache.common
-    kxs = wavenumbers[1]
+    (; wavenumbers_d,) = cache.common
+    kxs = wavenumbers_d[1]
     with_hermitian_symmetry = kxs[end] > 0
     M = with_hermitian_symmetry ? length(kxs) : (length(kxs) + 1) ÷ 2
     @assert kxs[M] > 0
@@ -87,19 +87,19 @@ function energy_spectrum!(
         Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache;
         unfilter = true,  # undo Ewald smoothing filter
     )
-    (; state, ewald_op, ewald_prefactor,) = cache.common
+    (; state, ewald_op_d, ewald_prefactor,) = cache.common
     from_smoothed_velocity = state.quantity == :velocity && state.smoothed
     from_vorticity = state.quantity == :vorticity && !state.smoothed
     γ² = ewald_prefactor^2  # = (Γ/V)^2
     if from_smoothed_velocity
         if unfilter
             energy_spectrum!(Ek, ks, cache) do u², k⃗, k², I
-                # It's slightly faster to reuse values in ewald_op than to recompute exponentials...
-                local w = @inbounds k² * ewald_op[I]
+                # It's slightly faster to reuse values in ewald_op_d than to recompute exponentials...
+                local w = @inbounds k² * ewald_op_d[I]
                 β = ifelse(
                     iszero(w),
                     one(γ²),   # set the factor to 1 if k² == 0
-                    γ² / w^2,  # note: γ cancels out with prefactor already included in ewald_op
+                    γ² / w^2,  # note: γ cancels out with prefactor already included in ewald_op_d
                 )
                 # @assert β ≈ exp(k² / (2 * params.common.α^2))
                 u² * β
@@ -127,25 +127,25 @@ energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, cache; kws...) =
 function energy_spectrum!(
         f::F, Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache,
     ) where {F <: Function}
-    (; wavenumbers, uhat,) = cache.common
+    (; wavenumbers_d, uhat_d,) = cache.common
     eachindex(ks) === eachindex(Ek) ||
         throw(DimensionMismatch("incompatible dimensions of vectors"))
     iszero(ks[begin]) || throw(ArgumentError("output wavenumbers should include k = 0"))
     Δk = ks[begin + 1] - ks[begin]  # we assume this is constant
     Δk_inv = 1 / Δk
-    kxs = wavenumbers[1]
+    kxs = wavenumbers_d[1]
     with_hermitian_symmetry = kxs[end] > 0
     fill!(Ek, 0)
     T = eltype(ks)
-    @inbounds for I ∈ CartesianIndices(uhat)
-        k⃗ = map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I))
+    @inbounds for I ∈ CartesianIndices(uhat_d)
+        k⃗ = map((v, i) -> @inbounds(v[i]), wavenumbers_d, Tuple(I))
         kx = k⃗[1]
         factor = (!with_hermitian_symmetry || kx == 0) ? T(0.5) : T(1.0)
         k² = sum(abs2, k⃗)
         knorm = sqrt(k²)
         n = firstindex(Ek) + floor(Int, knorm * Δk_inv + T(0.5))  # this implicitly assumes ks[begin] == 0
         n ≤ lastindex(Ek) || continue
-        u² = sum(abs2, uhat[I])
+        u² = sum(abs2, uhat_d[I])
         v² = f(u², k⃗, k², I)  # possibly modifies the computed coefficient
         Ek[n] += factor * v² * Δk_inv
     end
