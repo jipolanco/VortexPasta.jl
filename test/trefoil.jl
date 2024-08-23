@@ -156,7 +156,7 @@ function compare_long_range(
 
     # Compute induced velocity field in Fourier space
     foreach((cache_exact, cache_default)) do c
-        BiotSavart.add_point_charges!(c.common.pointdata, fs, quad)
+        BiotSavart.add_point_charges!(c.common.pointdata_d, fs, quad)
         BiotSavart.compute_vorticity_fourier!(c)
         BiotSavart.to_smoothed_velocity!(c)
     end
@@ -166,8 +166,8 @@ function compare_long_range(
     # wavenumbers are not the same.
     # The "exact" implementation takes advantage of Hermitian symmetry to avoid
     # computing half of the data, while FINUFFT doesn't make this possible...
-    ks_default = cache_default.common.wavenumbers
-    ks_exact = cache_exact.common.wavenumbers
+    ks_default = cache_default.common.wavenumbers_d
+    ks_exact = cache_exact.common.wavenumbers_d
     inds_to_compare = ntuple(Val(3)) do i
         inds = eachindex(ks_exact[i])
         js = i == 1 ? inds[begin:end - 1] : inds
@@ -175,7 +175,7 @@ function compare_long_range(
         js
     end |> CartesianIndices
     diffnorm_L2 = sum(inds_to_compare) do I
-        uhat, vhat = cache_exact.common.uhat, cache_default.common.uhat
+        uhat, vhat = cache_exact.common.uhat_d, cache_default.common.uhat_d
         du = uhat[I] - vhat[I]
         sum(abs2, du)  # = |u - v|^2
     end
@@ -187,7 +187,7 @@ function compare_long_range(
         BiotSavart.interpolate_to_physical!(c)
     end
 
-    charges(cache) = cache.common.pointdata.charges  # get charges from cache
+    charges(cache) = cache.common.pointdata_d.charges  # get charges from cache
     max_rel_error_physical = maximum(zip(charges(cache_exact), charges(cache_default))) do (qexact, qdefault)
         norm(qexact - qdefault) / norm(qexact)
     end
