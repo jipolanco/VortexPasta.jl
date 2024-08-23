@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
     env:
-      JULIA_NUM_THREADS: 2
+      JULIA_NUM_THREADS: 4
     strategy:
       fail-fast: true
       matrix:
@@ -97,6 +97,7 @@ jobs:
 
     env:
       JULIA_VERSION: '1.10'  # julia version used to build docs
+      JULIA_NUM_THREADS: 4
 
     steps:
       - uses: actions/checkout@v4
