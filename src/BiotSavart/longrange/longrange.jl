@@ -39,7 +39,7 @@ function LongRangeCacheCommon(
     Nks = map(length, wavenumbers)
     uhat_d = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
     ewald_prefactor = Γ / prod(Ls)
-    device = get_ka_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
+    device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers_d = adapt(device, wavenumbers)  # copy wavenumbers onto device if needed
     pointdata_d = adapt(device, pointdata)      # create PointData replica on the device if needed
     ewald_op_d = init_ewald_fourier_operator(T, backend, wavenumbers_d, α, ewald_prefactor)
@@ -53,8 +53,14 @@ has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
 # This default implementation can be overridden by other backends.
 # That's the case of FINUFFT, which needs a specific memory layout to perform simultaneous
 # NUFFTs of the 3 vector field components.
-function init_fourier_vector_field(::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
-    StructArray{Vec3{Complex{T}}}(undef, Nks)
+function init_fourier_vector_field(backend::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
+    device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
+    # Initialising arrays in parallel (using KA) may be good for performance;
+    # see https://juliagpu.github.io/KernelAbstractions.jl/dev/examples/numa_aware/.
+    components = ntuple(Val(3)) do _
+        KA.zeros(device, Complex{T}, Nks)
+    end
+    StructArray{Vec3{Complex{T}}}(components)
 end
 
 """
@@ -163,7 +169,7 @@ function to_smoothed_streamfunction!(c::LongRangeCache)
     @assert from_vorticity
     inds = eachindex(ewald_op_d, uhat_d)
     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
-    ka_backend = get_ka_backend(c)
+    ka_backend = KA.get_backend(c)
     kernel = to_smoothed_streamfunction_kernel!(ka_backend)
     kernel(uhat_d, ewald_op_d; ndrange = size(uhat_d))
     state.quantity = :streamfunction
@@ -228,7 +234,7 @@ function to_smoothed_velocity!(c::LongRangeCache)
     from_vorticity = state.quantity === :vorticity && !state.smoothed
     from_streamfunction = state.quantity === :streamfunction && state.smoothed
     @assert from_vorticity || from_streamfunction
-    ka_backend = get_ka_backend(c)
+    ka_backend = KA.get_backend(c)
     if from_vorticity
         kernel_ω = velocity_from_vorticity_kernel!(ka_backend)
         kernel_ω(uhat_d, wavenumbers_d, ewald_op_d; ndrange = size(uhat_d))
@@ -269,9 +275,9 @@ end
 function init_ewald_fourier_operator(
         ::Type{T}, backend::LongRangeBackend, ks, α::Real, prefactor::Real,
     ) where {T <: Real}
-    ka_backend = get_ka_backend(backend)
+    ka_backend = KA.get_backend(backend)
     dims = map(length, ks)
-    u = KA.allocate(ka_backend, T, dims)
+    u = KA.zeros(ka_backend, T, dims)
     @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device
     β = -1 / (4 * α^2)
     kernel = init_ewald_fourier_operator_kernel!(ka_backend)
@@ -384,7 +390,7 @@ function truncate_spherical!(cache)
     end
     kmax = maximum_wavenumber(params)
     kmax² = kmax^2
-    ka_backend = get_ka_backend(cache)
+    ka_backend = KA.get_backend(cache)
     kernel = truncate_spherical_kernel!(ka_backend)
     kernel(uhat_d, wavenumbers_d, kmax²; ndrange = size(uhat_d))
     nothing

@@ -1,8 +1,8 @@
 # KernelAbstractions utils
 
 """
-    get_ka_backend(backend::LongRangeBackend) -> KernelAbstractions.Backend
-    get_ka_backend(cache::LongRangeCache) -> KernelAbstractions.Backend
+    KernelAbstractions.get_backend(backend::LongRangeBackend) -> KernelAbstractions.Backend
+    KernelAbstractions.get_backend(cache::LongRangeCache) -> KernelAbstractions.Backend
 
 Get KernelAbstractions (KA) backend associated to a given long-range backend.
 
@@ -12,4 +12,4 @@ kernels are executed (e.g. `CPU`, `CUDABackend`, ...).
 By default this returns `KA.CPU(static = true)`, meaning that things are run on the CPU
 using threads, and that a static thread assignment is used.
 """
-get_ka_backend(::LongRangeBackend) = KA.CPU(static = true)
+KA.get_backend(::LongRangeBackend) = KA.CPU(static = true)

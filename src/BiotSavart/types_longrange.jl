@@ -33,7 +33,7 @@ The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
 - [`folding_limits`](@ref) (optional),
 
-- [`get_ka_backend`](@ref) (optional).
+- [`KernelAbstractions.get_backend`](@ref) (required for GPU-based backends).
 
 """
 abstract type LongRangeBackend end
@@ -134,7 +134,7 @@ abstract type LongRangeCache end
 
 backend(c::LongRangeCache) = backend(c.common.params)
 has_real_to_complex(c::LongRangeCache) = has_real_to_complex(c.common)
-get_ka_backend(c::LongRangeCache) = get_ka_backend(backend(c))
+KA.get_backend(c::LongRangeCache) = KA.get_backend(backend(c))
 
 # TODO: this is not optimised for GPU backends
 function add_point_charges!(c::LongRangeCache, fs::AbstractVector{<:AbstractFilament})

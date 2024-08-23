@@ -84,9 +84,11 @@ expected_period(::AbstractFINUFFTBackend) = 2π
 folding_limits(::AbstractFINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
 non_uniform_type(::Type{T}, ::AbstractFINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
 
-function init_fourier_vector_field(::FINUFFTBackend, ::Type{T}, Nks::Dims{M}) where {T <: Real, M}
+# This should work for CPU and GPU versions.
+function init_fourier_vector_field(backend::AbstractFINUFFTBackend, ::Type{T}, Nks::Dims{M}) where {T <: Real, M}
     # Data needs to be in a contiguous array of dimensions (Nks..., M) [usually M = 3].
-    data = Array{Complex{T}}(undef, Nks..., M)
+    device = KA.get_backend(backend)
+    data = KA.zeros(device, Complex{T}, (Nks..., M))
     components = ntuple(i -> view(data, :, :, :, i), Val(M))
     uhat = StructArray{Vec3{Complex{T}}}(components)
     @assert uhat isa StructArray{Vec3{Complex{T}}, 3}
