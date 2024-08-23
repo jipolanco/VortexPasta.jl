@@ -21,6 +21,8 @@ struct ExactSumCache{
     common :: CacheCommon
 end
 
+has_real_to_complex(::ExactSumBackend) = true
+
 function init_cache_long_ewald(
         pc::ParamsCommon{T},
         params::ParamsLongRange{T, <:ExactSumBackend}, args...,

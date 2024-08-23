@@ -124,6 +124,8 @@ struct ParamsLongRange{
     truncate_spherical :: Bool  # if true, perform spherical truncation in Fourier space
 end
 
+has_real_to_complex(p::ParamsLongRange) = has_real_to_complex(p.backend)
+
 function maximum_wavenumber(p::ParamsLongRange{T}) where {T}
     minimum(zip(p.Ns, p.common.Ls)) do (N, L)
         local m = (N - 1) ÷ 2

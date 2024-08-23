@@ -12,6 +12,10 @@ Abstract type denoting the backend to use for computing long-range interactions.
 - [`FINUFFTBackend`](@ref): estimates long-range interactions via the NUFFT using the
   [FINUFFT](https://github.com/flatironinstitute/finufft) library;
 
+- [`CuFINUFFTBackend`](@ref): estimates long-range interactions via the NUFFT using the CUDA
+  implementation of the [FINUFFT](https://github.com/flatironinstitute/finufft) library.
+  CUDA.jl must be loaded before using this backend (CUDA devices only);
+
 - [`ExactSumBackend`](@ref): computes long-range interactions using exact Fourier sums. This
   is really inefficient and should only be used for testing.
 
@@ -23,6 +27,8 @@ The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
 - `init_cache_long_ewald(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`.
 
+- [`has_real_to_complex`](@ref),
+
 - [`expected_period`](@ref) (optional),
 
 - [`folding_limits`](@ref) (optional),
@@ -31,6 +37,28 @@ The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
 """
 abstract type LongRangeBackend end
+
+"""
+    has_real_to_complex(::LongRangeBackend) -> Bool
+    has_real_to_complex(::ParamsLongRange) -> Bool
+    has_real_to_complex(::LongRangeCacheCommon) -> Bool
+    has_real_to_complex(::LongRangeCache) -> Bool
+
+Check whether the backend performs real-to-complex (fast) Fourier transforms.
+
+If `true`, it means that input non-uniform data in physical space can be real-valued, and
+that uniform data in Fourier space only contains half the total number of modes along the
+first dimension to account for Hermitian symmetry.
+
+This function is useful in particular for:
+
+- knowing which kind of non-uniform data (vorticities) one must give to the backend;
+- knowing how to interpret Fourier-space data, e.g. to compute Fourier spectra.
+
+This function returns `false` for backends such as [`FINUFFTBackend`](@ref), as these
+require complex input data and don't take advantage of Hermitian symmetry.
+"""
+function has_real_to_complex end
 
 # This is a dummy backend associated to a NullLongRangeCache (meaning that long-range
 # computations are disabled).
@@ -105,8 +133,10 @@ The following functions must be implemented by a cache:
 abstract type LongRangeCache end
 
 backend(c::LongRangeCache) = backend(c.common.params)
+has_real_to_complex(c::LongRangeCache) = has_real_to_complex(c.common)
 
+# TODO: this is not optimised for GPU backends
 function add_point_charges!(c::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
     (; quad,) = c.common.params
-    add_point_charges!(c.common.pointdata, fs, quad)
+    add_point_charges!(c.common.pointdata_d, fs, quad)
 end

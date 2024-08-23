@@ -53,6 +53,8 @@ struct NonuniformFFTsBackend{
     end
 end
 
+has_real_to_complex(::NonuniformFFTsBackend) = true
+
 to_halfsupport(M::Int) = HalfSupport(M)
 to_halfsupport(m::HalfSupport) = m
 

@@ -15,6 +15,7 @@ using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
 using UnicodePlots: lineplot, lineplot!
 using JET: JET
+using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using FINUFFT: FINUFFT
 
 # ================================================================================ #
@@ -348,7 +349,7 @@ function test_forced_lines(
     ## Inference tests
     # Check that everything is inferred (except for issues coming from FINUFFT.jl).
     # (This is only for tests and can be ignored!)
-    JET.@test_opt ignored_modules=(FINUFFT, Base, Base.PCRE) init(
+    JET.@test_opt ignored_modules=(FINUFFT, Base, Base.PCRE, KA, Base.IteratorsMD) init(
         prob, scheme;
         dt,
         callback, affect!,

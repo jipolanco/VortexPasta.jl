@@ -67,7 +67,8 @@ See [`energy_spectrum!`](@ref) for details on the `cache` argument.
 function init_energy_spectrum(cache::LongRangeCache)
     (; wavenumbers_d,) = cache.common
     kxs = wavenumbers_d[1]
-    with_hermitian_symmetry = kxs[end] > 0
+    with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)
+    @assert with_hermitian_symmetry == (kxs[end] > 0)
     M = with_hermitian_symmetry ? length(kxs) : (length(kxs) + 1) ÷ 2
     @assert kxs[M] > 0
     Δk = kxs[begin + 1] - kxs[begin]
@@ -134,7 +135,8 @@ function energy_spectrum!(
     Δk = ks[begin + 1] - ks[begin]  # we assume this is constant
     Δk_inv = 1 / Δk
     kxs = wavenumbers_d[1]
-    with_hermitian_symmetry = kxs[end] > 0
+    with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)
+    @assert with_hermitian_symmetry == (kxs[end] > 0)
     fill!(Ek, 0)
     T = eltype(ks)
     @inbounds for I ∈ CartesianIndices(uhat_d)

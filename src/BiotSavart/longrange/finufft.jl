@@ -13,6 +13,8 @@ const FINUFFT_DEFAULT_UPSAMPFAC = 1.25  # 1.25 or 2.0
 # This includes CPU and CUDA FINUFFT implementations.
 abstract type AbstractFINUFFTBackend <: LongRangeBackend end
 
+has_real_to_complex(::AbstractFINUFFTBackend) = false
+
 """
     FINUFFTBackend <: LongRangeBackend
 

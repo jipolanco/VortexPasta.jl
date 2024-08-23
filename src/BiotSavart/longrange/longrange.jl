@@ -47,6 +47,8 @@ function LongRangeCacheCommon(
     LongRangeCacheCommon(params, wavenumbers_d, pointdata_d, uhat_d, ewald_prefactor, ewald_op_d, state, timer)
 end
 
+has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
+
 # Initialise Fourier vector field with the right memory layout.
 # This default implementation can be overridden by other backends.
 # That's the case of FINUFFT, which needs a specific memory layout to perform simultaneous

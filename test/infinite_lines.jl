@@ -4,6 +4,7 @@ using Test
 using StaticArrays
 using Statistics: mean, std
 using LinearAlgebra: norm, cholesky
+using Adapt: adapt
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
 using VortexPasta.FilamentIO
@@ -75,16 +76,21 @@ end
 # This is the example in the docs of BiotSavart.compute_on_nodes!.
 function truncated_kinetic_energy_from_vorticity(cache::LongRangeCache)
     (; wavenumbers_d, uhat_d, ewald_prefactor,) = cache.common
-    with_hermitian_symmetry = wavenumbers_d[1][end] > 0  # this depends on the long-range backend
+    # For simplicity, copy data to the CPU if it's on the GPU.
+    wavenumbers = adapt(Array, wavenumbers_d)
+    uhat = adapt(Array, uhat_d)
+    with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
+    @show BiotSavart.backend(cache) with_hermitian_symmetry
+    @assert with_hermitian_symmetry == (wavenumbers[1][end] > 0)
     γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
     E = 0.0
-    for I ∈ CartesianIndices(uhat_d)
-        k⃗ = map(getindex, wavenumbers_d, Tuple(I))
+    for I ∈ CartesianIndices(uhat)
+        k⃗ = map(getindex, wavenumbers, Tuple(I))
         kx = k⃗[1]
         factor = (!with_hermitian_symmetry || kx == 0) ? 0.5 : 1.0
         k² = sum(abs2, k⃗)
         if !iszero(k²)
-            ω⃗ = uhat_d[I]  # Fourier coefficient of the vorticity
+            ω⃗ = uhat[I]  # Fourier coefficient of the vorticity
             E += γ² * factor * sum(abs2, ω⃗) / k²
         end
     end

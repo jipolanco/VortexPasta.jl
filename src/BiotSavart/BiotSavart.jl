@@ -13,6 +13,7 @@ export
     Velocity, Streamfunction,
     LongRangeCache, ShortRangeCache,
     init_cache,
+    has_real_to_complex,
     periods,
     velocity_on_nodes!,
     compute_on_nodes!,
@@ -309,12 +310,12 @@ using Adapt: adapt  # useful in case FFTs are computed on the GPU
 E_from_vorticity = Ref(0.0)  # "global" variable updated when calling compute_on_nodes!
 
 function callback_vorticity(cache::LongRangeCache)
-    (; wavenumbers_d, uhat_d, ewald_prefactor_d,) = cache.common
-    # For simplicity, copy data to the CPU if it's on the GPU (**not verified to work yet!!**).
+    (; wavenumbers_d, uhat_d, ewald_prefactor,) = cache.common
+    # For simplicity, copy data to the CPU if it's on the GPU.
     wavenumbers = adapt(Array, wavenumbers_d)
     uhat = adapt(Array, uhat_d)
-    ewald_prefactor = adapt(Array, ewald_prefactor_d)
-    with_hermitian_symmetry = wavenumbers_d[1][end] > 0  # this depends on the long-range backend
+    with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
+    @assert with_hermitian_symmetry == wavenumbers[1][end] > 0
     γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
     E = 0.0
     for I ∈ CartesianIndices(uhat)

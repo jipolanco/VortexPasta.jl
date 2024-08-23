@@ -16,6 +16,7 @@ using VortexPasta.Timestepping: VortexFilamentSolver
 using VortexPasta.Diagnostics
 
 using JET: JET
+using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using StaticArrays: StaticArrays  # for JET only
 
 function init_ring_filaments(R_init; method = CubicSplineMethod(), noise = 1/3)
@@ -113,7 +114,7 @@ function test_leapfrogging_rings(
     end
 
     if test_jet
-        JET.@test_opt ignored_modules=(Base,) init(prob, scheme; dt = 0.01)
+        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) init(prob, scheme; dt = 0.01)
         JET.@test_call ignored_modules=(Base, StaticArrays) init(prob, scheme; dt = 0.01)
     end
 
