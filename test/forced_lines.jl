@@ -356,7 +356,7 @@ function test_forced_lines(
         external_velocity = forcing_velocity,
         external_streamfunction = forcing_streamfunction,
     )
-    JET.@test_opt ignored_modules=(FINUFFT, Base, Base.PCRE) step!(iter)
+    JET.@test_opt ignored_modules=(FINUFFT, Base, Base.PCRE, KA, Base.IteratorsMD) step!(iter)
 
     nothing
 end

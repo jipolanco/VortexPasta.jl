@@ -152,7 +152,7 @@ function test_leapfrogging_rings(
 
     if test_jet
         JET.@test_opt ignored_modules=(Base,) callback(iter)
-        JET.@test_opt ignored_modules=(Base,) step!(iter)
+        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
         JET.@test_call ignored_modules=(Base, StaticArrays) step!(iter)
     end
 

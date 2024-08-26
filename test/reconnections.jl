@@ -14,6 +14,7 @@ using Rotations
 using UnicodePlots: lineplot
 using LinearAlgebra: norm, I, ⋅
 using JET: JET
+using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using FINUFFT: FINUFFT  # for JET only
 
 # This is just to fake the `info` argument of `reconnect_with_itself!` and
@@ -179,7 +180,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
 
     if test_jet
         JET.@test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
-        JET.@test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+        JET.@test_opt ignored_modules=(Base, FINUFFT, KA, Base.IteratorsMD) step!(iter)
     end
 
     nothing

@@ -13,6 +13,7 @@ using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
 
 using JET: @test_opt
+using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using FINUFFT: FINUFFT  # for JET only
 
 # Initialise nearly straight vortex line with sinusoidal perturbation.
@@ -167,7 +168,7 @@ function test_kelvin_waves(
     end
 
     if test_jet
-        @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+        @test_opt ignored_modules=(Base, FINUFFT, KA, Base.IteratorsMD) step!(iter)
     end
 
     (; fs, vs, ψs,) = iter  # `vs` already contains the initial velocities
