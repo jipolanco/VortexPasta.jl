@@ -203,7 +203,8 @@ end
         @Const(wavenumbers::Tuple),
         @Const(with_hermitian_symmetry), @Const(Δk_inv),
     ) where {F}
-    @uniform begin  # definitions which persist across @synchronize statements
+    # Definitions which persist across @synchronize statements:
+    @uniform begin
         T = eltype(Ek_blocks)
         Nk = size(Ek_blocks, 1)     # spectrum length
         Nt = prod(@groupsize())     # number of work items ("threads") per workgroup
