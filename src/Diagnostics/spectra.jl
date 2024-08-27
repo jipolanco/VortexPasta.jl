@@ -155,24 +155,34 @@ function energy_spectrum!(
     ngroups = cld.(size(uhat_d), groupsize)  # number of workgroups in each direction
     ndrange = ngroups .* groupsize  # pad array dimensions
     Nk = length(Ek)
-    Ek_blocks = KA.zeros(backend, eltype(Ek), (Nk, ngroups...))  # TODO: use Bumper if on the CPU?
     uhat_comps = StructArrays.components(uhat_d)  # = (ux, uy, uz)
     kernel! = ka_generate_kernel(energy_spectrum_kernel!, backend, ndrange)
-    kernel!(f, Ek_blocks, uhat_comps, wavenumbers_d, with_hermitian_symmetry, Δk_inv)  # execute kernel
 
-    # TODO:
-    # - Bumper
+    # Use Bumper to allocate temporary CPU arrays (doesn't do anything for GPU arrays).
+    buf = Bumper.default_buffer()
+    @no_escape buf begin
+        Ek_groups = if backend isa KA.CPU
+            @alloc(eltype(Ek), Nk, ngroups...)
+        else
+            KA.allocate(backend, eltype(Ek), (Nk, ngroups...))
+        end
 
-    # Reduce, writing results onto Ek_d.
-    Ek_d = if typeof(KA.get_backend(Ek)) === typeof(backend)
-        fill!(Ek, 0)
-        Ek  # output is already on the compute device
-    else
-        KA.zeros(backend, eltype(Ek), Nk)  # allocate array on the device
+        kernel!(f, Ek_groups, uhat_comps, wavenumbers_d, with_hermitian_symmetry, Δk_inv)  # execute kernel
+
+        # Sum data from all workgroups, writing results onto Ek_d.
+        Ek_d = if typeof(KA.get_backend(Ek)) === typeof(backend)
+            fill!(Ek, 0)
+            Ek  # output is already on the compute device
+        else
+            KA.zeros(backend, eltype(Ek), Nk)  # allocate array on the device
+        end
+        Base.mapreducedim!(identity, +, Ek_d, Ek_groups)  # sum values from all workgroups onto Ek_d
+
+        if backend isa KA.GPU
+            KA.synchronize(backend)
+            KA.unsafe_free!(Ek_groups)  # manually free GPU memory
+        end
     end
-    Base.mapreducedim!(identity, +, Ek_d, Ek_blocks)  # sum values from all blocks (workgroups) onto Ek_d
-    KA.synchronize(backend)
-    KA.unsafe_free!(Ek_blocks)
 
     if Ek !== Ek_d
         copyto!(Ek, Ek_d)  # copy from device to host
@@ -241,13 +251,14 @@ end
     @synchronize  # make sure E_sm and n_sm are synchronised across threads
 
     # Step 2: add results to global memory.
-    # Assumes Ek_blocks was initialised to 0.
     group_idx = @index(Group, NTuple)
+    @inbounds Ek_wg = view(Ek_blocks, 1:Nk, group_idx...)  # local part of the output array
     if tid == 1
+        fill!(Ek_wg, 0)
         @inbounds for l ∈ 1:Nt
             E = E_sm[l]
             n = n_sm[l]
-            Ek_blocks[n, group_idx...] += E
+            Ek_wg[n] += E
         end
     end
 
