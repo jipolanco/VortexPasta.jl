@@ -32,9 +32,7 @@ using ..Filaments:
 
 using Adapt: Adapt, adapt
 
-using KernelAbstractions:
-    KernelAbstractions as KA,
-    @kernel, @index, @Const
+using KernelAbstractions: KernelAbstractions as KA, @kernel, @index, @Const
 
 using ChunkSplitters: ChunkSplitters
 using StructArrays: StructArrays, StructVector, StructArray

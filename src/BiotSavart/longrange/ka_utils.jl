@@ -15,12 +15,18 @@ using threads, and that a static thread assignment is used.
 KA.get_backend(::LongRangeBackend) = KA.CPU(static = true)
 
 # Default workgroup size used for running KA kernels.
-# This may be changed in the future (or overridden in a package extension) so that certain
-# backends (e.g. GPUs) use a different workgroup size.
-function ka_default_workgroupsize(::KA.Backend, dims::Dims)
-    wgsize_wanted = 64  # TODO: adapt for CPU/GPU?
-    groupsize = map(one, dims)  # = (1, 1, 1) in 3D
-    Base.setindex(groupsize, min(groupsize[1], wgsize_wanted), 1)  # usually (wgsize_wanted, 1, 1)
+function ka_default_workgroupsize(::KA.CPU, dims::Dims)
+    # On the CPU, use KA's default, which currently tries to creates blocks of 1024 work
+    # items. Note that we're calling an internal function which may change in the future!
+    KA.default_cpu_workgroupsize(dims)
+end
+
+function ka_default_workgroupsize(::KA.GPU, dims::Dims)
+    # On the GPU, we divide the work across the first dimension and try to use 64 GPU
+    # threads per workgroup.
+    wgsize_wanted = 64
+    x = map(one, dims)  # = (1, 1, 1) in 3D
+    Base.setindex(x, min(x[1], wgsize_wanted), 1)  # usually (wgsize_wanted, 1, 1)
 end
 
 """
