@@ -170,8 +170,8 @@ function to_smoothed_streamfunction!(c::LongRangeCache)
     inds = eachindex(ewald_op_d, uhat_d)
     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
     ka_backend = KA.get_backend(c)
-    kernel = to_smoothed_streamfunction_kernel!(ka_backend)
-    kernel(uhat_d, ewald_op_d; ndrange = size(uhat_d))
+    kernel = ka_generate_kernel(to_smoothed_streamfunction_kernel!, ka_backend, uhat_d)
+    kernel(uhat_d, ewald_op_d)
     state.quantity = :streamfunction
     state.smoothed = true
     uhat_d
@@ -236,11 +236,13 @@ function to_smoothed_velocity!(c::LongRangeCache)
     @assert from_vorticity || from_streamfunction
     ka_backend = KA.get_backend(c)
     if from_vorticity
-        kernel_ω = velocity_from_vorticity_kernel!(ka_backend)
-        kernel_ω(uhat_d, wavenumbers_d, ewald_op_d; ndrange = size(uhat_d))
+        let kernel = ka_generate_kernel(velocity_from_vorticity_kernel!, ka_backend, uhat_d)
+            kernel(uhat_d, wavenumbers_d, ewald_op_d)
+        end
     elseif from_streamfunction
-        kernel_ψ = velocity_from_streamfunction_kernel!(ka_backend)
-        kernel_ψ(uhat_d, wavenumbers_d; ndrange = size(uhat_d))
+        let kernel = ka_generate_kernel(velocity_from_streamfunction_kernel!, ka_backend, uhat_d)
+            kernel(uhat_d, wavenumbers_d)
+        end
     end
     state.quantity = :velocity
     state.smoothed = true
@@ -280,8 +282,8 @@ function init_ewald_fourier_operator(
     u = KA.zeros(ka_backend, T, dims)
     @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device
     β = -1 / (4 * α^2)
-    kernel = init_ewald_fourier_operator_kernel!(ka_backend)
-    kernel(u, ks, β, prefactor; ndrange = size(u))
+    kernel = ka_generate_kernel(init_ewald_fourier_operator_kernel!, ka_backend, u)
+    kernel(u, ks, β, prefactor)
     u
 end
 
@@ -391,8 +393,8 @@ function truncate_spherical!(cache)
     kmax = maximum_wavenumber(params)
     kmax² = kmax^2
     ka_backend = KA.get_backend(cache)
-    kernel = truncate_spherical_kernel!(ka_backend)
-    kernel(uhat_d, wavenumbers_d, kmax²; ndrange = size(uhat_d))
+    kernel = ka_generate_kernel(truncate_spherical_kernel!, ka_backend, uhat_d)
+    kernel(uhat_d, wavenumbers_d, kmax²)
     nothing
 end
 
