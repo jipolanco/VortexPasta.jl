@@ -14,9 +14,15 @@ using ..Filaments:
     knots, segments, integrate,
     number_type
 
-using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, Infinity, ∞
+using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, Infinity, ∞,
+                    ka_generate_kernel, ka_default_workgroupsize
 
 using Bumper: Bumper, @no_escape, @alloc
+using Adapt: adapt
+using KernelAbstractions:
+    KernelAbstractions as KA,
+    @kernel, @index, @Const, @groupsize, @localmem, @synchronize, @uniform, @ndrange
+using StructArrays: StructArrays, StructArray
 using LinearAlgebra: ⋅, ×
 
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
