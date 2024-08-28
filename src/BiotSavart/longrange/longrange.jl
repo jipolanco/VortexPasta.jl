@@ -127,9 +127,11 @@ Non-uniform data must be first added via [`add_point_charges!`](@ref).
 """
 function transform_to_fourier! end
 
-@kernel function to_smoothed_streamfunction_kernel!(uhat, @Const(ewald_op))
+@kernel function to_smoothed_streamfunction_kernel!(us::NTuple, @Const(ewald_op))
     I = @index(Global, Linear)
-    @inbounds uhat[I] *= ewald_op[I]
+    for u ∈ us
+        @inbounds u[I] *= ewald_op[I]
+    end
     nothing
 end
 
@@ -171,33 +173,39 @@ function to_smoothed_streamfunction!(c::LongRangeCache)
     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
     ka_backend = KA.get_backend(c)
     kernel = ka_generate_kernel(to_smoothed_streamfunction_kernel!, ka_backend, uhat_d)
-    kernel(uhat_d, ewald_op_d)
+    uhat_comps = StructArrays.components(uhat_d)
+    kernel(uhat_comps, ewald_op_d)
     state.quantity = :streamfunction
     state.smoothed = true
     uhat_d
 end
 
 # Applies Biot-Savart + Gaussian smoothing operators in Fourier space.
-@kernel function velocity_from_vorticity_kernel!(uhat::StructArray{<:Vec3}, @Const(ks), @Const(ewald_op))
+@kernel function velocity_from_vorticity_kernel!(uhat::NTuple, @Const(ks), @Const(ewald_op))
     I = @index(Global, Cartesian)
     @inbounds op = ewald_op[I]
     op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), ks, Tuple(I)))
-    u⃗′ = @inbounds im * uhat[I]
+    u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
+    u⃗ = @inbounds im * u⃗
     # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
-    @inbounds uhat[I] = @noinline op_times_k⃗ × u⃗′
+    u⃗ = @noinline op_times_k⃗ × u⃗
+    for n ∈ eachindex(uhat)
+        @inbounds uhat[n][I] = u⃗[n]
+    end
     nothing
 end
 
 # Applies curl operator in Fourier space.
-# NOTE: KernelAbstractions seems to have issues writing the result of a cross-product onto a
-# StructArray{<:Vec3} (on the CPU at least), which is why we explicitly use the `components` function.
-# It seems to "optimise" by overwriting some components of the RHS before we have completely used them.
-@kernel function velocity_from_streamfunction_kernel!(uhat::StructArray{<:Vec3}, @Const(ks))
+@kernel function velocity_from_streamfunction_kernel!(uhat::NTuple, @Const(ks))
     I = @index(Global, Cartesian)
     k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
-    u⃗′ = @inbounds im * uhat[I]
+    u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
+    u⃗ = @inbounds im * u⃗
     # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
-    @inbounds uhat[I] = @noinline k⃗ × u⃗′
+    u⃗ = @noinline k⃗ × u⃗
+    for n ∈ eachindex(uhat)
+        @inbounds uhat[n][I] = u⃗[n]
+    end
     nothing
 end
 
@@ -228,13 +236,14 @@ function to_smoothed_velocity!(c::LongRangeCache)
     from_streamfunction = state.quantity === :streamfunction && state.smoothed
     @assert from_vorticity || from_streamfunction
     ka_backend = KA.get_backend(c)
+    uhat_comps = StructArrays.components(uhat_d)
     if from_vorticity
         let kernel = ka_generate_kernel(velocity_from_vorticity_kernel!, ka_backend, uhat_d)
-            kernel(uhat_d, wavenumbers_d, ewald_op_d)
+            kernel(uhat_comps, wavenumbers_d, ewald_op_d)
         end
     elseif from_streamfunction
         let kernel = ka_generate_kernel(velocity_from_streamfunction_kernel!, ka_backend, uhat_d)
-            kernel(uhat_d, wavenumbers_d)
+            kernel(uhat_comps, wavenumbers_d)
         end
     end
     state.quantity = :velocity
@@ -369,12 +378,15 @@ function compute_vorticity_fourier!(cache::LongRangeCache)
     uhat_d
 end
 
-@kernel function truncate_spherical_kernel!(uhat, @Const(ks), @Const(kmax²))
+@kernel function truncate_spherical_kernel!(uhat::NTuple, @Const(ks), @Const(kmax²))
     I = @index(Global, Cartesian)
-    T = eltype(uhat)
+    T = eltype(uhat[1])
     k⃗ = map((v, i) -> @inbounds(v[i]), ks, Tuple(I))
     k² = sum(abs2, k⃗)
-    @inbounds uhat[I] = ifelse(k² > kmax², zero(T), uhat[I])
+    truncate = k² > kmax²
+    for u ∈ uhat
+        @inbounds u[I] = ifelse(truncate, zero(T), u[I])
+    end
     nothing
 end
 
@@ -386,8 +398,9 @@ function truncate_spherical!(cache)
     kmax = maximum_wavenumber(params)
     kmax² = kmax^2
     ka_backend = KA.get_backend(cache)
+    uhat_comps = StructArrays.components(uhat_d)
     kernel = ka_generate_kernel(truncate_spherical_kernel!, ka_backend, uhat_d)
-    kernel(uhat_d, wavenumbers_d, kmax²)
+    kernel(uhat_comps, wavenumbers_d, kmax²)
     nothing
 end
 
