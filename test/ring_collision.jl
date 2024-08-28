@@ -86,10 +86,13 @@ function test_ring_collision()
     # radial velocity.
     stretching_rate_expected = 2π * vradial_expected
 
-    JET.@test_opt Diagnostics.stretching_rate(filaments[1], vs[1])
-    JET.@test_opt Diagnostics.stretching_rate(filaments[1], vs[1]; quad = GaussLegendre(2))
-    JET.@test_call Diagnostics.stretching_rate(filaments[1], vs[1])
-    JET.@test_call Diagnostics.stretching_rate(filaments[1], vs[1]; quad = GaussLegendre(2))
+    disable_jet = get(ENV, "JULIA_DISABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
+    if !disable_jet
+        JET.@test_opt Diagnostics.stretching_rate(filaments[1], vs[1])
+        JET.@test_opt Diagnostics.stretching_rate(filaments[1], vs[1]; quad = GaussLegendre(2))
+        JET.@test_call Diagnostics.stretching_rate(filaments[1], vs[1])
+        JET.@test_call Diagnostics.stretching_rate(filaments[1], vs[1]; quad = GaussLegendre(2))
+    end
 
     for (f, v) ∈ zip(filaments, vs)
         v_perp = map(v⃗ -> norm(setindex(v⃗, 0.0, 3)), v)

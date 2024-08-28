@@ -86,7 +86,10 @@ function test_ring_stretching()
     )
     @time solve!(iter)
 
-    JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
+    disable_jet = get(ENV, "JULIA_DISABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
+    if !disable_jet
+        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
+    end
 
     # Analytical solution
     L_expected = @. vortex_length[1] * exp(times / stretching_velocity.τ)
