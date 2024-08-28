@@ -178,18 +178,13 @@ function to_smoothed_streamfunction!(c::LongRangeCache)
 end
 
 # Applies Biot-Savart + Gaussian smoothing operators in Fourier space.
-# NOTE: KernelAbstractions seems to have issues writing the result of a cross-product onto a
-# StructArray{<:Vec3} (on the CPU at least), which is why we explicitly use the `components` function.
-# It seems to "optimise" by overwriting some components of the RHS before we have completely used them.
 @kernel function velocity_from_vorticity_kernel!(uhat::StructArray{<:Vec3}, @Const(ks), @Const(ewald_op))
     I = @index(Global, Cartesian)
     @inbounds op = ewald_op[I]
     op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), ks, Tuple(I)))
-    @inbounds w = op_times_k⃗ × (im * uhat[I])
-    us = StructArrays.components(uhat)
-    for j ∈ eachindex(us)
-        @inbounds us[j][I] = w[j]
-    end
+    u⃗′ = @inbounds im * uhat[I]
+    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
+    @inbounds uhat[I] = @noinline op_times_k⃗ × u⃗′
     nothing
 end
 
@@ -200,11 +195,9 @@ end
 @kernel function velocity_from_streamfunction_kernel!(uhat::StructArray{<:Vec3}, @Const(ks))
     I = @index(Global, Cartesian)
     k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
-    @inbounds w = k⃗ × (im * uhat[I])
-    us = StructArrays.components(uhat)
-    for j ∈ eachindex(us)
-        @inbounds us[j][I] = w[j]
-    end
+    u⃗′ = @inbounds im * uhat[I]
+    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
+    @inbounds uhat[I] = @noinline k⃗ × u⃗′
     nothing
 end
 
