@@ -323,12 +323,20 @@ end
 # Backend doesn't define `folding_limits`, so no rescaling is needed.
 _fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
 
-function _fold_coordinates!(c::LongRangeCache, lims::NTuple{2}, L::Real)
-    for xs ∈ StructArrays.components(c.common.pointdata_d.points)
-        @inbounds for (i, x) ∈ pairs(xs)
-            xs[i] = _fold_coordinate(x, lims, L)
-        end
+@kernel function fold_coordinates_kernel!(points::NTuple, @Const(lims), @Const(L))
+    i = @index(Global, Linear)
+    for x ∈ points
+        @inbounds x[i] = _fold_coordinate(x[i], lims, L)
     end
+    nothing
+end
+
+function _fold_coordinates!(c::LongRangeCache, lims::NTuple{2}, L::Real)
+    (; points,) = c.common.pointdata_d
+    points_comp = StructArrays.components(points)
+    ka_backend = KA.get_backend(c)
+    kernel = ka_generate_kernel(fold_coordinates_kernel!, ka_backend, points)
+    kernel(points_comp, lims, L)
     nothing
 end
 
@@ -404,22 +412,51 @@ function truncate_spherical!(cache)
     nothing
 end
 
-# TODO: optimise for GPU?
 function set_interpolation_points!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
     )
-    (; pointdata_d,) = cache.common
+    # Note that we only modify the `points` field of PointData. The other ones are not
+    # needed for interpolation.
+    (; points, charges,) = cache.common.pointdata_d
+    points::StructVector{<:Vec3}
     Npoints = sum(length, fs)
-    set_num_points!(pointdata_d, Npoints)
-    n = 0
-    for f ∈ fs, X ∈ f
-        add_point!(pointdata_d, X, n += 1)
-    end
-    @assert n == Npoints
+    resize!(points, Npoints)
+    resize!(charges, Npoints)  # this is the interpolation output
+    ka_backend = KA.get_backend(cache)
+    points_c = StructArrays.components(points)  # (xs, ys, zs)
+    _set_interpolation_points!(ka_backend, points_c, fs)
     rescale_coordinates!(cache)
     fold_coordinates!(cache)
     nothing
+end
+
+# CPU implementation: directly write filament nodes to `points` vectors.
+function _set_interpolation_points!(::KA.CPU, points::NTuple, fs)
+    Npoints = length(points[1])
+    n = 0
+    for f ∈ fs, X ∈ f
+        n += 1
+        for i ∈ eachindex(X)
+            @inbounds points[i][n] = X[i]
+        end
+    end
+    @assert n == Npoints
+    points
+end
+
+# Generic GPU implementation: first write filament nodes to array on the CPU, then make H2D
+# copy.
+function _set_interpolation_points!(device::KA.GPU, points::NTuple{N}, fs) where {N}
+    buf = Bumper.default_buffer()
+    @no_escape buf begin
+        Xs = map(x -> @alloc(eltype(x), length(x)), points)
+        _set_interpolation_points!(KA.CPU(), Xs, fs)  # calls CPU implementation
+        for i ∈ eachindex(points, Xs)
+            KA.copyto!(device, points[i], Xs[i])  # host-to-device copy
+        end
+    end
+    points
 end
 
 function add_long_range_output!(
@@ -428,10 +465,32 @@ function add_long_range_output!(
     (; charges,) = cache.common.pointdata_d
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
+    ka_backend = KA.get_backend(cache)
+    _add_long_range_output!(ka_backend, vs, charges)
+    vs
+end
+
+function _add_long_range_output!(::KA.CPU, vs, charges::StructVector)
     n = 0
-    @inbounds for v ∈ vs, i ∈ eachindex(v)
+    @inbounds for v ∈ vs, j ∈ eachindex(v)
         q = charges[n += 1]
-        v[i] = v[i] + real(q)
+        v[j] = v[j] + real(q)
+    end
+    vs
+end
+
+# Generic GPU implementation: first copy charges from the GPU onto an intermediate CPU
+# array, then fill `vs`.
+function _add_long_range_output!(device::KA.GPU, vs, charges::StructVector{V}) where {V}
+    buf = Bumper.default_buffer()
+    @no_escape buf begin
+        qs = StructArrays.components(charges)  # (qx, qy, qz)
+        vtmp = map(q -> @alloc(eltype(q), length(q)), qs)  # temporary CPU arrays
+        for i ∈ eachindex(vtmp, qs)
+            KA.copyto!(device, vtmp[i], qs[i])  # device-to-host copy
+        end
+        vtmp_struct = StructVector{V}(vtmp)  # vtmp as a StructVector
+        _add_long_range_output!(KA.CPU(), vs, vtmp_struct)
     end
     vs
 end

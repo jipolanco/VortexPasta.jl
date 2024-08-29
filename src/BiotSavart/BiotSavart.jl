@@ -34,6 +34,7 @@ using Adapt: Adapt, adapt
 
 using KernelAbstractions: KernelAbstractions as KA, @kernel, @index, @Const
 
+using Bumper: Bumper, @no_escape, @alloc
 using ChunkSplitters: ChunkSplitters
 using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutput, @timeit, reset_timer!
@@ -351,17 +352,22 @@ function compute_on_nodes!(
     end
 
     (; to, params, pointdata,) = cache
+    (; pointdata_d,) = cache.longrange.common  # pointdata on the device (in case of GPU backend)
     (; quad,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
 
     # TODO: GPU
-    # - check if longrange.common.pointdata_d !== pointdata, and make a copy in that case (CPU -> GPU)
     # - run short-range (CPU) and long-range (GPU) parts asynchronously
 
     # This is used by both short-range and long-range computations.
     # Note that we need to compute the short-range first, because the long-range
     # computations then modify `pointdata`.
-    @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)
+    @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)  # on the CPU
+
+    if pointdata !== pointdata_d  # this usually means pointdata_d is on a different device (GPU)
+        @assert typeof(pointdata) != typeof(pointdata_d)
+        copy!(pointdata_d, pointdata)  # H2D copy
+    end
 
     if shortrange
         @timeit to "Short-range component" begin
@@ -377,7 +383,7 @@ function compute_on_nodes!(
             if callback_vorticity !== identity
                 @timeit to "Vorticity callback" callback_vorticity(cache.longrange)
             end
-            @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)
+            @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d
             if ψs !== nothing
                 @timeit to "Streamfunction" begin
                     @timeit to "Convert to physical" begin

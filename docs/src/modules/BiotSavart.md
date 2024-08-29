@@ -83,7 +83,6 @@ expected_period
 folding_limits
 set_num_points!
 add_point_charges!
-add_point!
 compute_vorticity_fourier!
 to_smoothed_streamfunction!
 to_smoothed_velocity!

@@ -20,13 +20,13 @@ struct PointData{
     segments :: Segments  # filament segment on which each location s⃗ is located
 end
 
-# If T <: GPUArray, create PointData object on the GPU (useful for long-range computations
-# with GPU backend). Returns `p` without allocations if T <: Array (CPU).
-# https://cuda.juliagpu.org/dev/tutorials/custom_structs/
-function Adapt.adapt_structure(::Type{T}, p::PointData) where {T}
+# If `to` corresponds to a GPU backend, create PointData object on the GPU (useful for long-range computations
+# with GPU backend). Returns `p` without allocations if data must be adapted from CPU to
+# CPU. See https://cuda.juliagpu.org/dev/tutorials/custom_structs/.
+@inline function Adapt.adapt_structure(to, p::PointData)
     PointData(
-        adapt(T, p.points),
-        adapt(T, p.charges),
+        adapt(to, p.points),
+        adapt(to, p.charges),
         p.segments,  # for now, keep segments on the CPU (we don't use them on the GPU)
     )
 end
@@ -43,6 +43,15 @@ end
 function Base.copy(data::PointData)
     (; points, charges, segments,) = data
     PointData(copy(points), copy(charges), copy(segments))
+end
+
+# This is useful in particular for host -> device copies.
+# Note that arrays are resized to match those in `src`.
+function Base.copy!(dst::PointData, src::PointData)
+    copy!(dst.points, src.points)
+    copy!(dst.charges, src.charges)
+    copy!(dst.segments, src.segments)  # not useful on the GPU...
+    dst
 end
 
 """
@@ -133,20 +142,5 @@ function add_pointcharge!(data::PointData, X::Vec3, Q::Vec3, s::Segment, i::Int)
     @inbounds data.points[i] = X
     @inbounds data.charges[i] = Q
     @inbounds data.segments[i] = s
-    data
-end
-
-"""
-    add_point!(data::PointData, X::Vec3, i::Int)
-
-Add an interpolation point for type-2 NUFFT.
-
-This is used for type-2 NUFFTs, to transform (interpolate) from uniform data in Fourier
-space to non-uniform data in physical space.
-
-The total number of locations must be first set via [`set_num_points!`](@ref).
-"""
-function add_point!(data::PointData, X::Vec3, i::Int)
-    @inbounds data.points[i] = X
     data
 end

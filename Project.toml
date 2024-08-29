@@ -28,10 +28,12 @@ TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 VectorizationBase = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
 
 [weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 MakieCore = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
 Observables = "510215fc-4207-5dde-b226-833fc4488ee2"
 
 [extensions]
+VortexPastaCuFINUFFTExt = ["CUDA"]
 VortexPastaMakieExt = ["MakieCore", "Observables"]
 
 [compat]
@@ -40,6 +42,7 @@ Adapt = "4.0.4"
 Bumper = "0.4, 0.5, 0.6, 0.7"
 ChunkSplitters = "2.4"
 CommonSolve = "0.2.4"
+CUDA = "5.4.3"
 FFTW = "1.6"
 FINUFFT = "3.1"
 FastGaussQuadrature = "1"
