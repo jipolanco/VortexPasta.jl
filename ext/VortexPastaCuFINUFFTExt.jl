@@ -32,7 +32,7 @@ function BS.CuFINUFFTBackend(;
         gpu_device_id = CUDA.deviceid(gpu_device),  # extract actual device id (0, 1, ...)
         other...,
     )
-    CuFINUFFTBackend(tol, kws)
+    BS._CuFINUFFTBackend(tol, kws)  # call "private" constructor
 end
 
 function Base.show(io::IO, backend::CuFINUFFTBackend)

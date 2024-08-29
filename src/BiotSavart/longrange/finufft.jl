@@ -78,16 +78,18 @@ end
 """
     CuFINUFFTBackend <: LongRangeBackend
 
-GPU version of the [`FINUFFTBackend`](@ref).
+GPU version of [`FINUFFTBackend`](@ref).
 
 Works with Nvidia GPUs only.
 
-!!! note
+!!! warning
 
-    One needs to explicitly load CUDA.jl (`using CUDA`) before choosing this backend.
+    One needs to explicitly load [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) (`using CUDA`) before choosing this backend.
 
-    Besides, FINUFFT version 2.3.0(-rc1) is required for this backend to work.
-    In previous versions, cuFINUFFT ignores the `modeord` option which is needed in our
+!!! compat
+
+    The minimal required version of the FINUFFT libraries is `2.3.0-rc1`.
+    In previous versions, cuFINUFFT ignores the `modeord = 1` option which is needed in our
     implementation.
 
 # Optional arguments
@@ -115,6 +117,9 @@ for details and other possible options.
 struct CuFINUFFTBackend{KwArgs <: NamedTuple} <: AbstractFINUFFTBackend
     tol :: Float64
     kws :: KwArgs
+
+    # "Private" constructor
+    global _CuFINUFFTBackend(tol, kws) = new{typeof(kws)}(tol, kws)
 end
 
 function Base.show(io::IO, backend::FINUFFTBackend)
