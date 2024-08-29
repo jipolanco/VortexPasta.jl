@@ -151,6 +151,10 @@ function energy_spectrum!(
         @assert with_hermitian_symmetry == (kxs[end] > 0)
     end
 
+    # We pad the `ndrange` (the visited indices) so that all threads are active whitin each
+    # workgroup. This makes it easier to implement the reduction operations needed to obtain
+    # the energy spectra. However, it means that some indices `I` will be outside of the grid,
+    # and this needs to be checked in the kernel.
     groupsize = ka_default_workgroupsize(backend, size(uhat_d)) :: NTuple
     ngroups = cld.(size(uhat_d), groupsize)  # number of workgroups in each direction
     ndrange = ngroups .* groupsize  # pad array dimensions
