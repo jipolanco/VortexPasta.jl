@@ -352,24 +352,29 @@ function compute_on_nodes!(
     end
 
     (; to, params, pointdata,) = cache
-    (; pointdata_d,) = cache.longrange.common  # pointdata on the device (in case of GPU backend)
     (; quad,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
 
     # TODO: GPU
     # - run short-range (CPU) and long-range (GPU) parts asynchronously
 
+    with_shortrange = shortrange
+    with_longrange = longrange && cache.longrange !== NullLongRangeCache()
+
     # This is used by both short-range and long-range computations.
     # Note that we need to compute the short-range first, because the long-range
     # computations then modify `pointdata`.
     @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)  # on the CPU
 
-    if pointdata !== pointdata_d  # this usually means pointdata_d is on a different device (GPU)
-        @assert typeof(pointdata) != typeof(pointdata_d)
-        copy!(pointdata_d, pointdata)  # H2D copy
+    if with_longrange
+        (; pointdata_d,) = cache.longrange.common  # pointdata on the device (in case of GPU backend)
+        if pointdata !== pointdata_d  # this usually means pointdata_d is on a different device (GPU)
+            @assert typeof(pointdata) != typeof(pointdata_d)
+            copy!(pointdata_d, pointdata)  # H2D copy
+        end
     end
 
-    if shortrange
+    if with_shortrange
         @timeit to "Short-range component" begin
             @timeit to "Process point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
             @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
@@ -377,7 +382,7 @@ function compute_on_nodes!(
         end
     end
 
-    if cache.longrange !== NullLongRangeCache() && longrange
+    if with_longrange
         @timeit to "Long-range component" begin
             @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
             if callback_vorticity !== identity
