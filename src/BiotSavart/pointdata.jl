@@ -50,7 +50,8 @@ end
 function Base.copy!(dst::PointData, src::PointData)
     copy!(dst.points, src.points)
     copy!(dst.charges, src.charges)
-    copy!(dst.segments, src.segments)  # not useful on the GPU...
+    # Note that both `segments` fields may point to the same object; see `adapt_structure` above.
+    dst.segments === src.segments || copy!(dst.segments, src.segments)  # not useful on the GPU...
     dst
 end
 
