@@ -114,12 +114,18 @@ See the [cuFINUFFT docs](https://finufft.readthedocs.io/en/latest/c_gpu.html#opt
 for details and other possible options.
 
 """
-struct CuFINUFFTBackend{KwArgs <: NamedTuple} <: AbstractFINUFFTBackend
+struct CuFINUFFTBackend{
+        KwArgs <: NamedTuple,
+        Device,  # = CuDevice
+        Stream,  # = CuStream
+    } <: AbstractFINUFFTBackend
     tol :: Float64
+    device :: Device
+    stream :: Stream
     kws :: KwArgs
-
     # "Private" constructor
-    global _CuFINUFFTBackend(tol, kws) = new{typeof(kws)}(tol, kws)
+    global _CuFINUFFTBackend(tol, device, stream, kws) =
+        new{typeof(kws), typeof(device), typeof(stream)}(tol, device, stream, kws)
 end
 
 function Base.show(io::IO, backend::FINUFFTBackend)

@@ -15,6 +15,7 @@ using StructArrays: StructArrays, StructArray, StructVector
 using VortexPasta.BiotSavart: BiotSavart as BS, Vec3, CuFINUFFTBackend
 
 # cuFINUFFT is much slower with oversampling factors different from 2.
+# TODO: maybe 1.25 works fine in the latest version?
 const CUFINUFFT_DEFAULT_UPSAMPFAC = 2.0
 
 # This tells KA to create CUDA kernels, and generic (CPU/GPU) code to create CUDA arrays.
@@ -24,17 +25,38 @@ KA.get_backend(::CuFINUFFTBackend) = CUDABackend()
 function BS.CuFINUFFTBackend(;
         tol::AbstractFloat = BS.FINUFFT_DEFAULT_TOLERANCE,
         upsampfac = CUFINUFFT_DEFAULT_UPSAMPFAC,
-        gpu_device::CUDA.CuDevice = CUDA.device(),  # use currently active CUDA device
+        gpu_device::CuDevice = CUDA.device(),  # use currently active CUDA device
+        # By default, use stream associated to current Julia CPU task.
+        # This is needed for KA.synchronize() to work properly (it synchronises the active
+        # stream only).
+        gpu_stream::CuStream = CUDA.stream(),
         other...,
     )
+    gpu_stream_ptr = Base.unsafe_convert(Ptr{CUDA.CUstream_st}, gpu_stream)
     kws = (;
         upsampfac = Float64(upsampfac),
         gpu_device_id = CUDA.deviceid(gpu_device),  # extract actual device id (0, 1, ...)
+        gpu_stream = gpu_stream_ptr,
         other...,
     )
-    BS._CuFINUFFTBackend(tol, kws)  # call "private" constructor
+    BS._CuFINUFFTBackend(tol, gpu_device, gpu_stream, kws)  # call "private" constructor
 end
 
+# This longer `show` variant is used when directly printing the backend e.g. in the REPL or
+# using @show.
+function Base.show(io::IO, ::MIME"text/plain", backend::CuFINUFFTBackend)
+    (; tol, device, stream, kws,) = backend
+    (; upsampfac,) = kws
+    print(io, "CuFINUFFTBackend(tol = $tol, upsampfac = $upsampfac) with:")
+    mime = MIME"text/plain"()
+    print(io, "\n - CUDA device: ")
+    show(io, mime, device)
+    print(io, "\n - CUDA stream: ")
+    show(io, mime, stream)
+end
+
+# This shorter (single-line) variant is used when `print`ing the backend, e.g. as part of a
+# larger structure.
 function Base.show(io::IO, backend::CuFINUFFTBackend)
     (; tol, kws,) = backend
     (; upsampfac,) = kws
