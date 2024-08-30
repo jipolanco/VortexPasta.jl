@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add experimental GPU backend (`CuFINUFFTBackend`) for long-range computations.
+  It is based on the CUDA version of the FINUFFT library, meaning that only
+  Nvidia GPUs are supported for now.
+  It requires FINUFFT 2.3.0-rc1, which is not currently bundled with the
+  FINUFFT.jl interface, which means that one must manually compile the FINUFFT
+  binaries and link them to the Julia interface.
+
 ### Fixed
 
 - Fix `map(f, us::VectorOfVectors)` when the function `f` returns scalar values.
