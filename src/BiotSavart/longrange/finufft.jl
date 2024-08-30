@@ -1,6 +1,6 @@
 export FINUFFTBackend, CuFINUFFTBackend
 
-using FINUFFT: FINUFFT, finufft_makeplan, finufft_setpts!, finufft_exec!
+using FINUFFT: FINUFFT
 using FFTW: FFTW
 using AbstractFFTs: fftfreq
 using StructArrays: StructArrays, StructVector, StructArray
@@ -212,10 +212,10 @@ _finufft_options() = (;
 )
 
 # The GPU version needs to overload these functions
-_finufft_plan_func(::FINUFFTBackend) = finufft_makeplan
-_finufft_setpts_func!(::FINUFFTBackend) = finufft_setpts!
-_finufft_exec_func!(::FINUFFTBackend) = finufft_exec!
-_finufft_destroy_func!(::FINUFFTBackend) = finufft_destroy!
+_finufft_plan_func(::FINUFFTBackend) = FINUFFT.finufft_makeplan
+_finufft_setpts_func!(::FINUFFTBackend) = FINUFFT.finufft_setpts!
+_finufft_exec_func!(::FINUFFTBackend) = FINUFFT.finufft_exec!
+_finufft_destroy_func!(::FINUFFTBackend) = FINUFFT.finufft_destroy!
 
 function _make_finufft_plan_type1(p::AbstractFINUFFTBackend, n_modes::Vector{Int64}, ::Type{T}) where {T}
     opts = _finufft_options()

@@ -9,7 +9,7 @@ module VortexPastaCuFINUFFTExt
 # TODO: check version of cuFINUFFT libraries? (how?)
 
 using CUDA
-using FINUFFT
+using FINUFFT: FINUFFT
 using KernelAbstractions: KernelAbstractions as KA
 using StructArrays: StructArrays, StructArray, StructVector
 using VortexPasta.BiotSavart: BiotSavart as BS, Vec3, CuFINUFFTBackend
@@ -77,10 +77,10 @@ function BS.adapt_fourier_vector_field(::CuFINUFFTBackend, uhat::StructArray{Vec
     unsafe_wrap(CuArray, p, (dims..., 3)) :: CuArray{T,4}
 end
 
-BS._finufft_plan_func(::CuFINUFFTBackend) = cufinufft_makeplan
-BS._finufft_setpts_func!(::CuFINUFFTBackend) = cufinufft_setpts!
-BS._finufft_exec_func!(::CuFINUFFTBackend) = cufinufft_exec!
-BS._finufft_destroy_func!(::CuFINUFFTBackend) = cufinufft_destroy!
+BS._finufft_plan_func(::CuFINUFFTBackend) = FINUFFT.cufinufft_makeplan
+BS._finufft_setpts_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_setpts!
+BS._finufft_exec_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_exec!
+BS._finufft_destroy_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_destroy!
 
 # This works correctly on a variable-size CuVector, unlike the case of CPU Vectors.
 # So there's nothing unsafe here!
