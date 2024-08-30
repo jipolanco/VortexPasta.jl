@@ -28,7 +28,7 @@ function ka_default_workgroupsize(::KA.GPU, dims::Dims)
     # threads per workgroup.
     wgsize_wanted = 64
     x = map(one, dims)  # = (1, 1, 1) in 3D
-    Base.setindex(x, min(x[1], wgsize_wanted), 1)  # usually (wgsize_wanted, 1, 1)
+    Base.setindex(x, min(dims[1], wgsize_wanted), 1)  # usually (wgsize_wanted, 1, 1)
 end
 
 """
