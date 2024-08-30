@@ -1,6 +1,6 @@
 # Parallelisation
 
-Currently, VortexPasta.jl uses thread-based CPU parallelisation (equivalent to
+VortexPasta.jl can take advantage of thread-based CPU parallelisation (equivalent to
 OpenMP).
 In particular, it can be run on a single node of a computing cluster.
 

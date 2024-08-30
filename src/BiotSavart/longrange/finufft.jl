@@ -1,4 +1,4 @@
-export FINUFFTBackend
+export FINUFFTBackend, CuFINUFFTBackend
 
 using FINUFFT: FINUFFT, finufft_makeplan, finufft_setpts!, finufft_exec!
 using FFTW: FFTW
@@ -9,6 +9,11 @@ using LinearAlgebra: ×
 
 const FINUFFT_DEFAULT_TOLERANCE = 1e-6
 const FINUFFT_DEFAULT_UPSAMPFAC = 1.25  # 1.25 or 2.0
+
+# This includes CPU and CUDA FINUFFT implementations.
+abstract type AbstractFINUFFTBackend <: LongRangeBackend end
+
+has_real_to_complex(::AbstractFINUFFTBackend) = false
 
 """
     FINUFFTBackend <: LongRangeBackend
@@ -50,7 +55,7 @@ docs](https://finufft.readthedocs.io/en/latest/opts.html) and not listed above
 are also accepted.
 
 """
-struct FINUFFTBackend{KwArgs <: NamedTuple} <: LongRangeBackend
+struct FINUFFTBackend{KwArgs <: NamedTuple} <: AbstractFINUFFTBackend
     tol :: Float64
     kws :: KwArgs
     function FINUFFTBackend(;
@@ -69,41 +74,114 @@ struct FINUFFTBackend{KwArgs <: NamedTuple} <: LongRangeBackend
     end
 end
 
+# This is used for TimerOutputs labels
+finufft_name(::FINUFFTBackend) = "FINUFFT"
+
+# NOTE: CUDA-specific parts of the implementation are in ext/VortexPastaCuFINUFFTExt.jl
+"""
+    CuFINUFFTBackend <: LongRangeBackend
+
+GPU version of [`FINUFFTBackend`](@ref).
+
+Works with Nvidia GPUs only.
+
+!!! warning
+
+    One needs to explicitly load [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) (`using CUDA`) before choosing this backend.
+
+!!! compat
+
+    The minimal required version of the FINUFFT libraries is `2.3.0-rc1`.
+    In previous versions, cuFINUFFT ignores the `modeord = 1` option which is needed in our
+    implementation.
+
+# Optional arguments
+
+The signature of `CuFINUFFTBackend` is:
+
+    CuFINUFFTBackend(; tol = $FINUFFT_DEFAULT_TOLERANCE, kws...)
+
+where all arguments are passed to cuFINUFFT.
+
+Some relevant options are:
+
+- `tol = $FINUFFT_DEFAULT_TOLERANCE` tolerance in NUFFT computations;
+
+- `upsampfac = 2.0` upsampling factor. It is really recommended to leave it
+  at its default value of 2; other values are much slower on cuFINUFFT;
+
+- `gpu_device::CUDA.CuDevice`: useful if multiple GPUs are available. By default the
+  currently active CUDA device is used, i.e. `gpu_device = CUDA.device()`.
+
+See the [cuFINUFFT docs](https://finufft.readthedocs.io/en/latest/c_gpu.html#options-for-gpu-code)
+for details and other possible options.
+
+"""
+struct CuFINUFFTBackend{
+        KwArgs <: NamedTuple,
+        Device,  # = CuDevice
+        Stream,  # = CuStream
+    } <: AbstractFINUFFTBackend
+    tol :: Float64
+    device :: Device
+    stream :: Stream
+    kws :: KwArgs
+    # "Private" constructor
+    global _CuFINUFFTBackend(tol, device, stream, kws) =
+        new{typeof(kws), typeof(device), typeof(stream)}(tol, device, stream, kws)
+end
+
 function Base.show(io::IO, backend::FINUFFTBackend)
     (; tol, kws,) = backend
     (; nthreads, upsampfac,) = kws
     print(io, "FINUFFTBackend(tol = $tol, upsampfac = $upsampfac, nthreads = $nthreads)")
 end
 
-expected_period(::FINUFFTBackend) = 2π
-folding_limits(::FINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
-non_uniform_type(::Type{T}, ::FINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
+expected_period(::AbstractFINUFFTBackend) = 2π
+folding_limits(::AbstractFINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
+non_uniform_type(::Type{T}, ::AbstractFINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
 
-function init_fourier_vector_field(::FINUFFTBackend, ::Type{T}, Nks::Dims{M}) where {T <: Real, M}
+# This should work for CPU and GPU versions.
+function init_fourier_vector_field(backend::AbstractFINUFFTBackend, ::Type{T}, Nks::Dims{M}) where {T <: Real, M}
     # Data needs to be in a contiguous array of dimensions (Nks..., M) [usually M = 3].
-    data = Array{Complex{T}}(undef, Nks..., M)
+    device = KA.get_backend(backend)
+    data = KA.zeros(device, Complex{T}, (Nks..., M))
     components = ntuple(i -> view(data, :, :, :, i), Val(M))
     uhat = StructArray{Vec3{Complex{T}}}(components)
     @assert uhat isa StructArray{Vec3{Complex{T}}, 3}
-    @assert uhat.:1 isa SubArray
-    @assert parent(uhat.:1) === data  # we use this elsewhere to get the raw data before transforming
+    if backend isa FINUFFTBackend  # CPU
+        @assert uhat.:1 isa SubArray  # not true on CUDA (which doesn't seem to use the SubArray type)
+        @assert parent(uhat.:1) === data  # we use this elsewhere to get the raw data before transforming
+    end
+    @assert pointer(uhat.:1) == pointer(data)
     uhat
 end
 
+# Returns a vector field as a 4D array, as required by FINUFFT.
+# Note that this works only on the CPU, and CuFINUFFTBackend uses a different
+# implementation.
+function adapt_fourier_vector_field(::FINUFFTBackend, uhat::StructArray{Vec3{T}}) where {T}
+    ux = uhat.:1  # get first component
+    parent(ux) :: Array{T,4}
+end
+
+# This is used for both CPU and GPU implementations.
 struct FINUFFTCache{
         T,
         CacheCommon <: LongRangeCacheCommon{T},
         Plan,
+        ChargeData <: AbstractVector{Complex{T}},
     } <: LongRangeCache
     common :: CacheCommon
     plan_type1 :: Plan  # plan for type-1 NUFFT (physical non-uniform → Fourier uniform)
     plan_type2 :: Plan  # plan for type-2 NUFFT (Fourier uniform → physical non-uniform)
-    charge_data :: Vector{Complex{T}}  # used to store charge data used in transforms
+    charge_data :: ChargeData  # used to store charge data used in transforms
 end
 
+# This should work for CPU and GPU versions.
 function init_cache_long_ewald(
         pc::ParamsCommon{T},
-        params::ParamsLongRange{T, <:FINUFFTBackend}, args...,
+        params::ParamsLongRange{T, <:AbstractFINUFFTBackend}, args...,
     ) where {T <: AbstractFloat}
     (; Ls,) = pc
     (; backend, Ns,) = params
@@ -114,59 +192,66 @@ function init_cache_long_ewald(
     @assert Ns == Nks
     plan_type1 = _make_finufft_plan_type1(backend, n_modes, T)
     plan_type2 = _make_finufft_plan_type2(backend, n_modes, T)
-    charge_data = Complex{T}[]
+    ka_backend = KA.get_backend(backend)
+    charge_data = KA.allocate(ka_backend, Complex{T}, 0)  # allocate empty vector
     FINUFFTCache(cache_common, plan_type1, plan_type2, charge_data)
 end
 
 # FINUFFT options which should never be modified!
+# (Used also in GPU implementation.)
 _finufft_options() = (;
     modeord = 1,  # use same mode ordering as FFTW (i.e. k = 0, 1, …, N/2 - 1, -N/2, …, -1)
 )
 
-function _make_finufft_plan_type1(p::FINUFFTBackend, n_modes::Vector{Int64}, ::Type{T}) where {T}
+# The GPU version needs to overload these functions
+_finufft_plan_func(::FINUFFTBackend) = finufft_makeplan
+_finufft_setpts_func!(::FINUFFTBackend) = finufft_setpts!
+_finufft_exec_func!(::FINUFFTBackend) = finufft_exec!
+
+function _make_finufft_plan_type1(p::AbstractFINUFFTBackend, n_modes::Vector{Int64}, ::Type{T}) where {T}
     opts = _finufft_options()
     type = 1
     iflag = -1  # this sets the FFT convention (we use a - sign for the forward transform)
     ntrans = 3  # number of transforms to compute simultaneously (3 vector components at once)
-    finufft_makeplan(type, n_modes, iflag, ntrans, p.tol; dtype = T, p.kws..., opts...)
+    _finufft_plan_func(p)(type, n_modes, iflag, ntrans, p.tol; dtype = T, p.kws..., opts...)
 end
 
-function _make_finufft_plan_type2(p::FINUFFTBackend, n_modes::Vector{Int64}, ::Type{T}) where {T}
+function _make_finufft_plan_type2(p::AbstractFINUFFTBackend, n_modes::Vector{Int64}, ::Type{T}) where {T}
     opts = _finufft_options()
     type = 2
     iflag = +1  # this sets the FFT convention (we use a + sign for the backward transform)
     ntrans = 3  # number of transforms to compute simultaneously (3 vector components at once)
-    finufft_makeplan(type, n_modes, iflag, ntrans, p.tol; dtype = T, p.kws..., opts...)
+    _finufft_plan_func(p)(type, n_modes, iflag, ntrans, p.tol; dtype = T, p.kws..., opts...)
 end
 
-function finufft_copy_charges_to_matrix!(
+function _finufft_copy_charges_to_matrix!(
         A::AbstractMatrix{<:Complex},
         qs_in::StructVector{<:Vec3},
     )
     @assert axes(A, 1) == eachindex(qs_in)
     @assert size(A, 2) == 3
     qs = StructArrays.components(qs_in) :: NTuple{3}
+    @assert KA.get_backend(A) == KA.get_backend(qs[1])  # avoid implicit host-device copy
     @inbounds for (j, qj) ∈ pairs(qs)
-        for (i, q) ∈ pairs(qj)
-            A[i, j] = q
-        end
+        Aj = @view A[:, j]
+        copyto!(Aj, qj)
     end
     A
 end
 
-function finufft_copy_charges_from_matrix!(
+function _finufft_copy_charges_from_matrix!(
         qs_in::StructVector{<:Vec3},
         A::AbstractMatrix{<:Complex},
     )
     @assert axes(A, 1) == eachindex(qs_in)
     @assert size(A, 2) == 3
     qs = StructArrays.components(qs_in) :: NTuple{3}
+    @assert KA.get_backend(A) == KA.get_backend(qs[1])  # avoid implicit host-device copy
     @inbounds for (j, qj) ∈ pairs(qs)
-        for i ∈ eachindex(qj)
-            # Note: qj may be a vector of real values, while A is a matrix of complex values.
-            # In our case we expect the complex part to be zero.
-            qj[i] = A[i, j]
-        end
+        # Note: qj may be a vector of real values, while A is a matrix of complex values.
+        # In our case we expect the complex part to be zero.
+        Aj = @view A[:, j]
+        copyto!(qj, Aj)
     end
     qs_in
 end
@@ -181,45 +266,68 @@ end
 
 function transform_to_fourier!(c::FINUFFTCache)
     (; plan_type1, charge_data,) = c
-    (; pointdata, uhat,) = c.common
-    (; points, charges,) = pointdata
+    (; pointdata_d, uhat_d, to,) = c.common
+    (; points, charges,) = pointdata_d
+    backend_lr = backend(c)
+    device = KA.get_backend(c)
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points_data = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     Np = length(charges)
     @assert Np == length(points)
-    uhat_data = parent(uhat.:1)
+    @assert Np > 0
+    uhat_data = adapt_fourier_vector_field(backend_lr, uhat_d)
     T = eltype(uhat_data)
     @assert T <: Complex
-    finufft_setpts!(plan_type1, points_data...)
-    resize!(charge_data, 3 * Np)
-    # Note: FINUFFT requires A to be an Array. This means that we can't use Bumper
-    # allocators here, as they return some other type of AbstractArray.
-    GC.@preserve charge_data begin
-        A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
-        finufft_copy_charges_to_matrix!(A, charges)
-        finufft_exec!(plan_type1, A, uhat_data)  # execute NUFFT on all components at once
+    name_to = finufft_name(backend_lr)
+    KA.synchronize(device)
+    @timeit to "$name_to setpts" begin
+        _finufft_setpts_func!(backend_lr)(plan_type1, points_data...)
+        KA.synchronize(device)
     end
-    _ensure_hermitian_symmetry!(c.common.wavenumbers, uhat)
+    resize!(charge_data, 3 * Np)
+    # Note: FINUFFT (CPU version) requires A to be an Array. This means that we can't use Bumper
+    # allocators here, as they return some other type of AbstractArray.
+    GC.@preserve charge_data begin  # @preserve is only useful on the CPU
+        A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
+        _finufft_copy_charges_to_matrix!(A, charges)
+        KA.synchronize(device)
+        @timeit to "$name_to exec" begin
+            _finufft_exec_func!(backend_lr)(plan_type1, A, uhat_data)  # execute NUFFT on all components at once
+            KA.synchronize(device)
+        end
+    end
+    _ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
     c
 end
 
 function interpolate_to_physical!(c::FINUFFTCache)
     (; plan_type2, charge_data,) = c
-    (; pointdata, uhat,) = c.common
-    (; points, charges,) = pointdata
+    (; pointdata_d, uhat_d, to,) = c.common
+    (; points, charges,) = pointdata_d
+    backend_lr = backend(c)
+    device = KA.get_backend(c)
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points_data = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     Np = length(charges)
     @assert Np == length(points)
-    uhat_data = parent(uhat.:1)
+    uhat_data = adapt_fourier_vector_field(backend_lr, uhat_d)
     T = eltype(uhat_data)
     @assert T <: Complex
-    finufft_setpts!(plan_type2, points_data...)
+    name_to = finufft_name(backend_lr)
+    KA.synchronize(device)
+    @timeit to "$name_to setpts" begin
+        _finufft_setpts_func!(backend_lr)(plan_type2, points_data...)
+        KA.synchronize(device)
+    end
     resize!(charge_data, 3 * Np)
     GC.@preserve charge_data begin
         A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
-        finufft_exec!(plan_type2, uhat_data, A)  # result is computed onto A
-        finufft_copy_charges_from_matrix!(charges, A)
+        KA.synchronize(device)
+        @timeit to "$name_to exec" begin
+            _finufft_exec_func!(backend_lr)(plan_type2, uhat_data, A)  # result is computed onto A
+            KA.synchronize(device)
+        end
+        _finufft_copy_charges_from_matrix!(charges, A)
     end
     c
 end

@@ -70,6 +70,7 @@ nearby_charges
 LongRangeBackend
 NonuniformFFTsBackend
 FINUFFTBackend
+CuFINUFFTBackend
 ExactSumBackend
 ```
 
@@ -83,13 +84,23 @@ expected_period
 folding_limits
 set_num_points!
 add_point_charges!
-add_point!
+has_real_to_complex
 compute_vorticity_fourier!
 to_smoothed_streamfunction!
 to_smoothed_velocity!
 interpolate_to_physical!
 transform_to_fourier!
 similar(::LongRangeCache, ::Dims{3})
+```
+
+## KernelAbstractions utils
+
+[KernelAbstractions.jl](https://github.com/JuliaGPU/KernelAbstractions.jl) is
+used to write generic code which works on CPUs and different kinds of GPUs.
+
+```@docs
+ka_generate_kernel
+KernelAbstractions.get_backend
 ```
 
 ## Internals

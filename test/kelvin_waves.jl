@@ -12,7 +12,8 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
 
-using JET: @test_opt
+using JET: JET
+using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using FINUFFT: FINUFFT  # for JET only
 
 # Initialise nearly straight vortex line with sinusoidal perturbation.
@@ -54,7 +55,9 @@ function test_kelvin_waves(
         method = QuinticSplineMethod(), Lz = 2π, A = 0.01, k = 1,
         quad = GaussLegendre(4),
     )
-    test_jet = true
+    disable_jet = get(ENV, "JULIA_DISABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
+    test_jet = !disable_jet
+
     Lx = Ly = Lz
     lines = [
         init_vortex_line(; x = 0.25Lx, y = 0.25Ly, Lz, sign = +1, A = +A, k,),
@@ -167,7 +170,7 @@ function test_kelvin_waves(
     end
 
     if test_jet
-        @test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+        JET.@test_opt ignored_modules=(Base, FINUFFT, KA, Base.IteratorsMD) step!(iter)
     end
 
     (; fs, vs, ψs,) = iter  # `vs` already contains the initial velocities

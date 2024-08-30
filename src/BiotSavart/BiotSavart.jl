@@ -13,6 +13,7 @@ export
     Velocity, Streamfunction,
     LongRangeCache, ShortRangeCache,
     init_cache,
+    has_real_to_complex,
     periods,
     velocity_on_nodes!,
     compute_on_nodes!,
@@ -29,6 +30,13 @@ using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, Segment, CurvatureBinormal,
     knots, nodes, segments, integrate
 
+using Adapt: Adapt, adapt
+
+using KernelAbstractions:
+    KernelAbstractions,  # importing this avoids docs failure
+    KernelAbstractions as KA, @kernel, @index, @Const
+
+using Bumper: Bumper, @no_escape, @alloc
 using ChunkSplitters: ChunkSplitters
 using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutput, @timeit, reset_timer!
@@ -298,11 +306,17 @@ An example of how to compute the (large-scale) kinetic energy associated to the
 Fourier-truncated vorticity field:
 
 ```julia
+using Adapt: adapt  # useful in case FFTs are computed on the GPU
+
 E_from_vorticity = Ref(0.0)  # "global" variable updated when calling compute_on_nodes!
 
 function callback_vorticity(cache::LongRangeCache)
-    (; wavenumbers, uhat, ewald_prefactor,) = cache.common
-    with_hermitian_symmetry = wavenumbers[1][end] > 0  # this depends on the long-range backend
+    (; wavenumbers_d, uhat_d, ewald_prefactor,) = cache.common
+    # For simplicity, copy data to the CPU if it's on the GPU.
+    wavenumbers = adapt(Array, wavenumbers_d)
+    uhat = adapt(Array, uhat_d)
+    with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
+    @assert with_hermitian_symmetry == wavenumbers[1][end] > 0
     γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
     E = 0.0
     for I ∈ CartesianIndices(uhat)
@@ -343,12 +357,29 @@ function compute_on_nodes!(
     (; quad,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
 
+    # TODO: GPU
+    # - run short-range (CPU) and long-range (GPU) parts asynchronously
+
+    with_shortrange = shortrange
+    with_longrange = longrange && cache.longrange !== NullLongRangeCache()
+
     # This is used by both short-range and long-range computations.
     # Note that we need to compute the short-range first, because the long-range
     # computations then modify `pointdata`.
-    @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)
+    @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)  # on the CPU
 
-    if shortrange
+    if with_longrange
+        (; pointdata_d,) = cache.longrange.common  # pointdata on the device (in case of GPU backend)
+        if pointdata !== pointdata_d  # this usually means pointdata_d is on a different device (GPU)
+            @assert typeof(pointdata) != typeof(pointdata_d)
+            @timeit to "Pointdata host → device" begin
+                copy!(pointdata_d, pointdata)  # H2D copy
+                KA.synchronize(KA.get_backend(cache.longrange))
+            end
+        end
+    end
+
+    if with_shortrange
         @timeit to "Short-range component" begin
             @timeit to "Process point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
             @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
@@ -356,20 +387,32 @@ function compute_on_nodes!(
         end
     end
 
-    if cache.longrange !== NullLongRangeCache() && longrange
+    if with_longrange
+        device = KA.get_backend(cache.longrange)
         @timeit to "Long-range component" begin
-            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
-            if callback_vorticity !== identity
-                @timeit to "Vorticity callback" callback_vorticity(cache.longrange)
+            @timeit to "Vorticity to Fourier" begin
+                compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
+                KA.synchronize(device)  # this is mostly to get accurate timings
             end
-            @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)
+            if callback_vorticity !== identity
+                @timeit to "Vorticity callback" begin
+                    callback_vorticity(cache.longrange)
+                    KA.synchronize(device)
+                end
+            end
+            @timeit to "Set interpolation points" begin
+                set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d
+                KA.synchronize(device)
+            end
             if ψs !== nothing
                 @timeit to "Streamfunction" begin
                     @timeit to "Convert to physical" begin
                         to_smoothed_streamfunction!(cache.longrange)
                         interpolate_to_physical!(cache.longrange)
                         add_long_range_output!(ψs, cache.longrange)
+                        KA.synchronize(device)
                     end
+                    # This is done on the CPU:
                     @timeit to "Self-interaction" remove_long_range_self_interaction!(
                         ψs, fs, Streamfunction(), params.common,
                     )
@@ -382,7 +425,9 @@ function compute_on_nodes!(
                         to_smoothed_velocity!(cache.longrange)
                         interpolate_to_physical!(cache.longrange)
                         add_long_range_output!(vs, cache.longrange)
+                        KA.synchronize(device)
                     end
+                    # This is done on the CPU:
                     @timeit to "Self-interaction" remove_long_range_self_interaction!(
                         vs, fs, Velocity(), params.common,
                     )

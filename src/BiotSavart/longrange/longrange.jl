@@ -11,16 +11,18 @@ struct LongRangeCacheCommon{
         WaveNumbers <: NTuple{3, AbstractVector},
         PointCharges <: PointData{T},
         FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
+        RealScalarField <: AbstractArray{T, 3},
         Timer <: TimerOutput,
     }
-    params      :: Params
-    wavenumbers :: WaveNumbers
-    pointdata   :: PointCharges        # non-uniform data in physical space
-    uhat        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
-    ewald_prefactor :: T               # prefactor Γ/V (also included in ewald_op)
-    ewald_op    :: Array{T, 3}         # Ewald operator in Fourier space ([Nx, Ny, Nz])
-    state       :: LongRangeCacheState
-    to          :: Timer
+    # NOTE: the _d suffix means that data is on the device (i.e. GPU for GPU-based backends)
+    params        :: Params
+    wavenumbers_d :: WaveNumbers
+    pointdata_d   :: PointCharges        # non-uniform data in physical space
+    uhat_d        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
+    ewald_prefactor :: T                 # prefactor Γ/V (also included in ewald_op_d)
+    ewald_op_d      :: RealScalarField    # real-valued Ewald operator in Fourier space ([Nx, Ny, Nz])
+    state           :: LongRangeCacheState
+    to              :: Timer
 end
 
 function LongRangeCacheCommon(
@@ -35,19 +37,30 @@ function LongRangeCacheCommon(
     @assert T === eltype(pcommon)
     @assert α !== Zero()
     Nks = map(length, wavenumbers)
-    uhat = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
+    uhat_d = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
     ewald_prefactor = Γ / prod(Ls)
-    ewald_op = init_ewald_fourier_operator(T, wavenumbers, α, ewald_prefactor)
+    device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
+    wavenumbers_d = adapt(device, wavenumbers)  # copy wavenumbers onto device if needed
+    pointdata_d = adapt(device, pointdata)      # create PointData replica on the device if needed
+    ewald_op_d = init_ewald_fourier_operator(T, backend, wavenumbers_d, α, ewald_prefactor)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, wavenumbers, pointdata, uhat, ewald_prefactor, ewald_op, state, timer)
+    LongRangeCacheCommon(params, wavenumbers_d, pointdata_d, uhat_d, ewald_prefactor, ewald_op_d, state, timer)
 end
 
+has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
+
 # Initialise Fourier vector field with the right memory layout.
-# This default implementation can be overriden by other backends
+# This default implementation can be overridden by other backends.
 # That's the case of FINUFFT, which needs a specific memory layout to perform simultaneous
 # NUFFTs of the 3 vector field components.
-function init_fourier_vector_field(::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
-    StructArray{Vec3{Complex{T}}}(undef, Nks)
+function init_fourier_vector_field(backend::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
+    device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
+    # Initialising arrays in parallel (using KA) may be good for performance;
+    # see https://juliagpu.github.io/KernelAbstractions.jl/dev/examples/numa_aware/.
+    components = ntuple(Val(3)) do _
+        KA.zeros(device, Complex{T}, Nks)
+    end
+    StructArray{Vec3{Complex{T}}}(components)
 end
 
 """
@@ -90,7 +103,7 @@ In principle, the grid resolution `Ns` can be different from the original one
 This can be useful for computing high-resolution fields in Fourier space (e.g. for extending
 the data to higher wavenumbers than allowed by the original cache).
 
-For convenience, point data already in `cache.common.pointdata` is copied to the new cache.
+For convenience, point data already in `cache.common.pointdata_d` is copied to the new cache.
 This means that, if one already filled the original cache using
 [`add_point_charges!`](@ref), then one can directly call [`transform_to_fourier!`](@ref)
 with the new cache to get the vorticity field in Fourier space at the wanted resolution `Ns`.
@@ -99,7 +112,7 @@ function Base.similar(cache::LongRangeCache, Ns::Dims{3})
     params_old = cache.common.params :: ParamsLongRange
     (; backend, quad, common,) = params_old
     params_new = ParamsLongRange(backend, quad, common, Ns, params_old.truncate_spherical)
-    pointdata = copy(cache.common.pointdata)
+    pointdata = copy(cache.common.pointdata_d)
     BiotSavart.init_cache_long(params_new, pointdata)
 end
 
@@ -113,6 +126,14 @@ This usually corresponds to a type-1 NUFFT.
 Non-uniform data must be first added via [`add_point_charges!`](@ref).
 """
 function transform_to_fourier! end
+
+@kernel function to_smoothed_streamfunction_kernel!(us::NTuple, @Const(ewald_op))
+    I = @index(Global, Linear)
+    for u ∈ us
+        @inbounds u[I] *= ewald_op[I]
+    end
+    nothing
+end
 
 @doc raw"""
     to_smoothed_streamfunction!(cache::LongRangeCache)
@@ -144,18 +165,48 @@ If one only needs the velocity and not the streamfunction, one can also directly
 [`to_smoothed_velocity!`](@ref).
 """
 function to_smoothed_streamfunction!(c::LongRangeCache)
-    (; uhat, state, ewald_op,) = c.common
-    @assert size(uhat) === size(ewald_op)
+    (; uhat_d, state, ewald_op_d,) = c.common
+    @assert size(uhat_d) === size(ewald_op_d)
     from_vorticity = state.quantity === :vorticity && !state.smoothed
     @assert from_vorticity
-    inds = eachindex(ewald_op, uhat)
+    inds = eachindex(ewald_op_d, uhat_d)
     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
-    Threads.@threads :static for i ∈ inds
-        @inbounds uhat[i] = ewald_op[i] * uhat[i]
-    end
+    ka_backend = KA.get_backend(c)
+    kernel = ka_generate_kernel(to_smoothed_streamfunction_kernel!, ka_backend, uhat_d)
+    uhat_comps = StructArrays.components(uhat_d)
+    kernel(uhat_comps, ewald_op_d)
     state.quantity = :streamfunction
     state.smoothed = true
-    uhat
+    uhat_d
+end
+
+# Applies Biot-Savart + Gaussian smoothing operators in Fourier space.
+@kernel function velocity_from_vorticity_kernel!(uhat::NTuple, @Const(ks), @Const(ewald_op))
+    I = @index(Global, Cartesian)
+    @inbounds op = ewald_op[I]
+    op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), ks, Tuple(I)))
+    u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
+    u⃗ = @inbounds im * u⃗
+    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
+    u⃗ = @noinline op_times_k⃗ × u⃗
+    for n ∈ eachindex(uhat)
+        @inbounds uhat[n][I] = u⃗[n]
+    end
+    nothing
+end
+
+# Applies curl operator in Fourier space.
+@kernel function velocity_from_streamfunction_kernel!(uhat::NTuple, @Const(ks))
+    I = @index(Global, Cartesian)
+    k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
+    u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
+    u⃗ = @inbounds im * u⃗
+    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
+    u⃗ = @noinline k⃗ × u⃗
+    for n ∈ eachindex(uhat)
+        @inbounds uhat[n][I] = u⃗[n]
+    end
+    nothing
 end
 
 @doc raw"""
@@ -179,25 +230,20 @@ In that case, the cache already contains the smoothed streamfunction, and only t
 operator (``i \bm{k} ×``) is applied by this function.
 """
 function to_smoothed_velocity!(c::LongRangeCache)
-    (; uhat, state, ewald_op, wavenumbers,) = c.common
-    @assert size(uhat) === size(ewald_op)
+    (; uhat_d, state, ewald_op_d, wavenumbers_d,) = c.common
+    @assert size(uhat_d) === size(ewald_op_d)
     from_vorticity = state.quantity === :vorticity && !state.smoothed
     from_streamfunction = state.quantity === :streamfunction && state.smoothed
     @assert from_vorticity || from_streamfunction
+    ka_backend = KA.get_backend(c)
+    uhat_comps = StructArrays.components(uhat_d)
     if from_vorticity
-        Threads.@threads :static for I ∈ CartesianIndices(ewald_op)
-            @inbounds begin
-                op = ewald_op[I]
-                op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), wavenumbers, Tuple(I)))
-                uhat[I] = op_times_k⃗ × (im * uhat[I])
-            end
+        let kernel = ka_generate_kernel(velocity_from_vorticity_kernel!, ka_backend, uhat_d)
+            kernel(uhat_comps, wavenumbers_d, ewald_op_d)
         end
     elseif from_streamfunction
-        Threads.@threads :static for I ∈ CartesianIndices(ewald_op)
-            @inbounds begin
-                k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), wavenumbers, Tuple(I)))
-                uhat[I] = k⃗ × (im * uhat[I])
-            end
+        let kernel = ka_generate_kernel(velocity_from_streamfunction_kernel!, ka_backend, uhat_d)
+            kernel(uhat_comps, wavenumbers_d)
         end
     end
     state.quantity = :velocity
@@ -208,31 +254,39 @@ end
 """
     interpolate_to_physical!(cache::LongRangeCache)
 
-Perform type-2 NUFFT to interpolate values in `cache.uhat` to non-uniform
+Perform type-2 NUFFT to interpolate values in `cache.common.uhat_d` to non-uniform
 points in physical space.
 
 Results are written to `cache.pointdata.charges`.
 """
 function interpolate_to_physical! end
 
-function init_ewald_fourier_operator!(
-        u::AbstractArray{T, 3} where {T}, ks, α::Real, prefactor::Real,
+@kernel function init_ewald_fourier_operator_kernel!(
+        u::AbstractArray{T, 3} where {T},
+        @Const(ks),
+        @Const(β::Real),  # = -1/(4α²)
+        @Const(prefactor::Real),
     )
-    β = -1 / (4 * α^2)
-    for I ∈ CartesianIndices(u)
-        k⃗ = map(getindex, ks, Tuple(I))
-        k² = sum(abs2, k⃗)
-        # Operator converting vorticity to coarse-grained streamfunction
-        y = prefactor * exp(β * k²) / k²
-        u[I] = ifelse(iszero(k²), zero(y), y)
-    end
-    u
+    I = @index(Global, Cartesian)
+    k⃗ = map(getindex, ks, Tuple(I))
+    k² = sum(abs2, k⃗)
+    # Operator converting vorticity to coarse-grained streamfunction
+    y = prefactor * exp(β * k²) / k²
+    @inbounds u[I] = ifelse(iszero(k²), zero(y), y)
+    nothing
 end
 
-function init_ewald_fourier_operator(::Type{T}, ks, args...) where {T <: Real}
+function init_ewald_fourier_operator(
+        ::Type{T}, backend::LongRangeBackend, ks, α::Real, prefactor::Real,
+    ) where {T <: Real}
+    ka_backend = KA.get_backend(backend)
     dims = map(length, ks)
-    u = Array{T}(undef, dims)
-    init_ewald_fourier_operator!(u, ks, args...)
+    u = KA.zeros(ka_backend, T, dims)
+    @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device
+    β = -1 / (4 * α^2)
+    kernel = ka_generate_kernel(init_ewald_fourier_operator_kernel!, ka_backend, u)
+    kernel(u, ks, β, prefactor)
+    u
 end
 
 function rescale_coordinates!(c::LongRangeCache)
@@ -245,7 +299,7 @@ _rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing
 
 function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
     (; Ls,) = c.common.params.common
-    (; points,) = c.common.pointdata
+    (; points,) = c.common.pointdata_d
     for (xs, L) ∈ zip(StructArrays.components(points), Ls)
         _rescale_coordinates!(xs, L, L_expected)
     end
@@ -269,12 +323,20 @@ end
 # Backend doesn't define `folding_limits`, so no rescaling is needed.
 _fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
 
-function _fold_coordinates!(c::LongRangeCache, lims::NTuple{2}, L::Real)
-    for xs ∈ StructArrays.components(c.common.pointdata.points)
-        @inbounds for (i, x) ∈ pairs(xs)
-            xs[i] = _fold_coordinate(x, lims, L)
-        end
+@kernel function fold_coordinates_kernel!(points::NTuple, @Const(lims), @Const(L))
+    i = @index(Global, Linear)
+    for x ∈ points
+        @inbounds x[i] = _fold_coordinate(x[i], lims, L)
     end
+    nothing
+end
+
+function _fold_coordinates!(c::LongRangeCache, lims::NTuple{2}, L::Real)
+    (; points,) = c.common.pointdata_d
+    points_comp = StructArrays.components(points)
+    ka_backend = KA.get_backend(c)
+    kernel = ka_generate_kernel(fold_coordinates_kernel!, ka_backend, points)
+    kernel(points_comp, lims, L)
     nothing
 end
 
@@ -299,7 +361,7 @@ non_uniform_type(::Type{T}, ::LongRangeBackend) where {T <: AbstractFloat} = T
 
 Estimate vorticity in Fourier space.
 
-The vorticity, written to `cache.common.uhat`, is estimated using some variant of
+The vorticity, written to `cache.common.uhat_d`, is estimated using some variant of
 non-uniform Fourier transforms (depending on the chosen backend).
 
 Note that this function doesn't perform smoothing over the vorticity using the Ewald operator.
@@ -314,29 +376,39 @@ After calling this function, one may want to use [`to_smoothed_streamfunction!`]
 [`to_smoothed_velocity!`](@ref) to obtain the respective fields.
 """
 function compute_vorticity_fourier!(cache::LongRangeCache)
-    (; uhat, state,) = cache.common
+    (; uhat_d, state,) = cache.common
     rescale_coordinates!(cache)  # may be needed by the backend (e.g. FINUFFT requires period L = 2π)
     fold_coordinates!(cache)     # may be needed by the backend (e.g. FINUFFT requires x ∈ [-3π, 3π])
     transform_to_fourier!(cache)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
     state.quantity = :vorticity
     state.smoothed = false
-    uhat
+    uhat_d
+end
+
+@kernel function truncate_spherical_kernel!(uhat::NTuple, @Const(ks), @Const(kmax²))
+    I = @index(Global, Cartesian)
+    T = eltype(uhat[1])
+    k⃗ = map((v, i) -> @inbounds(v[i]), ks, Tuple(I))
+    k² = sum(abs2, k⃗)
+    truncate = k² > kmax²
+    for u ∈ uhat
+        @inbounds u[I] = ifelse(truncate, zero(T), u[I])
+    end
+    nothing
 end
 
 function truncate_spherical!(cache)
-    (; uhat, params, wavenumbers,) = cache.common
+    (; uhat_d, params, wavenumbers_d,) = cache.common
     if !params.truncate_spherical
         return  # don't apply spherical truncation
     end
     kmax = maximum_wavenumber(params)
     kmax² = kmax^2
-    T = eltype(uhat)
-    Threads.@threads :static for I ∈ CartesianIndices(uhat)
-        k⃗ = map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I))
-        k² = sum(abs2, k⃗)
-        @inbounds uhat[I] = ifelse(k² > kmax², zero(T), uhat[I])
-    end
+    ka_backend = KA.get_backend(cache)
+    uhat_comps = StructArrays.components(uhat_d)
+    kernel = ka_generate_kernel(truncate_spherical_kernel!, ka_backend, uhat_d)
+    kernel(uhat_comps, wavenumbers_d, kmax²)
     nothing
 end
 
@@ -344,29 +416,81 @@ function set_interpolation_points!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
     )
-    (; pointdata,) = cache.common
+    # Note that we only modify the `points` field of PointData. The other ones are not
+    # needed for interpolation.
+    (; points, charges,) = cache.common.pointdata_d
+    points::StructVector{<:Vec3}
     Npoints = sum(length, fs)
-    set_num_points!(pointdata, Npoints)
-    n = 0
-    for f ∈ fs, X ∈ f
-        add_point!(pointdata, X, n += 1)
-    end
-    @assert n == Npoints
+    resize!(points, Npoints)
+    resize!(charges, Npoints)  # this is the interpolation output
+    ka_backend = KA.get_backend(cache)
+    points_c = StructArrays.components(points)  # (xs, ys, zs)
+    _set_interpolation_points!(ka_backend, points_c, fs)
     rescale_coordinates!(cache)
     fold_coordinates!(cache)
     nothing
 end
 
+# CPU implementation: directly write filament nodes to `points` vectors.
+function _set_interpolation_points!(::KA.CPU, points::NTuple, fs)
+    Npoints = length(points[1])
+    n = 0
+    for f ∈ fs, X ∈ f
+        n += 1
+        for i ∈ eachindex(X)
+            @inbounds points[i][n] = X[i]
+        end
+    end
+    @assert n == Npoints
+    points
+end
+
+# Generic GPU implementation: first write filament nodes to array on the CPU, then make H2D
+# copy.
+function _set_interpolation_points!(device::KA.GPU, points::NTuple{N}, fs) where {N}
+    buf = Bumper.default_buffer()
+    @no_escape buf begin
+        Xs = map(x -> @alloc(eltype(x), length(x)), points)
+        _set_interpolation_points!(KA.CPU(), Xs, fs)  # calls CPU implementation
+        for i ∈ eachindex(points, Xs)
+            KA.copyto!(device, points[i], Xs[i])  # host-to-device copy
+        end
+    end
+    points
+end
+
 function add_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
     )
-    (; charges,) = cache.common.pointdata
+    (; charges,) = cache.common.pointdata_d
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
+    ka_backend = KA.get_backend(cache)
+    _add_long_range_output!(ka_backend, vs, charges)
+    vs
+end
+
+function _add_long_range_output!(::KA.CPU, vs, charges::StructVector)
     n = 0
-    @inbounds for v ∈ vs, i ∈ eachindex(v)
+    @inbounds for v ∈ vs, j ∈ eachindex(v)
         q = charges[n += 1]
-        v[i] = v[i] + real(q)
+        v[j] = v[j] + real(q)
+    end
+    vs
+end
+
+# Generic GPU implementation: first copy charges from the GPU onto an intermediate CPU
+# array, then fill `vs`.
+function _add_long_range_output!(device::KA.GPU, vs, charges::StructVector{V}) where {V}
+    buf = Bumper.default_buffer()
+    @no_escape buf begin
+        qs = StructArrays.components(charges)  # (qx, qy, qz)
+        vtmp = map(q -> @alloc(eltype(q), length(q)), qs)  # temporary CPU arrays
+        for i ∈ eachindex(vtmp, qs)
+            KA.copyto!(device, vtmp[i], qs[i])  # device-to-host copy
+        end
+        vtmp_struct = StructVector{V}(vtmp)  # vtmp as a StructVector
+        _add_long_range_output!(KA.CPU(), vs, vtmp_struct)
     end
     vs
 end
@@ -400,6 +524,7 @@ end
 
 _ensure_hermitian_symmetry!(wavenumbers, ::Val{0}, us) = us  # we're done, do nothing
 
+include("ka_utils.jl")
 include("exact_sum.jl")
 include("finufft.jl")
 include("nonuniformffts.jl")

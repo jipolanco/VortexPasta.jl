@@ -14,6 +14,7 @@ using Rotations
 using UnicodePlots: lineplot
 using LinearAlgebra: norm, I, ⋅
 using JET: JET
+using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using FINUFFT: FINUFFT  # for JET only
 
 # This is just to fake the `info` argument of `reconnect_with_itself!` and
@@ -77,7 +78,8 @@ trefoil_scheme_dt(::KenCarp3) = 0.5
 trefoil_scheme_dt(::Midpoint) = 0.3
 
 function test_trefoil_knot_reconnection(scheme = RK4())
-    test_jet = true
+    disable_jet = get(ENV, "JULIA_DISABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
+    test_jet = !disable_jet
     S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
     N = 64
     f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
@@ -179,7 +181,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
 
     if test_jet
         JET.@test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
-        JET.@test_opt ignored_modules=(Base, FINUFFT) step!(iter)
+        JET.@test_opt ignored_modules=(Base, FINUFFT, KA, Base.IteratorsMD) step!(iter)
     end
 
     nothing
