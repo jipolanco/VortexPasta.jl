@@ -32,7 +32,9 @@ using ..Filaments:
 
 using Adapt: Adapt, adapt
 
-using KernelAbstractions: KernelAbstractions as KA, @kernel, @index, @Const
+using KernelAbstractions:
+    KernelAbstractions,  # importing this avoids docs failure
+    KernelAbstractions as KA, @kernel, @index, @Const
 
 using Bumper: Bumper, @no_escape, @alloc
 using ChunkSplitters: ChunkSplitters
