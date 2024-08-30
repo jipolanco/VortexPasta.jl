@@ -192,6 +192,14 @@ function init_cache_long_ewald(
     @assert Ns == Nks
     plan_type1 = _make_finufft_plan_type1(backend, n_modes, T)
     plan_type2 = _make_finufft_plan_type2(backend, n_modes, T)
+
+    # Make sure that the (cu)finufft_destroy! function is called when the GC frees the
+    # plans, so that the memory allocated by the library (in C++) is actually freed.
+    # FINUFFT.jl doesn't do this for us...
+    destroy! = _finufft_destroy_func!(backend)
+    finalizer(destroy!, plan_type1)
+    finalizer(destroy!, plan_type2)
+
     ka_backend = KA.get_backend(backend)
     charge_data = KA.allocate(ka_backend, Complex{T}, 0)  # allocate empty vector
     FINUFFTCache(cache_common, plan_type1, plan_type2, charge_data)
@@ -207,6 +215,7 @@ _finufft_options() = (;
 _finufft_plan_func(::FINUFFTBackend) = finufft_makeplan
 _finufft_setpts_func!(::FINUFFTBackend) = finufft_setpts!
 _finufft_exec_func!(::FINUFFTBackend) = finufft_exec!
+_finufft_destroy_func!(::FINUFFTBackend) = finufft_destroy!
 
 function _make_finufft_plan_type1(p::AbstractFINUFFTBackend, n_modes::Vector{Int64}, ::Type{T}) where {T}
     opts = _finufft_options()

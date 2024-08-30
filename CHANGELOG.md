@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fix memory "leak" of FINUFFT backends.
+  One must explicitly call the `(cu)finufft_destroy!` functions to free the
+  memory associated to a plan (FINUFFT.jl could do this for us...).
+
 ## [0.24.0] - 2024-08-30
 
 ### Added

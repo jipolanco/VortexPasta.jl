@@ -80,6 +80,7 @@ end
 BS._finufft_plan_func(::CuFINUFFTBackend) = cufinufft_makeplan
 BS._finufft_setpts_func!(::CuFINUFFTBackend) = cufinufft_setpts!
 BS._finufft_exec_func!(::CuFINUFFTBackend) = cufinufft_exec!
+BS._finufft_destroy_func!(::CuFINUFFTBackend) = cufinufft_destroy!
 
 # This works correctly on a variable-size CuVector, unlike the case of CPU Vectors.
 # So there's nothing unsafe here!
