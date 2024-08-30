@@ -61,8 +61,6 @@ Set the total number of non-uniform points that the cache must hold.
 
 This will reallocate space to make all points fit in the cache. It will also reset the
 contributions of previously-added charges.
-
-Must be called before [`add_point!`](@ref).
 """
 function set_num_points!(data::PointData, N)
     resize!(data.points, N)

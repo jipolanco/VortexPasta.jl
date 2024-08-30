@@ -99,7 +99,7 @@ similar(::LongRangeCache, ::Dims{3})
 used to write generic code which works on CPUs and different kinds of GPUs.
 
 ```@docs
-BiotSavart.ka_generate_kernel
+ka_generate_kernel
 KA.get_backend
 ```
 
