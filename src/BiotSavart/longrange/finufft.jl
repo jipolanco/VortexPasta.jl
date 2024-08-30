@@ -74,6 +74,9 @@ struct FINUFFTBackend{KwArgs <: NamedTuple} <: AbstractFINUFFTBackend
     end
 end
 
+# This is used for TimerOutputs labels
+finufft_name(::FINUFFTBackend) = "FINUFFT"
+
 # NOTE: CUDA-specific parts of the implementation are in ext/VortexPastaCuFINUFFTExt.jl
 """
     CuFINUFFTBackend <: LongRangeBackend
@@ -263,9 +266,10 @@ end
 
 function transform_to_fourier!(c::FINUFFTCache)
     (; plan_type1, charge_data,) = c
-    (; pointdata_d, uhat_d,) = c.common
+    (; pointdata_d, uhat_d, to,) = c.common
     (; points, charges,) = pointdata_d
     backend_lr = backend(c)
+    device = KA.get_backend(c)
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points_data = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     Np = length(charges)
@@ -274,14 +278,23 @@ function transform_to_fourier!(c::FINUFFTCache)
     uhat_data = adapt_fourier_vector_field(backend_lr, uhat_d)
     T = eltype(uhat_data)
     @assert T <: Complex
-    _finufft_setpts_func!(backend_lr)(plan_type1, points_data...)
+    name_to = finufft_name(backend_lr)
+    KA.synchronize(device)
+    @timeit to "$name_to setpts" begin
+        _finufft_setpts_func!(backend_lr)(plan_type1, points_data...)
+        KA.synchronize(device)
+    end
     resize!(charge_data, 3 * Np)
     # Note: FINUFFT (CPU version) requires A to be an Array. This means that we can't use Bumper
     # allocators here, as they return some other type of AbstractArray.
     GC.@preserve charge_data begin  # @preserve is only useful on the CPU
         A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
         _finufft_copy_charges_to_matrix!(A, charges)
-        _finufft_exec_func!(backend_lr)(plan_type1, A, uhat_data)  # execute NUFFT on all components at once
+        KA.synchronize(device)
+        @timeit to "$name_to exec" begin
+            _finufft_exec_func!(backend_lr)(plan_type1, A, uhat_data)  # execute NUFFT on all components at once
+            KA.synchronize(device)
+        end
     end
     _ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
     c
@@ -289,9 +302,10 @@ end
 
 function interpolate_to_physical!(c::FINUFFTCache)
     (; plan_type2, charge_data,) = c
-    (; pointdata_d, uhat_d,) = c.common
+    (; pointdata_d, uhat_d, to,) = c.common
     (; points, charges,) = pointdata_d
     backend_lr = backend(c)
+    device = KA.get_backend(c)
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points_data = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     Np = length(charges)
@@ -299,11 +313,20 @@ function interpolate_to_physical!(c::FINUFFTCache)
     uhat_data = adapt_fourier_vector_field(backend_lr, uhat_d)
     T = eltype(uhat_data)
     @assert T <: Complex
-    _finufft_setpts_func!(backend_lr)(plan_type2, points_data...)
+    name_to = finufft_name(backend_lr)
+    KA.synchronize(device)
+    @timeit to "$name_to setpts" begin
+        _finufft_setpts_func!(backend_lr)(plan_type2, points_data...)
+        KA.synchronize(device)
+    end
     resize!(charge_data, 3 * Np)
     GC.@preserve charge_data begin
         A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
-        _finufft_exec_func!(backend_lr)(plan_type2, uhat_data, A)  # result is computed onto A
+        KA.synchronize(device)
+        @timeit to "$name_to exec" begin
+            _finufft_exec_func!(backend_lr)(plan_type2, uhat_data, A)  # result is computed onto A
+            KA.synchronize(device)
+        end
         _finufft_copy_charges_from_matrix!(charges, A)
     end
     c

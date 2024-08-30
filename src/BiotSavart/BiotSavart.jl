@@ -370,7 +370,10 @@ function compute_on_nodes!(
         (; pointdata_d,) = cache.longrange.common  # pointdata on the device (in case of GPU backend)
         if pointdata !== pointdata_d  # this usually means pointdata_d is on a different device (GPU)
             @assert typeof(pointdata) != typeof(pointdata_d)
-            copy!(pointdata_d, pointdata)  # H2D copy
+            @timeit to "Pointdata host → device" begin
+                copy!(pointdata_d, pointdata)  # H2D copy
+                KA.synchronize(KA.get_backend(cache.longrange))
+            end
         end
     end
 
@@ -383,19 +386,31 @@ function compute_on_nodes!(
     end
 
     if with_longrange
+        device = KA.get_backend(cache.longrange)
         @timeit to "Long-range component" begin
-            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
-            if callback_vorticity !== identity
-                @timeit to "Vorticity callback" callback_vorticity(cache.longrange)
+            @timeit to "Vorticity to Fourier" begin
+                compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
+                KA.synchronize(device)  # this is mostly to get accurate timings
             end
-            @timeit to "Set interpolation points" set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d
+            if callback_vorticity !== identity
+                @timeit to "Vorticity callback" begin
+                    callback_vorticity(cache.longrange)
+                    KA.synchronize(device)
+                end
+            end
+            @timeit to "Set interpolation points" begin
+                set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d
+                KA.synchronize(device)
+            end
             if ψs !== nothing
                 @timeit to "Streamfunction" begin
                     @timeit to "Convert to physical" begin
                         to_smoothed_streamfunction!(cache.longrange)
                         interpolate_to_physical!(cache.longrange)
                         add_long_range_output!(ψs, cache.longrange)
+                        KA.synchronize(device)
                     end
+                    # This is done on the CPU:
                     @timeit to "Self-interaction" remove_long_range_self_interaction!(
                         ψs, fs, Streamfunction(), params.common,
                     )
@@ -408,7 +423,9 @@ function compute_on_nodes!(
                         to_smoothed_velocity!(cache.longrange)
                         interpolate_to_physical!(cache.longrange)
                         add_long_range_output!(vs, cache.longrange)
+                        KA.synchronize(device)
                     end
+                    # This is done on the CPU:
                     @timeit to "Self-interaction" remove_long_range_self_interaction!(
                         vs, fs, Velocity(), params.common,
                     )

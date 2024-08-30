@@ -37,10 +37,15 @@ function BS.CuFINUFFTBackend(;
         upsampfac = Float64(upsampfac),
         gpu_device_id = CUDA.deviceid(gpu_device),  # extract actual device id (0, 1, ...)
         gpu_stream = gpu_stream_ptr,
+        gpu_method = 1,  # method 1 ("GM") seems to be much faster than method 2 ("SM")! (at least with Float64 data)
+        gpu_sort = 1,
+        gpu_kerevalmeth = 1,
         other...,
     )
     BS._CuFINUFFTBackend(tol, gpu_device, gpu_stream, kws)  # call "private" constructor
 end
+
+BS.finufft_name(::CuFINUFFTBackend) = "cuFINUFFT"
 
 # This longer `show` variant is used when directly printing the backend e.g. in the REPL or
 # using @show.
