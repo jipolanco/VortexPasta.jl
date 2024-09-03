@@ -300,7 +300,7 @@ function transform_to_fourier!(c::FINUFFTCache)
     KA.synchronize(device)  # make sure point data has been fully written on the GPU
     @timeit to_d "$name_to setpts" begin
         _finufft_setpts_func!(backend_lr)(plan_type1, points_data...)
-        _finufft_sync(device)  # similar to KA.synchronize, but applies to the CUDA stream attached to cuFINUFFT (irrelevant for CPU case)
+        _finufft_sync(backend_lr)  # similar to KA.synchronize, but applies to the CUDA stream attached to cuFINUFFT (irrelevant for CPU case)
     end
     resize!(charge_data, 3 * Np)
     # Note: FINUFFT (CPU version) requires A to be an Array. This means that we can't use Bumper
@@ -308,10 +308,10 @@ function transform_to_fourier!(c::FINUFFTCache)
     GC.@preserve charge_data begin  # @preserve is only useful on the CPU
         A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
         _finufft_copy_charges_to_matrix!(A, charges)
-        _finufft_sync(device)
+        _finufft_sync(backend_lr)
         @timeit to_d "$name_to exec" begin
             _finufft_exec_func!(backend_lr)(plan_type1, A, uhat_data)  # execute NUFFT on all components at once
-            _finufft_sync(device)
+            _finufft_sync(backend_lr)
         end
     end
     _ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
@@ -335,15 +335,15 @@ function interpolate_to_physical!(c::FINUFFTCache)
     KA.synchronize(device)
     @timeit to_d "$name_to setpts" begin
         _finufft_setpts_func!(backend_lr)(plan_type2, points_data...)
-        _finufft_sync(device)
+        _finufft_sync(backend_lr)
     end
     resize!(charge_data, 3 * Np)
     GC.@preserve charge_data begin
         A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
-        _finufft_sync(device)
+        _finufft_sync(backend_lr)
         @timeit to_d "$name_to exec" begin
             _finufft_exec_func!(backend_lr)(plan_type2, uhat_data, A)  # result is computed onto A
-            _finufft_sync(device)
+            _finufft_sync(backend_lr)
         end
         _finufft_copy_charges_from_matrix!(charges, A)
     end

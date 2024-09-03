@@ -113,7 +113,7 @@ function velocity_on_nodes!(
 end
 
 # Extracts and resets output fields (velocity and/or streamfunction).
-function _setup_fields!(fields::NamedTuple, fs)
+function _setup_fields!(fields::NamedTuple{Names}, fs) where {Names}
     N = length(fields)
     @assert N > 0
     vs = get(fields, :velocity, nothing)
@@ -344,104 +344,13 @@ function compute_on_nodes!(
         cache::BiotSavartCache,
         fs::VectorOfFilaments;
         LIA = Val(true),
-        longrange = true,
-        shortrange = true,
-        callback_vorticity::Fvort = identity,
-    ) where {
-        Names, N, V <: AbstractVector{<:VectorOfVec},
-        Fvort <: Function,
-    }
+        kws...,
+    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
     if LIA === Val(:only)
         return _compute_LIA_on_nodes!(fields, cache, fs)
     end
-
-    (; to, params, pointdata,) = cache
-    (; quad,) = params
-    (; vs, ψs,) = _setup_fields!(fields, fs)
-
-    # Device used for long-range part (CPU or GPU)
-    device_lr = KA.get_backend(cache.longrange)
+    device_lr = KA.get_backend(cache.longrange)  # device used for long-range part (CPU or GPU)
     _compute_on_nodes!(device_lr, fields, cache, fs; kws...)
-
-    # TODO: GPU
-    # - run short-range (CPU) and long-range (GPU) parts asynchronously
-
-    with_shortrange = shortrange
-    with_longrange = longrange && cache.longrange !== NullLongRangeCache()
-
-    # This is used by both short-range and long-range computations.
-    # Note that we need to compute the short-range first, because the long-range
-    # computations then modify `pointdata`.
-    @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)  # on the CPU
-
-    if with_longrange
-        (; pointdata_d,) = cache.longrange.common  # pointdata on the device (in case of GPU backend)
-        if pointdata !== pointdata_d  # this usually means pointdata_d is on a different device (GPU)
-            @assert typeof(pointdata) != typeof(pointdata_d)
-            @timeit to "Pointdata host → device" begin
-                copy!(pointdata_d, pointdata)  # H2D copy
-                KA.synchronize(device_lr)
-            end
-        end
-    end
-
-    if with_shortrange
-        @timeit to "Short-range component" begin
-            @timeit to "Process point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
-            @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
-            @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
-        end
-    end
-
-    if with_longrange
-        device = KA.get_backend(cache.longrange)
-        @timeit to "Long-range component" begin
-            @timeit to "Vorticity to Fourier" begin
-                compute_vorticity_fourier!(cache.longrange)  # uses `pointdata`
-                KA.synchronize(device)  # this is mostly to get accurate timings
-            end
-            if callback_vorticity !== identity
-                @timeit to "Vorticity callback" begin
-                    callback_vorticity(cache.longrange)
-                    KA.synchronize(device)
-                end
-            end
-            @timeit to "Set interpolation points" begin
-                set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d
-                KA.synchronize(device)
-            end
-            if ψs !== nothing
-                @timeit to "Streamfunction" begin
-                    @timeit to "Convert to physical" begin
-                        to_smoothed_streamfunction!(cache.longrange)
-                        interpolate_to_physical!(cache.longrange)
-                        add_long_range_output!(ψs, cache.longrange)
-                        KA.synchronize(device)
-                    end
-                    # This is done on the CPU:
-                    @timeit to "Self-interaction" remove_long_range_self_interaction!(
-                        ψs, fs, Streamfunction(), params.common,
-                    )
-                end
-            end
-            if vs !== nothing
-                # Velocity must be computed after streamfunction if both are enabled.
-                @timeit to "Velocity" begin
-                    @timeit to "Convert to physical" begin
-                        to_smoothed_velocity!(cache.longrange)
-                        interpolate_to_physical!(cache.longrange)
-                        add_long_range_output!(vs, cache.longrange)
-                        KA.synchronize(device)
-                    end
-                    # This is done on the CPU:
-                    @timeit to "Self-interaction" remove_long_range_self_interaction!(
-                        vs, fs, Velocity(), params.common,
-                    )
-                end
-            end
-        end
-    end
-
     fields
 end
 
@@ -528,7 +437,7 @@ function _compute_on_nodes!(
         callback_vorticity::Fvort = identity,
     ) where {Fvort}
     (; to, params, pointdata,) = cache
-    (; pointdata_d,) = cache.longrange.common  # pointdata on the device (GPU)
+    (; pointdata_d, to_d,) = cache.longrange.common  # pointdata on the device (GPU)
     (; quad,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
 
@@ -551,28 +460,38 @@ function _compute_on_nodes!(
         end
 
         # TODO:
-        # - try @spawn or @async?
         # - add timings (using to_d)
-        StableTasks.@spawnat begin
-            compute_vorticity_fourier!(cache.longrange)  # reads pointdata_d (points and charges)
-            if callback_vorticity !== identity
-                callback_vorticity(cache.longrange)
+
+        StableTasks.@spawn begin
+            @timeit to_d "Vorticity to Fourier" begin
+                compute_vorticity_fourier!(cache.longrange)  # reads pointdata_d (points and charges)
             end
-            set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d (points)
+            if callback_vorticity !== identity
+                @timeit to_d "Vorticity callback" begin
+                    callback_vorticity(cache.longrange)
+                end
+            end
+            @timeit to_d "Set interpolation points" begin
+                set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d (points)
+            end
             # Interpolate streamfunction or velocity, but not both yet.
             # If both are needed, the streamfunction will be computed here, and the velocity
             # will be left for later.
             if ψs !== nothing
-                to_smoothed_field!(Streamfunction(), cache.longrange)
+                @timeit to_d "Smoothed velocity (Fourier)" begin
+                    to_smoothed_field!(Streamfunction(), cache.longrange)
+                end
             elseif vs !== nothing
-                to_smoothed_field!(Velocity(), cache.longrange)
+                @timeit to_d "Smoothed velocity (Fourier)" begin
+                    to_smoothed_field!(Velocity(), cache.longrange)
+                end
             end
-            interpolate_to_physical!(cache.longrange)  # overwrites pointdata_d (charges)
-            KA.synchronize(device_lr)  # wait for the GPU to finish its work
+            @timeit to_d "Interpolate to physical" interpolate_to_physical!(cache.longrange)  # overwrites pointdata_d (charges)
+            @timeit to_d "Synchronise GPU" KA.synchronize(device_lr)  # wait for the GPU to finish its work
             nothing
-        end 1  # the `1` means that the task is attributed to thread 1 (whose only job is to submit tasks to the GPU)
+        end
     else
-        StableTasks.@spawnat nothing 1  # empty task (returns `nothing`)
+        StableTasks.@spawn nothing  # empty task (returns `nothing`)
     end
 
     # While the first long-range task is running, compute short-range part.
@@ -584,35 +503,36 @@ function _compute_on_nodes!(
         end
     end
 
-    if with_longrange
+    with_longrange || return nothing
+
+    @timeit to "Long-range component" begin
         # This is done fully on the CPU.
         if ψs !== nothing
-            remove_long_range_self_interaction!(ψs, fs, Streamfunction(), params.common)
+            @timeit to "Remove self-interaction (ψ)" remove_long_range_self_interaction!(ψs, fs, Streamfunction(), params.common)
         end
         if vs !== nothing
-            remove_long_range_self_interaction!(vs, fs, Velocity(), params.common)
+            @timeit to "Remove self-interaction (v)" remove_long_range_self_interaction!(vs, fs, Velocity(), params.common)
         end
-    else
-        return nothing  # nothing else to do
-    end
 
-    # Now wait for long-range task to finish (GPU).
-    @timeit to "Long-range component (wait)" wait(task_lr)
+        # Now wait for long-range task to finish (GPU).
+        @timeit to "Wait for GPU operations" wait(task_lr)
 
-    # Add results from long-range part.
-    # TODO: add timers (to_d)
-    if ψs !== nothing
-        add_long_range_output!(ψs, cache.longrange)  # involves device-to-host copies
-    elseif vs !== nothing
-        add_long_range_output!(vs, cache.longrange)  # involves device-to-host copies
-    end
+        # Add results from long-range part.
+        if ψs !== nothing
+            @timeit to "Copy output: device → host" add_long_range_output!(ψs, cache.longrange)  # involves device-to-host copies
+        elseif vs !== nothing
+            @timeit to "Copy output: device → host" add_long_range_output!(vs, cache.longrange)  # involves device-to-host copies
+        end
 
-    # If both fields were needed, we now need to compute the velocity on the GPU.
-    # In principle this could be done asynchronously, but not sure it's worth it.
-    if ψs !== nothing && vs !== nothing
-        to_smoothed_field!(Velocity(), cache.longrange)
-        interpolate_to_physical!(cache.longrange)  # overwrites pointdata_d (charges)
-        add_long_range_output!(vs, cache.longrange)  # involves device-to-host copies
+        # If both fields were needed, we now need to compute the velocity on the GPU.
+        # TODO: can we do this asynchronously?
+        if ψs !== nothing && vs !== nothing
+            @timeit to "Compute second field" begin
+                to_smoothed_field!(Velocity(), cache.longrange)
+                interpolate_to_physical!(cache.longrange)  # overwrites pointdata_d (charges)
+                add_long_range_output!(vs, cache.longrange)  # involves device-to-host copies
+            end
+        end
     end
 
     nothing
