@@ -216,6 +216,7 @@ _finufft_plan_func(::FINUFFTBackend) = FINUFFT.finufft_makeplan
 _finufft_setpts_func!(::FINUFFTBackend) = FINUFFT.finufft_setpts!
 _finufft_exec_func!(::FINUFFTBackend) = FINUFFT.finufft_exec!
 _finufft_destroy_func!(::FINUFFTBackend) = FINUFFT.finufft_destroy!
+_finufft_sync(::FINUFFTBackend) = nothing
 
 function _make_finufft_plan_type1(p::AbstractFINUFFTBackend, n_modes::Vector{Int64}, ::Type{T}) where {T}
     opts = _finufft_options()
@@ -273,9 +274,17 @@ function unsafe_reshape_vector_to_matrix(v::Vector, N, ::Val{M}) where {M}
     unsafe_wrap(Array, p, dims; own = false)
 end
 
+# Note on synchronisation in the GPU version: on the Julia side, CUDA code runs on the
+# stream assigned by CUDA.jl to the currently running Julia task. In particular, if GPU code
+# is running asynchronously (e.g. on a @spawn or @async block), it means that it's not
+# running on the default Julia task, and therefore it's not running on the same CUDA stream
+# as cuFINUFFT code. In other words, we have two different CUDA streams which need to be
+# syncronised. Note that KA.synchronize synchronises the current stream from the Julia side,
+# while _finufft_sync does the same from the cuFINUFFT side. And we really want the Julia
+# stream to be done before calling cuFINUFFT functions.
 function transform_to_fourier!(c::FINUFFTCache)
     (; plan_type1, charge_data,) = c
-    (; pointdata_d, uhat_d, to,) = c.common
+    (; pointdata_d, uhat_d, to_d,) = c.common
     (; points, charges,) = pointdata_d
     backend_lr = backend(c)
     device = KA.get_backend(c)
@@ -288,10 +297,10 @@ function transform_to_fourier!(c::FINUFFTCache)
     T = eltype(uhat_data)
     @assert T <: Complex
     name_to = finufft_name(backend_lr)
-    KA.synchronize(device)
-    @timeit to "$name_to setpts" begin
+    KA.synchronize(device)  # make sure point data has been fully written on the GPU
+    @timeit to_d "$name_to setpts" begin
         _finufft_setpts_func!(backend_lr)(plan_type1, points_data...)
-        KA.synchronize(device)
+        _finufft_sync(device)  # similar to KA.synchronize, but applies to the CUDA stream attached to cuFINUFFT (irrelevant for CPU case)
     end
     resize!(charge_data, 3 * Np)
     # Note: FINUFFT (CPU version) requires A to be an Array. This means that we can't use Bumper
@@ -299,10 +308,10 @@ function transform_to_fourier!(c::FINUFFTCache)
     GC.@preserve charge_data begin  # @preserve is only useful on the CPU
         A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
         _finufft_copy_charges_to_matrix!(A, charges)
-        KA.synchronize(device)
-        @timeit to "$name_to exec" begin
+        _finufft_sync(device)
+        @timeit to_d "$name_to exec" begin
             _finufft_exec_func!(backend_lr)(plan_type1, A, uhat_data)  # execute NUFFT on all components at once
-            KA.synchronize(device)
+            _finufft_sync(device)
         end
     end
     _ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
@@ -311,7 +320,7 @@ end
 
 function interpolate_to_physical!(c::FINUFFTCache)
     (; plan_type2, charge_data,) = c
-    (; pointdata_d, uhat_d, to,) = c.common
+    (; pointdata_d, uhat_d, to_d,) = c.common
     (; points, charges,) = pointdata_d
     backend_lr = backend(c)
     device = KA.get_backend(c)
@@ -324,17 +333,17 @@ function interpolate_to_physical!(c::FINUFFTCache)
     @assert T <: Complex
     name_to = finufft_name(backend_lr)
     KA.synchronize(device)
-    @timeit to "$name_to setpts" begin
+    @timeit to_d "$name_to setpts" begin
         _finufft_setpts_func!(backend_lr)(plan_type2, points_data...)
-        KA.synchronize(device)
+        _finufft_sync(device)
     end
     resize!(charge_data, 3 * Np)
     GC.@preserve charge_data begin
         A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
-        KA.synchronize(device)
-        @timeit to "$name_to exec" begin
+        _finufft_sync(device)
+        @timeit to_d "$name_to exec" begin
             _finufft_exec_func!(backend_lr)(plan_type2, uhat_data, A)  # result is computed onto A
-            KA.synchronize(device)
+            _finufft_sync(device)
         end
         _finufft_copy_charges_from_matrix!(charges, A)
     end

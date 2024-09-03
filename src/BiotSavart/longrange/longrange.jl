@@ -22,7 +22,7 @@ struct LongRangeCacheCommon{
     ewald_prefactor :: T                 # prefactor Γ/V (also included in ewald_op_d)
     ewald_op_d      :: RealScalarField    # real-valued Ewald operator in Fourier space ([Nx, Ny, Nz])
     state           :: LongRangeCacheState
-    to              :: Timer
+    to_d            :: Timer             # timer for operations run on the device
 end
 
 function LongRangeCacheCommon(
@@ -84,11 +84,14 @@ Note that, if `pc.α === Zero()`, then long-range computations are disabled and
 this returns a [`NullLongRangeCache`](@ref).
 """
 function init_cache_long(p::ParamsLongRange, pointdata::PointData, to = TimerOutput())
-    pc = p.common
-    if pc.α === Zero()
+    (; common, backend,)= p
+    # If long-range stuff is run on a GPU, we create a separate TimerOutput.
+    # This is to avoid short- and long-range parts writing asynchronously to the same timer.
+    to_d = KA.get_backend(backend) isa KA.CPU ? to : TimerOutput("Long range (GPU)")
+    if common.α === Zero()
         NullLongRangeCache()  # disables Ewald method / long-range computations
     else
-        init_cache_long_ewald(pc, p, pointdata, to)
+        init_cache_long_ewald(common, p, pointdata, to_d)
     end
 end
 
@@ -250,6 +253,10 @@ function to_smoothed_velocity!(c::LongRangeCache)
     state.smoothed = true
     c
 end
+
+# These can be useful for generic code dealing with velocity, streamfunction or both.
+to_smoothed_field!(::Velocity, c::LongRangeCache) = to_smoothed_velocity!(c)
+to_smoothed_field!(::Streamfunction, c::LongRangeCache) = to_smoothed_streamfunction!(c)
 
 """
     interpolate_to_physical!(cache::LongRangeCache)
