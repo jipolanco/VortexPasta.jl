@@ -7,6 +7,7 @@ using Statistics: mean, std
 using JET: JET
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
+using VortexPasta.BiotSavart: PseudoGPU  # for testing only
 using VortexPasta.Diagnostics: Diagnostics
 
 function init_ring_filament(; R, z, sign)
@@ -15,7 +16,9 @@ function init_ring_filament(; R, z, sign)
     (; R, z, sign, tlims, S,)
 end
 
-function test_ring_collision()
+function test_ring_collision(;
+        backend_long = NonuniformFFTsBackend(),
+    )
     R = π / 3  # ring radius
     L = π / 8  # ring distance
 
@@ -45,12 +48,15 @@ function test_ring_collision()
 
     params = ParamsBiotSavart(;
         Γ, α, a, Δ, rcut, Ls, Ns,
+        backend_long,
     )
     # println(params)
 
     cache = BiotSavart.init_cache(params, filaments)
     vs = map(f -> similar(nodes(f)), filaments)
-    velocity_on_nodes!(vs, cache, filaments)
+    ψs = map(similar, vs)
+    fields = (velocity = vs, streamfunction = ψs)
+    compute_on_nodes!(fields, cache, filaments)
 
     for (f, v) ∈ zip(filaments, vs)
         velocity_perpendicular_to_tangent = true
@@ -99,9 +105,14 @@ function test_ring_collision()
         @test isapprox(dLdt, stretching_rate_expected; rtol = 0.002)
     end
 
-    nothing
+    fields
 end
 
 @testset "Ring collision" begin
-    test_ring_collision()
+    fields_cpu = test_ring_collision(backend_long = NonuniformFFTsBackend())
+    # The PseudoGPU type is internal. It is only used to test GPU-specific code when we
+    # don't have an actual GPU.
+    fields_pseudo_gpu = test_ring_collision(backend_long = NonuniformFFTsBackend(device = PseudoGPU()))
+    @test fields_cpu.velocity ≈ fields_pseudo_gpu.velocity
+    @test fields_cpu.streamfunction ≈ fields_pseudo_gpu.streamfunction
 end

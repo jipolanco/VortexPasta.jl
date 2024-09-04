@@ -36,22 +36,28 @@ The default parameters (`σ = 1.5`, `m = HalfSupport(4)`) correspond to a relati
 tolerance of ``∼10^{-6}``.
 """
 struct NonuniformFFTsBackend{
-        HS <: HalfSupport, OversamplingFactor <: Real, KwArgs <: NamedTuple,
+        HS <: HalfSupport, OversamplingFactor <: Real,
+        Device <: KA.Backend,
+        KwArgs <: NamedTuple,
     } <: LongRangeBackend
     m :: HS
     σ :: OversamplingFactor
+    device :: Device  # this is internal for now
     kws :: KwArgs
     function NonuniformFFTsBackend(;
             σ = 1.5,
             m = HalfSupport(4),
+            device::KA.Backend = ka_default_cpu_backend(),  # this is for now internal (shouldn't be used, except for tests!!)
             fftw_flags = FFTW.MEASURE,
             other...,
         )
         kws = (; fftw_flags, other...,)
         hs = to_halfsupport(m)
-        new{typeof(hs), typeof(σ), typeof(kws)}(hs, σ, kws)
+        new{typeof(hs), typeof(σ), typeof(device), typeof(kws)}(hs, σ, device, kws)
     end
 end
+
+KA.get_backend(backend::NonuniformFFTsBackend) = backend.device
 
 has_real_to_complex(::NonuniformFFTsBackend) = true
 

@@ -14,7 +14,9 @@ Get KernelAbstractions (KA) backend associated to a given long-range backend.
 By default this returns `KA.CPU(static = true)`, meaning that things are run on the CPU
 using threads, and that a static thread assignment is used.
 """
-KA.get_backend(::LongRangeBackend) = KA.CPU(static = true)
+KA.get_backend(::LongRangeBackend) = ka_default_cpu_backend()
+
+ka_default_cpu_backend() = KA.CPU(static = true)
 
 # Default workgroup size used for running KA kernels.
 function ka_default_workgroupsize(::KA.CPU, dims::Dims)
@@ -58,4 +60,21 @@ function ka_generate_kernel(
         kws...,
     ) where {F <: Function}
     ka_generate_kernel(kernel, backend, size(u); kws...)
+end
+
+## ================================================================================ ##
+## This is for testing some GPU-specific code on CPUs. Used only in tests.
+
+struct PseudoGPU <: KA.GPU end
+
+KA.isgpu(::PseudoGPU) = false  # needed to be considered as a CPU backend by KA
+KA.allocate(::PseudoGPU, args...) = KA.allocate(KA.CPU(), args...)
+KA.synchronize(::PseudoGPU) = nothing
+KA.copyto!(::PseudoGPU, u, v) = copyto!(u, v)
+Adapt.adapt(::PseudoGPU, u::Array) = copy(u)  # simulate host → device copy (making sure arrays are not aliased)
+
+# Convert kernel to standard CPU kernel (relies on KA internals...)
+function (kernel::KA.Kernel{PseudoGPU, GroupSize, NDRange, Fun})(args...; kws...) where {GroupSize, NDRange, Fun}
+    kernel_cpu = KA.Kernel{KA.CPU, GroupSize, NDRange, Fun}(KA.CPU(), kernel.f)
+    kernel_cpu(args...; kws...)
 end

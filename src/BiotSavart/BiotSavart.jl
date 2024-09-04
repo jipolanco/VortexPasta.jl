@@ -462,7 +462,7 @@ function _compute_on_nodes!(
         StableTasks.@spawn begin
             # Copy point data to the GPU (pointdata_d).
             @assert pointdata !== pointdata_d  # they are different objects
-            @assert typeof(pointdata) !== typeof(pointdata_d)
+            @assert device_lr isa PseudoGPU || typeof(pointdata) !== typeof(pointdata_d)
             @timeit to_d "Copy point charges (host → device)" begin
                 copy!(pointdata_d, pointdata)  # H2D copy
                 KA.synchronize(device_lr)
@@ -504,6 +504,11 @@ function _compute_on_nodes!(
     else
         StableTasks.@spawn nothing  # empty task (returns `nothing`)
     end
+
+    # This avoids concurrent use of `@threads :static` (two parallel sections running in
+    # parallel, one for each component), which throws an error. Note that PseudoGPU is only
+    # used in tests, and actually computes stuff on the CPU.
+    device_lr isa PseudoGPU && wait(task_lr)
 
     # While the first long-range task is running, compute short-range part.
     if with_shortrange
