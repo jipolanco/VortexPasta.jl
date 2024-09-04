@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.24.2] - 2024-09-04
+
+### Added
+
+- Performance: long-range computations with GPU backends are now asynchronous,
+  and are done while the CPUs compute short-range interactions.
+
 ## [0.24.1] - 2024-09-02
 
 ### Fixed
@@ -21,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It is based on the CUDA version of the FINUFFT library, meaning that only
   Nvidia GPUs are supported for now.
   It requires FINUFFT 2.3.0-rc1, which is not currently bundled with the
-  FINUFFT.jl interface, which means that one must manually compile the FINUFFT
+  FINUFFT.jl interface. That is, one must manually compile the FINUFFT
   binaries and link them to the Julia interface.
 
 ### Fixed
