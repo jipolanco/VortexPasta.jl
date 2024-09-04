@@ -267,12 +267,12 @@ points in physical space.
 Results are written to the `output` vector, which defaults to `cache.pointdata_d.charges`.
 """
 function interpolate_to_physical!(cache::LongRangeCache)
-    output = cache.pointdata_d.charges
+    output = cache.common.pointdata_d.charges
     interpolate_to_physical!(output, cache)
 end
 
 function interpolate_to_physical!(output, cache::LongRangeCache)
-    @assert typeof(output) === typeof(cache.pointdata_d.charges)
+    @assert typeof(output) === typeof(cache.common.pointdata_d.charges)
     _interpolate_to_physical!(output, cache)
     output
 end
@@ -477,12 +477,12 @@ end
 
 function add_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
+        input = cache.common.pointdata_d.charges,
     )
-    (; charges,) = cache.common.pointdata_d
     nout = sum(length, vs)
-    nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
+    nout == length(input) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     ka_backend = KA.get_backend(cache)
-    _add_long_range_output!(ka_backend, vs, charges)
+    _add_long_range_output!(ka_backend, vs, input)
     vs
 end
 
