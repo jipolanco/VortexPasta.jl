@@ -27,8 +27,8 @@ function BS.CuFINUFFTBackend(;
         upsampfac = CUFINUFFT_DEFAULT_UPSAMPFAC,
         gpu_device::CuDevice = CUDA.device(),  # use currently active CUDA device
         # By default, use stream associated to current Julia CPU task.
-        # This is needed for KA.synchronize() to work properly (it synchronises the active
-        # stream only).
+        # This is needed for KA.synchronize() to work properly when called from the same
+        # task (it synchronises the active stream only).
         gpu_stream::CuStream = CUDA.stream(),
         other...,
     )
@@ -81,6 +81,7 @@ BS._finufft_plan_func(::CuFINUFFTBackend) = FINUFFT.cufinufft_makeplan
 BS._finufft_setpts_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_setpts!
 BS._finufft_exec_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_exec!
 BS._finufft_destroy_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_destroy!
+BS._finufft_sync(backend::CuFINUFFTBackend) = CUDA.synchronize(backend.stream)  # synchronise CUDA stream running cuFINUFFT code
 
 # This works correctly on a variable-size CuVector, unlike the case of CPU Vectors.
 # So there's nothing unsafe here!
