@@ -318,15 +318,15 @@ function transform_to_fourier!(c::FINUFFTCache)
     c
 end
 
-function interpolate_to_physical!(c::FINUFFTCache)
+function _interpolate_to_physical!(output::StructVector, c::FINUFFTCache)
     (; plan_type2, charge_data,) = c
     (; pointdata_d, uhat_d, to_d,) = c.common
-    (; points, charges,) = pointdata_d
+    (; points,) = pointdata_d
     backend_lr = backend(c)
     device = KA.get_backend(c)
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     points_data = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
-    Np = length(charges)
+    Np = length(output)
     @assert Np == length(points)
     uhat_data = adapt_fourier_vector_field(backend_lr, uhat_d)
     T = eltype(uhat_data)
@@ -345,7 +345,7 @@ function interpolate_to_physical!(c::FINUFFTCache)
             _finufft_exec_func!(backend_lr)(plan_type2, uhat_data, A)  # result is computed onto A
             _finufft_sync(backend_lr)
         end
-        _finufft_copy_charges_from_matrix!(charges, A)
+        _finufft_copy_charges_from_matrix!(output, A)
     end
-    c
+    nothing
 end

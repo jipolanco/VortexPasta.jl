@@ -259,14 +259,23 @@ to_smoothed_field!(::Velocity, c::LongRangeCache) = to_smoothed_velocity!(c)
 to_smoothed_field!(::Streamfunction, c::LongRangeCache) = to_smoothed_streamfunction!(c)
 
 """
-    interpolate_to_physical!(cache::LongRangeCache)
+    interpolate_to_physical!([output::StructVector{<:Vec3},] cache::LongRangeCache)
 
 Perform type-2 NUFFT to interpolate values in `cache.common.uhat_d` to non-uniform
 points in physical space.
 
-Results are written to `cache.pointdata.charges`.
+Results are written to the `output` vector, which defaults to `cache.pointdata_d.charges`.
 """
-function interpolate_to_physical! end
+function interpolate_to_physical!(cache::LongRangeCache)
+    output = cache.pointdata_d.charges
+    interpolate_to_physical!(output, cache)
+end
+
+function interpolate_to_physical!(output, cache::LongRangeCache)
+    @assert typeof(output) === typeof(cache.pointdata_d.charges)
+    _interpolate_to_physical!(output, cache)
+    output
+end
 
 @kernel function init_ewald_fourier_operator_kernel!(
         u::AbstractArray{T, 3} where {T},

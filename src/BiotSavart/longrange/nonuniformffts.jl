@@ -110,14 +110,14 @@ function transform_to_fourier!(c::NonuniformFFTsCache)
     c
 end
 
-function interpolate_to_physical!(c::NonuniformFFTsCache)
+function _interpolate_to_physical!(output::StructVector, c::NonuniformFFTsCache)
     (; plan,) = c
     (; pointdata_d, uhat_d,) = c.common
-    (; points, charges,) = pointdata_d
+    (; points,) = pointdata_d
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
-    charges = StructArrays.components(charges)
+    charges = StructArrays.components(output)
     uhat_data = StructArrays.components(uhat_d)
     NonuniformFFTs.set_points!(plan, points)
     NonuniformFFTs.exec_type2!(charges, plan, uhat_data)
-    c
+    nothing
 end

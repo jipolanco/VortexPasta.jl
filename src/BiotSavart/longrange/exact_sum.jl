@@ -87,14 +87,14 @@ function transform_to_fourier!(c::ExactSumCache)
     c
 end
 
-function interpolate_to_physical!(c::ExactSumCache)
+function _interpolate_to_physical!(output::StructVector, c::ExactSumCache)
     (; uhat_d, wavenumbers_d, pointdata_d,) = c.common
-    (; points, charges,) = pointdata_d
-    @assert length(points) == length(charges)
+    (; points,) = pointdata_d
+    @assert length(points) == length(output)
     kxs = first(wavenumbers_d)
     kx_lims = first(kxs), last(kxs)
     @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
-    @inbounds @batch for i ∈ eachindex(points, charges)
+    @inbounds @batch for i ∈ eachindex(points, output)
         X = points[i]
         q⃗ = zero(real(eltype(uhat_d)))
         for I ∈ CartesianIndices(uhat_d)
@@ -113,7 +113,7 @@ function interpolate_to_physical!(c::ExactSumCache)
             end
             q⃗ = q⃗ + δq⃗
         end
-        charges[i] = q⃗
+        output[i] = q⃗
     end
-    c
+    nothing
 end
