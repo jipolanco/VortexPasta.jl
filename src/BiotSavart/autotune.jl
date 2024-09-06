@@ -68,8 +68,10 @@ The following keyword arguments can be used to control autotuning:
 - `nruns = 4`: number of Biot–Savart calculations per value of ``α``. The *minimum* elapsed
   time among all runs will be used in autotuning;
 
-- `ncases = 10`: maximum number of parameter sets to try.
-  Returns the fastest out of all tested cases.
+- `ncases = 10`: maximum number of parameter sets to try. Returns the fastest out of all
+  tested cases;
+
+- `verbose = false`: if `true`, print autotuning information.
 
 ## Typical values of ``β`` and NUFFT parameters
 

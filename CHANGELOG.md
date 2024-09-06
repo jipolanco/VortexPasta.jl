@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `BiotSavart.autotune` function, which attempts to determine the optimal
+  Ewald parameters based on a given vortex configuration and accuracy parameter $β$.
+
 ### Changed
 
 - `CuFINUFFTBackend`: set default upsampling factor to 1.25 (instead of 2.0),
