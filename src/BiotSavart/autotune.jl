@@ -27,7 +27,7 @@ Ewald-related parameters:
 In practice, this function will try to find the value of ``α`` which minimises the
 computation of the velocity of the filaments `fs`.
 
-!!! warn "Randomness and heuristics"
+!!! warning "Randomness and heuristics"
 
     The parameters selected by this function can be quite random and change from one run to
     another for a same set of input parameters.
@@ -38,7 +38,7 @@ computation of the velocity of the filaments `fs`.
     The default values of `β` and `backend_long` are tuned for a nominal 6-digit accuracy.
     See the Extended help for more details.
 
-!!! warn "Periodic domains only"
+!!! warning "Periodic domains only"
 
     This function only supports periodic domains (finite domain period ``L``), since the
     chosen parameters are irrelevant in the non-periodic case.
@@ -118,7 +118,7 @@ function autotune(
     _autotune(fs, convert(T, β); kws′..., Ls = Ls′)
 end
 
-_periods_to_tuple(::Type{T}, L::Real) where {T} = ntuple(_ -> convert(T, L), Val(3))
+_periods_to_tuple(::Type{T}, L::Real) where {T} = _periods_to_tuple(T, (L, L, L))
 _periods_to_tuple(::Type{T}, L::NTuple{3}) where {T} = map(x -> convert(T, x), L)
 
 function _autotune(
