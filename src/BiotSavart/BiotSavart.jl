@@ -41,7 +41,7 @@ using StableTasks: StableTasks
 using Bumper: Bumper, @no_escape, @alloc
 using ChunkSplitters: ChunkSplitters
 using StructArrays: StructArrays, StructVector, StructArray
-using TimerOutputs: TimerOutput, @timeit, reset_timer!
+using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
 
 abstract type OutputField end
 struct Streamfunction <: OutputField end
@@ -58,6 +58,7 @@ include("types_longrange.jl")
 include("params.jl")
 include("pointdata.jl")
 include("cache.jl")
+include("autotune.jl")
 
 include("shortrange/shortrange.jl")
 include("longrange/longrange.jl")

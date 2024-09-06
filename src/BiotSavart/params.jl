@@ -170,6 +170,8 @@ where the optional parameter `T` sets the numerical precision.
 
 Mandatory and optional keyword arguments are detailed in the extended help below.
 
+See also [`BiotSavart.autotune`](@ref) for an alternative way of initialising parameters.
+
 # Extended help
 
 ## Mandatory keyword arguments
@@ -181,9 +183,9 @@ Mandatory and optional keyword arguments are detailed in the extended help below
 - `α::Real`: Ewald splitting parameter (inverse length scale). One can set
   `α = Zero()` to efficiently disable long-range computations.
 
-- `Ls::Union{Real, NTuple{3, Real}}`: size of unit cell (i.e. period in each direction).
+- `Ls::Union{Real, NTuple{3, Real}}`: domain period in each Cartesian direction.
   If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
-  the same in each direction.
+  the same in all directions.
 
   One can set `Ls = Infinity()` to disable periodicity. This should be done in combination with `α = Zero()`.
 
