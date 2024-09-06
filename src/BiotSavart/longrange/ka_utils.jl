@@ -26,9 +26,9 @@ function ka_default_workgroupsize(::KA.CPU, dims::Dims)
 end
 
 function ka_default_workgroupsize(::KA.GPU, dims::Dims)
-    # On the GPU, we divide the work across the first dimension and try to use 64 GPU
+    # On the GPU, we divide the work across the first dimension and try to use 256 GPU
     # threads per workgroup.
-    wgsize_wanted = 64
+    wgsize_wanted = 256
     x = map(one, dims)  # = (1, 1, 1) in 3D
     Base.setindex(x, min(dims[1], wgsize_wanted), 1)  # usually (wgsize_wanted, 1, 1)
 end
