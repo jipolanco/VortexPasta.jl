@@ -27,6 +27,12 @@ Ewald-related parameters:
 In practice, this function will try to find the value of ``α`` which minimises the
 computation of the velocity of the filaments `fs`.
 
+!!! warn "Randomness and heuristics"
+
+    The parameters selected by this function can be quite random and change from one run to
+    another for a same set of input parameters.
+    The heuristics used in this function could be improved and may change in the future.
+
 !!! note "Default accuracy"
 
     The default values of `β` and `backend_long` are tuned for a nominal 6-digit accuracy.
