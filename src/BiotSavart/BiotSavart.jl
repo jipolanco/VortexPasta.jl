@@ -461,45 +461,47 @@ function _compute_on_nodes!(
     # Compute long-range part asynchronously on the GPU.
     task_lr = if with_longrange
         StableTasks.@spawn begin
-            # Copy point data to the GPU (pointdata_d).
-            @assert pointdata !== pointdata_d  # they are different objects
-            @assert device_lr isa PseudoGPU || typeof(pointdata) !== typeof(pointdata_d)
-            @timeit to_d "Copy point charges (host → device)" begin
-                copy!(pointdata_d, pointdata)  # H2D copy
-                KA.synchronize(device_lr)
-            end
-            @timeit to_d "Vorticity to Fourier" begin
-                compute_vorticity_fourier!(cache.longrange)  # reads pointdata_d (points and charges)
-            end
-            if callback_vorticity !== identity
-                @timeit to_d "Vorticity callback" begin
-                    callback_vorticity(cache.longrange)
+            @timeit to_d "Long-range component (GPU)" begin
+                # Copy point data to the GPU (pointdata_d).
+                @assert pointdata !== pointdata_d  # they are different objects
+                @assert device_lr isa PseudoGPU || typeof(pointdata) !== typeof(pointdata_d)
+                @timeit to_d "Copy point charges (host → device)" begin
+                    copy!(pointdata_d, pointdata)  # H2D copy
+                    KA.synchronize(device_lr)
                 end
-            end
-            @timeit to_d "Set interpolation points" begin
-                set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d (points)
-            end
-            # Interpolate streamfunction and/or velocity.
-            local ifield = 0
-            if ψs !== nothing
-                @timeit to_d "Smoothed field ψ (Fourier)" begin
-                    to_smoothed_field!(Streamfunction(), cache.longrange)
+                @timeit to_d "Vorticity to Fourier" begin
+                    compute_vorticity_fourier!(cache.longrange)  # reads pointdata_d (points and charges)
                 end
-                @timeit to_d "Interpolate to physical" begin
-                    # Write interpolation output to outputs_lr[ifield + 1]
-                    interpolate_to_physical!(outputs_lr[ifield += 1], cache.longrange)
+                if callback_vorticity !== identity
+                    @timeit to_d "Vorticity callback" begin
+                        callback_vorticity(cache.longrange)
+                    end
                 end
+                @timeit to_d "Set interpolation points" begin
+                    set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d (points)
+                end
+                # Interpolate streamfunction and/or velocity.
+                local ifield = 0
+                if ψs !== nothing
+                    @timeit to_d "Smoothed field ψ (Fourier)" begin
+                        to_smoothed_field!(Streamfunction(), cache.longrange)
+                    end
+                    @timeit to_d "Interpolate to physical" begin
+                        # Write interpolation output to outputs_lr[ifield + 1]
+                        interpolate_to_physical!(outputs_lr[ifield += 1], cache.longrange)
+                    end
+                end
+                if vs !== nothing
+                    @timeit to_d "Smoothed field v (Fourier)" begin
+                        to_smoothed_field!(Velocity(), cache.longrange)
+                    end
+                    @timeit to_d "Interpolate to physical" begin
+                        # Write interpolation output to outputs_lr[ifield + 1]
+                        interpolate_to_physical!(outputs_lr[ifield += 1], cache.longrange)
+                    end
+                end
+                @timeit to_d "Synchronise GPU" KA.synchronize(device_lr)  # wait for the GPU to finish its work
             end
-            if vs !== nothing
-                @timeit to_d "Smoothed field v (Fourier)" begin
-                    to_smoothed_field!(Velocity(), cache.longrange)
-                end
-                @timeit to_d "Interpolate to physical" begin
-                    # Write interpolation output to outputs_lr[ifield + 1]
-                    interpolate_to_physical!(outputs_lr[ifield += 1], cache.longrange)
-                end
-            end
-            @timeit to_d "Synchronise GPU" KA.synchronize(device_lr)  # wait for the GPU to finish its work
             nothing
         end
     else

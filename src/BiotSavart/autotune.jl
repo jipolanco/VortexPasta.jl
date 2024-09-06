@@ -127,7 +127,7 @@ function _autotune(
     Np = sum(length, fs)  # total number of filament nodes
     vs = map(similar ∘ nodes, fs)
     V = prod(Ls)  # domain volume
-    α_init = T(2) * cbrt(Np / V)  # initial estimate of splitting parameter α (works quite well on pure-CPU case)
+    α_init = T(1.5) * cbrt(Np / V)  # initial estimate of splitting parameter α
     α::T = α_init
 
     # Run once and throw away the results to make sure everything is compiled.
@@ -135,6 +135,9 @@ function _autotune(
     _benchmark_params!(vs, fs, α, β; nruns = 1, kws_bs...)
 
     (; params, score, t, α,) = _benchmark_params!(vs, fs, α, β; nruns, kws_bs...)
+
+    ncase = 0
+    verbose && @show ncase, α, t, score
 
     params_best = params
     times_best = t
@@ -146,12 +149,13 @@ function _autotune(
         # The score is generally correlated with the actual time spent, but in practice that
         # is not always the case (apparently due to the nontrivial cost of FFTs), so the
         # final decision is done based on times (t < times_best) rather than scores.
+        γ = 1 + T(score / 2)  # update factor (heuristic)
         α_prev = α
-        α = α_prev * (1 + sign(score) * T(score * 4/5)^2)  # heuristic: update factor depends quadratically on the score
+        α = γ * α
         results = _benchmark_params!(vs, fs, α, β; α_prev, nruns, kws_bs...)  # this is allowed to change α based on backend limits
         results === nothing && break  # can happen if we reached the maximum allowed rcut
-        verbose && @show ncase, results.α, results.t, results.score
         (; params, score, t, α,) = results
+        verbose && @show ncase, α, t, score
         if t < times_best
             times_best = t
             params_best = params
@@ -165,7 +169,12 @@ function _autotune(
     params_best
 end
 
-function _benchmark_params!(vs, fs, α, β; α_prev = zero(α), nruns, Ls, backend_short, timer = TimerOutput(), kws...)
+function _benchmark_params!(
+        vs, fs, α, β;
+        α_prev = zero(α), nruns, Ls, backend_short,
+        timer = TimerOutput(),  # useful for debugging; can be directly passed to autotune
+        kws...,
+    )
     T = Filaments.number_type(fs)
     @assert T === eltype(Ls)
     rcut_max = max_cutoff_distance(backend_short, Ls)
@@ -176,7 +185,6 @@ function _benchmark_params!(vs, fs, α, β; α_prev = zero(α), nruns, Ls, backe
     if rcut > rcut_max
         rcut = rcut_max
         α = β / rcut
-        @show α, α_prev
         α == α_prev && return nothing  # don't repeat a previous benchmark if we're limited by rcut_max
     end
 
@@ -213,13 +221,14 @@ end
 # implementations (which differ between CPU-only and CPU+GPU cases).
 function time_balance_score(cache::BiotSavartCache)
     device_lr = KA.get_backend(cache.longrange)  # device used for long-range part (CPU or GPU)
-    tshort_ratio = _short_range_time_ratio(device_lr, cache.to)  # in [0, 1]
+    tshort_ratio = _short_range_time_ratio(device_lr, cache)  # in [0, 1]
     2 * tshort_ratio - 1  # in [-1, 1]
 end
 
 # CPU-only implementation
 # See _compute_on_nodes!(::CPU, ...) for details.
-function _short_range_time_ratio(::KA.CPU, to::TimerOutput)
+function _short_range_time_ratio(::KA.CPU, cache)
+    (; to,) = cache
     tshort = let to = to["Short-range component"]
         # Note: we don't include everything in the "Short-range component" block, but only
         # the most expensive section which scales as N² * rcut³. Other sections don't depend
@@ -243,7 +252,12 @@ end
 
 # CPU-GPU implementation
 # See _compute_on_nodes!(::GPU, ...) for details.
-function _short_range_time_ratio(::KA.GPU, to::TimerOutput)
-    # TODO: implement
-    0.5
+function _short_range_time_ratio(::KA.GPU, cache)
+    (; to,) = cache
+    (; to_d,) = cache.longrange.common  # timer associated to GPU code running asynchronously
+    tshort = let to = to["Short-range component (CPU)"]
+        TimerOutputs.time(to["Compute Biot–Savart"])
+    end
+    tlong_gpu = TimerOutputs.time(to_d["Long-range component (GPU)"])
+    tshort / (tshort + tlong_gpu)
 end
