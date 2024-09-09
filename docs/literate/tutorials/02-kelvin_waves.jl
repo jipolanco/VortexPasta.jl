@@ -293,8 +293,8 @@ end
 # We start by setting the parameters for Biot--Savart computations:
 
 using VortexPasta.BiotSavart
-M = round(Int, 32 * 4/5)  # resolution of long-range grid
-kmax = π * M / L          # maximum resolved wavenumber (Nyquist frequency) for long-range part
+M = floor(Int, 32 * 2/3)  # resolution of long-range grid
+kmax = π * (M - 1) / L    # maximum resolved wavenumber (Nyquist frequency) for long-range part
 β = 3.5                   # accuracy parameter
 α = kmax / (2β)           # Ewald splitting parameter
 

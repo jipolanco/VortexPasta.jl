@@ -73,9 +73,9 @@ The following keyword arguments can be used to control autotuning:
 - `nruns = 4`: number of Biot–Savart calculations per value of ``α``. The *minimum* elapsed
   time among all runs will be used in autotuning;
 
-- `Cstart = 1.5`: initial guess for multiplicative factor ``C`` (see **Autotuning algorithm** below);
+- `Cstart = 1.5`: initial guess for non-dimensional factor ``C`` (see **Autotuning algorithm** below);
 
-- `ΔC = 0.1`: increment of autotuning factor ``C``;
+- `ΔC = 0.1`: increment of non-dimensional factor ``C``;
 
 - `verbose = false`: if `true`, print autotuning information.
 
@@ -85,7 +85,7 @@ The autotuning algorithm basically consists in trying different values of ``α``
 write under the form:
 
 ```math
-α = C {( N / V )}^{1/3}
+α = C \, {( N / V )}^{1/3}
 ```
 
 where ``N`` is the total number of filament nodes and ``V`` the domain volume.

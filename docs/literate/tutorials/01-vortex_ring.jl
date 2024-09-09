@@ -220,7 +220,7 @@ nothing  # hide
 # for long-range computations and the accuracy parameter ``β``, and we set the other
 # parameters based on that:
 
-M = round(Int, 64 * 4/5)  # we prefer if the FFT size is a power of 2, here M′ = σM = 64 (where σ = 1.25)
+M = floor(Int, 32 * 2/3)  # we prefer if the FFT size is a power of 2, here M′ = σM = 32 (where σ = 1.5)
 kmax = π * M / L          # this is the maximum resolved wavenumber (the Nyquist frequency)
 β = 3.5                   # non-dimensional accuracy parameter
 α = kmax / (2β)           # Ewald splitting parameter || "α" can be typed by "\alpha<tab>"

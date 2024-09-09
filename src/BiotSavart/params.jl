@@ -170,7 +170,7 @@ where the optional parameter `T` sets the numerical precision.
 
 Mandatory and optional keyword arguments are detailed in the extended help below.
 
-See also [`BiotSavart.autotune`](@ref) for an alternative way of initialising parameters.
+See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–Savart parameters.
 
 # Extended help
 
