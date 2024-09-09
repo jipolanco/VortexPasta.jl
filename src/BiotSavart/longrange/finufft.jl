@@ -107,8 +107,7 @@ Some relevant options are:
 
 - `tol = $FINUFFT_DEFAULT_TOLERANCE` tolerance in NUFFT computations;
 
-- `upsampfac = 2.0` upsampling factor. It is really recommended to leave it
-  at its default value of 2; other values are much slower on cuFINUFFT;
+- `upsampfac = $FINUFFT_DEFAULT_UPSAMPFAC` upsampling factor. Should be either 1.25 or 2.0;
 
 - `gpu_device::CUDA.CuDevice`: useful if multiple GPUs are available. By default the
   currently active CUDA device is used, i.e. `gpu_device = CUDA.device()`.

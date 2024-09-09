@@ -14,22 +14,17 @@ using KernelAbstractions: KernelAbstractions as KA
 using StructArrays: StructArrays, StructArray, StructVector
 using VortexPasta.BiotSavart: BiotSavart as BS, Vec3, CuFINUFFTBackend
 
-# cuFINUFFT is much slower with oversampling factors different from 2.
-# TODO: maybe 1.25 works fine in the latest version?
-const CUFINUFFT_DEFAULT_UPSAMPFAC = 2.0
-
 # This tells KA to create CUDA kernels, and generic (CPU/GPU) code to create CUDA arrays.
 KA.get_backend(::CuFINUFFTBackend) = CUDABackend()
 
 # Define "public" constructor (consistent with the documentation in the BiotSavart module).
 function BS.CuFINUFFTBackend(;
         tol::AbstractFloat = BS.FINUFFT_DEFAULT_TOLERANCE,
-        upsampfac = CUFINUFFT_DEFAULT_UPSAMPFAC,
+        upsampfac = BS.FINUFFT_DEFAULT_UPSAMPFAC,
         gpu_device::CuDevice = CUDA.device(),  # use currently active CUDA device
-        # By default, use stream associated to current Julia CPU task.
-        # This is needed for KA.synchronize() to work properly when called from the same
-        # task (it synchronises the active stream only).
-        gpu_stream::CuStream = CUDA.stream(),
+        # By default use a dedicated CUDA stream to run cuFINUFFT code.
+        # Use _finufft_sync to synchronise this stream.
+        gpu_stream::CuStream = CUDA.CuStream(),
         other...,
     )
     gpu_stream_ptr = Base.unsafe_convert(Ptr{CUDA.CUstream_st}, gpu_stream)

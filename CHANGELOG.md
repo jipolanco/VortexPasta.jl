@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `CuFINUFFTBackend`: set default upsampling factor to 1.25 (instead of 2.0),
+  which seems to be faster for relevant accuracy levels and should use less memory.
+
 ## [0.24.2] - 2024-09-04
 
 ### Added
