@@ -5,10 +5,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `BiotSavart.autotune` function, which attempts to determine the optimal
+  Ewald parameters based on a given vortex configuration and accuracy parameter $β$.
+
 ### Changed
 
 - `CuFINUFFTBackend`: set default upsampling factor to 1.25 (instead of 2.0),
   which seems to be faster for relevant accuracy levels and should use less memory.
+
+- `ParamsBiotSavart`: `rcut` must now be explicitly passed and no longer has a default value.
+  (Breaking change, but minor.)
 
 ## [0.24.2] - 2024-09-04
 

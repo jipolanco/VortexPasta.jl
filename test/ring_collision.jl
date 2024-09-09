@@ -29,7 +29,7 @@ function test_ring_collision(;
 
     filaments = map(rings) do ring
         (; tlims, S,) = ring
-        N = 64
+        N = 250  # large enough for autotuning to do some work
         ζs = range(tlims...; length = N + 1)[1:N]
         Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
     end
@@ -38,17 +38,13 @@ function test_ring_collision(;
     a = 1e-6
     Δ = 1/4
     Lbox = 2π
-    Ls = (Lbox, Lbox, Lbox)
-    rcut = Lbox / 3
     β = 3.5  # accuracy parameter
-    α = β / rcut
-    kmax = 2α * β
-    Ngrid = ceil(Int, kmax * Lbox / π)
-    Ns = (Ngrid, Ngrid, Ngrid)
 
-    params = ParamsBiotSavart(;
-        Γ, α, a, Δ, rcut, Ls, Ns,
+    params = BiotSavart.autotune(
+        filaments, β;
+        Γ, a, Δ, Ls = Lbox,
         backend_long,
+        verbose = true,
     )
     # println(params)
 
@@ -100,9 +96,9 @@ function test_ring_collision(;
     for (f, v) ∈ zip(filaments, vs)
         v_perp = map(v⃗ -> norm(setindex(v⃗, 0.0, 3)), v)
         @test std(v_perp) < 1e-4
-        @test isapprox(mean(v_perp), vradial_expected; rtol = 0.002)
+        @test mean(v_perp) ≈ vradial_expected rtol=0.002
         dLdt = Diagnostics.stretching_rate(f, v)
-        @test isapprox(dLdt, stretching_rate_expected; rtol = 0.002)
+        @test dLdt ≈ stretching_rate_expected rtol=0.002
     end
 
     fields
@@ -113,6 +109,8 @@ end
     # The PseudoGPU type is internal. It is only used to test GPU-specific code when we
     # don't have an actual GPU.
     fields_pseudo_gpu = test_ring_collision(backend_long = NonuniformFFTsBackend(device = PseudoGPU()))
-    @test fields_cpu.velocity ≈ fields_pseudo_gpu.velocity
-    @test fields_cpu.streamfunction ≈ fields_pseudo_gpu.streamfunction
+    # Note: due to autotuning (which is quite random), the two sets of results can be a bit
+    # different, thus we need a relative large `rtol`.
+    @test fields_cpu.velocity ≈ fields_pseudo_gpu.velocity rtol=1e-6
+    @test fields_cpu.streamfunction ≈ fields_pseudo_gpu.streamfunction rtol=1e-6
 end

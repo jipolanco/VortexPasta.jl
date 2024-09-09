@@ -366,17 +366,17 @@ end
         # Test NUFFT backends with default parameters
         tol = 1e-5  # allowed relative error
         @testset "NonuniformFFTsBackend" begin
-            compare_long_range([f], NonuniformFFTsBackend(); tol, params_kws..., α = α_default)
+            compare_long_range([f], NonuniformFFTsBackend(); tol, params_kws..., α = α_default, rcut = 4 / α_default)
         end
         @testset "FINUFFTBackend" begin
-            compare_long_range([f], FINUFFTBackend(); tol, params_kws..., α = α_default)
+            compare_long_range([f], FINUFFTBackend(); tol, params_kws..., α = α_default, rcut = 4 / α_default)
         end
         @testset "$quantity near r = 0" for quantity ∈ (Velocity(), Streamfunction())
             test_long_range_accuracy_near_zero(Float64, quantity)
         end
     end
     @testset "Short range" begin
-        compare_short_range([f]; params_kws..., α = α_default)
+        compare_short_range([f]; params_kws..., α = α_default, rcut = 4 / α_default)
     end
     @testset "Dependence on α" begin
         αs = [kmax / 5, kmax / 6, kmax / 7, kmax / 8, kmax / 12, kmax / 16]

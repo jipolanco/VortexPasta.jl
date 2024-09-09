@@ -164,11 +164,13 @@ The type parameter `T` corresponds to the precision used in computations
 
 # Construction
 
-    ParamsBiotSavart([T = Float64]; Γ, a, α, Ls, Ns, optional_kws...)
+    ParamsBiotSavart([T = Float64]; Γ, a, α, Ls, Ns, rcut, optional_kws...)
 
 where the optional parameter `T` sets the numerical precision.
 
 Mandatory and optional keyword arguments are detailed in the extended help below.
+
+See also [`BiotSavart.autotune`](@ref) for an alternative way of initialising parameters.
 
 # Extended help
 
@@ -181,14 +183,19 @@ Mandatory and optional keyword arguments are detailed in the extended help below
 - `α::Real`: Ewald splitting parameter (inverse length scale). One can set
   `α = Zero()` to efficiently disable long-range computations.
 
-- `Ls::Union{Real, NTuple{3, Real}}`: size of unit cell (i.e. period in each direction).
+- `Ls::Union{Real, NTuple{3, Real}}`: domain period in each Cartesian direction.
   If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
-  the same in each direction.
+  the same in all directions.
 
   One can set `Ls = Infinity()` to disable periodicity. This should be done in combination with `α = Zero()`.
 
-- `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions. This parameter
-  is not required if `α = Zero()`.
+- `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions.
+  This parameter is not required if `α = Zero()`.
+
+- `rcut`: cutoff distance for computation of short-range interactions.
+  For performance and practical reasons, the cutoff distance must be less than half the cell
+  unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
+  This parameter is not required if `α = Zero()`.
 
 ## Optional keyword arguments (and their defaults)
 
@@ -204,10 +211,6 @@ Mandatory and optional keyword arguments are detailed in the extended help below
   short-range interactions. The default is `CellListsBackend(2)`, unless periodicity is
   disabled, in which case `NaiveShortRangeBackend()` is used.
   See [`ShortRangeBackend`](@ref) for a list of possible backends;
-
-- `rcut = 4√2 / α`: cutoff distance for computation of short-range interactions.
-  For performance and practical reasons, the cutoff distance must be less than half the cell
-  unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
 
 ### Long-range interactions
 
@@ -274,7 +277,7 @@ function ParamsBiotSavart(
         quadrature_long = nothing,   # deprecated
         quadrature_near_singularity::AbstractQuadrature = AdaptiveTanhSinh(T; nlevels = 5),
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
-        backend_long::LongRangeBackend = NonuniformFFTsBackend(),
+        backend_long::LongRangeBackend = default_long_range_backend(Ls),
         longrange_truncate_spherical::Bool = false,
         Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,
@@ -324,6 +327,14 @@ function default_short_range_backend(Ls::Tuple)
     end
 end
 
+function default_long_range_backend(Ls::Tuple)
+    if is_open_domain(Ls)
+        NullLongRangeBackend()
+    else
+        NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4))
+    end
+end
+
 # Returns the float type used (e.g. Float64)
 Base.eltype(::Type{<:ParamsBiotSavart{T}}) where {T} = T
 Base.eltype(p::ParamsBiotSavart) = eltype(typeof(p))
@@ -354,7 +365,7 @@ domain_is_periodic(p::ParamsBiotSavart) = domain_is_periodic(periods(p))
 domain_is_periodic(Ls::NTuple) = !is_open_domain(Ls)
 
 _extra_params(α::Zero; Ns = nothing, rcut = ∞) = (; Ns = (0, 0, 0), rcut,)  # Ns is always (0, 0, 0), no matter the input
-_extra_params(α::Real; Ns, rcut = 4 / α) = (; Ns, rcut,)  # Ns is required in this case
+_extra_params(α::Real; Ns, rcut,) = (; Ns, rcut,)  # Ns and rcut are required in this case
 
 ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls, kws...) where {T} =
     ParamsBiotSavart(T, Γ, α, _convert_periods(Ls); kws...)
