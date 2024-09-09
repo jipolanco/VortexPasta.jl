@@ -142,7 +142,7 @@ _periods_to_tuple(::Type{T}, L::NTuple{3}) where {T} = map(x -> convert(T, x), L
 # TODO: should this depend on the actual GPU device, and in particular on its memory limits?
 # (larger α uses more memory)
 default_Cstart(::KA.CPU) = 1.5
-default_Cstart(::KA.GPU) = 3.0
+default_Cstart(::KA.GPU) = 4.0
 default_Cstart(backend::LongRangeBackend) = default_Cstart(KA.get_backend(backend))
 
 function _autotune(
