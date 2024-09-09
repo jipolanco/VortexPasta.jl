@@ -137,11 +137,22 @@ end
 _periods_to_tuple(::Type{T}, L::Real) where {T} = _periods_to_tuple(T, (L, L, L))
 _periods_to_tuple(::Type{T}, L::NTuple{3}) where {T} = map(x -> convert(T, x), L)
 
+# Default value of Cstart: if the long-range part runs on a (fast) GPU, the optimal value of
+# α (and C) is expected to be larger than in the pure CPU case.
+# TODO: should this depend on the actual GPU device, and in particular on its memory limits?
+# (larger α uses more memory)
+default_Cstart(::KA.CPU) = 1.5
+default_Cstart(::KA.GPU) = 3.0
+default_Cstart(backend::LongRangeBackend) = default_Cstart(KA.get_backend(backend))
+
 function _autotune(
         fs::AbstractVector{<:AbstractFilament{T}}, β::T;
         Ls::NTuple{3, T},
         backend_short = default_short_range_backend(Ls),
-        nruns = 4, Cstart::T = T(1.5), ΔC::T = T(0.1),
+        backend_long = default_long_range_backend(Ls),
+        nruns = 4,
+        Cstart::T = T(default_Cstart(backend_long)),
+        ΔC::T = T(0.1),
         verbose = false,
         kws...,
     ) where {T <: AbstractFloat}
@@ -156,7 +167,7 @@ function _autotune(
     α_base::T = cbrt(Np / V)  # α = C * α_base
 
     # Run once and throw away the results to make sure everything is compiled.
-    kws_bs = (; Ls, backend_short, kws...,)  # Biot-Savart related kwargs
+    kws_bs = (; Ls, backend_short, backend_long, kws...,)  # Biot-Savart related kwargs
     _benchmark_params!(vs, fs, Cstart * α_base, β; nruns = 1, kws_bs...)
 
     # Run the base case: C = Cstart.
@@ -213,6 +224,12 @@ function _autotune(
         else
             nworse += 1
         end
+    end
+
+    if verbose
+        α_best = params_best.α
+        C_best = α_best / α_base
+        @info "Best case:" C_best α_best t_best
     end
 
     params_best

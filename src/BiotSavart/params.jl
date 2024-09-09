@@ -277,7 +277,7 @@ function ParamsBiotSavart(
         quadrature_long = nothing,   # deprecated
         quadrature_near_singularity::AbstractQuadrature = AdaptiveTanhSinh(T; nlevels = 5),
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
-        backend_long::LongRangeBackend = NonuniformFFTsBackend(),
+        backend_long::LongRangeBackend = default_long_range_backend(Ls),
         longrange_truncate_spherical::Bool = false,
         Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,
@@ -324,6 +324,14 @@ function default_short_range_backend(Ls::Tuple)
         NaiveShortRangeBackend()
     else
         CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
+    end
+end
+
+function default_long_range_backend(Ls::Tuple)
+    if is_open_domain(Ls)
+        NullLongRangeBackend()
+    else
+        NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4))
     end
 end
 

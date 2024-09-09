@@ -44,6 +44,7 @@ function test_ring_collision(;
         filaments, β;
         Γ, a, Δ, Ls = Lbox,
         backend_long,
+        verbose = true,
     )
     # println(params)
 
