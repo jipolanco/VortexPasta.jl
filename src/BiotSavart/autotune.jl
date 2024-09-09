@@ -27,16 +27,15 @@ Ewald-related parameters:
 In practice, this function will try to find the value of ``α`` which minimises the
 computation of the velocity of the filaments `fs`.
 
-!!! warning "Randomness and heuristics"
+!!! warning "Randomness"
 
     The parameters selected by this function can be quite random and change from one run to
     another for a same set of input parameters.
-    The heuristics used in this function could be improved and may change in the future.
 
 !!! note "Default accuracy"
 
-    The default values of `β` and `backend_long` are tuned for a nominal 6-digit accuracy.
-    See the Extended help for more details.
+    The default values of `β` and `backend_long` correspond to a nominal 6-digit accuracy.
+    See the **Extended help** for more details.
 
 !!! warning "Periodic domains only"
 
@@ -92,6 +91,7 @@ write under the form:
 where ``N`` is the total number of filament nodes and ``V`` the domain volume.
 The parameter that is varied is the non-dimensional factor ``C``.
 
+For now the algorithm is quite basic.
 We try different values around `C = Cstart` using increments of `ΔC`.
 The parameters giving the fastest runtime are returned.
 
