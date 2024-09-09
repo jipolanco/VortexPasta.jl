@@ -74,10 +74,26 @@ The following keyword arguments can be used to control autotuning:
 - `nruns = 4`: number of Biot–Savart calculations per value of ``α``. The *minimum* elapsed
   time among all runs will be used in autotuning;
 
-- `ncases = 10`: maximum number of parameter sets to try. Returns the fastest out of all
-  tested cases;
+- `Cstart = 1.5`: initial guess for multiplicative factor ``C`` (see **Autotuning algorithm** below);
+
+- `ΔC = 0.1`: increment of autotuning factor ``C``;
 
 - `verbose = false`: if `true`, print autotuning information.
+
+## Autotuning algorithm
+
+The autotuning algorithm basically consists in trying different values of ``α``, which we
+write under the form:
+
+```math
+α = C {( N / V )}^{1/3}
+```
+
+where ``N`` is the total number of filament nodes and ``V`` the domain volume.
+The parameter that is varied is the non-dimensional factor ``C``.
+
+We try different values around `C = Cstart` using increments of `ΔC`.
+The parameters giving the fastest runtime are returned.
 
 ## Typical values of ``β`` and NUFFT parameters
 
@@ -125,7 +141,8 @@ function _autotune(
         fs::AbstractVector{<:AbstractFilament{T}}, β::T;
         Ls::NTuple{3, T},
         backend_short = default_short_range_backend(Ls),
-        ncases = 10, nruns = 4, verbose = false,
+        nruns = 4, Cstart::T = T(1.5), ΔC::T = T(0.1),
+        verbose = false,
         kws...,
     ) where {T <: AbstractFloat}
     :rcut ∈ keys(kws) && throw(ArgumentError("`rcut` argument must *not* be passed to this function"))
@@ -135,42 +152,66 @@ function _autotune(
     Np = sum(length, fs)  # total number of filament nodes
     vs = map(similar ∘ nodes, fs)
     V = prod(Ls)  # domain volume
-    α_init = T(1.5) * cbrt(Np / V)  # initial estimate of splitting parameter α
-    α::T = α_init
+
+    α_base::T = cbrt(Np / V)  # α = C * α_base
 
     # Run once and throw away the results to make sure everything is compiled.
     kws_bs = (; Ls, backend_short, kws...,)  # Biot-Savart related kwargs
-    _benchmark_params!(vs, fs, α, β; nruns = 1, kws_bs...)
+    _benchmark_params!(vs, fs, Cstart * α_base, β; nruns = 1, kws_bs...)
 
-    (; params, score, t, α,) = _benchmark_params!(vs, fs, α, β; nruns, kws_bs...)
+    # Run the base case: C = Cstart.
+    C = Cstart
+    results_base = _benchmark_params!(vs, fs, C * α_base, β; nruns, kws_bs...)
+    @assert results_base !== nothing
+    let results = results_base
+        verbose && @show C, results.α, results.t
+    end
+    α_prev = results_base.α
+    params_best = results_base.params
+    t_best = results_base.t
 
-    ncase = 0
-    verbose && @show ncase, α, t, score
-
-    params_best = params
-    times_best = t
-    n_best = 0
-
-    for ncase ∈ 1:ncases
-        # Select new value of α based on latest score (∈ [-1, 1]), where 0 is ideal.
-        # If the score is positive (negative), we need to increase (decrease) α.
-        # The score is generally correlated with the actual time spent, but in practice that
-        # is not always the case (apparently due to the nontrivial cost of FFTs), so the
-        # final decision is done based on times (t < times_best) rather than scores.
-        γ = 1 + T(score / 2)  # update factor (heuristic)
-        α_prev = α
-        α = γ * α
-        results = _benchmark_params!(vs, fs, α, β; α_prev, nruns, kws_bs...)  # this is allowed to change α based on backend limits
-        results === nothing && break  # can happen if we reached the maximum allowed rcut
-        (; params, score, t, α,) = results
-        verbose && @show ncase, α, t, score
-        if t < times_best
-            times_best = t
-            params_best = params
-            n_best = ncase
+    # Try larger values of C (and α)
+    C = Cstart
+    nworse = 0  # how many successive trials are worse than the best one?
+    while nworse < 2  # allow 2 successive "worse" cases
+        C = C + ΔC
+        results = _benchmark_params!(vs, fs, C * α_base, β; α_prev, nruns, kws_bs...)
+        # Since we're increasing α and thus reducing rcut, the `continue` won't
+        # happen indefinitely, and will stop for some value of α.
+        results === nothing && continue
+        verbose && @show C, results.α, results.t
+        α_prev = results.α
+        (; t,) = results
+        if t < t_best
+            t_best = t
+            params_best = results.params
+            nworse = 0
+        else
+            # This case is worse than the best case.
+            # But we don't exit immediately, in case the trend is not monotonic.
+            nworse += 1
         end
-        if ncase - n_best ≥ 3
-            break  # we're getting too far from the best case, so stop wasting time
+    end
+
+    # Try smaller values of C (and α)
+    C = Cstart
+    α_prev = results_base.α
+    nworse = 0
+    while nworse < 2
+        C = C - ΔC
+        results = _benchmark_params!(vs, fs, C * α_base, β; α_prev, nruns, kws_bs...)
+        # Since we're decreasing α and thus increasing rcut, we stop here if we're limited
+        # by rcut_max.
+        results === nothing && break
+        verbose && @show C, results.α, results.t
+        α_prev = results.α
+        (; t,) = results
+        if t < t_best
+            t_best = t
+            params_best = results.params
+            nworse = 0
+        else
+            nworse += 1
         end
     end
 
@@ -179,7 +220,7 @@ end
 
 function _benchmark_params!(
         vs, fs, α, β;
-        α_prev = zero(α), nruns, Ls, backend_short,
+        α_prev = nothing, nruns, Ls, backend_short,
         timer = TimerOutput(),  # useful for debugging; can be directly passed to autotune
         kws...,
     )
@@ -203,69 +244,17 @@ function _benchmark_params!(
     params = ParamsBiotSavart(T; Ls, α, rcut, backend_short, Ns, kws...)
     cache = init_cache(params, fs; timer)
 
-    score_best = 1.0
     t_best = Inf
 
     for _ ∈ 1:nruns
         TimerOutputs.reset_timer!(cache.to)
-        t = (@elapsed velocity_on_nodes!(vs, cache, fs))::Float64
-        score = time_balance_score(cache)
+        stats = @timed velocity_on_nodes!(vs, cache, fs)
+        # @show stats.gctime, stats.lock_conflicts, stats.compile_time, stats.recompile_time
+        t = stats.time::Float64
         if t < t_best
             t_best = t
-            score_best = score
         end
     end
 
-    (; params, α, t = t_best, score = score_best,)
-end
-
-# Get relative time spent on short and long-range interactions.
-#
-# Returns a score in [-1, 1], where:
-#  * -1 (or 1) mean that too much time is spent on long (or short) range interactions
-#  * the value of 0 corresponds to an ideal balance
-#
-# The implementation depends on the TimerOutputs labels used in the BiotSavart.compute_on_nodes!
-# implementations (which differ between CPU-only and CPU+GPU cases).
-function time_balance_score(cache::BiotSavartCache)
-    device_lr = KA.get_backend(cache.longrange)  # device used for long-range part (CPU or GPU)
-    tshort_ratio = _short_range_time_ratio(device_lr, cache)  # in [0, 1]
-    2 * tshort_ratio - 1  # in [-1, 1]
-end
-
-# CPU-only implementation
-# See _compute_on_nodes!(::CPU, ...) for details.
-function _short_range_time_ratio(::KA.CPU, cache)
-    (; to,) = cache
-    tshort = let to = to["Short-range component"]
-        # Note: we don't include everything in the "Short-range component" block, but only
-        # the most expensive section which scales as N² * rcut³. Other sections don't depend
-        # on the parameters we're trying to optimise (α, rcut, kmax).
-        TimerOutputs.time(to["Compute Biot–Savart"])
-    end
-    tlong = let to = to["Long-range component"]
-        # Note: as above, we only include the parts which depend on the parameters to
-        # optimise. In particular, we don't include the self-interaction correction.
-        t = TimerOutputs.time(to["Vorticity to Fourier"]) + TimerOutputs.time(to["Set interpolation points"])
-        if haskey(to, "Streamfunction")
-            t += TimerOutputs.time(to["Streamfunction"]["Convert to physical"])
-        end
-        if haskey(to, "Velocity")
-            t += TimerOutputs.time(to["Velocity"]["Convert to physical"])
-        end
-        t
-    end
-    tshort / (tshort + tlong)
-end
-
-# CPU-GPU implementation
-# See _compute_on_nodes!(::GPU, ...) for details.
-function _short_range_time_ratio(::KA.GPU, cache)
-    (; to,) = cache
-    (; to_d,) = cache.longrange.common  # timer associated to GPU code running asynchronously
-    tshort = let to = to["Short-range component (CPU)"]
-        TimerOutputs.time(to["Compute Biot–Savart"])
-    end
-    tlong_gpu = TimerOutputs.time(to_d["Long-range component (GPU)"])
-    tshort / (tshort + tlong_gpu)
+    (; params, α, t = t_best,)
 end
