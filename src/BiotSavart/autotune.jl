@@ -229,7 +229,7 @@ function _autotune(
     if verbose
         α_best = params_best.α
         C_best = α_best / α_base
-        @info "Best case:" C_best α_best t_best
+        @info "[BiotSavart.autotune] Best case:" C_best α_best t_best
     end
 
     params_best
