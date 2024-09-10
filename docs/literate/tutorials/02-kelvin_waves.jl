@@ -484,7 +484,7 @@ dt = 32 * dt_kw
 #
 # ### Running the simulation
 #
-# We now solve the full problem with this multirate scheme.
+# We now solve the full problem with this splitting scheme.
 # Note that we use [`LocalTerm`](@ref) to identify the "fast" motions to the
 # local (LIA) term of the Biot--Savart integrals.
 # We could alternatively use [`ShortRangeTerm`](@ref) for a different interpretation of what
@@ -493,6 +493,7 @@ dt = 32 * dt_kw
 iter = init(prob, scheme; dt, callback, fast_term = LocalTerm())
 reset_timer!(iter.to)  # to get more accurate timings (removes most of the compilation time)
 solve!(iter)
+iter.to
 
 # We can check that energy is conserved:
 
@@ -547,11 +548,9 @@ show(IOContext(stdout, :displaysize => (40, 100)), iter.to)  # hide
 iter.to
 nothing  # hide
 
-# We can see that, in this case, roughly half the time is spent in the long-range Biot--Savart
-# computations, while the other half is spent on short-range Biot--Savart computations and
-# the LIA (local) term.
-# Note that the LIA term is computed much more often than the other components due to the
-# use of a multirate scheme.
+# We can see that, in this particular case, the runtime is mostly dominated by the
+# the LIA (local) term, which is computed much more often than the non-local interactions
+# due to the use of a splitting scheme for the temporal evolution.
 
 # ## Fourier analysis
 #
