@@ -5,6 +5,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `VortexPastaThreadPinningExt` extension. When ThreadPinning.jl is loaded
+  and `pinthreads` has been used (as recommended when using threads), the
+  extension automatically unpins the threads before calls to the FINUFFT
+  library (based on OpenMP; seems to conflict with ThreadPinning), and restores
+  the pinning afterwards.
+  This should improve performance when using the `FINUFFTBackend` with multiple
+  threads and ThreadPinning.
+  Note that this doesn't affect the GPU-based `CuFINUFFTBackend` or other
+  long-range backends.
+
 ## [0.24.3] - 2024-09-09
 
 ### Added
