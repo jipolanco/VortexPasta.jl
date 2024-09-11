@@ -1,7 +1,7 @@
 module VortexPastaThreadPinningExt
 
 using VortexPasta.BiotSavart: BiotSavart, FINUFFTBackend
-using ThreadPinning: ThreadPinning, pinthreads, unpinthreads
+using ThreadPinning: ThreadPinning
 
 # Note: we only redefine this function for FINUFFTBackend (but not for CuFINUFFTBackend,
 # which doesn't use CPU threads).
