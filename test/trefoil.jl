@@ -5,6 +5,7 @@ using VortexPasta.Filaments
 using VortexPasta.Filaments: GeometricQuantity, Vec3
 using VortexPasta.BiotSavart
 using ForwardDiff: ForwardDiff
+using ThreadPinning: ThreadPinning  # for testing the interaction between ThreadPinning and FINUFFTBackend
 using LaTeXStrings  # used for plots only (L"...")
 
 function trefoil_function()
@@ -356,6 +357,11 @@ end
 @testset "Trefoil" begin
     # Note: for testing purposes it's important to discretise the vortex with a *small*
     # number of discretisation points.
+    ThreadPinning.pinthreads(:cores)
+    ThreadPinning.threadinfo()
+    cpuids = ThreadPinning.getcpuids()
+    @test ThreadPinning.ispinned() == true
+    @test cpuids !== ThreadPinning.getcpuids()  # make sure they're not aliased (otherwise the ThreadPinning extension might need to be corrected)
     f = @inferred init_trefoil_filament(30)
     Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
     Ns = (3, 3, 4) .* 30
@@ -401,6 +407,9 @@ end
             test_trefoil_quantity(method, TorsionScalar())
         end
     end
+    # Check that threads are still pinned after all of this.
+    @test ThreadPinning.ispinned() == true
+    @test cpuids == ThreadPinning.getcpuids()
 end
 
 ##
