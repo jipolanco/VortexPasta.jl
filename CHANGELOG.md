@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.24.4] - 2024-09-12
+
 ### Added
 
 - Add `VortexPastaThreadPinningExt` extension. When ThreadPinning.jl is loaded
