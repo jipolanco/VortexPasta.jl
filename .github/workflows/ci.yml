@@ -34,6 +34,11 @@ jobs:
             os: ubuntu-24.04
             experimental: true
             arch: x64
+          # Out of curiosity: does it run on apple M1? (ARM-based)
+          - julia-version: 'pre'
+            os: macos-14
+            experimental: true
+
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
