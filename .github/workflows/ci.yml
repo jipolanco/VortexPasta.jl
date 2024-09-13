@@ -38,6 +38,7 @@ jobs:
           - julia-version: 'pre'
             os: macos-14
             experimental: true
+            arch: aarch64
 
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +75,7 @@ jobs:
       #     files: lcov.info
 
       - name: Generate coverage HTML
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq lcov  # provides genhtml
