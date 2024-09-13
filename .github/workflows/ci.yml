@@ -10,13 +10,15 @@ on:
       - master
     tags: '*'
 
+# See https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+# for available runners
 jobs:
   test:
     name: Julia ${{ matrix.julia-version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
     env:
-      JULIA_NUM_THREADS: 4
+      JULIA_NUM_THREADS: 4  # Linux runners have 4 CPUs available
       JULIA_DISABLE_JET_KA_TESTS: true  # disable JET.jl tests involving KernelAbstractions kernels (they generally fail...)
     strategy:
       fail-fast: true
@@ -34,6 +36,13 @@ jobs:
             os: ubuntu-24.04
             experimental: true
             arch: x64
+          # Does it run on apple M1? (ARM-based)
+          - julia-version: 'pre'
+            os: macos-14
+            env: JULIA_NUM_THREADS=3  # macos-14 runners have 3 CPUs available
+            experimental: true
+            arch: aarch64
+
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -69,6 +78,7 @@ jobs:
       #     files: lcov.info
 
       - name: Generate coverage HTML
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq lcov  # provides genhtml
