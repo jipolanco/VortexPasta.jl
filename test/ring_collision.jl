@@ -105,10 +105,10 @@ function test_ring_collision(;
 end
 
 @testset "Ring collision" begin
-    fields_cpu = test_ring_collision(backend_long = NonuniformFFTsBackend())
+    fields_cpu = test_ring_collision(backend_long = NonuniformFFTsBackend(CPU()))
     # The PseudoGPU type is internal. It is only used to test GPU-specific code when we
     # don't have an actual GPU.
-    fields_pseudo_gpu = test_ring_collision(backend_long = NonuniformFFTsBackend(device = PseudoGPU()))
+    fields_pseudo_gpu = test_ring_collision(backend_long = NonuniformFFTsBackend(PseudoGPU()))
     # Note: due to autotuning (which is quite random), the two sets of results can be a bit
     # different, thus we need a relative large `rtol`.
     @test fields_cpu.velocity ≈ fields_pseudo_gpu.velocity rtol=1e-6
