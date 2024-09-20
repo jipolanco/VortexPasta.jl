@@ -66,7 +66,6 @@ struct NonuniformFFTsBackend{
             device::KA.Backend = ka_default_cpu_backend();
             σ = 1.5,
             m = HalfSupport(4),
-            device::KA.Backend = ka_default_cpu_backend(),
             fftw_flags = FFTW.MEASURE,
             other...,
         )
