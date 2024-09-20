@@ -50,7 +50,7 @@ Some relevant keyword arguments are:
 
 - `m = HalfSupport(4)`: the half-width of the NUFFT kernels. Larger means higher accuracy;
 
-- `fftw_flags = FFTW.MEASURE`: flags passed to the FFTW planner (CPU only).
+- `fftw_flags = FFTW.MEASURE`: flags passed to the FFTW planner (ignored on GPU devices).
 
 The default parameters (`σ = 1.5`, `m = HalfSupport(4)`) correspond to a relative NUFFT
 tolerance of ``∼10^{-6}``.
