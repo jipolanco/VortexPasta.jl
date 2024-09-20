@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.24.5] - 2024-09-20
+
+### Added
+
+- Allow using GPU version of NonuniformFFTs.jl for computing long-range interactions.
+  For this, we now require NonuniformFFTs.jl v0.5.1.
+
 ## [0.24.4] - 2024-09-12
 
 ### Added
