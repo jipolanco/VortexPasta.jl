@@ -35,6 +35,11 @@ For example, to use a CUDA device:
     using CUDA
     backend_long = NonuniformFFTsBackend(CUDABackend(); kwargs...)
 
+On AMD GPUs, the following should hopefully work (not tested):
+
+    using AMDGPU
+    backend_long = NonuniformFFTsBackend(ROCBackend(); kwargs...)
+
 ## Keyword arguments
 
 Some relevant keyword arguments are:
@@ -69,7 +74,11 @@ struct NonuniformFFTsBackend{
             fftw_flags = FFTW.MEASURE,
             other...,
         )
-        kws = (; fftw_flags, other...,)
+        # Pass the chosen device to NonuniformFFTs, except if the device is a PseudoGPU
+        # (used in testing only). Actually passing a PseudoGPU to NonuniformFFTs might work,
+        # but would need to be tested...
+        backend = device isa PseudoGPU ? ka_default_cpu_backend() : device
+        kws = (; backend, fftw_flags, other...,)
         hs = to_halfsupport(m)
         new{typeof(hs), typeof(σ), typeof(device), typeof(kws)}(hs, σ, device, kws)
     end
@@ -87,8 +96,8 @@ half_support(backend::NonuniformFFTsBackend) = half_support(backend.m)  # return
 half_support(::HalfSupport{M}) where {M} = M
 
 function Base.show(io::IO, backend::NonuniformFFTsBackend)
-    (; m, σ,) = backend
-    print(io, "NonuniformFFTsBackend(; m = $m, σ = $σ)")
+    (; device, m, σ,) = backend
+    print(io, "NonuniformFFTsBackend($device; m = $m, σ = $σ)")
 end
 
 expected_period(::NonuniformFFTsBackend) = 2π

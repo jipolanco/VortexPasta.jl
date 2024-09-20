@@ -17,6 +17,7 @@ export
     periods,
     velocity_on_nodes!,
     compute_on_nodes!,
+    CPU,  # from KernelAbstractions
     reset_timer!  # from TimerOutputs
 
 using ..BasicTypes:
@@ -34,7 +35,8 @@ using Adapt: Adapt, adapt
 
 using KernelAbstractions:
     KernelAbstractions,  # importing this avoids docs failure
-    KernelAbstractions as KA, @kernel, @index, @Const
+    KernelAbstractions as KA, @kernel, @index, @Const,
+    CPU, GPU
 
 using StableTasks: StableTasks
 
@@ -357,7 +359,7 @@ end
 
 # CPU/CPU version (no GPU)
 function _compute_on_nodes!(
-        ::KA.CPU, fields::NamedTuple, cache, fs;
+        ::CPU, fields::NamedTuple, cache, fs;
         LIA = Val(true),
         longrange = true,
         shortrange = true,
@@ -431,7 +433,7 @@ end
 # We compute short-range (CPU) and long-range (GPU) asynchronously, so that both components
 # work at the same time.
 function _compute_on_nodes!(
-        device_lr::KA.GPU, fields::NamedTuple, cache, fs;
+        device_lr::GPU, fields::NamedTuple, cache, fs;
         LIA = Val(true),
         longrange = true,
         shortrange = true,
