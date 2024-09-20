@@ -12,17 +12,32 @@ Compute long-range interactions using the
 This backend may be faster than other NUFFT-based backends since it allows real valued
 non-uniform data, meaning that we can use real-to-complex FFTs to accelerate computations.
 
-Computations are parallelised by default using threads.
+Transforms can be performed either on the CPU (parallelised with threads, default) or on a
+single GPU (in principle any kind of GPU should work, but only CUDA has been tested).
+This must be set via the `device` argiment (see below).
 
 # Optional arguments
 
 The signature of `NonuniformFFTsBackend` is:
 
-    NonuniformFFTsBackend(; σ = 1.5, m = HalfSupport(4), kws...)
+    NonuniformFFTsBackend([device = CPU()]; σ = 1.5, m = HalfSupport(4), kws...)
 
 where all arguments are passed to NonuniformFFTs.jl.
 
-Some relevant options are:
+## Using a GPU
+
+Transforms are run on all available CPUs by default.
+To use a GPU, pass the corresponding [KernelAbstractions.jl
+backend](https://juliagpu.github.io/KernelAbstractions.jl/stable/#Supported-backends) as the
+only positional argument.
+For example, to use a CUDA device:
+
+    using CUDA
+    backend_long = NonuniformFFTsBackend(CUDABackend(); kwargs...)
+
+## Keyword arguments
+
+Some relevant keyword arguments are:
 
 - `σ = 1.5`: upsampling factor, which must be larger than 1. Usual values are between 1.25
   (smaller FFTs, less accurate) and 2.0 (larger FFTs, more accurate). Other values such as 1.5
@@ -30,10 +45,13 @@ Some relevant options are:
 
 - `m = HalfSupport(4)`: the half-width of the NUFFT kernels. Larger means higher accuracy;
 
-- `fftw_flags = FFTW.MEASURE`: flags passed to the FFTW planner.
+- `fftw_flags = FFTW.MEASURE`: flags passed to the FFTW planner (CPU only).
 
 The default parameters (`σ = 1.5`, `m = HalfSupport(4)`) correspond to a relative NUFFT
 tolerance of ``∼10^{-6}``.
+
+See [the NonuniformFFTs.jl docs](https://jipolanco.github.io/NonuniformFFTs.jl/stable/API/#NonuniformFFTs.PlanNUFFT)
+for a full list of possible keyword arguments.
 """
 struct NonuniformFFTsBackend{
         HS <: HalfSupport, OversamplingFactor <: Real,
@@ -42,12 +60,13 @@ struct NonuniformFFTsBackend{
     } <: LongRangeBackend
     m :: HS
     σ :: OversamplingFactor
-    device :: Device  # this is internal for now
+    device :: Device
     kws :: KwArgs
-    function NonuniformFFTsBackend(;
+    function NonuniformFFTsBackend(
+            device::KA.Backend = ka_default_cpu_backend();
             σ = 1.5,
             m = HalfSupport(4),
-            device::KA.Backend = ka_default_cpu_backend(),  # this is for now internal (shouldn't be used, except for tests!!)
+            device::KA.Backend = ka_default_cpu_backend(),
             fftw_flags = FFTW.MEASURE,
             other...,
         )
