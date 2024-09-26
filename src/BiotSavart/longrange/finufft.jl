@@ -46,9 +46,7 @@ Some relevant options are:
 - `nthreads = Threads.nthreads()` number of threads to use. By default, all
   threads available to Julia are used;
 
-- `fftw = FFTW.MEASURE` flags passed to the FFTW planner;
-
-- `chkbnds = false` if `true`, check that non-uniform points are in ``[-3π, 3π)``;
+- `fftw = FFTW.MEASURE` flags passed to the FFTW planner.
 
 Other options described in the [FINUFFT
 docs](https://finufft.readthedocs.io/en/latest/opts.html) and not listed above
@@ -63,12 +61,10 @@ struct FINUFFTBackend{KwArgs <: NamedTuple} <: AbstractFINUFFTBackend
             nthreads::Int = Threads.nthreads(),
             upsampfac = FINUFFT_DEFAULT_UPSAMPFAC,
             fftw = FFTW.MEASURE,
-            chkbnds = false,
             other...,
         )
         kws = (;
-            nthreads, fftw, upsampfac = Float64(upsampfac),
-            chkbnds = Int(chkbnds), other...,
+            nthreads, fftw, upsampfac = Float64(upsampfac), other...,
         )
         new{typeof(kws)}(tol, kws)
     end
@@ -137,7 +133,7 @@ function Base.show(io::IO, backend::FINUFFTBackend)
 end
 
 expected_period(::AbstractFINUFFTBackend) = 2π
-folding_limits(::AbstractFINUFFTBackend) = (-3π, 3π)  # we could even reduce this...
+# folding_limits(::AbstractFINUFFTBackend) = (-3π, 3π)  # no longer needed since FINUFFT 2.3.0
 non_uniform_type(::Type{T}, ::AbstractFINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
 
 # This should work for CPU and GPU versions.
