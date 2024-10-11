@@ -24,7 +24,7 @@ jobs:
         experimental: [false]
         julia-version:
           # - '1.9'
-          - '1.10'
+          - '1.11'
         os:
           - ubuntu-24.04
         arch:
@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     env:
-      JULIA_VERSION: '1.10'  # julia version used to build docs
+      JULIA_VERSION: '1.11'  # julia version used to build docs
       JULIA_NUM_THREADS: 2
 
     steps:
