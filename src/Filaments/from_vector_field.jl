@@ -87,7 +87,7 @@ julia> summary(f)
 "29-element ClosedFilament{SVector{3, Float64}, QuinticSplineMethod}"
 
 julia> Filaments.distance_to_field(ωf, f)  # check that we're close to the actual vortex line
-3.956104917463104e-5
+3.9561046185765664e-5
 ```
 
 ## Implementation details
