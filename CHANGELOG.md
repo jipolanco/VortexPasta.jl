@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add support for AMD GPUs via [AMDGPU.jl](https://github.com/JuliaGPU/AMDGPU.jl).
+  This requires using the `NonuniformFFTsBackend` for computing long-range
+  interactions, and setting the device to `ROCBackend()`.
+
 ## [0.24.5] - 2024-09-20
 
 ### Added

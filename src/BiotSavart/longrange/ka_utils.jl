@@ -26,9 +26,9 @@ function ka_default_workgroupsize(::KA.CPU, dims::Dims)
 end
 
 function ka_default_workgroupsize(::KA.GPU, dims::Dims)
-    # On the GPU, we divide the work across the first dimension and try to use 256 GPU
+    # On the GPU, we divide the work across the first dimension and try to use 512 GPU
     # threads per workgroup.
-    wgsize_wanted = 256
+    wgsize_wanted = 512
     x = map(one, dims)  # = (1, 1, 1) in 3D
     Base.setindex(x, min(dims[1], wgsize_wanted), 1)  # usually (wgsize_wanted, 1, 1)
 end
@@ -68,7 +68,7 @@ end
 struct PseudoGPU <: KA.GPU end
 
 KA.isgpu(::PseudoGPU) = false  # needed to be considered as a CPU backend by KA
-KA.allocate(::PseudoGPU, args...) = KA.allocate(KA.CPU(), args...)
+KA.allocate(::PseudoGPU, ::Type{T}, dims::Dims) where {T} = KA.allocate(KA.CPU(), T, dims)
 KA.synchronize(::PseudoGPU) = nothing
 KA.copyto!(::PseudoGPU, u, v) = copyto!(u, v)
 Adapt.adapt(::PseudoGPU, u::Array) = copy(u)  # simulate host → device copy (making sure arrays are not aliased)
