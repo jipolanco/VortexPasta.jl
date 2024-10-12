@@ -14,7 +14,7 @@ non-uniform data, meaning that we can use real-to-complex FFTs to accelerate com
 
 Transforms can be performed either on the CPU (parallelised with threads, default) or on a
 single GPU (in principle any kind of GPU should work, but only CUDA has been tested).
-This must be set via the `device` argiment (see below).
+This must be set via the `device` argument (see below).
 
 # Optional arguments
 

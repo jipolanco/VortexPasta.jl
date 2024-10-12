@@ -347,22 +347,26 @@ _fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
     nothing
 end
 
-function _fold_coordinates!(c::LongRangeCache, lims::NTuple{2}, L::Real)
+function _fold_coordinates!(c::LongRangeCache, lims_in::NTuple{2, Real}, L_in::Real)
     (; points,) = c.common.pointdata_d
-    points_comp = StructArrays.components(points)
+    points_comp = StructArrays.components(points) :: NTuple
+    T = eltype(points_comp[1])
+    @assert T <: AbstractFloat
+    lims = convert.(T, lims_in)
+    L = convert(T, L_in)
     ka_backend = KA.get_backend(c)
     @assert length(points) > 0
     # Instead of using ka_generate_kernel, we create a kernel with dynamically sized
     # ndrange, which means (I think) that the kernel won't be recompiled when length(points)
     # changes (which happens all the time during a simulation).
-    workgroupsize = 256
+    workgroupsize = 1024
     kernel = fold_coordinates_kernel!(ka_backend, workgroupsize)
     kernel(points_comp, lims, L; ndrange = size(points))
     nothing
 end
 
 # We assume that L = b - a.
-@inline function _fold_coordinate(x::Real, (a, b), L::Real)
+@inline function _fold_coordinate(x::T, (a, b)::NTuple{2, T}, L::T) where {T <: AbstractFloat}
     while x ≥ b
         x -= L
     end

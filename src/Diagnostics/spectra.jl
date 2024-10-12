@@ -183,7 +183,6 @@ function energy_spectrum!(
         Base.mapreducedim!(identity, +, Ek_d, Ek_groups)  # sum values from all workgroups onto Ek_d
 
         if backend isa KA.GPU
-            KA.synchronize(backend)
             KA.unsafe_free!(Ek_groups)  # manually free GPU memory
         end
     end

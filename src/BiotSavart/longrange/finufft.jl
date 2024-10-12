@@ -303,6 +303,8 @@ function transform_to_fourier!(c::FINUFFTCache)
     finufft_unpin_threads(backend_lr) do  # disable ThreadPinning in the CPU version (see VortexPastaThreadPinningExt)
         @timeit to_d "$name_to setpts" begin
             _finufft_setpts_func!(backend_lr)(plan_type1, points_data...)
+            # For now we need synchronisation since generally CuFINUFFT code and Julia code
+            # run on separate CUDA streams.
             _finufft_sync(backend_lr)  # similar to KA.synchronize, but applies to the CUDA stream attached to cuFINUFFT (irrelevant for CPU case)
         end
         resize!(charge_data, 3 * Np)
