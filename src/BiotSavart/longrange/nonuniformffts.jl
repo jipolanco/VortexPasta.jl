@@ -35,7 +35,7 @@ For example, to use a CUDA device:
     using CUDA
     backend_long = NonuniformFFTsBackend(CUDABackend(); kwargs...)
 
-On AMD GPUs, the following should hopefully work (not tested):
+On AMD GPUs the following should work:
 
     using AMDGPU
     backend_long = NonuniformFFTsBackend(ROCBackend(); kwargs...)
