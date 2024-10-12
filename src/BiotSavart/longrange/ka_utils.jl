@@ -68,7 +68,7 @@ end
 struct PseudoGPU <: KA.GPU end
 
 KA.isgpu(::PseudoGPU) = false  # needed to be considered as a CPU backend by KA
-KA.allocate(::PseudoGPU, args...) = KA.allocate(KA.CPU(), args...)
+KA.allocate(::PseudoGPU, ::Type{T}, dims::Dims) where {T} = KA.allocate(KA.CPU(), T, dims)
 KA.synchronize(::PseudoGPU) = nothing
 KA.copyto!(::PseudoGPU, u, v) = copyto!(u, v)
 Adapt.adapt(::PseudoGPU, u::Array) = copy(u)  # simulate host → device copy (making sure arrays are not aliased)

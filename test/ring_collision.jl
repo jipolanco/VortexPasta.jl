@@ -54,6 +54,11 @@ function test_ring_collision(;
     fields = (velocity = vs, streamfunction = ψs)
     compute_on_nodes!(fields, cache, filaments)
 
+    spectrum = let
+        ks, Ek = Diagnostics.energy_spectrum(cache)
+        (; ks, Ek,)
+    end
+
     for (f, v) ∈ zip(filaments, vs)
         velocity_perpendicular_to_tangent = true
         velocity_towards_outside = true
@@ -101,16 +106,23 @@ function test_ring_collision(;
         @test dLdt ≈ stretching_rate_expected rtol=0.002
     end
 
-    fields
+    (; fields..., to = cache.to, spectrum,)
 end
 
 @testset "Ring collision" begin
-    fields_cpu = test_ring_collision(backend_long = NonuniformFFTsBackend(CPU()))
+    cpu = test_ring_collision(backend_long = NonuniformFFTsBackend(CPU()))
     # The PseudoGPU type is internal. It is only used to test GPU-specific code when we
     # don't have an actual GPU.
-    fields_pseudo_gpu = test_ring_collision(backend_long = NonuniformFFTsBackend(PseudoGPU()))
+    gpu = test_ring_collision(backend_long = NonuniformFFTsBackend(PseudoGPU()))
     # Note: due to autotuning (which is quite random), the two sets of results can be a bit
     # different, thus we need a relative large `rtol`.
-    @test fields_cpu.velocity ≈ fields_pseudo_gpu.velocity rtol=1e-6
-    @test fields_cpu.streamfunction ≈ fields_pseudo_gpu.streamfunction rtol=1e-6
+    @test cpu.velocity ≈ gpu.velocity rtol=1e-6
+    @test cpu.streamfunction ≈ gpu.streamfunction rtol=1e-6
+    # Compare energy spectra (first 8 modes only, since kmax may differ between both cases
+    # due to autotuning). We make sure we have computed enough modes, but this is basically
+    # almost the case.
+    if length(cpu.spectrum.ks) ≥ 9 && length(gpu.spectrum.ks) ≥ 9
+        @test cpu.spectrum.ks[1:8] ≈ gpu.spectrum.ks[1:8]
+        @test cpu.spectrum.Ek[1:8] ≈ gpu.spectrum.Ek[1:8] rtol=1e-6
+    end
 end
