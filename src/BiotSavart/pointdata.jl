@@ -12,12 +12,16 @@ struct PointData{
         Points <: StructVector{Vec3{T}},
         # Note: complex is needed by some long-range backends such as FINUFFT (even though values are always real!)
         Charges <: StructVector{Vec3{S}},
+        PointsHost <: StructVector{Vec3{T}},
+        ChargesHost <: StructVector{Vec3{S}},
         Filament <: AbstractFilament,
         Segments <: AbstractVector{Segment{Filament}},
     }
-    points   :: Points    # interpolated locations s⃗ on segments
-    charges  :: Charges   # rescaled tangent vector q * s⃗′ on segments (where `q` is the quadrature weight)
-    segments :: Segments  # filament segment on which each location s⃗ is located
+    points    :: Points      # interpolated locations s⃗ on segments
+    charges   :: Charges     # rescaled tangent vector q * s⃗′ on segments (where `q` is the quadrature weight)
+    points_h  :: PointsHost  # CPU buffer which may be used for intermediate host-device transfers
+    charges_h :: ChargesHost # CPU buffer which may be used for intermediate host-device transfers
+    segments  :: Segments    # filament segment on which each location s⃗ is located
 end
 
 # If `to` corresponds to a GPU backend, create PointData object on the GPU (useful for long-range computations
@@ -27,7 +31,9 @@ end
     PointData(
         adapt(to, p.points),
         adapt(to, p.charges),
-        p.segments,  # for now, keep segments on the CPU (we don't use them on the GPU)
+        p.points_h,   # this is always on the CPU
+        p.charges_h,  # this is always on the CPU
+        p.segments,   # for now, keep segments on the CPU (we don't use them on the GPU)
     )
 end
 
@@ -37,12 +43,12 @@ function PointData(::Type{T}, ::Type{S}, ::Type{F}) where {T, S, F <: AbstractFi
     Seg = Segment{F}
     @assert isconcretetype(Seg)
     segments = Seg[]
-    PointData(points, charges, segments)
+    PointData(points, charges, copy(points), copy(charges), segments)
 end
 
 function Base.copy(data::PointData)
-    (; points, charges, segments,) = data
-    PointData(copy(points), copy(charges), copy(segments))
+    (; points, charges, points_h, charges_h, segments,) = data
+    PointData(copy(points), copy(charges), empty(points_h), empty(charges_h), copy(segments))
 end
 
 # This is useful in particular for host -> device copies.

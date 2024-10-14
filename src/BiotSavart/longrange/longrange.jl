@@ -444,17 +444,16 @@ end
 function set_interpolation_points!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
-        pointdata_h::PointData = adapt(Array, cache.common.pointdata_d),  # default allocates if pointdata_d is on the GPU
     )
     # Note that we only modify the `points` field of PointData. The other ones are not
     # needed for interpolation.
     (; pointdata_d,) = cache.common
-    (; points, charges,) = pointdata_d
+    (; points, charges, points_h,) = pointdata_d
     Npoints = sum(length, fs)
     resize_no_copy!(points, Npoints)
     resize_no_copy!(charges, Npoints)  # this is the interpolation output
     ka_backend = KA.get_backend(cache)
-    set_interpolation_points_impl!(ka_backend, fs, pointdata_d, pointdata_h)
+    set_interpolation_points_impl!(ka_backend, fs, points, points_h)
     rescale_coordinates!(cache)
     fold_coordinates!(cache)
     nothing
@@ -462,28 +461,26 @@ end
 
 # CPU implementation
 function set_interpolation_points_impl!(
-        ::KA.CPU, fs, pointdata_d, pointdata_h,
+        ::KA.CPU, fs, points_d, points_h,
     )
-    @assert pointdata_d === pointdata_h  # these are aliased in the CPU case (we just ignore pointdata_h)
-    (; points,) = pointdata_d
-    points_d = StructArrays.components(points)  # (xs, ys, zs)
-    _set_interpolation_points!(points_d, fs)
+    @assert isempty(points_h)  # never used in the CPU implementation (so it should stay empty)
+    xs_d = StructArrays.components(points_d)  # (xs, ys, zs)
+    _set_interpolation_points!(xs_d, fs)
     nothing
 end
 
 # GPU implementation: first write to pointdata_h (on the CPU), then copy to pointdata_d (on the GPU).
 function set_interpolation_points_impl!(
-        ka_backend::KA.GPU, fs, pointdata_d, pointdata_h,
+        ka_backend::KA.GPU, fs, points_d, points_h,
     )
-    @assert pointdata_d !== pointdata_h
-    Npoints = length(pointdata_d.points)  # for now, only points_d has the right size
-    resize_no_copy!(pointdata_h.points, Npoints)  # resize temporary array (on the CPU)
-    points_d = StructArrays.components(pointdata_d.points)  # (xs, ys, zs)
-    points_h = StructArrays.components(pointdata_h.points)  # (xs, ys, zs)
-    _set_interpolation_points!(points_h, fs)  # gather points on the CPU
+    Npoints = length(points_d)  # for now, only points_d has the right size
+    resize_no_copy!(points_h, Npoints)  # resize temporary array (on the CPU)
+    xs_d = StructArrays.components(points_d)  # (xs, ys, zs)
+    xs_h = StructArrays.components(points_h)  # (xs, ys, zs)
+    _set_interpolation_points!(xs_h, fs)  # gather points on the CPU
     # Copy to GPU
-    for i ∈ eachindex(points_d, points_h)
-        KA.copyto!(ka_backend, points_d[i], points_h[i])
+    for i ∈ eachindex(xs_d, xs_h)
+        KA.copyto!(ka_backend, xs_d[i], xs_h[i])
     end
     nothing
 end
@@ -507,17 +504,17 @@ end
 function add_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
         charges = cache.common.pointdata_d.charges,
-        pointdata_h::PointData = adapt(Array, cache.common.pointdata_d),  # default allocates if pointdata_d is on the GPU
     )
+    (; charges_h,) = cache.common.pointdata_d
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     ka_backend = KA.get_backend(cache)
-    add_long_range_output_impl!(ka_backend, vs, charges, pointdata_h.charges)
+    add_long_range_output_impl!(ka_backend, vs, charges, charges_h)
     vs
 end
 
 function add_long_range_output_impl!(::KA.CPU, vs, charges_d, charges_h)
-    @assert charges_d === charges_h  # input arrays are aliased
+    @assert isempty(charges_h)  # never used in the CPU implementation (so it should stay empty)
     _add_long_range_output!(vs, charges_d)
     nothing
 end
@@ -525,7 +522,6 @@ end
 # GPU implementation: first copy from charges_d (GPU) to charges_h (CPU), then add results
 # to `vs`.
 function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_h)
-    @assert charges_d !== charges_h
     # Device-to-host copy
     qs_d = StructArrays.components(charges_d)
     qs_h = StructArrays.components(charges_h)

@@ -396,7 +396,7 @@ function _compute_on_nodes!(
                 end
             end
             @timeit to "Set interpolation points" begin
-                set_interpolation_points!(cache.longrange, fs, pointdata)  # overwrites pointdata (points)
+                set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata (points)
             end
             if ψs !== nothing
                 @timeit to "Streamfunction" begin
@@ -479,7 +479,7 @@ function _compute_on_nodes!(
                     end
                 end
                 @timeit to_d "Set interpolation points" begin
-                    set_interpolation_points!(cache.longrange, fs, pointdata)  # overwrites pointdata_d (points)
+                    set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d (points)
                 end
                 # Interpolate streamfunction and/or velocity.
                 local ifield = 0
@@ -543,10 +543,10 @@ function _compute_on_nodes!(
         @timeit to "Copy output (device → host)" let
             local ifield = 0
             if ψs !== nothing
-                add_long_range_output!(ψs, cache.longrange, outputs_lr[ifield += 1], pointdata)
+                add_long_range_output!(ψs, cache.longrange, outputs_lr[ifield += 1])
             end
             if vs !== nothing
-                add_long_range_output!(vs, cache.longrange, outputs_lr[ifield += 1], pointdata)
+                add_long_range_output!(vs, cache.longrange, outputs_lr[ifield += 1])
             end
         end
 
