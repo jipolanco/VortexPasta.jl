@@ -1,5 +1,7 @@
 # KernelAbstractions utils (CPU/GPU kernels)
 
+using Bumper: UnsafeArrays.UnsafeArray  # array type allocated by Bumper
+
 """
     KernelAbstractions.get_backend(backend::LongRangeBackend) -> KernelAbstractions.Backend
     KernelAbstractions.get_backend(cache::LongRangeCache) -> KernelAbstractions.Backend
@@ -60,6 +62,22 @@ function ka_generate_kernel(
         kws...,
     ) where {F <: Function}
     ka_generate_kernel(kernel, backend, size(u); kws...)
+end
+
+# Host-to-device copy using Bumper-allocated arrays.
+# This is basically the same as KA.copyto!, except for ROCBackend/AMDGPU which currently
+# doesn't allow host-device copies using host arrays allocated via Bumper.
+function copyto_bumper!(backend::KA.Backend, dst::AbstractArray, src::UnsafeArray)
+    @assert typeof(KA.get_backend(dst)) === typeof(backend)
+    KA.copyto!(backend, dst, src)  # works on CPU and CUDA, but currently not on AMDGPU
+end
+
+# Device-to-host copy using Bumper-allocated arrays.
+# This is basically the same as KA.copyto!, except for ROCBackend/AMDGPU which currently
+# doesn't allow host-device copies using host arrays allocated via Bumper.
+function copyto_bumper!(backend::KA.Backend, dst::UnsafeArray, src::AbstractArray)
+    @assert typeof(KA.get_backend(src)) === typeof(backend)
+    KA.copyto!(backend, dst, src)  # works on CPU and CUDA, but currently not on AMDGPU
 end
 
 ## ================================================================================ ##

@@ -477,12 +477,8 @@ function _set_interpolation_points!(device::KA.GPU, points::NTuple{N}, fs) where
     @no_escape buf begin
         Xs = map(x -> @alloc(eltype(x), length(x)), points)
         _set_interpolation_points!(KA.CPU(), Xs, fs)  # calls CPU implementation
-        GC.@preserve Xs begin
-            for i ∈ eachindex(points, Xs)
-                # "Convert" Bumper array to standard Array to make things work with AMDGPU.
-                src = unsafe_wrap(Array, pointer(Xs[i]), size(Xs[i]))
-                KA.copyto!(device, points[i], src)  # host-to-device copy
-            end
+        for i ∈ eachindex(points, Xs)
+            copyto_bumper!(device, points[i], Xs[i])  # host-to-device copy
         end
     end
     points
@@ -515,12 +511,8 @@ function _add_long_range_output!(device::KA.GPU, vs, charges::StructVector{V}) w
     @no_escape buf begin
         qs = StructArrays.components(charges)  # (qx, qy, qz)
         vtmp = map(q -> @alloc(eltype(q), length(q)), qs)  # temporary CPU arrays
-        GC.@preserve vtmp begin
-            for i ∈ eachindex(vtmp, qs)
-                # "Convert" Bumper array to standard Array to make things work with AMDGPU.
-                dst = unsafe_wrap(Array, pointer(vtmp[i]), size(vtmp[i]))
-                KA.copyto!(device, dst, qs[i])  # device-to-host copy
-            end
+        for i ∈ eachindex(vtmp, qs)
+            copyto_bumper!(device, vtmp[i], qs[i])  # device-to-host copy
         end
         vtmp_struct = StructVector{V}(vtmp)  # vtmp as a StructVector
         _add_long_range_output!(KA.CPU(), vs, vtmp_struct)
