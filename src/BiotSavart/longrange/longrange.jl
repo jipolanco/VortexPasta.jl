@@ -529,7 +529,7 @@ function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_
         resize_no_copy!(qs_h[i], length(qs_d[i]))
         KA.copyto!(ka_backend, qs_h[i], qs_d[i])  # device-to-host copy
     end
-    KA.synchronize(ka_backend)  # make sure we're done copying data to CPU
+    KA.synchronize(ka_backend)  # make sure we're done copying data to CPU (needed on CUDA, where KA.copyto! is asynchronous)
     # Now add long-range values to `vs` output.
     _add_long_range_output!(vs, charges_h)
     nothing
