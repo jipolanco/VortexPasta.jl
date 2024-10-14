@@ -437,27 +437,56 @@ function truncate_spherical!(cache)
     nothing
 end
 
+# Here pointdata_h is the point data on the CPU.
+# It is used as an intermediate buffer in the GPU implementation.
+# To avoid allocations, it should be passed by the caller. Its default value is mostly for
+# backwards compatibility, when this function only accepted 2 arguments.
 function set_interpolation_points!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
     )
     # Note that we only modify the `points` field of PointData. The other ones are not
     # needed for interpolation.
-    (; points, charges,) = cache.common.pointdata_d
-    points::StructVector{<:Vec3}
+    (; pointdata_d,) = cache.common
+    (; points, charges, points_h,) = pointdata_d
     Npoints = sum(length, fs)
-    resize!(points, Npoints)
-    resize!(charges, Npoints)  # this is the interpolation output
+    resize_no_copy!(points, Npoints)
+    resize_no_copy!(charges, Npoints)  # this is the interpolation output
     ka_backend = KA.get_backend(cache)
-    points_c = StructArrays.components(points)  # (xs, ys, zs)
-    _set_interpolation_points!(ka_backend, points_c, fs)
+    set_interpolation_points_impl!(ka_backend, fs, points, points_h)
     rescale_coordinates!(cache)
     fold_coordinates!(cache)
     nothing
 end
 
-# CPU implementation: directly write filament nodes to `points` vectors.
-function _set_interpolation_points!(::KA.CPU, points::NTuple, fs)
+# CPU implementation
+function set_interpolation_points_impl!(
+        ::KA.CPU, fs, points_d, points_h,
+    )
+    @assert isempty(points_h)  # never used in the CPU implementation (so it should stay empty)
+    xs_d = StructArrays.components(points_d)  # (xs, ys, zs)
+    _set_interpolation_points!(xs_d, fs)
+    nothing
+end
+
+# GPU implementation: first write to pointdata_h (on the CPU), then copy to pointdata_d (on the GPU).
+function set_interpolation_points_impl!(
+        ka_backend::KA.GPU, fs, points_d, points_h,
+    )
+    Npoints = length(points_d)  # for now, only points_d has the right size
+    resize_no_copy!(points_h, Npoints)  # resize temporary array (on the CPU)
+    xs_d = StructArrays.components(points_d)  # (xs, ys, zs)
+    xs_h = StructArrays.components(points_h)  # (xs, ys, zs)
+    _set_interpolation_points!(xs_h, fs)  # gather points on the CPU
+    # Copy to GPU
+    for i ∈ eachindex(xs_d, xs_h)
+        KA.copyto!(ka_backend, xs_d[i], xs_h[i])
+    end
+    nothing
+end
+
+function _set_interpolation_points!(points::NTuple, fs)
+    @assert KA.get_backend(points[1]) isa KA.CPU  # output is on the CPU
     Npoints = length(points[1])
     n = 0
     for f ∈ fs, X ∈ f
@@ -470,60 +499,47 @@ function _set_interpolation_points!(::KA.CPU, points::NTuple, fs)
     points
 end
 
-# Generic GPU implementation: first write filament nodes to array on the CPU, then make H2D
-# copy.
-function _set_interpolation_points!(device::KA.GPU, points::NTuple{N}, fs) where {N}
-    buf = Bumper.default_buffer()
-    @no_escape buf begin
-        Xs = map(x -> @alloc(eltype(x), length(x)), points)
-        _set_interpolation_points!(KA.CPU(), Xs, fs)  # calls CPU implementation
-        GC.@preserve Xs begin
-            for i ∈ eachindex(points, Xs)
-                # "Convert" Bumper array to standard Array to make things work with AMDGPU.
-                src = unsafe_wrap(Array, pointer(Xs[i]), size(Xs[i]))
-                KA.copyto!(device, points[i], src)  # host-to-device copy
-            end
-        end
-    end
-    points
-end
-
+# Here pointdata_h is used as a buffer in the GPU implementation.
+# See set_interpolation_points! for details.
 function add_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
-        input = cache.common.pointdata_d.charges,
+        charges = cache.common.pointdata_d.charges,
     )
+    (; charges_h,) = cache.common.pointdata_d
     nout = sum(length, vs)
-    nout == length(input) || throw(DimensionMismatch("wrong length of output vector `vs`"))
+    nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     ka_backend = KA.get_backend(cache)
-    _add_long_range_output!(ka_backend, vs, input)
+    add_long_range_output_impl!(ka_backend, vs, charges, charges_h)
     vs
 end
 
-function _add_long_range_output!(::KA.CPU, vs, charges::StructVector)
+function add_long_range_output_impl!(::KA.CPU, vs, charges_d, charges_h)
+    @assert isempty(charges_h)  # never used in the CPU implementation (so it should stay empty)
+    _add_long_range_output!(vs, charges_d)
+    nothing
+end
+
+# GPU implementation: first copy from charges_d (GPU) to charges_h (CPU), then add results
+# to `vs`.
+function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_h)
+    # Device-to-host copy
+    qs_d = StructArrays.components(charges_d)
+    qs_h = StructArrays.components(charges_h)
+    for i ∈ eachindex(qs_d, qs_h)
+        resize_no_copy!(qs_h[i], length(qs_d[i]))
+        KA.copyto!(ka_backend, qs_h[i], qs_d[i])  # device-to-host copy
+    end
+    KA.synchronize(ka_backend)  # make sure we're done copying data to CPU (needed on CUDA, where KA.copyto! is asynchronous)
+    # Now add long-range values to `vs` output.
+    _add_long_range_output!(vs, charges_h)
+    nothing
+end
+
+function _add_long_range_output!(vs, charges::StructVector)
     n = 0
     @inbounds for v ∈ vs, j ∈ eachindex(v)
         q = charges[n += 1]
         v[j] = v[j] + real(q)
-    end
-    vs
-end
-
-# Generic GPU implementation: first copy charges from the GPU onto an intermediate CPU
-# array, then fill `vs`.
-function _add_long_range_output!(device::KA.GPU, vs, charges::StructVector{V}) where {V}
-    buf = Bumper.default_buffer()
-    @no_escape buf begin
-        qs = StructArrays.components(charges)  # (qx, qy, qz)
-        vtmp = map(q -> @alloc(eltype(q), length(q)), qs)  # temporary CPU arrays
-        GC.@preserve vtmp begin
-            for i ∈ eachindex(vtmp, qs)
-                # "Convert" Bumper array to standard Array to make things work with AMDGPU.
-                dst = unsafe_wrap(Array, pointer(vtmp[i]), size(vtmp[i]))
-                KA.copyto!(device, dst, qs[i])  # device-to-host copy
-            end
-        end
-        vtmp_struct = StructVector{V}(vtmp)  # vtmp as a StructVector
-        _add_long_range_output!(KA.CPU(), vs, vtmp_struct)
     end
     vs
 end

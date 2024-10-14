@@ -62,6 +62,16 @@ function ka_generate_kernel(
     ka_generate_kernel(kernel, backend, size(u); kws...)
 end
 
+# Resize vector trying to avoid copy when N is larger than the original length.
+# In other words, we completely discard the original contents of x, which is not the
+# original behaviour of resize!. This can save us some device-to-device copies.
+# Function copied from NonuniformFFTs.jl.
+function resize_no_copy!(x, N)
+    resize!(x, 0)
+    resize!(x, N)
+    x
+end
+
 ## ================================================================================ ##
 ## This is for testing some GPU-specific code on CPUs. Used only in tests.
 
