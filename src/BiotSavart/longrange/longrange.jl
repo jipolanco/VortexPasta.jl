@@ -454,21 +454,7 @@ function set_interpolation_points!(
     resize_no_copy!(points, Npoints)
     resize_no_copy!(charges, Npoints)  # this is the interpolation output
     ka_backend = KA.get_backend(cache)
-    points_d = StructArrays.components(points)  # (xs, ys, zs)
-    points_h = StructArrays.components(pointdata_h.points)
-    if ka_backend isa KA.CPU
-        # CPU case: directly write to pointdata_d (which is the same as pointdata_h)
-        @assert pointdata_d === pointdata_h
-        _set_interpolation_points!(points_d, fs)
-    else
-        # GPU case: first write to pointdata_h (on the CPU), then copy to the GPU.
-        @assert pointdata_d !== pointdata_h
-        resize_no_copy!(pointdata_h.points, Npoints)
-        _set_interpolation_points!(points_h, fs)
-        for i ∈ eachindex(points_d, points_h)
-            KA.copyto!(ka_backend, points_d[i], points_h[i])
-        end
-    end
+    set_interpolation_points_impl!(ka_backend, fs, pointdata_d, pointdata_h)
     rescale_coordinates!(cache)
     fold_coordinates!(cache)
     nothing
