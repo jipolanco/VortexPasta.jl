@@ -514,6 +514,7 @@ function _add_long_range_output!(device::KA.GPU, vs, charges::StructVector{V}) w
         for i ∈ eachindex(vtmp, qs)
             copyto_bumper!(device, vtmp[i], qs[i])  # device-to-host copy
         end
+        KA.synchronize(device)  # make sure we're done copying data to CPU (needed on AMDGPU)
         vtmp_struct = StructVector{V}(vtmp)  # vtmp as a StructVector
         _add_long_range_output!(KA.CPU(), vs, vtmp_struct)
     end
