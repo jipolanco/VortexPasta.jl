@@ -72,15 +72,6 @@ function resize_no_copy!(x, N)
     x
 end
 
-# Host-device copy using Bumper-allocated host array.
-# This is basically the same as KA.copyto!, except for ROCBackend/AMDGPU which currently
-# doesn't allow host-device copies using host arrays allocated via Bumper.
-# Here either `dst` or `src` should be a CPU array allocated using Bumper, while the other
-# array should be a GPU array corresponding to the given backend.
-function copyto_bumper!(backend::KA.Backend, dst::AbstractArray, src::AbstractArray)
-    KA.copyto!(backend, dst, src)  # works on CPU and CUDA, but currently not on AMDGPU
-end
-
 ## ================================================================================ ##
 ## This is for testing some GPU-specific code on CPUs. Used only in tests.
 
