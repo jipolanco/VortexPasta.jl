@@ -440,24 +440,66 @@ end
 function set_interpolation_points!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
+        pointdata_h::PointData,  # pointdata on the host (CPU) -- always modified; used as a buffer in GPU implementation
     )
     # Note that we only modify the `points` field of PointData. The other ones are not
     # needed for interpolation.
-    (; points, charges,) = cache.common.pointdata_d
-    points::StructVector{<:Vec3}
+    (; pointdata_d,) = cache.common
+    (; points, charges,) = pointdata_d
     Npoints = sum(length, fs)
-    resize!(points, Npoints)
-    resize!(charges, Npoints)  # this is the interpolation output
+    resize_no_copy!(points, Npoints)
+    resize_no_copy!(charges, Npoints)  # this is the interpolation output
     ka_backend = KA.get_backend(cache)
-    points_c = StructArrays.components(points)  # (xs, ys, zs)
-    _set_interpolation_points!(ka_backend, points_c, fs)
+    points_d = StructArrays.components(points)  # (xs, ys, zs)
+    points_h = StructArrays.components(pointdata_h.points)
+    if ka_backend isa KA.CPU
+        # CPU case: directly write to pointdata_d (which is the same as pointdata_h)
+        @assert pointdata_d === pointdata_h
+        _set_interpolation_points!(points_d, fs)
+    else
+        # GPU case: first write to pointdata_h (on the CPU), then copy to the GPU.
+        @assert pointdata_d !== pointdata_h
+        resize_no_copy!(pointdata_h.points, Npoints)
+        _set_interpolation_points!(points_h, fs)
+        for i ∈ eachindex(points_d, points_h)
+            KA.copyto!(ka_backend, points_d[i], points_h[i])
+        end
+    end
     rescale_coordinates!(cache)
     fold_coordinates!(cache)
     nothing
 end
 
-# CPU implementation: directly write filament nodes to `points` vectors.
-function _set_interpolation_points!(::KA.CPU, points::NTuple, fs)
+# CPU implementation
+function set_interpolation_points_impl!(
+        ::KA.CPU, fs, pointdata_d, pointdata_h,
+    )
+    @assert pointdata_d ===  pointdata_h  # these are aliased in the CPU case (we just ignore pointdata_h)
+    (; points,) = pointdata_d
+    points_d = StructArrays.components(points)  # (xs, ys, zs)
+    _set_interpolation_points!(points_d, fs)
+    nothing
+end
+
+# GPU implementation: first write to pointdata_h (on the CPU), then copy to pointdata_d (on the GPU).
+function set_interpolation_points_impl!(
+        ka_backend::KA.GPU, fs, pointdata_d, pointdata_h,
+    )
+    @assert pointdata_d !== pointdata_h
+    Npoints = length(pointdata_d.points)  # for now, only points_d has the right size
+    resize_no_copy!(pointdata_h.points, Npoints)  # resize temporary array (on the CPU)
+    points_d = StructArrays.components(pointdata_d.points)  # (xs, ys, zs)
+    points_h = StructArrays.components(pointdata_h.points)  # (xs, ys, zs)
+    _set_interpolation_points!(points_h, fs)  # gather points on the CPU
+    # Copy to GPU
+    for i ∈ eachindex(points_d, points_h)
+        KA.copyto!(ka_backend, points_d[i], points_h[i])
+    end
+    nothing
+end
+
+function _set_interpolation_points!(points::NTuple, fs)
+    @assert KA.get_backend(points[1]) isa KA.CPU  # output is on the CPU
     Npoints = length(points[1])
     n = 0
     for f ∈ fs, X ∈ f
@@ -467,20 +509,6 @@ function _set_interpolation_points!(::KA.CPU, points::NTuple, fs)
         end
     end
     @assert n == Npoints
-    points
-end
-
-# Generic GPU implementation: first write filament nodes to array on the CPU, then make H2D
-# copy.
-function _set_interpolation_points!(device::KA.GPU, points::NTuple{N}, fs) where {N}
-    buf = Bumper.default_buffer()
-    @no_escape buf begin
-        Xs = map(x -> @alloc(eltype(x), length(x)), points)
-        _set_interpolation_points!(KA.CPU(), Xs, fs)  # calls CPU implementation
-        for i ∈ eachindex(points, Xs)
-            copyto_bumper!(device, points[i], Xs[i])  # host-to-device copy
-        end
-    end
     points
 end
 
