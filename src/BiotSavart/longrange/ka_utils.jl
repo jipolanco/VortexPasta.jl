@@ -68,7 +68,7 @@ end
 # This is basically the same as KA.copyto!, except for ROCBackend/AMDGPU which currently
 # doesn't allow host-device copies using host arrays allocated via Bumper.
 function copyto_bumper!(backend::KA.Backend, dst::AbstractArray, src::UnsafeArray)
-    @assert typeof(KA.get_backend(dst)) === typeof(backend)
+    @assert backend isa PseudoGPU || typeof(KA.get_backend(dst)) === typeof(backend)
     KA.copyto!(backend, dst, src)  # works on CPU and CUDA, but currently not on AMDGPU
 end
 
@@ -76,7 +76,7 @@ end
 # This is basically the same as KA.copyto!, except for ROCBackend/AMDGPU which currently
 # doesn't allow host-device copies using host arrays allocated via Bumper.
 function copyto_bumper!(backend::KA.Backend, dst::UnsafeArray, src::AbstractArray)
-    @assert typeof(KA.get_backend(src)) === typeof(backend)
+    @assert backend isa PseudoGPU || typeof(KA.get_backend(src)) === typeof(backend)
     KA.copyto!(backend, dst, src)  # works on CPU and CUDA, but currently not on AMDGPU
 end
 
