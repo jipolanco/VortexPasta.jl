@@ -437,10 +437,14 @@ function truncate_spherical!(cache)
     nothing
 end
 
+# Here pointdata_h is the point data on the CPU.
+# It is used as an intermediate buffer in the GPU implementation.
+# To avoid allocations, it should be passed by the caller. Its default value is mostly for
+# backwards compatibility, when this function only accepted 2 arguments.
 function set_interpolation_points!(
         cache::LongRangeCache,
         fs::VectorOfFilaments,
-        pointdata_h::PointData,  # pointdata on the host (CPU) -- always modified; used as a buffer in GPU implementation
+        pointdata_h::PointData = adapt(Array, cache.common.pointdata_d),  # default allocates if pointdata_d is on the GPU
     )
     # Note that we only modify the `points` field of PointData. The other ones are not
     # needed for interpolation.
