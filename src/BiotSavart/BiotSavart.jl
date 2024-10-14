@@ -543,10 +543,10 @@ function _compute_on_nodes!(
         @timeit to "Copy output (device → host)" let
             local ifield = 0
             if ψs !== nothing
-                add_long_range_output!(ψs, cache.longrange, outputs_lr[ifield += 1])
+                add_long_range_output!(ψs, cache.longrange, outputs_lr[ifield += 1], pointdata)
             end
             if vs !== nothing
-                add_long_range_output!(vs, cache.longrange, outputs_lr[ifield += 1])
+                add_long_range_output!(vs, cache.longrange, outputs_lr[ifield += 1], pointdata)
             end
         end
 

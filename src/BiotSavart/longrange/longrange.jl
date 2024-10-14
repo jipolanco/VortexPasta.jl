@@ -464,7 +464,7 @@ end
 function set_interpolation_points_impl!(
         ::KA.CPU, fs, pointdata_d, pointdata_h,
     )
-    @assert pointdata_d ===  pointdata_h  # these are aliased in the CPU case (we just ignore pointdata_h)
+    @assert pointdata_d === pointdata_h  # these are aliased in the CPU case (we just ignore pointdata_h)
     (; points,) = pointdata_d
     points_d = StructArrays.components(points)  # (xs, ys, zs)
     _set_interpolation_points!(points_d, fs)
@@ -502,39 +502,48 @@ function _set_interpolation_points!(points::NTuple, fs)
     points
 end
 
+# Here pointdata_h is used as a buffer in the GPU implementation.
+# See set_interpolation_points! for details.
 function add_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
-        input = cache.common.pointdata_d.charges,
+        charges = cache.common.pointdata_d.charges,
+        pointdata_h::PointData = adapt(Array, cache.common.pointdata_d),  # default allocates if pointdata_d is on the GPU
     )
     nout = sum(length, vs)
-    nout == length(input) || throw(DimensionMismatch("wrong length of output vector `vs`"))
+    nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     ka_backend = KA.get_backend(cache)
-    _add_long_range_output!(ka_backend, vs, input)
+    add_long_range_output_impl!(ka_backend, vs, charges, pointdata_h.charges)
     vs
 end
 
-function _add_long_range_output!(::KA.CPU, vs, charges::StructVector)
+function add_long_range_output_impl!(::KA.CPU, vs, charges_d, charges_h)
+    @assert charges_d === charges_h  # input arrays are aliased
+    _add_long_range_output!(vs, charges_d)
+    nothing
+end
+
+# GPU implementation: first copy from charges_d (GPU) to charges_h (CPU), then add results
+# to `vs`.
+function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_h)
+    @assert charges_d !== charges_h
+    # Device-to-host copy
+    qs_d = StructArrays.components(charges_d)
+    qs_h = StructArrays.components(charges_h)
+    for i ∈ eachindex(qs_d, qs_h)
+        resize_no_copy!(qs_h[i], length(qs_d[i]))
+        KA.copyto!(ka_backend, qs_h[i], qs_d[i])  # device-to-host copy
+    end
+    KA.synchronize(ka_backend)  # make sure we're done copying data to CPU
+    # Now add long-range values to `vs` output.
+    _add_long_range_output!(vs, charges_h)
+    nothing
+end
+
+function _add_long_range_output!(vs, charges::StructVector)
     n = 0
     @inbounds for v ∈ vs, j ∈ eachindex(v)
         q = charges[n += 1]
         v[j] = v[j] + real(q)
-    end
-    vs
-end
-
-# Generic GPU implementation: first copy charges from the GPU onto an intermediate CPU
-# array, then fill `vs`.
-function _add_long_range_output!(device::KA.GPU, vs, charges::StructVector{V}) where {V}
-    buf = Bumper.default_buffer()
-    @no_escape buf begin
-        qs = StructArrays.components(charges)  # (qx, qy, qz)
-        vtmp = map(q -> @alloc(eltype(q), length(q)), qs)  # temporary CPU arrays
-        for i ∈ eachindex(vtmp, qs)
-            copyto_bumper!(device, vtmp[i], qs[i])  # device-to-host copy
-        end
-        KA.synchronize(device)  # make sure we're done copying data to CPU (needed on AMDGPU)
-        vtmp_struct = StructVector{V}(vtmp)  # vtmp as a StructVector
-        _add_long_range_output!(KA.CPU(), vs, vtmp_struct)
     end
     vs
 end
