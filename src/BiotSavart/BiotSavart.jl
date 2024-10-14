@@ -469,7 +469,6 @@ function _compute_on_nodes!(
                 @assert device_lr isa PseudoGPU || typeof(pointdata) !== typeof(pointdata_d)
                 @timeit to_d "Copy point charges (host → device)" begin
                     copy!(pointdata_d, pointdata)  # H2D copy
-                    KA.synchronize(device_lr)   # TODO: is this needed?
                 end
                 @timeit to_d "Vorticity to Fourier" begin
                     compute_vorticity_fourier!(cache.longrange)  # reads pointdata_d (points and charges)
