@@ -1,7 +1,7 @@
 module VortexPastaCuFINUFFTExt
 
-# Implementation of CuFINUFFTBackend for computing long-range interactions on a single CUDA
-# device.
+# Implementation of FINUFFTBackend and CuFINUFFTBackend for computing long-range
+# interactions on multiple CPUs (threaded) or on a single CUDA device.
 # NOTE: this backend requires at least the cuFINUFFT library v2.3.0(-rc1), which is not
 # currently (29/08/2024) included by default with the FINUFFT.jl wrappers. This means that
 # one needs to manually compile the FINUFFT libraries and link them to FINUFFT.jl as
@@ -10,12 +10,10 @@ module VortexPastaCuFINUFFTExt
 
 using CUDA
 using FINUFFT: FINUFFT
+using StructArrays: StructArray
 using KernelAbstractions: KernelAbstractions as KA
-using StructArrays: StructArrays, StructArray, StructVector
-using VortexPasta.BiotSavart: BiotSavart as BS, Vec3, CuFINUFFTBackend
-
-# This tells KA to create CUDA kernels, and generic (CPU/GPU) code to create CUDA arrays.
-KA.get_backend(::CuFINUFFTBackend) = CUDABackend()
+using VortexPasta.BiotSavart:
+    BiotSavart as BS, Vec3, AbstractFINUFFTBackend, CuFINUFFTBackend
 
 # Define "public" constructor (consistent with the documentation in the BiotSavart module).
 function BS.CuFINUFFTBackend(;
@@ -40,7 +38,8 @@ function BS.CuFINUFFTBackend(;
     BS._CuFINUFFTBackend(tol, gpu_device, gpu_stream, kws)  # call "private" constructor
 end
 
-BS.finufft_name(::CuFINUFFTBackend) = "cuFINUFFT"
+# This tells KA to create CUDA kernels, and generic (CPU/GPU) code to create CUDA arrays.
+KA.get_backend(::CuFINUFFTBackend) = CUDABackend()
 
 # This longer `show` variant is used when directly printing the backend e.g. in the REPL or
 # using @show.
@@ -63,7 +62,9 @@ function Base.show(io::IO, backend::CuFINUFFTBackend)
     print(io, "CuFINUFFTBackend(tol = $tol, upsampfac = $upsampfac)")
 end
 
-function BS.adapt_fourier_vector_field(::CuFINUFFTBackend, uhat::StructArray{Vec3{T}}) where {T}
+BS._finufft_name(::CuFINUFFTBackend) = "cuFINUFFT"
+
+function BS._finufft_adapt_fourier_vector_field(::CuFINUFFTBackend, uhat::StructArray{Vec3{T}}) where {T}
     # We can't get the underlying 4D array from the StructArray (unlike in the CPU case), so
     # we cheat and use pointers.
     ux = (uhat.:1) :: CuArray{T,3}  # get first component
@@ -72,16 +73,16 @@ function BS.adapt_fourier_vector_field(::CuFINUFFTBackend, uhat::StructArray{Vec
     unsafe_wrap(CuArray, p, (dims..., 3)) :: CuArray{T,4}
 end
 
+# This works correctly on a variable-size CuVector, unlike the case of CPU Vectors.
+# So there's nothing unsafe here!
+function BS._finufft_unsafe_reshape_vector_to_matrix(v::CuVector, N, ::Val{M}) where {M}
+    reshape(v, (N, M))
+end
+
 BS._finufft_plan_func(::CuFINUFFTBackend) = FINUFFT.cufinufft_makeplan
 BS._finufft_setpts_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_setpts!
 BS._finufft_exec_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_exec!
 BS._finufft_destroy_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_destroy!
 BS._finufft_sync(backend::CuFINUFFTBackend) = CUDA.synchronize(backend.stream)  # synchronise CUDA stream running cuFINUFFT code
-
-# This works correctly on a variable-size CuVector, unlike the case of CPU Vectors.
-# So there's nothing unsafe here!
-function BS.unsafe_reshape_vector_to_matrix(v::CuVector, N, ::Val{M}) where {M}
-    reshape(v, (N, M))
-end
 
 end

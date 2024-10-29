@@ -15,7 +15,7 @@ using UnicodePlots: lineplot
 using LinearAlgebra: norm, I, ⋅
 using JET: JET
 using KernelAbstractions: KernelAbstractions as KA  # for JET only
-using FINUFFT: FINUFFT  # for JET only
+using FINUFFT: FINUFFT  # required for FINUFFTBackend
 
 # This is just to fake the `info` argument of `reconnect_with_itself!` and
 # `reconnect_with_other!`, which is usually returned by the `should_reconnect` function.

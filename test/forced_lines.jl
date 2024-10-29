@@ -16,7 +16,7 @@ using VortexPasta.Diagnostics
 using UnicodePlots: lineplot, lineplot!
 using JET: JET
 using KernelAbstractions: KernelAbstractions as KA  # for JET only
-using FINUFFT: FINUFFT
+using FINUFFT: FINUFFT  # required for FINUFFTBackend
 
 # ================================================================================ #
 

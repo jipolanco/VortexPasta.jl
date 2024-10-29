@@ -1,11 +1,10 @@
+# NOTE: this file only defines the types and constants associated to the FINUFFT backends
+# (CPU and CUDA), as well as some common definitions for CPU and CUDA backends.
+# The actual implementation details are in ext/VortexPastaFINUFFTExt.jl and
+# ext/VortexPastaCuFINUFFTExt.jl.
 export FINUFFTBackend, CuFINUFFTBackend
 
-using FINUFFT: FINUFFT
-using FFTW: FFTW
-using AbstractFFTs: fftfreq
-using StructArrays: StructArrays, StructVector, StructArray
-using StaticArrays: SVector
-using LinearAlgebra: ×
+using StructArrays: StructArrays, StructArray, StructVector
 
 const FINUFFT_DEFAULT_TOLERANCE = 1e-6
 const FINUFFT_DEFAULT_UPSAMPFAC = 1.25  # 1.25 or 2.0
@@ -13,13 +12,15 @@ const FINUFFT_DEFAULT_UPSAMPFAC = 1.25  # 1.25 or 2.0
 # This includes CPU and CUDA FINUFFT implementations.
 abstract type AbstractFINUFFTBackend <: LongRangeBackend end
 
-has_real_to_complex(::AbstractFINUFFTBackend) = false
-
 """
     FINUFFTBackend <: LongRangeBackend
 
 Compute long-range interactions using the
 [FINUFFT.jl](https://github.com/ludvigak/FINUFFT.jl) package.
+
+To use this backend, one first needs to load FINUFFT by doing
+
+    using FINUFFT
 
 This package provides a Julia interface to the
 [FINUFFT](https://github.com/flatironinstitute/finufft) C++ library,
@@ -56,34 +57,23 @@ are also accepted.
 struct FINUFFTBackend{KwArgs <: NamedTuple} <: AbstractFINUFFTBackend
     tol :: Float64
     kws :: KwArgs
-    function FINUFFTBackend(;
-            tol::Float64 = FINUFFT_DEFAULT_TOLERANCE,
-            nthreads::Int = Threads.nthreads(),
-            upsampfac = FINUFFT_DEFAULT_UPSAMPFAC,
-            fftw = FFTW.MEASURE,
-            other...,
-        )
-        kws = (;
-            nthreads, fftw, upsampfac = Float64(upsampfac), other...,
-        )
+    # "Private" constructor
+    global function _FINUFFTBackend(tol, kws)
         new{typeof(kws)}(tol, kws)
     end
 end
 
-# This is used for TimerOutputs labels
-finufft_name(::FINUFFTBackend) = "FINUFFT"
-
-# NOTE: CUDA-specific parts of the implementation are in ext/VortexPastaCuFINUFFTExt.jl
 """
     CuFINUFFTBackend <: LongRangeBackend
 
 GPU version of [`FINUFFTBackend`](@ref).
 
+To use this backend, one first needs to load both FINUFFT and CUDA by doing
+
+    using FINUFFT
+    using CUDA
+
 Works with Nvidia GPUs only.
-
-!!! warning
-
-    One needs to explicitly load [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) (`using CUDA`) before choosing this backend.
 
 !!! compat
 
@@ -126,15 +116,44 @@ struct CuFINUFFTBackend{
         new{typeof(kws), typeof(device), typeof(stream)}(tol, device, stream, kws)
 end
 
-function Base.show(io::IO, backend::FINUFFTBackend)
-    (; tol, kws,) = backend
-    (; nthreads, upsampfac,) = kws
-    print(io, "FINUFFTBackend(tol = $tol, upsampfac = $upsampfac, nthreads = $nthreads)")
+## ========================================================================================== ##
+## Functions which should be defined by each FINUFFT backend (besides the constructors)
+
+function _finufft_name end
+function _finufft_adapt_fourier_vector_field end
+function _finufft_unsafe_reshape_vector_to_matrix end
+function _finufft_plan_func end
+function _finufft_setpts_func! end
+function _finufft_exec_func! end
+function _finufft_destroy_func! end
+function _finufft_sync end
+
+## ========================================================================================== ##
+## General definitions for FINUFFTBackend and CuFINUFFTBackend (=> AbstractFINUFFTBackend)
+
+# This is used for both CPU and GPU implementations.
+struct FINUFFTCache{
+        T,
+        CacheCommon <: LongRangeCacheCommon{T},
+        Plan,
+        ChargeData <: AbstractVector{Complex{T}},
+    } <: LongRangeCache
+    common :: CacheCommon
+    plan_type1 :: Plan  # plan for type-1 NUFFT (physical non-uniform → Fourier uniform)
+    plan_type2 :: Plan  # plan for type-2 NUFFT (Fourier uniform → physical non-uniform)
+    charge_data :: ChargeData  # used to store charge data used in transforms
 end
 
+has_real_to_complex(::AbstractFINUFFTBackend) = false
 expected_period(::AbstractFINUFFTBackend) = 2π
 # folding_limits(::AbstractFINUFFTBackend) = (-3π, 3π)  # no longer needed since FINUFFT 2.3.0
 non_uniform_type(::Type{T}, ::AbstractFINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
+
+# FINUFFT options which should never be modified!
+# (Used also in GPU implementation.)
+_finufft_options() = (;
+    modeord = 1,  # use same mode ordering as FFTW (i.e. k = 0, 1, …, N/2 - 1, -N/2, …, -1)
+)
 
 # This should work for CPU and GPU versions.
 function init_fourier_vector_field(backend::AbstractFINUFFTBackend, ::Type{T}, Nks::Dims{M}) where {T <: Real, M}
@@ -150,27 +169,6 @@ function init_fourier_vector_field(backend::AbstractFINUFFTBackend, ::Type{T}, N
     end
     @assert pointer(uhat.:1) == pointer(data)
     uhat
-end
-
-# Returns a vector field as a 4D array, as required by FINUFFT.
-# Note that this works only on the CPU, and CuFINUFFTBackend uses a different
-# implementation.
-function adapt_fourier_vector_field(::FINUFFTBackend, uhat::StructArray{Vec3{T}}) where {T}
-    ux = uhat.:1  # get first component
-    parent(ux) :: Array{T,4}
-end
-
-# This is used for both CPU and GPU implementations.
-struct FINUFFTCache{
-        T,
-        CacheCommon <: LongRangeCacheCommon{T},
-        Plan,
-        ChargeData <: AbstractVector{Complex{T}},
-    } <: LongRangeCache
-    common :: CacheCommon
-    plan_type1 :: Plan  # plan for type-1 NUFFT (physical non-uniform → Fourier uniform)
-    plan_type2 :: Plan  # plan for type-2 NUFFT (Fourier uniform → physical non-uniform)
-    charge_data :: ChargeData  # used to store charge data used in transforms
 end
 
 # This should work for CPU and GPU versions.
@@ -199,19 +197,6 @@ function init_cache_long_ewald(
     charge_data = KA.allocate(ka_backend, Complex{T}, 0)  # allocate empty vector
     FINUFFTCache(cache_common, plan_type1, plan_type2, charge_data)
 end
-
-# FINUFFT options which should never be modified!
-# (Used also in GPU implementation.)
-_finufft_options() = (;
-    modeord = 1,  # use same mode ordering as FFTW (i.e. k = 0, 1, …, N/2 - 1, -N/2, …, -1)
-)
-
-# The GPU version needs to overload these functions
-_finufft_plan_func(::FINUFFTBackend) = FINUFFT.finufft_makeplan
-_finufft_setpts_func!(::FINUFFTBackend) = FINUFFT.finufft_setpts!
-_finufft_exec_func!(::FINUFFTBackend) = FINUFFT.finufft_exec!
-_finufft_destroy_func!(::FINUFFTBackend) = FINUFFT.finufft_destroy!
-_finufft_sync(::FINUFFTBackend) = nothing
 
 # This function is redefined in the VortexPastaThreadPinningExt.jl extension, if
 # ThreadPinning.jl is loaded.
@@ -268,20 +253,12 @@ function _finufft_copy_charges_from_matrix!(
     qs_in
 end
 
-# Equivalent to reshape(v, :, M), but avoids issues when trying to resize `vs` later.
-function unsafe_reshape_vector_to_matrix(v::Vector, N, ::Val{M}) where {M}
-    @assert length(v) == N * M
-    p = pointer(v)
-    dims = (N, M)
-    unsafe_wrap(Array, p, dims; own = false)
-end
-
 # Note on synchronisation in the GPU version: on the Julia side, CUDA code runs on the
 # stream assigned by CUDA.jl to the currently running Julia task. In particular, if GPU code
 # is running asynchronously (e.g. on a @spawn or @async block), it means that it's not
 # running on the default Julia task, and therefore it's not running on the same CUDA stream
 # as cuFINUFFT code. In other words, we have two different CUDA streams which need to be
-# syncronised. Note that KA.synchronize synchronises the current stream from the Julia side,
+# synchronised. Note that KA.synchronize synchronises the current stream from the Julia side,
 # while _finufft_sync does the same from the cuFINUFFT side. And we really want the Julia
 # stream to be done before calling cuFINUFFT functions.
 function transform_to_fourier!(c::FINUFFTCache)
@@ -295,10 +272,10 @@ function transform_to_fourier!(c::FINUFFTCache)
     Np = length(charges)
     @assert Np == length(points)
     @assert Np > 0
-    uhat_data = adapt_fourier_vector_field(backend_lr, uhat_d)
+    uhat_data = _finufft_adapt_fourier_vector_field(backend_lr, uhat_d)
     T = eltype(uhat_data)
     @assert T <: Complex
-    name_to = finufft_name(backend_lr)
+    name_to = _finufft_name(backend_lr)
     KA.synchronize(device)  # make sure point data has been fully written on the GPU
     finufft_unpin_threads(backend_lr) do  # disable ThreadPinning in the CPU version (see VortexPastaThreadPinningExt)
         @timeit to_d "$name_to setpts" begin
@@ -311,7 +288,7 @@ function transform_to_fourier!(c::FINUFFTCache)
         # Note: FINUFFT (CPU version) requires A to be an Array. This means that we can't use Bumper
         # allocators here, as they return some other type of AbstractArray.
         GC.@preserve charge_data begin  # @preserve is only useful on the CPU
-            A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
+            A = _finufft_unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
             _finufft_copy_charges_to_matrix!(A, charges)
             _finufft_sync(backend_lr)
             @timeit to_d "$name_to exec" begin
@@ -334,10 +311,10 @@ function _interpolate_to_physical!(output::StructVector, c::FINUFFTCache)
     points_data = StructArrays.components(points) :: NTuple{3, <:AbstractVector}
     Np = length(output)
     @assert Np == length(points)
-    uhat_data = adapt_fourier_vector_field(backend_lr, uhat_d)
+    uhat_data = _finufft_adapt_fourier_vector_field(backend_lr, uhat_d)
     T = eltype(uhat_data)
     @assert T <: Complex
-    name_to = finufft_name(backend_lr)
+    name_to = _finufft_name(backend_lr)
     KA.synchronize(device)
     finufft_unpin_threads(backend_lr) do  # disable ThreadPinning in the CPU version (see VortexPastaThreadPinningExt)
         @timeit to_d "$name_to setpts" begin
@@ -346,7 +323,7 @@ function _interpolate_to_physical!(output::StructVector, c::FINUFFTCache)
         end
         resize!(charge_data, 3 * Np)
         GC.@preserve charge_data begin
-            A = unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
+            A = _finufft_unsafe_reshape_vector_to_matrix(charge_data, Np, Val(3))
             _finufft_sync(backend_lr)
             @timeit to_d "$name_to exec" begin
                 _finufft_exec_func!(backend_lr)(plan_type2, uhat_data, A)  # result is computed onto A

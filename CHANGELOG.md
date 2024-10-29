@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Move `FINUFFTBackend` to package extension. This means that one now needs to
+  explicitly load FINUFFT.jl to use this backend (#20).
+
 ## [0.24.6] - 2024-10-29
 
 ### Added

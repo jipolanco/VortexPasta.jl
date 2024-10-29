@@ -6,6 +6,7 @@ using VortexPasta.Filaments: GeometricQuantity, Vec3
 using VortexPasta.BiotSavart
 using ForwardDiff: ForwardDiff
 using ThreadPinning: ThreadPinning  # for testing the interaction between ThreadPinning and FINUFFTBackend
+using FINUFFT: FINUFFT  # required for FINUFFTBackend
 using LaTeXStrings  # used for plots only (L"...")
 
 function trefoil_function()
