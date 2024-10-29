@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.24.6] - 2024-10-29
+
 ### Added
 
 - Add support for AMD GPUs via [AMDGPU.jl](https://github.com/JuliaGPU/AMDGPU.jl).
