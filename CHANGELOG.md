@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.24.7] - 2024-10-29
+
 ### Changed
 
 - Move `FINUFFTBackend` to package extension. This means that one now needs to
