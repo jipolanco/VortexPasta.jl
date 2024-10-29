@@ -10,7 +10,6 @@ Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 ChunkSplitters = "ae650224-84b6-46f8-82ea-d812ca08434e"
 CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-FINUFFT = "d8beea63-0952-562e-9c6a-8e8ef7364055"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
@@ -30,12 +29,13 @@ VectorizationBase = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
 
 [weakdeps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+FINUFFT = "d8beea63-0952-562e-9c6a-8e8ef7364055"
 MakieCore = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
 Observables = "510215fc-4207-5dde-b226-833fc4488ee2"
 ThreadPinning = "811555cd-349b-4f26-b7bc-1f208b848042"
 
 [extensions]
-VortexPastaCuFINUFFTExt = ["CUDA"]
+VortexPastaFINUFFTExt = ["FINUFFT", "CUDA"]
 VortexPastaMakieExt = ["MakieCore", "Observables"]
 VortexPastaThreadPinningExt = ["ThreadPinning"]
 

@@ -2,6 +2,7 @@ export NonuniformFFTsBackend, HalfSupport
 
 using NonuniformFFTs: NonuniformFFTs, HalfSupport
 using AbstractFFTs: fftfreq
+using FFTW: FFTW
 
 """
     NonuniformFFTsBackend <: LongRangeBackend
