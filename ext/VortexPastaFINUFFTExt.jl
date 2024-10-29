@@ -2,10 +2,8 @@ module VortexPastaFINUFFTExt
 
 # Implementation of FINUFFTBackend and CuFINUFFTBackend for computing long-range
 # interactions on multiple CPUs (threaded) or on a single CUDA device.
-# NOTE: this backend requires at least the cuFINUFFT library v2.3.0(-rc1), which is not
-# currently (29/08/2024) included by default with the FINUFFT.jl wrappers. This means that
-# one needs to manually compile the FINUFFT libraries and link them to FINUFFT.jl as
-# indicated in their README.
+# NOTE: this backend requires at least the cuFINUFFT library v2.3.0, which is included by
+# default since FINUFFT.jl v3.3.0.
 # TODO: check version of cuFINUFFT libraries? (how?)
 
 using FINUFFT: FINUFFT
