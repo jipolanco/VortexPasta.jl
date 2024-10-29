@@ -37,11 +37,11 @@ struct FINUFFTCache{
     charge_data :: ChargeData  # used to store charge data used in transforms
 end
 
-has_real_to_complex(::AbstractFINUFFTBackend) = false
+BS.has_real_to_complex(::AbstractFINUFFTBackend) = false
 
-expected_period(::AbstractFINUFFTBackend) = 2π
-# folding_limits(::AbstractFINUFFTBackend) = (-3π, 3π)  # no longer needed since FINUFFT 2.3.0
-non_uniform_type(::Type{T}, ::AbstractFINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
+BS.expected_period(::AbstractFINUFFTBackend) = 2π
+# BS.folding_limits(::AbstractFINUFFTBackend) = (-3π, 3π)  # no longer needed since FINUFFT 2.3.0
+BS.non_uniform_type(::Type{T}, ::AbstractFINUFFTBackend) where {T <: AbstractFloat} = Complex{T}
 
 # FINUFFT options which should never be modified!
 # (Used also in GPU implementation.)
@@ -50,7 +50,7 @@ _finufft_options() = (;
 )
 
 # This should work for CPU and GPU versions.
-function init_fourier_vector_field(backend::AbstractFINUFFTBackend, ::Type{T}, Nks::Dims{M}) where {T <: Real, M}
+function BS.init_fourier_vector_field(backend::AbstractFINUFFTBackend, ::Type{T}, Nks::Dims{M}) where {T <: Real, M}
     # Data needs to be in a contiguous array of dimensions (Nks..., M) [usually M = 3].
     device = KA.get_backend(backend)
     data = KA.zeros(device, Complex{T}, (Nks..., M))
@@ -155,7 +155,7 @@ end
 # syncronised. Note that KA.synchronize synchronises the current stream from the Julia side,
 # while _finufft_sync does the same from the cuFINUFFT side. And we really want the Julia
 # stream to be done before calling cuFINUFFT functions.
-function transform_to_fourier!(c::FINUFFTCache)
+function BS.transform_to_fourier!(c::FINUFFTCache)
     (; plan_type1, charge_data,) = c
     (; pointdata_d, uhat_d, to_d,) = c.common
     (; points, charges,) = pointdata_d
@@ -191,11 +191,11 @@ function transform_to_fourier!(c::FINUFFTCache)
             end
         end
     end
-    _ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
+    BS._ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
     c
 end
 
-function _interpolate_to_physical!(output::StructVector, c::FINUFFTCache)
+function BS._interpolate_to_physical!(output::StructVector, c::FINUFFTCache)
     (; plan_type2, charge_data,) = c
     (; pointdata_d, uhat_d, to_d,) = c.common
     (; points,) = pointdata_d
@@ -241,7 +241,6 @@ function BS.FINUFFTBackend(;
         other...,
     )
     kws = (;
-        tol = Float64(tol),
         nthreads,
         fftw,
         upsampfac = Float64(upsampfac),
@@ -348,10 +347,10 @@ function unsafe_reshape_vector_to_matrix(v::CuVector, N, ::Val{M}) where {M}
     reshape(v, (N, M))
 end
 
-BS._finufft_plan_func(::CuFINUFFTBackend) = FINUFFT.cufinufft_makeplan
-BS._finufft_setpts_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_setpts!
-BS._finufft_exec_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_exec!
-BS._finufft_destroy_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_destroy!
-BS._finufft_sync(backend::CuFINUFFTBackend) = CUDA.synchronize(backend.stream)  # synchronise CUDA stream running cuFINUFFT code
+_finufft_plan_func(::CuFINUFFTBackend) = FINUFFT.cufinufft_makeplan
+_finufft_setpts_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_setpts!
+_finufft_exec_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_exec!
+_finufft_destroy_func!(::CuFINUFFTBackend) = FINUFFT.cufinufft_destroy!
+_finufft_sync(backend::CuFINUFFTBackend) = CUDA.synchronize(backend.stream)  # synchronise CUDA stream running cuFINUFFT code
 
 end
