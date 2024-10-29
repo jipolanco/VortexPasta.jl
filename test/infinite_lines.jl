@@ -80,7 +80,7 @@ function truncated_kinetic_energy_from_vorticity(cache::LongRangeCache)
     wavenumbers = adapt(Array, wavenumbers_d)
     uhat = adapt(Array, uhat_d)
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
-    @show BiotSavart.backend(cache) with_hermitian_symmetry
+    # @show BiotSavart.backend(cache) with_hermitian_symmetry
     @assert with_hermitian_symmetry == (wavenumbers[1][end] > 0)
     γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
     E = 0.0

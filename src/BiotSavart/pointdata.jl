@@ -47,8 +47,10 @@ function PointData(::Type{T}, ::Type{S}, ::Type{F}) where {T, S, F <: AbstractFi
 end
 
 function Base.copy(data::PointData)
-    (; points, charges, points_h, charges_h, segments,) = data
-    PointData(copy(points), copy(charges), empty(points_h), empty(charges_h), copy(segments))
+    (; points, charges, segments,) = data
+    points_h = similar(data.points_h, 0)   # empty arrays (we don't need them to be identical to the original ones)
+    charges_h = similar(data.charges_h, 0)
+    PointData(copy(points), copy(charges), points_h, charges_h, copy(segments))
 end
 
 # This is useful in particular for host -> device copies.
