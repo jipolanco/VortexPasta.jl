@@ -7,6 +7,7 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics: Diagnostics
 using UnicodePlots: lineplot
+using FINUFFT: FINUFFT  # required for FINUFFTBackend
 using LinearAlgebra: ⋅
 
 function test_perturbed_vortex_ring()

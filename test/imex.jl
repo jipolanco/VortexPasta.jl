@@ -3,6 +3,7 @@ using VortexPasta.Filaments
 using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
+using FINUFFT: FINUFFT  # required for FINUFFTBackend
 
 ##
 

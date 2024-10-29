@@ -14,7 +14,7 @@ using VortexPasta.Diagnostics
 
 using JET: JET
 using KernelAbstractions: KernelAbstractions as KA  # for JET only
-using FINUFFT: FINUFFT  # for JET only
+using FINUFFT: FINUFFT  # required for FINUFFTBackend
 
 # Initialise nearly straight vortex line with sinusoidal perturbation.
 function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
