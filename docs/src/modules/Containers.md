@@ -1,21 +1,16 @@
-# BasicTypes
+# Containers
 
 ```@meta
-CurrentModule = VortexPasta.BasicTypes
+CurrentModule = VortexPasta.Containers
 CollapsedDocStrings = true
 ```
 
 ```@docs
-BasicTypes
+Containers
 ```
 
 ## Exported types
 
 ```@docs
-Derivative
-Vec3
 VectorOfVectors
-Zero
-Infinity
-∞
 ```

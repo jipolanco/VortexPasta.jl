@@ -1,7 +1,7 @@
 using LinearAlgebra: normalize, norm
 using ForwardDiff: ForwardDiff
 
-using ..BasicTypes: ∞
+using ..Constants: ∞
 
 @doc raw"""
     Filaments.from_vector_field(

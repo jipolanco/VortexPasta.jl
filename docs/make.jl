@@ -35,6 +35,12 @@ DocMeta.setdocmeta!(
 )
 
 DocMeta.setdocmeta!(
+    VortexPasta.Containers,
+    :DocTestSetup,
+    :(using VortexPasta.Containers),
+)
+
+DocMeta.setdocmeta!(
     VortexPasta.PredefinedCurves,
     :DocTestSetup,
     quote
@@ -42,12 +48,6 @@ DocMeta.setdocmeta!(
         using Rotations
         using VortexPasta.PredefinedCurves
     end,
-)
-
-DocMeta.setdocmeta!(
-    VortexPasta.BasicTypes,
-    :DocTestSetup,
-    :(using VortexPasta.BasicTypes),
 )
 
 DocMeta.setdocmeta!(
@@ -177,12 +177,13 @@ function make_all(; generate_tutorials = true,)
                 "modules/PaddedArrays.md",
                 "modules/PredefinedCurves.md",
                 "modules/CellLists.md",
-                "modules/BasicTypes.md",
                 "modules/Quadratures.md",
                 "modules/Filaments.md",
                 "modules/FilamentIO.md",
                 "modules/FindNearbySegments.md",
+                "modules/Constants.md",
                 "modules/BiotSavart.md",
+                "modules/Containers.md",
                 "modules/Reconnections.md",
                 "modules/Timestepping.md",
                 "modules/Diagnostics.md",

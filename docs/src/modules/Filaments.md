@@ -14,6 +14,8 @@ Filaments
 ```@docs
 AbstractFilament
 ClosedFilament
+Vec3
+Derivative
 ```
 
 ## Initialisation

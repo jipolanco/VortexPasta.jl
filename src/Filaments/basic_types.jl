@@ -1,18 +1,3 @@
-"""
-    BasicTypes
-
-Defines and exports basic types used in all computations.
-"""
-module BasicTypes
-
-export
-    Vec3,
-    Derivative,
-    VectorOfVectors,
-    Zero,
-    Infinity,
-    ∞
-
 using StaticArrays: SVector
 
 """
@@ -35,7 +20,8 @@ struct Derivative{N} end
 Derivative(N::Int) = Derivative{N}()
 Base.broadcastable(d::Derivative) = Ref(d)  # disable broadcasting on Derivative objects
 
-include("constants.jl")
-include("vector_of_vectors.jl")
-
+# Used internally to evaluate filament coordinates or derivatives on a given
+# discretisation node. This is used when calling f[i, Derivative(n)].
+struct AtNode
+    i :: Int
 end

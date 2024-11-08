@@ -10,7 +10,7 @@ export ReconnectionCriterion,
        ReconnectBasedOnDistance,
        reconnect!
 
-using ..BasicTypes: Infinity
+using ..Constants: Infinity
 
 using ..Filaments: Filaments,
                    AbstractFilament,

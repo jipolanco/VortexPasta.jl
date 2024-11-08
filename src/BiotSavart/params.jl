@@ -1,4 +1,4 @@
-using ..BasicTypes: RealConst
+using ..Constants: RealConst
 
 const MaybeConst{T} = Union{RealConst, T}
 

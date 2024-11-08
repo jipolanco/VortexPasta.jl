@@ -1,4 +1,4 @@
-using ..BasicTypes: Infinity
+using ..Constants: Infinity
 using LinearAlgebra: ⋅
 
 # Return the shortest separation r′ given the separation r = a - b between two points given a period L.

@@ -1,4 +1,4 @@
-using VortexPasta.BasicTypes: VectorOfVectors
+using VortexPasta.Containers: VectorOfVectors
 using JET: @test_opt
 using Test
 

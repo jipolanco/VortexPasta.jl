@@ -1,3 +1,12 @@
+"""
+    Containers
+
+Module defining containers for conveniently working with filament data.
+"""
+module Containers
+
+export VectorOfVectors
+
 using Base: @propagate_inbounds
 
 """
@@ -153,3 +162,5 @@ end
 @inline _get_single_vector(bc::Broadcast.Broadcasted, i) = _extract_vectors(bc, i)
 @inline _get_single_vector(xs::AbstractVector, i) = @inbounds xs[i]  # includes VectorOfVectors
 @inline _get_single_vector(x::Any, i) = x  # this can be the case of a scalar
+
+end

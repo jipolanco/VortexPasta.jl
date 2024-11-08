@@ -1,3 +1,14 @@
+"""
+    Constants
+
+Module defining singleton types representing constants (0, infinity, …).
+
+For now, these are mainly useful for preparing non-periodic simulations.
+"""
+module Constants
+
+export Zero, Infinity, ∞
+
 import Base: +, -, *, /, ^, <, ÷
 
 abstract type RealConst <: Real end
@@ -61,3 +72,5 @@ Base.isinf(::Infinity) = true
 (::Infinity) > (::Infinity) = false
 
 (::Number) / (::Zero) = Infinity()
+
+end
