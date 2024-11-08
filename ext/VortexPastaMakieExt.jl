@@ -1,6 +1,7 @@
 module VortexPastaMakieExt
 
 using VortexPasta.Filaments
+import VortexPasta.Filaments: filamentplot, filamentplot!  # make sure @recipe overloads functions in VP.Filaments
 
 using MakieCore: MakieCore
 using Observables: Observable, @map
