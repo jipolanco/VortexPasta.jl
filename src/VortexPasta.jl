@@ -20,13 +20,14 @@ include("Reconnections/Reconnections.jl")
 include("BiotSavart/BiotSavart.jl")
 include("Diagnostics/Diagnostics.jl")
 
+include("Containers/Containers.jl")  # VectorOfVectors
 include("Timestepping/Timestepping.jl")
 
 # This is used in tests
 const ALL_MODULES = (
     PaddedArrays, PredefinedCurves, CellLists, BasicTypes,
     Quadratures, Filaments, FindNearbySegments, FilamentIO,
-    Reconnections, BiotSavart, Diagnostics, Timestepping,
+    Reconnections, BiotSavart, Diagnostics, Containers, Timestepping,
 )
 
 ## Precompilation

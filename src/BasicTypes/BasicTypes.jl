@@ -8,7 +8,6 @@ module BasicTypes
 export
     Vec3,
     Derivative,
-    VectorOfVectors,
     Zero,
     Infinity,
     ∞
@@ -36,6 +35,5 @@ Derivative(N::Int) = Derivative{N}()
 Base.broadcastable(d::Derivative) = Ref(d)  # disable broadcasting on Derivative objects
 
 include("constants.jl")
-include("vector_of_vectors.jl")
 
 end

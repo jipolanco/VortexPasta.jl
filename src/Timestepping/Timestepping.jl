@@ -11,7 +11,8 @@ export init, solve!, step!, VortexFilamentProblem,
        NoReconnections, ReconnectBasedOnDistance,  # from ..Reconnections
        reset_timer!  # from TimerOutputs
 
-using ..BasicTypes: Vec3, VectorOfVectors
+using ..BasicTypes: Vec3
+using ..Containers: VectorOfVectors
 
 using ..Filaments:
     Filaments,
