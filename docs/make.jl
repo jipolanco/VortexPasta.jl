@@ -35,6 +35,12 @@ DocMeta.setdocmeta!(
 )
 
 DocMeta.setdocmeta!(
+    VortexPasta.Containers,
+    :DocTestSetup,
+    :(using VortexPasta.Containers),
+)
+
+DocMeta.setdocmeta!(
     VortexPasta.PredefinedCurves,
     :DocTestSetup,
     quote
