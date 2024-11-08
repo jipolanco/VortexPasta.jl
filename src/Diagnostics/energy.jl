@@ -6,7 +6,8 @@ export kinetic_energy_from_streamfunction, kinetic_energy_nonperiodic, kinetic_e
 
 """
     kinetic_energy(iter::VortexFilamentSolver; quad = nothing) -> Real
-    kinetic_energy(fs, ψs, Γ, [Ls]; quad = nothing) -> Real
+    kinetic_energy(fs, ψs, Γ::Real, [Ls]; quad = nothing) -> Real
+    kinetic_energy(fs, ψs, p::ParamsBiotSavart; quad = nothing) -> Real
 
 Compute kinetic energy of velocity field induced by a set of vortex filaments.
 
@@ -22,7 +23,8 @@ end
 
 @doc raw"""
     kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; quad = nothing)
-    kinetic_energy_from_streamfunction(fs, ψs, Γ, [Ls]; quad = nothing)
+    kinetic_energy_from_streamfunction(fs, ψs, Γ::Real, [Ls]; quad = nothing)
+    kinetic_energy_from_streamfunction(fs, ψs, p::ParamsBiotSavart; quad = nothing)
 
 Compute kinetic energy per unit mass (units ``L^2 T^{-2}``) from streamfunction values at
 filament nodes in a periodic domain.
@@ -89,8 +91,12 @@ function kinetic_energy_from_streamfunction(fs::VectorOfFilaments, ψs::SetOfFil
 end
 
 # Case of a single filament
-function kinetic_energy_from_streamfunction(fs::AbstractFilament, ψs::SingleFilamentData, args...; quad = nothing)
-    _kinetic_energy_from_streamfunction(quad, fs, ψs, args...)
+function kinetic_energy_from_streamfunction(fs::AbstractFilament, ψs::SingleFilamentData, Γ::Real, Ls = (∞, ∞, ∞); quad = nothing)
+    _kinetic_energy_from_streamfunction(quad, fs, ψs, Γ, Ls)
+end
+
+function kinetic_energy_from_streamfunction(fs::AbstractFilament, ψs::SingleFilamentData, p::ParamsBiotSavart; kws...)
+    kinetic_energy_from_streamfunction(fs, ψs, p.Γ, p.Ls; kws...)
 end
 
 function _domain_volume(Ls)
@@ -103,7 +109,7 @@ function _domain_volume(Ls)
 end
 
 # 1. No quadratures (cheaper)
-function _kinetic_energy_from_streamfunction(::Nothing, f, ψf, Γ, Ls = (∞, ∞, ∞))
+function _kinetic_energy_from_streamfunction(::Nothing, f, ψf, Γ, Ls)
     prefactor = Γ / (2 * _domain_volume(Ls))
     T = number_type(ψf)
     E = zero(T)
@@ -122,7 +128,7 @@ function _kinetic_energy_from_streamfunction(quad, f, ψf, args...)
     _kinetic_energy_from_streamfunction(isinterpolable(ψf), quad, f, ψf, args...)
 end
 
-function _kinetic_energy_from_streamfunction(::IsInterpolable{true}, quad, f, ψf, Γ, Ls = (∞, ∞, ∞))
+function _kinetic_energy_from_streamfunction(::IsInterpolable{true}, quad, f, ψf, Γ, Ls)
     prefactor = Γ / (2 * _domain_volume(Ls))
     T = number_type(ψf)
     E = zero(T)
@@ -136,7 +142,7 @@ function _kinetic_energy_from_streamfunction(::IsInterpolable{true}, quad, f, ψ
     prefactor * E
 end
 
-function _kinetic_energy_from_streamfunction(::IsInterpolable{false}, quad, f, ψf, Γ, Ls = (∞, ∞, ∞))
+function _kinetic_energy_from_streamfunction(::IsInterpolable{false}, quad, f, ψf, Γ, Ls)
     prefactor = Γ / (2 * _domain_volume(Ls))
     method = Filaments.discretisation_method(f)
     ts = Filaments.knots(f)
@@ -196,7 +202,8 @@ end
 
 @doc raw"""
     kinetic_energy_nonperiodic(iter::VortexFilamentSolver; quad = nothing) -> Real
-    kinetic_energy_nonperiodic(fs, vs, Γ; quad = nothing) -> Real
+    kinetic_energy_nonperiodic(fs, vs, Γ::Real; quad = nothing) -> Real
+    kinetic_energy_nonperiodic(fs, vs, p::ParamsBiotSavart; quad = nothing) -> Real
 
 Compute kinetic energy per unit density (units ``L^5 T^{-2}``) from velocity values at
 filament nodes in an open (non-periodic) domain.
@@ -262,8 +269,12 @@ function kinetic_energy_nonperiodic(fs::VectorOfFilaments, vs::SetOfFilamentsDat
 end
 
 # Case of a single filament
-function kinetic_energy_nonperiodic(fs::AbstractFilament, vs::SingleFilamentData, args...; quad = nothing)
-    _kinetic_energy_nonperiodic(quad, fs, vs, args...)
+function kinetic_energy_nonperiodic(fs::AbstractFilament, vs::SingleFilamentData, Γ::Real; quad = nothing)
+    _kinetic_energy_nonperiodic(quad, fs, vs, Γ)
+end
+
+function kinetic_energy_nonperiodic(fs::AbstractFilament, vs::SingleFilamentData, p::ParamsBiotSavart; kws...)
+    kinetic_energy_nonperiodic(fs, vs, p.Γ; kws...)
 end
 
 # Case without quadratures

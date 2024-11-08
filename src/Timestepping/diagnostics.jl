@@ -7,8 +7,7 @@ using ..Filaments: Filaments
 function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; kws...)
     (; ψs, fs, external_forcing, t,) = iter
     Ls = BiotSavart.periods(iter.prob.p)
-    Γ = BiotSavart.circulation(iter.prob.p)
-    E = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs, Γ, Ls; kws...)
+    E = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs, iter.prob.p; kws...)
     # Add kinetic energy of external velocity field, if available.
     # Note that we only do this if we also included the streamfunction, since otherwise
     # we don't have enough information to estimate the total kinetic energy.
@@ -25,8 +24,7 @@ function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws.
     Ls = BiotSavart.periods(iter.prob.p)
     BiotSavart.domain_is_periodic(iter.prob.p) &&
         @warn(lazy"`kinetic_energy_nonperiodic` should only be called when working with non-periodic domains (got Ls = $Ls)")
-    Γ = BiotSavart.circulation(iter.prob.p)
-    Diagnostics.kinetic_energy_nonperiodic(fs, vs, Γ; kws...)
+    Diagnostics.kinetic_energy_nonperiodic(fs, vs, iter.prob.p; kws...)
 end
 
 # Note: filament_length is actually defined in the Filaments module, but we extend its
@@ -41,8 +39,7 @@ function Diagnostics.vortex_impulse(iter::VortexFilamentSolver; kws...)
 end
 
 function Diagnostics.helicity(iter::VortexFilamentSolver; kws...)
-    Γ = BiotSavart.circulation(iter.prob.p)
-    Diagnostics.helicity(iter.fs, iter.vs, Γ; kws...)
+    Diagnostics.helicity(iter.fs, iter.vs, iter.prob.p; kws...)
 end
 
 function Diagnostics.stretching_rate(iter::VortexFilamentSolver; kws...)

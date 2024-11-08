@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and onto the new `Constants` (`Zero`, `Infinity`, `∞`) and `Containers`
   (`VectorOfVectors`) modules.
 
+### Added
+
+- Allow passing `p::ParamsBiotSavart` to `Diagnostics.kinetic_energy*` and `Diagnostics.helicity`.
+  This can be more convenient that explicitly passing the circulation `Γ` and maybe the periods `Ls` when needed.
+
 ## [0.24.7] - 2024-10-29
 
 ### Changed

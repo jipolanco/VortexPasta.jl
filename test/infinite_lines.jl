@@ -206,7 +206,7 @@ function test_infinite_lines(method)
         end
     end
 
-    E = Diagnostics.kinetic_energy(filaments, ψs, params.Γ, params.Ls)
+    E = Diagnostics.kinetic_energy(filaments, ψs, params)
 
     @testset "Energy spectrum" begin
         ks, Ek = Diagnostics.energy_spectrum(cache)

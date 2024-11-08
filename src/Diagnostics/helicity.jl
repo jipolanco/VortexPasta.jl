@@ -4,7 +4,8 @@ using LinearAlgebra: ⋅
 
 @doc raw"""
     helicity(iter::VortexFilamentSolver; quad = nothing) -> Real
-    helicity(fs, vs, Γ; quad = nothing) -> Real
+    helicity(fs, vs, Γ::Real; quad = nothing) -> Real
+    helicity(fs, vs, p::ParamsBiotSavart; quad = nothing) -> Real
 
 Compute helicity of a vortex configuration.
 
@@ -31,18 +32,22 @@ keyword argument.
 """
 function helicity end
 
-function helicity(fs::VectorOfFilaments, vs::SetOfFilamentsData, Γ::Real; kws...)
+function helicity(fs::VectorOfFilaments, vs::SetOfFilamentsData, p; kws...)  # p could be Γ::Real or a ParamsBiotSavart
     T = number_type(fs)
     @assert T <: AbstractFloat
     H = zero(T)
     for (f, v) ∈ zip(fs, vs)
-        H += helicity(f, v, Γ; kws...)
+        H += helicity(f, v, p; kws...)
     end
     H
 end
 
 function helicity(f::AbstractFilament, vs::SingleFilamentData, Γ::Real; quad = nothing)
     _helicity(quad, f, vs, Γ)
+end
+
+function helicity(f::AbstractFilament, vs::SingleFilamentData, p::ParamsBiotSavart; kws...)
+    helicity(f, vs, p.Γ; kws...)
 end
 
 function _helicity(::Nothing, f::AbstractFilament, vs::SingleFilamentData, Γ::Real)
