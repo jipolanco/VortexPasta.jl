@@ -20,8 +20,7 @@ export
     CPU,  # from KernelAbstractions
     reset_timer!  # from TimerOutputs
 
-using ..BasicTypes:
-    Zero, Infinity, ∞
+using ..Constants: Zero, Infinity, ∞
 
 using ..Quadratures:
     Quadratures, quadrature, NoQuadrature, GaussLegendre, AdaptiveTanhSinh,

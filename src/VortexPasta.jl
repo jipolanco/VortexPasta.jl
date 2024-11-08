@@ -5,11 +5,11 @@ include("PredefinedCurves/PredefinedCurves.jl")  # completely independent of oth
 
 include("CellLists/CellLists.jl")        # requires PaddedArrays only
 
-include("BasicTypes/BasicTypes.jl")
-
 include("Quadratures/Quadratures.jl")
 using .Quadratures
 export GaussLegendre, AdaptiveTanhSinh
+
+include("Constants/Constants.jl")
 
 include("Filaments/Filaments.jl")
 include("FindNearbySegments/FindNearbySegments.jl")
@@ -25,7 +25,7 @@ include("Timestepping/Timestepping.jl")
 
 # This is used in tests
 const ALL_MODULES = (
-    PaddedArrays, PredefinedCurves, CellLists, BasicTypes,
+    PaddedArrays, PredefinedCurves, CellLists, Constants,
     Quadratures, Filaments, FindNearbySegments, FilamentIO,
     Reconnections, BiotSavart, Diagnostics, Containers, Timestepping,
 )

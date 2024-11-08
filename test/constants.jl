@@ -1,6 +1,6 @@
 # Test Zero and Infinity types.
 
-using VortexPasta.BasicTypes: Zero, Infinity
+using VortexPasta.Constants: Zero, Infinity
 using Test
 
 @testset "Zero and Infinity" begin

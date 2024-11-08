@@ -1,4 +1,4 @@
-using ..BasicTypes: Infinity
+using ..Constants: Infinity
 
 """
     fold_periodic!(Xs::AbstractVector{<:Vec3}, Ls::NTuple{3, Real}) -> Bool

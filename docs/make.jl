@@ -45,12 +45,6 @@ DocMeta.setdocmeta!(
 )
 
 DocMeta.setdocmeta!(
-    VortexPasta.BasicTypes,
-    :DocTestSetup,
-    :(using VortexPasta.BasicTypes),
-)
-
-DocMeta.setdocmeta!(
     VortexPasta.Filaments,
     :DocTestSetup,
     quote
@@ -177,12 +171,13 @@ function make_all(; generate_tutorials = true,)
                 "modules/PaddedArrays.md",
                 "modules/PredefinedCurves.md",
                 "modules/CellLists.md",
-                "modules/BasicTypes.md",
                 "modules/Quadratures.md",
                 "modules/Filaments.md",
                 "modules/FilamentIO.md",
                 "modules/FindNearbySegments.md",
+                "modules/Constants.md",
                 "modules/BiotSavart.md",
+                "modules/Containers.md",
                 "modules/Reconnections.md",
                 "modules/Timestepping.md",
                 "modules/Diagnostics.md",
