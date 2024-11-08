@@ -12,8 +12,6 @@ BasicTypes
 ## Exported types
 
 ```@docs
-Derivative
-Vec3
 Zero
 Infinity
 ∞

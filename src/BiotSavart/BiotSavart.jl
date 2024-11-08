@@ -21,7 +21,7 @@ export
     reset_timer!  # from TimerOutputs
 
 using ..BasicTypes:
-    Vec3, Derivative, Zero, Infinity, ∞
+    Zero, Infinity, ∞
 
 using ..Quadratures:
     Quadratures, quadrature, NoQuadrature, GaussLegendre, AdaptiveTanhSinh,
@@ -29,6 +29,7 @@ using ..Quadratures:
 
 using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, Segment, CurvatureBinormal,
+    Vec3, Derivative,
     knots, nodes, segments, integrate
 
 using Adapt: Adapt, adapt

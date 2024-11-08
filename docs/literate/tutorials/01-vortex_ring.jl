@@ -28,7 +28,7 @@
 # The most straightforward way of defining an arbitrary curve is by first defining a set of
 # discretisation points (which we also call *nodes*) and then passing that to `Filaments.init`.
 # In VortexPasta, a point in 3D space is represented by the [`Vec3`](@ref
-# VortexPasta.BasicTypes.Vec3) type (which is nothing else than an `SVector` from the
+# VortexPasta.Filaments.Vec3) type (which is nothing else than an `SVector` from the
 # [StaticArrays.jl](https://github.com/JuliaArrays/StaticArrays.jl) package).
 #
 # ### [Initialising the ring](@id tutorial-vortex-ring-init-filament)

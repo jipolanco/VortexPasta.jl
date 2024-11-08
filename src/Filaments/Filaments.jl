@@ -36,7 +36,6 @@ export
     normalise_derivatives!
 
 using ..Quadratures: Quadratures, AbstractQuadrature, GaussLegendre, NoQuadrature, quadrature
-using ..BasicTypes: Vec3, Derivative
 using ..PredefinedCurves: PredefinedCurves  # just for documentation
 
 # Load PaddedVector and some non-exported functions associated to PaddedVector
@@ -47,12 +46,7 @@ using LinearAlgebra: norm, normalize, ⋅, ×
 using StaticArrays
 using StructArrays
 
-# Used internally to evaluate filament coordinates or derivatives on a given
-# discretisation node. This is used when calling f[i, Derivative(n)].
-struct AtNode
-    i :: Int
-end
-
+include("basic_types.jl")
 include("parametrisations.jl")
 
 @doc raw"""
