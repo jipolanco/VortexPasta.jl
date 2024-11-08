@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Remove `BasicTypes` module.
+  Definitions have been moved onto the `Filament` module (`Vec3`, `Derivative`)
+  and onto the new `Constants` (`Zero`, `Infinity`, `∞`) and `Containers`
+  (`VectorOfVectors`) modules.
+
 ## [0.24.7] - 2024-10-29
 
 ### Changed
