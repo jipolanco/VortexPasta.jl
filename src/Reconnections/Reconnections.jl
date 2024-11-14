@@ -112,6 +112,9 @@ function reconnect!(
         return ret_base
     end
     crit = criterion(cache)
+    if crit.use_velocity && vs === nothing
+        error("`use_velocity` was set to `true` in the reconnection criterion, but velocity information was not passed to `reconnect!`")
+    end
     Ls = periods(cache)
     @timeit to "find_reconnection_candidates!" begin
         candidates = find_reconnection_candidates!(cache, fs; to)
@@ -125,7 +128,9 @@ function reconnect!(
         end
         (; a, b, filament_idx_a, filament_idx_b,) = candidate
         (; d⃗,) = info  # d⃗ = x⃗ - (y⃗ - p⃗)
-        if vs !== nothing  # use velocity information to discard some reconnections
+        if crit.use_velocity
+            # Use velocity information to discard some reconnections
+            @assert vs !== nothing   # checked earlier
             @assert eltype(vs) <: AbstractFilament  # this means it's interpolable
             @inbounds v⃗_a = vs[filament_idx_a](a.i, info.ζx)  # assume velocity is interpolable
             @inbounds v⃗_b = vs[filament_idx_b](b.i, info.ζy)  # assume velocity is interpolable

@@ -212,7 +212,7 @@ end
         end
 
         @testset "reconnect!" begin
-            crit = @inferred ReconnectBasedOnDistance(l_min / 2)
+            crit = @inferred ReconnectBasedOnDistance(l_min / 2; use_velocity = false)
             fc = copy(f)
             fs_all = [fc]
             cache = @inferred Reconnections.init_cache(crit, fs_all)
@@ -316,7 +316,7 @@ end
                 norm(f[i] - g[j])
             end
         end
-        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes)
+        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes; use_velocity = false)
 
         @testset "reconnect!" begin
             fs = collect(copy.(fs_orig))
@@ -353,7 +353,7 @@ end
                 norm(f[i] - g[j])
             end
         end
-        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes)
+        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes; use_velocity = false)
 
         fs = collect(copy.(fs_orig))
         cache = @inferred Reconnections.init_cache(crit, fs)
@@ -400,7 +400,7 @@ end
             l_min = minimum_knot_increment(f_orig)
 
             fs_orig = [copy(f_orig)]
-            crit = ReconnectBasedOnDistance(4 * ϵ)
+            crit = ReconnectBasedOnDistance(4 * ϵ; use_velocity = false)
             fs = copy.(fs_orig)
             cache = @inferred Reconnections.init_cache(crit, fs, periods)
             rec = @inferred reconnect!(cache, fs)
@@ -430,7 +430,7 @@ end
 
             l_min = minimum_knot_increment(f_orig)
             fs = [copy(f_orig)]
-            crit = ReconnectBasedOnDistance(l_min / 2)
+            crit = ReconnectBasedOnDistance(l_min / 2; use_velocity = false)
             cache = @inferred Reconnections.init_cache(crit, fs, periods)
 
             # We need 2 passes to arrive to the final state.
@@ -473,7 +473,7 @@ end
             fs_orig = [f_orig]
 
             l_min = minimum_knot_increment(f_orig)
-            crit = ReconnectBasedOnDistance(l_min / 2)
+            crit = ReconnectBasedOnDistance(l_min / 2; use_velocity = false)
 
             fs = copy.(fs_orig)
             cache = @inferred Reconnections.init_cache(crit, fs, periods)
@@ -556,7 +556,7 @@ end
 
         # Automatic reconnection
         fs = copy.(fs_orig)
-        crit = ReconnectBasedOnDistance(0.5 * l_min)
+        crit = ReconnectBasedOnDistance(0.5 * l_min; use_velocity = false)
         cache = @inferred Reconnections.init_cache(crit, fs)
         for n ∈ 1:5
             rec = reconnect!(cache, fs)
@@ -602,7 +602,7 @@ end
         @test end_to_end_offset(h) == sum(end_to_end_offset, fs_orig)  # output offset = sum of input offsets
 
         # Automatic reconnection
-        crit = ReconnectBasedOnDistance(l_min)
+        crit = ReconnectBasedOnDistance(l_min; use_velocity = false)
         periods = 2π .* (1, 1, 1)
         fs = copy.(fs_orig)
         cache = @inferred Reconnections.init_cache(crit, fs, periods)

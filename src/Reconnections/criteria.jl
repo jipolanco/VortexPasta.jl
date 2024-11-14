@@ -48,11 +48,15 @@ should_reconnect(::NoReconnections, fx, fy, i, j; kws...) = nothing
 
 """
     ReconnectBasedOnDistance <: ReconnectionCriterion
-    ReconnectBasedOnDistance(d_crit; decrease_length = true, cos_max = 0.97)
+    ReconnectBasedOnDistance(d_crit; use_velocity = true, decrease_length = true, cos_max = 0.97)
 
 Reconnects filament segments which are at a distance `d < d_crit`.
 
 # Optional keyword arguments
+
+- `use_velocity`: if `true` (default), use filament velocity information in reconnections.
+  For now, this is used to discard a reconnection between two points if they are
+  instantaneously getting away from each other.
 
 - `decrease_length`: if `true` (default), a reconnection will only be performed
   if it will decrease the total filament length. Since, for vortices, the total
@@ -71,10 +75,11 @@ struct ReconnectBasedOnDistance <: ReconnectionCriterion
     dist_sq    :: Float64
     cos_max    :: Float64
     cos_max_sq :: Float64
+    use_velocity    :: Bool
     decrease_length :: Bool
 
-    function ReconnectBasedOnDistance(dist; cos_max = 0.97, decrease_length = true)
-        new(dist, dist^2, cos_max, cos_max^2, decrease_length)
+    function ReconnectBasedOnDistance(dist; cos_max = 0.97, use_velocity = true, decrease_length = true)
+        new(dist, dist^2, cos_max, cos_max^2, use_velocity, decrease_length)
     end
 end
 
