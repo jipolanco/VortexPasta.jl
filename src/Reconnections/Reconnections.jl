@@ -41,6 +41,7 @@ include("cache.jl")
         [callback::Function],
         cache::AbstractReconnectionCache,
         fs::AbstractVector{<:AbstractFilament},
+        [vs::AbstractVector{<:AbstractVector}],
     ) -> NamedTuple
 
 Perform filament reconnections according to chosen criterion.
@@ -50,6 +51,10 @@ are appended at the end of `fs`.
 
 Moreover, this function will remove reconnected filaments if their number of nodes is too small
 (typically ``< 3``, see [`check_nodes`](@ref)).
+
+Optionally, `vs` can be a vector containing all instantaneous filament velocities.
+In this case, this will be used to discard reconnections between filaments which are moving
+in opposite directions.
 
 ## Returns
 
@@ -86,7 +91,8 @@ where `f` is the modified filament, `i` is its index in `fs`, and `mode` is one 
 function reconnect!(
         callback::F,
         cache::AbstractReconnectionCache,
-        fs::AbstractVector{<:AbstractFilament};
+        fs::AbstractVector{<:AbstractFilament},
+        vs::Union{Nothing, AbstractVector{<:AbstractFilament}} = nothing;
         to::TimerOutput = TimerOutput(),
     ) where {F <: Function}
     T = number_type(fs)
@@ -116,6 +122,28 @@ function reconnect!(
             should_reconnect(crit, other_candidate; periods = Ls)
         end
         (; a, b,) = candidate
+        (; d⃗,) = info  # d⃗ = x⃗ - (y⃗ - p⃗)
+        # TODO: store filament indices when finding candidates...
+        if vs !== nothing  # use velocity information
+            ai = 0
+            bi = 0
+            for n ∈ eachindex(fs)
+                if fs[n] === a.f
+                    ai = n
+                end
+                if fs[n] === b.f
+                    bi = n
+                end
+            end
+            @assert ai > 0 && bi > 0
+            @assert eltype(vs) <: AbstractFilament  # this means it's interpolable
+            v⃗_a = vs[ai](a.i, info.ζx)  # assume velocity is interpolable
+            v⃗_b = vs[bi](b.i, info.ζy)  # assume velocity is interpolable
+            v_d = d⃗ ⋅ (v⃗_a - v⃗_b)  # separation velocity (should be normalised by |d⃗| = sqrt(d²), but we only care about the sign)
+            if v_d ≥ 0  # they're getting away from each other
+                continue  # don't reconnect them
+            end
+        end
         @timeit to "reconnect" if a.f === b.f
             # Reconnect filament with itself => split filament into two
             @assert a.i ≠ b.i
