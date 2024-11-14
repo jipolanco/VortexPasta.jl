@@ -628,7 +628,13 @@ sum(nk_normalised)  # we expect the sum to be 1
 # We can finally plot the final state:
 
 fig = Figure()
-ax = Axis(fig[1, 1]; xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"2 \, n(k) / A^2", xlabelsize = 20, ylabelsize = 20)
+ax = Axis(
+    fig[1, 1];
+    xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"2 \, n(k) / A^2",
+    xlabelsize = 20, ylabelsize = 20,
+    xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
+    yminorticksvisible = true, yminorticks = exp10.(-40:10),
+)
 scatterlines!(ax, ks_pos, nk_normalised)
 xlims!(ax, 0.8 * ks_pos[begin], nothing)
 ylims!(ax, 1e-30, 1e1)
@@ -715,7 +721,13 @@ w_hat = fft(wt)
 ωs_normalised = ωs_pos ./ ω_kw  # normalise by expected KW frequency
 
 fig = Figure()
-ax = Axis(fig[1, 1], xscale = log10, yscale = log10, xlabel = L"ω / ω_{\text{kw}}", ylabel = L"n(ω)", xlabelsize = 20, ylabelsize = 20)
+ax = Axis(
+    fig[1, 1];
+    xscale = log10, yscale = log10, xlabel = L"ω / ω_{\text{kw}}", ylabel = L"n(ω)",
+    xlabelsize = 20, ylabelsize = 20,
+    xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
+    yticks = LogTicks(-20:10), yminorticksvisible = true, yminorticks = IntervalsBetween(9),
+)
 scatterlines!(ax, ωs_normalised, nω; label = "Original signal")
 xlims!(ax, 0.8 * ωs_normalised[begin], 1.2 * ωs_normalised[end])
 vlines!(ax, 1.0; linestyle = :dash, color = :orangered)
