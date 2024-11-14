@@ -41,6 +41,10 @@ struct CellListSegmentFinder{
     Ls     :: Periods
 end
 
+# Determine coordinate from single element.
+# Note that an element is a tuple (i, segment).
+cl_to_coordinate((i, seg)::Tuple{Int, Segment}) = Filaments.midpoint(seg)
+
 function CellListSegmentFinder(
         fs::AbstractVector{<:AbstractFilament}, r_cut, Ls;
         nsubdiv = static(1),
@@ -53,10 +57,11 @@ function CellListSegmentFinder(
     Filament = eltype(fs)
     S = Segment{Filament}
     @assert isconcretetype(S)
+    T = Tuple{Int, S}  # the iterator must return a tuple: (filament index, segment)
     # Construct cell list of filament segments.
     # We use the `midpoint` function to associate a coordinate to each segment.
     M = to_static(nsubdiv)
-    cl = PeriodicCellList(S, rs_cut, Ls, M; to_coordinate = Filaments.midpoint)
+    cl = PeriodicCellList(T, rs_cut, Ls, M; to_coordinate = cl_to_coordinate)
     CellListSegmentFinder(cl, r_cut, Ls)
 end
 
@@ -65,8 +70,9 @@ to_static(M::StaticInt) = M
 
 function set_filaments!(c::CellListSegmentFinder, fs)
     empty!(c.cl)
-    for f ∈ fs, s ∈ segments(f)
-        CellLists.add_element!(c.cl, s)
+    for (i, f) ∈ pairs(fs), s ∈ segments(f)
+        # One element is a pair (filament index, segment)
+        CellLists.add_element!(c.cl, (i, s))
     end
     CellLists.finalise_cells!(c.cl)
     c
