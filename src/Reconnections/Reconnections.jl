@@ -31,6 +31,8 @@ using LinearAlgebra: ⋅, norm
 struct ReconnectionCandidate{S <: Segment}
     a :: S
     b :: S
+    filament_idx_a :: Int  # filament id where segment `a` is located
+    filament_idx_b :: Int  # filament id where segment `b` is located
 end
 
 include("criteria.jl")
@@ -121,26 +123,14 @@ function reconnect!(
         info, candidate = find_better_candidates(info, candidate) do other_candidate
             should_reconnect(crit, other_candidate; periods = Ls)
         end
-        (; a, b,) = candidate
+        (; a, b, filament_idx_a, filament_idx_b,) = candidate
         (; d⃗,) = info  # d⃗ = x⃗ - (y⃗ - p⃗)
-        # TODO: store filament indices when finding candidates...
-        if vs !== nothing  # use velocity information
-            ai = 0
-            bi = 0
-            for n ∈ eachindex(fs)
-                if fs[n] === a.f
-                    ai = n
-                end
-                if fs[n] === b.f
-                    bi = n
-                end
-            end
-            @assert ai > 0 && bi > 0
+        if vs !== nothing  # use velocity information to discard some reconnections
             @assert eltype(vs) <: AbstractFilament  # this means it's interpolable
-            v⃗_a = vs[ai](a.i, info.ζx)  # assume velocity is interpolable
-            v⃗_b = vs[bi](b.i, info.ζy)  # assume velocity is interpolable
-            v_d = d⃗ ⋅ (v⃗_a - v⃗_b)  # separation velocity (should be normalised by |d⃗| = sqrt(d²), but we only care about the sign)
-            if v_d ≥ 0  # they're getting away from each other
+            @inbounds v⃗_a = vs[filament_idx_a](a.i, info.ζx)  # assume velocity is interpolable
+            @inbounds v⃗_b = vs[filament_idx_b](b.i, info.ζy)  # assume velocity is interpolable
+            v_d = d⃗ ⋅ (v⃗_a - v⃗_b)  # separation velocity (should be divided by |d⃗| = sqrt(d²), but we only care about the sign)
+            if v_d > 0  # they're getting away from each other
                 continue  # don't reconnect them
             end
         end
@@ -178,7 +168,8 @@ end
         if x′ === x && y′ === y
             break  # the proposed segments are the original ones, so we stop here
         end
-        c′ = ReconnectionCandidate(x′, y′)
+        # Note: filaments stay the same, so fields filament_idx_* don't change.
+        c′ = ReconnectionCandidate(x′, y′, c.filament_idx_a, c.filament_idx_b)
         info′ = f(c′)
         if info′ === nothing || info′.d² ≥ d²_min
             break  # the previous candidate was better, so we stop here
