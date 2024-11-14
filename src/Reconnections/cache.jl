@@ -112,7 +112,8 @@ function find_reconnection_candidates!(
     (; finder, candidates,) = cache
     empty!(candidates)
     r_cut = distance(cache)
-    r_crit = 1.5 * r_cut
+    T = typeof(r_cut)
+    r_crit = T(1.5) * r_cut
     r²_crit = r_crit * r_crit
     Ls = periods(cache)
     Lhs = map(L -> L / 2, Ls)
@@ -130,7 +131,7 @@ function find_reconnection_candidates!(
         x⃗ = Filaments.midpoint(seg_a)
         δ² = sum(abs2, f[seg_a.i + 1] - f[seg_a.i])  # ≈ squared segment length
         d²_crit = r²_crit + δ² / 4
-        d_crit = sqrt(d²_crit)
+        d_crit = @fastmath sqrt(d²_crit)
         for seg_b ∈ nearby_segments(finder, x⃗)
             # Slightly finer filters to determine whether we keep this candidate.
             # TODO combine these two criteria?
