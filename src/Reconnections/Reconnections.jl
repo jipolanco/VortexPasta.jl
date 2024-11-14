@@ -31,6 +31,8 @@ using LinearAlgebra: ⋅, norm
 struct ReconnectionCandidate{S <: Segment}
     a :: S
     b :: S
+    filament_idx_a :: Int  # filament id where segment `a` is located
+    filament_idx_b :: Int  # filament id where segment `b` is located
 end
 
 include("criteria.jl")
@@ -41,6 +43,7 @@ include("cache.jl")
         [callback::Function],
         cache::AbstractReconnectionCache,
         fs::AbstractVector{<:AbstractFilament},
+        [vs::AbstractVector{<:AbstractVector}],
     ) -> NamedTuple
 
 Perform filament reconnections according to chosen criterion.
@@ -50,6 +53,11 @@ are appended at the end of `fs`.
 
 Moreover, this function will remove reconnected filaments if their number of nodes is too small
 (typically ``< 3``, see [`check_nodes`](@ref)).
+
+Optionally, `vs` can be a vector containing all instantaneous filament velocities.
+In this case, this will be used to discard reconnections between filaments which are moving
+in opposite directions. This is required if the [`ReconnectBasedOnDistance`](@ref) criterion
+is used with its default option `use_velocity = true`.
 
 ## Returns
 
@@ -86,7 +94,8 @@ where `f` is the modified filament, `i` is its index in `fs`, and `mode` is one 
 function reconnect!(
         callback::F,
         cache::AbstractReconnectionCache,
-        fs::AbstractVector{<:AbstractFilament};
+        fs::AbstractVector{<:AbstractFilament},
+        vs::Union{Nothing, AbstractVector{<:AbstractFilament}} = nothing;
         to::TimerOutput = TimerOutput(),
     ) where {F <: Function}
     T = number_type(fs)
@@ -104,6 +113,9 @@ function reconnect!(
         return ret_base
     end
     crit = criterion(cache)
+    if crit.use_velocity && vs === nothing
+        error("`use_velocity` was set to `true` in the reconnection criterion, but velocity information was not passed to `reconnect!`")
+    end
     Ls = periods(cache)
     @timeit to "find_reconnection_candidates!" begin
         candidates = find_reconnection_candidates!(cache, fs; to)
@@ -115,7 +127,19 @@ function reconnect!(
         info, candidate = find_better_candidates(info, candidate) do other_candidate
             should_reconnect(crit, other_candidate; periods = Ls)
         end
-        (; a, b,) = candidate
+        (; a, b, filament_idx_a, filament_idx_b,) = candidate
+        (; d⃗,) = info  # d⃗ = x⃗ - (y⃗ - p⃗)
+        if crit.use_velocity
+            # Use velocity information to discard some reconnections
+            @assert vs !== nothing   # checked earlier
+            @assert eltype(vs) <: AbstractFilament  # this means it's interpolable
+            @inbounds v⃗_a = vs[filament_idx_a](a.i, info.ζx)  # assume velocity is interpolable
+            @inbounds v⃗_b = vs[filament_idx_b](b.i, info.ζy)  # assume velocity is interpolable
+            v_d = d⃗ ⋅ (v⃗_a - v⃗_b)  # separation velocity (should be divided by |d⃗| = sqrt(d²), but we only care about the sign)
+            if v_d > 0  # they're getting away from each other
+                continue  # don't reconnect them
+            end
+        end
         @timeit to "reconnect" if a.f === b.f
             # Reconnect filament with itself => split filament into two
             @assert a.i ≠ b.i
@@ -150,7 +174,8 @@ end
         if x′ === x && y′ === y
             break  # the proposed segments are the original ones, so we stop here
         end
-        c′ = ReconnectionCandidate(x′, y′)
+        # Note: filaments stay the same, so fields filament_idx_* don't change.
+        c′ = ReconnectionCandidate(x′, y′, c.filament_idx_a, c.filament_idx_b)
         info′ = f(c′)
         if info′ === nothing || info′.d² ≥ d²_min
             break  # the previous candidate was better, so we stop here

@@ -28,14 +28,47 @@ function set_filaments!(c::NaiveSegmentFinder, fs)
     c
 end
 
-function nearby_segments(c::NaiveSegmentFinder, x⃗::Vec3)
-    (; fs,) = c
-    Filament = eltype(fs)
-    @assert Filament <: AbstractFilament
+struct NaiveSegmentIterator{
+        Filament <: AbstractFilament,
+        FilamentVector <: AbstractVector{Filament},
+    }
+    fs :: FilamentVector
+end
+
+Base.IteratorSize(::Type{<:NaiveSegmentIterator}) = Base.SizeUnknown()
+Base.IteratorEltype(::Type{<:NaiveSegmentIterator}) = Base.HasEltype()
+function Base.eltype(::Type{<:NaiveSegmentIterator{Filament}}) where {Filament}
     S = Segment{Filament}
     @assert isconcretetype(S)
-    iters = Iterators.map(segments, fs)
-    it = Iterators.flatten(iters)
-    # @show eltype(it)  # this gives Any, but luckily that doesn't seem to affect type stability
-    it
+    Tuple{Int, S}  # (filament index, segment)
 end
+
+function Base.iterate(it::NaiveSegmentIterator)
+    (; fs,) = it
+    isempty(fs) && return nothing
+    i = firstindex(fs)
+    @inbounds f = fs[i]
+    j = firstindex(segments(f))
+    iterate(it, (i, j))
+end
+
+function Base.iterate(it::NaiveSegmentIterator, state::Tuple)
+    (; fs,) = it
+    i, j = state  # current filament index, current segment index
+    @inbounds segs = segments(fs[i])
+    while j > lastindex(segs)  # we're done iterating over segments of filament i
+        i += 1  # jump to next filament
+        if i > lastindex(fs)  # iterated over all filaments
+            return nothing
+        end
+        @inbounds segs = segments(fs[i])
+        j = firstindex(segs)
+    end
+    @inbounds element = (i, segs[j])
+    state = (i, j + 1)
+    element, state
+end
+
+# The iterator should return a tuple (i, segment) where `i` is the index of the filament
+# containing the segment (that is, the segment belongs to the filament fs[i]).
+nearby_segments(c::NaiveSegmentFinder, x⃗::Vec3) = NaiveSegmentIterator(c.fs)

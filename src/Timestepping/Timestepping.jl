@@ -918,7 +918,7 @@ end
 function Reconnections.reconnect!(iter::VortexFilamentSolver)
     (; vs, ψs, fs, reconnect, to,) = iter
     fields = (vs, ψs)
-    Reconnections.reconnect!(reconnect, fs; to) do f, i, mode
+    Reconnections.reconnect!(reconnect, fs, vs; to) do f, i, mode
         reconnect_callback((fs, fields), f, i, mode)
     end
 end

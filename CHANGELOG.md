@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reconnections now use instantaneous filament velocity information by default.
+  For now, this is used to discard reconnections between points which are
+  getting away from each other (according to their instantaneous velocities).
+  This behaviour can be disabled by passing `use_velocity = false` to the
+  `ReconnectBasedOnDistance` criterion.
+
 - Remove `BasicTypes` module.
   Definitions have been moved onto the `Filament` module (`Vec3`, `Derivative`)
   and onto the new `Constants` (`Zero`, `Infinity`, `∞`) and `Containers`
