@@ -56,7 +56,8 @@ Moreover, this function will remove reconnected filaments if their number of nod
 
 Optionally, `vs` can be a vector containing all instantaneous filament velocities.
 In this case, this will be used to discard reconnections between filaments which are moving
-in opposite directions.
+in opposite directions. This is required if the [`ReconnectBasedOnDistance`](@ref) criterion
+is used with its default option `use_velocity = true`.
 
 ## Returns
 
