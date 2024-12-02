@@ -47,7 +47,6 @@ function init_coefficients!(rng::AbstractRNG, data::FourierForcingData{T, N}, u_
         u⃗ = u⃗ × k⃗  # make it divergence-free (orthogonal to k⃗)
         cs[i] = u⃗
         factor = 2 - iszero(k⃗[1])  # include -k⃗ in the sum if kx ≠ 0 (Hermitian symmetry)
-        @show factor, k⃗
         sum2 += factor * sum(abs2, u⃗)
     end
     # We want u_rms^2 to be the (average) variance of a *single* velocity component.
