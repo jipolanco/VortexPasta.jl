@@ -136,16 +136,17 @@ function make_all(; generate_tutorials = true,)
     end
 
     assets = [
-        "assets/fonts.css",
-        "assets/tomate.js",
+        asset("assets/fonts.css"; islocal = true),
+        # asset("assets/tomate.js"; islocal = true),
     ]
 
     # Try to download latest version of simpleanalytics script.
     try
-        asset = "assets/sa.js"
-        dst = joinpath(@__DIR__, "src", asset)
+        script = "assets/sa.js"
+        dst = joinpath(@__DIR__, "src", script)
         Downloads.download("https://scripts.simpleanalyticscdn.com/latest.js", dst)
-        push!(assets, asset)
+        attributes = Dict(:async => "", Symbol("data-collect-dnt") => "true")
+        push!(assets, asset(script; attributes, islocal = true))
     catch e
         @warn "Failed downloading asset" e
     end
