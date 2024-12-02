@@ -21,6 +21,7 @@ include("BiotSavart/BiotSavart.jl")
 include("Diagnostics/Diagnostics.jl")
 
 include("Containers/Containers.jl")  # VectorOfVectors
+include("Forcing/Forcing.jl")
 include("Timestepping/Timestepping.jl")
 
 # This is used in tests
