@@ -9,13 +9,20 @@ CollapsedDocStrings = true
 Forcing
 ```
 
-## Types
+## Forcing types
 
 ```@docs
 AbstractForcing
 NormalFluidForcing
-FourierNormalFluidForcing
-ConstantFourierNormalFluidForcing
+```
+
+## Synthetic fields
+
+```@docs
+SyntheticVectorField
+FourierSyntheticVectorField
+FourierBandVectorField
+init_coefficients!
 ```
 
 ## Functions

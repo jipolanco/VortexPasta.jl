@@ -47,6 +47,7 @@ See also [`AbstractForcing`](@ref).
 """
 abstract type NormalFluidForcing <: AbstractForcing end
 
+include("synthetic.jl")
 include("fourier.jl")
 
 end

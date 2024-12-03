@@ -1,37 +1,103 @@
 using VortexPasta
 using VortexPasta.Forcing
 using StaticArrays
+using StructArrays
 using LinearAlgebra
+using FFTW
 using Random
 using Test
 
-function check_forcing(forcing::FourierNormalFluidForcing)
-    (; data, v_rms,) = forcing
-    (; cs, qs, Δks,) = data
-    N = length(qs[1])  # number of dimensions (usually 3)
-    variance = zero(v_rms)
-    divergence = zero(v_rms)
+# Note: this may fail or give wrong results if ûs is not large enough.
+function to_fourier_grid!(ûs::StructArray, field::FourierBandVectorField{T, N}) where {T, N}
+    Forcing.to_fourier_grid!(StructArrays.components(ûs), field)
+    ûs
+end
+
+function check_synthetic_field(field::FourierBandVectorField{T, N}; u_rms, kmin, kmax) where {T, N}
+    (; cs, qs, Δks,) = field
+    variance = zero(T)
+    divergence = zero(T)
+    k²_min = T(Inf)
+    kx_min = T(Inf)
+    k²_max = zero(T)
     for i ∈ eachindex(qs, cs)
-        k⃗ = SVector(qs[i] .* Δks)
+        q⃗ = SVector(qs[i])
+        k⃗ = (q⃗ .* Δks)::SVector{N, T}
         k² = sum(abs2, k⃗)
-        @test k² > 0  # make sure zero mode is not included (even if we put kmin = 0.0)
-        @test k⃗[1] ≥ 0  # Hermitian symmetry: modes kx < 0 are not included
+        k²_min = min(k²_min, k²)
+        k²_max = max(k²_max, k²)
+        kx_min = min(kx_min, k⃗[1])
         u⃗ = cs[i]
         u² = sum(abs2, u⃗)
-        factor = iszero(k⃗[1]) ? 1 : 2  # Hermitian symmetry
+        factor = 1 + Forcing.has_implicit_conjugate(q⃗)  # Hermitian symmetry
         divergence += abs2(k⃗ ⋅ u⃗)
         variance += factor * u²
     end
+    @test kx_min ≥ 0  # Hermitian symmetry: modes kx < 0 are not included
+    @test k²_min ≥ kmin^2
+    @test k²_max ≤ kmax^2
     @test divergence < eps(variance)^2  # divergence is zero
-    @test N * v_rms^2 ≈ variance        # check variance
+    @test N * u_rms^2 ≈ variance        # check variance
     nothing
 end
 
-@testset "Normal fluid forcing" begin
-    T = Float32
+function verify_evaluation(field::FourierBandVectorField{T, N}, Ls::NTuple{N, T}; u_rms, kmax) where {T, N}
+    # Directly evaluate field on a grid
+    Ns = map(Ls) do L
+        Δk_half = T(π) / L
+        floor(Int, kmax / Δk_half + 1)  # enough Fourier modes to include the forcing band
+    end
+    Δxs = Ls ./ Ns
+
+    let S = T === Float64 ? Float32 : Float64  # select a different type as input
+        x⃗ = zero(SVector{N, S})
+        @test @inferred(field(x⃗)) isa SVector{N, T}  # check that the returned type is T and not S
+    end
+
+    us = StructArray{SVector{N, T}}(undef, Ns)
+    u⃗_mean = zero(eltype(us))
+    u⃗_var = zero(eltype(us))
+    for I ∈ CartesianIndices(us)
+        x⃗ = Tuple(I - oneunit(I)) .* Δxs
+        u⃗ = field(x⃗)
+        u⃗_mean = @. u⃗_mean + u⃗
+        u⃗_var = @. u⃗_var + u⃗ * u⃗
+        us[I] = u⃗
+    end
+    Nprod = length(us)
+    u⃗_mean = @. u⃗_mean / Nprod
+    u⃗_var = @. u⃗_var / Nprod
+    u⃗_rms = @. sqrt(u⃗_var)
+    @test u⃗_mean + u⃗_rms ≈ u⃗_rms rtol=eps(T)  # the mean is practically zero
+    @test sum(u⃗_var) / N ≈ u_rms^2
+
+    # Perform FFT and compare with field obtained using Forcing.to_fourier_grid!.
+    ûs_from_grid = StructArray{SVector{N, Complex{T}}}(rfft.(StructArrays.components(us))) ./ Nprod
+    Ms = ntuple(d -> d == 1 ? Ns[d] ÷ 2 + 1 : Ns[d], Val(N))
+    ûs = StructArray{SVector{N, Complex{T}}}(undef, Ms)
+    to_fourier_grid!(ûs, field)
+
+    @test ûs ≈ ûs_from_grid
+
+    # Check variance in Fourier space
+    u⃗_var_fft = zero(u⃗_var)
+    for I ∈ CartesianIndices(ûs)
+        factor = isone(I[1]) ? 1 : 2
+        û = ûs[I]
+        u⃗_var_fft = @. u⃗_var_fft + factor * abs2(û)
+    end
+    @test sum(u⃗_var_fft) / N ≈ u_rms^2
+
+    nothing
+end
+
+@testset "Synthetic fields ($T)" for T ∈ (Float32, Float64)
     rng = Xoshiro(42)
     Ls = T.((2π, 2π, 8π))  # elongated domain
-    forcing = @inferred ConstantFourierNormalFluidForcing(rng, Ls; α = 0.2, kmin = 0.0, kmax = 2.5, v_rms = 1.0)
-    @test forcing.v_rms isa T
-    check_forcing(forcing)
+    u_rms = 2.0; kmin = 0.0; kmax = 1.5;
+    field = @inferred FourierBandVectorField(undef, Ls; kmin, kmax)
+    Forcing.init_coefficients!(rng, field, u_rms)
+    check_synthetic_field(field; u_rms, kmin, kmax)
+    verify_evaluation(field, Ls; u_rms, kmax)
 end
+
