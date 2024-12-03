@@ -6,29 +6,32 @@ using Random
 using Test
 
 function check_forcing(forcing::FourierNormalFluidForcing)
-    (; data, vn_rms,) = forcing
-    (; cs, ks,) = data
-    N = length(ks[1])  # number of dimensions (usually 3)
-    variance = zero(vn_rms)
-    for i ∈ eachindex(ks, cs)
-        k⃗ = SVector(ks[i])
+    (; data, v_rms,) = forcing
+    (; cs, qs, Δks,) = data
+    N = length(qs[1])  # number of dimensions (usually 3)
+    variance = zero(v_rms)
+    divergence = zero(v_rms)
+    for i ∈ eachindex(qs, cs)
+        k⃗ = SVector(qs[i] .* Δks)
         k² = sum(abs2, k⃗)
         @test k² > 0  # make sure zero mode is not included (even if we put kmin = 0.0)
-        @test k⃗[1] ≥ 0  # Hermitia symmetry: modes kx < 0 are not included
+        @test k⃗[1] ≥ 0  # Hermitian symmetry: modes kx < 0 are not included
         u⃗ = cs[i]
         u² = sum(abs2, u⃗)
         factor = iszero(k⃗[1]) ? 1 : 2  # Hermitian symmetry
-        ku = norm(k⃗ × u⃗)               # just as a reference for comparison with k⃗ ⋅ u⃗ (which should be 0)
-        @test k⃗ ⋅ u⃗ + ku ≈ ku          # check divergence-free (k⃗ ⋅ u⃗ = 0)
+        divergence += abs2(k⃗ ⋅ u⃗)
         variance += factor * u²
     end
-    @test N * vn_rms^2 ≈ variance  # check variance
+    @test divergence < eps(variance)^2  # divergence is zero
+    @test N * v_rms^2 ≈ variance        # check variance
     nothing
 end
 
 @testset "Normal fluid forcing" begin
+    T = Float32
     rng = Xoshiro(42)
-    forcing = @inferred ConstantFourierNormalFluidForcing(rng; α = 0.2f0, kmin = 0.0, kmax = 2.5)
+    Ls = T.((2π, 2π, 8π))  # elongated domain
+    forcing = @inferred ConstantFourierNormalFluidForcing(rng, Ls; α = 0.2, kmin = 0.0, kmax = 2.5, v_rms = 1.0)
+    @test forcing.v_rms isa T
     check_forcing(forcing)
 end
-
