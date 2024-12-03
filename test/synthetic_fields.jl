@@ -1,5 +1,5 @@
 using VortexPasta
-using VortexPasta.Forcing
+using VortexPasta.SyntheticFields
 using StaticArrays
 using StructArrays
 using LinearAlgebra
@@ -9,7 +9,7 @@ using Test
 
 # Note: this may fail or give wrong results if ûs is not large enough.
 function to_fourier_grid!(ûs::StructArray, field::FourierBandVectorField{T, N}) where {T, N}
-    Forcing.to_fourier_grid!(StructArrays.components(ûs), field)
+    SyntheticFields.to_fourier_grid!(StructArrays.components(ûs), field)
     ûs
 end
 
@@ -29,7 +29,7 @@ function check_synthetic_field(field::FourierBandVectorField{T, N}; u_rms, kmin,
         kx_min = min(kx_min, k⃗[1])
         u⃗ = cs[i]
         u² = sum(abs2, u⃗)
-        factor = 1 + Forcing.has_implicit_conjugate(q⃗)  # Hermitian symmetry
+        factor = 1 + SyntheticFields.has_implicit_conjugate(q⃗)  # Hermitian symmetry
         divergence += abs2(k⃗ ⋅ u⃗)
         variance += factor * u²
     end
@@ -71,7 +71,7 @@ function verify_evaluation(field::FourierBandVectorField{T, N}, Ls::NTuple{N, T}
     @test u⃗_mean + u⃗_rms ≈ u⃗_rms rtol=eps(T)  # the mean is practically zero
     @test sum(u⃗_var) / N ≈ u_rms^2
 
-    # Perform FFT and compare with field obtained using Forcing.to_fourier_grid!.
+    # Perform FFT and compare with field obtained using SyntheticFields.to_fourier_grid!.
     ûs_from_grid = StructArray{SVector{N, Complex{T}}}(rfft.(StructArrays.components(us))) ./ Nprod
     Ms = ntuple(d -> d == 1 ? Ns[d] ÷ 2 + 1 : Ns[d], Val(N))
     ûs = StructArray{SVector{N, Complex{T}}}(undef, Ms)
@@ -96,8 +96,7 @@ end
     Ls = T.((2π, 2π, 8π))  # elongated domain
     u_rms = 2.0; kmin = 0.0; kmax = 1.5;
     field = @inferred FourierBandVectorField(undef, Ls; kmin, kmax)
-    Forcing.init_coefficients!(rng, field, u_rms)
+    SyntheticFields.init_coefficients!(rng, field, u_rms)
     check_synthetic_field(field; u_rms, kmin, kmax)
     verify_evaluation(field, Ls; u_rms, kmax)
 end
-

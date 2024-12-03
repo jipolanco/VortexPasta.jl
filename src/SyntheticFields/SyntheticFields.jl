@@ -1,7 +1,21 @@
+"""
+    SyntheticFields
+
+Provides implementations of synthetic vector fields.
+
+These can be used to represent a "normal" fluid velocity field which influences the motion
+of vortex lines.
+"""
+module SyntheticFields
+
 export
     SyntheticVectorField,
     FourierSyntheticVectorField,
     FourierBandVectorField
+
+using StaticArrays: SVector
+using Random: Random, AbstractRNG
+using LinearAlgebra: ⋅, ×
 
 """
     SyntheticVectorField{T, N}
@@ -219,64 +233,4 @@ end
 # Evaluate field at location
 (f::FourierBandVectorField)(x⃗) = evaluate_direct(f, x⃗)
 
-# TODO: move somewhere else
-#=
-
-@doc raw"""
-    ConstantFourierVectorField{T, N} <: FourierSyntheticVectorField{T, N}
-    ConstantFourierVectorField([rng::AbstractRNG], Ls::NTuple; v_rms, kmin, kmax)
-
-Forcing via a normal fluid flow represented in Fourier space.
-
-The normal fluid velocity field is taken as constant.
-Its Fourier modes are chosen randomly
-following a normal distribution such that the resulting velocity components have an rms value
-given by `v_rms` (on average). Moreover, the generated field is divergence-free.
-
-See [`NormalFluidForcing`](@ref) for the general form of this type of forcing.
-
-See also [`FourierNormalFluidForcing`](@ref).
-
-# Positional arguments
-
-- `rng` (optional): random number generator for determining Fourier coefficients of the
-  forcing velocity field. Default value is `Random.default_rng()`.
-
-- `Ls`: domain period in each direction. For example, `Ls = (2π, 2π, 2π)` for a ``2π``-periodic cubic domain.
-
-# Keyword arguments
-
-- `α`: Magnus force coefficient;
-
-- `α′ = 0`: drag force coefficient;
-
-- `v_rms`: typical magnitude (rms value) of normal fluid velocity fluctuations;
-
-- `kmin`: minimum forcing wavenumber (magnitude);
-
-- `kmax`: maximum forcing wavenumber (magnitude).
-
-For now, the spectrum of the generated velocity field is roughly flat in the forcing range.
-The magnitude of each Fourier mode is only determined by the value of `v_rms` (and the
-number of forced Fourier modes).
-"""
-struct ConstantFourierNormalFluidForcing{T <: AbstractFloat, N} <: FourierNormalFluidForcing
-    α  :: T  # Magnus force coefficient
-    α′ :: T  # drag force coefficient
-    v_rms :: T
-    data :: FourierBandVectorField{T, N}
 end
-
-function ConstantFourierNormalFluidForcing(
-        rng::AbstractRNG, Ls::NTuple{N, T};
-        α, α′ = 0, v_rms, kmin, kmax,
-    ) where {N, T <: AbstractFloat}
-    data = FourierBandVectorField(Ls; kmin = T(kmin), kmax = T(kmax))
-    init_coefficients!(rng, data, T(v_rms))
-    ConstantFourierNormalFluidForcing(T(α), T(α′), T(v_rms), data)
-end
-
-ConstantFourierNormalFluidForcing(Ls::NTuple; kws...) =
-    ConstantFourierNormalFluidForcing(Random.default_rng(), Ls; kws...)
-
-=#

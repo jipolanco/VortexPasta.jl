@@ -1,19 +1,12 @@
-# Forcing
+# SyntheticFields
 
 ```@meta
-CurrentModule = VortexPasta.Forcing
+CurrentModule = VortexPasta.SyntheticFields
 CollapsedDocStrings = true
 ```
 
 ```@docs
-Forcing
-```
-
-## Forcing types
-
-```@docs
-AbstractForcing
-NormalFluidForcing
+SyntheticFields
 ```
 
 ## Synthetic fields
