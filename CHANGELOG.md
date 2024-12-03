@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `VortexPasta.SyntheticFields` module allowing to create and evaluate
+  synthetic vector fields (which will be used in the future to represent a normal fluid).
+
 ## [0.24.8] - 2024-11-14
 
 ### Changed
