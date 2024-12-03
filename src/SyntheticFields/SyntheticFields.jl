@@ -23,7 +23,7 @@ using LinearAlgebra: ⋅, ×
 Abstract type representing a synthetic vector field in ``N`` dimensions.
 
 Here `T <: AbstractFloat` is the type of the returned values when evaluating the field at a
-position (see [`Forcing.evaluate`](@ref)).
+position (see [`SyntheticFields.evaluate`](@ref)).
 
 A field can be evaluated using the `f(x⃗)` syntax, where `f` is a `SyntheticVectorField` and
 `x⃗` is a physical location, returning an `SVector{N, T}`. Here `x⃗` can be an `N`-element
@@ -50,7 +50,7 @@ This type is adapted for vector fields described by a relatively small number of
 modes. The non-zero modes are within a "band" given by ``k_{\min} ≤ |k⃗| ≤ k_{\max}``.
 
 One should initialise the Fourier coefficients of the vector field before performing any evaluations.
-For this one can call [`Forcing.init_coefficients!`](@ref) after creating the vector field.
+For this one can call [`SyntheticFields.init_coefficients!`](@ref) after creating the vector field.
 After that, one can evaluate the field as described in [`SyntheticVectorField`](@ref).
 
 # Positional arguments
@@ -133,7 +133,7 @@ end
 generate_divfree(u⃗::SVector{3}, k⃗::SVector{3}) = u⃗ × k⃗
 
 """
-    Forcing.init_coefficients!([rng::AbstractRNG,] f::FourierBandVectorField, u_rms::Real)
+    SyntheticFields.init_coefficients!([rng::AbstractRNG,] f::FourierBandVectorField, u_rms::Real)
 
 Initialise Fourier coefficients of vector field.
 

@@ -17,9 +17,3 @@ FourierSyntheticVectorField
 FourierBandVectorField
 init_coefficients!
 ```
-
-## Functions
-
-```@docs
-```
-
