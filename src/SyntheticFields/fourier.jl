@@ -42,7 +42,7 @@ struct FourierBandVectorField{T <: AbstractFloat, N} <: FourierSyntheticVectorFi
     Δks :: NTuple{N, T}                   # wavenumber increment in each direction (Δk = 2π/L)
 end
 
-function Base.show(io::IO, field::FourierBandVectorField)
+function Base.show(io::IO, field::FourierBandVectorField{T, N}) where {T, N}
     (; qs, Δks,) = field
     # Get actual range of wavevector magnitudes
     kext² = extrema(qs) do q⃗
@@ -51,7 +51,7 @@ function Base.show(io::IO, field::FourierBandVectorField)
     end
     kmin, kmax = round.(sqrt.(kext²); sigdigits = 5)
     Nk = length(qs)
-    print(io, typeof(field), " with $Nk independent Fourier coefficients in |k⃗| ∈ [$kmin, $kmax]")
+    print(io, "FourierBandVectorField{$T, $N} with $Nk independent Fourier coefficients in |k⃗| ∈ [$kmin, $kmax]")
 end
 
 # Determine whether a wavevector k⃗ should be discarded to preserve Hermitian symmetry
