@@ -69,7 +69,8 @@ include("longrange/longrange.jl")
     velocity_on_nodes!(
         vs::AbstractVector{<:AbstractVector{<:Vec3}},
         cache::BiotSavartCache,
-        fs::AbstractVector{<:AbstractFilament},
+        fs::AbstractVector{<:AbstractFilament};
+        kws...,
     ) -> vs
 
 Compute velocity induced by vortex filaments on filament nodes.
@@ -94,6 +95,8 @@ vs = similar.(nodes.(fs))
 
 which initialise a velocity vector for each node of each filament (see also
 [`nodes`](@ref)).
+
+See [`compute_on_nodes!`](@ref) for a list of accepted keyword arguments.
 """
 function velocity_on_nodes! end
 
