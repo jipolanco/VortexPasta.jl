@@ -120,10 +120,10 @@ function apply!(forcing::NormalFluidForcing, vs::AbstractVector, f::AbstractFila
         s⃗′ = f[i, UnitTangent()]  # local tangent
         vn_i = V(vn(s⃗))        # evaluate normal fluid velocity at s⃗
         v_ns = vn_i - vs_i     # slip velocity
-        v_ns_perp = s⃗′ × v_ns  # slip velocity orthogonal to local tangent
-        vf = α * v_ns_perp     # velocity due to Magnus force
+        v_perp = s⃗′ × v_ns
+        vf = α * v_perp      # velocity due to Magnus force
         if !iszero(α′)
-            vf = vf - α′ * s⃗′ × v_ns_perp  # velocity due to drag force (it's quite common to set α′ = 0)
+            vf = vf - α′ * s⃗′ × v_perp  # velocity due to drag force (it's quite common to set α′ = 0)
         end
         vs[i] = vs[i] + vf
     end
