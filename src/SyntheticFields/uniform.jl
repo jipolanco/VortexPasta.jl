@@ -12,6 +12,10 @@ struct UniformVectorField{T, N} <: SyntheticVectorField{T, N}
     u⃗::SVector{N, T}
 end
 
+function Base.show(io::IO, field::UniformVectorField)
+    print(io, typeof(field), " with value ", field.u⃗)
+end
+
 UniformVectorField(u⃗::Tuple) = UniformVectorField(SVector(u⃗))
 
 (field::UniformVectorField)(x⃗) = field.u⃗

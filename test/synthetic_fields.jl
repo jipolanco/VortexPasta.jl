@@ -98,12 +98,14 @@ end
         u_rms = 2.0; kmin = 0.1; kmax = 1.5;
         field = @inferred FourierBandVectorField(undef, Ls; kmin, kmax)
         SyntheticFields.init_coefficients!(rng, field, u_rms)
+        @test startswith("FourierBandVectorField{$T, 3}")(repr(field))
         check_synthetic_field(field; u_rms, kmin, kmax)
         verify_evaluation(field, Ls; u_rms, kmax)
     end
     @testset "UniformVectorField" begin
         u⃗ = T.((2.0, 1.2, -2.4))
         field = @inferred UniformVectorField(u⃗)
+        @test startswith("UniformVectorField{$T, 3} with value")(repr(field))
         x⃗ = T.((0.2, 0.5, 1.5))
         @test (@inferred field(x⃗)) === SVector(u⃗)
     end

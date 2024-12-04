@@ -36,10 +36,22 @@ After that, one can evaluate the field as described in [`SyntheticVectorField`](
 These should satisfy `0 ≤ kmin ≤ kmax`.
 Moreover, one usually wants `0 < kmin` to ensure that the generated field has zero mean value.
 """
-struct FourierBandVectorField{T <: AbstractFloat, N}
+struct FourierBandVectorField{T <: AbstractFloat, N} <: FourierSyntheticVectorField{T, N}
     qs :: Vector{NTuple{N, Int}}          # forced wave vectors (length Nf) -- normalised to integer values
     cs :: Vector{SVector{N, Complex{T}}}  # Fourier coefficients of velocity field (length Nf)
     Δks :: NTuple{N, T}                   # wavenumber increment in each direction (Δk = 2π/L)
+end
+
+function Base.show(io::IO, field::FourierBandVectorField)
+    (; qs, Δks,) = field
+    # Get actual range of wavevector magnitudes
+    kext² = extrema(qs) do q⃗
+        k⃗ = q⃗ .* Δks
+        sum(abs2, k⃗)
+    end
+    kmin, kmax = round.(sqrt.(kext²); sigdigits = 5)
+    Nk = length(qs)
+    print(io, typeof(field), " with $Nk independent Fourier coefficients in |k⃗| ∈ [$kmin, $kmax]")
 end
 
 # Determine whether a wavevector k⃗ should be discarded to preserve Hermitian symmetry
