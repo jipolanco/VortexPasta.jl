@@ -168,7 +168,7 @@ struct VortexFilamentSolver{
         Timer <: TimerOutput,
         Affect <: Function,
         Callback <: Function,
-        ExternalForcing <: NamedTuple,
+        ExternalFields <: NamedTuple,
         StretchingVelocity <: Union{Nothing, Function},
         AdvectFunction <: Function,
         RHSFunction <: Function,
@@ -190,7 +190,7 @@ struct VortexFilamentSolver{
     fold_periodic :: Bool
     affect!  :: Affect
     callback :: Callback
-    external_forcing    :: ExternalForcing  # velocity and streamfunction forcing
+    external_fields    :: ExternalFields  # velocity and streamfunction forcing
     stretching_velocity :: StretchingVelocity
     to       :: Timer
     advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
@@ -220,8 +220,8 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     summary(io, iter.cache_timestepper)
     print(io, "\n - `affect!`: Function (`", _printable_function(iter.affect!), "`)")
     print(io, "\n - `callback`: Function (`", _printable_function(iter.callback), "`)")
-    for (name, func) ∈ pairs(iter.external_forcing)
-        func === nothing || print(io, "\n - `external_forcing.$name`: Function (`$func`)")
+    for (name, func) ∈ pairs(iter.external_fields)
+        func === nothing || print(io, "\n - `external_fields.$name`: Function (`$func`)")
     end
     if iter.stretching_velocity !== nothing
         print(io, "\n - `stretching_velocity`: Function (`", iter.stretching_velocity, "`)")
@@ -503,11 +503,11 @@ function init(
     time = TimeInfo(nstep = 0, nrejected = 0, t = first(tspan), dt = dt, dt_prev = dt)
     stats = SimulationStats(T)
 
-    external_forcing = (
+    external_fields = (
         velocity = external_velocity,
         streamfunction = external_streamfunction,
     )
-    check_external_streamfunction(external_forcing, Ls)
+    check_external_streamfunction(external_fields, Ls)
 
     if stretching_velocity !== nothing
         # Check that the function accepts a real value of type T (local curvature) and
@@ -517,7 +517,7 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs_sol, vs, ψs, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_forcing,
+        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_fields,
         stretching_velocity,
         timer, advect!, rhs!,
     )
@@ -637,14 +637,14 @@ function update_values_at_nodes!(
 end
 
 function _add_external_fields!(fields::NamedTuple, iter::VortexFilamentSolver, fs, t, to)
-    (; external_forcing, stretching_velocity,) = iter
+    (; external_fields, stretching_velocity,) = iter
     if haskey(fields, :velocity)
-        _add_external_field!(fields.velocity, external_forcing.velocity, fs, t, to)
+        _add_external_field!(fields.velocity, external_fields.velocity, fs, t, to)
         _add_stretching_velocity!(fields.velocity, stretching_velocity, fs, to)
     end
     if haskey(fields, :streamfunction)
         # We multiply the external streamfunction by 2 to get the right kinetic energy.
-        _add_external_field!(fields.streamfunction, external_forcing.streamfunction, fs, t, to; factor = 2)
+        _add_external_field!(fields.streamfunction, external_fields.streamfunction, fs, t, to; factor = 2)
     end
     fields
 end
