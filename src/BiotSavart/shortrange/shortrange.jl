@@ -3,7 +3,7 @@ using StaticArrays: MVector, MMatrix, SVector, SMatrix
 using ..Filaments: deperiodise_separation, Segment, segments
 
 # Includes SIMD-vectorised erf implementation (quite accurate as well)
-using VectorizationBase: VectorizationBase, VecUnroll
+using VectorizationBase: VectorizationBase, VecUnroll, vload, Unroll, stridedpointer
 const VB = VectorizationBase
 
 """
@@ -401,7 +401,7 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
 
         # Convert MVector to SIMD type from VectorizationBase.
         # The next operations should all take advantage of SIMD.
-        r²s_simd = Vec(r²s...) :: Vec
+        r²s_simd = Vec(Tuple(r²s)...) :: Vec
         rs = sqrt(r²s_simd)
         rs_inv = 1 / rs
         r³s_inv = 1 / (r²s_simd * rs)
@@ -412,13 +412,14 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
 
         mask_simd = VB.Mask{W}(mask)
 
+        # Convert SMatrix data onto a VecUnroll for more explicit SIMD.
         # In VectorizationBase, a VecUnroll basically consists of a tuple of Vec's.
-        # It gets automatically constructed from a Vec when the number of elements is too
-        # large (that is, if we chose our W correctly, using pick_vector_width).
-        # In our case it makes sense to use this to describe vector values (e.g. separation
-        # vector, tangent vector, velocity).
-        q⃗s_simd = Vec(q⃗s...) :: VecUnroll{(N - 1), W}
-        r⃗s_simd = Vec(r⃗s...) :: VecUnroll{(N - 1), W}
+        # In our case, a single tuple represents a single vector component (e.g. rx, ry and rz).
+        # It makes sense to use this to describe vector values (e.g. separation vector,
+        # tangent vector, velocity). The construction is quite awkward; see the help of
+        # VectorizationBase.Unroll for some details.
+        q⃗s_simd = vload(stridedpointer(SMatrix(q⃗s)), Unroll{2, 1, N, 1, W, zero(UInt), 1}((1,)))::VecUnroll{(N - 1), W}
+        r⃗s_simd = vload(stridedpointer(SMatrix(r⃗s)), Unroll{2, 1, N, 1, W, zero(UInt), 1}((1,)))::VecUnroll{(N - 1), W}
 
         vecs = map(vecs) do (quantity, u⃗)
             @inline

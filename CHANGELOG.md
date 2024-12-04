@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fix potential performance issues when using `Float32` on AVX512-capable CPUs.
+  The issue affected short-range Biot–Savart computations, and more specifically
+  the part where explicit SIMD vectorisation is used (for computing `erfc`
+  among other things). We used to splat a `MMatrix` (from StaticArrays.jl)
+  whose size could exceed 32 elements when using `Float32` on an AVX512-capable
+  CPU, which seems to cause inference issues and bad performance.
+
 ## [0.24.8] - 2024-11-14
 
 ### Changed
