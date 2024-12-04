@@ -17,7 +17,7 @@ UniformVectorField
 
 ## Fourier vector fields
 
-```docs
+```@docs
 FourierBandVectorField
 init_coefficients!
 ```
