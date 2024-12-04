@@ -79,9 +79,9 @@ julia> SyntheticFields.init_coefficients!(rng, vn, vn_rms);  # randomly set non-
 
 julia> forcing = NormalFluidForcing(vn; α = 0.8, α′ = 0)
 NormalFluidForcing{Float64, 3} with:
- - Magnus force coefficient: α = 0.8
- - Drag force coefficient: α′ = 0.0
- - Normal velocity field: FourierBandVectorField{Float64, 3} with 9 independent Fourier coefficients in |k⃗| ∈ [1.0, 1.4142]
+ ├─ Magnus force coefficient: α = 0.8
+ ├─ Drag force coefficient: α′ = 0.0
+ └─ Normal velocity field: FourierBandVectorField{Float64, 3} with 9 independent Fourier coefficients in |k⃗| ∈ [1.0, 1.4142]
 ```
 
 """
