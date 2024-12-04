@@ -30,6 +30,7 @@ println()
 @testset "VortexPasta.jl" begin
     @includetest "plots.jl"
     @includetest "synthetic_fields.jl"
+    @includetest "forcing.jl"
     @includetest "constants.jl"
     @includetest "vector_of_vector.jl"
     @includetest "padded_arrays.jl"
