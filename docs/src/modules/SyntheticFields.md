@@ -9,11 +9,22 @@ CollapsedDocStrings = true
 SyntheticFields
 ```
 
-## Synthetic fields
+## Uniform vector fields
+
+```@docs
+UniformVectorField
+```
+
+## Fourier vector fields
+
+```docs
+FourierBandVectorField
+init_coefficients!
+```
+
+## Abstract types
 
 ```@docs
 SyntheticVectorField
 FourierSyntheticVectorField
-FourierBandVectorField
-init_coefficients!
 ```

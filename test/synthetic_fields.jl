@@ -92,11 +92,19 @@ function verify_evaluation(field::FourierBandVectorField{T, N}, Ls::NTuple{N, T}
 end
 
 @testset "Synthetic fields ($T)" for T ∈ (Float32, Float64)
-    rng = Xoshiro(42)
-    Ls = T.((2π, 2π, 8π))  # elongated domain
-    u_rms = 2.0; kmin = 0.1; kmax = 1.5;
-    field = @inferred FourierBandVectorField(undef, Ls; kmin, kmax)
-    SyntheticFields.init_coefficients!(rng, field, u_rms)
-    check_synthetic_field(field; u_rms, kmin, kmax)
-    verify_evaluation(field, Ls; u_rms, kmax)
+    @testset "FourierBandVectorField" begin
+        rng = Xoshiro(42)
+        Ls = T.((2π, 2π, 8π))  # elongated domain
+        u_rms = 2.0; kmin = 0.1; kmax = 1.5;
+        field = @inferred FourierBandVectorField(undef, Ls; kmin, kmax)
+        SyntheticFields.init_coefficients!(rng, field, u_rms)
+        check_synthetic_field(field; u_rms, kmin, kmax)
+        verify_evaluation(field, Ls; u_rms, kmax)
+    end
+    @testset "UniformVectorField" begin
+        u⃗ = T.((2.0, 1.2, -2.4))
+        field = @inferred UniformVectorField(u⃗)
+        x⃗ = T.((0.2, 0.5, 1.5))
+        @test (@inferred field(x⃗)) === SVector(u⃗)
+    end
 end

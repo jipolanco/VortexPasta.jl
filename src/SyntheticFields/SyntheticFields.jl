@@ -10,6 +10,7 @@ module SyntheticFields
 
 export
     SyntheticVectorField,
+    UniformVectorField,
     FourierSyntheticVectorField,
     FourierBandVectorField
 
@@ -30,6 +31,24 @@ A field can be evaluated using the `f(x⃗)` syntax, where `f` is a `SyntheticVe
 tuple or `SVector`.
 """
 abstract type SyntheticVectorField{T <: AbstractFloat, N} end
+
+"""
+    UniformVectorField{T, N} <: SyntheticVectorField{T, N}
+    UniformVectorField(u⃗)
+
+Represents a uniform (constant) vector field with no spatial fluctuations.
+
+This can be used for instance to represent a uniform counterflow.
+
+The input `u⃗` can be an `SVector{N, T}` or a tuple.
+"""
+struct UniformVectorField{T, N} <: SyntheticVectorField{T, N}
+    u⃗::SVector{N, T}
+end
+
+UniformVectorField(u⃗::Tuple) = UniformVectorField(SVector(u⃗))
+
+(field::UniformVectorField)(x⃗) = field.u⃗
 
 """
     FourierSyntheticVectorField{T, N} <: SyntheticVectorField{T, N}
