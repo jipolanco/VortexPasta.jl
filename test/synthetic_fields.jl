@@ -68,7 +68,7 @@ function verify_evaluation(field::FourierBandVectorField{T, N}, Ls::NTuple{N, T}
     u⃗_mean = @. u⃗_mean / Nprod
     u⃗_var = @. u⃗_var / Nprod
     u⃗_rms = @. sqrt(u⃗_var)
-    @test u⃗_mean + u⃗_rms ≈ u⃗_rms rtol=eps(T)  # the mean is practically zero
+    @test u⃗_mean + u⃗_rms ≈ u⃗_rms rtol=eps(T)  # the mean is practically zero (assumes kmin > 0)
     @test sum(u⃗_var) / N ≈ u_rms^2
 
     # Perform FFT and compare with field obtained using SyntheticFields.to_fourier_grid!.
@@ -94,7 +94,7 @@ end
 @testset "Synthetic fields ($T)" for T ∈ (Float32, Float64)
     rng = Xoshiro(42)
     Ls = T.((2π, 2π, 8π))  # elongated domain
-    u_rms = 2.0; kmin = 0.0; kmax = 1.5;
+    u_rms = 2.0; kmin = 0.1; kmax = 1.5;
     field = @inferred FourierBandVectorField(undef, Ls; kmin, kmax)
     SyntheticFields.init_coefficients!(rng, field, u_rms)
     check_synthetic_field(field; u_rms, kmin, kmax)

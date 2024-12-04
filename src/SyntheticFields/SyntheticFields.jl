@@ -23,7 +23,7 @@ using LinearAlgebra: ⋅, ×
 Abstract type representing a synthetic vector field in ``N`` dimensions.
 
 Here `T <: AbstractFloat` is the type of the returned values when evaluating the field at a
-position (see [`SyntheticFields.evaluate`](@ref)).
+position.
 
 A field can be evaluated using the `f(x⃗)` syntax, where `f` is a `SyntheticVectorField` and
 `x⃗` is a physical location, returning an `SVector{N, T}`. Here `x⃗` can be an `N`-element
@@ -47,7 +47,7 @@ abstract type FourierSyntheticVectorField{T, N} <: SyntheticVectorField{T, N} en
 Implements a synthetic vector field in Fourier space.
 
 This type is adapted for vector fields described by a relatively small number of non-zero Fourier
-modes. The non-zero modes are within a "band" given by ``k_{\min} ≤ |k⃗| ≤ k_{\max}``.
+modes. The non-zero modes are within a "band" given by ``k_{\min} ≤ |\bm{k}| ≤ k_{\max}``.
 
 One should initialise the Fourier coefficients of the vector field before performing any evaluations.
 For this one can call [`SyntheticFields.init_coefficients!`](@ref) after creating the vector field.
@@ -65,6 +65,9 @@ After that, one can evaluate the field as described in [`SyntheticVectorField`](
 - `kmin`: minimum forcing wavenumber (magnitude);
 
 - `kmax`: maximum forcing wavenumber (magnitude).
+
+These should satisfy `0 ≤ kmin ≤ kmax`.
+Moreover, one usually wants `0 < kmin` to ensure that the generated field has zero mean value.
 """
 struct FourierBandVectorField{T <: AbstractFloat, N}
     qs :: Vector{NTuple{N, Int}}          # forced wave vectors (length Nf) -- normalised to integer values
@@ -93,7 +96,7 @@ end
     _discard_wavevector(k⃗_tail, _sign)
 end
 
-@inline _discard_wavevector(k⃗::Tuple{}) = false
+@inline _discard_wavevector(k⃗::Tuple{}, ::Val) = false
 
 # Returns true if the Fourier coefficient associated to the -k⃗ wavevector is not explicitly
 # included and should be obtained from that associated to +k⃗ (as its conjugate).
@@ -115,7 +118,7 @@ function FourierBandVectorField(::UndefInitializer, Ls::NTuple{N, T}; kmin, kmax
         -qmax_d:qmax_d  # test wavenumbers along dimension d + 1
     end
     qs_iter = Iterators.product(qs_tail...)
-    kmin² = max(kmin * kmin, eps(kmin))  # make sure the zero mode is not included
+    kmin² = kmin * kmin
     kmax² = kmax * kmax
     for q⃗_tail ∈ qs_iter, qx ∈ qs_x
         q⃗ = (qx, q⃗_tail...)
@@ -130,7 +133,10 @@ function FourierBandVectorField(::UndefInitializer, Ls::NTuple{N, T}; kmin, kmax
 end
 
 # Generate divergence-free vector (could be generalised to 2D)
-generate_divfree(u⃗::SVector{3}, k⃗::SVector{3}) = u⃗ × k⃗
+function generate_divfree(u⃗::T, k⃗::SVector{3}) where {T <: SVector{3}}
+    k² = sum(abs2, k⃗)
+    iszero(k²) ? u⃗ : T(u⃗ - ((k⃗ ⋅ u⃗) / k²) * k⃗)
+end
 
 """
     SyntheticFields.init_coefficients!([rng::AbstractRNG,] f::FourierBandVectorField, u_rms::Real)
