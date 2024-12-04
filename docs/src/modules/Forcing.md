@@ -5,8 +5,24 @@ CurrentModule = VortexPasta.Forcing
 CollapsedDocStrings = true
 ```
 
-## Forcing methods
+```@docs
+Forcing
+```
+
+## Defining a forcing method
 
 ```@docs
 NormalFluidForcing
+```
+
+## Applying forcing
+
+```@docs
+apply!
+```
+
+## Abstract types
+
+```@docs
+AbstractForcing
 ```

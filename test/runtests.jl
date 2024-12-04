@@ -44,6 +44,7 @@ println()
     @includetest "ring_perturbed.jl"
     @includetest "ring_collision.jl"
     @includetest "ring_stretching.jl"
+    @includetest "ring_friction.jl"
     @includetest "background_vorticity.jl"
     @includetest "remove_small_filaments.jl"
     @includetest "trefoil.jl"
