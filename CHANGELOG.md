@@ -5,6 +5,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `VortexPasta.Forcing` module allowing to specify "forcing" methods.
+  Currently, this includes the `NormalFluidForcing` type for modifying the
+  vortex velocities via mutual friction with a (synthetic) normal fluid.
+  Moreover, the `init` function (in `Timestepping`) now accepts a `forcing`
+  argument which can be used in simulations.
+
+- Add `VortexPasta.SyntheticFields` module allowing to create and evaluate
+  synthetic vector fields (such as a normal fluid velocity field).
+
 ### Fixed
 
 - Fix potential performance issues when using `Float32` on AVX512-capable CPUs.

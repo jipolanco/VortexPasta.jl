@@ -45,6 +45,8 @@ using ..BiotSavart:
     VectorOfVelocities,
     periods
 
+using ..Forcing: Forcing, AbstractForcing, NormalFluidForcing
+
 # Reuse same init, solve! and step! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
 import CommonSolve: init, solve!, step!
@@ -168,8 +170,9 @@ struct VortexFilamentSolver{
         Timer <: TimerOutput,
         Affect <: Function,
         Callback <: Function,
-        ExternalForcing <: NamedTuple,
+        ExternalFields <: NamedTuple,
         StretchingVelocity <: Union{Nothing, Function},
+        Forcing <: Union{Nothing, AbstractForcing},
         AdvectFunction <: Function,
         RHSFunction <: Function,
     } <: AbstractSolver
@@ -190,14 +193,16 @@ struct VortexFilamentSolver{
     fold_periodic :: Bool
     affect!  :: Affect
     callback :: Callback
-    external_forcing    :: ExternalForcing  # velocity and streamfunction forcing
+    external_fields    :: ExternalFields  # velocity and streamfunction forcing
     stretching_velocity :: StretchingVelocity
+    forcing  :: Forcing  # typically normal fluid forcing (by mutual friction)
     to       :: Timer
     advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
     rhs!     :: RHSFunction     # function for estimating filament velocities (and sometimes streamfunction) from their positions
 end
 
-function Base.show(io::IO, iter::VortexFilamentSolver)
+function Base.show(io_in::IO, iter::VortexFilamentSolver)
+    io = IOContext(io_in, :indent => 4)  # this may be used by some `show` functions, for example for the forcing
     print(io, "VortexFilamentSolver with fields:")
     print(io, "\n - `prob`: ", nameof(typeof(iter.prob)))
     _print_summary(io, iter.fs; pre = "\n - `fs`: ", post =  " -- vortex filaments")
@@ -220,11 +225,14 @@ function Base.show(io::IO, iter::VortexFilamentSolver)
     summary(io, iter.cache_timestepper)
     print(io, "\n - `affect!`: Function (`", _printable_function(iter.affect!), "`)")
     print(io, "\n - `callback`: Function (`", _printable_function(iter.callback), "`)")
-    for (name, func) ∈ pairs(iter.external_forcing)
-        func === nothing || print(io, "\n - `external_forcing.$name`: Function (`$func`)")
+    for (name, func) ∈ pairs(iter.external_fields)
+        func === nothing || print(io, "\n - `external_fields.$name`: Function (`$func`)")
     end
     if iter.stretching_velocity !== nothing
         print(io, "\n - `stretching_velocity`: Function (`", iter.stretching_velocity, "`)")
+    end
+    if iter.forcing !== nothing
+        print(io, "\n - `forcing`: ", iter.forcing)
     end
     print(io, "\n - `advect!`: Function")
     print(io, "\n - `rhs!`: Function")
@@ -319,6 +327,9 @@ either [`step!`](@ref) or [`solve!`](@ref).
   However, it can also lead to spurious Kelvin waves.
   See "Adding a stretching velocity" below for more details.
 
+- `forcing`: allows to modify the vortex velocities due to mutual friction with an imposed
+  normal fluid velocity field. See "Forcing via a normal fluid" below for more details.
+
 # Extended help
 
 ## Difference between `callback` and `affect!`
@@ -338,7 +349,9 @@ which they are called:
   However, one **must not modify `iter.fs`**, or otherwise the velocity `iter.vs` (which
   will be used at the next timestep) will no longer correspond to the filament positions.
 
-## Adding an external velocity
+## Forcing / energy injection methods
+
+### Adding an external velocity
 
 One can set the **`external_velocity`** keyword argument to impose an external velocity field
 ``\bm{v}_{\text{f}}(\bm{x}, t)``.
@@ -362,7 +375,7 @@ the `external_velocity` keyword argument could look like:
 One usually wants the external velocity to be divergence-free, to preserve the
 incompressibility of the flow.
 
-### Notes on energy estimation
+#### Notes on energy estimation
 
 When setting an external velocity ``\bm{v}_{\text{f}}(\bm{x}, t)``, one may also want to
 impose an external streamfunction field ``\bm{ψ}_{\text{f}}(\bm{x}, t)`` via the **`external_streamfunction`**
@@ -400,7 +413,7 @@ energy of the external velocity field (the volume integral above).
     so it can be reasonable to ignore the `external_streamfunction` parameter in order to
     obtain the energy associated to ``\bm{v}_{\text{BS}}`` only.
 
-## Adding a stretching velocity
+### Adding a stretching velocity
 
 One can set the **`stretching_velocity`** keyword argument to impose a stretching velocity
 ``\bm{v}_\text{L}(ξ, t)`` on filament locations ``\bm{s}(ξ, t)``.
@@ -438,6 +451,19 @@ stretching_velocity = ρ -> -expm1(-ρ / ρ₀) * (γ / ρ)  # note: expm1(x) = 
 ```
 
 for some small curvature ``ρ₀``. The maximum allowed velocity will then be `vmax = γ / ρ₀`.
+
+### Forcing via a normal fluid
+
+Alternatively to the above approaches, one may impose a "normal" fluid velocity field to
+modify, via a mutual friction force, the velocity of the vortex filaments. To do this, one
+first needs to construct a [`NormalFluidForcing`](@ref) (see that link for definitions and examples)
+representing a normal fluid velocity field. Then, the obtained object should be passed as
+the optional `forcing` argument.
+
+In principle, this method can be combined with the previous ones. The normal fluid forcing
+will be applied _after_ all the other forcing methods.
+In other words, the vortex velocity ``\bm{v}_{\text{s}}`` used to compute the mutual
+friction velocity includes all the other contributions (i.e. external and stretching velocities).
 """
 function init(
         prob::VortexFilamentProblem{T}, scheme::TemporalScheme;
@@ -455,6 +481,7 @@ function init(
         external_velocity::ExtVel = nothing,
         external_streamfunction::ExtStf = nothing,
         stretching_velocity::StretchingVelocity = nothing,
+        forcing::Forcing = nothing,
         timer = TimerOutput("VortexFilament"),
     ) where {
         Callback <: Function,
@@ -462,6 +489,7 @@ function init(
         ExtVel <: Union{Nothing, Function},
         ExtStf <: Union{Nothing, Function},
         StretchingVelocity <: Union{Nothing, Function},
+        Forcing <: Union{Nothing, AbstractForcing},
         T,
     }
     (; tspan,) = prob
@@ -503,11 +531,11 @@ function init(
     time = TimeInfo(nstep = 0, nrejected = 0, t = first(tspan), dt = dt, dt_prev = dt)
     stats = SimulationStats(T)
 
-    external_forcing = (
+    external_fields = (
         velocity = external_velocity,
         streamfunction = external_streamfunction,
     )
-    check_external_streamfunction(external_forcing, Ls)
+    check_external_streamfunction(external_fields, Ls)
 
     if stretching_velocity !== nothing
         # Check that the function accepts a real value of type T (local curvature) and
@@ -517,8 +545,8 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs_sol, vs, ψs, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_forcing,
-        stretching_velocity,
+        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_fields,
+        stretching_velocity, forcing,
         timer, advect!, rhs!,
     )
 
@@ -561,7 +589,8 @@ function _update_values_at_nodes!(
     else
         BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
     end
-    _add_external_fields!(fields, iter, fs, t, iter.to)
+    add_external_fields!(fields, iter, fs, t, iter.to)
+    apply_forcing!(fields, iter, fs, t, iter.to)
 end
 
 # Compute slow component only.
@@ -613,7 +642,8 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
-    _add_external_fields!(fields, iter, fs, t, iter.to)
+    add_external_fields!(fields, iter, fs, t, iter.to)
+    apply_forcing!(fields, iter, fs, t, iter.to)
 end
 
 function _update_values_at_nodes!(
@@ -625,7 +655,8 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
-    _add_external_fields!(fields, iter, fs, t, iter.to)
+    add_external_fields!(fields, iter, fs, t, iter.to)
+    apply_forcing!(fields, iter, fs, t, iter.to)
 end
 
 # This is the most general variant which should be called by timesteppers.
@@ -634,50 +665,6 @@ function update_values_at_nodes!(
         component = Val(:full),  # compute slow + fast components by default
     )
     _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
-end
-
-function _add_external_fields!(fields::NamedTuple, iter::VortexFilamentSolver, fs, t, to)
-    (; external_forcing, stretching_velocity,) = iter
-    if haskey(fields, :velocity)
-        _add_external_field!(fields.velocity, external_forcing.velocity, fs, t, to)
-        _add_stretching_velocity!(fields.velocity, stretching_velocity, fs, to)
-    end
-    if haskey(fields, :streamfunction)
-        # We multiply the external streamfunction by 2 to get the right kinetic energy.
-        _add_external_field!(fields.streamfunction, external_forcing.streamfunction, fs, t, to; factor = 2)
-    end
-    fields
-end
-
-_add_external_field!(vs_all, ::Nothing, args...; kws...) = vs_all  # do nothing
-
-function _add_external_field!(vs_all, vext::F, fs, time, to; factor = 1) where {F <: Function}
-    @assert eachindex(vs_all) == eachindex(fs)
-    @timeit to "Add external field" begin
-        for (f, vs) ∈ zip(fs, vs_all)
-            for i ∈ eachindex(vs, f)
-                @inbounds vs[i] = vs[i] + factor * vext(f[i], time)
-            end
-        end
-    end
-    vs_all
-end
-
-_add_stretching_velocity!(vs_all, ::Nothing, args...) = vs_all  # do nothing
-
-function _add_stretching_velocity!(vs_all, stretching_velocity::F, fs, to) where {F <: Function}
-    @assert eachindex(vs_all) == eachindex(fs)
-    @timeit to "Add stretching velocity" begin
-        for (f, vs) ∈ zip(fs, vs_all)
-            @inbounds for i ∈ eachindex(vs, f)
-                ρ⃗ = f[i, CurvatureVector()]
-                ρ = sqrt(sum(abs2, ρ⃗))  # = |ρ⃗|
-                n̂ = ρ⃗ ./ ρ  # normal vector
-                vs[i] = vs[i] - n̂ * stretching_velocity(ρ)
-            end
-        end
-    end
-    vs_all
 end
 
 # Case where only the velocity is passed (generally used in internal RK substeps).
@@ -980,6 +967,7 @@ function finalise_step!(iter::VortexFilamentSolver)
     iter
 end
 
+include("forcing.jl")
 include("diagnostics.jl")
 
 end

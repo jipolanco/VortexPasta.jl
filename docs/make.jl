@@ -184,6 +184,8 @@ function make_all(; generate_tutorials = true,)
                 "modules/FindNearbySegments.md",
                 "modules/Constants.md",
                 "modules/BiotSavart.md",
+                "modules/SyntheticFields.md",
+                "modules/Forcing.md",
                 "modules/Containers.md",
                 "modules/Reconnections.md",
                 "modules/Timestepping.md",
