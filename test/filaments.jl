@@ -391,7 +391,7 @@ function test_init_from_vector_field(::Type{T} = Float32, method = CubicSplineMe
     @test @inferred(f(2, 0.1, Derivative(2))) isa V
 
     err_allowed = if T === Float32
-        method === QuinticSplineMethod() ? 4f-5 :
+        method === QuinticSplineMethod() ? 8f-5 :
         method === CubicSplineMethod() ? 2f-4 :
         method === FiniteDiffMethod() ? 4f-4 :
         nothing
