@@ -16,6 +16,7 @@ using ..Containers: VectorOfVectors
 using ..Filaments:
     Filaments,
     AbstractFilament,
+    UnitTangent,
     CurvatureVector,
     Vec3,
     nodes,
@@ -180,6 +181,8 @@ struct VortexFilamentSolver{
     fs    :: Filaments
     vs    :: VectorOnFilaments
     ψs    :: VectorOnFilaments
+    vn    :: VectorOnFilaments     # normal fluid (e.g. if forcing <: NormalFluidForcing; otherwise empty)
+    tangents :: VectorOnFilaments  # local tangents (only used if normal fluid is present; otherwise empty)
     time  :: TimeInfo
     stats :: SimulationStats{T}
     dtmin :: T
@@ -207,6 +210,12 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     print(io, "\n - `prob`: ", nameof(typeof(iter.prob)))
     _print_summary(io, iter.fs; pre = "\n - `fs`: ", post =  " -- vortex filaments")
     _print_summary(io, iter.vs; pre = "\n - `vs`: ", post = " -- velocity at nodes")
+    if !isempty(iter.vn)
+        _print_summary(io, iter.vn; pre = "\n - `vn`: ", post = " -- normal fluid velocity at nodes")
+    end
+    if !isempty(iter.tangents)
+        _print_summary(io, iter.tangents; pre = "\n - `tangents`: ", post = " -- unit tangent at nodes")
+    end
     _print_summary(io, iter.ψs; pre = "\n - `ψs`: ", post = " -- streamfunction at nodes")
     print(io, "\n - `time`: ")
     summary(io, iter.time)
@@ -504,6 +513,12 @@ function init(
     end :: VectorOfVectors
     ψs = similar(vs)
 
+    # Initialise normal fluid velocity vector.
+    # It stays empty if it's never computed (if there's no normal fluid).
+    # Same for the local tangents.
+    vn = similar(vs)
+    tangents = similar(vs)
+
     fs_sol = alias_u0 ? fs : copy(fs)
 
     cache_reconnect = Reconnections.init_cache(reconnect, fs_sol, Ls)
@@ -544,15 +559,31 @@ function init(
     end
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, ψs, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
+        prob, fs_sol, vs, ψs, vn, tangents, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_fields,
         stretching_velocity, forcing,
         timer, advect!, rhs!,
     )
 
+    if !with_normal_fluid(iter)
+        # These are unused if there's no normal fluid.
+        empty!(iter.vn)
+        empty!(iter.tangents)
+    end
+
     finalise_step!(iter)
 
     iter
+end
+
+with_normal_fluid(iter::VortexFilamentSolver) = iter.forcing isa NormalFluidForcing
+
+function fields_to_resize(iter::VortexFilamentSolver)
+    if with_normal_fluid(iter)
+        (iter.vs, iter.ψs, iter.vn, iter.tangents)
+    else
+        (iter.vs, iter.ψs)
+    end
 end
 
 # Check that the external streamfunction satisfies v = ∇ × ψ on a single arbitrary point.
@@ -745,7 +776,7 @@ function _advect_filament!(
 end
 
 function after_advection!(iter::VortexFilamentSolver)
-    (; fs, vs, ψs, prob, refinement, fold_periodic, stats, to,) = iter
+    (; fs, prob, refinement, fold_periodic, stats, to,) = iter
     # Perform reconnections, possibly changing the number of filaments.
     @timeit to "reconnect!" rec = reconnect!(iter)
     @debug lazy"Number of reconnections: $(rec.reconnection_count)"
@@ -754,7 +785,8 @@ function after_advection!(iter::VortexFilamentSolver)
     stats.filaments_removed_count += rec.filaments_removed_count
     stats.filaments_removed_length += rec.filaments_removed_length
     L_fold = periods(prob.p)  # box size (periodicity)
-    after_advection!(fs, (vs, ψs); L_fold, refinement, fold_periodic,)
+    fields = fields_to_resize(iter)
+    after_advection!(fs, fields; L_fold, refinement, fold_periodic,)
 end
 
 # This should be called right after positions have been updated by the timestepper.
@@ -903,8 +935,8 @@ end
 end
 
 function Reconnections.reconnect!(iter::VortexFilamentSolver)
-    (; vs, ψs, fs, reconnect, to,) = iter
-    fields = (vs, ψs)
+    (; vs, fs, reconnect, to,) = iter
+    fields = fields_to_resize(iter)
     Reconnections.reconnect!(reconnect, fs, vs; to) do f, i, mode
         reconnect_callback((fs, fields), f, i, mode)
     end

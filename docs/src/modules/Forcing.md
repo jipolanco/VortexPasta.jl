@@ -9,16 +9,12 @@ CollapsedDocStrings = true
 Forcing
 ```
 
-## Defining a forcing method
+## Normal fluid forcing
 
 ```@docs
 NormalFluidForcing
-```
-
-## Applying forcing
-
-```@docs
 apply!
+get_velocities!
 ```
 
 ## Abstract types

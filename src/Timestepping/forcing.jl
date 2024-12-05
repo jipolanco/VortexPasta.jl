@@ -50,18 +50,29 @@ end
 
 function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time, to)
     if haskey(fields, :velocity)
-        _apply_forcing!(fields.velocity, iter.forcing, fs, time, to)
+        _apply_forcing!(fields.velocity, iter.forcing, iter, fs, time, to)
     end
     fields
 end
 
 _apply_forcing!(vs_all, ::Nothing, args...) = nothing  # do nothing
 
-function _apply_forcing!(vs_all, forcing::AbstractForcing, fs, t, to)
-    @assert eachindex(vs_all) == eachindex(fs)
+function _apply_forcing!(vs_all, forcing::NormalFluidForcing, iter, fs, t, to)
+    vn_all = iter.vn
+    tangents_all = iter.tangents
+    @assert eachindex(vn_all) == eachindex(tangents_all) == eachindex(vs_all) == eachindex(fs)
     @timeit to "Add forcing" begin
-        for (f, vs) ∈ zip(fs, vs_all)
-            Forcing.apply!(forcing, vs, f)  # modify vs according to the given forcing
+        @inbounds Threads.@threads for n ∈ eachindex(fs, vs_all, vn_all, tangents_all)
+            f = fs[n]
+            vs = vs_all[n]
+            vn = vn_all[n]
+            tangents = tangents_all[n]
+            # Compute tangents (TODO: can we reuse them?)
+            for i ∈ eachindex(f, tangents)
+                tangents[i] = f[i, UnitTangent()]
+            end
+            Forcing.get_velocities!(forcing, vn, f)    # evaluate normal fluid velocities
+            Forcing.apply!(forcing, vs, vn, tangents)  # modify vs according to the given forcing
         end
     end
     nothing

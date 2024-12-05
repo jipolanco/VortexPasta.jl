@@ -19,9 +19,18 @@ Abstract type representing a forcing method.
 abstract type AbstractForcing end
 
 """
-    Forcing.apply!(forcing::AbstractForcing, vs::AbstractVector, f::AbstractFilament)
+    Forcing.apply!(forcing::AbstractForcing, vs::AbstractVector{<:Vec3}, f::AbstractFilament)
 
 Apply forcing to a single filament `f`, modifying vortex velocities `vs`.
+
+---
+
+    Forcing.apply!(forcing::NormalFluidForcing, vs::AbstractVector{<:Vec3}, vn::AbstractVector{<:Vec3}, tangents::AbstractVector{<:Vec3})
+
+This variant can be used in the case of a [`NormalFluidForcing`](@ref) if one already has
+precomputed values of the normal fluid velocity and local unit tangents at filament points.
+
+The normal fluid velocities may be computed using [`Forcing.get_velocities!`](@ref).
 """
 function apply! end
 
@@ -109,18 +118,43 @@ function Base.show(io::IO, f::NormalFluidForcing{T, N}) where {T, N}
     print(io, "\n$(spaces)└─ Normal velocity field: ", vn)
 end
 
+"""
+    Forcing.get_velocities!(forcing::NormalFluidForcing, vn::AbstractVector{<:Vec3}, f::AbstractFilament)
+
+Evaluate normal fluid velocity at filament nodes.
+
+Results are written to `vn`, which should have the same length as the filament `f`.
+"""
+function get_velocities!(forcing::NormalFluidForcing, vn::AbstractVector, f::AbstractFilament)
+    for i ∈ eachindex(vn, f)
+        vn[i] = forcing.vn(f[i])
+    end
+    vn
+end
+
 function apply!(forcing::NormalFluidForcing, vs::AbstractVector, f::AbstractFilament)
-    length(vs) == length(f) || throw(DimensionMismatch("length of filament and velocity vector don't match"))
-    (; vn, α, α′,) = forcing
+    length(vs) == length(f) || throw(DimensionMismatch("lengths of filament and velocity vector don't match"))
+    @inline get_at_node(i) = (v⃗ₙ = forcing.vn(f[i]), s⃗′ = f[i, UnitTangent()])
+    _apply!(get_at_node, forcing, vs)
+end
+
+function apply!(forcing::NormalFluidForcing, vs::AbstractVector, vn::AbstractVector, tangents::AbstractVector)
+    eachindex(vs) == eachindex(vn) == eachindex(tangents) || throw(DimensionMismatch("lengths of vectors don't match"))
+    @inline get_at_node(i) = @inbounds (v⃗ₙ = vn[i], s⃗′ = tangents[i],)
+    _apply!(get_at_node, forcing, vs)
+end
+
+# The first argument is a `get_at_node(i)` function which returns a NamedTuple with fields
+# (v⃗ₙ, s⃗′) with the normal fluid velocity and the local unit tangent at the node `i` of a
+# filament. This is useful if those quantities have been precomputed.
+function _apply!(get_at_node::F, forcing::NormalFluidForcing, vs::AbstractVector) where {F <: Function}
+    (; α, α′,) = forcing
     V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
-    # TODO: parallelise?
-    for i ∈ eachindex(vs, f)
-        vs_i = vs[i]  # vortex velocity before mutual friction forcing
-        s⃗ = f[i]                  # vortex point location
-        s⃗′ = f[i, UnitTangent()]  # local tangent
-        vn_i = V(vn(s⃗))        # evaluate normal fluid velocity at s⃗
-        v_ns = vn_i - vs_i     # slip velocity
-        v_perp = s⃗′ × v_ns
+    for i ∈ eachindex(vs)
+        v⃗ₛ = vs[i]  # vortex velocity before mutual friction forcing
+        (; v⃗ₙ, s⃗′,) = @inline get_at_node(i)  # local normal fluid velocity and unit tangent
+        vₙₛ = V(v⃗ₙ) - v⃗ₛ     # slip velocity
+        v_perp = s⃗′ × vₙₛ
         vf = α * v_perp      # velocity due to Magnus force
         if !iszero(α′)
             vf = vf - α′ * s⃗′ × v_perp  # velocity due to drag force (it's quite common to set α′ = 0)

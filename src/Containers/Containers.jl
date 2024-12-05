@@ -98,9 +98,10 @@ function Base.copyto!(vs::VectorOfVectors, us::VectorOfVectors)
 end
 
 # This is called when doing push!.
-Base.resize!(vs::VectorOfVectors, n::Integer) = resize!(vs.u, n)
+Base.resize!(vs::VectorOfVectors, n::Integer) = (resize!(vs.u, n); vs)
 Base.pop!(vs::VectorOfVectors) = pop!(vs.u)
 Base.popat!(vs::VectorOfVectors, i::Integer, args...) = popat!(vs.u, i, args...)
+Base.empty!(vs::VectorOfVectors) = resize!(vs, 0)
 
 # When generating a vector of vectors, make sure `map` returns a VectorOfVectors instead of
 # a standard Vector.
