@@ -12,6 +12,7 @@
     - mkdir -pv $JULIA_DEPOT_PATH
     - export JULIA_NUM_THREADS=1  # using more than 1 thread is slower in the CI machines (probably because there are other CI processes running!)
     - export JULIA_NUM_PRECOMPILE_TASKS=1
+    - export JULIA_DISABLE_JET_KA_TESTS=true  # disable JET.jl tests involving KernelAbstractions kernels (they generally fail...)
   cache:
     key: julia-cache
     paths:
