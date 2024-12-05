@@ -6,7 +6,7 @@ Defines methods for injecting energy onto a system of vortices.
 module Forcing
 
 using ..Filaments: AbstractFilament, UnitTangent
-using ..SyntheticFields: SyntheticFields, SyntheticVectorField
+using ..SyntheticFields: SyntheticFields  # for docs only
 using LinearAlgebra: ×
 
 export AbstractForcing, NormalFluidForcing
@@ -36,12 +36,16 @@ function apply! end
 
 @doc raw"""
     NormalFluidForcing <: AbstractForcing
-    NormalFluidForcing(field::SyntheticVectorField; α, α′ = 0)
+    NormalFluidForcing(vn::Function; α, α′ = 0)
 
 Forcing due to mutual friction with a normal fluid.
 
-The normal fluid is represented by a synthetic velocity field ``\bm{v}_{\text{n}}(\bm{x}, \bm{t})``
-from the [`SyntheticFields`](@ref) module.
+The normal fluid is represented by a function `vn` which should take a position
+`x⃗::SVector{N, T}` and return a velocity `v⃗::SVector{N, T}` (`N` is the number of
+dimensions, usually `N = 3`).
+
+In particular, the function could be a synthetic velocity field from the
+[`SyntheticFields`](@ref) module (see below for examples).
 
 This type of forcing defines an external velocity ``\bm{v}_{\text{f}}`` affecting vortex
 motion, so that the effective vortex velocity is
@@ -95,15 +99,15 @@ NormalFluidForcing{Float64, 3} with:
 
 """
 struct NormalFluidForcing{
-        T <: Real, N,
-        VelocityField <: SyntheticVectorField{T, N}
+        T,
+        VelocityField <: Function,  # should return an SVector{N, T}
     } <: AbstractForcing
     vn :: VelocityField
     α  :: T
     α′ :: T
 end
 
-function NormalFluidForcing(vn::SyntheticVectorField{T}; α::Real, α′::Real = 0) where {T}
+function NormalFluidForcing(vn::F; α::T, α′::Real = 0) where {T <: AbstractFloat, F <: Function}
     NormalFluidForcing(vn, T(α), T(α′))
 end
 
