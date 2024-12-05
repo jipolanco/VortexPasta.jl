@@ -963,8 +963,9 @@ function finalise_step!(iter::VortexFilamentSolver)
             stats.filaments_removed_count += 1
             stats.filaments_removed_length += Lfil
             popat!(fs, i)
-            popat!(vs, i)
-            popat!(ψs, i)
+            for field ∈ fields_to_resize(iter)
+                popat!(field, i)
+            end
         end
     end
 
