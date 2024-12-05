@@ -58,6 +58,11 @@ using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
 abstract type AbstractProblem end
 abstract type AbstractSolver end
 
+@enum SimulationStatus begin
+    SUCCESS
+    NO_VORTICES_LEFT
+end
+
 include("timesteppers/timesteppers.jl")
 include("adaptivity.jl")
 include("problem.jl")
@@ -571,7 +576,8 @@ function init(
         empty!(iter.tangents)
     end
 
-    finalise_step!(iter)
+    status = finalise_step!(iter)
+    status == SUCCESS || error("reached status = $status at initialisation")
 
     iter
 end
@@ -852,7 +858,11 @@ function solve!(iter::VortexFilamentSolver)
             # Try to finish exactly at t = t_end.
             time.dt = min(time.dt, t_end - time.t)
         end
-        step!(iter)
+        status = step!(iter)
+        if status != SUCCESS
+            @warn lazy"reached status = $status. Stopping the simulation."
+            break
+        end
     end
     iter
 end
@@ -870,9 +880,15 @@ function maximum_vector_norm(vs::VectorOfVectors{<:Vec3})
 end
 
 """
-    step!(iter::VortexFilamentSolver)
+    step!(iter::VortexFilamentSolver) -> SimulationStatus
 
 Advance solver by a single timestep.
+
+Returns a `SimulationStatus`. Currently, this can be:
+
+- `SUCCESS`,
+- `NO_VORTICES_LEFT`: all vortices have been removed from the system; the simulation should
+  be stopped.
 """
 function step!(iter::VortexFilamentSolver{T}) where {T}
     (; fs, vs, time, adaptivity, dtmin, advect!, rhs!,) = iter
@@ -909,9 +925,9 @@ function step!(iter::VortexFilamentSolver{T}) where {T}
     after_advection!(iter)
     time.t += time.dt
     time.nstep += 1
-    finalise_step!(iter)
+    status = finalise_step!(iter)
 
-    iter
+    status
 end
 
 # Here fields is usually (vs, ψs)
@@ -943,6 +959,7 @@ function Reconnections.reconnect!(iter::VortexFilamentSolver)
 end
 
 # Called whenever filament positions have just been initialised or updated.
+# Returns a SimulationStatus.
 function finalise_step!(iter::VortexFilamentSolver)
     (; vs, ψs, fs, time, stats, adaptivity, rhs!,) = iter
 
@@ -969,7 +986,7 @@ function finalise_step!(iter::VortexFilamentSolver)
         end
     end
 
-    isempty(fs) && error("all vortices disappeared!")  # TODO: nicer way to handle this?
+    isempty(fs) && return NO_VORTICES_LEFT
 
     iter.affect!(iter)
 
@@ -997,7 +1014,7 @@ function finalise_step!(iter::VortexFilamentSolver)
     time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
     iter.callback(iter)
 
-    iter
+    SUCCESS
 end
 
 include("forcing.jl")
