@@ -91,7 +91,7 @@ FourierBandVectorField{Float64, 3} with 9 independent Fourier coefficients in |k
 julia> SyntheticFields.init_coefficients!(rng, vn, vn_rms);  # randomly set non-zero Fourier coefficients of the velocity field
 
 julia> forcing = NormalFluidForcing(vn; α = 0.8, α′ = 0)
-NormalFluidForcing{Float64, 3} with:
+NormalFluidForcing{Float64} with:
  ├─ Magnus force coefficient: α = 0.8
  ├─ Drag force coefficient: α′ = 0.0
  └─ Normal velocity field: FourierBandVectorField{Float64, 3} with 9 independent Fourier coefficients in |k⃗| ∈ [1.0, 1.4142]
@@ -111,12 +111,12 @@ function NormalFluidForcing(vn::F; α::T, α′::Real = 0) where {T <: AbstractF
     NormalFluidForcing(vn, T(α), T(α′))
 end
 
-function Base.show(io::IO, f::NormalFluidForcing{T, N}) where {T, N}
+function Base.show(io::IO, f::NormalFluidForcing{T}) where {T}
     (; vn, α, α′,) = f
     indent = get(io, :indent, 0)
     nspaces = max(indent, 1)
     spaces = " "^nspaces
-    print(io, "NormalFluidForcing{$T, $N} with:")
+    print(io, "NormalFluidForcing{$T} with:")
     print(io, "\n$(spaces)├─ Magnus force coefficient: α = ", α)
     print(io, "\n$(spaces)├─ Drag force coefficient: α′ = ", α′)
     print(io, "\n$(spaces)└─ Normal velocity field: ", vn)
