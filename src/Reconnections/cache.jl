@@ -15,30 +15,30 @@ distance(c::AbstractReconnectionCache) = distance(criterion(c))
 struct ReconnectionCache{
         Criterion <: ReconnectionCriterion,
         Finder <: NearbySegmentFinder,
-        Candidate <: ReconnectionCandidate,
+        ReconnectionInfo,
         Periods <: Tuple{Vararg{Real}},
     } <: AbstractReconnectionCache
-    crit       :: Criterion
-    finder     :: Finder
-    candidates :: Vector{Union{Nothing, Candidate}}
-    Ls         :: Periods
+    crit     :: Criterion
+    finder   :: Finder
+    to_reconnect :: Vector{Union{Nothing, ReconnectionInfo}}  # list of segment pairs to be reconnected
+    Ls       :: Periods
 end
 
 criterion(c::ReconnectionCache) = c.crit
 periods(c::ReconnectionCache) = c.Ls
 
-function invalidate_candidates!(cache::ReconnectionCache, flist::Vararg{AbstractFilament})
-    (; candidates,) = cache
-    for (i, candidate) ∈ pairs(candidates)
-        candidate === nothing && continue
-        (; a, b,) = candidate
+function invalidate_segment_pairs!(cache::ReconnectionCache, flist::Vararg{AbstractFilament})
+    (; to_reconnect,) = cache
+    for (i, segpair) ∈ pairs(to_reconnect)
+        segpair === nothing && continue
+        (; a, b,) = segpair.candidate
         for f ∈ flist
             if f === a.f || f === b.f
-                candidates[i] = nothing  # invalidate candidate
+                to_reconnect[i] = nothing  # invalidate segment pair
             end
         end
     end
-    candidates
+    to_reconnect
 end
 
 """
@@ -58,7 +58,8 @@ The type of cache will vary depending on the inputs:
   `NullReconnectionCache`;
 - otherwise, it returns a `ReconnectionCache`.
 
-In the second case, the detection of reconnection candidates can follow two different strategies:
+In the second case, the detection of reconnection pairs can follow two different
+strategies:
 
 - if the domain is infinite (default), a naive iteration across all filament segment pairs
 is performed;
@@ -82,6 +83,7 @@ function _init_cache(crit::ReconnectionCriterion, fs, Ls)
         # Heuristic: in the periodic case, make sure there's at most ~32 cells per
         # direction. The cell lists implementation can get really slow when there are too
         # many cells (especially ~256³ and up).
+        # TODO: is this still the case? the CL implementation was improved at some point...
         r_cut = max(r_cut, Lmax / 32)
     end
     finder = if has_nonperiodic_directions
@@ -89,14 +91,16 @@ function _init_cache(crit::ReconnectionCriterion, fs, Ls)
     else
         CellListSegmentFinder(fs, r_cut, Ls; nsubdiv = Val(2))
     end
-    candidates = let
-        FilamentType = eltype(fs)
-        S = Segment{FilamentType}
-        T = ReconnectionCandidate{S}
-        @assert isconcretetype(T)
-        Union{T, Nothing}[]
+    to_reconnect = let segs = segments(first(fs))
+        # Determine ReconnectionInfo type by creating a single candidate
+        candidate = ReconnectionCandidate(segs[1], segs[2], firstindex(fs), firstindex(fs))
+        info = should_reconnect(crit, candidate; periods = Ls, can_return_nothing = Val(false))::NamedTuple
+        reconnect_info = (; candidate, info,)
+        ReconnectionInfo = typeof(reconnect_info)
+        @assert isconcretetype(ReconnectionInfo)
+        Union{ReconnectionInfo, Nothing}[]
     end
-    ReconnectionCache(crit, finder, candidates, Ls)
+    ReconnectionCache(crit, finder, to_reconnect, Ls)
 end
 
 # Used when reconnections are disabled.
@@ -104,18 +108,23 @@ struct NullReconnectionCache <: AbstractReconnectionCache end
 _init_cache(::NoReconnections, args...) = NullReconnectionCache()
 criterion(::NullReconnectionCache) = NoReconnections()
 
-function find_reconnection_candidates!(
+function find_reconnection_pairs!(
         cache::ReconnectionCache,
-        fs::AbstractVector{<:AbstractFilament};
+        fs::AbstractVector{<:AbstractFilament},
+        vs::Union{Nothing, AbstractVector{<:AbstractFilament}} = nothing;
         to = TimerOutput(),
     )
-    (; finder, candidates,) = cache
-    empty!(candidates)
+    (; finder, to_reconnect,) = cache
+    crit = criterion(cache)
+    Ls = periods(cache)
     r_cut = distance(cache)
+    if crit.use_velocity && vs === nothing
+        error("`use_velocity` was set to `true` in the reconnection criterion, but velocity information was not passed to `reconnect!`")
+    end
+    empty!(to_reconnect)
     T = typeof(r_cut)
     r_crit = T(1.5) * r_cut
     r²_crit = r_crit * r_crit
-    Ls = periods(cache)
     Lhs = map(L -> L / 2, Ls)
     function check_distance(r⃗_in)
         r⃗ = deperiodise_separation(r⃗_in, Ls, Lhs)
@@ -123,7 +132,7 @@ function find_reconnection_candidates!(
         r² < r²_crit
     end
     @timeit to "set_filaments!" set_filaments!(finder, fs)  # this is needed in particular to initialise cell lists
-    @timeit to "add candidates" for (i, f) ∈ pairs(fs), seg_a ∈ segments(f)
+    @timeit to "find segment pairs" for (i, f) ∈ pairs(fs), seg_a ∈ segments(f)
         # Since we only compare the *midpoint* of this segment to the extrema of other
         # segments, we add δ/2 (half the segment length) to the critical distance to take
         # into account the case where the point of minimum distance is at the extrema of
@@ -133,14 +142,65 @@ function find_reconnection_candidates!(
         d²_crit = r²_crit + δ² / 4
         d_crit = @fastmath sqrt(d²_crit)
         for (j, seg_b) ∈ nearby_segments(finder, x⃗)
-            # Slightly finer filters to determine whether we keep this candidate.
+            # 1. Apply slightly finer filters to determine whether we keep this candidate.
             # TODO combine these two criteria?
             segment_is_close(seg_b, x⃗, d_crit, d²_crit, Ls, Lhs) || continue
             keep_segment_pair(check_distance, seg_a, seg_b) || continue
-            push!(candidates, ReconnectionCandidate(seg_a, seg_b, i, j))
+            candidate = ReconnectionCandidate(seg_a, seg_b, i, j)
+            # 2. Now check if the chosen criterion is verified
+            info = should_reconnect(crit, candidate; periods = Ls)
+            info === nothing && continue
+            # 3. Find possibly better candidates
+            # TODO: make sure there are no repetitions...
+            info, candidate = find_better_candidates(info, candidate) do other_candidate
+                should_reconnect(crit, other_candidate; periods = Ls)
+            end
+            @assert info !== nothing
+            # 4. Check if the candidate satisfies the velocity criterion
+            (; a, b, filament_idx_a, filament_idx_b,) = candidate
+            (; d⃗,) = info  # d⃗ = x⃗ - (y⃗ - p⃗)
+            if crit.use_velocity
+                # Use velocity information to discard some reconnections
+                @assert vs !== nothing   # checked earlier
+                @assert eltype(vs) <: AbstractFilament  # this means it's interpolable
+                v⃗_a = vs[filament_idx_a](a.i, info.ζx)  # assume velocity is interpolable
+                v⃗_b = vs[filament_idx_b](b.i, info.ζy)  # assume velocity is interpolable
+                v_d = d⃗ ⋅ (v⃗_a - v⃗_b)  # separation velocity (should be divided by |d⃗| = sqrt(d²), but we only care about the sign)
+                if v_d > 0  # they're getting away from each other
+                    continue  # don't reconnect them
+                end
+            end
+            # 5. If the candidate passed all the tests, we add it to the reconnection list
+            # TODO: avoid push if candidate already exists?
+            push!(to_reconnect, (; candidate, info,))
         end
     end
-    candidates
+    to_reconnect
+end
+
+# If we already found a relatively good reconnection candidate, look at the neighbouring
+# segments to see if we can further reduce the distance between the filaments.
+@inline function find_better_candidates(f::F, info, c::ReconnectionCandidate) where {F <: Function}
+    d²_min = info.d²  # this is the minimum distance we've found until now
+    while true
+        x, y = c.a, c.b
+        x′ = choose_neighbouring_segment(x, info.ζx)
+        y′ = choose_neighbouring_segment(y, info.ζy)
+        if x′ === x && y′ === y
+            break  # the proposed segments are the original ones, so we stop here
+        end
+        # Note: filaments stay the same, so fields filament_idx_* don't change.
+        c′ = ReconnectionCandidate(x′, y′, c.filament_idx_a, c.filament_idx_b)
+        info′ = f(c′)
+        if info′ === nothing || info′.d² ≥ d²_min
+            break  # the previous candidate was better, so we stop here
+        end
+        # We found a better candidate! But we keep looking just in case.
+        info = info′
+        c = c′
+        d²_min = info.d²
+    end
+    info, c
 end
 
 # This is to make sure we don't reconnect nearly neighbouring segments belonging to the same

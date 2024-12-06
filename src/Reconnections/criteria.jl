@@ -88,18 +88,21 @@ distance(c::ReconnectBasedOnDistance) = c.dist
 function should_reconnect(
         c::ReconnectBasedOnDistance, fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;
         periods,
+        can_return_nothing = Val(true),  # this is set to false to obtain the return type when constructing a ReconnectionCache
     )
     (; dist_sq, cos_max_sq, decrease_length,) = c
 
     min_dist = find_min_distance(fx, fy, i, j; periods)
     (; d⃗, p⃗, ζx, ζy,) = min_dist
     d² = sum(abs2, d⃗)
-    d² > dist_sq && return nothing  # don't reconnect
+    if can_return_nothing === Val(true)
+        d² > dist_sq && return nothing  # don't reconnect
+    end
 
     # Make sure that reconnections reduce the total length (makes sense energetically for vortices).
     length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])
     length_after = norm(fy[j + 1] - fx[i] - p⃗) + norm(fx[i + 1] - fy[j] + p⃗)
-    if decrease_length
+    if decrease_length && can_return_nothing === Val(true)
         length_after > length_before && return nothing
     end
 
@@ -107,14 +110,19 @@ function should_reconnect(
     Y′ = fy(j, ζy, Derivative(1))
 
     # Return the output of find_min_distance + other stuff if segments should reconnect.
-    success = (;
+    info = (;
         min_dist...,
         d², length_before, length_after,
     )
 
     xy = X′ ⋅ Y′
-    xy < 0 && return success  # always reconnect antiparallel vortices
+    xy < 0 && return info  # always reconnect antiparallel vortices
 
     cos² = (xy * xy) / (sum(abs2, X′) * sum(abs2, Y′))
-    cos² < cos_max_sq ? success : nothing
+
+    if cos² < cos_max_sq || can_return_nothing !== Val(true)
+        info
+    else
+        nothing
+    end
 end
