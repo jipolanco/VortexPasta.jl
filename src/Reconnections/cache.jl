@@ -156,7 +156,12 @@ function find_reconnection_pairs!(
                 should_reconnect(crit, other_candidate; periods = Ls)
             end
             @assert info !== nothing
-            # 4. Check if the candidate satisfies the velocity criterion
+            reconnect_info = (; candidate, info,)
+            # 4. Check if this candidate was already found earlier (possible due to find_better_candidates)
+            for r ∈ to_reconnect
+                r === reconnect_info && continue
+            end
+            # 5. Check if the candidate satisfies the velocity criterion
             (; a, b, filament_idx_a, filament_idx_b,) = candidate
             (; d⃗,) = info  # d⃗ = x⃗ - (y⃗ - p⃗)
             if crit.use_velocity
@@ -170,9 +175,8 @@ function find_reconnection_pairs!(
                     continue  # don't reconnect them
                 end
             end
-            # 5. If the candidate passed all the tests, we add it to the reconnection list
-            # TODO: avoid push if candidate already exists?
-            push!(to_reconnect, (; candidate, info,))
+            # 6. If the candidate passed all the tests, we add it to the reconnection list
+            push!(to_reconnect, reconnect_info)
         end
     end
     to_reconnect

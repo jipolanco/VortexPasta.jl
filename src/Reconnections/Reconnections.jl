@@ -112,8 +112,6 @@ function reconnect!(
     if criterion(cache) === NoReconnections()
         return ret_base
     end
-    crit = criterion(cache)
-    Ls = periods(cache)
     @timeit to "find reconnection pairs" begin
         to_reconnect = find_reconnection_pairs!(cache, fs, vs; to)
     end
