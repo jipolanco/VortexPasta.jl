@@ -32,6 +32,14 @@ tuple or `SVector`.
 """
 abstract type SyntheticVectorField{T <: AbstractFloat, N} <: Function end
 
+# Since SyntheticVectorField <: Function, by default a field is printed in the REPL as if it
+# was a function. For example:
+#
+#   (::FourierBandVectorField{Float64, 3}) (generic function with 1 method)
+#
+# This definition avoids that, to instead always use the `show` function defined for the type.
+Base.show(io::IO, ::MIME"text/plain", f::SyntheticVectorField) = show(io, f)
+
 include("uniform.jl")
 include("fourier.jl")
 

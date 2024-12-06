@@ -130,7 +130,6 @@ Evaluate normal fluid velocity at filament nodes.
 Results are written to `vn`, which should have the same length as the filament `f`.
 """
 function get_velocities!(forcing::NormalFluidForcing, vn::AbstractVector, f::AbstractFilament)
-    # TODO: parallelise?
     for i ∈ eachindex(vn, f)
         vn[i] = forcing.vn(f[i])
     end
@@ -155,7 +154,6 @@ end
 function _apply!(get_at_node::F, forcing::NormalFluidForcing, vs::AbstractVector) where {F <: Function}
     (; α, α′,) = forcing
     V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
-    # TODO: parallelise?
     for i ∈ eachindex(vs)
         v⃗ₛ = vs[i]  # vortex velocity before mutual friction forcing
         (; v⃗ₙ, s⃗′,) = @inline get_at_node(i)  # local normal fluid velocity and unit tangent
