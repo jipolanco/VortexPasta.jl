@@ -112,45 +112,24 @@ function reconnect!(
     if criterion(cache) === NoReconnections()
         return ret_base
     end
-    crit = criterion(cache)
-    if crit.use_velocity && vs === nothing
-        error("`use_velocity` was set to `true` in the reconnection criterion, but velocity information was not passed to `reconnect!`")
+    @timeit to "find reconnection pairs" begin
+        to_reconnect = find_reconnection_pairs!(cache, fs, vs; to)
     end
-    Ls = periods(cache)
-    @timeit to "find_reconnection_candidates!" begin
-        candidates = find_reconnection_candidates!(cache, fs; to)
-    end
-    @timeit to "iterate over candidates" for candidate ∈ candidates
-        candidate === nothing && continue
-        info = should_reconnect(crit, candidate; periods = Ls)
-        info === nothing && continue
-        info, candidate = find_better_candidates(info, candidate) do other_candidate
-            should_reconnect(crit, other_candidate; periods = Ls)
-        end
-        (; a, b, filament_idx_a, filament_idx_b,) = candidate
-        (; d⃗,) = info  # d⃗ = x⃗ - (y⃗ - p⃗)
-        if crit.use_velocity
-            # Use velocity information to discard some reconnections
-            @assert vs !== nothing   # checked earlier
-            @assert eltype(vs) <: AbstractFilament  # this means it's interpolable
-            @inbounds v⃗_a = vs[filament_idx_a](a.i, info.ζx)  # assume velocity is interpolable
-            @inbounds v⃗_b = vs[filament_idx_b](b.i, info.ζy)  # assume velocity is interpolable
-            v_d = d⃗ ⋅ (v⃗_a - v⃗_b)  # separation velocity (should be divided by |d⃗| = sqrt(d²), but we only care about the sign)
-            if v_d > 0  # they're getting away from each other
-                continue  # don't reconnect them
-            end
-        end
+    @timeit to "reconnect pairs" for reconnect_info ∈ to_reconnect
+        reconnect_info === nothing && continue   # pair has been invalidated
+        (; candidate, info,) = reconnect_info
+        (; a, b,) = candidate
         @timeit to "reconnect" if a.f === b.f
             # Reconnect filament with itself => split filament into two
             @assert a.i ≠ b.i
             nremoved, Lremoved = reconnect_with_itself!(callback, fs, a.f, a.i, b.i, info)
             filaments_removed_count += nremoved
             filaments_removed_length += Lremoved
-            invalidate_candidates!(cache, a.f)
+            invalidate_segment_pairs!(cache, a.f)
         else
             # Reconnect two different filaments => merge them into one
             reconnect_with_other!(callback, fs, a.f, b.f, a.i, b.i, info)
-            invalidate_candidates!(cache, a.f, b.f)
+            invalidate_segment_pairs!(cache, a.f, b.f)
         end
         reconnection_length_loss += info.length_before - info.length_after
         reconnection_count += 1
@@ -161,31 +140,6 @@ function reconnect!(
         filaments_removed_count,
         filaments_removed_length,
     ) :: typeof(ret_base)
-end
-
-# If we already found a relatively good reconnection candidate, look at the neighbouring
-# segments to see if we can further reduce the distance between the filaments.
-@inline function find_better_candidates(f::F, info, c::ReconnectionCandidate) where {F <: Function}
-    d²_min = info.d²  # this is the minimum distance we've found until now
-    while true
-        x, y = c.a, c.b
-        x′ = choose_neighbouring_segment(x, info.ζx)
-        y′ = choose_neighbouring_segment(y, info.ζy)
-        if x′ === x && y′ === y
-            break  # the proposed segments are the original ones, so we stop here
-        end
-        # Note: filaments stay the same, so fields filament_idx_* don't change.
-        c′ = ReconnectionCandidate(x′, y′, c.filament_idx_a, c.filament_idx_b)
-        info′ = f(c′)
-        if info′ === nothing || info′.d² ≥ d²_min
-            break  # the previous candidate was better, so we stop here
-        end
-        # We found a better candidate! But we keep looking just in case.
-        info = info′
-        c = c′
-        d²_min = info.d²
-    end
-    info, c
 end
 
 # Here ζ ∈ [0, 1] is the location within the segment where the minimum distance was found by

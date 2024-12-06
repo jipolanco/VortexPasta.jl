@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix possible issue in reconnections when using velocity information (added in v0.24.8).
+  When a reconnection was performed and a filament removed or added, the
+  filament indices were not modified, which could lead to wrong velocities or
+  even out-of-bounds accesses. Now, we find all reconnection pairs before doing
+  any actual reconnections, which avoids this issue and simplifies a few things.
+
 - Fix potential performance issues when using `Float32` on AVX512-capable CPUs.
   The issue affected short-range Biot–Savart computations, and more specifically
   the part where explicit SIMD vectorisation is used (for computing `erfc`
