@@ -45,4 +45,15 @@ else
     run(`git push --tags`)      # push tags (also triggers CI)
 end
 
-LocalRegistry.register()
+LocalRegistry.register(allow_package_dirty = true)
+
+if using_tagbot
+    try
+        run(`gh workflow run TagBot`)  # this will fail if gh is not installed / not found
+    catch
+        println("""Package has been registered. Now go to https://github.com/jipolanco/VortexPasta.jl/actions/workflows/TagBot.yml
+                and trigger TagBot by clicking on "Run workflow".
+
+                Alternatively, install the gh utility (https://cli.github.com) and this will be done automatically.""")
+    end
+end
