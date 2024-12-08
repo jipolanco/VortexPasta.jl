@@ -20,6 +20,10 @@ One should initialise the Fourier coefficients of the vector field before perfor
 For this one can call [`SyntheticFields.init_coefficients!`](@ref) after creating the vector field.
 After that, one can evaluate the field as described in [`SyntheticVectorField`](@ref).
 
+Moreover the state can be saved to an HDF5 file with
+[`SyntheticField.save_coefficients`](@ref) and loaded back with
+[`SyntheticFields.load_coefficients!`](@ref).
+
 # Positional arguments
 
 - `undef`: this is Julia's `undef` variable, used here to explicitly indicate that Fourier
@@ -52,6 +56,63 @@ function Base.show(io::IO, field::FourierBandVectorField{T, N}) where {T, N}
     kmin, kmax = round.(sqrt.(kext²); sigdigits = 5)
     Nk = length(qs)
     print(io, "FourierBandVectorField{$T, $N} with $Nk independent Fourier coefficients in |k⃗| ∈ [$kmin, $kmax]")
+end
+
+"""
+    SyntheticFields.save_coefficients(fname::AbstractString, field::FourierBandVectorField)
+    SyntheticFields.save_coefficients(g::Union{HDF5.File, HDF5.Group}, field::FourierBandVectorField)
+
+Save Fourier coefficients to HDF5 file.
+
+This can be useful for restarting a simulation keeping the same synthetic field.
+
+See also [`SyntheticFields.load_coefficients!`](@ref).
+"""
+function save_coefficients(fname::AbstractString, field::FourierBandVectorField)
+    endswith(".h5")(fname) || @warn lazy"saving HDF5 file: expected .h5 extension (got $fname)."
+    h5open(ff -> save_coefficients(ff, field), fname, "w")
+end
+
+function save_coefficients(g::Union{HDF5.File, HDF5.Group}, field::FourierBandVectorField)
+    (; qs, cs, Δks,) = field
+    g["wavevectors_normalised"] = reinterpret(reshape, eltype(eltype(qs)), qs)
+    g["wavevectors_step"] = collect(Δks)
+    g["fourier_coefficients"] = reinterpret(reshape, eltype(eltype(cs)), cs)
+    g
+end
+
+"""
+    SyntheticFields.load_coefficients!(fname::AbstractString, field::FourierBandVectorField)
+    SyntheticFields.load_coefficients!(g::Union{HDF5.File, HDF5.Group}, field::FourierBandVectorField)
+
+Load Fourier coefficients from HDF5 file.
+
+This can be useful for restarting a simulation keeping the same synthetic field.
+
+See also [`SyntheticFields.save_coefficients`](@ref).
+"""
+function load_coefficients!(fname::AbstractString, field::FourierBandVectorField)
+    endswith(".h5")(fname) || @warn lazy"loading HDF5 file: expected .h5 extension (got $fname)."
+    h5open(ff -> load_coefficients!(ff, field), fname, "r")
+end
+
+function load_coefficients!(g::Union{HDF5.File, HDF5.Group}, field::FourierBandVectorField{T, N}) where {T, N}
+    (; qs, cs, Δks,) = field
+    # Check that Δks is the same as in the file. If that's not the case it's because the
+    # domain sizes are not the same.
+    Δks_file = read(g["wavevectors_step"]) :: Vector{T}
+    length(Δks_file) == N || throw(DimensionMismatch("wrong dimensions of input file"))
+    NTuple{N, T}(Δks_file) == Δks || error("domain periods from file are not the same as current ones")
+    qs_file = read(g["wavevectors_normalised"]) :: Matrix{Int}
+    cs_file = read(g["fourier_coefficients"])   :: Matrix{Complex{T}}
+    @assert size(qs_file, 1) == size(cs_file, 1) == N
+    Nc = size(qs_file, 2)
+    @assert Nc == size(cs_file, 2)
+    resize!(qs, Nc)
+    resize!(cs, Nc)
+    reinterpret(reshape, eltype(eltype(qs)), qs) .= qs_file
+    reinterpret(reshape, eltype(eltype(cs)), cs) .= cs_file
+    g
 end
 
 # Determine whether a wavevector k⃗ should be discarded to preserve Hermitian symmetry

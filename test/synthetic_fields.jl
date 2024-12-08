@@ -91,6 +91,21 @@ function verify_evaluation(field::FourierBandVectorField{T, N}, Ls::NTuple{N, T}
     nothing
 end
 
+function test_io(field::FourierBandVectorField)
+    mktempdir() do path
+        (; cs, qs,) = field
+        cs_prev = copy(cs)
+        qs_prev = copy(qs)
+        fname = joinpath(path, "field.h5")
+        SyntheticFields.save_coefficients(fname, field)
+        empty!(cs)  # they will be resized in load_coefficients!
+        empty!(qs)
+        SyntheticFields.load_coefficients!(fname, field)
+        @test cs == cs_prev
+        @test qs == qs_prev
+    end
+end
+
 @testset "Synthetic fields ($T)" for T ∈ (Float32, Float64)
     @testset "FourierBandVectorField" begin
         rng = Xoshiro(42)
@@ -101,6 +116,7 @@ end
         @test startswith("FourierBandVectorField{$T, 3}")(repr(field))
         check_synthetic_field(field; u_rms, kmin, kmax)
         verify_evaluation(field, Ls; u_rms, kmax)
+        test_io(field)
     end
     @testset "UniformVectorField" begin
         u⃗ = T.((2.0, 1.2, -2.4))

@@ -17,6 +17,7 @@ export
 using StaticArrays: SVector
 using Random: Random, AbstractRNG
 using LinearAlgebra: ⋅, ×
+using HDF5: HDF5, h5open
 
 """
     SyntheticVectorField{T, N} <: Function

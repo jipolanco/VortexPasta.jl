@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Allow saving state of `FourierBandVectorField` to HDF5 file and loading it back.
+  This is useful in particular for restarts.
+
 ## [0.25.0] - 2024-12-06
 
 ### Added
