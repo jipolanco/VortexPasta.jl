@@ -293,8 +293,8 @@ end
     quantities = getfield(iter, :quantities)
     if hasproperty(time, name)
         getproperty(time, name)
-    elseif hasproperty(quantities, name)
-        getproperty(quantities, name)
+    elseif haskey(quantities, name)
+        quantities[name]
     else
         getfield(iter, name)
     end
