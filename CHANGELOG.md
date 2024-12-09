@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.25.1] - 2024-12-09
+
 ### Changed
 
 - **Breaking**: When a normal fluid is applied, the `vs` field of
