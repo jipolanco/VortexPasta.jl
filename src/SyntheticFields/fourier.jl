@@ -21,7 +21,7 @@ For this one can call [`SyntheticFields.init_coefficients!`](@ref) after creatin
 After that, one can evaluate the field as described in [`SyntheticVectorField`](@ref).
 
 Moreover the state can be saved to an HDF5 file with
-[`SyntheticField.save_coefficients`](@ref) and loaded back with
+[`SyntheticFields.save_coefficients`](@ref) and loaded back with
 [`SyntheticFields.load_coefficients!`](@ref).
 
 # Positional arguments
