@@ -48,10 +48,10 @@ In particular, the function could be a synthetic velocity field from the
 [`SyntheticFields`](@ref) module (see below for examples).
 
 This type of forcing defines an external velocity ``\bm{v}_{\text{f}}`` affecting vortex
-motion, so that the effective vortex velocity is
+motion, so that the actual vortex velocity ``\bm{v}_{\text{L}}`` is
 
 ```math
-\frac{\mathrm{d}\bm{s}}{\mathrm{d}t} = \bm{v}_{\text{s}} + \bm{v}_{\text{f}}.
+\frac{\mathrm{d}\bm{s}}{\mathrm{d}t} = \bm{v}_{\text{L}} = \bm{v}_{\text{s}} + \bm{v}_{\text{f}}.
 ```
 
 Here ``\bm{v}_{\text{s}}`` is the self-induced velocity obtained by applying Biot–Savart's law.

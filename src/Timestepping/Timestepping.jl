@@ -140,11 +140,16 @@ Contains the instantaneous state of a vortex filament simulation.
 
 Must be constructed using [`init`](@ref).
 
-Some useful fields are:
+# Included fields
+
+Some useful fields included in a `VortexFilamentSolver` are:
 
 - `prob`: associated [`VortexFilamentProblem`](@ref) (including Biot–Savart parameters);
 
 - `fs`: current state of vortex filaments in the system;
+
+- `quantities`: a `NamedTuple` containing data on filament nodes at the current simulation
+  timestep. See **Physical quantities** below for more details.
 
 - `vs`: current velocity of vortex filament nodes;
 
@@ -159,14 +164,45 @@ Some useful fields are:
 
 - `cache_bs`: the Biot–Savart cache, which contains data from short- and
   long-range computations.
+
+## Physical quantities
+
+The `quantities` field is a `NamedTuple` containing instantaneous data on filament nodes.
+For example, `quantities.vs` is the self-induced vortex velocity. To get the velocity of
+filament `i` at node `j`, one can do `quantities.vs[i][j]`. Moreover, these quantities are
+often interpolable, which means that one can do `quantities.vs[i](j, 0.5)` to get the
+velocity in-between two nodes.
+
+For convenience, if one has a `VortexFilamentSolver` `iter`, the shortcut `iter.vs` is
+equivalent to `iter.quantities.vs` (this also applies to all other quantities).
+
+### List of quantities
+
+- `vs`: self-induced vortex velocity (due to Biot–Savart law). If enabled, this also
+  includes the contribution of an `external_velocity` (see [`init`](@ref)).
+
+- `ψs`: self-induced streamfunction on vortices. This is useful for estimating the kinetic
+  energy associated to the induced velocity field. If enabled, this also includes the
+  contribution of an `external_streamfunction` (see [`init`](@ref)).
+
+If a normal fluid is present (e.g. by passing `forcing = NormalFluidForcing(...)` to [`init`](@ref)),
+then the following quantities are also included:
+
+- `vL`: actual filament velocity after mutual friction due to normal fluid (see [`NormalFluidForcing`](@ref)).
+
+- `vn`: normal fluid velocity at vortex locations.
+
+- `tangents`: unit tangents ``\\bm{s}'`` at vortex locations.
+
+For convenience, if there is no normal fluid, then `vL` is defined as an alias of `vs`
+(they're the same object).
+
 """
 struct VortexFilamentSolver{
         T,
         Problem <: VortexFilamentProblem{T},
         Filaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
-        # We use a Filament type to describe the velocity and streamfunction on filaments,
-        # to allow interpolation of these fields on filament locations.
-        VectorOnFilaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
+        Quantities <: NamedTuple,
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
         CacheReconnect <: AbstractReconnectionCache,
@@ -184,10 +220,7 @@ struct VortexFilamentSolver{
     } <: AbstractSolver
     prob  :: Problem
     fs    :: Filaments
-    vs    :: VectorOnFilaments
-    ψs    :: VectorOnFilaments
-    vn    :: VectorOnFilaments     # normal fluid (e.g. if forcing <: NormalFluidForcing; otherwise empty)
-    tangents :: VectorOnFilaments  # local tangents (only used if normal fluid is present; otherwise empty)
+    quantities :: Quantities  # stored fields: (vs, ψs) + optional ones (vn, tangents, ...)
     time  :: TimeInfo
     stats :: SimulationStats{T}
     dtmin :: T
@@ -210,18 +243,20 @@ struct VortexFilamentSolver{
 end
 
 function Base.show(io_in::IO, iter::VortexFilamentSolver)
+    (; quantities,) = iter
     io = IOContext(io_in, :indent => 4)  # this may be used by some `show` functions, for example for the forcing
     print(io, "VortexFilamentSolver with fields:")
     print(io, "\n - `prob`: ", nameof(typeof(iter.prob)))
     _print_summary(io, iter.fs; pre = "\n - `fs`: ", post =  " -- vortex filaments")
-    _print_summary(io, iter.vs; pre = "\n - `vs`: ", post = " -- velocity at nodes")
-    if !isempty(iter.vn)
-        _print_summary(io, iter.vn; pre = "\n - `vn`: ", post = " -- normal fluid velocity at nodes")
+    _print_summary(io, quantities.vL; pre = "\n - `quantities.vL`: ", post = " -- vortex line velocity (vs + mutual friction)")
+    _print_summary(io, quantities.vs; pre = "\n - `quantities.vs`: ", post = " -- self-induced + external superfluid velocity")
+    if haskey(quantities, :vn)
+        _print_summary(io, quantities.vn; pre = "\n - `quantities.vn`: ", post = " -- normal fluid velocity")
     end
-    if !isempty(iter.tangents)
-        _print_summary(io, iter.tangents; pre = "\n - `tangents`: ", post = " -- unit tangent at nodes")
+    if haskey(quantities, :tangents)
+        _print_summary(io, quantities.tangents; pre = "\n - `quantities.tangents`: ", post = " -- local unit tangent")
     end
-    _print_summary(io, iter.ψs; pre = "\n - `ψs`: ", post = " -- streamfunction at nodes")
+    _print_summary(io, quantities.ψs; pre = "\n - `quantities.ψs`: ", post = " -- streamfunction vector")
     print(io, "\n - `time`: ")
     summary(io, iter.time)
     print(io, "\n - `stats`: ")
@@ -258,15 +293,18 @@ end
 # current time.
 @inline function Base.getproperty(iter::VortexFilamentSolver, name::Symbol)
     time = getfield(iter, :time)
+    quantities = getfield(iter, :quantities)
     if hasproperty(time, name)
         getproperty(time, name)
+    elseif hasproperty(quantities, name)
+        getproperty(quantities, name)
     else
         getfield(iter, name)
     end
 end
 
 function Base.propertynames(iter::VortexFilamentSolver, private::Bool = false)
-    (fieldnames(typeof(iter))..., propertynames(iter.time, private)...)
+    (fieldnames(typeof(iter))..., propertynames(iter.quantities, private)..., propertynames(iter.time, private)...)
 end
 
 _printable_function(f::TimerOutputs.InstrumentedFunction) = f.func
@@ -352,14 +390,14 @@ The difference between the `callback(iter)` and `affect!(iter)` functions is the
 which they are called:
 
 - the `affect!` function is called *before* performing Biot-Savart computations from the
-  latest filament positions. In other words, the fields `iter.vs` and `iter.ψs` are not
+  latest filament positions. In other words, the fields in `iter.quantities` are not
   synchronised with `iter.fs`, and it generally makes no sense to access them.
   Things like energy estimates will be incorrect if done in `affect!`. On the other hand,
   the `affect!` function **allows to modify `iter.fs`** before Biot–Savart computations are
   performed.
 
 - the `callback` function is called *after* performing Biot-Savart computations.
-  This means that `iter.vs` and `iter.ψs` correspond to the latest filament positions.
+  This means that the fields in `iter.quantities` have been computed from the latest filament positions.
   However, one **must not modify `iter.fs`**, or otherwise the velocity `iter.vs` (which
   will be used at the next timestep) will no longer correspond to the filament positions.
 
@@ -518,11 +556,11 @@ function init(
     end :: VectorOfVectors
     ψs = similar(vs)
 
-    # Initialise normal fluid velocity vector.
-    # It stays empty if it's never computed (if there's no normal fluid).
-    # Same for the local tangents.
-    vn = similar(vs)
-    tangents = similar(vs)
+    quantities = if with_normal_fluid(forcing)
+        (; vs, ψs, vL = similar(vs), vn = similar(vs), tangents = similar(vs),)
+    else
+        (; vs, ψs, vL = vs,)  # vL is an alias to vs
+    end
 
     fs_sol = alias_u0 ? fs : copy(fs)
 
@@ -564,17 +602,11 @@ function init(
     end
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, ψs, vn, tangents, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
+        prob, fs_sol, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_fields,
         stretching_velocity, forcing,
         timer, advect!, rhs!,
     )
-
-    if !with_normal_fluid(iter)
-        # These are unused if there's no normal fluid.
-        empty!(iter.vn)
-        empty!(iter.tangents)
-    end
 
     status = finalise_step!(iter)
     status == SUCCESS || error("reached status = $status at initialisation")
@@ -582,15 +614,11 @@ function init(
     iter
 end
 
-with_normal_fluid(iter::VortexFilamentSolver) = iter.forcing isa NormalFluidForcing
+# For now, there is a normal fluid only if the forcing argument is a NormalFluidForcing.
+with_normal_fluid(forcing::NormalFluidForcing) = true
+with_normal_fluid(forcing) = false
 
-function fields_to_resize(iter::VortexFilamentSolver)
-    if with_normal_fluid(iter)
-        (iter.vs, iter.ψs, iter.vn, iter.tangents)
-    else
-        (iter.vs, iter.ψs)
-    end
-end
+fields_to_resize(iter::VortexFilamentSolver) = values(iter.quantities)
 
 # Check that the external streamfunction satisfies v = ∇ × ψ on a single arbitrary point.
 # We check this using automatic differentiation of ψ at a given point.
