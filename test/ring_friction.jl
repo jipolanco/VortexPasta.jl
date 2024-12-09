@@ -9,7 +9,7 @@ using VortexPasta.SyntheticFields: UniformVectorField
 using VortexPasta.Forcing: Forcing, NormalFluidForcing
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics: Diagnostics
-using LinearAlgebra: norm, normalize, ⋅
+using LinearAlgebra: norm, normalize, ⋅, ×
 using UnicodePlots: UnicodePlots, lineplot, lineplot!
 
 function generate_biot_savart_parameters(::Type{T}) where {T}
@@ -98,7 +98,7 @@ function test_ring_friction_dynamic(f, params, forcing::NormalFluidForcing)
     impulse = Vec3{T}[]
 
     function callback(iter)
-        local (; fs, vs, t, nstep,) = iter
+        local (; fs, vs, vn, vL, t, nstep,) = iter
         local quad = GaussLegendre(4)
         local L = Diagnostics.filament_length(iter; quad)
         local E = Diagnostics.kinetic_energy(iter; quad)
@@ -121,6 +121,23 @@ function test_ring_friction_dynamic(f, params, forcing::NormalFluidForcing)
     @test contains("NormalFluidForcing")(repr(iter))
 
     solve!(iter)
+
+    # Check that stored velocities vn, vs, vL are consistent.
+    @testset "Check stored velocities" begin
+        local (; vs, vn, vL, fs,) = iter
+        local (; α, α′,) = forcing
+        for i ∈ eachindex(fs)
+            vL_test = similar(vs[i])
+            for j ∈ eachindex(vL_test)
+                v⃗ₛ = vs[i][j]
+                v⃗ₙ = vn[i][j]
+                v⃗ₙₛ = v⃗ₙ - v⃗ₛ
+                s⃗′ = fs[i][j, UnitTangent()]
+                vL_test[j] = v⃗ₛ + α * s⃗′ × v⃗ₙₛ - α′ * s⃗′ × (s⃗′ × v⃗ₙₛ)
+            end
+            @test vL_test ≈ vL[i]
+        end
+    end
 
     @test impulse[begin][3] ≈ norm(impulse[begin])  # initially, the ring oriented in the Z direction
     @test impulse[end][3] ≈ norm(impulse[end])      # check that the orientation is the same at the end

@@ -152,10 +152,6 @@ Some useful fields included in a `VortexFilamentSolver` are:
 - `quantities`: a `NamedTuple` containing data on filament nodes at the current simulation
   timestep. See **Physical quantities** below for more details.
 
-- `vs`: current velocity of vortex filament nodes;
-
-- `ψs`: current streamfunction at vortex filament nodes;
-
 - `time`: a [`TimeInfo`](@ref) object containing information such as the current time and timestep;
 
 - `stats`: a [`SimulationStats`](@ref) object containing information such as the total
@@ -754,10 +750,10 @@ function update_values_at_nodes!(
 end
 
 # Case where only the velocity is passed (generally used in internal RK substeps).
-function update_values_at_nodes!(vs::VectorOfVectors, args...; kws...)
-    fields = (velocity = vs,)
+function update_values_at_nodes!(vL::VectorOfVectors, args...; kws...)
+    fields = (velocity = vL,)
     update_values_at_nodes!(fields, args...; kws...)
-    vs
+    vL
 end
 
 # Here buf is usually a VectorOfFilaments or a vector of vectors of velocities
@@ -807,11 +803,11 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
     n
 end
 
-function _advect_filament!(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
+function _advect_filament!(f::T, fbase::T, vL, dt) where {T <: AbstractFilament}
     Xs = nodes(f)
     Ys = nodes(fbase)
-    for i ∈ eachindex(Xs, Ys, vs)
-        @inbounds Xs[i] = Ys[i] + dt * vs[i]
+    for i ∈ eachindex(Xs, Ys, vL)
+        @inbounds Xs[i] = Ys[i] + dt * vL[i]
     end
     # Compute interpolation coefficients making sure that knots are preserved (and not
     # recomputed from new locations).
@@ -820,11 +816,11 @@ function _advect_filament!(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
 end
 
 function _advect_filament!(
-        f::AbstractFilament, fbase::Nothing, vs::VectorOfVelocities, dt::Real,
+        f::AbstractFilament, fbase::Nothing, vL::VectorOfVelocities, dt::Real,
     )
     Xs = nodes(f)
-    for i ∈ eachindex(Xs, vs)
-        @inbounds Xs[i] = Xs[i] + dt * vs[i]
+    for i ∈ eachindex(Xs, vL)
+        @inbounds Xs[i] = Xs[i] + dt * vL[i]
     end
     Filaments.update_coefficients!(f)  # note: in this case we recompute the knots
     nothing
@@ -940,9 +936,10 @@ Returns a `SimulationStatus`. Currently, this can be:
   be stopped.
 """
 function step!(iter::VortexFilamentSolver{T}) where {T}
-    (; fs, vs, time, adaptivity, dtmin, advect!, rhs!,) = iter
-    vs_start = iter.ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
-    copyto!(vs_start, vs)
+    (; fs, quantities, time, adaptivity, dtmin, advect!, rhs!,) = iter
+    (; ψs, vL,) = quantities
+    vL_start = ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
+    copyto!(vL_start, vL)
     t_end = iter.prob.tspan[2]
     if time.dt < dtmin && time.t + time.dt < t_end
         error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
@@ -952,25 +949,25 @@ function step!(iter::VortexFilamentSolver{T}) where {T}
     δ_crit::T = maximum_displacement(adaptivity)
 
     while true
-        # Note: the timesteppers assume that iter.vs already contains the velocity
-        # induced by the filaments at the start of the current timestep.
-        update_velocities!(vs, rhs!, advect!, iter.cache_timestepper, iter)
+        # Note: the timesteppers assume that vL already contains the filament velocities
+        # computed at the start of the current timestep.
+        update_velocities!(vL, rhs!, advect!, iter.cache_timestepper, iter)  # timestepping
 
         # Compute actual maximum displacement.
-        v_max = maximum_vector_norm(vs)::T
+        v_max = maximum_vector_norm(vL)::T
         δ_max = v_max * T(time.dt)
 
         if δ_max > δ_crit
             # Reject velocities and reduce timestep by half.
             time.nrejected += 1
             time.dt /= 2
-            copyto!(vs, vs_start)  # reset velocities to the beginning of timestep
+            copyto!(vL, vL_start)  # reset velocities to the beginning of timestep
         else
             break
         end
     end
 
-    advect!(fs, vs, time.dt)
+    advect!(fs, vL, time.dt)
     after_advection!(iter)
     time.t += time.dt
     time.nstep += 1
@@ -979,7 +976,7 @@ function step!(iter::VortexFilamentSolver{T}) where {T}
     status
 end
 
-# Here fields is usually (vs, ψs)
+# Here fields is usually (vs, ψs, vL, ...)
 @inline function reconnect_callback((fs, fields), f, i, mode::Symbol)
     if mode === :removed
         @debug lazy"Filament was removed at index $i"
@@ -1000,9 +997,9 @@ end
 end
 
 function Reconnections.reconnect!(iter::VortexFilamentSolver)
-    (; vs, fs, reconnect, to,) = iter
+    (; vL, fs, reconnect, to,) = iter
     fields = fields_to_resize(iter)
-    Reconnections.reconnect!(reconnect, fs, vs; to) do f, i, mode
+    Reconnections.reconnect!(reconnect, fs, vL; to) do f, i, mode
         reconnect_callback((fs, fields), f, i, mode)
     end
 end
@@ -1010,9 +1007,10 @@ end
 # Called whenever filament positions have just been initialised or updated.
 # Returns a SimulationStatus.
 function finalise_step!(iter::VortexFilamentSolver)
-    (; vs, ψs, fs, time, stats, adaptivity, rhs!,) = iter
+    (; fs, time, stats, adaptivity, rhs!,) = iter
+    (; vs, vL, ψs,) = iter.quantities
 
-    @assert eachindex(fs) == eachindex(vs)
+    @assert eachindex(fs) == eachindex(vL) == eachindex(vs)
 
     # Check if there are filaments to be removed (typically with ≤ 3 discretisation points,
     # but this depends on the actual discretisation method). Note that filaments may also
@@ -1043,7 +1041,7 @@ function finalise_step!(iter::VortexFilamentSolver)
     # Note that we only compute the streamfunction at full steps, and not in the middle of
     # RK substeps.
     # TODO: make computation of ψ optional?
-    fields = (velocity = vs, streamfunction = ψs,)
+    fields = (velocity = vL, streamfunction = ψs,)
 
     # Note: here we always include the LIA terms, even when using IMEX or multirate schemes.
     # This must be taken into account by scheme implementations.
