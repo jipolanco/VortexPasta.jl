@@ -512,9 +512,8 @@ function _compute_on_nodes!(
         StableTasks.@spawn nothing  # empty task (returns `nothing`)
     end
 
-    # This avoids concurrent use of `@threads :static` (two parallel sections running in
-    # parallel, one for each component), which throws an error. Note that PseudoGPU is only
-    # used in tests, and actually computes stuff on the CPU.
+    # This avoids overlapping computations on pure CPU, which probably don't make much sense.
+    # Note that PseudoGPU is only used in tests, and actually computes stuff on the CPU.
     device_lr isa PseudoGPU && wait(task_lr)
 
     # While the first long-range task is running, compute short-range part.
@@ -570,7 +569,7 @@ function _compute_LIA_on_nodes!(
     T = typeof(Γ)
     prefactor = Γ / T(4π)
     @timeit to "LIA term (only)" begin
-        Threads.@threads :static for n ∈ eachindex(fs)
+        Threads.@threads for n ∈ eachindex(fs)
             f = fs[n]
             ps = @inbounds _fields_to_pairs(fields, n)
             _compute_LIA_on_nodes!(ps, cache, f; prefactor)
