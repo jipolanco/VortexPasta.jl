@@ -174,7 +174,7 @@ function remove_long_range_self_interaction!(
         fs::VectorOfFilaments,
         args...,
     )
-    Threads.@threads :static for i ∈ eachindex(vs, fs)
+    Threads.@threads for i ∈ eachindex(vs, fs)
         @inbounds v, f = vs[i], fs[i]
         remove_long_range_self_interaction!(v, f, args...)
     end
@@ -187,13 +187,8 @@ function add_short_range_fields!(
         fs::VectorOfFilaments;
         kws...,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    # We parallelise at the level of the list of filaments.
-    # This is good when there are many filaments.
-    # Moreover, the :static scheduling option makes sense when roughly all the filaments
-    # have the same number of points. If that's not the case, it may be worth it to either
-    # (1) reorder filaments such that every "chunk" has oroughly the same number of points,
-    # or (2) use :dynamic scheduling.
-    Threads.@threads :static for i ∈ eachindex(fs)
+    # We parallelise at the level of the list of filaments. This is good when there are many filaments.
+    Threads.@threads for i ∈ eachindex(fs)
         fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
         add_short_range_fields!(fields_i, cache, fs[i]; kws...)
     end
