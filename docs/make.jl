@@ -157,6 +157,7 @@ function make_all(; generate_tutorials = true,)
             prettyurls = get(ENV, "CI", nothing) == "true",
             repolink = Remotes.repourl(repo),
             edit_link = "master",
+            collapselevel =  1,
             assets,
             size_threshold_ignore = [
                 "modules/Filaments.md",  # this page has too much content so it's relatively large
