@@ -5,6 +5,7 @@ version = "0.25.0"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
+Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 Bumper = "8ce10254-0962-460f-a3d8-1f77fea1446e"
 ChunkSplitters = "ae650224-84b6-46f8-82ea-d812ca08434e"
@@ -43,6 +44,7 @@ VortexPastaThreadPinningExt = ["ThreadPinning"]
 
 [compat]
 AbstractFFTs = "1.3"
+Accessors = "0.1.39"
 Adapt = "4.0.4"
 Bumper = "0.4, 0.5, 0.6, 0.7"
 CUDA = "5.4.3"

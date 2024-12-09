@@ -20,7 +20,7 @@ function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolv
 end
 
 function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws...)
-    (; vs, fs,) = iter
+    (; vs, fs,) = iter  # note: here we want vs (self-induced velocity) and not vL
     Ls = BiotSavart.periods(iter.prob.p)
     BiotSavart.domain_is_periodic(iter.prob.p) &&
         @warn(lazy"`kinetic_energy_nonperiodic` should only be called when working with non-periodic domains (got Ls = $Ls)")
@@ -39,12 +39,12 @@ function Diagnostics.vortex_impulse(iter::VortexFilamentSolver; kws...)
 end
 
 function Diagnostics.helicity(iter::VortexFilamentSolver; kws...)
-    Diagnostics.helicity(iter.fs, iter.vs, iter.prob.p; kws...)
+    Diagnostics.helicity(iter.fs, iter.vL, iter.prob.p; kws...)
 end
 
 function Diagnostics.stretching_rate(iter::VortexFilamentSolver; kws...)
-    (; fs, vs,) = iter
-    Diagnostics.stretching_rate(fs, vs; kws...)
+    (; fs, vL,) = iter
+    Diagnostics.stretching_rate(fs, vL; kws...)
 end
 
 # This allows passing a VortexFilamentSolver to energy_spectrum / energy_spectrum!.

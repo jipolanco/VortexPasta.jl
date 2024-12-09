@@ -175,7 +175,7 @@ maximum_displacement(crit::AdaptBasedOnVelocity) = crit.δ
 function estimate_timestep(crit::AdaptBasedOnVelocity, iter::AbstractSolver)
     (; dt_prev,) = iter  # dt_prev is the latest used timestep
     T = typeof(dt_prev)
-    v_max = maximum_vector_norm(iter.vs)
+    v_max = maximum_vector_norm(iter.quantities.vL)
     dt_estimate::T = crit.safety_factor * crit.δ / v_max
     # Avoid increasing the dt too abruptly compared to the previous timestep.
     # This seems to help reduce the number of rejected timesteps, in case the dt was reduced

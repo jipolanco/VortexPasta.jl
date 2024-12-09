@@ -52,6 +52,7 @@ using ..Forcing: Forcing, AbstractForcing, NormalFluidForcing
 # See https://docs.sciml.ai/CommonSolve/stable/
 import CommonSolve: init, solve!, step!
 
+using Accessors: @delete  # allows to remove entry from (Named)Tuple
 using ForwardDiff: ForwardDiff
 using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
 
@@ -140,15 +141,16 @@ Contains the instantaneous state of a vortex filament simulation.
 
 Must be constructed using [`init`](@ref).
 
-Some useful fields are:
+# Included fields
+
+Some useful fields included in a `VortexFilamentSolver` are:
 
 - `prob`: associated [`VortexFilamentProblem`](@ref) (including Biot–Savart parameters);
 
 - `fs`: current state of vortex filaments in the system;
 
-- `vs`: current velocity of vortex filament nodes;
-
-- `ψs`: current streamfunction at vortex filament nodes;
+- `quantities`: a `NamedTuple` containing data on filament nodes at the current simulation
+  timestep. See **Physical quantities** below for more details.
 
 - `time`: a [`TimeInfo`](@ref) object containing information such as the current time and timestep;
 
@@ -159,14 +161,45 @@ Some useful fields are:
 
 - `cache_bs`: the Biot–Savart cache, which contains data from short- and
   long-range computations.
+
+## Physical quantities
+
+The `quantities` field is a `NamedTuple` containing instantaneous data on filament nodes.
+For example, `quantities.vs` is the self-induced vortex velocity. To get the velocity of
+filament `i` at node `j`, one can do `quantities.vs[i][j]`. Moreover, these quantities are
+often interpolable, which means that one can do `quantities.vs[i](j, 0.5)` to get the
+velocity in-between two nodes.
+
+For convenience, if one has a `VortexFilamentSolver` `iter`, the shortcut `iter.vs` is
+equivalent to `iter.quantities.vs` (this also applies to all other quantities).
+
+### List of quantities
+
+- `vs`: self-induced vortex velocity (due to Biot–Savart law). If enabled, this also
+  includes the contribution of an `external_velocity` (see [`init`](@ref)).
+
+- `ψs`: self-induced streamfunction on vortices. This is useful for estimating the kinetic
+  energy associated to the induced velocity field. If enabled, this also includes the
+  contribution of an `external_streamfunction` (see [`init`](@ref)).
+
+If a normal fluid is present (e.g. by passing `forcing = NormalFluidForcing(...)` to [`init`](@ref)),
+then the following quantities are also included:
+
+- `vL`: actual filament velocity after mutual friction due to normal fluid (see [`NormalFluidForcing`](@ref)).
+
+- `vn`: normal fluid velocity at vortex locations.
+
+- `tangents`: unit tangents ``\\bm{s}'`` at vortex locations.
+
+For convenience, if there is no normal fluid, then `vL` is defined as an alias of `vs`
+(they're the same object).
+
 """
 struct VortexFilamentSolver{
         T,
         Problem <: VortexFilamentProblem{T},
         Filaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
-        # We use a Filament type to describe the velocity and streamfunction on filaments,
-        # to allow interpolation of these fields on filament locations.
-        VectorOnFilaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
+        Quantities <: NamedTuple,
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
         CacheReconnect <: AbstractReconnectionCache,
@@ -184,10 +217,7 @@ struct VortexFilamentSolver{
     } <: AbstractSolver
     prob  :: Problem
     fs    :: Filaments
-    vs    :: VectorOnFilaments
-    ψs    :: VectorOnFilaments
-    vn    :: VectorOnFilaments     # normal fluid (e.g. if forcing <: NormalFluidForcing; otherwise empty)
-    tangents :: VectorOnFilaments  # local tangents (only used if normal fluid is present; otherwise empty)
+    quantities :: Quantities  # stored fields: (vs, ψs) + optional ones (vn, tangents, ...)
     time  :: TimeInfo
     stats :: SimulationStats{T}
     dtmin :: T
@@ -210,18 +240,20 @@ struct VortexFilamentSolver{
 end
 
 function Base.show(io_in::IO, iter::VortexFilamentSolver)
+    (; quantities,) = iter
     io = IOContext(io_in, :indent => 4)  # this may be used by some `show` functions, for example for the forcing
     print(io, "VortexFilamentSolver with fields:")
     print(io, "\n - `prob`: ", nameof(typeof(iter.prob)))
     _print_summary(io, iter.fs; pre = "\n - `fs`: ", post =  " -- vortex filaments")
-    _print_summary(io, iter.vs; pre = "\n - `vs`: ", post = " -- velocity at nodes")
-    if !isempty(iter.vn)
-        _print_summary(io, iter.vn; pre = "\n - `vn`: ", post = " -- normal fluid velocity at nodes")
+    _print_summary(io, quantities.vL; pre = "\n - `quantities.vL`: ", post = " -- vortex line velocity (vs + mutual friction)")
+    _print_summary(io, quantities.vs; pre = "\n - `quantities.vs`: ", post = " -- self-induced + external superfluid velocity")
+    if haskey(quantities, :vn)
+        _print_summary(io, quantities.vn; pre = "\n - `quantities.vn`: ", post = " -- normal fluid velocity")
     end
-    if !isempty(iter.tangents)
-        _print_summary(io, iter.tangents; pre = "\n - `tangents`: ", post = " -- unit tangent at nodes")
+    if haskey(quantities, :tangents)
+        _print_summary(io, quantities.tangents; pre = "\n - `quantities.tangents`: ", post = " -- local unit tangent")
     end
-    _print_summary(io, iter.ψs; pre = "\n - `ψs`: ", post = " -- streamfunction at nodes")
+    _print_summary(io, quantities.ψs; pre = "\n - `quantities.ψs`: ", post = " -- streamfunction vector")
     print(io, "\n - `time`: ")
     summary(io, iter.time)
     print(io, "\n - `stats`: ")
@@ -258,15 +290,18 @@ end
 # current time.
 @inline function Base.getproperty(iter::VortexFilamentSolver, name::Symbol)
     time = getfield(iter, :time)
+    quantities = getfield(iter, :quantities)
     if hasproperty(time, name)
         getproperty(time, name)
+    elseif haskey(quantities, name)
+        quantities[name]
     else
         getfield(iter, name)
     end
 end
 
 function Base.propertynames(iter::VortexFilamentSolver, private::Bool = false)
-    (fieldnames(typeof(iter))..., propertynames(iter.time, private)...)
+    (fieldnames(typeof(iter))..., propertynames(iter.quantities, private)..., propertynames(iter.time, private)...)
 end
 
 _printable_function(f::TimerOutputs.InstrumentedFunction) = f.func
@@ -352,14 +387,14 @@ The difference between the `callback(iter)` and `affect!(iter)` functions is the
 which they are called:
 
 - the `affect!` function is called *before* performing Biot-Savart computations from the
-  latest filament positions. In other words, the fields `iter.vs` and `iter.ψs` are not
+  latest filament positions. In other words, the fields in `iter.quantities` are not
   synchronised with `iter.fs`, and it generally makes no sense to access them.
   Things like energy estimates will be incorrect if done in `affect!`. On the other hand,
   the `affect!` function **allows to modify `iter.fs`** before Biot–Savart computations are
   performed.
 
 - the `callback` function is called *after* performing Biot-Savart computations.
-  This means that `iter.vs` and `iter.ψs` correspond to the latest filament positions.
+  This means that the fields in `iter.quantities` have been computed from the latest filament positions.
   However, one **must not modify `iter.fs`**, or otherwise the velocity `iter.vs` (which
   will be used at the next timestep) will no longer correspond to the filament positions.
 
@@ -518,11 +553,11 @@ function init(
     end :: VectorOfVectors
     ψs = similar(vs)
 
-    # Initialise normal fluid velocity vector.
-    # It stays empty if it's never computed (if there's no normal fluid).
-    # Same for the local tangents.
-    vn = similar(vs)
-    tangents = similar(vs)
+    quantities = if with_normal_fluid(forcing)
+        (; vs, ψs, vL = similar(vs), vn = similar(vs), tangents = similar(vs),)
+    else
+        (; vs, ψs, vL = vs,)  # vL is an alias to vs
+    end
 
     fs_sol = alias_u0 ? fs : copy(fs)
 
@@ -564,17 +599,11 @@ function init(
     end
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, vs, ψs, vn, tangents, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
+        prob, fs_sol, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_fields,
         stretching_velocity, forcing,
         timer, advect!, rhs!,
     )
-
-    if !with_normal_fluid(iter)
-        # These are unused if there's no normal fluid.
-        empty!(iter.vn)
-        empty!(iter.tangents)
-    end
 
     status = finalise_step!(iter)
     status == SUCCESS || error("reached status = $status at initialisation")
@@ -582,13 +611,29 @@ function init(
     iter
 end
 
-with_normal_fluid(iter::VortexFilamentSolver) = iter.forcing isa NormalFluidForcing
+# For now, there is a normal fluid only if the forcing argument is a NormalFluidForcing.
+with_normal_fluid(forcing::NormalFluidForcing) = true
+with_normal_fluid(forcing) = false
+
+with_normal_fluid(iter::VortexFilamentSolver) = :vn ∈ keys(iter.quantities)
 
 function fields_to_resize(iter::VortexFilamentSolver)
+    (; quantities,) = iter
     if with_normal_fluid(iter)
-        (iter.vs, iter.ψs, iter.vn, iter.tangents)
+        values(quantities)  # resize all fields
     else
-        (iter.vs, iter.ψs)
+        @assert quantities.vs === quantities.vL  # they're aliased
+        values(@delete quantities.vL)  # resize all fields except vL (aliased with vs)
+    end
+end
+
+function fields_to_interpolate(iter::VortexFilamentSolver)
+    (; quantities,) = iter
+    if with_normal_fluid(iter)
+        values(quantities)  # interpolate all fields (not sure we need all of them...)
+    else
+        @assert quantities.vs === quantities.vL  # they're aliased
+        values(@delete quantities.vL)  # interpolate all fields except vL (aliased with vs)
     end
 end
 
@@ -705,10 +750,10 @@ function update_values_at_nodes!(
 end
 
 # Case where only the velocity is passed (generally used in internal RK substeps).
-function update_values_at_nodes!(vs::VectorOfVectors, args...; kws...)
-    fields = (velocity = vs,)
+function update_values_at_nodes!(vL::VectorOfVectors, args...; kws...)
+    fields = (velocity = vL,)
     update_values_at_nodes!(fields, args...; kws...)
-    vs
+    vL
 end
 
 # Here buf is usually a VectorOfFilaments or a vector of vectors of velocities
@@ -758,11 +803,11 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
     n
 end
 
-function _advect_filament!(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
+function _advect_filament!(f::T, fbase::T, vL, dt) where {T <: AbstractFilament}
     Xs = nodes(f)
     Ys = nodes(fbase)
-    for i ∈ eachindex(Xs, Ys, vs)
-        @inbounds Xs[i] = Ys[i] + dt * vs[i]
+    for i ∈ eachindex(Xs, Ys, vL)
+        @inbounds Xs[i] = Ys[i] + dt * vL[i]
     end
     # Compute interpolation coefficients making sure that knots are preserved (and not
     # recomputed from new locations).
@@ -771,11 +816,11 @@ function _advect_filament!(f::T, fbase::T, vs, dt) where {T <: AbstractFilament}
 end
 
 function _advect_filament!(
-        f::AbstractFilament, fbase::Nothing, vs::VectorOfVelocities, dt::Real,
+        f::AbstractFilament, fbase::Nothing, vL::VectorOfVelocities, dt::Real,
     )
     Xs = nodes(f)
-    for i ∈ eachindex(Xs, vs)
-        @inbounds Xs[i] = Xs[i] + dt * vs[i]
+    for i ∈ eachindex(Xs, vL)
+        @inbounds Xs[i] = Xs[i] + dt * vL[i]
     end
     Filaments.update_coefficients!(f)  # note: in this case we recompute the knots
     nothing
@@ -824,21 +869,21 @@ end
 # - some list of filaments similar to `fs`, used to advect from `fbase` to `fs` with the
 #   chosen velocity. This is generally done from within RK stages, and in this case things
 #   like filament refinement are not performed.
-advect_filaments!(fs, vs, dt; fbase = nothing, kws...) =
-    _advect_filaments!(fs, fbase, vs, dt; kws...)
+advect_filaments!(fs, vL, dt; fbase = nothing, kws...) =
+    _advect_filaments!(fs, fbase, vL, dt; kws...)
 
 # Variant called at the end of a timestep.
-function _advect_filaments!(fs, fbase::Nothing, vs, dt)
-    for i ∈ eachindex(fs, vs)
-        @inbounds _advect_filament!(fs[i], nothing, vs[i], dt)
+function _advect_filaments!(fs, fbase::Nothing, vL, dt)
+    for i ∈ eachindex(fs, vL)
+        @inbounds _advect_filament!(fs[i], nothing, vL[i], dt)
     end
     fs
 end
 
 # Variant called from within RK stages.
-function _advect_filaments!(fs::T, fbase::T, vs, dt) where {T}
-    for i ∈ eachindex(fs, fbase, vs)
-        @inbounds _advect_filament!(fs[i], fbase[i], vs[i], dt)
+function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}
+    for i ∈ eachindex(fs, fbase, vL)
+        @inbounds _advect_filament!(fs[i], fbase[i], vL[i], dt)
     end
     fs
 end
@@ -891,9 +936,10 @@ Returns a `SimulationStatus`. Currently, this can be:
   be stopped.
 """
 function step!(iter::VortexFilamentSolver{T}) where {T}
-    (; fs, vs, time, adaptivity, dtmin, advect!, rhs!,) = iter
-    vs_start = iter.ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
-    copyto!(vs_start, vs)
+    (; fs, quantities, time, adaptivity, dtmin, advect!, rhs!,) = iter
+    (; ψs, vL,) = quantities
+    vL_start = ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
+    copyto!(vL_start, vL)
     t_end = iter.prob.tspan[2]
     if time.dt < dtmin && time.t + time.dt < t_end
         error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
@@ -903,25 +949,25 @@ function step!(iter::VortexFilamentSolver{T}) where {T}
     δ_crit::T = maximum_displacement(adaptivity)
 
     while true
-        # Note: the timesteppers assume that iter.vs already contains the velocity
-        # induced by the filaments at the start of the current timestep.
-        update_velocities!(vs, rhs!, advect!, iter.cache_timestepper, iter)
+        # Note: the timesteppers assume that vL already contains the filament velocities
+        # computed at the start of the current timestep.
+        update_velocities!(vL, rhs!, advect!, iter.cache_timestepper, iter)  # timestepping
 
         # Compute actual maximum displacement.
-        v_max = maximum_vector_norm(vs)::T
+        v_max = maximum_vector_norm(vL)::T
         δ_max = v_max * T(time.dt)
 
         if δ_max > δ_crit
             # Reject velocities and reduce timestep by half.
             time.nrejected += 1
             time.dt /= 2
-            copyto!(vs, vs_start)  # reset velocities to the beginning of timestep
+            copyto!(vL, vL_start)  # reset velocities to the beginning of timestep
         else
             break
         end
     end
 
-    advect!(fs, vs, time.dt)
+    advect!(fs, vL, time.dt)
     after_advection!(iter)
     time.t += time.dt
     time.nstep += 1
@@ -930,7 +976,7 @@ function step!(iter::VortexFilamentSolver{T}) where {T}
     status
 end
 
-# Here fields is usually (vs, ψs)
+# Here fields is usually (vs, ψs, vL, ...)
 @inline function reconnect_callback((fs, fields), f, i, mode::Symbol)
     if mode === :removed
         @debug lazy"Filament was removed at index $i"
@@ -951,9 +997,9 @@ end
 end
 
 function Reconnections.reconnect!(iter::VortexFilamentSolver)
-    (; vs, fs, reconnect, to,) = iter
+    (; vL, fs, reconnect, to,) = iter
     fields = fields_to_resize(iter)
-    Reconnections.reconnect!(reconnect, fs, vs; to) do f, i, mode
+    Reconnections.reconnect!(reconnect, fs, vL; to) do f, i, mode
         reconnect_callback((fs, fields), f, i, mode)
     end
 end
@@ -961,9 +1007,10 @@ end
 # Called whenever filament positions have just been initialised or updated.
 # Returns a SimulationStatus.
 function finalise_step!(iter::VortexFilamentSolver)
-    (; vs, ψs, fs, time, stats, adaptivity, rhs!,) = iter
+    (; fs, time, stats, adaptivity, rhs!,) = iter
+    (; vs, vL, ψs,) = iter.quantities
 
-    @assert eachindex(fs) == eachindex(vs)
+    @assert eachindex(fs) == eachindex(vL) == eachindex(vs)
 
     # Check if there are filaments to be removed (typically with ≤ 3 discretisation points,
     # but this depends on the actual discretisation method). Note that filaments may also
@@ -994,7 +1041,7 @@ function finalise_step!(iter::VortexFilamentSolver)
     # Note that we only compute the streamfunction at full steps, and not in the middle of
     # RK substeps.
     # TODO: make computation of ψ optional?
-    fields = (velocity = vs, streamfunction = ψs,)
+    fields = (velocity = vL, streamfunction = ψs,)
 
     # Note: here we always include the LIA terms, even when using IMEX or multirate schemes.
     # This must be taken into account by scheme implementations.
@@ -1004,10 +1051,11 @@ function finalise_step!(iter::VortexFilamentSolver)
     # reconnections. We make sure we use the same parametrisation (knots) of the filaments
     # themselves.
     # TODO: perform reconnections after this?
-    for i ∈ eachindex(fs, vs, ψs)
+    for i ∈ eachindex(fs)
         local ts = Filaments.knots(fs[i])
-        Filaments.update_coefficients!(vs[i]; knots = ts)
-        Filaments.update_coefficients!(ψs[i]; knots = ts)
+        foreach(fields_to_interpolate(iter)) do qs
+            Filaments.update_coefficients!(qs[i]; knots = ts)
+        end
     end
 
     time.dt_prev = time.dt
