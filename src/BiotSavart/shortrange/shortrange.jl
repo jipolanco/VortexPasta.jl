@@ -187,8 +187,11 @@ function add_short_range_fields!(
         fs::VectorOfFilaments;
         kws...,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    # We parallelise at the level of the list of filaments. This is good when there are many filaments.
-    Threads.@threads for i ∈ eachindex(fs)
+    # Note: we don't parallelise here but inside add_short_range_fields!, at the level of
+    # the filament nodes. This makes sense when filaments have different lengths, or when we
+    # only have a few filaments. And it's ok because the cost of each iteration (work per
+    # filament node) is relatively large, so the overhead of threads is hidden.
+    for i ∈ eachindex(fs)
         fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
         add_short_range_fields!(fields_i, cache, fs[i]; kws...)
     end
@@ -237,7 +240,7 @@ function add_short_range_fields!(
     nonlia_lims = nonlia_integration_limits(lia_segment_fraction)
     ps = _fields_to_pairs(fields)
 
-    for i ∈ eachindex(Xs)
+    Threads.@threads for i ∈ eachindex(Xs)
         x⃗ = Xs[i]
 
         # Determine segments `sa` and `sb` in contact with the singular point x⃗.
