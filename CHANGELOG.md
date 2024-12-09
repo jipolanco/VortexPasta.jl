@@ -5,7 +5,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- **Breaking**: When a normal fluid is applied, the `vs` field of
+  a `VortexFilamentSolver` (usually `iter.vs`) now represents the self-induced
+  vortex velocity, while the `vL` field is the actual filament velocity
+  including the contribution from mutual friction.
+
 ### Added
+
+- Store self-induced velocity ($v_s$) in addition to the actual filament
+  velocity ($v_L$) in `Timestepping.VortexFilamentSolver`.
 
 - Allow saving state of `FourierBandVectorField` to HDF5 file and loading it back.
   This is useful in particular for restarts.
