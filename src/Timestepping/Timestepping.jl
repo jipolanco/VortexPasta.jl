@@ -619,7 +619,27 @@ end
 with_normal_fluid(forcing::NormalFluidForcing) = true
 with_normal_fluid(forcing) = false
 
-fields_to_resize(iter::VortexFilamentSolver) = values(iter.quantities)
+with_normal_fluid(iter::VortexFilamentSolver) = :vn ∈ keys(iter.quantities)
+
+function fields_to_resize(iter::VortexFilamentSolver)
+    (; quantities,) = iter
+    if with_normal_fluid(iter)
+        values(quantities)  # resize all fields
+    else
+        @assert quantities.vs === quantities.vL  # they're aliased
+        values(@delete quantities.vL)  # resize all fields except vL (aliased with vs)
+    end
+end
+
+function fields_to_interpolate(iter::VortexFilamentSolver)
+    (; quantities,) = iter
+    if with_normal_fluid(iter)
+        values(quantities)  # interpolate all fields (not sure we need all of them...)
+    else
+        @assert quantities.vs === quantities.vL  # they're aliased
+        values(@delete quantities.vL)  # interpolate all fields except vL (aliased with vs)
+    end
+end
 
 # Check that the external streamfunction satisfies v = ∇ × ψ on a single arbitrary point.
 # We check this using automatic differentiation of ψ at a given point.
@@ -853,21 +873,21 @@ end
 # - some list of filaments similar to `fs`, used to advect from `fbase` to `fs` with the
 #   chosen velocity. This is generally done from within RK stages, and in this case things
 #   like filament refinement are not performed.
-advect_filaments!(fs, vs, dt; fbase = nothing, kws...) =
-    _advect_filaments!(fs, fbase, vs, dt; kws...)
+advect_filaments!(fs, vL, dt; fbase = nothing, kws...) =
+    _advect_filaments!(fs, fbase, vL, dt; kws...)
 
 # Variant called at the end of a timestep.
-function _advect_filaments!(fs, fbase::Nothing, vs, dt)
-    for i ∈ eachindex(fs, vs)
-        @inbounds _advect_filament!(fs[i], nothing, vs[i], dt)
+function _advect_filaments!(fs, fbase::Nothing, vL, dt)
+    for i ∈ eachindex(fs, vL)
+        @inbounds _advect_filament!(fs[i], nothing, vL[i], dt)
     end
     fs
 end
 
 # Variant called from within RK stages.
-function _advect_filaments!(fs::T, fbase::T, vs, dt) where {T}
-    for i ∈ eachindex(fs, fbase, vs)
-        @inbounds _advect_filament!(fs[i], fbase[i], vs[i], dt)
+function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}
+    for i ∈ eachindex(fs, fbase, vL)
+        @inbounds _advect_filament!(fs[i], fbase[i], vL[i], dt)
     end
     fs
 end
@@ -1033,10 +1053,11 @@ function finalise_step!(iter::VortexFilamentSolver)
     # reconnections. We make sure we use the same parametrisation (knots) of the filaments
     # themselves.
     # TODO: perform reconnections after this?
-    for i ∈ eachindex(fs, vs, ψs)
+    for i ∈ eachindex(fs)
         local ts = Filaments.knots(fs[i])
-        Filaments.update_coefficients!(vs[i]; knots = ts)
-        Filaments.update_coefficients!(ψs[i]; knots = ts)
+        foreach(fields_to_interpolate(iter)) do qs
+            Filaments.update_coefficients!(qs[i]; knots = ts)
+        end
     end
 
     time.dt_prev = time.dt
