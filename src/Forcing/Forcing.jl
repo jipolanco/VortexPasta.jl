@@ -19,13 +19,17 @@ Abstract type representing a forcing method.
 abstract type AbstractForcing end
 
 """
-    Forcing.apply!(forcing::AbstractForcing, vs::AbstractVector{<:Vec3}, f::AbstractFilament)
+    Forcing.apply!(forcing::AbstractForcing, vL, vs, f::AbstractFilament)
 
-Apply forcing to a single filament `f`, modifying vortex velocities `vs`.
+Apply forcing to a single filament `f` with self-induced velocities `vs`.
+
+Results are written to `vL`.
+
+Both `vL` and `vs` should be vectors of `Vec3` (`AbstractVector{<:Vec3}`).
 
 ---
 
-    Forcing.apply!(forcing::NormalFluidForcing, vs::AbstractVector{<:Vec3}, vn::AbstractVector{<:Vec3}, tangents::AbstractVector{<:Vec3})
+    Forcing.apply!(forcing::NormalFluidForcing, vL, vs, vn, tangents)
 
 This variant can be used in the case of a [`NormalFluidForcing`](@ref) if one already has
 precomputed values of the normal fluid velocity and local unit tangents at filament points.
@@ -136,36 +140,36 @@ function get_velocities!(forcing::NormalFluidForcing, vn::AbstractVector, f::Abs
     vn
 end
 
-function apply!(forcing::NormalFluidForcing, vs::AbstractVector, f::AbstractFilament)
-    length(vs) == length(f) || throw(DimensionMismatch("lengths of filament and velocity vector don't match"))
-    @inline get_at_node(i) = (v⃗ₙ = forcing.vn(f[i]), s⃗′ = f[i, UnitTangent()])
-    _apply!(get_at_node, forcing, vs)
+function apply!(forcing::NormalFluidForcing, vL::AbstractVector, vs::AbstractVector, f::AbstractFilament)
+    eachindex(vL) == eachindex(vs) == eachindex(f) || throw(DimensionMismatch("lengths of filament and velocity vectors don't match"))
+    @inline get_at_node(i) = (v⃗ₛ = vs[i], v⃗ₙ = forcing.vn(f[i]), s⃗′ = f[i, UnitTangent()])
+    _apply!(get_at_node, forcing, vL)
 end
 
-function apply!(forcing::NormalFluidForcing, vs::AbstractVector, vn::AbstractVector, tangents::AbstractVector)
-    eachindex(vs) == eachindex(vn) == eachindex(tangents) || throw(DimensionMismatch("lengths of vectors don't match"))
-    @inline get_at_node(i) = @inbounds (v⃗ₙ = vn[i], s⃗′ = tangents[i],)
-    _apply!(get_at_node, forcing, vs)
+function apply!(forcing::NormalFluidForcing, vL::AbstractVector, vs::AbstractVector, vn::AbstractVector, tangents::AbstractVector)
+    eachindex(vL) == eachindex(vs) == eachindex(vn) == eachindex(tangents) || throw(DimensionMismatch("lengths of vectors don't match"))
+    @inline get_at_node(i) = @inbounds (v⃗ₛ = vs[i], v⃗ₙ = vn[i], s⃗′ = tangents[i],)
+    _apply!(get_at_node, forcing, vL)
 end
 
 # The first argument is a `get_at_node(i)` function which returns a NamedTuple with fields
-# (v⃗ₙ, s⃗′) with the normal fluid velocity and the local unit tangent at the node `i` of a
-# filament. This is useful if those quantities have been precomputed.
-function _apply!(get_at_node::F, forcing::NormalFluidForcing, vs::AbstractVector) where {F <: Function}
+# (v⃗ₛ, v⃗ₙ, s⃗′) with the superfluid velocity, normal fluid velocity and the local unit
+# tangent at the node `i` of a filament. This is useful if those quantities have been
+# precomputed.
+function _apply!(get_at_node::F, forcing::NormalFluidForcing, vL::AbstractVector) where {F <: Function}
     (; α, α′,) = forcing
-    V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
-    for i ∈ eachindex(vs)
-        v⃗ₛ = vs[i]  # vortex velocity before mutual friction forcing
-        (; v⃗ₙ, s⃗′,) = @inline get_at_node(i)  # local normal fluid velocity and unit tangent
-        vₙₛ = V(v⃗ₙ) - v⃗ₛ     # slip velocity
+    V = eltype(vL)  # usually Vec3{T} = SVector{3, T}
+    for i ∈ eachindex(vL)
+        (; v⃗ₛ, v⃗ₙ, s⃗′,) = @inline get_at_node(i)  # superfluid velocity, normal fluid velocity and unit tangent
+        vₙₛ = V(v⃗ₙ) - V(v⃗ₛ)   # slip velocity
         v_perp = s⃗′ × vₙₛ
-        vf = α * v_perp      # velocity due to Magnus force
+        vf = α * v_perp    # velocity due to Magnus force
         if !iszero(α′)
             vf = vf - α′ * s⃗′ × v_perp  # velocity due to drag force (it's quite common to set α′ = 0)
         end
-        vs[i] = vs[i] + vf
+        vL[i] = v⃗ₛ + vf
     end
-    vs
+    vL
 end
 
 end

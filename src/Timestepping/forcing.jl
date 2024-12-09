@@ -72,7 +72,7 @@ function _apply_forcing!(vs_all, forcing::NormalFluidForcing, iter, fs, t, to)
                 tangents[i] = f[i, UnitTangent()]
             end
             Forcing.get_velocities!(forcing, vn, f)    # evaluate normal fluid velocities
-            Forcing.apply!(forcing, vs, vn, tangents)  # modify vs according to the given forcing
+            Forcing.apply!(forcing, vs, vs, vn, tangents)  # modify vs according to the given forcing
         end
     end
     nothing
