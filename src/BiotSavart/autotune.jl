@@ -73,7 +73,8 @@ The following keyword arguments can be used to control autotuning:
 - `nruns = 4`: number of Biot–Savart calculations per value of ``α``. The *minimum* elapsed
   time among all runs will be used in autotuning;
 
-- `Cstart = 1.5`: initial guess for non-dimensional factor ``C`` (see **Autotuning algorithm** below);
+- `Cstart`: initial guess for non-dimensional factor ``C`` (see **Autotuning algorithm** below).
+  Default values are 1.5 (pure CPU) and 4.0 (CPU + GPU).
 
 - `ΔC = 0.1`: increment of non-dimensional factor ``C``;
 

@@ -45,6 +45,7 @@ function test_ring_collision(;
         Γ, a, Δ, Ls = Lbox,
         backend_long,
         verbose = true,
+        Cstart = 1.5,
     )
     # println(params)
 
