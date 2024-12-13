@@ -57,7 +57,7 @@ This will automatically install the latest Julia release and make it available f
 To get started with using Julia, the [Modern Julia Workflows blog](https://modernjuliaworkflows.github.io/) is a great source of practical information.
 See in particular the section on [writing Julia code](https://modernjuliaworkflows.github.io/pages/writing/writing/).
 
-In particular, it is highly recommended to install the [Revise.jl](https://github.com/timholy/Revise.jl/) package in the default environment.
+In particular, it is highly recommended to install the [Revise.jl](https://github.com/timholy/Revise.jl/) package in the global environment.
 This package keeps track of modifications of included code when working from a Julia session, which means that one doesn't need to re-include a Julia file each time it is modified.
 To install it, launch Julia in a terminal, enter package mode using `]`, and then:
 
@@ -80,9 +80,9 @@ catch e
 end
 ```
 
-### Local environments
+### [Local environments](@id julia-local-environments)
 
-Above, both packages have been installed in the default environment (`@v1.X`), which is convenient because we want to load these packages no matter which Julia project we're currently working on.
+Above, both packages have been installed in the global environment (`@v1.X`), which is convenient because we want to load these packages no matter which Julia project we're currently working on.
 
 For more specific things (such as doing simulations using VortexPasta.jl), it is [recommended](https://modernjuliaworkflows.github.io/writing/#environments) to install things in a *local* environment, which allows (among other things) to avoid conflicts between package versions when working on different Julia projects.
 

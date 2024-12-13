@@ -113,7 +113,7 @@ Moreover, integrals are estimated using [numerical integration](@ref Numerical-i
 
 Note that one can use a [cell lists algorithm](@ref CellLists) to further speed-up the search for nearby points.
 
-## Long-range velocity
+## [Long-range velocity](@id Long-range-velocity)
 
 The long-range velocity ``\bm{v}^>`` has a simple physical interpretation.
 Indeed, it can be shown, by differentiating the splitting functions defined above,
@@ -185,7 +185,15 @@ Similarly, the curl operator can be easily inverted in Fourier space to get the 
     Otherwise we get division by zero, which is related to the fact that we're dealing with an infinitely periodic system and energy diverges with a non-zero mean vorticity.
 
     This condition is automatically satisfied when dealing with closed vortex filaments.
-    This may however not be the case for infinite filaments (for instance, putting a single straight infinite filament in the domain is ill-defined).
+    This may however not be the case for infinite filaments.
+
+    To avoid this issue, we always set the mean vorticity to zero.
+    In the case of infinite unclosed filaments, this effectively means that a non-zero
+    total filament charge will be compensated by a background uniform vorticity
+    throughout the domain, which can be interpreted as if the computations were performed
+    in a rotating reference frame.
+    This just requires some care in the computation of the streamfunction (and thus the induced kinetic energy)
+    as detailed in [`BiotSavart.background_vorticity_correction!`](@ref).
 
 ### [3. Notes on required resolution](@id Ewald-notes-kmax)
 

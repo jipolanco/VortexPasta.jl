@@ -174,6 +174,7 @@ function make_all(; generate_tutorials = true,)
             ],
             "Tips and tricks" => [
                 "tips/parallelisation.md",
+                "tips/gpu.md",
             ],
             "Modules" => [
                 "modules/PaddedArrays.md",

@@ -803,6 +803,7 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
     n
 end
 
+# Variant called in RK substeps
 function _advect_filament!(f::T, fbase::T, vL, dt) where {T <: AbstractFilament}
     Xs = nodes(f)
     Ys = nodes(fbase)
@@ -815,6 +816,7 @@ function _advect_filament!(f::T, fbase::T, vL, dt) where {T <: AbstractFilament}
     nothing
 end
 
+# Variant called to really advect filaments from one timestep to the next
 function _advect_filament!(
         f::AbstractFilament, fbase::Nothing, vL::VectorOfVelocities, dt::Real,
     )
