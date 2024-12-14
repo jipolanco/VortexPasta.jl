@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Workaround possible precompilation failure when setting multiple CPU targets
+  via the `JULIA_CPU_TARGET` environment variable.
+  This is useful on HPC clusters where different nodes may have different CPU types.
+  In particular, the problem was observed when setting `JULIA_CPU_TARGET=generic;sapphirerapids,clone_all;cascadelake,clone_all` on the Jean-Zay IDRIS cluster.
+
 ## [0.25.1] - 2024-12-09
 
 ### Changed

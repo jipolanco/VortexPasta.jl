@@ -58,11 +58,6 @@ using PrecompileTools: @setup_workload, @compile_workload
     a = 1e-6
     Δ = 1/4  # full core
 
-    function callback(iter)
-        E = Diagnostics.kinetic_energy_from_streamfunction(iter)
-        nothing
-    end
-
     @compile_workload begin
         params_bs = ParamsBiotSavart(;
             Γ, a, Δ,
@@ -81,15 +76,24 @@ using PrecompileTools: @setup_workload, @compile_workload
         # Initialise and run simulation
         tspan = (0.0, 0.01)
         prob = VortexFilamentProblem(fs, tspan, params_bs)
-        iter = init(
-            prob, RK4();
-            dt = 0.001,
-            adaptivity = AdaptBasedOnSegmentLength(1.0),
-            refinement = RefineBasedOnSegmentLength(0.75 * l_min),
-            reconnect = ReconnectBasedOnDistance(l_min),
-            callback,
-        )
-        solve!(iter)
+
+        # function callback(iter)
+        #     E = Diagnostics.kinetic_energy_from_streamfunction(iter)
+        #     nothing
+        # end
+
+        # Precompilation of `init` seems to fail when setting multiple CPU targets via the
+        # JULIA_CPU_TARGET environment variable (this is useful on HPC clusters), so we
+        # comment it out.
+        # iter = init(
+        #     prob, RK4();
+        #     dt = 0.001,
+        #     adaptivity = AdaptBasedOnSegmentLength(1.0),
+        #     refinement = RefineBasedOnSegmentLength(0.75 * l_min),
+        #     reconnect = ReconnectBasedOnDistance(l_min),
+        #     callback,
+        # )
+        # solve!(iter)
     end
 end
 
