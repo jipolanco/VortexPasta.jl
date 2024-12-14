@@ -47,6 +47,14 @@ local = "true"
 version = "12.4"
 ```
 
+Afterwards, it may be helpful to launch `julia` again and run:
+
+```julia-repl
+julia> using CUDA
+
+julia> CUDA.precompile_runtime()
+```
+
 ### 2. Using CUDA.jl in a local environment
 
 After CUDA.jl has been configured in the global environment, one would want to
