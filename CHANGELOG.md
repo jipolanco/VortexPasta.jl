@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.25.3] - 2024-12-16
+
 ### Fixed
 
 - Workaround CUDA failure when transferring data between host and device.
