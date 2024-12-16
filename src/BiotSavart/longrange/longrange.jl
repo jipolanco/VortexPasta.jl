@@ -480,7 +480,8 @@ function set_interpolation_points_impl!(
     _set_interpolation_points!(xs_h, fs)  # gather points on the CPU
     # Copy to GPU
     for i ∈ eachindex(xs_d, xs_h)
-        KA.copyto!(ka_backend, xs_d[i], xs_h[i])
+        # KA.copyto!(ka_backend, xs_d[i], xs_h[i])  # may fail on CUDA due to pinning of CPU memory (https://github.com/JuliaGPU/CUDA.jl/issues/2594)
+        copyto!(xs_d[i], xs_h[i])  # this doesn't fail (avoids pinning; probably slower but always works)
     end
     nothing
 end
@@ -527,7 +528,8 @@ function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_
     qs_h = StructArrays.components(charges_h)
     for i ∈ eachindex(qs_d, qs_h)
         resize_no_copy!(qs_h[i], length(qs_d[i]))
-        KA.copyto!(ka_backend, qs_h[i], qs_d[i])  # device-to-host copy
+        # KA.copyto!(ka_backend, qs_h[i], qs_d[i])  # may fail on CUDA due to pinning of CPU memory (https://github.com/JuliaGPU/CUDA.jl/issues/2594)
+        copyto!(qs_h[i], qs_d[i])  # this doesn't fail (avoids pinning; probably slower but always works)
     end
     KA.synchronize(ka_backend)  # make sure we're done copying data to CPU (needed on CUDA, where KA.copyto! is asynchronous)
     # Now add long-range values to `vs` output.

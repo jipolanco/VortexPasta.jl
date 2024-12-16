@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Workaround CUDA failure when transferring data between host and device.
+  This could happen in simulations where the number of vortex points tended to increase over time
+  (e.g. forced simulations).
+  Seems to be related to an issue with memory-pinned CPU arrays whose size (and
+  thus their location in memory) can change over time.
+  See [CUDA.jl issue](https://github.com/JuliaGPU/CUDA.jl/issues/2594) for details.
+
 ## [0.25.2] - 2024-12-16
 
 ### Fixed
