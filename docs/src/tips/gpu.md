@@ -13,8 +13,8 @@ One may want to avoid it and instead use a CUDA toolkit already installed in the
 This is particularly important on **HPC clusters**, where an internet connection may not be available on compute nodes (GPU-enabled) but only on login nodes (without GPUs).
 
 To do this, one should first determine the version of the available CUDA toolkit.
-This may be obtained by running `nvidia-smi` on the system where computations will be performed (e.g. from a compute node).
-Look for something like `CUDA Version: 12.4` on the top.
+This may be obtained by running `nvcc --version` on the system where computations will be performed (e.g. from a compute node).
+Look for a line similar to `Cuda compilation tools, release 12.4, V12.4.131` (here the version is `12.4`).
 On HPC clusters, one may first need to load a CUDA module, e.g. `module load cuda` (but this will depend on the cluster).
 
 Then, the configuration should be performed in the two steps detailed below.
@@ -36,7 +36,7 @@ julia> using CUDA
 julia> CUDA.set_runtime_version!(v"12.4"; local_toolkit = true)
 ```
 
-The `12.4` should be replaced with the CUDA version found using `nvidia-smi`.
+The `12.4` should be replaced with the CUDA version found using `nvcc --version`.
 See the [CUDA.jl docs](https://cuda.juliagpu.org/dev/installation/overview/#Using-a-local-CUDA) for more details.
 
 This should generate a `LocalPreferences.toml` file under `$JULIA_DEPOT_PATH/environments/v1.11/` (replace `v1.11` with the current Julia version), which should look as follows:
