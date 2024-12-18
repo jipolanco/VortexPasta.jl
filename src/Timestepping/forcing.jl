@@ -70,7 +70,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, iter, fs, t, to)
     @assert vs_all !== vL_all
     @assert eachindex(vL_all) == eachindex(vn_all) == eachindex(tangents_all) == eachindex(vs_all) == eachindex(fs)
     @timeit to "Add forcing" begin
-        @inbounds Threads.@threads for n ∈ eachindex(fs)
+        @inbounds for n ∈ eachindex(fs)
             f = fs[n]
             vs = vs_all[n]
             vL = vL_all[n]
@@ -78,11 +78,11 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, iter, fs, t, to)
             tangents = tangents_all[n]
             # At input, vL contains the self-induced velocity vs.
             # We copy vL -> vs before modifying vL with the actual vortex velocities.
-            for i ∈ eachindex(f, tangents)
+            Threads.@threads for i ∈ eachindex(f, tangents)
                 tangents[i] = f[i, UnitTangent()]  # TODO: can we reuse the tangents / computed elsewhere?
                 vs[i] = vL[i]
+                vn[i] = forcing.vn(f[i])  # evaluate normal fluid velocity
             end
-            Forcing.get_velocities!(forcing, vn, f)    # evaluate normal fluid velocities
             Forcing.apply!(forcing, vL, vn, tangents)  # compute vL according to the given forcing (vL = vs at input)
         end
     end
