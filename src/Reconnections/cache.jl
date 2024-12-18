@@ -79,13 +79,6 @@ function _init_cache(crit::ReconnectionCriterion, fs, Ls)
     # distance is only used to compare the segment *midpoints*.
     r_cut = 2 * distance(crit)
     Lmax = maximum(Ls)
-    if !isinf(Lmax)
-        # Heuristic: in the periodic case, make sure there's at most ~32 cells per
-        # direction. The cell lists implementation can get really slow when there are too
-        # many cells (especially ~256³ and up).
-        # TODO: is this still the case? the CL implementation was improved at some point...
-        r_cut = max(r_cut, Lmax / 32)
-    end
     finder = if has_nonperiodic_directions
         NaiveSegmentFinder(fs)
     else
