@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Try to always parallelise (using threads) over filament nodes as opposed to separate filaments.
+  This will speed up things in cases where there are few filaments, or even
+  a single large filament along with many small ones.
+  Also, we now parallelise reconnections (candidate finding) as well.
+
 ## [0.25.3] - 2024-12-16
 
 ### Fixed

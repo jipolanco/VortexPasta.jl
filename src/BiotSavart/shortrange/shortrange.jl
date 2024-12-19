@@ -158,7 +158,7 @@ function remove_long_range_self_interaction!(
     segs = segments(f)
     Lhs = map(L -> L / 2, params.Ls)
     prefactor = params.Γ / (4π)
-    @inbounds for i ∈ eachindex(Xs, vs)
+    @inbounds Threads.@threads for i ∈ eachindex(Xs, vs)
         x⃗ = Xs[i]
         sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
         sb = Segment(f, i)  # segment i
@@ -174,7 +174,7 @@ function remove_long_range_self_interaction!(
         fs::VectorOfFilaments,
         args...,
     )
-    Threads.@threads for i ∈ eachindex(vs, fs)
+    for i ∈ eachindex(vs, fs)
         @inbounds v, f = vs[i], fs[i]
         remove_long_range_self_interaction!(v, f, args...)
     end
