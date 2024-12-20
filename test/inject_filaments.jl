@@ -57,7 +57,6 @@ function test_injection(::Type{T}, Np, method) where {T}
     tspan = (zero(τ), τ)
 
     prob = VortexFilamentProblem(fs, tspan, params)
-    println(prob)
 
     dt = BiotSavart.kelvin_wave_period(params, d_min)
     scheme = RK4()
@@ -112,7 +111,12 @@ function test_injection(::Type{T}, Np, method) where {T}
     lineplot!(plt, time, energy ./ energy[begin]; name = "Energy")
     display(plt)
 
-    @test 2.0 < length[end] / length[begin] < 2.2  # we're at roughly 2× the initial vortex length
+    L_relchange = length[end] / length[begin]
+    # XXX: results seem to slightly depend on Julia version (between v1.10 and v1.11).
+    # Why is that??? In particular, the RNG should be independent of the version (using
+    # StableRNGs)...
+    @show L_relchange
+    @test 2.10 < L_relchange < 2.25  # we're at roughly 2× the initial vortex length
 
     nothing
 end
