@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   calling the new `Timestepping.inject_filament!` function from within an `affect!` callback
   (see docs for details).
 
+### Changed
+
+- Reduce variability of results due to recent parallelisation of reconnections.
+  Previously, the order of reconnections was somewhat arbitrary, depending on
+  which threads tested which segment pairs and in which order. We now give
+  priority to pairs which have the smallest distance.
+
 ## [0.25.4] - 2024-12-19
 
 ### Changed
