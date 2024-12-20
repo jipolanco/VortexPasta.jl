@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add option to inject filaments during a simulation. This should be done by
+  calling the new `Timestepping.inject_filament!` function from within an `affect!` callback
+  (see docs for details).
+
 ## [0.25.4] - 2024-12-19
 
 ### Changed
