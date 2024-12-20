@@ -402,6 +402,10 @@ which they are called:
 
 ## Forcing / energy injection methods
 
+There are multiple implemented methods for affecting and injecting energy onto the vortex system.
+These methods can represent different physical mechanisms (or in fact be quite unphysical), and some
+of them can make more sense than others when simulating e.g. zero-temperature superfluids.
+
 ### Adding an external velocity
 
 One can set the **`external_velocity`** keyword argument to impose an external velocity field
@@ -515,6 +519,12 @@ In principle, this method can be combined with the previous ones. The normal flu
 will be applied _after_ all the other forcing methods.
 In other words, the vortex velocity ``\bm{v}_{\text{s}}`` used to compute the mutual
 friction velocity includes all the other contributions (i.e. external and stretching velocities).
+
+### Injecting filaments over time
+
+Another way of injecting energy is simply by adding vortices to the simulation from time to
+time. This can be achieved by using an `affect!` function. See [`inject_filament!`](@ref) for
+some more details.
 """
 function init(
         prob::VortexFilamentProblem{T}, scheme::TemporalScheme;
