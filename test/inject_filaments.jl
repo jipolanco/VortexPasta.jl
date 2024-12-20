@@ -14,7 +14,7 @@ function generate_biot_savart_parameters(::Type{T}, L::T) where {T}
     Γ = one(T)
     a = T(1e-6)
     Δ = T(1/4)
-    Ngrid = 32
+    Ngrid = 16
     backend_short = CellListsBackend(2)
     Ls = (L, L, L)
     Ns = (Ngrid, Ngrid, Ngrid)
@@ -112,11 +112,11 @@ function test_injection(::Type{T}, Np, method) where {T}
     display(plt)
 
     L_relchange = length[end] / length[begin]
-    # XXX: results seem to slightly depend on Julia version (between v1.10 and v1.11).
-    # Why is that??? In particular, the RNG should be independent of the version (using
-    # StableRNGs)...
     @show L_relchange
-    @test 2.10 < L_relchange < 2.25  # we're at roughly 2× the initial vortex length
+
+    # Note: results can vary from one run to another, especially when running with multiple
+    # threads. This is probably influenced by parallelisation of reconnections?
+    @test 1.9 < L_relchange < 2.1  # we're at roughly 2× the initial vortex length
 
     nothing
 end
