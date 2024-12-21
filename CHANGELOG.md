@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Previously, the order of reconnections was somewhat arbitrary, depending on
   which threads tested which segment pairs and in which order. We now give
   priority to pairs which have the smallest distance.
+  This means that results might slightly change compared to simulations with
+  previous versions, since the priority given to reconnection candidates has
+  changed (things are more deterministic now).
 
 ## [0.25.4] - 2024-12-19
 
