@@ -6,6 +6,7 @@ Module defining timestepping solvers for vortex filament simulations.
 module Timestepping
 
 export init, solve!, step!, VortexFilamentProblem,
+       inject_filament!,
        ShortRangeTerm, LocalTerm,
        ParamsBiotSavart,                           # from ..BiotSavart
        NoReconnections, ReconnectBasedOnDistance,  # from ..Reconnections
@@ -391,7 +392,8 @@ which they are called:
   synchronised with `iter.fs`, and it generally makes no sense to access them.
   Things like energy estimates will be incorrect if done in `affect!`. On the other hand,
   the `affect!` function **allows to modify `iter.fs`** before Biot–Savart computations are
-  performed.
+  performed. In particular, to inject new filaments, call [`inject_filament!`](@ref) from
+  within the `affect!` function.
 
 - the `callback` function is called *after* performing Biot-Savart computations.
   This means that the fields in `iter.quantities` have been computed from the latest filament positions.
@@ -399,6 +401,10 @@ which they are called:
   will be used at the next timestep) will no longer correspond to the filament positions.
 
 ## Forcing / energy injection methods
+
+There are multiple implemented methods for affecting and injecting energy onto the vortex system.
+These methods can represent different physical mechanisms (or in fact be quite unphysical), and some
+of them can make more sense than others when simulating e.g. zero-temperature superfluids.
 
 ### Adding an external velocity
 
@@ -513,6 +519,12 @@ In principle, this method can be combined with the previous ones. The normal flu
 will be applied _after_ all the other forcing methods.
 In other words, the vortex velocity ``\bm{v}_{\text{s}}`` used to compute the mutual
 friction velocity includes all the other contributions (i.e. external and stretching velocities).
+
+### Injecting filaments over time
+
+Another way of injecting energy is simply by adding vortices to the simulation from time to
+time. This can be achieved by using an `affect!` function. See [`inject_filament!`](@ref) for
+some more details.
 """
 function init(
         prob::VortexFilamentProblem{T}, scheme::TemporalScheme;
@@ -999,6 +1011,7 @@ end
 end
 
 function Reconnections.reconnect!(iter::VortexFilamentSolver)
+    # Here vL is the velocity that was used to perform the latest filament displacements (in advect!).
     (; vL, fs, reconnect, to,) = iter
     fields = fields_to_resize(iter)
     Reconnections.reconnect!(reconnect, fs, vL; to) do f, i, mode
@@ -1065,6 +1078,46 @@ function finalise_step!(iter::VortexFilamentSolver)
     iter.callback(iter)
 
     SUCCESS
+end
+
+"""
+    inject_filament!(iter::VortexFilamentSolver, f::AbstractFilament)
+
+Inject a filament onto a simulation.
+
+This function **must** be called from within the `affect!` function attached to the solver
+(see [`init`](@ref) for details). Otherwise, the solver will likely use garbage values for
+the velocity of the injected filament, leading to wrong results or worse.
+
+# Basic usage
+
+A very simplified (and incomplete) example of how to inject filaments during a simulation:
+
+```julia
+# Define function that will be called after each simulation timestep
+function my_affect!(iter::VortexFilamentSolver)
+    f = Filaments.init(...)  # create new filament
+    inject_filament!(iter, f)
+    return nothing
+end
+
+# Initialise and run simulation
+prob = VortexFilamentProblem(...)
+iter = init(prob, RK4(); affect! = my_affect!, etc...)
+solve!(iter)
+```
+"""
+function inject_filament!(iter::VortexFilamentSolver, f::AbstractFilament)
+    (; fs,) = iter
+    # 1. Add filament to list of filaments
+    push!(fs, f)
+    # 2. Add space to store values on filaments (velocities, etc.)
+    for us ∈ fields_to_resize(iter)
+        @assert !isempty(us)
+        u_new = similar(first(us), length(f))
+        push!(us, u_new)
+    end
+    nothing
 end
 
 include("forcing.jl")

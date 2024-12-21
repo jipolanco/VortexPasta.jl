@@ -20,26 +20,12 @@ struct ReconnectionCache{
     } <: AbstractReconnectionCache
     crit     :: Criterion
     finder   :: Finder
-    to_reconnect :: Vector{Union{Nothing, ReconnectionInfo}}  # list of segment pairs to be reconnected
+    to_reconnect :: Vector{ReconnectionInfo}  # list of segment pairs to be reconnected
     Ls       :: Periods
 end
 
 criterion(c::ReconnectionCache) = c.crit
 periods(c::ReconnectionCache) = c.Ls
-
-function invalidate_segment_pairs!(cache::ReconnectionCache, flist::Vararg{AbstractFilament})
-    (; to_reconnect,) = cache
-    for (i, segpair) ∈ pairs(to_reconnect)
-        segpair === nothing && continue
-        (; a, b,) = segpair.candidate
-        for f ∈ flist
-            if f === a.f || f === b.f
-                to_reconnect[i] = nothing  # invalidate segment pair
-            end
-        end
-    end
-    to_reconnect
-end
 
 """
     Reconnections.init_cache(
@@ -78,7 +64,6 @@ function _init_cache(crit::ReconnectionCriterion, fs, Ls)
     # Note: we make the cutoff distance larger than the actual critical distance, since this
     # distance is only used to compare the segment *midpoints*.
     r_cut = 2 * distance(crit)
-    Lmax = maximum(Ls)
     finder = if has_nonperiodic_directions
         NaiveSegmentFinder(fs)
     else
@@ -91,7 +76,7 @@ function _init_cache(crit::ReconnectionCriterion, fs, Ls)
         reconnect_info = (; candidate, info,)
         ReconnectionInfo = typeof(reconnect_info)
         @assert isconcretetype(ReconnectionInfo)
-        Union{ReconnectionInfo, Nothing}[]
+        Vector{ReconnectionInfo}()
     end
     ReconnectionCache(crit, finder, to_reconnect, Ls)
 end
@@ -176,6 +161,14 @@ function find_reconnection_pairs!(
                 end
             end
         end
+    end
+    # Sort reconnection candidates according to reconnection distance.
+    # This gives higher priority to closest segment pairs (which kinda makes sense).
+    # Moreover, it ensures that results are independent of iteration order, which
+    # (hopefully) allows to have stable results (which don't vary from one run to another)
+    # when running with multiple threads.
+    if !isempty(to_reconnect)
+        sort!(to_reconnect; by = r -> r.info.d²)
     end
     to_reconnect
 end

@@ -3,6 +3,7 @@ using VortexPasta.PredefinedCurves:
     define_curve, Ring, TrefoilKnot, Lemniscate, PeriodicLine
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
+using VortexPasta.FilamentIO
 using VortexPasta.Reconnections
 using VortexPasta.Reconnections: reconnect!
 using VortexPasta.BiotSavart
@@ -461,7 +462,7 @@ end
             # Each circle is reconnected into 3 closed curves.
             # Right now, this requires 4 passes of reconnect! (shouldn't really
             # matter in practice...).
-            periods = 2π .* (1, 1, 1)
+            Ls = 2π .* (1, 1, 1)
             R = π * 1.2
             N = 64
             ring = ring_curve(; scale = R, translate = π * Vec3(1, 1, 1),)
@@ -476,9 +477,10 @@ end
             crit = ReconnectBasedOnDistance(l_min / 2; use_velocity = false)
 
             fs = copy.(fs_orig)
-            cache = @inferred Reconnections.init_cache(crit, fs, periods)
-            nfilaments = (2, 1, 2, 3)  # expected number of filaments after each pass
+            cache = @inferred Reconnections.init_cache(crit, fs, Ls)
+            nfilaments = (2, 3, 2, 3)  # expected number of filaments after each pass
             for n ∈ 1:10
+                write_vtkhdf("reconnect_big_circle_step$(n - 1).vtkhdf", fs)
                 rec = @inferred reconnect!(cache, fs)
                 nrec = rec.reconnection_count
                 if n ≤ 4
