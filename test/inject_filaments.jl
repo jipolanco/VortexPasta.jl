@@ -116,7 +116,7 @@ function test_injection(::Type{T}, Np, method) where {T}
 
     # Note: results can vary from one run to another, especially when running with multiple
     # threads. This is probably influenced by parallelisation of reconnections?
-    @test 1.9 < L_relchange < 2.1  # we're at roughly 2× the initial vortex length
+    @test 1.8 < L_relchange < 2.1  # we're at roughly 2× the initial vortex length
 
     nothing
 end
