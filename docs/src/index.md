@@ -135,15 +135,6 @@ To install it, one should first add the [VortexRegistry](https://github.com/jipo
 (simulation) pkg> registry add https://github.com/jipolanco/VortexRegistry.jl.git
 ```
 
-!!! warning
-
-    If this command asks for an SSH key location and then fails with a `GitError`, [you may need to set](https://github.com/GunnarFarneback/LocalRegistry.jl/blob/master/docs/ssh_keys.md#2-using-an-external-git-binary-with-julias-package-manager) the [`JULIA_PKG_USE_CLI_GIT`](https://docs.julialang.org/en/v1/manual/environment-variables/#JULIA_PKG_USE_CLI_GIT) environment variable to `true`.
-    For instance, add the line
-    ```julia
-    ENV["JULIA_PKG_USE_CLI_GIT"] = "true"
-    ```
-    to your `~/.julia/config/startup.jl` file[^2] and then restart Julia.
-
 Now we can easily install VortexPasta.jl:
 
 ```julia-repl
