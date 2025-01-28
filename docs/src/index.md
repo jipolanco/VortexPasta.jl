@@ -23,6 +23,20 @@ and the thickness of quantum vortices is about 1 Å (``10^{-10}`` m).
 Their atomic-scale thickness justifies treating quantum vortices as infinitesimal lines when describing the macroscopic flow induced by them.
 This is precisely the idea of the [vortex filament model (VFM)](@ref methods-VFM) which is implemented in this package.
 
+In the VFM, each quantum vortex induces a velocity field around it given by the [Biot--Savart law](https://en.wikipedia.org/wiki/Biot%E2%80%93Savart_law):
+
+```math
+\bm{v}(\bm{x}) =
+\frac{κ}{4π} ∮_{\mathcal{C}} \frac{(\bm{s} - \bm{x}) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{x}|^3}
+```
+
+where ``\bm{s}`` is a point along the vortex line and ``\mathcal{C}`` denotes the whole set of vortex lines in the system.
+In particular, a vortex location ``\bm{s}_0 ∈ \mathcal{C}`` evolves in time
+according to ``\frac{\mathrm{d}\bm{s}_0}{\mathrm{d}t} = \bm{v}(\bm{s}_0)``
+(ignoring finite temperature effects or other external forces).
+In this case, the Biot--Savart integral must be [desingularised](@ref VFM-desingularisation) to avoid it from diverging.
+Such desingularisation is justified by the finite (but very small) thickness of the vortex core.
+
 ### Numerical considerations
 
 From a numerical standpoint, simulating large sets of quantum vortices using the VFM is expensive.
