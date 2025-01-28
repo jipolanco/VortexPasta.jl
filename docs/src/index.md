@@ -55,21 +55,23 @@ curl -fsSL https://install.julialang.org | sh
 This will automatically install the latest Julia release and make it available from your terminal using the `julia` command.
 
 To get started with using Julia, the [Modern Julia Workflows blog](https://modernjuliaworkflows.github.io/) is a great source of practical information.
-See in particular the section on [writing Julia code](https://modernjuliaworkflows.github.io/pages/writing/writing/).
+See in particular the section on [writing Julia code](https://modernjuliaworkflows.github.io/writing/).
 
-In particular, it is highly recommended to install the [Revise.jl](https://github.com/timholy/Revise.jl/) package in the global environment.
+### Some convenient packages
+
+When developing Julia code, it is highly recommended to have the [Revise.jl](https://github.com/timholy/Revise.jl/) package in the global environment.
 This package keeps track of modifications of included code when working from a Julia session, which means that one doesn't need to re-include a Julia file each time it is modified.
 To install it, launch Julia in a terminal, enter package mode using `]`, and then:
 
 ```julia-repl
-(@v1.10) pkg> add Revise
+(@v1.11) pkg> add Revise
 ```
 
 Another very widely used package is [OhMyREPL.jl](https://github.com/KristofferC/OhMyREPL.jl), which adds syntax highlighting to the REPL among other nice things.
 It can be installed in the same way as Revise.jl.
 
 One usually wants to load these packages every time a Julia session is started.
-This can be done automatically by creating a [startup file](https://docs.julialang.org/en/v1/manual/command-line-interface/#Startup-file) in `~/.julia/config/startup.jl` with the following content:
+This can be done automatically by creating a [startup file](https://docs.julialang.org/en/v1/manual/command-line-interface/#Startup-file) in `~/.julia/config/startup.jl`[^2] with the following content:
 
 ```julia
 try
@@ -107,7 +109,7 @@ One can check that the project now contains a single package:
 ```julia
 (simulation) pkg> status
 Status `/path/to/simulation/Project.toml`
-  [e9467ef8] GLMakie v0.8.9
+  [e9467ef8] GLMakie v0.11.2
 ```
 
 Moreover, the current directory now contains two new files, `Project.toml` and `Manifest.toml`, which describe the packages installed by local environment.
@@ -146,9 +148,9 @@ Now the status of the local environment should look something like:
 
 ```julia-repl
 (simulation) pkg> status
-Status `~/Work/Projects/Vortices/Codes/VortexPasta/docs/simulation/Project.toml`
-  [e9467ef8] GLMakie v0.8.9
-  [3d0f1e53] VortexPasta v0.2.1
+Status `~/path/to/simulation/Project.toml`
+  [e9467ef8] GLMakie v0.11.2
+  [3d0f1e53] VortexPasta v0.26.1
 ```
 
 ### Installing VortexPasta.jl in development mode
