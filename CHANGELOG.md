@@ -5,6 +5,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.26.3] - 2025-02-18
+
+### Fixed
+
+- Fix computation of energy spectrum on GPUs.
+  The issue is probably linked to a recent update in KernelAbstractions.jl.
+
+## [0.26.2] - 2025-02-17
+
+### Added
+
+- Allow NonuniformFFTs 0.7.
+
 ## [0.26.1] - 2025-01-27
 
 ### Changed
