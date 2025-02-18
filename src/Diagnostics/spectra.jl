@@ -235,8 +235,10 @@ end
 
         # Compute energy at current k⃗ and fill local arrays
         if n ≤ Nk
-            u⃗ = map(w -> @inbounds(w[I]), uhat)
-            u² = sum(abs2, u⃗)
+            u² = zero(T)
+            for d in eachindex(uhat)
+                @inbounds u² += abs2(uhat[d][I])
+            end
             v² = f(u², k⃗, k², I)  # possibly modifies the computed coefficient
             @inbounds E_sm[tid] = factor * v² * Δk_inv
             @inbounds n_sm[tid] = n
