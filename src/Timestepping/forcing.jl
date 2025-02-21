@@ -80,7 +80,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, iter, fs, t, to)
             # We copy vL -> vs before modifying vL with the actual vortex velocities.
             Threads.@threads for i ∈ eachindex(f, tangents)
                 tangents[i] = f[i, UnitTangent()]  # TODO: can we reuse the tangents / computed elsewhere?
-                vs[i] = vL[i]
+                vs[i] = vL[i]  # usually this is the Biot-Savart velocity
                 vn[i] = forcing.vn(f[i])  # evaluate normal fluid velocity
             end
             Forcing.apply!(forcing, vL, vn, tangents)  # compute vL according to the given forcing (vL = vs at input)

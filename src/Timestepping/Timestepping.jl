@@ -184,7 +184,7 @@ equivalent to `iter.quantities.vs` (this also applies to all other quantities).
   contribution of an `external_streamfunction` (see [`init`](@ref)).
 
 If a normal fluid is present (e.g. by passing `forcing = NormalFluidForcing(...)` to [`init`](@ref)),
-then the following quantities are also included:
+then the following quantities are also available:
 
 - `vL`: actual filament velocity after mutual friction due to normal fluid (see [`NormalFluidForcing`](@ref)).
 
