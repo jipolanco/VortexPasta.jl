@@ -388,6 +388,16 @@ function _compute_on_nodes!(
             @timeit to "Process point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
             @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
             @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
+            if ψs !== nothing
+                @timeit to "Self-interaction" remove_long_range_self_interaction!(
+                    ψs, fs, Streamfunction(), params.common,
+                )
+            end
+            if vs !== nothing
+                @timeit to "Self-interaction" remove_long_range_self_interaction!(
+                    vs, fs, Velocity(), params.common,
+                )
+            end
         end
     end
 
@@ -411,9 +421,6 @@ function _compute_on_nodes!(
                         interpolate_to_physical!(cache.longrange)  # overwrites pointdata (charges)
                         add_long_range_output!(ψs, cache.longrange)
                     end
-                    @timeit to "Self-interaction" remove_long_range_self_interaction!(
-                        ψs, fs, Streamfunction(), params.common,
-                    )
                 end
             end
             if vs !== nothing
@@ -424,9 +431,6 @@ function _compute_on_nodes!(
                         interpolate_to_physical!(cache.longrange)  # overwrites pointdata (charges)
                         add_long_range_output!(vs, cache.longrange)
                     end
-                    @timeit to "Self-interaction" remove_long_range_self_interaction!(
-                        vs, fs, Velocity(), params.common,
-                    )
                 end
             end
         end
@@ -525,23 +529,23 @@ function _compute_on_nodes!(
             @timeit to "Process point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
             @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
             @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
+            @timeit to "Remove self-interactions (CPU)" begin
+                # This is done fully on the CPU.
+                if ψs !== nothing
+                    remove_long_range_self_interaction!(ψs, fs, Streamfunction(), params.common)
+                end
+                if vs !== nothing
+                    remove_long_range_self_interaction!(vs, fs, Velocity(), params.common)
+                end
+            end
+
         end
     end
 
     with_longrange || return nothing
 
     @timeit to "Long-range component" begin
-        @timeit to "Remove self-interactions (CPU)" begin
-            # This is done fully on the CPU.
-            if ψs !== nothing
-                remove_long_range_self_interaction!(ψs, fs, Streamfunction(), params.common)
-            end
-            if vs !== nothing
-                remove_long_range_self_interaction!(vs, fs, Velocity(), params.common)
-            end
-        end
-
-        # Now wait for long-range task to finish (GPU).
+        # Wait for long-range task to finish (GPU).
         @timeit to "Wait for GPU operations" wait(task_lr)
 
         # Add results from long-range part.
