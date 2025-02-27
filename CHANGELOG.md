@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- In `BiotSavart.compute_on_nodes!`, the correction to the long-range
+  self-interaction is now included in the `shortrange` computation instead of the `longrange` one.
+  This might affect computations using schemes which split these both components (not sure these are very useful).
+
 ## [0.26.3] - 2025-02-18
 
 ### Fixed
