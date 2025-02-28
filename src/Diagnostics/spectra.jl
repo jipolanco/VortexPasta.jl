@@ -67,8 +67,8 @@ The returned arrays are always on the CPU, even when the `cache` contains GPU da
 See [`energy_spectrum!`](@ref) for details on the `cache` argument.
 """
 function init_energy_spectrum(cache::LongRangeCache)
-    (; wavenumbers_d,) = cache.common
-    kxs = adapt(Array, wavenumbers_d[1])  # make sure these are on the CPU
+    (; wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
+    kxs = adapt(Array, wavenumbers[1])  # make sure these are on the CPU
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)
     @assert with_hermitian_symmetry == (kxs[end] > 0)
     M = with_hermitian_symmetry ? length(kxs) : (length(kxs) + 1) ÷ 2
@@ -135,7 +135,8 @@ energy_spectrum!(f::F, Ek::AbstractVector, ks::AbstractVector, cache; kws...) wh
 function energy_spectrum!(
         f::F, Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache,
     ) where {F <: Function}
-    (; wavenumbers_d, uhat_d,) = cache.common
+    (; field, wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
+    uhat_comps = field::NTuple  # = (ux, uy, uz)
 
     backend = KA.get_backend(cache)  # CPU, GPU
 
@@ -147,7 +148,7 @@ function energy_spectrum!(
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)
 
     if backend isa KA.CPU  # avoid assertion on the GPU, simply to avoid scalar indexing from the CPU (slow)
-        kxs = wavenumbers_d[1]
+        kxs = wavenumbers[1]
         @assert with_hermitian_symmetry == (kxs[end] > 0)
     end
 
@@ -155,11 +156,11 @@ function energy_spectrum!(
     # workgroup. This makes it easier to implement the reduction operations needed to obtain
     # the energy spectra. However, it means that some indices `I` will be outside of the grid,
     # and this needs to be checked in the kernel.
-    groupsize = ka_default_workgroupsize(backend, size(uhat_d)) :: NTuple
-    ngroups = cld.(size(uhat_d), groupsize)  # number of workgroups in each direction
-    ndrange = ngroups .* groupsize  # pad array dimensions
+    dims = size(uhat_comps[1])
+    groupsize = ka_default_workgroupsize(backend, dims) :: NTuple
+    ngroups = cld.(dims, groupsize)  # number of workgroups in each direction
+    ndrange = ngroups .* groupsize   # pad array dimensions
     Nk = length(Ek)
-    uhat_comps = StructArrays.components(uhat_d)  # = (ux, uy, uz)
     kernel! = ka_generate_kernel(energy_spectrum_kernel!, backend, ndrange)
 
     # Use Bumper to allocate temporary CPU arrays (doesn't do anything for GPU arrays).
@@ -171,7 +172,7 @@ function energy_spectrum!(
             KA.allocate(backend, eltype(Ek), (Nk, ngroups...))
         end
 
-        kernel!(f, Ek_groups, uhat_comps, wavenumbers_d, with_hermitian_symmetry, Δk_inv)  # execute kernel
+        kernel!(f, Ek_groups, uhat_comps, wavenumbers, with_hermitian_symmetry, Δk_inv)  # execute kernel
 
         # Sum data from all workgroups, writing results onto Ek_d.
         Ek_d = if typeof(KA.get_backend(Ek)) === typeof(backend)
@@ -197,8 +198,7 @@ end
 
 # Computes one partial energy spectrum per workgroup.
 # Here Ek_blocks is an array of dimensions (Nk, number_of_workgroups...).
-# Note that `uhat` must be passed as a tuple of arrays (u, v, w) as using @Const with
-# StructArrays currently fails for some reason...
+# Note that `uhat` must be passed as a tuple of arrays (u, v, w).
 # NOTE: this is probably not optimal for CPU threads.
 @kernel function energy_spectrum_kernel!(
         f::F,

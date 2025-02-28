@@ -75,11 +75,21 @@ CuFINUFFTBackend
 ExactSumBackend
 ```
 
+### Accessing long-range fields
+
+It may be useful to access computed fields (vorticity, velocity, ...) in Fourier space.
+For this, one can use the unexported [`get_longrange_field_fourier`](@ref) function.
+
+```@docs
+get_longrange_field_fourier
+```
+
 ### Internals
 
 ```@docs
 LongRangeCache
 NullLongRangeCache
+LongRangeCacheState
 init_cache_long
 expected_period
 folding_limits

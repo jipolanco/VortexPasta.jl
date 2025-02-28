@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   self-interaction is now included in the `shortrange` computation instead of the `longrange` one.
   This might affect computations using schemes which split these both components (not sure these are very useful).
 
+### Added
+
+- Add `BiotSavart.get_longrange_field_fourier` function, which allows to obtain the
+  latest computed field (vorticity, velocity, streamfunction) in Fourier space.
+
 ## [0.26.3] - 2025-02-18
 
 ### Fixed
