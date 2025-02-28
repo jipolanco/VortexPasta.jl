@@ -1,9 +1,31 @@
+"""
+    LongRangeCacheState
+
+Describes the current state of the long-range fields in Fourier space.
+
+It has two fields, which allow to know which field is currently stored and whether it has
+been smoothed (Gaussian-filtered) or not:
+
+- `quantity::Symbol` (can be `:undef`, `:vorticity`, `:velocity`, `:streamfunction`)
+
+- `smoothed::Bool` (`true` if the Gaussian filter associated to Ewald's method has already been applied)
+
+See [`BiotSavart.get_longrange_field_fourier`](@ref) for more details.
+"""
 mutable struct LongRangeCacheState
     quantity :: Symbol  # quantity currently held by the cache (:undef, :vorticity, :velocity, :streamfunction)
     smoothed :: Bool    # true if Ewald's Gaussian filter has already been applied
 end
 
 LongRangeCacheState() = LongRangeCacheState(:undef, false)
+
+Base.copy(state::LongRangeCacheState) = LongRangeCacheState(state.quantity, state.smoothed)
+
+function Base.show(io::IO, state::LongRangeCacheState)
+    (; quantity, smoothed,) = state
+    print(io, "LongRangeCacheState(quantity = $quantity, smoothed = $smoothed)")
+    nothing
+end
 
 struct LongRangeCacheCommon{
         T <: AbstractFloat,

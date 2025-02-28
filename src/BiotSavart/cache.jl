@@ -51,3 +51,31 @@ function init_cache(
     longrange = init_cache_long(p.longrange, pointdata, timer)
     BiotSavartCache(p, pointdata, shortrange, longrange, timer)
 end
+
+"""
+    BiotSavart.get_longrange_field_fourier(cache) -> NamedTuple
+
+Obtain long-range field used to compute long-range interactions.
+
+The input `cache` can be a [`BiotSavartCache`](@ref) or a [`LongRangeCache`](@ref).
+
+This function returns a `NamedTuple` with the fields:
+
+- `field`: a `Tuple` `(ux, uy, uz)` describing a vector field in Fourier space.
+  Each component is a 3D matrix of complex values.
+
+- `wavenumbers`: a `Tuple` `(kx, ky, kz)` with the wavenumbers associated to the grid in
+  Fourier space.
+
+- `state`: allows to know what the returned field actually represents (vorticity, velocity, ...).
+  See [`LongRangeCacheState`](@ref) for details.
+"""
+function get_longrange_field_fourier end
+
+get_longrange_field_fourier(cache::BiotSavartCache) = get_longrange_field_fourier(cache.longrange)
+
+function get_longrange_field_fourier(longrange::LongRangeCache)
+    (; uhat_d, wavenumbers_d, state,) = longrange.common
+    uhat_tup = StructArrays.components(uhat_d)::NTuple
+    (; field = uhat_tup, wavenumbers = wavenumbers_d, state = copy(state),)
+end

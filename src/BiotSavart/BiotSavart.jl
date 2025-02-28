@@ -305,9 +305,10 @@ before it is replaced by the coefficients of streamfunction and/or velocity.
 This argument should be a function `callback_vorticity(cache)` which takes a
 [`LongRangeCache`](@ref). The callback should not modify anything inside the cache, or
 otherwise the streamfunction and velocity computed by this function will likely be wrong.
-Of course, this callback will be ignored if long-range computations are disabled.
+Moreover, one can call [`get_longrange_field_fourier`](@ref) to get the vorticity field from
+within the callback. Of course, this callback never be called if long-range computations are disabled.
 
-Note that, when the callback is called, the vorticity coefficients in `cache.common.uhat`
+Note that, when the callback is called, the vorticity coefficients returned by `get_longrange_field_fourier`
 don't have the right physical dimensions as they have not yet been multiplied by
 ``Γ/V`` (where ``V`` is the volume of a unit cell). Note that ``Γ/V`` is directly available
 in `cache.common.ewald_prefactor`. Besides, the vorticity coefficients at this stage have
@@ -322,21 +323,24 @@ using Adapt: adapt  # useful in case FFTs are computed on the GPU
 E_from_vorticity = Ref(0.0)  # "global" variable updated when calling compute_on_nodes!
 
 function callback_vorticity(cache::LongRangeCache)
-    (; wavenumbers_d, uhat_d, ewald_prefactor,) = cache.common
-    # For simplicity, copy data to the CPU if it's on the GPU.
-    wavenumbers = adapt(Array, wavenumbers_d)
-    uhat = adapt(Array, uhat_d)
+    (; ewald_prefactor,) = cache.common
+    (; field, wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
+    @assert state.quantity == :vorticity
+    @assert state.smoothed == false
+    # To make things simple, we copy data to the CPU if it's on the GPU.
+    wavenumbers = adapt(Array, wavenumbers)
+    uhat = adapt(Array, field)::NTuple{3}  # (ωx, ωy, ωz) in Fourier space
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
     @assert with_hermitian_symmetry == wavenumbers[1][end] > 0
     γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
     E = 0.0
-    for I ∈ CartesianIndices(uhat)
+    for I ∈ CartesianIndices(uhat[1])
         k⃗ = map(getindex, wavenumbers, Tuple(I))
         kx = k⃗[1]
         factor = (!with_hermitian_symmetry || kx == 0) ? 0.5 : 1.0
         k² = sum(abs2, k⃗)
         if !iszero(k²)
-            ω⃗ = uhat[I]  # Fourier coefficient of the vorticity
+            ω⃗ = (uhat[1][I], uhat[2][I], uhat[3][I])  # Fourier coefficient of the vorticity
             E += γ² * factor * sum(abs2, ω⃗) / k²
         end
     end
