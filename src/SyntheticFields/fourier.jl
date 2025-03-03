@@ -50,6 +50,11 @@ struct FourierBandVectorField{
     Δks::NTuple{N, T}          # wavenumber increment in each direction (Δk = 2π/L)
 end
 
+function Base.similar(field::FourierBandVectorField)
+    # Note: we copy the wavenumbers; in general we want them to be the same as for the input.
+    FourierBandVectorField(copy(field.qs), similar(field.cs), field.Δks)
+end
+
 # This allows conversion between CPU and GPU arrays using adapt(...).
 @inline function Adapt.adapt_structure(to, field::FourierBandVectorField)
     FourierBandVectorField(
@@ -249,7 +254,7 @@ init_coefficients!(f::FourierBandVectorField, u_rms::Real; kws...) =
 
 @kernel function from_fourier_grid_kernel!(
         op::F, cs::AbstractVector,
-        @Const(qs::AbstractVector), @Const(ûs::NTuple{N})
+        @Const(qs::AbstractVector), @Const(Δks::NTuple{N}), @Const(ûs::NTuple{N})
     ) where {F, N}
     i = @index(Global, Linear)
     Ms = size(ûs[1])
@@ -261,8 +266,9 @@ init_coefficients!(f::FourierBandVectorField, u_rms::Real; kws...) =
         ifelse(q ≥ 0, q + 1, M + q + 1)  # source index
     end
     if all(js .< Ms)  # bounds check just in case (assumes one-based indexing)
-        û = map(u -> @inbounds(u[js...]), ûs)
-        @inbounds cs[i] = @inline op(cs[i], û)
+        û = SVector(map(u -> @inbounds(u[js...]), ûs))
+        k⃗ = SVector(q⃗ .* Δks)
+        @inbounds cs[i] = @inline op(cs[i], û, k⃗)
     end
     nothing
 end
@@ -275,25 +281,24 @@ Copy values from vector field `ûs` in Fourier space onto a [`FourierBandVector
 Only the wavenumbers within the band `[kmin, kmax]` in which `field` is defined are copied.
 
 By default, old values in `field` are discarded and are simply replaced by the values in `ûs`.
-One can use the optional binary operator `op(old, new)` to change this behaviour.
-For example, passing `op = -` means that new values are _subtracted_ from previously
-existent ones and the result is written onto `field`.
+One can use the optional `op` argument to change this behaviour, which should be a function
+`op(old, new, k⃗)` taking 3 `SVector{N}`.
+For example, passing `op(old, new, k⃗) = old - new * sum(abs2, k⃗)` means that new values are first multiplied by ``|\\bm{k}|^2``
+and then subtracted from previously existent ones. The result is then written onto `field`.
 """
 function from_fourier_grid!(op::F, field::FourierBandVectorField{T, N}, ûs::NTuple{N, AbstractArray}) where {F, T, N}
-    (; qs, cs) = field
+    (; qs, cs, Δks) = field
     Base.require_one_based_indexing(ûs...)  # assumed in GPU kernel
     backend = KA.get_backend(qs)
     groupsize = min(nextpow(2, length(qs)), 1024)
     ndrange = size(qs)
     kernel! = from_fourier_grid_kernel!(backend, groupsize, ndrange)
-    kernel!(op, cs, qs, ûs)
+    kernel!(op, cs, qs, Δks, ûs)
     field
 end
 
-# By default op = last, which means that we replace any old value by the new value.
-# Roughly:
-#   field[i] = op(field[i], ûs[i]) = ûs[i] (if op === last)
-from_fourier_grid!(field::FourierBandVectorField, ûs::NTuple) = from_fourier_grid!(last, field, ûs)
+from_fourier_grid_default_op(old, new, k⃗) = new  # replace old values with new ones from Fourier-space fields
+from_fourier_grid!(field::FourierBandVectorField, ûs::NTuple) = from_fourier_grid!(from_fourier_grid_default_op, field, ûs)
 
 # Copy coefficients to regular tuple of arrays (one array = one vector component), which can
 # be used for FFTs or other verifications.
