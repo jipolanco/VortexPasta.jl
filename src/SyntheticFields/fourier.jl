@@ -40,10 +40,34 @@ Moreover the state can be saved to an HDF5 file with
 These should satisfy `0 ≤ kmin ≤ kmax`.
 Moreover, one usually wants `0 < kmin` to ensure that the generated field has zero mean value.
 """
-struct FourierBandVectorField{T <: AbstractFloat, N} <: FourierSyntheticVectorField{T, N}
-    qs :: Vector{NTuple{N, Int}}          # forced wave vectors (length Nf) -- normalised to integer values
-    cs :: Vector{SVector{N, Complex{T}}}  # Fourier coefficients of velocity field (length Nf)
-    Δks :: NTuple{N, T}                   # wavenumber increment in each direction (Δk = 2π/L)
+struct FourierBandVectorField{
+        T <: AbstractFloat, N,
+        NormalisedWaveVectors <: AbstractVector{NTuple{N, Int}},
+        FourierCoefficients <: AbstractVector{SVector{N, Complex{T}}},
+    } <: FourierSyntheticVectorField{T, N}
+    qs::NormalisedWaveVectors  # forced wave vectors (length Nf) -- normalised to integer values
+    cs::FourierCoefficients    # Fourier coefficients of velocity field (length Nf)
+    Δks::NTuple{N, T}          # wavenumber increment in each direction (Δk = 2π/L)
+end
+
+# This allows conversion between CPU and GPU arrays using adapt(...).
+@inline function Adapt.adapt_structure(to, field::FourierBandVectorField)
+    FourierBandVectorField(
+        adapt(to, field.qs),
+        adapt(to, field.cs),
+        Δks,
+    )
+end
+
+# Returns the number of elements (vector wavenumbers) describing the field.
+# It assumes that qs and cs have the same length.
+Base.length(field::FourierBandVectorField) = length(field.cs)
+
+# This is mainly used for CPU <-> GPU transfers.
+function Base.copyto!(dst::FourierBandVectorField, src::FourierBandVectorField)
+    length(dst) == length(src) || throw(DimensionMismatch("the destination field has the wrong size"))
+    copyto!(dst.cs, src.cs)  # copy coefficients only; assume wavenumbers are the same
+    nothing
 end
 
 function Base.show(io::IO, field::FourierBandVectorField{T, N}) where {T, N}
@@ -222,6 +246,54 @@ end
 
 init_coefficients!(f::FourierBandVectorField, u_rms::Real; kws...) =
     init_coefficients!(Random.default_rng(), f, u_rms; kws...)
+
+@kernel function from_fourier_grid_kernel!(
+        op::F, cs::AbstractVector,
+        @Const(qs::AbstractVector), @Const(ûs::NTuple{N})
+    ) where {F, N}
+    i = @index(Global, Linear)
+    Ms = size(ûs[1])
+    q⃗ = @inbounds qs[i]  # normalised wavevector
+    js = ntuple(Val(N)) do d
+        @inline
+        q = q⃗[d]
+        M = Ms[d]
+        ifelse(q ≥ 0, q + 1, M + q + 1)  # source index
+    end
+    if all(js .< Ms)  # bounds check just in case (assumes one-based indexing)
+        û = map(u -> @inbounds(u[js...]), ûs)
+        @inbounds cs[i] = @inline op(cs[i], û)
+    end
+    nothing
+end
+
+"""
+    SyntheticFields.from_fourier_grid!([op::Function], field::FourierBandVectorField{T, N}, ûs::NTuple{N, AbstractArray})
+
+Copy values from vector field `ûs` in Fourier space onto a [`FourierBandVectorField`](@ref).
+
+Only the wavenumbers within the band `[kmin, kmax]` in which `field` is defined are copied.
+
+By default, old values in `field` are discarded and are simply replaced by the values in `ûs`.
+One can use the optional binary operator `op(old, new)` to change this behaviour.
+For example, passing `op = -` means that new values are _subtracted_ from previously
+existent ones and the result is written onto `field`.
+"""
+function from_fourier_grid!(op::F, field::FourierBandVectorField{T, N}, ûs::NTuple{N, AbstractArray}) where {F, T, N}
+    (; qs, cs) = field
+    Base.require_one_based_indexing(ûs...)  # assumed in GPU kernel
+    backend = KA.get_backend(qs)
+    groupsize = min(nextpow(2, length(qs)), 1024)
+    ndrange = size(qs)
+    kernel! = from_fourier_grid_kernel!(backend, groupsize, ndrange)
+    kernel!(op, cs, qs, ûs)
+    field
+end
+
+# By default op = last, which means that we replace any old value by the new value.
+# Roughly:
+#   field[i] = op(field[i], ûs[i]) = ûs[i] (if op === last)
+from_fourier_grid!(field::FourierBandVectorField, ûs::NTuple) = from_fourier_grid!(last, field, ûs)
 
 # Copy coefficients to regular tuple of arrays (one array = one vector component), which can
 # be used for FFTs or other verifications.

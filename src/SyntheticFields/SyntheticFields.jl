@@ -19,6 +19,10 @@ using Random: Random, AbstractRNG
 using LinearAlgebra: ⋅, ×
 using HDF5: HDF5, h5open
 
+# GPU stuff
+using Adapt: Adapt, adapt
+using KernelAbstractions: KernelAbstractions as KA, @kernel, @index
+
 """
     SyntheticVectorField{T, N} <: Function
 
