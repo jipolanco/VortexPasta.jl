@@ -47,7 +47,7 @@ using ..BiotSavart:
     VectorOfVelocities,
     periods
 
-using ..Forcing: Forcing, AbstractForcing, NormalFluidForcing
+using ..Forcing: Forcing, AbstractForcing, NormalFluidForcing, FourierBandForcing
 
 # Reuse same init, solve! and step! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
@@ -213,6 +213,7 @@ struct VortexFilamentSolver{
         ExternalFields <: NamedTuple,
         StretchingVelocity <: Union{Nothing, Function},
         Forcing <: Union{Nothing, AbstractForcing},
+        ForcingCache,
         AdvectFunction <: Function,
         RHSFunction <: Function,
     } <: AbstractSolver
@@ -235,6 +236,7 @@ struct VortexFilamentSolver{
     external_fields    :: ExternalFields  # velocity and streamfunction forcing
     stretching_velocity :: StretchingVelocity
     forcing  :: Forcing  # typically normal fluid forcing (by mutual friction)
+    forcing_cache  :: ForcingCache
     to       :: Timer
     advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
     rhs!     :: RHSFunction     # function for estimating filament velocities (and sometimes streamfunction) from their positions
@@ -610,10 +612,13 @@ function init(
         stretching_velocity(one(T))::Real
     end
 
+    uhat_s = BiotSavart.get_longrange_field_fourier(cache_bs).field
+    forcing_cache = Forcing.init_cache(forcing, uhat_s)
+
     iter = VortexFilamentSolver(
         prob, fs_sol, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_fields,
-        stretching_velocity, forcing,
+        stretching_velocity, forcing, forcing_cache,
         timer, advect!, rhs!,
     )
 

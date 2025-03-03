@@ -96,7 +96,6 @@ end
 # These functions are used in the Timestepping module.
 # They're defined for compatibility with FourierBandForcing.
 init_cache(f::NormalFluidForcing, args...) = (;)  # returns empty NamedTuple
-update_cache!(cache, ::NormalFluidForcing, args...) = nothing
 
 function apply!(forcing::NormalFluidForcing, vs::AbstractVector, f::AbstractFilament)
     eachindex(vs) == eachindex(f) || throw(DimensionMismatch("lengths of filament and velocity vectors don't match"))

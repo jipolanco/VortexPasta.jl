@@ -46,21 +46,22 @@ function _add_stretching_velocity!(vs_all, stretching_velocity::F, fs, to) where
 end
 
 ## ================================================================================ ##
-## (2) Apply mutual friction forcing (normal fluid)
+## (2) Apply mutual friction-like forcing (normal fluid)
 
 function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time, to)
     if haskey(fields, :velocity)
         # At this point, fields.velocity is expected to have the self-induced velocity vs.
         # After applying a normal fluid forcing, fields.velocity will contain the actual
         # vortex velocity vL. The self-induced velocity will be copied to iter.quantities.vs.
-        _apply_forcing!(fields.velocity, iter.forcing, iter, fs, time, to)
+        _apply_forcing!(fields.velocity, iter.forcing, iter.forcing_cache, iter, fs, time, to)
     end
     fields
 end
 
-_apply_forcing!(vL, ::Nothing, args...) = nothing  # do nothing
+_apply_forcing!(vL, forcing::Nothing, cache::Nothing, args...) = nothing  # do nothing
 
-function _apply_forcing!(vL_all, forcing::NormalFluidForcing, iter, fs, t, to)
+# Note: the cache is currently not used by NormalFluidForcing (it's empty anyway)
+function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t, to)
     # Note: inside a RK substep, quantities.{vs,vn,tangents} are used as temporary buffers
     # (and in fact we don't really need vs).
     (; quantities,) = iter
@@ -84,6 +85,26 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, iter, fs, t, to)
                 vn[i] = forcing.vn(f[i])  # evaluate normal fluid velocity
             end
             Forcing.apply!(forcing, vL, vn, tangents)  # compute vL according to the given forcing (vL = vs at input)
+        end
+    end
+    nothing
+end
+
+function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t, to)
+    @assert eachindex(vL_all) === eachindex(fs)
+    vs_d = let data = BiotSavart.get_longrange_fourier_field(iter.cache_bs)
+        local (; state, field,) = data
+        @assert state.quantity == :velocity
+        @assert state.smoothed == true
+        field
+    end
+    α_ewald = iter.prob.p.α  # obtain α from ParamsBiotSavart (for unsmoothing)
+    Forcing.update_cache!(cache, forcing, vs_d, α_ewald)
+    @timeit to "Add forcing" begin
+        @inbounds for n in eachindex(fs)
+            f = fs[n]
+            vL = vL_all[n]  # currently contains self-induced velocity vs
+            Forcing.apply!(forcing, cache, vL, f)  # compute vL according to the given forcing (vL = vs at input)
         end
     end
     nothing

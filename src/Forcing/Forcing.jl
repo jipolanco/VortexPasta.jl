@@ -20,6 +20,8 @@ Abstract type representing a forcing method.
 """
 abstract type AbstractForcing end
 
+init_cache(forcing::Nothing, args...) = nothing  # called when forcing is disabled
+
 """
     Forcing.apply!(forcing::AbstractForcing, vs::AbstractVector{<:Vec3}, f::AbstractFilament)
 
