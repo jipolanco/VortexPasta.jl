@@ -48,8 +48,9 @@ function Base.show(io::IO, f::FourierBandForcing{T}) where {T}
 end
 
 # Here vs_d is the superfluid velocity in Fourier space, optionally on a device (GPU).
-function init_cache(f::FourierBandForcing{T, N}, vs_d::NTuple{N, AbstractArray}) where {T, N}
+function init_cache(f::FourierBandForcing{T, N}, cache_bs::BiotSavartCache) where {T, N}
     (; vn,) = f
+    vs_d = BiotSavart.get_longrange_field_fourier(cache_bs).field
     A = eltype(vs_d).name.wrapper  # e.g. Array, CuArray, ... (XXX: relies on Julia internals!)
     vn_d = adapt(A, vn)::FourierBandVectorField        # vn on the device
     vtmp_h = similar(vn)::FourierBandVectorField       # temporary buffer (on host)

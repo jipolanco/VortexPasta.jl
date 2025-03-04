@@ -166,7 +166,7 @@ end
         SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
         @testset "NormalFluidForcing" begin
             forcing = @inferred NormalFluidForcing(vn; α = 0.8, α′ = 0)
-            cache = @inferred Forcing.init_cache(forcing, vs_hat)
+            cache = @inferred Forcing.init_cache(forcing, cache_bs)
             Forcing.update_cache!(cache, forcing, cache_bs)  # doesn't do anything for NormalFluidForcing
             @test startswith("NormalFluidForcing")(repr(forcing))
             for i in eachindex(fs, vs)
@@ -176,7 +176,7 @@ end
         end
         @testset "FourierBandForcing" begin
             forcing = @inferred FourierBandForcing(vn; α = 0.8)
-            cache = @inferred Forcing.init_cache(forcing, vs_hat)
+            cache = @inferred Forcing.init_cache(forcing, cache_bs)
             Forcing.update_cache!(cache, forcing, cache_bs)
             @test startswith("FourierBandForcing")(repr(forcing))
             for i in eachindex(fs, vs)

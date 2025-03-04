@@ -614,8 +614,7 @@ function init(
         stretching_velocity(one(T))::Real
     end
 
-    uhat_s = BiotSavart.get_longrange_field_fourier(cache_bs).field
-    forcing_cache = Forcing.init_cache(forcing, uhat_s)
+    forcing_cache = Forcing.init_cache(forcing, cache_bs)
 
     iter = VortexFilamentSolver(
         prob, fs_sol, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
