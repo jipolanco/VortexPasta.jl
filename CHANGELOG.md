@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Implement `FourierBandForcing` as an alternative to `NormalFluidForcing`.
+  The new forcing is expected to influence only (or mostly) the scales where it
+  is defined, letting the other lengthscales "free" to evolve.
+
 ## [0.26.4] - 2025-03-04
 
 ### Changed
