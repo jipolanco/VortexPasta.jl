@@ -22,6 +22,11 @@ const FilamentPeriodicOffset = Int32
 struct PointData end
 struct FieldData end
 
+include("json_vtk_series.jl")
+include("write_points.jl")
+include("write_parametrisation.jl")
+include("write_data.jl")
+
 # Here "padded" means that Xs[end] corresponds the endpoint (which is equal to the start
 # point for closed curves).
 function write_padded_data_to_hdf5(points, Xs, n, ldims, Np)
@@ -34,10 +39,6 @@ function write_padded_data_to_hdf5(points, Xs, n, ldims, Np)
     close(memspace)
     nothing
 end
-
-include("write_points.jl")
-include("write_parametrisation.jl")
-include("write_data.jl")
 
 """
     write_vtkhdf(

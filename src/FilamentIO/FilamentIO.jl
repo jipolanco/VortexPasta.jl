@@ -13,7 +13,6 @@ using ..Filaments: DiscretisationMethod, GeometricQuantity, Vec3
 # Here i ∈ 1:refinement.
 on_segment_location(i, refinement) = (i - 1) / refinement
 
-include("json_vtk_series.jl")
-include("hdf5.jl")
+include("VTKHDF/vtkhdf.jl")
     
 end
