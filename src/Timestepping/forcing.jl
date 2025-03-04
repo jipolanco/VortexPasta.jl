@@ -92,11 +92,14 @@ end
 
 function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t, to)
     @assert eachindex(vL_all) === eachindex(fs)
+    (; quantities,) = iter
+    vs_all = quantities.vs  # self-induced velocities will be copied here
     Forcing.update_cache!(cache, forcing, iter.cache_bs)
     @timeit to "Add forcing" begin
         @inbounds for n in eachindex(fs)
             f = fs[n]
             vL = vL_all[n]  # currently contains self-induced velocity vs
+            copyto!(vs_all[n], vL)
             Forcing.apply!(forcing, cache, vL, f)  # compute vL according to the given forcing (vL = vs at input)
         end
     end

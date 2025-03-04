@@ -544,7 +544,7 @@ function init(
         external_velocity::ExtVel = nothing,
         external_streamfunction::ExtStf = nothing,
         stretching_velocity::StretchingVelocity = nothing,
-        forcing::Forcing = nothing,
+        forcing::ForcingType = nothing,
         timer = TimerOutput("VortexFilament"),
     ) where {
         Callback <: Function,
@@ -552,7 +552,7 @@ function init(
         ExtVel <: Union{Nothing, Function},
         ExtStf <: Union{Nothing, Function},
         StretchingVelocity <: Union{Nothing, Function},
-        Forcing <: Union{Nothing, AbstractForcing},
+        ForcingType <: Union{Nothing, AbstractForcing},
         T,
     }
     (; tspan,) = prob
@@ -569,6 +569,8 @@ function init(
 
     quantities = if with_normal_fluid(forcing)
         (; vs, ψs, vL = similar(vs), vn = similar(vs), tangents = similar(vs),)
+    elseif forcing isa FourierBandForcing
+        (; vs, ψs, vL = similar(vs),)  # we separately store vs and vL
     else
         (; vs, ψs, vL = vs,)  # vL is an alias to vs
     end
@@ -636,21 +638,19 @@ with_normal_fluid(iter::VortexFilamentSolver) = :vn ∈ keys(iter.quantities)
 
 function fields_to_resize(iter::VortexFilamentSolver)
     (; quantities,) = iter
-    if with_normal_fluid(iter)
-        values(quantities)  # resize all fields
-    else
-        @assert quantities.vs === quantities.vL  # they're aliased
+    if quantities.vs === quantities.vL  # they're aliased
         values(@delete quantities.vL)  # resize all fields except vL (aliased with vs)
+    else
+        values(quantities)  # resize all fields
     end
 end
 
 function fields_to_interpolate(iter::VortexFilamentSolver)
     (; quantities,) = iter
-    if with_normal_fluid(iter)
-        values(quantities)  # interpolate all fields (not sure we need all of them...)
-    else
-        @assert quantities.vs === quantities.vL  # they're aliased
+    if quantities.vs === quantities.vL  # they're aliased
         values(@delete quantities.vL)  # interpolate all fields except vL (aliased with vs)
+    else
+        values(quantities)  # interpolate all fields (not sure we need all of them...)
     end
 end
 

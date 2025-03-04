@@ -3,9 +3,13 @@ using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.PredefinedCurves
 using VortexPasta.Forcing
+using VortexPasta.FilamentIO
 using VortexPasta.SyntheticFields
+using VortexPasta.Timestepping
+using VortexPasta.Diagnostics
 using LinearAlgebra: ×
 using Random
+using StableRNGs
 using Test
 
 function generate_biot_savart_parameters(::Type{T}) where {T}
@@ -30,9 +34,53 @@ function generate_biot_savart_parameters(::Type{T}) where {T}
     )
 end
 
-function generate_filament(N)
-    S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
-    Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
+function filaments_from_functions(funcs::NTuple{N, F}, args...) where {N, F <: Function}
+    isempty(funcs) && return ()
+    S = first(funcs)
+    f = Filaments.init(S, args...)
+    f_next = filaments_from_functions(Base.tail(funcs), args...)
+    (f, f_next...)
+end
+
+function generate_filaments(N; Ls)
+    p = PeriodicLine()  # unperturbed straight line
+    T = Float64
+    method = CubicSplineMethod()
+    funcs = (
+        define_curve(p; scale = Ls, translate = (1 / 4, 1 / 4, 1 / 2) .* Ls, orientation = +1),
+        define_curve(p; scale = Ls, translate = (3 / 4, 1 / 4, 1 / 2) .* Ls, orientation = -1),
+        define_curve(p; scale = Ls, translate = (1 / 4, 3 / 4, 1 / 2) .* Ls, orientation = -1),
+        define_curve(p; scale = Ls, translate = (3 / 4, 3 / 4, 1 / 2) .* Ls, orientation = +1),
+    )
+    collect(filaments_from_functions(funcs, ClosedFilament{T}, N, method))
+end
+
+function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0)
+    δ = minimum(node_distance, prob.fs)
+    dt = BiotSavart.kelvin_wave_period(prob.p, δ) * dt_factor
+    reconnect = ReconnectBasedOnDistance(δ / 2)
+    refinement = RefineBasedOnSegmentLength(0.8 * δ)
+    adaptivity = AdaptBasedOnSegmentLength(dt_factor) | AdaptBasedOnVelocity(δ / 2)
+    iter = @inferred init(
+        prob, RK4();
+        forcing,
+        dt, reconnect, refinement, adaptivity,
+    )
+    if forcing isa FourierBandForcing
+        @test iter.vs !== iter.vL
+    end
+    E_init = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+    E_final = E_init
+    while iter.t < prob.tspan[2]
+        E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+        E_final = E
+        Nf = length(iter.fs)
+        Np = sum(length, iter.fs; init = 0)
+        # @show iter.t, E, Nf, Np
+        step!(iter)
+    end
+    E_ratio = E_final / E_init
+    (; iter, E_ratio,)
 end
 
 # Check that the Fourier band forcing computes the right thing.
@@ -81,12 +129,19 @@ function check_fourier_band_forcing(forcing::FourierBandForcing, f::AbstractFila
     nothing
 end
 
+function filaments_to_vtkhdf(filename, iter)
+    Ls = iter.prob.p.Ls
+    write_vtkhdf(filename, iter.fs; refinement = 4, periods = Ls) do io
+        io["velocity_self"] = iter.vs
+        io["velocity_total"] = iter.vL
+    end
+end
+
 @testset "Forcing" begin
     # Compute self-induced velocity of vortex filament
-    N = 100
-    f = generate_filament(N)
-    fs = [f]
+    N = 32
     p = generate_biot_savart_parameters(Float64)
+    fs = generate_filaments(N; Ls = p.Ls)
     cache_bs = BiotSavart.init_cache(p, fs)
     vs = map(similar ∘ nodes, fs)
     velocity_on_nodes!(vs, cache_bs, fs)
@@ -101,33 +156,59 @@ end
     @test state.smoothed == true
 
     # Initialise random normal fluid velocity in Fourier space
-    # For testing purposes, we set a kmax which is larger than the kmax of the long-range grid.
-    rng = Xoshiro(42)
+    rng = StableRNG(42)
     Ls = p.Ls
-    vn_rms = 1.0
-    vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 10.5)
-    SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
 
-    @testset "NormalFluidForcing" begin
-        forcing = @inferred NormalFluidForcing(vn; α = 0.8, α′ = 0)
-        cache = @inferred Forcing.init_cache(forcing, vs_hat)
-        Forcing.update_cache!(cache, forcing, cache_bs)  # doesn't do anything for NormalFluidForcing
-        @test startswith("NormalFluidForcing")(repr(forcing))
-        for i in eachindex(fs, vs)
-            copyto!(vs[i], vs_self[i])  # self-induced velocity (before forcing)
-            Forcing.apply!(forcing, cache, vs[i], fs[i])
+    @testset "Static" begin
+        # For testing purposes, we set a kmax which is larger than the kmax of the long-range grid.
+        vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 10.5)
+        vn_rms = 1.0
+        SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
+        @testset "NormalFluidForcing" begin
+            forcing = @inferred NormalFluidForcing(vn; α = 0.8, α′ = 0)
+            cache = @inferred Forcing.init_cache(forcing, vs_hat)
+            Forcing.update_cache!(cache, forcing, cache_bs)  # doesn't do anything for NormalFluidForcing
+            @test startswith("NormalFluidForcing")(repr(forcing))
+            for i in eachindex(fs, vs)
+                copyto!(vs[i], vs_self[i])  # self-induced velocity (before forcing)
+                Forcing.apply!(forcing, cache, vs[i], fs[i])
+            end
+        end
+        @testset "FourierBandForcing" begin
+            forcing = @inferred FourierBandForcing(vn; α = 0.8)
+            cache = @inferred Forcing.init_cache(forcing, vs_hat)
+            Forcing.update_cache!(cache, forcing, cache_bs)
+            @test startswith("FourierBandForcing")(repr(forcing))
+            for i in eachindex(fs, vs)
+                copyto!(vs[i], vs_self[i])  # self-induced velocity (before forcing)
+                Forcing.apply!(forcing, cache, vs[i], fs[i])
+                check_fourier_band_forcing(forcing, fs[i], vs[i], vs_self[i], cache_bs)
+            end
         end
     end
 
-    @testset "FourierBandForcing" begin
-        forcing = @inferred FourierBandForcing(vn; α = 0.8)
-        cache = @inferred Forcing.init_cache(forcing, vs_hat)
-        Forcing.update_cache!(cache, forcing, cache_bs)
-        @test startswith("FourierBandForcing")(repr(forcing))
-        for i in eachindex(fs, vs)
-            copyto!(vs[i], vs_self[i])  # self-induced velocity (before forcing)
-            Forcing.apply!(forcing, cache, vs[i], fs[i])
-            check_fourier_band_forcing(forcing, fs[i], vs[i], vs_self[i], cache_bs)
+    # We perform a short simulation and simply check that energy augmented.
+    @testset "Simulation" begin
+        vn_rms = 0.5
+        α = 5.0
+        vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 1.5)
+        Random.seed!(rng, 42)
+        SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
+        tmax = 1.0
+        prob = VortexFilamentProblem(fs, (zero(tmax), tmax), p)
+        @testset "NormalFluidForcing" begin
+            forcing = @inferred NormalFluidForcing(vn; α)
+            (; iter, E_ratio,) = simulate(prob, forcing)
+            # @show E_ratio  # = 1.2136651822544542
+            @test 1.15 < E_ratio < 1.25
+            filaments_to_vtkhdf("forcing_normal.vtkhdf", iter)
+        end
+        @testset "FourierBandForcing" begin
+            forcing = @inferred FourierBandForcing(vn; α)
+            (; iter, E_ratio,) = simulate(prob, forcing)
+            # @show E_ratio  # = 3.617499405142961
+            @test 3.5 < E_ratio < 3.7
+            filaments_to_vtkhdf("forcing_band.vtkhdf", iter)
         end
     end
 

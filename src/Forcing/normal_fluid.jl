@@ -99,7 +99,7 @@ init_cache(f::NormalFluidForcing, args...) = (;)  # returns empty NamedTuple
 update_cache!(cache, f::NormalFluidForcing, args...) = nothing
 
 # Note: cache is not used but it's left for consistency with other forcings.
-function apply!(forcing::NormalFluidForcing, cache, vs::AbstractVector, f::AbstractFilament)
+function apply!(forcing::NormalFluidForcing, cache::NamedTuple, vs::AbstractVector, f::AbstractFilament)
     eachindex(vs) == eachindex(f) || throw(DimensionMismatch("lengths of filament and velocity vectors don't match"))
     @inline get_at_node(i) = (v⃗ₙ = forcing.vn(f[i]), s⃗′ = f[i, UnitTangent()])
     _apply!(get_at_node, forcing, vs)
