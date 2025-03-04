@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.26.4] - 2025-03-04
+
 ### Changed
 
 - In `BiotSavart.compute_on_nodes!`, the correction to the long-range
