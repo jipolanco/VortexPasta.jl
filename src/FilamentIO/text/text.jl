@@ -1,4 +1,4 @@
-export write_to_text
+export write_to_text, read_from_text
 
 """
     write_to_text(io::IO, fs::AbstractVector{<:AbstractVector})
