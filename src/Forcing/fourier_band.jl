@@ -35,6 +35,8 @@ struct FourierBandForcing{
     α  :: T
 end
 
+FourierBandForcing(vn::FourierBandVectorField; α) = FourierBandForcing(vn, α)
+
 function Base.show(io::IO, f::FourierBandForcing{T}) where {T}
     (; vn, α,) = f
     indent = get(io, :indent, 0)
@@ -48,7 +50,7 @@ end
 # Here vs_d is the superfluid velocity in Fourier space, optionally on a device (GPU).
 function init_cache(f::FourierBandForcing{T, N}, vs_d::NTuple{N, AbstractArray}) where {T, N}
     (; vn,) = f
-    A = eltype(vs_d)        # e.g. Array{...}, CuArray{...}, ...
+    A = eltype(vs_d).name.wrapper  # e.g. Array, CuArray, ... (XXX: relies on Julia internals!)
     vn_d = adapt(A, vn)::FourierBandVectorField        # vn on the device
     vtmp_h = similar(vn)::FourierBandVectorField       # temporary buffer (on host)
     vtmp_d = adapt(A, vtmp_h)::FourierBandVectorField  # temporary buffer (on device)
@@ -64,10 +66,11 @@ function update_cache!(cache, ::FourierBandForcing{T, N}, vs_d::NTuple{N}, α_ew
 
     # (2) Retrieve values from coarse-grained velocity field (Gaussian filtered with α_ewald parameter).
     # We "unfilter" the values, similarly to the way we compute energy spectra from the long-range velocity.
+    inv_four_α² = 1 / (4 * α_ewald * α_ewald)
     @inline function op(vn, vs_filtered, k⃗)
         k² = sum(abs2, k⃗)
-        β = @fastmath exp(k² / (2 * α_ewald^2))
-        vs = β * vs_filtered
+        φ = @fastmath exp(k² * inv_four_α²)
+        vs = φ * vs_filtered
         vn - vs
     end
     SyntheticFields.from_fourier_grid!(op, vtmp_d, vs_d)  # vtmp_d now contains vn_d(k⃗) - vs_d(k⃗) in [kmin, kmax]

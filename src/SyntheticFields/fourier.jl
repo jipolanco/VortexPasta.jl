@@ -60,7 +60,7 @@ end
     FourierBandVectorField(
         adapt(to, field.qs),
         adapt(to, field.cs),
-        Δks,
+        field.Δks,
     )
 end
 
