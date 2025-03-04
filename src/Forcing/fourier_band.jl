@@ -57,8 +57,16 @@ function init_cache(f::FourierBandForcing{T, N}, vs_d::NTuple{N, AbstractArray})
     (; vn_d, vtmp_d, vtmp_h,)
 end
 
-function update_cache!(cache, ::FourierBandForcing{T, N}, vs_d::NTuple{N}, α_ewald::Real) where {T, N}
+function update_cache!(cache, ::FourierBandForcing{T, N}, cache_bs::BiotSavartCache) where {T, N}
     (; vtmp_d, vn_d, vtmp_h,) = cache
+
+    vs_d, ks_grid = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
+        local (; state, field, wavenumbers,) = data
+        @assert state.quantity == :velocity
+        @assert state.smoothed == true
+        field, wavenumbers
+    end
+    α_ewald = cache_bs.params.α
 
     # (1) Copy normal fluid velocity onto buffer (device -> device copy)
     @assert vtmp_d.cs !== vn_d.cs  # coefficients are not aliased
@@ -73,7 +81,7 @@ function update_cache!(cache, ::FourierBandForcing{T, N}, vs_d::NTuple{N}, α_ew
         vs = φ * vs_filtered
         vn - vs
     end
-    SyntheticFields.from_fourier_grid!(op, vtmp_d, vs_d)  # vtmp_d now contains vn_d(k⃗) - vs_d(k⃗) in [kmin, kmax]
+    SyntheticFields.from_fourier_grid!(op, vtmp_d, vs_d, ks_grid)  # vtmp_d now contains vn_d(k⃗) - vs_d(k⃗) in [kmin, kmax]
 
     # (3) Copy results to CPU if needed (avoided if the "device" is the CPU).
     if vtmp_h !== vtmp_d

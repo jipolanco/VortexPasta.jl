@@ -13,13 +13,14 @@ function generate_biot_savart_parameters(::Type{T}) where {T}
     a = 1e-6
     Δ = 1/4
     L = 2π
-    Ls = (L, L, L)
+    aspect = (1, 1, 2)
+    Ls = aspect .* L
     β = 3.0
     rcut = L / 2
     α = β / rcut
     kmax = 2α * β
     M = ceil(Int, kmax * L / π)
-    Ns = (1, 1, 1) .* M
+    Ns = aspect .* M
     ParamsBiotSavart(
         T;
         Γ, α, a, Δ, rcut, Ls, Ns,
@@ -47,7 +48,8 @@ function check_fourier_band_forcing(forcing::FourierBandForcing, f::AbstractFila
     @test data_bs.state.quantity == :velocity
     @test data_bs.state.smoothed == true  # this means that the field needs to be unsmoothed (by reverting Gaussian filter)
     vs_hat = data_bs.field
-    SyntheticFields.from_fourier_grid!(vs_band, vs_hat)  # copy coefficients of smoothed velocity field
+    ks_grid = data_bs.wavenumbers
+    SyntheticFields.from_fourier_grid!(vs_band, vs_hat, ks_grid)  # copy coefficients of smoothed velocity field
 
     # Revert Gaussian filter
     α_ewald = cache_bs.params.α
@@ -72,7 +74,9 @@ function check_fourier_band_forcing(forcing::FourierBandForcing, f::AbstractFila
         vL[i] = vs_self[i] + forcing.α * s⃗′ × v⃗ₙₛ
     end
 
-    @test vL ≈ vL_computed
+    let a = collect(vL), b = collect(vL_computed)   # the `collect` is just in case these are PaddedVectors
+        @test a ≈ b
+    end
 
     nothing
 end
@@ -97,16 +101,17 @@ end
     @test state.smoothed == true
 
     # Initialise random normal fluid velocity in Fourier space
+    # For testing purposes, we set a kmax which is larger than the kmax of the long-range grid.
     rng = Xoshiro(42)
-    Ls = (4π, 2π, 2π)
+    Ls = p.Ls
     vn_rms = 1.0
-    vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 1.5)
+    vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 10.5)
     SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
 
     @testset "NormalFluidForcing" begin
         forcing = @inferred NormalFluidForcing(vn; α = 0.8, α′ = 0)
         cache = @inferred Forcing.init_cache(forcing, vs_hat)
-        Forcing.update_cache!(cache, forcing, vs_hat, α_ewald)  # doesn't do anything for NormalFluidForcing
+        Forcing.update_cache!(cache, forcing, cache_bs)  # doesn't do anything for NormalFluidForcing
         @test startswith("NormalFluidForcing")(repr(forcing))
         for i in eachindex(fs, vs)
             copyto!(vs[i], vs_self[i])  # self-induced velocity (before forcing)
@@ -117,7 +122,7 @@ end
     @testset "FourierBandForcing" begin
         forcing = @inferred FourierBandForcing(vn; α = 0.8)
         cache = @inferred Forcing.init_cache(forcing, vs_hat)
-        Forcing.update_cache!(cache, forcing, vs_hat, α_ewald)
+        Forcing.update_cache!(cache, forcing, cache_bs)
         @test startswith("FourierBandForcing")(repr(forcing))
         for i in eachindex(fs, vs)
             copyto!(vs[i], vs_self[i])  # self-induced velocity (before forcing)
@@ -125,4 +130,5 @@ end
             check_fourier_band_forcing(forcing, fs[i], vs[i], vs_self[i], cache_bs)
         end
     end
+
 end

@@ -92,14 +92,7 @@ end
 
 function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t, to)
     @assert eachindex(vL_all) === eachindex(fs)
-    vs_d = let data = BiotSavart.get_longrange_fourier_field(iter.cache_bs)
-        local (; state, field,) = data
-        @assert state.quantity == :velocity
-        @assert state.smoothed == true
-        field
-    end
-    α_ewald = iter.prob.p.α  # obtain α from ParamsBiotSavart (for unsmoothing)
-    Forcing.update_cache!(cache, forcing, vs_d, α_ewald)
+    Forcing.update_cache!(cache, forcing, iter.cache_bs)
     @timeit to "Add forcing" begin
         @inbounds for n in eachindex(fs)
             f = fs[n]

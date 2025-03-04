@@ -253,8 +253,8 @@ init_coefficients!(f::FourierBandVectorField, u_rms::Real; kws...) =
     init_coefficients!(Random.default_rng(), f, u_rms; kws...)
 
 @kernel function from_fourier_grid_kernel!(
-        op::F, cs::AbstractVector,
-        @Const(qs::AbstractVector), @Const(Δks::NTuple{N}), @Const(ûs::NTuple{N})
+        op::F, cs::AbstractVector, @Const(qs::AbstractVector), @Const(Δks::NTuple{N}),
+        @Const(ûs::NTuple{N}), @Const(qs_max::NTuple{N})
     ) where {F, N}
     i = @index(Global, Linear)
     Ms = size(ûs[1])
@@ -263,42 +263,70 @@ init_coefficients!(f::FourierBandVectorField, u_rms::Real; kws...) =
         @inline
         q = q⃗[d]
         M = Ms[d]
-        ifelse(q ≥ 0, q + 1, M + q + 1)  # source index
+        j = ifelse(q ≥ 0, q + 1, M + q + 1)  # source index (assuming the input is large enough)
+        ifelse(abs(q) > qs_max[d], 0, j)     # set to zero indices which are not present in the input (because the Fourier grid is too small compared to the Fourier band)
     end
-    if all(js .< Ms)  # bounds check just in case (assumes one-based indexing)
+    k⃗ = SVector(q⃗ .* Δks)
+    T = eltype(ûs[1])
+    if any(iszero, js)
+        û = zero(SVector{N, T})  # coefficient not present in input
+    else
         û = SVector(map(u -> @inbounds(u[js...]), ûs))
-        k⃗ = SVector(q⃗ .* Δks)
-        @inbounds cs[i] = @inline op(cs[i], û, k⃗)
     end
+    cs[i] = @inline op(cs[i], û, k⃗)
     nothing
 end
 
 """
-    SyntheticFields.from_fourier_grid!([op::Function], field::FourierBandVectorField{T, N}, ûs::NTuple{N, AbstractArray})
+    SyntheticFields.from_fourier_grid!(
+        [op::Function], field::FourierBandVectorField{T, N},
+        ûs_grid::NTuple{N, AbstractArray}, ks_grid::NTuple{N, AbstractVector},
+    )
 
-Copy values from vector field `ûs` in Fourier space onto a [`FourierBandVectorField`](@ref).
+Copy values from vector field `ûs_grid` in Fourier space onto a [`FourierBandVectorField`](@ref).
 
 Only the wavenumbers within the band `[kmin, kmax]` in which `field` is defined are copied.
 
-By default, old values in `field` are discarded and are simply replaced by the values in `ûs`.
+The `ks_grid` argument should contain the wavevectors associated to the grid where `ûs_grid` is defined.
+
+By default, old values in `field` are discarded and are simply replaced by the values in `ûs_grid`.
 One can use the optional `op` argument to change this behaviour, which should be a function
 `op(old, new, k⃗)` taking 3 `SVector{N}`.
 For example, passing `op(old, new, k⃗) = old - new * sum(abs2, k⃗)` means that new values are first multiplied by ``|\\bm{k}|^2``
 and then subtracted from previously existent ones. The result is then written onto `field`.
 """
-function from_fourier_grid!(op::F, field::FourierBandVectorField{T, N}, ûs::NTuple{N, AbstractArray}) where {F, T, N}
+function from_fourier_grid!(
+        op::F, field::FourierBandVectorField{T, N},
+        ûs_grid::NTuple{N, AbstractArray}, ks_grid::NTuple{N, AbstractVector}
+    ) where {F, T, N}
     (; qs, cs, Δks) = field
-    Base.require_one_based_indexing(ûs...)  # assumed in GPU kernel
+    Base.require_one_based_indexing(ûs_grid...)  # assumed in GPU kernel
+    dims_u = size(ûs_grid[1])
+    dims_k = map(length, ks_grid)
+    for d in 1:N
+        @assert Δks[d] ≈ ks_grid[d][2]
+    end
+    with_hermitian_symmetry = ks_grid[1][end] > 0
+    # Determine kmax (in integer units) from dimensions of the Fourier grid.
+    # This is just in case the Fourier grid's kmax is smaller than the Fourier band's kmax.
+    qs_max = ntuple(Val(N)) do d
+        if d == 1 && with_hermitian_symmetry
+            dims_u[d] - 1  # we skip the last element
+        else
+            (dims_u[d] - 1) ÷ 2  # we skip an element in the even case
+        end
+    end
+    dims_u == dims_k || throw(DimensionMismatch("wrong number of wavevectors"))
     backend = KA.get_backend(qs)
-    groupsize = min(nextpow(2, length(qs)), 1024)
+    groupsize = clamp(nextpow(2, length(qs)), 32, 1024)
     ndrange = size(qs)
     kernel! = from_fourier_grid_kernel!(backend, groupsize, ndrange)
-    kernel!(op, cs, qs, Δks, ûs)
+    kernel!(op, cs, qs, Δks, ûs_grid, qs_max)
     field
 end
 
 from_fourier_grid_default_op(old, new, k⃗) = new  # replace old values with new ones from Fourier-space fields
-from_fourier_grid!(field::FourierBandVectorField, ûs::NTuple) = from_fourier_grid!(from_fourier_grid_default_op, field, ûs)
+from_fourier_grid!(field::FourierBandVectorField, args...) = from_fourier_grid!(from_fourier_grid_default_op, field, args...)
 
 # Copy coefficients to regular tuple of arrays (one array = one vector component), which can
 # be used for FFTs or other verifications.

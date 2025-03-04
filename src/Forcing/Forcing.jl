@@ -6,6 +6,7 @@ Defines methods for injecting energy onto a system of vortices.
 module Forcing
 
 using ..Filaments: AbstractFilament, UnitTangent
+using ..BiotSavart: BiotSavart, BiotSavartCache
 using ..SyntheticFields: SyntheticFields, FourierBandVectorField
 using LinearAlgebra: ×
 
