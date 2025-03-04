@@ -53,8 +53,9 @@ function test_ring_friction_static(f, params, forcing::NormalFluidForcing)
 
     # Now modify velocities due to quiescent normal fluid
     (; vn, α, α′,) = forcing
+    forcing_cache = @inferred Forcing.init_cache(forcing, cache)
     @test iszero(vn.(nodes(f)))     # field is zero everywhere (in particular at vortex points)
-    Forcing.apply!(forcing, vs, f)  # modify vortex velocities
+    Forcing.apply!(forcing, forcing_cache, vs, f)  # modify vortex velocities
 
     # Subtract original velocity to obtain just the one due to mutual friction.
     vf = vs - vs_orig
