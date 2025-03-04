@@ -99,6 +99,13 @@ function test_hdf5_file(
     @test eltype(eltype(fs_read_f32)) === Vec3{Float32}
     @test fs ≈ fs_read_f32
 
+    @testset "Text files" begin
+        fname_text = bname * "_text.dat"
+        FilamentIO.write_to_text(fname_text, fs)
+        fs_read = @inferred FilamentIO.read_from_text(fname_text, Float64, CubicSplineMethod())
+        @test fs ≈ fs_read
+    end
+
     # Same without passing a function. Also, modify parametrisation (knots) of the
     # filament, to make sure we read it back with the same parametrisation.
     gs = map(copy, fs)

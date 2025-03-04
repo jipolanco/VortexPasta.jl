@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `BiotSavart.get_longrange_field_fourier` function, which allows to obtain the
   latest computed field (vorticity, velocity, streamfunction) in Fourier space.
 
+- Add basic text format to `FilamentIO`, as an alternative to the VTKHDF format.
+
 ## [0.26.3] - 2025-02-18
 
 ### Fixed

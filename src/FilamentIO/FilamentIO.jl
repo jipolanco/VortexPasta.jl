@@ -14,5 +14,6 @@ using ..Filaments: DiscretisationMethod, GeometricQuantity, Vec3
 on_segment_location(i, refinement) = (i - 1) / refinement
 
 include("VTKHDF/vtkhdf.jl")
+include("text/text.jl")
     
 end
