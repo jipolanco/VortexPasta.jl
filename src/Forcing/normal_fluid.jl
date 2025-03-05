@@ -23,7 +23,7 @@ Here ``\bm{v}_{\text{s}}`` is the self-induced velocity obtained by applying Bio
 The forcing velocity is of the form:
 
 ```math
-\bm{v}_{\text{f}} = α \bm{s}' × \bm{v}_{\text{ns}} - α' \bm{s}' × \left[ \bm{s}' × \bm{v}_{\text{ns}} \right]
+\bm{v}_{\text{f}} = α \bm{s}' × \bm{v}_{\text{ns}} - α' \bm{s}' × \left( \bm{s}' × \bm{v}_{\text{ns}} \right)
 ```
 
 where ``\bm{s}'`` is the local unit tangent vector,
@@ -33,7 +33,7 @@ coefficients representing the intensity of Magnus and drag forces.
 
 !!! note
 
-    This "forcing" generally affects **all lengthscales**, even when ``bm{v}_{\text{n}}`` is a
+    This "forcing" generally affects **all lengthscales**, even when ``\bm{v}_{\text{n}}`` is a
     large-scale flow.
     This may be unwanted for turbulence simulations.
     In that case, the alternative [`FourierBandForcing`](@ref) method can be more relevant.

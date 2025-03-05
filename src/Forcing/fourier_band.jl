@@ -19,11 +19,11 @@ Concretely, the vortex line velocity according to this forcing type is:
 The forcing velocity is of the form:
 
 ```math
-\bm{v}_{\text{f}} = α \bm{s}' × \bm{v}_{\text{ns}}^{>} - α′ \bm{s}' × \left[ \bm{s}' × \bm{v}_{\text{ns}}^{>} \right]
+\bm{v}_{\text{f}} = α \bm{s}' × \bm{v}_{\text{ns}}^{>} - α' \bm{s}' × \left( \bm{s}' × \bm{v}_{\text{ns}}^{>} \right)
 ```
 
 where ``\bm{v}_{\text{ns}}^{>} = \bm{v}_{\text{n}} - \bm{v}_{\text{s}}^{>}`` is a filtered slip velocity.
-In practice, the coarse-grained velocity is active within the same wavenumber range `[kmin, kmax]` where `vn` is
+In practice, the filtered velocity is active within the same wavenumber range `[kmin, kmax]` where `vn` is
 defined. See [`NormalFluidForcing`](@ref) for other definitions.
 
 ## Using a filtered vorticity field (experimental)
