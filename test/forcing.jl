@@ -8,6 +8,7 @@ using VortexPasta.SyntheticFields
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
 using LinearAlgebra: ×
+using UnicodePlots
 using Random
 using StableRNGs
 using Test
@@ -71,6 +72,7 @@ function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0)
     end
     E_init = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
     E_final = E_init
+    ks_spec, Ek_init = Diagnostics.energy_spectrum(iter)
     while iter.t < prob.tspan[2]
         E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
         E_final = E
@@ -79,8 +81,10 @@ function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0)
         # @show iter.t, E, Nf, Np
         step!(iter)
     end
+    _, Ek_final = Diagnostics.energy_spectrum(iter)
     E_ratio = E_final / E_init
-    (; iter, E_ratio,)
+    spectra = (; ks = ks_spec, Ek_init, Ek_final,)
+    (; iter, E_ratio, spectra,)
 end
 
 # Check that the Fourier band forcing computes the right thing.
@@ -137,8 +141,15 @@ function filaments_to_vtkhdf(filename, iter)
     end
 end
 
+function plot_spectra(spectra; title)
+    (; ks, Ek_init, Ek_final,) = spectra
+    plt = @views lineplot(ks[2:end], Ek_init[2:end]; title, xscale = :log10, yscale = :log10, ylim = (1e-3, 1e-1), name = "Initial")
+    @views lineplot!(plt, ks[2:end], Ek_final[2:end]; name = "Final")
+    display(plt)
+end
+
 @testset "Forcing" begin
-    # Compute self-induced velocity of vortex filament
+    # Compute self-induced velocity of vortex filaments
     N = 32
     p = generate_biot_savart_parameters(Float64)
     fs = generate_filaments(N; Ls = p.Ls)
@@ -193,23 +204,35 @@ end
         α = 5.0
         α′ = 0.0
         vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 1.5)
+        save_files = false
+        plots = false
         Random.seed!(rng, 42)
         SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
         tmax = 1.0
         prob = VortexFilamentProblem(fs, (zero(tmax), tmax), p)
         @testset "NormalFluidForcing" begin
             forcing = @inferred NormalFluidForcing(vn; α, α′)
-            (; iter, E_ratio,) = simulate(prob, forcing)
+            (; iter, E_ratio, spectra) = simulate(prob, forcing)
             # @show E_ratio  # = 1.2136651822544542
             @test 1.15 < E_ratio < 1.25
-            filaments_to_vtkhdf("forcing_normal.vtkhdf", iter)
+            save_files && filaments_to_vtkhdf("forcing_normal.vtkhdf", iter)
+            plots && plot_spectra(spectra; title = "NormalFluidForcing")
         end
         @testset "FourierBandForcing" begin
             forcing = @inferred FourierBandForcing(vn; α, α′)
-            (; iter, E_ratio,) = simulate(prob, forcing)
+            (; iter, E_ratio, spectra) = simulate(prob, forcing)
             # @show E_ratio  # = 3.617499405142961
             @test 3.5 < E_ratio < 3.7
-            filaments_to_vtkhdf("forcing_band.vtkhdf", iter)
+            save_files && filaments_to_vtkhdf("forcing_band.vtkhdf", iter)
+            plots && plot_spectra(spectra; title = "FourierBandForcing")
+        end
+        @testset "FourierBandForcing (smooth vorticity)" begin
+            forcing = @inferred FourierBandForcing(vn; α, α′, smooth_vorticity = true)
+            (; iter, E_ratio, spectra) = simulate(prob, forcing)
+            # @show E_ratio  # = 2.5623375372116857
+            @test 2.5 < E_ratio < 2.6
+            save_files && filaments_to_vtkhdf("forcing_band_smooth_vorticity.vtkhdf", iter)
+            plots && plot_spectra(spectra; title = "FourierBandForcing (smooth vorticity)")
         end
     end
 
