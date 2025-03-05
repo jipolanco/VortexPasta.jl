@@ -1,6 +1,6 @@
 @doc raw"""
     FourierBandForcing <: AbstractForcing
-    FourierBandForcing(vn::FourierBandVectorField; α)
+    FourierBandForcing(vn::FourierBandVectorField; α, α′ = 0)
 
 Forcing due to _large scale_ mutual friction with a normal fluid.
 
@@ -16,15 +16,15 @@ Concretely, the vortex line velocity according to this forcing type is:
 \frac{\mathrm{d}\bm{s}}{\mathrm{d}t} = \bm{v}_{\text{L}} = \bm{v}_{\text{s}} + \bm{v}_{\text{f}}
 ```
 
-where the forcing velocity is
+The forcing velocity is of the form:
 
 ```math
-\bm{v}_{\text{f}} = α \bm{s}' × (\bm{v}_{\text{n}} - \bm{v}_{\text{s}}^{>})
+\bm{v}_{\text{f}} = α \bm{s}' × \bm{v}_{\text{ns}}^{>} - α′ \bm{s}' × \left[ \bm{s}' × \bm{v}_{\text{ns}}^{>} \right]
 ```
 
-Here ``\bm{v}_{\text{s}}^{>}`` is a Fourier (band pass) filtered superfluid velocity field.
-In practice, the filtered velocity is active within the same wavenumber range `[kmin, kmax]` where `vn` is
-defined.
+where ``\bm{v}_{\text{ns}}^{>} = \bm{v}_{\text{n}} - \bm{v}_{\text{s}}^{>}`` is a coarse-grained slip velocity.
+In practice, the coarse-grained velocity is active within the same wavenumber range `[kmin, kmax]` where `vn` is
+defined. See [`NormalFluidForcing`](@ref) for other definitions.
 """
 struct FourierBandForcing{
         T,
@@ -33,18 +33,21 @@ struct FourierBandForcing{
     } <: AbstractForcing
     vn :: VelocityField
     α  :: T
+    α′ :: T
 end
 
-FourierBandForcing(vn::FourierBandVectorField; α) = FourierBandForcing(vn, α)
+function FourierBandForcing(vn::FourierBandVectorField; α::T, α′::Real = 0) where {T <: AbstractFloat}
+    FourierBandForcing(vn, T(α), T(α′))
+end
 
 function Base.show(io::IO, f::FourierBandForcing{T}) where {T}
-    (; vn, α,) = f
+    (; vn, α, α′,) = f
     indent = get(io, :indent, 0)
     nspaces = max(indent, 1)
     spaces = " "^nspaces
     print(io, "FourierBandForcing{$T} with:")
     print(io, "\n$(spaces)├─ Normal velocity field: ", vn)
-    print(io, "\n$(spaces)└─ Friction coefficient: α = ", α)
+    print(io, "\n$(spaces)└─ Friction coefficients: α = ", α, " and α′ = ", α′)
 end
 
 # Here vs_d is the superfluid velocity in Fourier space, optionally on a device (GPU).
@@ -93,7 +96,7 @@ function update_cache!(cache, ::FourierBandForcing{T, N}, cache_bs::BiotSavartCa
 end
 
 function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::AbstractFilament)
-    (; α,) = forcing
+    (; α, α′,) = forcing
     (; vtmp_h,) = cache  # contains vₙ - vₛ at large scale
     V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
     for i in eachindex(vs)
@@ -101,7 +104,10 @@ function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::Abstr
         s⃗′ = f[i, UnitTangent()]
         v⃗ₙₛ = V(vtmp_h(s⃗))
         v_perp = s⃗′ × v⃗ₙₛ
-        vf = α * v_perp    # velocity due to Magnus force
+        vf = α * v_perp
+        if !iszero(α′)
+            vf = vf - α′ * s⃗′ × v_perp
+        end
         vs[i] = vs[i] + vf
     end
     vs

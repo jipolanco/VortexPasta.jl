@@ -119,7 +119,7 @@ function check_fourier_band_forcing(forcing::FourierBandForcing, f::AbstractFila
         s⃗ = f[i]
         s⃗′ = f[i, UnitTangent()]
         v⃗ₙₛ = vns_band(s⃗)
-        vL[i] = vs_self[i] + forcing.α * s⃗′ × v⃗ₙₛ
+        vL[i] = vs_self[i] + forcing.α * s⃗′ × v⃗ₙₛ - forcing.α′ * s⃗′ × (s⃗′ × v⃗ₙₛ)
     end
 
     let a = collect(vL), b = collect(vL_computed)   # the `collect` is just in case these are PaddedVectors
@@ -165,7 +165,7 @@ end
         vn_rms = 1.0
         SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
         @testset "NormalFluidForcing" begin
-            forcing = @inferred NormalFluidForcing(vn; α = 0.8, α′ = 0)
+            forcing = @inferred NormalFluidForcing(vn; α = 0.8, α′ = 0.2)
             cache = @inferred Forcing.init_cache(forcing, cache_bs)
             Forcing.update_cache!(cache, forcing, cache_bs)  # doesn't do anything for NormalFluidForcing
             @test startswith("NormalFluidForcing")(repr(forcing))
@@ -175,7 +175,7 @@ end
             end
         end
         @testset "FourierBandForcing" begin
-            forcing = @inferred FourierBandForcing(vn; α = 0.8)
+            forcing = @inferred FourierBandForcing(vn; α = 0.8, α′ = 0.2)
             cache = @inferred Forcing.init_cache(forcing, cache_bs)
             Forcing.update_cache!(cache, forcing, cache_bs)
             @test startswith("FourierBandForcing")(repr(forcing))
@@ -191,20 +191,21 @@ end
     @testset "Simulation" begin
         vn_rms = 0.5
         α = 5.0
+        α′ = 0.0
         vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 1.5)
         Random.seed!(rng, 42)
         SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
         tmax = 1.0
         prob = VortexFilamentProblem(fs, (zero(tmax), tmax), p)
         @testset "NormalFluidForcing" begin
-            forcing = @inferred NormalFluidForcing(vn; α)
+            forcing = @inferred NormalFluidForcing(vn; α, α′)
             (; iter, E_ratio,) = simulate(prob, forcing)
             # @show E_ratio  # = 1.2136651822544542
             @test 1.15 < E_ratio < 1.25
             filaments_to_vtkhdf("forcing_normal.vtkhdf", iter)
         end
         @testset "FourierBandForcing" begin
-            forcing = @inferred FourierBandForcing(vn; α)
+            forcing = @inferred FourierBandForcing(vn; α, α′)
             (; iter, E_ratio,) = simulate(prob, forcing)
             # @show E_ratio  # = 3.617499405142961
             @test 3.5 < E_ratio < 3.7

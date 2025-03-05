@@ -23,12 +23,12 @@ Here ``\bm{v}_{\text{s}}`` is the self-induced velocity obtained by applying Bio
 The forcing velocity is of the form:
 
 ```math
-\bm{v}_{\text{f}} =
-α \bm{s}' × (\bm{v}_{\text{n}} - \bm{v}_{\text{s}})
-- α' \bm{s}' × \left[ \bm{s}' × (\bm{v}_{\text{n}} - \bm{v}_{\text{s}}) \right]
+\bm{v}_{\text{f}} = α \bm{s}' × \bm{v}_{\text{ns}} - α' \bm{s}' × \left[ \bm{s}' × \bm{v}_{\text{ns}} \right]
 ```
 
-where ``\bm{s}'`` is the local unit tangent vector, and ``α`` and ``α'`` are non-dimensional
+where ``\bm{s}'`` is the local unit tangent vector,
+``\bm{v}_{\text{ns}} = \bm{v}_{\text{n}} - \bm{v}_{\text{s}}`` is the local slip velocity,
+and ``α`` and ``α'`` are non-dimensional
 coefficients representing the intensity of Magnus and drag forces.
 
 !!! note
@@ -63,9 +63,8 @@ julia> SyntheticFields.init_coefficients!(rng, vn, vn_rms);  # randomly set non-
 
 julia> forcing = NormalFluidForcing(vn; α = 0.8, α′ = 0)
 NormalFluidForcing{Float64} with:
- ├─ Magnus force coefficient: α = 0.8
- ├─ Drag force coefficient: α′ = 0.0
- └─ Normal velocity field: FourierBandVectorField{Float64, 3} with 9 independent Fourier coefficients in |k⃗| ∈ [1.0, 1.4142]
+ ├─ Normal velocity field: FourierBandVectorField{Float64, 3} with 9 independent Fourier coefficients in |k⃗| ∈ [1.0, 1.4142]
+ └─ Friction coefficients: α = 0.8 and α′ = 0.0
 ```
 
 """
@@ -88,9 +87,8 @@ function Base.show(io::IO, f::NormalFluidForcing{T}) where {T}
     nspaces = max(indent, 1)
     spaces = " "^nspaces
     print(io, "NormalFluidForcing{$T} with:")
-    print(io, "\n$(spaces)├─ Magnus force coefficient: α = ", α)
-    print(io, "\n$(spaces)├─ Drag force coefficient: α′ = ", α′)
-    print(io, "\n$(spaces)└─ Normal velocity field: ", vn)
+    print(io, "\n$(spaces)├─ Normal velocity field: ", vn)
+    print(io, "\n$(spaces)└─ Friction coefficients: α = ", α, " and α′ = ", α′)
 end
 
 # These functions are used in the Timestepping module.
@@ -123,9 +121,9 @@ function _apply!(get_at_node::F, forcing::NormalFluidForcing, vs::AbstractVector
         v⃗ₛ = vs[i]
         vₙₛ = V(v⃗ₙ) - V(v⃗ₛ)   # slip velocity
         v_perp = s⃗′ × vₙₛ
-        vf = α * v_perp    # velocity due to Magnus force
+        vf = α * v_perp
         if !iszero(α′)
-            vf = vf - α′ * s⃗′ × v_perp  # velocity due to drag force (it's quite common to set α′ = 0)
+            vf = vf - α′ * s⃗′ × v_perp
         end
         vs[i] = v⃗ₛ + vf
     end
