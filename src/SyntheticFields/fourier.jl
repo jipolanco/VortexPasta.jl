@@ -100,6 +100,29 @@ function Base.show(io::IO, field::FourierBandVectorField{T, N}) where {T, N}
 end
 
 """
+    SyntheticFields.remove_zeros!(field::FourierBandVectorField) -> Int
+
+Remove entries associated to Fourier coefficients which are currently equal to zero.
+
+Returns the number of removed coefficients. Coefficients and their associated wavevectors
+are removed.
+
+This can help avoid useless computations when evaluating the Fourier sum in physical space.
+"""
+function remove_zeros!(field::FourierBandVectorField)
+    (; cs, qs,) = field
+    nremoved = 0
+    for i in reverse(eachindex(cs, qs))
+        if iszero(cs[i])
+            popat!(cs, i)
+            popat!(qs, i)
+            nremoved += 1
+        end
+    end
+    nremoved
+end
+
+"""
     SyntheticFields.save_coefficients(fname::AbstractString, field::FourierBandVectorField)
     SyntheticFields.save_coefficients(g::Union{HDF5.File, HDF5.Group}, field::FourierBandVectorField)
 
