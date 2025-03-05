@@ -5,11 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.26.5] - 2025-03-05
+
 ### Added
 
 - Implement `FourierBandForcing` as an alternative to `NormalFluidForcing`.
-  The new forcing is expected to influence only (or mostly) the scales where it
-  is defined, letting the other lengthscales "free" to evolve.
+  This new forcing should be more localised in scale space, and therefore may
+  be more relevant for injecting energy in turbulence simulations.
 
 ## [0.26.4] - 2025-03-04
 

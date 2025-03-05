@@ -26,7 +26,7 @@ where ``\bm{v}_{\text{ns}}^{>} = \bm{v}_{\text{n}} - \bm{v}_{\text{s}}^{>}`` is 
 In practice, the filtered velocity is active within the same wavenumber range `[kmin, kmax]` where `vn` is
 defined. See [`NormalFluidForcing`](@ref) for other definitions.
 
-## Using a filtered vorticity field (experimental)
+## Using a filtered vorticity field
 
 To further ensure that this forcing only affects the chosen range of scales, one can pass
 `filtered_vorticity = true`, which will replace the local unit tangent ``\bm{s}'`` with a
