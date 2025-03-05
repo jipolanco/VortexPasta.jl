@@ -34,29 +34,16 @@ struct FourierBandForcing{
     vn :: VelocityField
     α  :: T
     α′ :: T
-    τ  :: T  # timescale associated to smoothed vorticity (so that τ * ω is dimensionless) | if zero, vorticity is not smoothed and s⃗′ is directly used
+    smooth_vorticity :: Bool
 end
 
-with_smooth_vorticity(f::FourierBandForcing) = !iszero(f.τ)
+with_smooth_vorticity(f::FourierBandForcing) = f.smooth_vorticity
 
 function FourierBandForcing(
         vn::FourierBandVectorField{T, 3}; α::Real, α′::Real = 0,
-        smooth_vorticity::Bool = false, Γ = zero(T),
+        smooth_vorticity::Bool = false,
     ) where {T <: AbstractFloat}
-    if smooth_vorticity
-        if iszero(Γ)
-            throw(ArgumentError("the circulation Γ is needed when setting smooth_vorticity = true"))
-        end
-        @assert Γ > 0
-        kmin, kmax = SyntheticFields.get_kmin_kmax(vn)
-        @assert kmax > kmin
-        V = T(4π / 3) * (kmax^3 - kmin^3)  # "volume" of Fourier band (in wavevector space)
-        A = cbrt(V)^2  # characteristic coarse-graining area (units L⁻²)
-        τ::T = 1 / (A * T(Γ))  # timescale associated to the coarse-graining
-    else
-        τ = zero(T)  # no smoothing
-    end
-    FourierBandForcing(vn, T(α), T(α′), τ)
+    FourierBandForcing(vn, T(α), T(α′), smooth_vorticity)
 end
 
 function Base.show(io::IO, f::FourierBandForcing{T}) where {T}
@@ -67,9 +54,6 @@ function Base.show(io::IO, f::FourierBandForcing{T}) where {T}
     print(io, "FourierBandForcing{$T} with:")
     print(io, "\n$(spaces)├─ Normal velocity field: ", vn)
     print(io, "\n$(spaces)├─ Smooth superfluid vorticity: ", with_smooth_vorticity(f))
-    if with_smooth_vorticity(f)
-        print(io, " (τ = $(f.τ))")
-    end
     print(io, "\n$(spaces)└─ Friction coefficients: α = ", α, " and α′ = ", α′)
 end
 
@@ -145,9 +129,11 @@ function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::Abstr
     for i in eachindex(vs)
         s⃗ = f[i]
         if with_smooth_vorticity(forcing)
-            s⃗′ = forcing.τ * V(ω_h(s⃗))  # replace s⃗′ with coarse-grained vorticity
+            ω⃗ = V(ω_h(s⃗))  # coarse-grained vorticity at s⃗
+            ω_invnorm = 1 / sqrt(sum(abs2, ω⃗))  # = 1/|ω⃗|
+            s⃗′ = (ω⃗ * ω_invnorm)::V  # replace s⃗′ with direction of coarse-grained vorticity
         else
-            s⃗′ = f[i, UnitTangent()]
+            s⃗′ = f[i, UnitTangent()]::V
         end
         v⃗ₙₛ = V(vtmp_h(s⃗))
         v_perp = s⃗′ × v⃗ₙₛ
