@@ -226,13 +226,13 @@ end
             save_files && filaments_to_vtkhdf("forcing_band.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "FourierBandForcing")
         end
-        @testset "FourierBandForcing (smooth vorticity)" begin
-            forcing = @inferred FourierBandForcing(vn; α, α′, smooth_vorticity = true)
+        @testset "FourierBandForcing (filtered vorticity)" begin
+            forcing = @inferred FourierBandForcing(vn; α, α′, filtered_vorticity = true)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
             # @show E_ratio  # = 2.5623375372116857
             @test 2.5 < E_ratio < 2.6
-            save_files && filaments_to_vtkhdf("forcing_band_smooth_vorticity.vtkhdf", iter)
-            plots && plot_spectra(spectra; title = "FourierBandForcing (smooth vorticity)")
+            save_files && filaments_to_vtkhdf("forcing_band_filtered_vorticity.vtkhdf", iter)
+            plots && plot_spectra(spectra; title = "FourierBandForcing (filtered vorticity)")
         end
     end
 
