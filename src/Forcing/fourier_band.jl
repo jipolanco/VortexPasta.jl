@@ -130,7 +130,10 @@ function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::Abstr
         s⃗ = f[i]
         if with_smooth_vorticity(forcing)
             ω⃗ = V(ω_h(s⃗))  # coarse-grained vorticity at s⃗
-            ω_invnorm = 1 / sqrt(sum(abs2, ω⃗))  # = 1/|ω⃗|
+            ω_norm = sqrt(sum(abs2, ω⃗))
+            # Note: in the case that the coarse-grained vorticity is exactly zero (very very
+            # unlikely), we simply set s⃗′ to zero which disables the forcing.
+            ω_invnorm = ifelse(iszero(ω_norm), ω_norm, 1/ω_norm)  # = 1/|ω⃗| (or zero, if |ω⃗| = 0)
             s⃗′ = (ω⃗ * ω_invnorm)::V  # replace s⃗′ with direction of coarse-grained vorticity
         else
             s⃗′ = f[i, UnitTangent()]::V
