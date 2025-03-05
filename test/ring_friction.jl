@@ -12,6 +12,8 @@ using VortexPasta.Diagnostics: Diagnostics
 using LinearAlgebra: norm, normalize, ⋅, ×
 using UnicodePlots: UnicodePlots, lineplot, lineplot!
 
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
+
 function generate_biot_savart_parameters(::Type{T}) where {T}
     Γ = 1.0
     a = 1e-6
@@ -152,12 +154,14 @@ function test_ring_friction_dynamic(f, params, forcing::NormalFluidForcing)
     @test length[end] < length[begin]
     @test energy[end] < energy[begin]
 
-    plt = lineplot(
-        time, length ./ length[begin]; title = "Ring with friction",
-        name = "Length", xlabel = "Time", ylabel = "Relative change",
-    )
-    lineplot!(plt, time, energy ./ energy[begin]; name = "Energy")
-    display(plt)
+    if VERBOSE
+        plt = lineplot(
+            time, length ./ length[begin]; title = "Ring with friction",
+            name = "Length", xlabel = "Time", ylabel = "Relative change",
+        )
+        lineplot!(plt, time, energy ./ energy[begin]; name = "Energy")
+        display(plt)
+    end
 
     iter
 end

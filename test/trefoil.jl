@@ -9,6 +9,8 @@ using ThreadPinning: ThreadPinning  # for testing the interaction between Thread
 using FINUFFT: FINUFFT  # required for FINUFFTBackend
 using LaTeXStrings  # used for plots only (L"...")
 
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
+
 function trefoil_function()
     R = π / 3
     define_curve(TrefoilKnot(); translate = R, scale = R)
@@ -359,7 +361,7 @@ end
     # Note: for testing purposes it's important to discretise the vortex with a *small*
     # number of discretisation points.
     ThreadPinning.pinthreads(:cores)
-    ThreadPinning.threadinfo()
+    VERBOSE && ThreadPinning.threadinfo()
     cpuids = ThreadPinning.getcpuids()
     @test ThreadPinning.ispinned() == true
     @test cpuids !== ThreadPinning.getcpuids()  # make sure they're not aliased (otherwise the ThreadPinning extension might need to be corrected)

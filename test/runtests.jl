@@ -1,3 +1,12 @@
+# Some environment variables which can influence tests:
+#
+# - `JULIA_ENABLE_JET_KA_TESTS=true`: enables inference tests based on JET.jl of functions
+#   that may call KernelAbstractions.jl kernels at some point. Those kernels are by
+#   construction type unstable, so those tests will always fail...
+#
+# - `JULIA_TESTS_VERBOSE=true`: prints more information during tests, including lots of
+#   plots using UnicodePlots.jl and timings from TimerOutputs.jl.
+
 using Test
 using InteractiveUtils: versioninfo
 

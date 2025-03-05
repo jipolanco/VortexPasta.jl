@@ -10,6 +10,8 @@ using UnicodePlots: lineplot
 using FINUFFT: FINUFFT  # required for FINUFFTBackend
 using LinearAlgebra: ⋅
 
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
+
 function test_perturbed_vortex_ring()
     R = π / 4
     N = 48
@@ -127,7 +129,11 @@ function test_perturbed_vortex_ring()
         @test criteria[2] === MaximumTimestep(dt)
     end
 
-    @time solve!(iter)
+    if VERBOSE
+        @time solve!(iter)
+    else
+        solve!(iter)
+    end
     save("ring_perturbed.vtkhdf.series", tsf)
 
     @test iter.dt == dt  # dt was kept to the initial value (because AdaptBasedOnVelocity criterion gives larger dt)
@@ -153,19 +159,21 @@ function test_perturbed_vortex_ring()
 
     Emean = mean(energy_time)
     Estd = std(energy_time)
-    @show Estd / Emean
+    VERBOSE && @show Estd / Emean
     @test Estd / Emean < 1e-4
 
-    if @isdefined(Makie)
-        lines(times, energy_time)
-        display(current_figure())
-    else
-        plt = lineplot(
-            times, energy_time;
-            xlabel = "Time", ylabel = "Energy",
-            title = "Perturbed vortex ring",
-        )
-        println(plt)
+    if VERBOSE
+        if @isdefined(Makie)
+            lines(times, energy_time)
+            display(current_figure())
+        else
+            plt = lineplot(
+                times, energy_time;
+                xlabel = "Time", ylabel = "Energy",
+                title = "Perturbed vortex ring",
+            )
+            println(plt)
+        end
     end
 
     nothing

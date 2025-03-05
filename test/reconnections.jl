@@ -16,7 +16,8 @@ using UnicodePlots: lineplot
 using LinearAlgebra: norm, I, ⋅
 using JET: JET
 using KernelAbstractions: KernelAbstractions as KA  # for JET only
-using FINUFFT: FINUFFT  # required for FINUFFTBackend
+
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
 # This is just to fake the `info` argument of `reconnect_with_itself!` and
 # `reconnect_with_other!`, which is usually returned by the `should_reconnect` function.
@@ -96,7 +97,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         ParamsBiotSavart(;
             Γ = 2.0, α, a = 1e-6, Δ = 1/4, rcut, Ls, Ns,
             backend_short = NaiveShortRangeBackend(),
-            backend_long = FINUFFTBackend(tol = 1e-4),
+            backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(3)),
             quadrature = GaussLegendre(3),
             lia_segment_fraction = 0.2,
         )
@@ -152,8 +153,12 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         adaptivity = NoAdaptivity(),
         callback,
     )
-    @time solve!(iter)
-    # println(iter.to)
+    if VERBOSE
+        @time solve!(iter)
+        println(iter.to)
+    else
+        solve!(iter)
+    end
 
     energy_rel = energy ./ energy[begin]
 
@@ -166,22 +171,24 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     end
 
     let stats = iter.stats
-        @show stats
+        VERBOSE && @show stats
         @test stats.reconnection_count == 3        # total number of reconnections
         @test stats.reconnection_length_loss > 0   # loss of vortex length due to reconnections
         @test stats.filaments_removed_count == 0   # no filaments were removed
         @test stats.filaments_removed_length == 0  # no filaments were removed
     end
 
-    @show t_reconnect[]
+    if VERBOSE
+        @show t_reconnect[]
+        @show last(energy_rel)
+    end
     @test n_reconnect[] > 0
     @test 1.60 < t_reconnect[] < 1.65  # this depends on several parameters...
-    @show last(energy_rel)
     @test 0.98 < last(energy_rel) < 0.99
 
     if test_jet
         JET.@test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
-        JET.@test_opt ignored_modules=(Base, FINUFFT, KA, Base.IteratorsMD) step!(iter)
+        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
     end
 
     nothing

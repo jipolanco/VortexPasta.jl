@@ -14,7 +14,8 @@ using VortexPasta.Diagnostics
 
 using JET: JET
 using KernelAbstractions: KernelAbstractions as KA  # for JET only
-using FINUFFT: FINUFFT  # required for FINUFFTBackend
+
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
 # Initialise nearly straight vortex line with sinusoidal perturbation.
 function init_vortex_line(; x, y, Lz = 2π, sign, A = 0.01, k::Int = 1,)
@@ -88,14 +89,15 @@ function test_kelvin_waves(
         Ls = (Lx, Ly, Lz)
         Ns = (1, 1, 1) .* 24
         kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
-        α = kmax / 8
-        rcut = 4 / α
+        β = 4.0  # => 1e-8 accuracy
+        α = kmax / 2β
+        rcut = β / α
         ParamsBiotSavart(;
             Γ, α, a, Δ, rcut, Ls, Ns,
             # backend_short = CellListsBackend(2),
             backend_short = NaiveShortRangeBackend(),
-            # backend_long = NonuniformFFTsBackend(m = HalfSupport(8), σ = 1.5),
-            backend_long = FINUFFTBackend(upsampfac = 1.25, tol = 1e-8),
+            backend_long = NonuniformFFTsBackend(m = HalfSupport(5), σ = 1.5),  # => 1e-8 accuracy
+            # backend_long = FINUFFTBackend(upsampfac = 1.25, tol = 1e-8),
             quadrature = quad,
             lia_segment_fraction = 0.1,
         )
@@ -169,7 +171,7 @@ function test_kelvin_waves(
     end
 
     if test_jet
-        JET.@test_opt ignored_modules=(Base, FINUFFT, KA, Base.IteratorsMD) step!(iter)
+        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
     end
 
     (; fs, vs, ψs,) = iter  # `vs` already contains the initial velocities
@@ -201,20 +203,26 @@ function test_kelvin_waves(
     end
 
     tlast = tspan[2]
-    @info "Solving with $scheme..." method dt_initial = iter.time.dt tlast/T_kw
-    @time solve!(iter)
-    println(iter.to)
+    if VERBOSE
+        @info "Solving with $scheme..." method dt_initial = iter.time.dt tlast/T_kw
+        @time solve!(iter)
+        println(iter.to)
+    else
+        solve!(iter)
+    end
 
     # Check that the callback is called at the initial time
     @test first(times) == first(tspan)
 
-    let Enorm = energy_time ./ first(energy_time)
-        plt = lineplot(
-            times, Enorm;
-            xlabel = "Time", ylabel = "Energy",
-            title = "Kelvin waves / $scheme",
-        )
-        println(plt)
+    if VERBOSE
+        let Enorm = energy_time ./ first(energy_time)
+            plt = lineplot(
+                times, Enorm;
+                xlabel = "Time", ylabel = "Energy",
+                title = "Kelvin waves / $scheme",
+            )
+            println(plt)
+        end
     end
 
     # Check energy conservation
@@ -224,7 +232,7 @@ function test_kelvin_waves(
         energy_last = last(energy_time)
         energy_std = std(energy_time)
         # @show energy_initial
-        @show energy_std / energy_initial
+        VERBOSE && @show energy_std / energy_initial
         # @show energy_last / energy_initial - 1
         if iseuler
             @test energy_std / energy_initial < 1e-6

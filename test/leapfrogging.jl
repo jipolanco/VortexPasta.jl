@@ -19,6 +19,8 @@ using JET: JET
 using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using StaticArrays: StaticArrays  # for JET only
 
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
+
 function init_ring_filaments(R_init; method = CubicSplineMethod(), noise = 1/3)
     N = 32
     zs_init = [0.9, 1.1] .* π
@@ -68,7 +70,6 @@ function test_leapfrogging_rings(
         R_init,  # initial ring radii
         refinement,
         label = string(scheme),
-        verbose = false,
         test_jet = true,
     )
     enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
@@ -158,11 +159,15 @@ function test_leapfrogging_rings(
         JET.@test_call ignored_modules=(Base, StaticArrays) step!(iter)
     end
 
-    @info "Leapfrogging rings: solving with $scheme" # dt_initial = iter.dt prob.tspan method refinement adaptivity
-
     # Run simulation
     step!(iter)  # to avoid including compilation time in the next line
-    @time solve!(iter)
+
+    if VERBOSE
+        @info "Leapfrogging rings: solving with $scheme" # dt_initial = iter.dt prob.tspan method refinement adaptivity
+        @time solve!(iter)
+    else
+        solve!(iter)
+    end
 
     if !(method isa FourierMethod)
         # Check that we perform 0 allocations (in fact there are allocations needed for
@@ -174,7 +179,7 @@ function test_leapfrogging_rings(
         @test 0 == @allocated Diagnostics.stretching_rate(iter; quad = GaussLegendre(2))
     end
 
-    verbose && println(iter.to)
+    VERBOSE && println(iter.to)
 
     # Estimation of line length as the time integral of the stetching rate using trapezoidal
     # rule. This is to verify that the computed stretching rate is correct.
@@ -188,7 +193,7 @@ function test_leapfrogging_rings(
     # Check that the callback is called at the initial time
     @test first(times) == first(prob.tspan)
 
-    @show prob.tspan iter.nstep
+    VERBOSE && @show prob.tspan iter.nstep
 
     iseuler = scheme isa Euler || scheme isa IMEXEuler  # reduced precision of results
     @testset "Energy & impulse conservation" begin
@@ -221,7 +226,7 @@ function test_leapfrogging_rings(
 
         impulse_normalised = sum_of_squared_radii ./ first(sum_of_squared_radii)
 
-        if verbose
+        if VERBOSE
             let
                 plt = lineplot(
                     times, energy_normalised;
@@ -246,32 +251,27 @@ function test_leapfrogging_rings(
         impulse_mean = mean(impulse_normalised)
         impulse_std = std(impulse_normalised)
 
-        @show energy_std / energy_mean
-        @show impulse_std / impulse_mean
-
-        if verbose
+        if VERBOSE
+            @show energy_std / energy_mean
+            @show impulse_std / impulse_mean
             @show energy_initial
             @show extrema(energy_normalised)
             @show energy_std (energy_mean - 1)
+            @show impulse_std (impulse_mean - 1)
+            @show norm(line_length_integrated - line_length) / norm(line_length)
         end
 
         @test energy_std < rtol_energy
         @test isapprox(energy_mean, 1; rtol = rtol_energy)
 
-        if verbose
-            @show impulse_std (impulse_mean - 1)
-        end
         @test impulse_std < rtol_impulse
         @test isapprox(impulse_mean, 1; rtol = rtol_impulse)
 
         # Check that the integral of dL(t)/dt is approximately L(t).
-        if verbose
-            @show norm(line_length_integrated - line_length) / norm(line_length)
-        end
         @test isapprox(line_length, line_length_integrated; rtol = rtol_energy / 10)
     end
 
-    println()
+    VERBOSE && println()
 
     nothing
 end
@@ -382,7 +382,7 @@ end
     ##
 
     @testset "Scheme: $scheme" for scheme ∈ schemes
-        test_leapfrogging_rings(prob_short, scheme; R_init, refinement, verbose = false)
+        test_leapfrogging_rings(prob_short, scheme; R_init, refinement)
     end
 
     methods = (
@@ -401,7 +401,7 @@ end
         local scheme = Strang(RK4())
         test_leapfrogging_rings(
             prob_short, scheme;
-            R_init, refinement = NoRefinement(), label = "NoRefinement", verbose = false,
+            R_init, refinement = NoRefinement(), label = "NoRefinement",
         )
     end
 

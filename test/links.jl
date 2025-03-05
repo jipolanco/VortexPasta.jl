@@ -7,6 +7,8 @@ using VortexPasta.Diagnostics: Diagnostics
 using UnicodePlots: UnicodePlots, lineplot, lineplot!
 using Rotations: Rotations
 
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
+
 function generate_biot_savart_parameters(::Type{T}; periodic = Val(true)) where {T}
     # Parameters are relevant for HeII if we interpret dimensions in cm and s.
     Γ = 9.97e-4
@@ -127,25 +129,27 @@ function test_linked_rings(
 
     times_norm = times ./ τ
 
-    let plt = lineplot(
-            times_norm, energy ./ energy[begin];
-            xlabel = "t Γ / R²", ylabel = "E / E₀",
-            title = "Hopf link reconnection",
-        )
-        UnicodePlots.vline!(plt, 0.5)
-        println(plt)
-    end
+    if VERBOSE
+        let plt = lineplot(
+                times_norm, energy ./ energy[begin];
+                xlabel = "t Γ / R²", ylabel = "E / E₀",
+                title = "Hopf link reconnection",
+            )
+            UnicodePlots.vline!(plt, 0.5)
+            println(plt)
+        end
 
-    let plt = lineplot(
-            times_norm, abs.(helicity) ./ (2 * Γ^2);
-            xlabel = "t Γ / R²", ylabel = "|H| / 2Γ²",
-            ylim = (0.5, 1.0),
-        )
-        UnicodePlots.vline!(plt, 0.5)
-        println(plt)
-    end
+        let plt = lineplot(
+                times_norm, abs.(helicity) ./ (2 * Γ^2);
+                xlabel = "t Γ / R²", ylabel = "|H| / 2Γ²",
+                ylim = (0.5, 1.0),
+            )
+            UnicodePlots.vline!(plt, 0.5)
+            println(plt)
+        end
 
-    println(iter.to)
+        println(iter.to)
+    end
 
     @test 0.49 < t_reconnect / τ < 0.51
 

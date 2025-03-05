@@ -10,6 +10,8 @@ using Rotations: Rotations, QuatRotation
 using Random
 using StableRNGs
 
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
+
 function generate_biot_savart_parameters(::Type{T}, L::T) where {T}
     Γ = one(T)
     a = T(1e-6)
@@ -104,15 +106,17 @@ function test_injection(::Type{T}, Np, method) where {T}
 
     solve!(iter)
 
-    plt = lineplot(
-        time, length ./ length[begin]; title = "Filament injection",
-        name = "Length", xlabel = "Time", ylabel = "Relative change",
-    )
-    lineplot!(plt, time, energy ./ energy[begin]; name = "Energy")
-    display(plt)
+    if VERBOSE
+        plt = lineplot(
+            time, length ./ length[begin]; title = "Filament injection",
+            name = "Length", xlabel = "Time", ylabel = "Relative change",
+        )
+        lineplot!(plt, time, energy ./ energy[begin]; name = "Energy")
+        display(plt)
+    end
 
     L_relchange = length[end] / length[begin]
-    @show L_relchange
+    VERBOSE && @show L_relchange
 
     # Note: results can vary from one run to another, especially when running with multiple
     # threads. This is probably influenced by parallelisation of reconnections?

@@ -58,6 +58,28 @@ tolerance of ``∼10^{-6}``.
 
 See [the NonuniformFFTs.jl docs](https://jipolanco.github.io/NonuniformFFTs.jl/stable/API/#NonuniformFFTs.PlanNUFFT)
 for a full list of possible keyword arguments.
+
+## Effect of parameters on accuracy
+
+The following table roughly relates accuracy (in number of digits) and NUFFT parameters, as
+detailed in [Polanco2024](@citet):
+
+| Precision digits |  NUFFT ``m`` |  NUFFT ``σ`` |  Ewald ``β`` |
+| :--------------: | :----------: | :----------: | :----------: |
+|         3        |      2       |     1.5      |     2.0      |
+|         4        |      3       |     1.5      |     2.5      |
+|         6        |      4       |     1.5      |     3.5      |
+|         8        |      5       |     1.5      |     4.0      |
+|        10        |      6       |     1.5      |     4.5      |
+|        12        |      7       |     1.5      |     5.0      |
+|        14        |      8       |     1.5      |     5.5      |
+
+The last column is the associated value of the accuracy parameter ``β`` in Ewald's method as
+formulated in [Polanco2024](@citet). Once one has set ``β`` and Ewald's splitting parameter
+``α`` (an inverse lengthscale), the cut-offs in physical and Fourier space are ``r_{\\text{cut}} = β / α``
+and ``k_{\\text{max}} = 2βα``. In this formulation, ``β`` controls the method accuracy while
+``α`` is tuned to maximise performance.
+
 """
 struct NonuniformFFTsBackend{
         HS <: HalfSupport, OversamplingFactor <: Real,

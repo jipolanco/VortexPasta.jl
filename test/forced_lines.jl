@@ -18,6 +18,8 @@ using JET: JET
 using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using FINUFFT: FINUFFT  # required for FINUFFTBackend
 
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
+
 # ================================================================================ #
 
 abstract type AbstractStochasticForcing{T <: AbstractFloat} end
@@ -194,14 +196,16 @@ function generate_biot_savart_parameters()
     Ns = (Ngrid, Ngrid, Ngrid)
     kmax = (Ngrid ÷ 2) * 2π / L
     Ls = (L, L, L)
-    α = kmax / 5
-    rcut = 5 / α
+    β = 3.5
+    α = kmax / 2β
+    rcut = β / α
     ParamsBiotSavart(;
         Γ, α, a, Δ, rcut, Ls, Ns,
         # backend_short = CellListsBackend(2),
         backend_short = NaiveShortRangeBackend(),  # needed when rcut > L/2 (which is the case here, since Ngrid is small)
-        backend_long = FINUFFTBackend(tol = 1e-6),
-        quadrature = GaussLegendre(2),
+        backend_long = NonuniformFFTsBackend(m = HalfSupport(4), σ = 1.5),
+        # backend_long = FINUFFTBackend(tol = 1e-6),
+        quadrature = GaussLegendre(3),
     )
 end
 
@@ -293,15 +297,19 @@ function test_forced_lines(
         external_velocity = forcing_velocity,
         # external_streamfunction = forcing_streamfunction,
     )
-    @time solve!(iter)
-    let
+    if VERBOSE
+        @time solve!(iter)
+    else
+        solve!(iter)
+    end
+    if VERBOSE
         plt = lineplot(times, line_length ./ first(line_length); title = "Forced lines", name = "Line length", xlabel = "Time", ylabel = "L/L₀")
         lineplot!(plt, times, energy ./ first(energy); name = "Energy")
         display(plt)
     end
     L_growth = last(line_length) / first(line_length) - 1
     E_growth = last(energy) / first(energy) - 1
-    @show L_growth E_growth
+    VERBOSE && @show L_growth E_growth
     @test 0.005 < L_growth < 0.006
     @test 0.005 < E_growth < 0.006
 
@@ -320,10 +328,14 @@ function test_forced_lines(
         external_velocity = forcing_velocity,
         # external_streamfunction = forcing_streamfunction,
     )
-    @time solve!(iter)
+    if VERBOSE
+        @time solve!(iter)
+    else
+        solve!(iter)
+    end
     L_growth = last(line_length) / first(line_length) - 1
     E_growth = last(energy) / first(energy) - 1
-    @show L_growth E_growth
+    VERBOSE && @show L_growth E_growth
     @test 0.035 < L_growth < 0.045
     @test 0.030 < E_growth < 0.040
 
@@ -339,7 +351,11 @@ function test_forced_lines(
         external_velocity = forcing_velocity,
         external_streamfunction = forcing_streamfunction,
     )
-    @time solve!(iter)
+    if VERBOSE
+        @time solve!(iter)
+    else
+        solve!(iter)
+    end
     @test line_length ≈ line_length_prev  # we get the exact same results
     # Energy estimates are much larger when including energy associated to the
     # forcing velocity.

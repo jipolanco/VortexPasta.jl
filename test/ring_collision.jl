@@ -10,6 +10,8 @@ using VortexPasta.BiotSavart
 using VortexPasta.BiotSavart: PseudoGPU  # for testing only
 using VortexPasta.Diagnostics: Diagnostics
 
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
+
 function init_ring_filament(; R, z, sign)
     tlims = (0.0, 2.0)
     S(t) = SVector(π + R * cospi(sign * t), π + R * sinpi(sign * t), z)
@@ -44,7 +46,7 @@ function test_ring_collision(;
         filaments, β;
         Γ, a, Δ, Ls = Lbox,
         backend_long,
-        verbose = true,
+        verbose = VERBOSE,
         Cstart = 1.5,
     )
     # println(params)

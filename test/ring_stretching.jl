@@ -10,6 +10,8 @@ using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using LinearAlgebra: norm
 using UnicodePlots: UnicodePlots, lineplot, lineplot!
 
+VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
+
 function generate_biot_savart_parameters(::Type{T}) where {T}
     Γ = 1.0
     a = 1e-6
@@ -84,7 +86,7 @@ function test_ring_stretching()
         adaptivity = NoAdaptivity(),
         callback,
     )
-    @time solve!(iter)
+    solve!(iter)
 
     enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
     if enable_jet
@@ -96,15 +98,17 @@ function test_ring_stretching()
     # @show norm(L_expected - vortex_length) / norm(vortex_length)
     @test isapprox(vortex_length, L_expected; rtol = 1e-4)
 
-    let plt = lineplot(
-            times, energy ./ energy[1];
-            title = "Ring stretching", xlabel = "Time", ylabel = "Relative change", name = "Energy",
-            ylim = (1.0, 1.25)
-        )
-        lineplot!(plt, times, vortex_length ./ vortex_length[1]; name = "Length")
-        local (; τ,) = stretching_velocity
-        lineplot!(plt, times, L_expected ./ L_expected[1]; name = "Exponential")
-        println(plt)
+    if VERBOSE
+        let plt = lineplot(
+                times, energy ./ energy[1];
+                title = "Ring stretching", xlabel = "Time", ylabel = "Relative change", name = "Energy",
+                ylim = (1.0, 1.25)
+            )
+            lineplot!(plt, times, vortex_length ./ vortex_length[1]; name = "Length")
+            local (; τ,) = stretching_velocity
+            lineplot!(plt, times, L_expected ./ L_expected[1]; name = "Exponential")
+            println(plt)
+        end
     end
 
     nothing
