@@ -14,7 +14,12 @@ Forcing
 ```@docs
 NormalFluidForcing
 apply!
-get_velocities!
+```
+
+## Fourier band forcing
+
+```@docs
+FourierBandForcing
 ```
 
 ## Abstract types

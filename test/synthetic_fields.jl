@@ -112,11 +112,23 @@ end
         Ls = T.((2π, 2π, 8π))  # elongated domain
         u_rms = 2.0; kmin = 0.1; kmax = 1.5;
         field = @inferred FourierBandVectorField(undef, Ls; kmin, kmax)
+        N = length(field)
         SyntheticFields.init_coefficients!(rng, field, u_rms)
+        @test N == length(field.cs) == length(field.qs)
         @test startswith("FourierBandVectorField{$T, 3}")(repr(field))
         check_synthetic_field(field; u_rms, kmin, kmax)
         verify_evaluation(field, Ls; u_rms, kmax)
         test_io(field)
+        @testset "Remove coefficients" begin
+            nremoved = SyntheticFields.remove_zeros!(field)
+            @test nremoved == 0  # no coefficients are currently zero
+            @test length(field) == N  # no coefficients have been removed
+            # Now set a coefficient to zero
+            field.cs[end - 2] = zero(eltype(field.cs))
+            nremoved = SyntheticFields.remove_zeros!(field)
+            @test nremoved == 1
+            @test length(field) == N - 1
+        end
     end
     @testset "UniformVectorField" begin
         u⃗ = T.((2.0, 1.2, -2.4))

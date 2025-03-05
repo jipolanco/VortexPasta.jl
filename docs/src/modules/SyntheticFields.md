@@ -20,6 +20,8 @@ UniformVectorField
 ```@docs
 FourierBandVectorField
 init_coefficients!
+from_fourier_grid!
+remove_zeros!
 ```
 
 ## Saving and loading data

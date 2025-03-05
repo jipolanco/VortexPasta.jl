@@ -46,21 +46,22 @@ function _add_stretching_velocity!(vs_all, stretching_velocity::F, fs, to) where
 end
 
 ## ================================================================================ ##
-## (2) Apply mutual friction forcing (normal fluid)
+## (2) Apply mutual friction-like forcing (normal fluid)
 
 function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time, to)
     if haskey(fields, :velocity)
         # At this point, fields.velocity is expected to have the self-induced velocity vs.
         # After applying a normal fluid forcing, fields.velocity will contain the actual
         # vortex velocity vL. The self-induced velocity will be copied to iter.quantities.vs.
-        _apply_forcing!(fields.velocity, iter.forcing, iter, fs, time, to)
+        _apply_forcing!(fields.velocity, iter.forcing, iter.forcing_cache, iter, fs, time, to)
     end
     fields
 end
 
-_apply_forcing!(vL, ::Nothing, args...) = nothing  # do nothing
+_apply_forcing!(vL, forcing::Nothing, cache::Nothing, args...) = nothing  # do nothing
 
-function _apply_forcing!(vL_all, forcing::NormalFluidForcing, iter, fs, t, to)
+# Note: the cache is currently not used by NormalFluidForcing (it's empty anyway)
+function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t, to)
     # Note: inside a RK substep, quantities.{vs,vn,tangents} are used as temporary buffers
     # (and in fact we don't really need vs).
     (; quantities,) = iter
@@ -69,6 +70,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, iter, fs, t, to)
     tangents_all = quantities.tangents  # local tangents
     @assert vs_all !== vL_all
     @assert eachindex(vL_all) == eachindex(vn_all) == eachindex(tangents_all) == eachindex(vs_all) == eachindex(fs)
+    scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
         @inbounds for n ∈ eachindex(fs)
             f = fs[n]
@@ -78,12 +80,29 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, iter, fs, t, to)
             tangents = tangents_all[n]
             # At input, vL contains the self-induced velocity vs.
             # We copy vL -> vs before modifying vL with the actual vortex velocities.
-            Threads.@threads for i ∈ eachindex(f, tangents)
+            tforeach(eachindex(f, tangents); scheduler) do i
                 tangents[i] = f[i, UnitTangent()]  # TODO: can we reuse the tangents / computed elsewhere?
                 vs[i] = vL[i]  # usually this is the Biot-Savart velocity
                 vn[i] = forcing.vn(f[i])  # evaluate normal fluid velocity
             end
-            Forcing.apply!(forcing, vL, vn, tangents)  # compute vL according to the given forcing (vL = vs at input)
+            Forcing.apply!(forcing, vL, vn, tangents; scheduler)  # compute vL according to the given forcing (vL = vs at input)
+        end
+    end
+    nothing
+end
+
+function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t, to)
+    @assert eachindex(vL_all) === eachindex(fs)
+    (; quantities,) = iter
+    vs_all = quantities.vs  # self-induced velocities will be copied here
+    Forcing.update_cache!(cache, forcing, iter.cache_bs)
+    scheduler = DynamicScheduler()  # for threading
+    @timeit to "Add forcing" begin
+        @inbounds for n in eachindex(fs)
+            f = fs[n]
+            vL = vL_all[n]  # currently contains self-induced velocity vs
+            copyto!(vs_all[n], vL)
+            Forcing.apply!(forcing, cache, vL, f; scheduler)  # compute vL according to the given forcing (vL = vs at input)
         end
     end
     nothing
