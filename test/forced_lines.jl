@@ -347,8 +347,8 @@ function test_forced_lines(
     @test all(8 .< energy ./ energy_prev .< 40)
 
     ## Inference tests
-    disable_jet = get(ENV, "JULIA_DISABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
-    if !disable_jet
+    enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
+    if enable_jet
         # Check that everything is inferred (except for issues coming from FINUFFT.jl).
         # (This is only for tests and can be ignored!)
         JET.@test_opt ignored_modules=(FINUFFT, Base, Base.PCRE, KA, Base.IteratorsMD) init(

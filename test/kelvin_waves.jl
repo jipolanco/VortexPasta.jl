@@ -55,8 +55,7 @@ function test_kelvin_waves(
         method = QuinticSplineMethod(), Lz = 2π, A = 0.01, k = 1,
         quad = GaussLegendre(4),
     )
-    disable_jet = get(ENV, "JULIA_DISABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
-    test_jet = !disable_jet
+    test_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
 
     Lx = Ly = Lz
     lines = [

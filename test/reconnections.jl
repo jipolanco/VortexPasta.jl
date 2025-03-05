@@ -79,8 +79,7 @@ trefoil_scheme_dt(::KenCarp3) = 0.5
 trefoil_scheme_dt(::Midpoint) = 0.3
 
 function test_trefoil_knot_reconnection(scheme = RK4())
-    disable_jet = get(ENV, "JULIA_DISABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
-    test_jet = !disable_jet
+    test_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
     S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
     N = 64
     f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())

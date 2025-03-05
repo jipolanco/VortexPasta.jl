@@ -71,8 +71,8 @@ function test_leapfrogging_rings(
         verbose = false,
         test_jet = true,
     )
-    disable_jet = get(ENV, "JULIA_DISABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
-    test_jet = test_jet && !disable_jet
+    enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
+    test_jet = test_jet && enable_jet
 
     # Define callback function to be run at each simulation timestep
     times = Float64[]
