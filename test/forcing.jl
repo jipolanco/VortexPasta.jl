@@ -99,7 +99,7 @@ function check_fourier_band_forcing(forcing::FourierBandForcing, f::AbstractFila
     data_bs = @inferred BiotSavart.get_longrange_field_fourier(cache_bs)
     @test data_bs.state.quantity == :velocity
     @test data_bs.state.smoothed == true  # this means that the field needs to be unsmoothed (by reverting Gaussian filter)
-    vs_hat = data_bs.field
+    vs_hat = map(Array, data_bs.field)  # GPU -> CPU copy in case `field` is a tuple of GPU arrays
     ks_grid = data_bs.wavenumbers
     SyntheticFields.from_fourier_grid!(vs_band, vs_hat, ks_grid)  # copy coefficients of smoothed velocity field
 

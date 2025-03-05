@@ -83,10 +83,10 @@ function Base.copyto!(dst::FourierBandVectorField, src::FourierBandVectorField)
     nothing
 end
 
-function get_kmin_kmax(field::FourierBandVectorField)
+function get_kmin_kmax(field::FourierBandVectorField{T}) where {T}
     (; qs, Δks,) = field
     # Get actual range of wavevector magnitudes
-    kext² = extrema(qs) do q⃗
+    kext² = extrema(qs; init = (T(Inf), T(0))) do q⃗
         k⃗ = q⃗ .* Δks
         sum(abs2, k⃗)
     end
@@ -353,6 +353,7 @@ function from_fourier_grid!(
     end
     dims_u == dims_k || throw(DimensionMismatch("wrong number of wavevectors"))
     backend = KA.get_backend(qs)
+    backend === KA.get_backend(ûs_grid[1]) || throw(ArgumentError("arrays are expected to be on the same device"))
     groupsize = clamp(nextpow(2, length(qs)), 32, 1024)
     ndrange = size(qs)
     kernel! = from_fourier_grid_kernel!(backend, groupsize, ndrange)
