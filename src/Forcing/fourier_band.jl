@@ -2,7 +2,7 @@
     FourierBandForcing <: AbstractForcing
     FourierBandForcing(vn::FourierBandVectorField; α, α′ = 0, filtered_vorticity = false)
 
-Forcing due to _large scale_ mutual friction with a normal fluid.
+Forcing due to mutual friction of a normal fluid with a Fourier-filtered superfluid velocity.
 
 This forcing is similar to [`NormalFluidForcing`](@ref), but tries to only affect scales
 within a given band `[kmin, kmax]` in Fourier space. This is achieved by a normal fluid velocity
@@ -22,13 +22,16 @@ The forcing velocity is of the form:
 \bm{v}_{\text{f}} = α \bm{s}' × \bm{v}_{\text{ns}}^{>} - α′ \bm{s}' × \left[ \bm{s}' × \bm{v}_{\text{ns}}^{>} \right]
 ```
 
-where ``\bm{v}_{\text{ns}}^{>} = \bm{v}_{\text{n}} - \bm{v}_{\text{s}}^{>}`` is a coarse-grained slip velocity.
+where ``\bm{v}_{\text{ns}}^{>} = \bm{v}_{\text{n}} - \bm{v}_{\text{s}}^{>}`` is a filtered slip velocity.
 In practice, the coarse-grained velocity is active within the same wavenumber range `[kmin, kmax]` where `vn` is
 defined. See [`NormalFluidForcing`](@ref) for other definitions.
 
-## Using a filtered vorticity field
+## Using a filtered vorticity field (experimental)
 
-To further ensure that this forcing only affects the large scales
+To further ensure that this forcing only affects the chosen range of scales, one can pass
+`filtered_vorticity = true`, which will replace the local unit tangent ``\bm{s}'`` with a
+normalised coarse-grained vorticity. This corresponds to setting ``\bm{s}' = \bm{ω}^{>} / |\bm{ω}^{>}|``
+where ``\bm{ω}^{>}`` is the Fourier-filtered vorticity field.
 """
 struct FourierBandForcing{
         T <: AbstractFloat,
