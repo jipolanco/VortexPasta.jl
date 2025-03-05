@@ -55,6 +55,14 @@ function Base.similar(field::FourierBandVectorField)
     FourierBandVectorField(copy(field.qs), similar(field.cs), field.Δks)
 end
 
+# This may be used to free used memory (even though a FourierBandVectorField usually doesn't
+# use much memory).
+function Base.empty!(field::FourierBandVectorField)
+    empty!(field.qs)
+    empty!(field.cs)
+    field
+end
+
 # This allows conversion between CPU and GPU arrays using adapt(...).
 @inline function Adapt.adapt_structure(to, field::FourierBandVectorField)
     FourierBandVectorField(
@@ -75,15 +83,19 @@ function Base.copyto!(dst::FourierBandVectorField, src::FourierBandVectorField)
     nothing
 end
 
-function Base.show(io::IO, field::FourierBandVectorField{T, N}) where {T, N}
+function get_kmin_kmax(field::FourierBandVectorField)
     (; qs, Δks,) = field
     # Get actual range of wavevector magnitudes
     kext² = extrema(qs) do q⃗
         k⃗ = q⃗ .* Δks
         sum(abs2, k⃗)
     end
-    kmin, kmax = round.(sqrt.(kext²); sigdigits = 5)
-    Nk = length(qs)
+    sqrt.(kext²)
+end
+
+function Base.show(io::IO, field::FourierBandVectorField{T, N}) where {T, N}
+    kmin, kmax = round.(get_kmin_kmax(field); sigdigits = 5)
+    Nk = length(field)
     print(io, "FourierBandVectorField{$T, $N} with $Nk independent Fourier coefficients in |k⃗| ∈ [$kmin, $kmax]")
 end
 

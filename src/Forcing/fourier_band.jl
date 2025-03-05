@@ -27,17 +27,36 @@ In practice, the coarse-grained velocity is active within the same wavenumber ra
 defined. See [`NormalFluidForcing`](@ref) for other definitions.
 """
 struct FourierBandForcing{
-        T,
+        T <: AbstractFloat,
         N,  # number of dimensions (usually 3)
         VelocityField <: FourierBandVectorField{T, N},
     } <: AbstractForcing
     vn :: VelocityField
     α  :: T
     α′ :: T
+    τ  :: T  # timescale associated to smoothed vorticity (so that τ * ω is dimensionless) | if zero, vorticity is not smoothed and s⃗′ is directly used
 end
 
-function FourierBandForcing(vn::FourierBandVectorField; α::T, α′::Real = 0) where {T <: AbstractFloat}
-    FourierBandForcing(vn, T(α), T(α′))
+with_smooth_vorticity(f::FourierBandForcing) = !iszero(f.τ)
+
+function FourierBandForcing(
+        vn::FourierBandVectorField{T, 3}; α::Real, α′::Real = 0,
+        smooth_vorticity::Bool = false, Γ = zero(T),
+    ) where {T <: AbstractFloat}
+    if smooth_vorticity
+        if iszero(Γ)
+            throw(ArgumentError("the circulation Γ is needed when setting smooth_vorticity = true"))
+        end
+        @assert Γ > 0
+        kmin, kmax = SyntheticFields.get_kmin_kmax(vn)
+        @assert kmax > kmin
+        V = T(4π / 3) * (kmax^3 - kmin^3)  # "volume" of Fourier band (in wavevector space)
+        A = cbrt(V)^2  # characteristic coarse-graining area (units L⁻²)
+        τ::T = 1 / (A * T(Γ))  # timescale associated to the coarse-graining
+    else
+        τ = zero(T)  # no smoothing
+    end
+    FourierBandForcing(vn, T(α), T(α′), τ)
 end
 
 function Base.show(io::IO, f::FourierBandForcing{T}) where {T}
@@ -47,6 +66,10 @@ function Base.show(io::IO, f::FourierBandForcing{T}) where {T}
     spaces = " "^nspaces
     print(io, "FourierBandForcing{$T} with:")
     print(io, "\n$(spaces)├─ Normal velocity field: ", vn)
+    print(io, "\n$(spaces)├─ Smooth superfluid vorticity: ", with_smooth_vorticity(f))
+    if with_smooth_vorticity(f)
+        print(io, " (τ = $(f.τ))")
+    end
     print(io, "\n$(spaces)└─ Friction coefficients: α = ", α, " and α′ = ", α′)
 end
 
@@ -58,11 +81,16 @@ function init_cache(f::FourierBandForcing{T, N}, cache_bs::BiotSavartCache) wher
     vn_d = adapt(A, vn)::FourierBandVectorField        # vn on the device
     vtmp_h = similar(vn)::FourierBandVectorField       # temporary buffer (on host)
     vtmp_d = adapt(A, vtmp_h)::FourierBandVectorField  # temporary buffer (on device)
-    (; vn_d, vtmp_d, vtmp_h,)
+    ω_h = similar(vtmp_h)  # coarse-grained superfluid vorticity
+    if !with_smooth_vorticity(f)
+        empty!(ω_h)  # we don't use this field
+    end
+    ω_d = adapt(A, ω_h)
+    (; vn_d, vtmp_d, vtmp_h, ω_h, ω_d)
 end
 
-function update_cache!(cache, ::FourierBandForcing{T, N}, cache_bs::BiotSavartCache) where {T, N}
-    (; vtmp_d, vn_d, vtmp_h,) = cache
+function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartCache) where {T, N}
+    (; vtmp_d, vn_d, vtmp_h, ω_h, ω_d) = cache
 
     vs_d, ks_grid = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
         local (; state, field, wavenumbers,) = data
@@ -87,9 +115,24 @@ function update_cache!(cache, ::FourierBandForcing{T, N}, cache_bs::BiotSavartCa
     end
     SyntheticFields.from_fourier_grid!(op, vtmp_d, vs_d, ks_grid)  # vtmp_d now contains vn_d(k⃗) - vs_d(k⃗) in [kmin, kmax]
 
+    # Optionally compute coarse-grained vorticity.
+    @inline function op_vorticity(_, vs_filtered, k⃗)
+        k² = sum(abs2, k⃗)
+        φ = @fastmath exp(k² * inv_four_α²)
+        vs = φ * vs_filtered
+        im * (k⃗ × vs)
+    end
+    if with_smooth_vorticity(f)
+        @assert length(ω_h) == length(ω_d) == length(vtmp_d)
+        SyntheticFields.from_fourier_grid!(op_vorticity, ω_d, vs_d, ks_grid)
+    end
+
     # (3) Copy results to CPU if needed (avoided if the "device" is the CPU).
     if vtmp_h !== vtmp_d
         copyto!(vtmp_h, vtmp_d)
+    end
+    if ω_h !== ω_d && with_smooth_vorticity(f)
+        copyto!(ω_h, ω_d)
     end
 
     nothing
@@ -97,11 +140,15 @@ end
 
 function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::AbstractFilament)
     (; α, α′,) = forcing
-    (; vtmp_h,) = cache  # contains vₙ - vₛ at large scale
+    (; vtmp_h, ω_h,) = cache  # contains vₙ - vₛ at large scale
     V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
     for i in eachindex(vs)
         s⃗ = f[i]
-        s⃗′ = f[i, UnitTangent()]
+        if with_smooth_vorticity(forcing)
+            s⃗′ = forcing.τ * V(ω_h(s⃗))  # replace s⃗′ with coarse-grained vorticity
+        else
+            s⃗′ = f[i, UnitTangent()]
+        end
         v⃗ₙₛ = V(vtmp_h(s⃗))
         v_perp = s⃗′ × v⃗ₙₛ
         vf = α * v_perp
