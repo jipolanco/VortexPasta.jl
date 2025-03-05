@@ -97,13 +97,13 @@ init_cache(f::NormalFluidForcing, args...) = (;)  # returns empty NamedTuple
 update_cache!(cache, f::NormalFluidForcing, args...) = nothing
 
 # Note: cache is not used but it's left for consistency with other forcings.
-function apply!(forcing::NormalFluidForcing, cache::NamedTuple, vs::AbstractVector, f::AbstractFilament)
+function apply!(forcing::NormalFluidForcing, cache::NamedTuple, vs::AbstractVector, f::AbstractFilament; kws...)
     eachindex(vs) == eachindex(f) || throw(DimensionMismatch("lengths of filament and velocity vectors don't match"))
     @inline get_at_node(i) = (v⃗ₙ = forcing.vn(f[i]), s⃗′ = f[i, UnitTangent()])
     _apply!(get_at_node, forcing, vs)
 end
 
-function apply!(forcing::NormalFluidForcing, vs::AbstractVector, vn::AbstractVector, tangents::AbstractVector)
+function apply!(forcing::NormalFluidForcing, vs::AbstractVector, vn::AbstractVector, tangents::AbstractVector; kws...)
     eachindex(vs) == eachindex(vn) == eachindex(tangents) || throw(DimensionMismatch("lengths of vectors don't match"))
     @inline get_at_node(i) = @inbounds (v⃗ₙ = vn[i], s⃗′ = tangents[i],)
     _apply!(get_at_node, forcing, vs)
@@ -113,10 +113,14 @@ end
 # (v⃗ₛ, v⃗ₙ, s⃗′) with the superfluid velocity, normal fluid velocity and the local unit
 # tangent at the node `i` of a filament. This is useful if those quantities have been
 # precomputed.
-function _apply!(get_at_node::F, forcing::NormalFluidForcing, vs::AbstractVector) where {F <: Function}
-    (; α, α′,) = forcing
+function _apply!(
+        get_at_node::F, forcing::NormalFluidForcing, vs::AbstractVector;
+        scheduler = SerialScheduler()
+    ) where {F <: Function}
+    (; α, α′) = forcing
     V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
-    for i ∈ eachindex(vs)
+    tforeach(eachindex(vs); scheduler) do i
+        @inline
         (; v⃗ₙ, s⃗′,) = @inline get_at_node(i)  # superfluid velocity, normal fluid velocity and unit tangent
         v⃗ₛ = vs[i]
         vₙₛ = V(v⃗ₙ) - V(v⃗ₛ)   # slip velocity

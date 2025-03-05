@@ -70,6 +70,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t
     tangents_all = quantities.tangents  # local tangents
     @assert vs_all !== vL_all
     @assert eachindex(vL_all) == eachindex(vn_all) == eachindex(tangents_all) == eachindex(vs_all) == eachindex(fs)
+    scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
         @inbounds for n ∈ eachindex(fs)
             f = fs[n]
@@ -79,12 +80,12 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t
             tangents = tangents_all[n]
             # At input, vL contains the self-induced velocity vs.
             # We copy vL -> vs before modifying vL with the actual vortex velocities.
-            Threads.@threads for i ∈ eachindex(f, tangents)
+            tforeach(eachindex(f, tangents); scheduler) do i
                 tangents[i] = f[i, UnitTangent()]  # TODO: can we reuse the tangents / computed elsewhere?
                 vs[i] = vL[i]  # usually this is the Biot-Savart velocity
                 vn[i] = forcing.vn(f[i])  # evaluate normal fluid velocity
             end
-            Forcing.apply!(forcing, vL, vn, tangents)  # compute vL according to the given forcing (vL = vs at input)
+            Forcing.apply!(forcing, vL, vn, tangents; scheduler)  # compute vL according to the given forcing (vL = vs at input)
         end
     end
     nothing
@@ -95,12 +96,13 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t
     (; quantities,) = iter
     vs_all = quantities.vs  # self-induced velocities will be copied here
     Forcing.update_cache!(cache, forcing, iter.cache_bs)
+    scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
         @inbounds for n in eachindex(fs)
             f = fs[n]
             vL = vL_all[n]  # currently contains self-induced velocity vs
             copyto!(vs_all[n], vL)
-            Forcing.apply!(forcing, cache, vL, f)  # compute vL according to the given forcing (vL = vs at input)
+            Forcing.apply!(forcing, cache, vL, f; scheduler)  # compute vL according to the given forcing (vL = vs at input)
         end
     end
     nothing

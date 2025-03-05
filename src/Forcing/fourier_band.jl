@@ -129,11 +129,12 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
     nothing
 end
 
-function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::AbstractFilament)
+function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::AbstractFilament; scheduler = SerialScheduler())
     (; α, α′,) = forcing
     (; vtmp_h, ω_h,) = cache  # contains vₙ - vₛ at large scale
     V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
-    for i in eachindex(vs)
+    tforeach(eachindex(vs); scheduler) do i
+        @inline
         s⃗ = f[i]
         if with_filtered_vorticity(forcing)
             ω⃗ = V(ω_h(s⃗))  # coarse-grained vorticity at s⃗
