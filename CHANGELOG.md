@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.26.6] - 2025-03-05
+
 ### Fixed
 
 - Fix possible issue when using `FourierBandForcing` on GPUs.
