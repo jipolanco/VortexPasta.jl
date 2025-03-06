@@ -95,6 +95,7 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t
     @assert eachindex(vL_all) === eachindex(fs)
     (; quantities,) = iter
     vs_all = quantities.vs  # self-induced velocities will be copied here
+    v_ns_all = quantities.v_ns  # slip velocity used in forcing
     Forcing.update_cache!(cache, forcing, iter.cache_bs)
     scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
@@ -102,7 +103,9 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t
             f = fs[n]
             vL = vL_all[n]  # currently contains self-induced velocity vs
             copyto!(vs_all[n], vL)
-            Forcing.apply!(forcing, cache, vL, f; scheduler)  # compute vL according to the given forcing (vL = vs at input)
+            # Compute vL according to the given forcing (vL = vs at input).
+            # This will also store filtered slip velocities in v_ns.
+            Forcing.apply!(forcing, cache, vL, f; vdiff = v_ns_all[n], scheduler)
         end
     end
     nothing

@@ -129,7 +129,7 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
     nothing
 end
 
-function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::AbstractFilament; scheduler = SerialScheduler())
+function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::AbstractFilament; vdiff = nothing, scheduler = SerialScheduler())
     (; α, α′,) = forcing
     (; vtmp_h, ω_h,) = cache  # contains vₙ - vₛ at large scale
     V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
@@ -147,6 +147,9 @@ function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::Abstr
             s⃗′ = f[i, UnitTangent()]::V
         end
         v⃗ₙₛ = V(vtmp_h(s⃗))
+        if vdiff !== nothing
+            vdiff[i] = v⃗ₙₛ
+        end
         v_perp = s⃗′ × v⃗ₙₛ
         vf = α * v_perp
         if !iszero(α′)

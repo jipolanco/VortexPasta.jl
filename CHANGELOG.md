@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Store slip velocity (Fourier-filtered `vn - vs`) evaluated on filament nodes when using `FourierBandForcing`.
+  This is now available as the `iter.v_ns` field of `VortexFilamentSolver` when this kind of forcing is used.
+
 ## [0.26.6] - 2025-03-05
 
 ### Fixed
