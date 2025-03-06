@@ -247,46 +247,49 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     (; quantities,) = iter
     io = IOContext(io_in, :indent => 4)  # this may be used by some `show` functions, for example for the forcing
     print(io, "VortexFilamentSolver with fields:")
-    print(io, "\n - `prob`: ", nameof(typeof(iter.prob)))
-    _print_summary(io, iter.fs; pre = "\n - `fs`: ", post =  " -- vortex filaments")
-    _print_summary(io, quantities.vL; pre = "\n - `quantities.vL`: ", post = " -- vortex line velocity (vs + mutual friction)")
-    _print_summary(io, quantities.vs; pre = "\n - `quantities.vs`: ", post = " -- self-induced + external superfluid velocity")
+    print(io, "\n ├─ prob: ", nameof(typeof(iter.prob)))
+    _print_summary(io, iter.fs; pre = "\n ├─ fs: ", post =  " -- vortex filaments")
+    _print_summary(io, quantities.vL; pre = "\n ├─ quantities.vL: ", post = " -- vortex line velocity (vs + mutual friction)")
+    _print_summary(io, quantities.vs; pre = "\n ├─ quantities.vs: ", post = " -- self-induced + external superfluid velocity")
     if haskey(quantities, :vn)
-        _print_summary(io, quantities.vn; pre = "\n - `quantities.vn`: ", post = " -- normal fluid velocity")
+        _print_summary(io, quantities.vn; pre = "\n ├─ quantities.vn: ", post = " -- normal fluid velocity")
+    end
+    if haskey(quantities, :v_ns)
+        _print_summary(io, quantities.v_ns; pre = "\n ├─ quantities.v_ns: ", post = " -- slip velocity used in forcing")
     end
     if haskey(quantities, :tangents)
-        _print_summary(io, quantities.tangents; pre = "\n - `quantities.tangents`: ", post = " -- local unit tangent")
+        _print_summary(io, quantities.tangents; pre = "\n ├─ quantities.tangents: ", post = " -- local unit tangent")
     end
-    _print_summary(io, quantities.ψs; pre = "\n - `quantities.ψs`: ", post = " -- streamfunction vector")
-    print(io, "\n - `time`: ")
+    _print_summary(io, quantities.ψs; pre = "\n ├─ quantities.ψs: ", post = " -- streamfunction vector")
+    print(io, "\n ├─ time: ")
     summary(io, iter.time)
-    print(io, "\n - `stats`: ")
+    print(io, "\n ├─ stats: ")
     summary(io, iter.stats)
-    print(io, "\n - `dtmin`: ", iter.dtmin)
-    print(io, "\n - `refinement`: ", iter.refinement)
-    print(io, "\n - `adaptivity`: ", iter.adaptivity)
-    print(io, "\n - `reconnect`: ", Reconnections.criterion(iter.reconnect))
-    print(io, "\n - `fast_term`: ", iter.fast_term)
-    print(io, "\n - `LIA`: ", iter.LIA)
-    print(io, "\n - `fold_periodic`: ", iter.fold_periodic)
-    print(io, "\n - `cache_bs`: ")
+    print(io, "\n ├─ dtmin: ", iter.dtmin)
+    print(io, "\n ├─ refinement: ", iter.refinement)
+    print(io, "\n ├─ adaptivity: ", iter.adaptivity)
+    print(io, "\n ├─ reconnect: ", Reconnections.criterion(iter.reconnect))
+    print(io, "\n ├─ fast_term: ", iter.fast_term)
+    print(io, "\n ├─ LIA: ", iter.LIA)
+    print(io, "\n ├─ fold_periodic: ", iter.fold_periodic)
+    print(io, "\n ├─ cache_bs: ")
     summary(io, iter.cache_bs)
-    print(io, "\n - `cache_timestepper`: ")
+    print(io, "\n ├─ cache_timestepper: ")
     summary(io, iter.cache_timestepper)
-    print(io, "\n - `affect!`: Function (`", _printable_function(iter.affect!), "`)")
-    print(io, "\n - `callback`: Function (`", _printable_function(iter.callback), "`)")
+    print(io, "\n ├─ affect!: Function (", _printable_function(iter.affect!), ")")
+    print(io, "\n ├─ callback: Function (", _printable_function(iter.callback), ")")
     for (name, func) ∈ pairs(iter.external_fields)
-        func === nothing || print(io, "\n - `external_fields.$name`: Function (`$func`)")
+        func === nothing || print(io, "\n ├─ external_fields.$name: Function ($func)")
     end
     if iter.stretching_velocity !== nothing
-        print(io, "\n - `stretching_velocity`: Function (`", iter.stretching_velocity, "`)")
+        print(io, "\n ├─ stretching_velocity: Function (", iter.stretching_velocity, ")")
     end
     if iter.forcing !== nothing
-        print(io, "\n - `forcing`: ", iter.forcing)
+        print(io, "\n └─ forcing: ", iter.forcing)  # note: this draws a "subtree"
     end
-    print(io, "\n - `advect!`: Function")
-    print(io, "\n - `rhs!`: Function")
-    print(io, "\n - `to`: ")
+    print(io, "\n ├─ advect!: Function")
+    print(io, "\n ├─ rhs!: Function")
+    print(io, "\n └─ to: ")
     summary(io, iter.to)
 end
 
@@ -564,6 +567,11 @@ function init(
     (; Ls,) = prob.p
     fs = convert(VectorOfVectors, prob.fs)
 
+    # Make sure the filaments are ready for interpolations and derivative estimations
+    # for f in fs
+    #     Filaments.update_coefficients!(f)
+    # end
+
     # Describe the velocity and streamfunction on filament locations using the
     # ClosedFilament type, so that we can interpolate these fields on filaments.
     # For now we don't require any derivatives.
@@ -572,10 +580,10 @@ function init(
     end :: VectorOfVectors
     ψs = similar(vs)
 
-    quantities = if with_normal_fluid(forcing)
+    quantities = if forcing isa NormalFluidForcing
         (; vs, ψs, vL = similar(vs), vn = similar(vs), tangents = similar(vs),)
     elseif forcing isa FourierBandForcing
-        (; vs, ψs, vL = similar(vs),)  # we separately store vs and vL
+        (; vs, ψs, v_ns = similar(vs), vL = similar(vs),)  # we separately store vs and vL
     else
         (; vs, ψs, vL = vs,)  # vL is an alias to vs
     end
@@ -633,12 +641,6 @@ function init(
 
     iter
 end
-
-# For now, there is a normal fluid only if the forcing argument is a NormalFluidForcing.
-with_normal_fluid(forcing::NormalFluidForcing) = true
-with_normal_fluid(forcing) = false
-
-with_normal_fluid(iter::VortexFilamentSolver) = :vn ∈ keys(iter.quantities)
 
 function fields_to_resize(iter::VortexFilamentSolver)
     (; quantities,) = iter

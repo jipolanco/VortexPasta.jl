@@ -53,9 +53,7 @@ end
 
 # This generates a summarised (shorter) version of typeof(fs).
 function _typeof_summary(io::IO, fs::VectorOfVectors)
-    V = eltype(fs)  # e.g. ClosedFilament{Float64, ...}
-    T = eltype(V)   # e.g. Vec3{Float64}
-    print(io, "VectorOfVectors{$T}")
+    print(io, "VectorOfVectors")
 end
 
 function _print_summary(io::IO, fs::VectorOfVectors; pre = nothing, post = nothing)
