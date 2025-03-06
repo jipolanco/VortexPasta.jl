@@ -523,6 +523,10 @@ will be applied _after_ all the other forcing methods.
 In other words, the vortex velocity ``\bm{v}_{\text{s}}`` used to compute the mutual
 friction velocity includes all the other contributions (i.e. external and stretching velocities).
 
+There is also a [`FourierBandForcing`](@ref) type which behaves similarly to
+`NormalFluidForcing` but is more localised in scale space, as it uses a band-pass filtered
+version of the superfluid velocity induced by the vortices.
+
 ### Injecting filaments over time
 
 Another way of injecting energy is simply by adding vortices to the simulation from time to
