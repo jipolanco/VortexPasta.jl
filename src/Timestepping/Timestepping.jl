@@ -244,23 +244,22 @@ struct VortexFilamentSolver{
 end
 
 function Base.show(io_in::IO, iter::VortexFilamentSolver)
-    (; quantities,) = iter
     io = IOContext(io_in, :indent => 4)  # this may be used by some `show` functions, for example for the forcing
     print(io, "VortexFilamentSolver with fields:")
-    print(io, "\n ├─ prob: ", nameof(typeof(iter.prob)))
-    _print_summary(io, iter.fs; pre = "\n ├─ fs: ", post =  " -- vortex filaments")
-    _print_summary(io, quantities.vL; pre = "\n ├─ quantities.vL: ", post = " -- vortex line velocity (vs + mutual friction)")
-    _print_summary(io, quantities.vs; pre = "\n ├─ quantities.vs: ", post = " -- self-induced + external superfluid velocity")
-    if haskey(quantities, :vn)
-        _print_summary(io, quantities.vn; pre = "\n ├─ quantities.vn: ", post = " -- normal fluid velocity")
+    print(io, "\n ├─ prob: ", iter.prob)
+    _print_summary(io, iter.fs; pre = "\n ├─ fs: ", post = "vortex filaments")
+    _print_summary(io, iter.vL; pre = "\n ├─ vL: ", post = "vortex line velocity (vs + mutual friction)")
+    _print_summary(io, iter.vs; pre = "\n ├─ vs: ", post = "self-induced + external superfluid velocity")
+    if hasproperty(iter, :vn)
+        _print_summary(io, iter.vn; pre = "\n ├─ vn: ", post = "normal fluid velocity")
     end
-    if haskey(quantities, :v_ns)
-        _print_summary(io, quantities.v_ns; pre = "\n ├─ quantities.v_ns: ", post = " -- slip velocity used in forcing")
+    if hasproperty(iter, :v_ns)
+        _print_summary(io, iter.v_ns; pre = "\n ├─ v_ns: ", post = "slip velocity used in forcing")
     end
-    if haskey(quantities, :tangents)
-        _print_summary(io, quantities.tangents; pre = "\n ├─ quantities.tangents: ", post = " -- local unit tangent")
+    if hasproperty(iter, :tangents)
+        _print_summary(io, iter.tangents; pre = "\n ├─ tangents: ", post = "local unit tangent")
     end
-    _print_summary(io, quantities.ψs; pre = "\n ├─ quantities.ψs: ", post = " -- streamfunction vector")
+    _print_summary(io, iter.ψs; pre = "\n ├─ ψs: ", post = "streamfunction vector")
     print(io, "\n ├─ time: ")
     summary(io, iter.time)
     print(io, "\n ├─ stats: ")
@@ -276,8 +275,14 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     summary(io, iter.cache_bs)
     print(io, "\n ├─ cache_timestepper: ")
     summary(io, iter.cache_timestepper)
-    print(io, "\n ├─ affect!: Function (", _printable_function(iter.affect!), ")")
-    print(io, "\n ├─ callback: Function (", _printable_function(iter.callback), ")")
+    affect! = _printable_function(iter.affect!)
+    callback = _printable_function(iter.callback)
+    if affect! !== identity
+        print(io, "\n ├─ affect!: Function (", affect!, ")")
+    end
+    if callback !== identity
+        print(io, "\n ├─ callback: Function (", callback, ")")
+    end
     for (name, func) ∈ pairs(iter.external_fields)
         func === nothing || print(io, "\n ├─ external_fields.$name: Function ($func)")
     end
@@ -287,8 +292,8 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     if iter.forcing !== nothing
         print(io, "\n └─ forcing: ", iter.forcing)  # note: this draws a "subtree"
     end
-    print(io, "\n ├─ advect!: Function")
-    print(io, "\n ├─ rhs!: Function")
+    # print(io, "\n ├─ advect!: Function")
+    # print(io, "\n ├─ rhs!: Function")
     print(io, "\n └─ to: ")
     summary(io, iter.to)
 end
