@@ -162,7 +162,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
 
     energy_rel = energy ./ energy[begin]
 
-    let
+    if VERBOSE
         plt = lineplot(
             times, energy_rel;
             xlabel = "Time", ylabel = "Energy", title = "Trefoil knot / $scheme",

@@ -244,7 +244,7 @@ struct VortexFilamentSolver{
 end
 
 function Base.show(io_in::IO, iter::VortexFilamentSolver)
-    io = IOContext(io_in, :indent => 4)  # this may be used by some `show` functions, for example for the forcing
+    io = IOContext(io_in, :prefix => " │  ")  # this may be used by some `show` functions, for example for the forcing
     print(io, "VortexFilamentSolver with fields:")
     print(io, "\n ├─ prob: ", iter.prob)
     _print_summary(io, iter.fs; pre = "\n ├─ fs: ", post = "vortex filaments")
@@ -290,7 +290,7 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
         print(io, "\n ├─ stretching_velocity: Function (", iter.stretching_velocity, ")")
     end
     if iter.forcing !== nothing
-        print(io, "\n └─ forcing: ", iter.forcing)  # note: this draws a "subtree"
+        print(io, "\n ├─ forcing: ", iter.forcing)  # note: this draws a "subtree"
     end
     # print(io, "\n ├─ advect!: Function")
     # print(io, "\n ├─ rhs!: Function")

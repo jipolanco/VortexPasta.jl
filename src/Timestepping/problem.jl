@@ -44,14 +44,12 @@ end
 
 function Base.show(io::IO, prob::VortexFilamentProblem)
     (; fs, tspan, p,) = prob
-    indent = get(io, :indent, 0)
-    nspaces = max(indent, 1)
-    spaces = " "^nspaces
+    prefix = get(io, :prefix, " ")  # single space by default
     print(io, "VortexFilamentProblem with fields:")
-    print(io, "\n$(spaces)├─ p: ")
+    print(io, "\n$(prefix)├─ p: ")
     summary(io, p)
-    print(io, "\n$(spaces)├─ tspan: ", tspan, " -- simulation timespan")
-    _print_summary(io, fs; pre = "\n$(spaces)└─ fs: ", post = "vortex filaments at t = $(tspan[1])")
+    print(io, "\n$(prefix)├─ tspan: ", tspan, " -- simulation timespan")
+    _print_summary(io, fs; pre = "\n$(prefix)└─ fs: ", post = "vortex filaments at t = $(tspan[1])")
 end
 
 # This generates a summarised (shorter) version of typeof(fs).

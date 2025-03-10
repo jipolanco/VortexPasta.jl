@@ -83,12 +83,10 @@ end
 
 function Base.show(io::IO, f::NormalFluidForcing{T}) where {T}
     (; vn, α, α′,) = f
-    indent = get(io, :indent, 0)
-    nspaces = max(indent, 1)
-    spaces = " "^nspaces
+    prefix = get(io, :prefix, " ")  # single space by default
     print(io, "NormalFluidForcing{$T} with:")
-    print(io, "\n$(spaces)├─ Normal velocity field: ", vn)
-    print(io, "\n$(spaces)└─ Friction coefficients: α = ", α, " and α′ = ", α′)
+    print(io, "\n$(prefix)├─ Normal velocity field: ", vn)
+    print(io, "\n$(prefix)└─ Friction coefficients: α = ", α, " and α′ = ", α′)
 end
 
 # These functions are used in the Timestepping module.

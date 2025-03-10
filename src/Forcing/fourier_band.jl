@@ -55,13 +55,11 @@ end
 
 function Base.show(io::IO, f::FourierBandForcing{T}) where {T}
     (; vn, α, α′,) = f
-    indent = get(io, :indent, 0)
-    nspaces = max(indent, 1)
-    spaces = " "^nspaces
+    prefix = get(io, :prefix, " ")  # single space by default
     print(io, "FourierBandForcing{$T} with:")
-    print(io, "\n$(spaces)├─ Normal velocity field: ", vn)
-    print(io, "\n$(spaces)├─ Filtered superfluid vorticity: ", with_filtered_vorticity(f))
-    print(io, "\n$(spaces)└─ Friction coefficients: α = ", α, " and α′ = ", α′)
+    print(io, "\n$(prefix)├─ Normal velocity field: ", vn)
+    print(io, "\n$(prefix)├─ Filtered superfluid vorticity: ", with_filtered_vorticity(f))
+    print(io, "\n$(prefix)└─ Friction coefficients: α = ", α, " and α′ = ", α′)
 end
 
 # Here vs_d is the superfluid velocity in Fourier space, optionally on a device (GPU).
