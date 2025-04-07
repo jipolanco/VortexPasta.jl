@@ -289,7 +289,7 @@ struct RefineBasedOnSegmentLength <: RefinementCriterion
 end
 
 function Base.show(io::IO, c::RefineBasedOnSegmentLength)
-    (; ℓ_min, ℓ_max,) = c
+    (; ℓ_min, ℓ_max, ρℓ_max ) = c
     print(io, "RefineBasedOnSegmentLength($ℓ_min, $ℓ_max; ρℓ_max = $ρℓ_max)")
 end
 
