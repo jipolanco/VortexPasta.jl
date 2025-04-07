@@ -271,8 +271,7 @@ This refinement criterion imposes neighbouring filament nodes to be at a distanc
   For a filament which is strongly curved at that point, this means that local information
   is lost and that the filament is smoothed.
 
-The optional argument ``ρℓ_max`` sets the curvature limit so that higher curvature will be smoothed.
-Useful when considering that vortices dissipate energy via sound emission through kelvin waves.
+The optional argument ``ρℓ_max`` sets the curvature limit so that higher curvature regions will be smoothed.
 
 - nodes are **removed** if the curvature between two nodes is ``ρℓ > ρℓ_{\\max}``.
   For a filament which is strongly curved at that point, this means that local information
@@ -291,7 +290,7 @@ end
 
 function Base.show(io::IO, c::RefineBasedOnSegmentLength)
     (; ℓ_min, ℓ_max,) = c
-    print(io, "RefineBasedOnSegmentLength($ℓ_min, $ℓ_max; $ρℓ_max)")
+    print(io, "RefineBasedOnSegmentLength($ℓ_min, $ℓ_max; ρℓ_max = $ρℓ_max)")
 end
 
 function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)
