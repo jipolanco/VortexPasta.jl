@@ -296,12 +296,18 @@ end
 function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)
     (; ℓ_min, ℓ_max, ρℓ_max) = crit
     ℓ = norm(f[i + 1] - f[i])
-    ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
-    ρℓ = ρ * ℓ
     if ℓ > ℓ_max
         :insert
-    elseif ℓ < ℓ_min || ρℓ > ρℓ_max
+    elseif ℓ < ℓ_min 
         :remove
+    elseif !isinf(ρℓ_max) # if removing large curvature regions 
+        ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
+        ρℓ = ρ * ℓ
+        if ρℓ > ρℓ_max
+            :remove
+        else 
+            :nothing
+        end
     else
         :nothing
     end
