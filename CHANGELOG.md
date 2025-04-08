@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Refinement: add option to remove points in high curvature regions when using `RefineBasedOnSegmentLength` criterion.
+- Refinement: add option to remove points in high curvature regions when using the `RefineBasedOnSegmentLength` criterion.
 
 ## [0.26.7] - 2025-03-07
 

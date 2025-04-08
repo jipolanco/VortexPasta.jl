@@ -87,7 +87,7 @@ function test_perturbed_vortex_ring()
             H_alt = Diagnostics.helicity(fs, vs_p, iter.prob.p; quad)
             dLdt_alt = Diagnostics.stretching_rate(fs, vs_p; quad)
             @test dLdt == dLdt_alt
-            @test E == E_alt
+            @test E ≈ E_alt atol=(10 * eps(E))  # these should be exactly the same, but may differ by ϵ
             @test abs(H) < 1e-5  # in theory it's equal to zero
             @test H ≈ H_alt
             let fname = "ring_perturbed_$nstep.vtkhdf"
