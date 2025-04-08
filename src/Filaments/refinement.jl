@@ -256,7 +256,7 @@ end
 
 """
     RefineBasedOnSegmentLength <: RefinementCriterion
-    RefineBasedOnSegmentLength(ℓ_min, ℓ_max = 2 * ℓ_min)
+    RefineBasedOnSegmentLength(ℓ_min, ℓ_max = 2 * ℓ_min; ρℓ_max = Inf)
 
 Refinement criterion imposing a minimum segment length.
 
@@ -270,29 +270,44 @@ This refinement criterion imposes neighbouring filament nodes to be at a distanc
 - nodes are **removed** if the distance between two nodes is ``ℓ < ℓ_{\\min}``.
   For a filament which is strongly curved at that point, this means that local information
   is lost and that the filament is smoothed.
+
+The optional argument ``ρℓ_max`` sets the curvature limit so that higher curvature regions will be smoothed.
+
+- nodes are **removed** if the curvature between two nodes is ``ρℓ > ρℓ_{\\max}``.
+  For a filament which is strongly curved at that point, this means that local information
+  is lost and that the filament is smoothed. 
 """
 struct RefineBasedOnSegmentLength <: RefinementCriterion
     ℓ_min :: Float64
     ℓ_max :: Float64
+    ρℓ_max :: Float64
     cache :: RefinementCache
-    function RefineBasedOnSegmentLength(ℓ_min, ℓ_max = 2 * ℓ_min)
+    function RefineBasedOnSegmentLength(ℓ_min, ℓ_max = 2 * ℓ_min; ρℓ_max = Inf)
         ℓ_min < ℓ_max || error(lazy"ℓ_min should be smaller than ℓ_max (got ℓ_max/ℓ_min = $ℓ_max/$ℓ_min)")
-        new(ℓ_min, ℓ_max, RefinementCache())
+        new(ℓ_min, ℓ_max, ρℓ_max, RefinementCache())
     end
 end
 
 function Base.show(io::IO, c::RefineBasedOnSegmentLength)
-    (; ℓ_min, ℓ_max,) = c
-    print(io, "RefineBasedOnSegmentLength($ℓ_min, $ℓ_max)")
+    (; ℓ_min, ℓ_max, ρℓ_max ) = c
+    print(io, "RefineBasedOnSegmentLength($ℓ_min, $ℓ_max; ρℓ_max = $ρℓ_max)")
 end
 
 function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)
-    (; ℓ_min, ℓ_max,) = crit
+    (; ℓ_min, ℓ_max, ρℓ_max) = crit
     ℓ = norm(f[i + 1] - f[i])
     if ℓ > ℓ_max
         :insert
-    elseif ℓ < ℓ_min
+    elseif ℓ < ℓ_min 
         :remove
+    elseif !isinf(ρℓ_max) # if removing large curvature regions 
+        ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
+        ρℓ = ρ * ℓ
+        if ρℓ > ρℓ_max
+            :remove
+        else 
+            :nothing
+        end
     else
         :nothing
     end
