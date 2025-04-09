@@ -457,8 +457,8 @@ end
 
             # Note that the order of the filaments is arbitrary and implementation-dependent...
             @test sum(f -> norm(end_to_end_offset(f)), fs) ≈ 4π  # two infinite lines
-            @test end_to_end_offset(fs[1]) ≈ Vec3(-2π, 0, 0)  # infinite line
-            @test end_to_end_offset(fs[2]) ≈ Vec3(+2π, 0, 0)  # infinite line
+            @test end_to_end_offset(fs[1]) ≈ Vec3(+2π, 0, 0)  # infinite line
+            @test end_to_end_offset(fs[2]) ≈ Vec3(-2π, 0, 0)  # infinite line
             @test end_to_end_offset(fs[3]) == Vec3(0, 0, 0)   # small loop
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
         end

@@ -168,7 +168,10 @@ function find_reconnection_pairs!(
     # (hopefully) allows to have stable results (which don't vary from one run to another)
     # when running with multiple threads.
     if !isempty(to_reconnect)
-        sort!(to_reconnect; by = r -> r.info.d²)
+        # Note: the x⃗ position (one of the reconnection points) is only used for sorting in
+        # case multiple candidates have the same distance d². This is highly improbable in
+        # practice, but can happen in highly symmetric cases (in tests in particular!).
+        sort!(to_reconnect; by = r -> (r.info.d², r.info.x⃗))
     end
     to_reconnect
 end
