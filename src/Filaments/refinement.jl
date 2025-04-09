@@ -271,11 +271,10 @@ This refinement criterion imposes neighbouring filament nodes to be at a distanc
   For a filament which is strongly curved at that point, this means that local information
   is lost and that the filament is smoothed.
 
-The optional argument ``ρℓ_max`` sets the curvature limit so that higher curvature regions will be smoothed.
+The optional argument `ρℓ_max` sets the curvature limit so that higher curvature regions will be smoothed
+and total line length is decreased:
 
-- nodes are **removed** if the curvature between two nodes is ``ρℓ > ρℓ_{\\max}``.
-  For a filament which is strongly curved at that point, this means that local information
-  is lost and that the filament is smoothed. 
+- nodes are **removed** if the local normalised curvature is ``ρℓ > (ρℓ)_{\\max}``.
 """
 struct RefineBasedOnSegmentLength <: RefinementCriterion
     ℓ_min :: Float64
