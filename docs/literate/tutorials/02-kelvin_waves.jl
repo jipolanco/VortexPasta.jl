@@ -171,13 +171,13 @@ fcurve(t) = x⃗₀ + Vec3(
 #
 # Now we just pass the function to `Filaments.init`:
 
-f′ = Filaments.init(fcurve, ClosedFilament, N, QuinticSplineMethod())
+f_alt = Filaments.init(fcurve, ClosedFilament, N, QuinticSplineMethod())
 nothing  # hide
 
 # Note that this generates a filament which is practically identical to the previous one
 # (just with a shift in the node positions, not really visible here):
 
-plot_filaments([f, f′])
+plot_filaments([f, f_alt])
 
 # ## Using predefined curves
 #
@@ -223,6 +223,8 @@ plot_filaments(f)
 # Indeed, a single straight vortex filament in a periodic domain generates a non-zero
 # circulation along the domain boundaries (or equivalently, a non-zero mean vorticity),
 # which violates the periodicity condition.
+# (One may compensate this by considering a uniform background vorticity field with opposite
+# circulation, but this is outside of the scope of the tutorial.)
 #
 # The mean vorticity in the periodic domain is given by
 #
@@ -238,7 +240,7 @@ plot_filaments(f)
 # It is quite obvious that this is not the case for the filament defined above,
 # and we can readily verify it:
 
-integrate(f′, GaussLegendre(4)) do ff, i, ζ
+integrate(f_alt, GaussLegendre(4)) do ff, i, ζ
     ff(i, ζ, Derivative(1))
 end
 

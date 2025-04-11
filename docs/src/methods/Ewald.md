@@ -189,9 +189,9 @@ Similarly, the curl operator can be easily inverted in Fourier space to get the 
 
     To avoid this issue, we always set the mean vorticity to zero.
     In the case of infinite unclosed filaments, this effectively means that a non-zero
-    total filament charge will be compensated by a background uniform vorticity
+    total filament charge will be compensated by a uniform background vorticity $\bm{ω}_0$
     throughout the domain, which can be interpreted as if the computations were performed
-    in a rotating reference frame.
+    in a rotating reference frame with rotation rate $\bm{Ω} = \bm{ω}_0 / 2$.
     This just requires some care in the computation of the streamfunction (and thus the induced kinetic energy)
     as detailed in [`BiotSavart.background_vorticity_correction!`](@ref).
 
