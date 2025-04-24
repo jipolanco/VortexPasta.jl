@@ -1,7 +1,7 @@
 using LinearAlgebra: normalize, norm
 using ForwardDiff: ForwardDiff
 
-using ..Constants: ∞
+using ..Constants: Infinity
 
 @doc raw"""
     Filaments.from_vector_field(
@@ -47,6 +47,10 @@ One may use [`Filaments.distance_to_field`](@ref) to verify the result of this f
 
 - `nsubsteps::Int = 1`: number of solver substeps to perform for each spatial increment `dτ`.
   Larger values may be used to improve accuracy;
+
+- `periods = (Lx, Ly, Lz)`: domain dimensions in the case of a periodic domain. This may be
+  used to close a curve if it crosses the domain one or more times. By default this is
+  `nothing`, meaning that domain periodicity is not taken into account.
 
 - `redistribute = true`: if `true` (default), [`redistribute_nodes!`](@ref) is called at the end
   to make sure that nodes are approximately distributed in a uniform way along the filament.
@@ -133,7 +137,7 @@ function _from_vector_field!(
     ) where {F <: Function}
     f(x) = normalize(vecfield(x))
     xinit = first(xs)
-    Ls = periods === nothing ? ntuple(_ -> ∞, Val(length(xinit))) : periods
+    Ls = periods === nothing ? ntuple(_ -> Infinity(), Val(length(xinit))) : periods
     Lhs = map(L -> L / 2, Ls)  # half periods
     r²_crit = (dτ / 2)^2  # squared end-to-end critical distance to stop iterating
     r²_prev = zero(eltype(xinit))
