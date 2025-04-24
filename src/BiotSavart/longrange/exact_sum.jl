@@ -2,7 +2,6 @@ export ExactSumBackend
 
 using AbstractFFTs: fftfreq, rfftfreq
 using LinearAlgebra: ⋅
-using Polyester: @batch  # @threads replacement
 
 """
     ExactSumBackend <: LongRangeBackend
@@ -77,7 +76,7 @@ function transform_to_fourier!(c::ExactSumCache)
     @inbounds for i ∈ eachindex(points, charges)
         X = points[i]
         Q = charges[i]
-        @inbounds @batch for I ∈ inds
+        @inbounds Threads.@threads for I ∈ inds
             k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))
             uhat_d[I] += Q * cis(-k⃗ ⋅ X)
         end
@@ -94,7 +93,7 @@ function _interpolate_to_physical!(output::StructVector, c::ExactSumCache)
     kxs = first(wavenumbers_d)
     kx_lims = first(kxs), last(kxs)
     @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
-    @inbounds @batch for i ∈ eachindex(points, output)
+    @inbounds Threads.@threads for i ∈ eachindex(points, output)
         X = points[i]
         q⃗ = zero(real(eltype(uhat_d)))
         for I ∈ CartesianIndices(uhat_d)
