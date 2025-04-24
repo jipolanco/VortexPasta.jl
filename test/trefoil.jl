@@ -11,6 +11,16 @@ using LaTeXStrings  # used for plots only (L"...")
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
+# Check that all threads are currently pinned.
+# This tests the :default thread pool, which is the one used in parallel computations.
+function check_pinned_threads()
+    pool = :default
+    for threadid in Threads.threadpooltids(pool)
+        @test ThreadPinning.ispinned(; threadid) == true
+    end
+    nothing
+end
+
 function trefoil_function()
     R = π / 3
     define_curve(TrefoilKnot(); translate = R, scale = R)
@@ -131,7 +141,7 @@ function init_trefoil_filament(N::Int; method = CubicSplineMethod(), kws...)
 end
 
 function compare_long_range(
-        fs::AbstractVector{<:AbstractFilament}, backend = FINUFFTBackend();
+        fs::AbstractVector{<:AbstractFilament}, backend;
         tol = 1e-8, params_kws...,
     )
     params_exact = @inferred ParamsBiotSavart(;
@@ -363,7 +373,7 @@ end
     ThreadPinning.pinthreads(:cores)
     VERBOSE && ThreadPinning.threadinfo()
     cpuids = ThreadPinning.getcpuids()
-    @test ThreadPinning.ispinned() == true
+    check_pinned_threads()  # verify that threads have been pinned
     @test cpuids !== ThreadPinning.getcpuids()  # make sure they're not aliased (otherwise the ThreadPinning extension might need to be corrected)
     f = @inferred init_trefoil_filament(30)
     Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
@@ -411,7 +421,7 @@ end
         end
     end
     # Check that threads are still pinned after all of this.
-    @test ThreadPinning.ispinned() == true
+    check_pinned_threads()
     @test cpuids == ThreadPinning.getcpuids()
 end
 
