@@ -15,7 +15,7 @@ extra information allowing to restart a simulation from a checkpoint while prese
 continuity as much as possible.
 
 To ease visualisations, filaments are folded onto the periodic box by default, which differs
-from the default behaviour of [`Filaments.write_vtkhdf`](@ref). In particular, this means
+from the default behaviour of [`FilamentIO.write_vtkhdf`](@ref). In particular, this means
 that filaments may be broken down into multiple elements. One can pass `periods = nothing`
 to disable this behaviour.
 

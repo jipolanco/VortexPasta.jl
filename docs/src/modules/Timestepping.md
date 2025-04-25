@@ -61,8 +61,8 @@ step!
 
 ## Restarting a simulation
 
-One can write the current state of a simulation to disk using the [`write_checkpoint`](@ref)
-function, which can allow to restart a simulation from that state using [`load_checkpoint!`](@ref).
+One can write the current state of a simulation to disk using the [`save_checkpoint`](@ref)
+function, which can allow to restart a simulation from that state using [`load_checkpoint`](@ref).
 
 The `write_checkpoint` function is built on top of [`FilamentIO.write_vtkhdf`](@ref): it
 writes filament locations and optionally other data which can be visualised in ParaView, but
@@ -73,7 +73,7 @@ The [`load_checkpoint`](@ref) function can be used to load a checkpoint to resta
 simulation from that point.
 
 ```@docs
-write_checkpoint
+save_checkpoint
 load_checkpoint
 ```
 
