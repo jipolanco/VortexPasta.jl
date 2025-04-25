@@ -24,7 +24,8 @@ Keyword arguments are passed to [`FilamentIO.write_vtkhdf`](@ref).
 ## Saving velocity and other quantities
 
 One can save other quantities for visualisation by passing an optional `f` function (usually
-via a `do` block, as in the example below). See [`FilamentIO.write_vtkhdf`](@ref) for more details.
+via a `do` block, as in the example below). See [`FilamentIO.write_vtkhdf`](@ref) and the
+examples below for more details.
 
 ## Examples
 
@@ -34,7 +35,8 @@ Run simulation and save checkpoint at the end:
 prob = VortexFilamentProblem(...)
 iter = init(prob, RK4(); ...)
 solve!(iter)
-save_checkpoint("checkpoint.vtkhdf", iter) do io
+filename = "filaments_\$(iter.nstep).vtkhdf"
+save_checkpoint(filename, iter) do io
     io["velocity_s"] = iter.vs  # save superfluid velocity on vortices for visualisation
 end
 ```
@@ -104,7 +106,7 @@ Restart simulation from checkpoint:
 ```julia
 p = BiotSavartParams(...)
 checkpoint = load_checkpoint("filaments_1234.vtkhdf", Float64, CubicSplineMethod())
-tsim = 2.0  # total "physical" simulation time
+tsim = 2.0  # total simulation time
 prob = VortexFilamentProblem(checkpoint, tsim, p)
 iter = init(prob, RK4(); ...)
 solve!(iter)
