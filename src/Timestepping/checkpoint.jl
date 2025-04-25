@@ -57,6 +57,7 @@ function save_checkpoint(f::F, filename, iter::VortexFilamentSolver; kwargs...) 
             let g = HDF5.create_group(g, "SimulationStats")
                 _write_all_properties!(g, iter.stats)
             end
+            g["temporal_scheme"] = string(scheme(iter.cache_timestepper))
             g["refinement"] = string(iter.refinement)
             g["adaptivity"] = string(iter.adaptivity)
             g["reconnect"] = string(Reconnections.criterion(iter.reconnect))
@@ -81,6 +82,68 @@ function save_checkpoint(f::F, filename, iter::VortexFilamentSolver; kwargs...) 
     nothing
 end
 
+save_checkpoint(filename, iter::VortexFilamentSolver; kwargs...) = save_checkpoint(identity, filename, iter; kwargs...)
+
+struct LoadedCheckpoint{Filaments, Time <: TimeInfo, Stats <: SimulationStats}
+    fs    :: Filaments
+    time  :: Time
+    stats :: Stats
+end
+
+"""
+    load_checkpoint(filename, T, method::DiscretisationMethod) -> LoadedCheckpoint
+
+Load simulation state previously written by [`save_checkpoint`](@ref).
+
+The resulting checkpoint can be used to construct a [`VortexFilamentProblem`](@ref).
+
+## Examples
+
+Restart simulation from checkpoint:
+
+```julia
+p = BiotSavartParams(...)
+checkpoint = load_checkpoint("filaments_1234.vtkhdf", Float64, CubicSplineMethod())
+tsim = 2.0  # total "physical" simulation time
+prob = VortexFilamentProblem(checkpoint, tsim, p)
+iter = init(prob, RK4(); ...)
+solve!(iter)
+```
+"""
+function load_checkpoint(filename, ::Type{T}, method::DiscretisationMethod) where {T <: AbstractFloat}
+    time = TimeInfo()
+    stats = SimulationStats(T)
+    fs = FilamentIO.read_vtkhdf(filename, T, method) do io
+        gbase = FilamentIO.root(io)  # "/" group in HDF5 file
+        haskey(gbase, "VortexPasta") || error(
+            lazy"""HDF5 file "$filename" doesn't contain a /VortexPasta group.
+            Are you sure it was written using save_checkpoint?
+            Note that files written using FilamentIO.write_vtkhdf cannot be loaded as checkpoints since they don't have enough data.
+            """
+        )
+        gtop = HDF5.open_group(gbase, "VortexPasta")
+        let g = HDF5.open_group(gtop, "VortexFilamentSolver")
+            let g = HDF5.open_group(g, "Time")
+                _read_all_properties!(g, time)
+            end
+            let g = HDF5.open_group(g, "SimulationStats")
+                _read_all_properties!(g, stats)
+            end
+        end
+    end
+    LoadedCheckpoint(fs, time, stats)
+end
+
+# Create problem from checkpoint
+function VortexFilamentProblem(
+        checkpoint::LoadedCheckpoint, tsim::Real, p::ParamsBiotSavart,
+    )
+    (; fs, time, stats,) = checkpoint
+    state = (; time, stats,)  # solver state
+    tspan = (time.t, time.t + tsim)
+    VortexFilamentProblem(fs, tspan, p, state)
+end
+
 # Write all properties of object to HDF5 group
 function _write_all_properties!(g, obj)
     foreach(propertynames(obj)) do name
@@ -90,4 +153,12 @@ function _write_all_properties!(g, obj)
     nothing
 end
 
-save_checkpoint(filename, iter::VortexFilamentSolver; kwargs...) = save_checkpoint(identity, filename, iter; kwargs...)
+function _read_all_properties!(g, obj)
+    foreach(propertynames(obj)) do name
+        @inline
+        T = fieldtype(typeof(obj), name)
+        val = read(g, string(name) => HDF5.datatype(T))::T
+        setproperty!(obj, name, val)
+    end
+    obj
+end

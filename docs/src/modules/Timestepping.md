@@ -59,6 +59,24 @@ solve!
 step!
 ```
 
+## Restarting a simulation
+
+One can write the current state of a simulation to disk using the [`write_checkpoint`](@ref)
+function, which can allow to restart a simulation from that state using [`load_checkpoint!`](@ref).
+
+The `write_checkpoint` function is built on top of [`FilamentIO.write_vtkhdf`](@ref): it
+writes filament locations and optionally other data which can be visualised in ParaView, but
+also writes additional data such as solver parameters and the current state of the solver
+(time, timestep, ...).
+
+The [`load_checkpoint`](@ref) function can be used to load a checkpoint to restart a
+simulation from that point.
+
+```@docs
+write_checkpoint
+load_checkpoint
+```
+
 ## Temporal schemes
 
 The following timesteppers are available.
