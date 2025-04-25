@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `save_checkpoint` and `load_checkpoint` to `Timestepping` submodule.
+  The former should be preferred to `FilamentIO.write_vtkhdf` when writing simulation results.
+
 ## [0.26.8] - 2025-04-08
 
 ### Added
