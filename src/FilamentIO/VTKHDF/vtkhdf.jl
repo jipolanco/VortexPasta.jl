@@ -16,6 +16,8 @@ struct VTKHDFFile{
     refinement :: Int
 end
 
+root(io::VTKHDFFile) = HDF5.root(io.gtop)::HDF5.Group  # returns the "/" group
+
 const FilamentId = Int32
 const FilamentPeriodicOffset = Int32
 
@@ -42,13 +44,13 @@ end
 
 """
     write_vtkhdf(
-        [func::Function],
+        [f::Function],
         filename::AbstractString,
         fs::AbstractVector{<:AbstractFilament};
         refinement = 1,
         dataset_type = :PolyData,
         parametrisation = true,
-        periods = (nothing, nothing, nothing),
+        periods = nothing,
     )
 
 Write new VTK HDF file containing a list of filaments.
@@ -87,7 +89,7 @@ Some relevant datasets which are written are:
 
 ## Attaching extra data
 
-The optional `func` argument can be used to attach other data (such as velocity vectors or
+The optional `f` argument can be used to attach other data (such as velocity vectors or
 the current time) to the generated file. This is most conveniently done using the `do` block
 syntax. See further below for some examples.
 
@@ -137,10 +139,17 @@ function write_vtkhdf(
         func::Func,
         filename::AbstractString,
         fs::AbstractVector{<:AbstractFilament};
+        periods = nothing,
         kwargs...
     ) where {Func <: Function}
+    if periods isa Tuple
+        periods_ = periods
+    else
+        @assert periods isa Union{Nothing, Real}
+        periods_ = (periods, periods, periods)  # same period in all directions (works with `nothing` too)
+    end
     HDF5.h5open(filename, "w") do io
-        writer = init_vtkhdf(io, fs; kwargs...)
+        writer = init_vtkhdf(io, fs; periods = periods_, kwargs...)
         func(writer)
     end
     nothing
@@ -470,19 +479,15 @@ end
 ## ================================================================================ ##
 
 """
-    read_vtkhdf(
-        [func::Function],
-        filename::AbstractString,
-        ::Type{T},
-        method::DiscretisationMethod,
-    ) where {T}
+    read_vtkhdf([f::Function], filename, T, method::DiscretisationMethod)
 
 Read filament locations from VTK HDF file.
 
 This function loads filaments based on the datasets `/VTKHDF/Points` and `/VTKHDF/Offsets`
 as written by the [`write_vtkhdf`](@ref) function.
 
-Returns a vector of filaments, where each filament is discretised according to the chosen `method`.
+Returns a vector of filaments with precision `T` (`Float32` or `Float64`).
+Each filament is discretised according to the chosen `method`.
 See [`Filaments.init`](@ref) for possible options.
 
 One can also read other datasets using `read` and `read!`, as shown and explained below.

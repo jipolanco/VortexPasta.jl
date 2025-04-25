@@ -91,7 +91,7 @@ function test_perturbed_vortex_ring()
             @test abs(H) < 1e-5  # in theory it's equal to zero
             @test H ≈ H_alt
             let fname = "ring_perturbed_$nstep.vtkhdf"
-                write_vtkhdf(fname, fs; refinement = 4, periods = Ls) do io
+                save_checkpoint(fname, iter; refinement = 4) do io
                     io["velocity"] = vs
                     io["streamfunction"] = ψs
                     ψt = map(f -> similar(nodes(f), Float64), fs)

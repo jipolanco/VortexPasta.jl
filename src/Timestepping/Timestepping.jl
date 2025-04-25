@@ -6,6 +6,7 @@ Module defining timestepping solvers for vortex filament simulations.
 module Timestepping
 
 export init, solve!, step!, VortexFilamentProblem,
+       save_checkpoint, load_checkpoint,
        inject_filament!,
        ShortRangeTerm, LocalTerm,
        ParamsBiotSavart,                           # from ..BiotSavart
@@ -17,6 +18,7 @@ using ..Containers: VectorOfVectors
 using ..Filaments:
     Filaments,
     AbstractFilament,
+    DiscretisationMethod,
     UnitTangent,
     CurvatureVector,
     Vec3,
@@ -29,6 +31,8 @@ using ..Filaments:
     filament_length,
     RefinementCriterion,
     NoRefinement
+
+using ..FilamentIO: FilamentIO
 
 using ..Reconnections:
     Reconnections,
@@ -92,11 +96,11 @@ the actual filament displacement is too large compared to what is imposed by the
 In that case, the iteration will be recomputed with a smaller timestep (`dt → dt/2`).
 """
 @kwdef mutable struct TimeInfo
-    nstep     :: Int
-    nrejected :: Int
-    t       :: Float64
-    dt      :: Float64
-    dt_prev :: Float64
+    nstep     :: Int = 0
+    nrejected :: Int = 0
+    t       :: Float64 = 0
+    dt      :: Float64 = 0
+    dt_prev :: Float64 = 0
 end
 
 function Base.show(io::IO, time::TimeInfo)
@@ -567,7 +571,7 @@ function init(
         ForcingType <: Union{Nothing, AbstractForcing},
         T,
     }
-    (; tspan,) = prob
+    (; tspan, state,) = prob
     (; Ls,) = prob.p
     fs = convert(VectorOfVectors, prob.fs)
 
@@ -616,8 +620,13 @@ function init(
         throw(ArgumentError("currently, using LIA requires setting fast_term = LocalTerm()"))
     end
 
-    time = TimeInfo(nstep = 0, nrejected = 0, t = first(tspan), dt = dt, dt_prev = dt)
-    stats = SimulationStats(T)
+    if state === (;)  # empty state, new simulation
+        time = TimeInfo(t = first(tspan), dt = dt, dt_prev = dt)
+        stats = SimulationStats(T)
+    else  # with state, restarting from checkpoint
+        time = state.time
+        stats = state.stats::SimulationStats{T}
+    end
 
     external_fields = (
         velocity = external_velocity,
@@ -1137,6 +1146,7 @@ end
 
 include("forcing.jl")
 include("diagnostics.jl")
+include("checkpoint.jl")
 
 end
 
