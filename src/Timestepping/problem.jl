@@ -59,7 +59,7 @@ end
 
 function VortexFilamentProblem(fs::VectorOfFilaments, tsim::Real, p::ParamsBiotSavart)
     tspan = (zero(tsim), tsim)
-    VortexFilamentSolver(fs, tspan, p)
+    VortexFilamentProblem(fs, tspan, p)
 end
 
 function Base.show(io::IO, prob::VortexFilamentProblem)

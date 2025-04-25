@@ -58,6 +58,7 @@ println()
     @includetest "ring_collision.jl"
     @includetest "ring_stretching.jl"
     @includetest "ring_friction.jl"
+    @includetest "checkpoint.jl"
     @includetest "remove_small_filaments.jl"
     @includetest "trefoil.jl"
     @includetest "links.jl"

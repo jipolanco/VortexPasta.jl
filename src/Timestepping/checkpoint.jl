@@ -157,7 +157,7 @@ function _read_all_properties!(g, obj)
     foreach(propertynames(obj)) do name
         @inline
         T = fieldtype(typeof(obj), name)
-        val = read(g, string(name) => HDF5.datatype(T))::T
+        val = read(g, string(name) => T)::T
         setproperty!(obj, name, val)
     end
     obj
