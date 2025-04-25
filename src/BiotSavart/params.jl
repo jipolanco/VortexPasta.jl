@@ -50,6 +50,17 @@ function Base.show(io::IO, p::ParamsCommon)
     nothing
 end
 
+function to_hdf5(g, p::ParamsCommon{T}) where {T}
+    g["Gamma"] = p.Γ
+    g["a"] = p.a
+    g["Delta"] = p.Δ
+    g["Ls"] = collect(T, p.Ls)    # this allows converting Infinity() to a float (e.g. Inf)
+    g["alpha"] = convert(T, p.α)  # convert Zero() -> 0.0
+    g["quad"] = string(p.quad)
+    g["quad_near_singularity"] = string(p.quad_near_singularity)
+    nothing
+end
+
 Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
 Base.eltype(p::ParamsCommon) = eltype(typeof(p))
 
@@ -61,12 +72,12 @@ end
 ## ================================================================================ ##
 
 struct ParamsShortRange{
-        T <: Real,
+        T <: AbstractFloat,
         Backend <: ShortRangeBackend,
         Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
         CutoffDist <: MaybeConst{T},
-        LIASegmentFraction <: Union{Nothing, Real}
+        LIASegmentFraction <: Union{Nothing, T},
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
@@ -78,10 +89,11 @@ struct ParamsShortRange{
     function ParamsShortRange(
             backend::ShortRangeBackend, quad::StaticSizeQuadrature,
             common::ParamsCommon{T}, rcut_::Real,
-            lia_segment_fraction,
+            lia_segment_fraction_in,
         ) where {T}
         (; Ls,) = common
         rcut = maybe_convert(T, rcut_)
+        lia_segment_fraction = lia_segment_fraction_in === nothing ? nothing : convert(T, lia_segment_fraction_in)
         2 * rcut ≤ min(Ls...) ||
             error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
         rcut_sq = rcut * rcut
@@ -106,13 +118,24 @@ function Base.show(io::IO, p::ParamsShortRange)
     nothing
 end
 
+function to_hdf5(g, p::ParamsShortRange{T}) where {T}
+    (; common, rcut, lia_segment_fraction,) = p
+    (; α,) = common
+    β_shortrange = α === Zero() ? (rcut === Infinity() ? Infinity() : Zero()) : α * rcut
+    g["backend_shortrange"] = string(p.backend)
+    g["beta_shortrange"] = β_shortrange
+    g["r_cut"] = convert(T, rcut)
+    g["lia_segment_fraction"] = lia_segment_fraction === nothing ? one(T) : lia_segment_fraction  # setting this to nothing is equivalent to setting it to 1
+    nothing
+end
+
 # Create a new ParamsShortRange based on the type of ParamsCommon.
 function change_float_type(p::ParamsShortRange, common::ParamsCommon{T}) where {T}
     ParamsShortRange(p.backend, p.quad, common, p.rcut, p.lia_segment_fraction)
 end
 
 struct ParamsLongRange{
-        T,
+        T <: AbstractFloat,
         Backend <: LongRangeBackend,
         Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
@@ -142,6 +165,18 @@ function Base.show(io::IO, p::ParamsLongRange{T}) where {T}
     print(io, "\n   * Long-range resolution:      Ns = ", Ns, " (kmax = ", kmax, ")")
     print(io, "\n   * Long-range cut-off coeff.:  β_longrange = ", β_longrange)
     print(io, "\n   * Long-range spherical truncation: ", p.truncate_spherical)
+    nothing
+end
+
+function to_hdf5(g, p::ParamsLongRange{T}) where {T}
+    (; common, Ns,) = p
+    (; α,) = common
+    kmax = maximum_wavenumber(p)
+    β_longrange = kmax === Zero() ? Zero() : kmax / (2 * α)
+    g["backend_longrange"] = string(p.backend)
+    g["beta_longrange"] = β_longrange
+    g["Ns"] = collect(Ns)
+    g["truncate_spherical"] = p.truncate_spherical
     nothing
 end
 
@@ -394,6 +429,14 @@ function Base.show(io::IO, p::ParamsBiotSavart{T}) where {T}
     show(io, p.common)
     show(io, p.shortrange)
     show(io, p.longrange)
+    nothing
+end
+
+# Write parameters to HDF5 output (or anything that behaves like an HDF5 file/group.
+function to_hdf5(g, p::ParamsBiotSavart)
+    to_hdf5(g, p.common)
+    to_hdf5(g, p.shortrange)
+    to_hdf5(g, p.longrange)
     nothing
 end
 

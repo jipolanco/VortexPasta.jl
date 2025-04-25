@@ -16,6 +16,8 @@ struct VTKHDFFile{
     refinement :: Int
 end
 
+root(io::VTKHDFFile) = HDF5.root(io.gtop)::HDF5.Group  # returns the "/" group
+
 const FilamentId = Int32
 const FilamentPeriodicOffset = Int32
 
@@ -137,10 +139,17 @@ function write_vtkhdf(
         func::Func,
         filename::AbstractString,
         fs::AbstractVector{<:AbstractFilament};
+        periods = nothing,
         kwargs...
     ) where {Func <: Function}
+    if periods isa Tuple
+        periods_ = periods
+    else
+        @assert periods isa Union{Nothing, Real}
+        periods_ = (periods, periods, periods)  # same period in all directions (works with `nothing` too)
+    end
     HDF5.h5open(filename, "w") do io
-        writer = init_vtkhdf(io, fs; kwargs...)
+        writer = init_vtkhdf(io, fs; periods = periods_, kwargs...)
         func(writer)
     end
     nothing

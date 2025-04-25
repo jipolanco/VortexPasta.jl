@@ -6,6 +6,7 @@ Module defining timestepping solvers for vortex filament simulations.
 module Timestepping
 
 export init, solve!, step!, VortexFilamentProblem,
+       save_checkpoint,
        inject_filament!,
        ShortRangeTerm, LocalTerm,
        ParamsBiotSavart,                           # from ..BiotSavart
@@ -29,6 +30,8 @@ using ..Filaments:
     filament_length,
     RefinementCriterion,
     NoRefinement
+
+using ..FilamentIO: FilamentIO
 
 using ..Reconnections:
     Reconnections,
@@ -1137,6 +1140,7 @@ end
 
 include("forcing.jl")
 include("diagnostics.jl")
+include("checkpoint.jl")
 
 end
 
