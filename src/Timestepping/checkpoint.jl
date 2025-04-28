@@ -47,6 +47,8 @@ function save_checkpoint(f::F, filename, iter::VortexFilamentSolver; kwargs...) 
         f(io)  # do optional stuff in /VTKHDF group, e.g. writing other fields such as velocity
         gbase = FilamentIO.root(io)  # "/" group in HDF5 file
         gtop = HDF5.create_group(gbase, "VortexPasta")
+        gtop["version"] = string(VortexPasta.version())
+        gtop["julia_version"] = string(VERSION)
         let g = HDF5.create_group(gtop, "BiotSavartParams")
             BiotSavart.to_hdf5(g, iter.prob.p)
         end

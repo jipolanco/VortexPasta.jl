@@ -13,6 +13,8 @@ export init, solve!, step!, VortexFilamentProblem,
        NoReconnections, ReconnectBasedOnDistance,  # from ..Reconnections
        reset_timer!  # from TimerOutputs
 
+using ..VortexPasta: VortexPasta  # version()
+
 using ..Containers: VectorOfVectors
 
 using ..Filaments:

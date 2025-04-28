@@ -1,5 +1,7 @@
 module VortexPasta
 
+version() = pkgversion(@__MODULE__)::VersionNumber
+
 include("PaddedArrays/PaddedArrays.jl")  # completely independent of other modules
 include("PredefinedCurves/PredefinedCurves.jl")  # completely independent of other modules
 
