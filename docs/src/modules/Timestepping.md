@@ -64,7 +64,7 @@ step!
 One can write the current state of a simulation to disk using the [`save_checkpoint`](@ref)
 function. A simulation can then be restarted from that state using [`load_checkpoint`](@ref).
 
-The `load_checkpoint` function is built on top of [`FilamentIO.write_vtkhdf`](@ref): it
+The `save_checkpoint` function is built on top of [`FilamentIO.write_vtkhdf`](@ref): it
 writes filament locations and optionally other data which can be visualised in ParaView, but
 also writes additional data such as solver parameters and the current state of the solver
 (time, timestep, ...).
