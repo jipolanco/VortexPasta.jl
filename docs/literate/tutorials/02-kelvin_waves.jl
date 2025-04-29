@@ -815,21 +815,23 @@ using FFTW: fft, bfft, fftfreq
 
 w_hat = zeros(ComplexF64, N)  # perturbation in Fourier space
 ks = fftfreq(N, 2π * N / L)   # wavenumbers associated to perturbation, in [-N/2, +N/2-1]
-kmax = π * (N - 1) / L
+kmax = π * N / L
 kmax_perturb = 0.5 * kmax   # perturb up to this wavenumber (to avoid issues at the discretisation scale)
-ϵ = 0.01 / N  # non-dimensional perturbation amplitude
+A_rms = 1e-3 * L  # perturbation amplitude (wanted rms value of ws[:])
 
 using StableRNGs: StableRNG  # for deterministic random number generation
 rng = StableRNG(42)  # initialise random number generator (RNG)
 
 for i in eachindex(w_hat, ks)
     kabs = abs(ks[i])
-    if kabs <= kmax_perturb
-        w_hat[i] = ϵ * L * randn(rng, ComplexF64)  # perturb all wavenumbers equally
+    if 0 < kabs <= kmax_perturb
+        w_hat[i] = randn(rng, ComplexF64)  # perturb all wavenumbers equally
     else
         w_hat[i] = 0
     end
 end
+factor = A_rms / sqrt(sum(abs2, w_hat))
+w_hat .*= factor
 
 # Now convert to physical space and update filament points:
 
@@ -877,13 +879,13 @@ ws = @. xs + im * ys
 w_hat = fft(ws) ./ N  # normalised FFT
 
 ks_pos, nk = wave_action_spectrum(ks, w_hat)
-nk_normalised = nk ./ ((ϵ * L)^2 / 2)
+nk_normalised = nk ./ A_rms^2
 
 CairoMakie.activate!()  # hide
 fig = Figure()
 ax = Axis(
     fig[1, 1];
-    xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"2 \, n(k) / (ϵ L)^2",
+    xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"n(k) / A_{\text{rms}}^2",
     xlabelsize = 20, ylabelsize = 20,
     xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
     yminorticksvisible = true, yminorticks = exp10.(-40:10),
@@ -892,7 +894,7 @@ scatterlines!(ax, ks_pos, nk_normalised)
 xlims!(ax, 0.8 * ks_pos[begin], nothing)
 fig
 
-# ## Running the simulation
+# ### Running the simulation
 
 # We create a new problem with this initial condition and with the same parameters as
 # before (except for a longer simulation time):
@@ -953,17 +955,17 @@ w_hat = @views fft(ws_mat[:, end]) ./ N  # normalised FFT
 fig = Figure()
 ax = Axis(
     fig[1, 1];
-    xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"n(k)",
+    xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"n(k) / A_{\text{rms}}^2",
     xlabelsize = 20, ylabelsize = 20,
     xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
     yminorticksvisible = true, yminorticks = exp10.(-40:10),
 )
-scatterlines!(ax, ks_pos, nk_start)
-scatterlines!(ax, ks_pos, nk_end)
+scatterlines!(ax, ks_pos, nk_start ./ A_rms^2)
+scatterlines!(ax, ks_pos, nk_end ./ A_rms^2)
 xlims!(ax, 0.8 * ks_pos[begin], nothing)
 fig
 
-# ## Verifying the Kelvin wave dispersion relation
+# ### Verifying the Kelvin wave dispersion relation
 #
 # We will assume that the simulation is in a statistically stationary state, which allows to
 # perform FFTs in time as well as in space.
@@ -980,21 +982,32 @@ for i ∈ axes(ws_h, 1)
 end
 
 w_hat = fft(ws_h) ./ length(ws_h)  # normalised FFT
+w_hat[1, 1] = 0  # remove the mean (in Fourier space)
 w_plot = fftshift(log10.(abs2.(w_hat)))
 Δt = times[2] - times[1]  # timestep
 ks_shift = fftshift(ks)   # for visualisation: make sure k is in increasing order
 ωs_shift = fftshift(fftfreq(Nt, 2π / Δt))
+ω_max = -ωs_shift[begin]
 
 ## Analytical dispersion relation
-ωs_kw = @. -Γ * ks_shift^2 / (4 * π) * (
-    log(2 / (abs(ks_shift) * a)) - γ + 1/2 - Δ
+ks_fine = range(-kmax, kmax; step = ks[2] / 4)
+ωs_kw = @. -Γ * ks_fine^2 / (4 * π) * (
+    log(2 / (abs(ks_fine) * a)) - γ + 1/2 - Δ
 )
 
 fig = Figure()
-ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = "ω")
-cf = contourf!(ax, ks_shift, ωs_shift, w_plot)
+ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
+xlims!(ax, 0.8 * kmax .* (-1, 1))
+ylims!(ax, 0.8 * ω_max .* (-1, 1))
+cf = contourf!(
+    ax, ks_shift, ωs_shift, w_plot;
+    mode = :relative, levels = range(0.3, 1.0; step = 0.05),
+    extendlow = :auto,
+)
 Colorbar(fig[1, 2], cf; label = L"\log \, |\hat{w}|^2", labelsize = 20)
-limits!(ax, ax.finallimits[])  # freeze limits
 hlines!(ax, 0; color = :white, linestyle = :dash, linewidth = 1)
-lines!(ax, ks_shift, ωs_kw; color = (:orangered, 1.0), linestyle = :dash, linewidth = 1)
+lines!(ax, ks_fine, ωs_kw; color = (:orangered, 1.0), linestyle = :dash, linewidth = 1)
 fig
+
+# Fluctuations are clearly concentrated on the analytical dispersion relation
+# ``ω_{\text{KW}}(k)`` given at the beginning of the tutorial (orange dashed line).
