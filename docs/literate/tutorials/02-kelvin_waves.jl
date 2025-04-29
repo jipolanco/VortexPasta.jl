@@ -361,7 +361,7 @@ function callback(iter)
         empty!(times)
         empty!(X_probe)
         empty!(energy)
-        # Remove VTKHDF files from a previous run
+        ## Remove VTKHDF files from a previous run
         for fname in readdir()
             if match(r"^kelvin_waves_(\d+)\.vtkhdf$", fname) !== nothing
                 rm(fname)
@@ -793,13 +793,13 @@ fig
 # Note however that windowing tends to smoothen the spectrum around the analytical
 # Kelvin wave frequency.
 
-## Dispersion relation
+# ## Dispersion relation
 
 # To verify the dispersion relation of Kelvin waves, we perform a new simulation where we
 # initially excite all resolved wavenumbers ``k``, instead of just perturbing a single scale
 # as above. This is simply achieved by applying a random perturbation to all vortex points.
 
-### Creating the initial condition
+# ### Creating the initial condition
 
 # We start by defining one straight filament:
 
