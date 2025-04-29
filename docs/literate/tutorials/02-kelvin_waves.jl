@@ -142,7 +142,7 @@ plot_filaments(f)
 nothing  # hide
 
 # !!! note "End-to-end vector"
-#     
+#
 #     The end-to-end vector *must* be an integer multiple of the domain period, which in
 #     this case is ``(2π, 2π, 2π)``.
 
@@ -267,7 +267,7 @@ funcs = [
     define_curve(p; scale = (+L, -L, +L), translate = (0.25L, 0.75L, 0.5L), orientation = -1),  # mirror symmetry wrt y
     define_curve(p; scale = (-L, +L, +L), translate = (0.75L, 0.25L, 0.5L), orientation = -1),  # mirror symmetry wrt x
 ]
-fs = map(S -> Filaments.init(S, ClosedFilament, N, QuinticSplineMethod()), funcs)
+fs = [Filaments.init(S, ClosedFilament, N, QuinticSplineMethod()) for S in funcs]
 plot_filaments(fs)
 
 # Here the colours represent the local orientation of the curve tangent with respect to the
@@ -343,9 +343,17 @@ prob = VortexFilamentProblem(fs, tspan, params)
 
 using VortexPasta.Diagnostics
 
-times::Vector{Float64} = Float64[]
-X_probe::Vector{Vec3{Float64}} = Vec3{Float64}[]  # will contain positions of a chosen node
-energy::Vector{Float64} = Float64[]
+## We use `const` for performance reasons, as these variables are defined in global scope
+## and used within the callback. If we were inside a function, these would not be needed
+## (and in fact Julia complains if we use `const` inside a function).
+
+const times = Float64[]
+const X_probe = Vec3{Float64}[]  # will contain positions of a chosen node
+const energy = Float64[]
+
+## Save checkpoint file for visualisation every ≈ 0.1 * T_kw.
+const t_checkpoint_step = 0.1 * T_kw
+const t_checkpoint_next = Ref(tspan[1])  # save initial time, then every 0.1 * T_kw approx
 
 function callback(iter)
     (; nstep, t,) = iter
@@ -353,13 +361,24 @@ function callback(iter)
         empty!(times)
         empty!(X_probe)
         empty!(energy)
+        # Remove VTKHDF files from a previous run
+        for fname in readdir()
+            if match(r"^kelvin_waves_(\d+)\.vtkhdf$", fname) !== nothing
+                rm(fname)
+            end
+        end
     end
     push!(times, t)
     s⃗ = iter.fs[1][3]  # we choose a single node of a single filament
     push!(X_probe, s⃗)
     ## Compute energy
-    E = Diagnostics.kinetic_energy_from_streamfunction(iter)
+    E = Diagnostics.kinetic_energy(iter)
     push!(energy, E)
+    ## Save VTKHDF file for visualisation
+    if t ≥ t_checkpoint_next[]
+        save_checkpoint("kelvin_waves_$(nstep).vtkhdf", iter)
+        t_checkpoint_next[] += t_checkpoint_step  # time at which the next file will be saved
+    end
     nothing
 end
 
@@ -517,8 +536,8 @@ CairoMakie.activate!(type = "svg", pt_per_unit = 1.0, visible = false)  # hide
 fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = L"t / T_{\text{KW}}", ylabel = "Position")
 tnorm = times ./ T_kw  # normalised time
-xpos = map(s⃗ -> s⃗[1], X_probe)  # get all X positions over time
-ypos = map(s⃗ -> s⃗[2], X_probe)  # get all Y positions over time
+xpos = [s⃗[1] for s⃗ in X_probe]  # get all X positions over time
+ypos = [s⃗[2] for s⃗ in X_probe]  # get all Y positions over time
 scatterlines!(ax, tnorm, xpos; marker = 'o', label = L"x(t)")
 scatterlines!(ax, tnorm, ypos; marker = 'o', label = L"y(t)")
 Legend(fig[1, 2], ax; orientation = :vertical, framevisible = false, padding = (0, 0, 0, 0), labelsize = 22, rowgap = 5)
@@ -567,7 +586,7 @@ nothing  # hide
 # For this, we need all points of the vortex filament to be equispaced in ``z``:
 
 f = iter.fs[1]               # vortex to analyse
-zs = getindex.(nodes(f), 3)  # z locations
+zs = [s⃗.z for s⃗ in f]  # y locations
 N = length(zs)
 zs_expected = range(zs[begin], zs[begin] + L; length = N + 1)[1:N]  # equispaced locations
 isapprox(zs, zs_expected; rtol = 1e-5)  # check that z locations are approximately equispaced
@@ -575,11 +594,11 @@ isapprox(zs, zs_expected; rtol = 1e-5)  # check that z locations are approximate
 # Now that we have verified this, we define the complex function ``w(z) = x(z) + i y(z)``
 # and we perform a complex-to-complex FFT to obtain ``\hat{w}(k)``:
 
-xs = getindex.(nodes(f), 1)  # x locations
-ys = getindex.(nodes(f), 2)  # y locations
+xs = [s⃗.x for s⃗ in f]  # x locations
+ys = [s⃗.y for s⃗ in f]  # y locations
 ws = @. xs + im * ys
 
-using FFTW: fft, fft!, fftfreq
+using FFTW: fft, fft!, fftfreq, fftshift
 w_hat = fft(ws)
 @. w_hat = w_hat / N  # normalise FFT
 @show w_hat[1]       # the zero frequency gives the mean location
@@ -632,7 +651,7 @@ sum(nk_normalised)  # we expect the sum to be 1
 fig = Figure()
 ax = Axis(
     fig[1, 1];
-    xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"2 \, n(k) / A^2",
+    xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"2 \, n(k) / (ϵ L)^2",
     xlabelsize = 20, ylabelsize = 20,
     xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
     yminorticksvisible = true, yminorticks = exp10.(-40:10),
@@ -773,3 +792,209 @@ fig
 # from this frequency are strongly damped compared to the original spectrum.
 # Note however that windowing tends to smoothen the spectrum around the analytical
 # Kelvin wave frequency.
+
+## Dispersion relation
+
+# To verify the dispersion relation of Kelvin waves, we perform a new simulation where we
+# initially excite all resolved wavenumbers ``k``, instead of just perturbing a single scale
+# as above. This is simply achieved by applying a random perturbation to all vortex points.
+
+### Creating the initial condition
+
+# We start by defining one straight filament:
+
+p = PeriodicLine()  # no perturbation, we will perturb it afterwards
+S = define_curve(p; scale = (+L, +L, +L), translate = (0.25L, 0.25L, 0.5L))
+f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
+
+# We then perturb each point of the filament with random translations in the ``x`` and ``y``
+# directions.
+# We first define the perturbation in Fourier space:
+
+using FFTW: fft, bfft, fftfreq
+
+w_hat = zeros(ComplexF64, N)  # perturbation in Fourier space
+ks = fftfreq(N, 2π * N / L)   # wavenumbers associated to perturbation, in [-N/2, +N/2-1]
+kmax = π * (N - 1) / L
+kmax_perturb = 0.5 * kmax   # perturb up to this wavenumber (to avoid issues at the discretisation scale)
+ϵ = 0.01 / N  # non-dimensional perturbation amplitude
+
+using StableRNGs: StableRNG  # for deterministic random number generation
+rng = StableRNG(42)  # initialise random number generator (RNG)
+
+for i in eachindex(w_hat, ks)
+    kabs = abs(ks[i])
+    if kabs <= kmax_perturb
+        w_hat[i] = ϵ * L * randn(rng, ComplexF64)  # perturb all wavenumbers equally
+    else
+        w_hat[i] = 0
+    end
+end
+
+# Now convert to physical space and update filament points:
+
+ws = bfft(w_hat)  # inverse FFT
+for i in eachindex(f, ws)
+    w = ws[i]
+    f[i] += Vec3(real(w), imag(w), 0)
+end
+
+update_coefficients!(f)
+
+# Finally, create the other vortices by mirror symmetry.
+
+## Helper function which creates a new filament by mirror symmetry with respect to a given plane.
+function create_mirror(f::AbstractFilament; xplane = nothing, yplane = nothing, zplane = nothing)
+    planes = (xplane, yplane, zplane)
+    nplanes = sum(!isnothing, planes)
+    nplanes == 1 || error("expected exactly a single symmetry plane")
+    g = Filaments.similar_filament(f; offset = -end_to_end_offset(f))  # opposite end-to-end offset
+    for i in eachindex(f, g)
+        j = lastindex(f) + 1 - i  # we switch the orientation of the filament
+        g[i] = map(f[j], planes) do x, xmid
+            xmid === nothing ? x : (2 * xmid - x)
+        end
+    end
+    update_coefficients!(g)
+    g
+end
+
+fx = create_mirror(f; xplane = L/2)  # mirror symmetry wrt x = L/2 plane
+fy = create_mirror(f; yplane = L/2)  # mirror symmetry wrt y = L/2 plane
+fxy = create_mirror(fx; yplane = L/2)  # mirror symmetry of fx wrt y = L/2 plane
+
+fs = [f, fx, fy, fxy]
+
+GLMakie.activate!()  # hide
+plot_filaments(fs)
+
+# We can now take a look at the wave action spectrum associated to this initial condition to
+# check that, this time, the excited wavenumbers have roughly the same amplitudes:
+
+xs = [s⃗.x for s⃗ in f]  # x locations
+ys = [s⃗.y for s⃗ in f]  # y locations
+ws = @. xs + im * ys
+w_hat = fft(ws) ./ N  # normalised FFT
+
+ks_pos, nk = wave_action_spectrum(ks, w_hat)
+nk_normalised = nk ./ ((ϵ * L)^2 / 2)
+
+CairoMakie.activate!()  # hide
+fig = Figure()
+ax = Axis(
+    fig[1, 1];
+    xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"2 \, n(k) / (ϵ L)^2",
+    xlabelsize = 20, ylabelsize = 20,
+    xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
+    yminorticksvisible = true, yminorticks = exp10.(-40:10),
+)
+scatterlines!(ax, ks_pos, nk_normalised)
+xlims!(ax, 0.8 * ks_pos[begin], nothing)
+fig
+
+# ## Running the simulation
+
+# We create a new problem with this initial condition and with the same parameters as
+# before (except for a longer simulation time):
+
+Tsim = kelvin_wave_period(L; a, Δ, Γ)
+prob = VortexFilamentProblem(fs, Tsim, params)
+
+# We want to store the whole history of complex positions ``w(z, t)`` of the locations of
+# the nodes of a single filament. We store this in a vector, and we reshape it after the
+# simulation:
+
+const ws_vec = ComplexF64[]
+
+function callback_random(iter)
+    (; nstep, t,) = iter
+    if nstep == 0  # make sure vectors are empty at the beginning of the simulation
+        empty!(times)
+        empty!(energy)
+        empty!(ws_vec)
+    end
+    E = Diagnostics.kinetic_energy(iter)
+    push!(times, t)
+    push!(energy, E)
+    ## Save locations of the first filament in complex form
+    for s⃗ in iter.fs[1]
+        w = s⃗.x + im * s⃗.y
+        push!(ws_vec, w)
+    end
+    nothing
+end
+
+δ = minimum_node_distance(prob.fs)  # should be close to L/N in our case
+dt_kw = kelvin_wave_period(δ; a, Δ, Γ)
+scheme = Strang(RK4(); nsubsteps = 2)
+dt = 2 * scheme.nsubsteps * dt_kw
+
+iter = init(prob, scheme; dt, callback = callback_random, fast_term = LocalTerm())
+reset_timer!(iter.to)  # to get more accurate timings (removes most of the compilation time)
+solve!(iter)
+iter.to
+
+# Once again, kinetic energy is quite well conserved:
+
+std(energy) / mean(energy)
+
+# In fact energy slightly decreases:
+
+(energy[end] - energy[begin]) / energy[begin]
+
+# which can be explained by numerical dissipation at the smallest resolved scales.
+# Notice that the spectrum gets populated at large wavenumbers, which is possibly due to
+# the Kelvin wave cascade mechanism:
+
+ws_mat = reshape(ws_vec, N, :)
+w_hat = @views fft(ws_mat[:, end]) ./ N  # normalised FFT
+@views _, nk_start = wave_action_spectrum(ks, fft(ws_mat[:, begin]) ./ N)
+@views _, nk_end = wave_action_spectrum(ks, fft(ws_mat[:, end]) ./ N)
+fig = Figure()
+ax = Axis(
+    fig[1, 1];
+    xscale = log10, yscale = log10, xlabel = L"k", ylabel = L"n(k)",
+    xlabelsize = 20, ylabelsize = 20,
+    xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
+    yminorticksvisible = true, yminorticks = exp10.(-40:10),
+)
+scatterlines!(ax, ks_pos, nk_start)
+scatterlines!(ax, ks_pos, nk_end)
+xlims!(ax, 0.8 * ks_pos[begin], nothing)
+fig
+
+# ## Verifying the Kelvin wave dispersion relation
+#
+# We will assume that the simulation is in a statistically stationary state, which allows to
+# perform FFTs in time as well as in space.
+#
+# As a first attempt, we simply perform a 2D FFT (along the vertical direction ``z`` and time) and look at the result:
+
+t_inds = eachindex(times)[begin:end]  # this may be modified to use a subset of the simulation time
+Nt = length(t_inds)   # number of timesteps to analyse
+ws_h = ws_mat[:, t_inds]  # create copy of positions to avoid modifying the simulation output
+
+window = DSP.Windows.hanning(Nt)
+for i ∈ axes(ws_h, 1)
+    @. @views ws_h[i, :] *= window
+end
+
+w_hat = fft(ws_h) ./ length(ws_h)  # normalised FFT
+w_plot = fftshift(log10.(abs2.(w_hat)))
+Δt = times[2] - times[1]  # timestep
+ks_shift = fftshift(ks)   # for visualisation: make sure k is in increasing order
+ωs_shift = fftshift(fftfreq(Nt, 2π / Δt))
+
+## Analytical dispersion relation
+ωs_kw = @. -Γ * ks_shift^2 / (4 * π) * (
+    log(2 / (abs(ks_shift) * a)) - γ + 1/2 - Δ
+)
+
+fig = Figure()
+ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = "ω")
+cf = contourf!(ax, ks_shift, ωs_shift, w_plot)
+Colorbar(fig[1, 2], cf; label = L"\log \, |\hat{w}|^2", labelsize = 20)
+limits!(ax, ax.finallimits[])  # freeze limits
+hlines!(ax, 0; color = :white, linestyle = :dash, linewidth = 1)
+lines!(ax, ks_shift, ωs_kw; color = (:orangered, 1.0), linestyle = :dash, linewidth = 1)
+fig
