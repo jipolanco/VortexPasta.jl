@@ -612,8 +612,8 @@ nothing  # hide
 #
 # It is often useful to be able to save the solver state to disk, for instance to be able to
 # restart a simulation from that state or to analyse the data.
-# In VortexPasta this is possible using the [`VortexPasta.FilamentIO`](@ref) submodule,
-# which defines functions for writing (and reading back) vortex filament data.
+# In VortexPasta this is possible using the [`save_checkpoint`](@ref) function (included in
+# `VortexPasta.Timestepping`).
 #
 # Data is written in the HDF5 format, which is a binary format that can be easily explored
 # using command-line tools or the HDF5 interfaces available in many different programming
@@ -632,15 +632,14 @@ nothing  # hide
 #
 # ### Writing filament data and reading it back
 #
-# Writing filament data is done via the [`write_vtkhdf`](@ref) function:
+# We write filament locations and other solver data to disk:
 
-using VortexPasta.FilamentIO
-write_vtkhdf("vortex_ring_initial.vtkhdf", fs)  # write filament locations to disk
+save_checkpoint("vortex_ring.vtkhdf", iter)
 
 # This creates an HDF5 file with the following structure:
 #
 # ```bash
-# $ h5ls -r vortex_ring_initial.vtkhdf
+# $ h5ls -r vortex_ring.vtkhdf
 # /                                     Group
 # /VTKHDF                               Group
 # /VTKHDF/Lines/Connectivity            Dataset {17}
@@ -650,23 +649,38 @@ write_vtkhdf("vortex_ring_initial.vtkhdf", fs)  # write filament locations to di
 # /VTKHDF/NumberOfPoints                Dataset {1}
 # /VTKHDF/Points                        Dataset {17, 3}
 # /VTKHDF/RefinementLevel               Dataset {SCALAR}
+# [+ other stuff needed by ParaView...]
+# /VortexPasta                          Group
+# /VortexPasta/BiotSavartParams         Group
+# [...]
+# /VortexPasta/VortexFilamentSolver     Group
 # [...]
 # ```
 #
-# (The `[...]` includes the `Polygons`, `Strips` and `Vertices` groups which are just there
-# to make ParaView happy.)
-# Note that everything is written to a `VTKHDF` group.
+# The filament locations and everything else to be visualised is written to a `/VTKHDF`
+# group (which is some sort of subdirectory in the HDF5 file).
 # In this case, we have a single cell which corresponds to our vortex ring (one VTK cell
 # corresponds to one vortex filament).
 # The important datasets here are `Points`, which contains the discretisation points of all
 # filaments, and `Lines/Offsets`, which allows to identify which point corresponds to which
 # vortex.
-# See [`write_vtkhdf`](@ref) for more details.
+# See [`FilamentIO.write_vtkhdf`](@ref) for more details.
 #
-# The generated files can be read back using [`read_vtkhdf`](@ref):
+# There is also a `/VortexPasta` group with different subgroups.
+# It contains Biot--Savart and solver parameters, as well as some of the solver state at the
+# end of the simulation (time, timestep, ...).
+#
+# The filament locations can be read back using [`FilamentIO.read_vtkhdf`](@ref):
 
-fs_read = read_vtkhdf("vortex_ring_initial.vtkhdf", Float64, CubicSplineMethod())
-fs_read == fs
+using VortexPasta.FilamentIO  # includes read_vtkhdf
+fs_read = read_vtkhdf("vortex_ring.vtkhdf", Float64, CubicSplineMethod())
+fs_read == iter.fs
+
+# Alternatively, one can use [`load_checkpoint`](@ref), which also loads part of the solver
+# state:
+
+checkpoint = load_checkpoint("vortex_ring.vtkhdf", Float64, CubicSplineMethod())
+checkpoint.fs == iter.fs
 
 # ### Visualising VTKHDF files
 #
@@ -678,7 +692,7 @@ fs_read == fs
 # ParaView connects by straight lines.
 # As with Makie plots, we can make things look nicer by passing the `refinement` argument:
 
-write_vtkhdf("vortex_ring_initial_refined.vtkhdf", fs; refinement = 4)
+save_checkpoint("vortex_ring_refined.vtkhdf", iter; refinement = 4)
 
 # ![](paraview_vortex_ring_ref4.png)
 
@@ -692,7 +706,7 @@ write_vtkhdf("vortex_ring_initial_refined.vtkhdf", fs; refinement = 4)
 # As an example, we can save the positions, velocities, streamfunction, local curvature
 # vector and time values corresponding to the final state of our last simulation:
 
-write_vtkhdf("vortex_ring_final.vtkhdf", iter.fs; refinement = 4) do io
+save_checkpoint("vortex_ring_with_data.vtkhdf", iter; refinement = 4) do io
     io["velocity"] = iter.vs
     io["streamfunction"] = iter.ψs
     io["curvatures"] = CurvatureVector()  # note: no need to explicitly compute curvatures!
@@ -702,7 +716,7 @@ end
 # The HDF5 file structure now looks like:
 #
 # ```bash
-# $ h5ls -r vortex_ring_final.vtkhdf
+# $ h5ls -r vortex_ring_with_data.vtkhdf
 # /                                     Group
 # /VTKHDF                               Group
 # /VTKHDF/FieldData                     Group
@@ -718,6 +732,8 @@ end
 # /VTKHDF/PointData/velocity            Dataset {65, 3}
 # /VTKHDF/Points                        Dataset {65, 3}
 # /VTKHDF/RefinementLevel               Dataset {SCALAR}
+# [...]
+# /VortexPasta
 # [...]
 # ```
 #
@@ -735,13 +751,13 @@ end
 
 vs_read = map(similar ∘ nodes, fs)
 ψs_read = map(similar ∘ nodes, fs)
-fs_read = read_vtkhdf("vortex_ring_final.vtkhdf", Float64, CubicSplineMethod()) do io
+fs_read = read_vtkhdf("vortex_ring_with_data.vtkhdf", Float64, CubicSplineMethod()) do io
     read!(io, vs_read, "velocity")
     read!(io, ψs_read, "streamfunction")
     local t_read = read(io, "time", FieldData(), Float64)  # note: this is read as an array
     @show t_read
 end
-@show (fs_read ≈ iter.fs) (vs_read == iter.vs) (ψs_read == iter.ψs)
+@show (fs_read == iter.fs) (vs_read == iter.vs) (ψs_read == iter.ψs)
 nothing  # hide
 
 # Note that, when reading "refined" datasets, only the original discretisation points and
