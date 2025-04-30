@@ -806,6 +806,7 @@ fig
 p = PeriodicLine()  # no perturbation, we will perturb it afterwards
 S = define_curve(p; scale = (+L, +L, +L), translate = (0.25L, 0.25L, 0.5L))
 f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
+nothing  # hide
 
 # We then perturb each point of the filament with random translations in the ``x`` and ``y``
 # directions.
@@ -832,6 +833,7 @@ for i in eachindex(w_hat, ks)
 end
 factor = A_rms / sqrt(sum(abs2, w_hat))
 w_hat .*= factor
+nothing  # hide
 
 # Now convert to physical space and update filament points:
 
@@ -840,8 +842,9 @@ for i in eachindex(f, ws)
     w = ws[i]
     f[i] += Vec3(real(w), imag(w), 0)
 end
-
 update_coefficients!(f)
+
+nothing  # hide
 
 # Finally, create the other vortices by mirror symmetry.
 
