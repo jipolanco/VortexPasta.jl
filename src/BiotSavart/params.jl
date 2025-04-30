@@ -94,6 +94,12 @@ struct ParamsShortRange{
         (; Ls,) = common
         rcut = maybe_convert(T, rcut_)
         lia_segment_fraction = lia_segment_fraction_in === nothing ? nothing : convert(T, lia_segment_fraction_in)
+        rcut_max = max_cutoff_distance(backend, Ls)
+        rcut > rcut_max && error(
+            lazy"""cutoff distance `rcut = $rcut` is larger than that allowed by the $(typeof(backend)) backend.
+            See docs for $(typeof(backend)) for more details.
+            """,
+        )
         2 * rcut ≤ min(Ls...) ||
             error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
         rcut_sq = rcut * rcut

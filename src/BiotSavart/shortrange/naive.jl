@@ -1,9 +1,18 @@
 export NaiveShortRangeBackend
 
-"""
+@doc raw"""
     NaiveShortRangeBackend <: ShortRangeBackend
 
 Naive computation of short-range interactions.
+
+## Maximum cut-off distance
+
+In periodic domains, this backend requires a cut-off distance ``r_{\text{cut}}`` not larger
+than half the domain period ``L`` in each direction:
+
+```math
+r_{\text{cut}} ≤ \frac{L}{2}
+```
 """
 struct NaiveShortRangeBackend <: ShortRangeBackend end
 

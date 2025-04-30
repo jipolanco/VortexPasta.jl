@@ -2,26 +2,37 @@ export CellListsBackend
 
 using ..CellLists: CellLists, PeriodicCellList
 
-"""
+@doc raw"""
     CellListsBackend <: ShortRangeBackend
     CellListsBackend(nsubdiv::Int = 1)
 
 Compute short-range interactions using the cell lists algorithm.
 
 This backend can be significantly faster than the [`NaiveShortRangeBackend`](@ref) when the
-cutoff distance `r_cut` is much smaller than the domain period `L` (roughly when `r_cut ≲ L / 10`).
+cut-off distance `r_cut` is much smaller than the domain period `L` (roughly when `r_cut ≲ L / 10`).
 
 Optionally, one can choose to subdivide each cell (of size `≈ r_cut`) onto `nsubdiv`
 subcells. In practice, a value of `2` or `3` can significantly improve performance compared
 to no subdivision (`1`).
 
-Note that, with this backend, the cutoff distance must satisfy `r_cut ≤ M / (2M + 1) * L`
+Note that, with this backend, the cut-off distance must satisfy `r_cut ≤ M / (2M + 1) * L`
 where `M = nsubdiv`.
 
 This backend does not support non-periodic domains.
 
 See [`PeriodicCellList`](@ref) and [Wikipedia](https://en.wikipedia.org/wiki/Cell_lists) for
 more details.
+
+## Maximum cut-off distance
+
+The cut-off distance must safisfy the condition:
+
+```math
+r_{\text{cut}} ≤ \frac{M}{2M + 1} L
+```
+
+where ``M`` is equal to the `nsubdiv` parameter. If this is a limitation, one can use the
+[`NaiveShortRangeBackend`](@ref) which has a slightly larger limit, ``r_{\text{cut}} ≤ L/2``.
 """
 struct CellListsBackend{M} <: ShortRangeBackend end
 CellListsBackend(n::Int = 1) = CellListsBackend{n}()
