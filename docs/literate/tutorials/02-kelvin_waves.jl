@@ -974,34 +974,44 @@ fig
 # We will assume that the simulation is in a statistically stationary state, which allows to
 # perform FFTs in time as well as in space.
 #
-# As a first attempt, we simply perform a 2D FFT (along the vertical direction ``z`` and time) and look at the result:
+# We start by choosing the times over which we will analyse the data.
+# Currently we analyse all times, but this could be modified in simulations
+# which require some time before reaching a (near-)stationary state.
 
 t_inds = eachindex(times)[begin:end]  # this may be modified to use a subset of the simulation time
 Nt = length(t_inds)   # number of timesteps to analyse
 ws_h = ws_mat[:, t_inds]  # create copy of positions to avoid modifying the simulation output
+
+# As detailed in the [Temporal analysis](@ref tutorial-kelvin-waves-temporal-analysis) section, we apply a window function
+# over the temporal dimension since the original signal is not exactly periodic in time:
 
 window = DSP.Windows.hanning(Nt)
 for i ∈ axes(ws_h, 1)
     @. @views ws_h[i, :] *= window
 end
 
+# We can now perform a 2D FFT and plot the results:
+
 w_hat = fft(ws_h) ./ length(ws_h)  # normalised FFT
-w_hat[1, 1] = 0  # remove the mean (in Fourier space)
+w_hat[1, 1] = 0  # remove the mean (corresponds to mode k = ω = 0 in Fourier space)
+
 w_plot = fftshift(log10.(abs2.(w_hat)))
 Δt = times[2] - times[1]  # timestep
 ks_shift = fftshift(ks)   # for visualisation: make sure k is in increasing order
 ωs_shift = fftshift(fftfreq(Nt, 2π / Δt))
-ω_max = -ωs_shift[begin]
+
+k_max = -ks_shift[begin]  # maximum wavenumber
+ω_max = -ωs_shift[begin]  # maximum frequency
 
 ## Analytical dispersion relation
-ks_fine = range(-kmax, kmax; step = ks[2] / 4)
+ks_fine = range(-k_max, k_max; step = ks[2] / 4)
 ωs_kw = @. -Γ * ks_fine^2 / (4 * π) * (
     log(2 / (abs(ks_fine) * a)) - γ + 1/2 - Δ
 )
 
 fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
-xlims!(ax, 0.8 * kmax .* (-1, 1))
+xlims!(ax, 0.8 * k_max .* (-1, 1))
 ylims!(ax, 0.8 * ω_max .* (-1, 1))
 cf = contourf!(
     ax, ks_shift, ωs_shift, w_plot;
