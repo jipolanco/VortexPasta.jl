@@ -274,7 +274,7 @@ ws_h = copy(ws)
 ws_mean = sum(i -> ws[i, 1], 1:N) / N
 ws_h .-= ws_mean
 
-# Apply window function in the temporal axis to make the signal closed to being time-periodic.
+# Apply window function in the temporal axis to make the signal close to being time-periodic.
 # See Kelvin wave tutorial for more details (in 1D).
 window = DSP.Windows.hanning(size(ws_h, 2))
 for i ∈ axes(ws_h, 1)
