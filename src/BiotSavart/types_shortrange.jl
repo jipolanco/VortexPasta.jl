@@ -42,6 +42,9 @@ function max_cutoff_distance end
 # This is the default, can be overridden by specific backends.
 max_cutoff_distance(::ShortRangeBackend, L::AbstractFloat) = L / 2
 
+# This is for non-periodic (open) domains.
+max_cutoff_distance(::ShortRangeBackend, ::Infinity) = Infinity()
+
 max_cutoff_distance(backend::ShortRangeBackend, Ls::NTuple) =
     max_cutoff_distance(backend, min(Ls...))
 
