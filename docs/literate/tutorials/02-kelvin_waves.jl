@@ -951,7 +951,7 @@ std(energy) / mean(energy)
 # Notice that the spectrum gets populated at large wavenumbers, which is possibly due to
 # the Kelvin wave cascade mechanism:
 
-ws_mat = reshape(ws_vec, N, :)
+ws_mat = reshape(ws_vec, N, :)  # reinterpret 1D vector as a 2D matrix: ws_mat[i, j] = w(z_i, t_j)
 w_hat = @views fft(ws_mat[:, end]) ./ N  # normalised FFT
 @views _, nk_start = wave_action_spectrum(ks, fft(ws_mat[:, begin]) ./ N)
 @views _, nk_end = wave_action_spectrum(ks, fft(ws_mat[:, end]) ./ N)
@@ -963,9 +963,10 @@ ax = Axis(
     xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
     yminorticksvisible = true, yminorticks = exp10.(-40:10),
 )
-scatterlines!(ax, ks_pos, nk_start ./ A_rms^2)
-scatterlines!(ax, ks_pos, nk_end ./ A_rms^2)
+scatterlines!(ax, ks_pos, nk_start ./ A_rms^2; label = "Initial time")
+scatterlines!(ax, ks_pos, nk_end ./ A_rms^2; label = "Final time")
 xlims!(ax, 0.8 * ks_pos[begin], nothing)
+axislegend(ax; position = (0, 0))
 fig
 
 # ### Verifying the Kelvin wave dispersion relation
