@@ -38,7 +38,7 @@ struct CellListsBackend{M} <: ShortRangeBackend end
 CellListsBackend(n::Int = 1) = CellListsBackend{n}()
 
 subdivisions(::CellListsBackend{M}) where {M} = M
-max_cutoff_distance(::CellListsBackend{M}, L::AbstractFloat) where {M} = oftype(L, M / (2M + 1)) * L
+max_cutoff_distance(::CellListsBackend{M}, L::AbstractFloat) where {M} = CellLists.max_cutoff_distance(M, L)
 
 struct CellListsCache{
         Params <: ParamsShortRange{<:Real, <:CellListsBackend},

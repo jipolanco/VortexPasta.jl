@@ -121,6 +121,9 @@ subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M
 @inline PeriodicCellList(::Type{T}, rs, Ls, nsubdiv::Val{M}; kws...) where {T, M} =
     PeriodicCellList(T, rs, Ls, static(M); kws...)
 
+# Returns maximum possible cut-off distance r_cut for M subdivisions and a domain of period L.
+max_cutoff_distance(M::Integer, L::AbstractFloat) = oftype(L, M / (2M + 1)) * L
+
 function PeriodicCellList(
         ::Type{T},
         rs_cut::NTuple{N, Real},

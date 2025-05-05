@@ -6,7 +6,7 @@ using ..FindNearbySegments:
     set_filaments!,
     segment_is_close,
     nearby_segments
-using ..CellLists: CellLists  # for docs only
+using ..CellLists: CellLists
 
 abstract type AbstractReconnectionCache end
 
@@ -63,11 +63,19 @@ function _init_cache(crit::ReconnectionCriterion, fs, Ls)
     has_nonperiodic_directions = any(L -> L === Infinity(), Ls)
     # Note: we make the cutoff distance larger than the actual critical distance, since this
     # distance is only used to compare the segment *midpoints*.
-    r_cut = 2 * distance(crit)
+    d_reconnect = distance(crit)
+    r_cut = 2 * d_reconnect
     finder = if has_nonperiodic_directions
         NaiveSegmentFinder(fs)
     else
-        CellListSegmentFinder(fs, r_cut, Ls; nsubdiv = Val(2))
+        Lmin = min(Ls...)
+        M = 2  # number of subdivisions
+        r_cut_max = CellLists.max_cutoff_distance(M, Lmin)
+        r_cut > r_cut_max && error(
+            lazy"""reconnection distance is too large compared to the domain size: d_reconnect / L_min = $(d_reconnect / Lmin).
+            Try a smaller reconnection distance or a larger domain."""
+        )
+        CellListSegmentFinder(fs, r_cut, Ls; nsubdiv = Val(M))
     end
     to_reconnect = let segs = segments(first(fs))
         # Determine ReconnectionInfo type by creating a single candidate
