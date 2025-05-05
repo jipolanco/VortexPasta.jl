@@ -15,6 +15,7 @@ using FFTW: fft, bfft, fft!, bfft!, fftfreq, fftshift
 using DSP: DSP  # for Fourier analysis / window functions
 using Statistics: std
 using GLMakie  # for plots
+using InverseFunctions: InverseFunctions
 
 ## Helper functions
 
@@ -120,6 +121,33 @@ function integrate_incremental!(f::F, ys, xs; quad) where {F}
     ys
 end
 
+# Adapted from MakieExtra.jl: transform between :data and :relative spaces in Makie plots.
+data2rel(ax::Axis, which::Symbol, orig) = transform_val_space(ax, which, :data => :relative, orig)
+rel2data(ax::Axis, which::Symbol, orig) = transform_val_space(ax, which, :relative => :data, orig)
+
+transform_val_space(ax, which::Symbol, args...) = transform_val_space(ax, Dict(:x=>1, :y=>2)[which], args...)
+
+function transform_val_space(ax::Axis, which::Int, spaces::Pair{Symbol,Symbol}, orig::Union{Tuple,AbstractVector})
+    scene = Makie.get_scene(ax)
+    lift(scene.camera.projectionview, Makie.plots(ax)[1].model, Makie.transform_func(ax), scene.viewport, orig) do _, _, tf, _, orig
+        tf_cur = Base.setindex(tf, identity, 3 - which)
+        if spaces[1] == :data
+            # orig = map(|>, orig, tf_cur)
+            orig = map((f, x) -> f(x), tf_cur, orig)
+        end
+        new = Makie.project(scene.camera, spaces..., Point2(orig))
+        if spaces[2] == :data
+            new = Point2(map((f, x) -> InverseFunctions.inverse(f)(x), tf_cur, new))
+        end
+        Base.setindex(orig, new[which], which)
+    end
+end
+
+function transform_val_space(ax::Axis, which::Int, spaces::Pair{Symbol,Symbol}, orig::Number)
+    new = transform_val_space(ax, which, spaces, Base.setindex((1, 1), orig, which))
+    @lift $new[which]
+end
+
 ## Simulation parameters
 
 lattice = :square
@@ -139,8 +167,9 @@ println(params)
 N = 128             # number of discretisation points per line
 in_phase_perturbation = true  # perturbations of all vortices are in phase? (may help eliminate KW branches in DR)
 nvort_per_dir = 1   # number of vortices per direction (x, y)
-A_rms = 1e-8 * Lz   # amplitude of random perturbation (rms value)
-method = FourierMethod()  # filament discretisation method
+A_rms = 1e-6 * Lz   # amplitude of random perturbation (rms value)
+method = QuinticSplineMethod()  # filament discretisation method
+parametrisation = (Xs, i) -> @inbounds abs(Xs[i + 1].z - Xs[i].z)  # parametrise curves by z coordinate (relative to point i = 1!)
 
 ## Initialise one or more vortices
 
@@ -148,7 +177,8 @@ method = FourierMethod()  # filament discretisation method
 # This is a straight vortex that passes through the origin and goes from z = 0 to z = Lz.
 p = PeriodicLine()
 S = define_curve(p; scale = (1, 1, Lz), translate = (0, 0, 0.5 * Lz))
-f_base = Filaments.init(S, ClosedFilament, N, method)
+ts = range(0, 1; length = N + 1)[1:N]  # evaluation points in [0, 1) -- we make sure that z = 0 is included
+f_base = Filaments.init(S, ClosedFilament, ts, method; parametrisation)
 # plot_filaments(f_base, params.Ls)
 
 # Create actual vortices, including random perturbation
@@ -193,7 +223,8 @@ end
 ## Run simulation
 
 # Initialise problem
-Tsim = BiotSavart.kelvin_wave_period(params, Lz)  # total simulation time
+# Tsim = 1 * BiotSavart.kelvin_wave_period(params, Lz)  # total simulation time
+Tsim = 4 * 2π / Ω  # simulate 4 rotation periods
 prob = VortexFilamentProblem(fs, Tsim, params)
 println(prob)
 
@@ -217,9 +248,22 @@ function callback(iter)
     push!(energy, E)
     push!(vortex_length, Lvort)
     # Save locations of the first filament in complex form
-    for s⃗ in iter.fs[1]
-        w = s⃗.x + im * s⃗.y
-        push!(positions, w)
+    let f = iter.fs[1]
+        # Assume filaments are parametrised by z location
+        local Lz = Filaments.end_to_end_offset(f).z
+        @assert Filaments.parametrisation(f) isa Filaments.CustomParametrisation
+        @assert knots(f)[end + 1] ≈ knots(f)[begin] + Lz
+        local δz = f[1].z  # f(-δz).z should be approximately 0
+        @assert Lz > 0
+        for i in eachindex(f)
+            # Interpolate points so that they're regularly spaced (constant Δz)
+            local z_wanted = (i - 1) * Lz / N  # since the parameter t is equal to z
+            local s⃗ = f(z_wanted - δz)
+            # @show s⃗.z z_wanted
+            @assert isapprox(s⃗.z, z_wanted; atol = 1e-12)
+            w = s⃗.x + im * s⃗.y
+            push!(positions, w)
+        end
     end
     nothing
 end
@@ -324,21 +368,25 @@ fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
 xlims!(ax, 0.8 * k_max .* (0, 1))
 ylims!(ax, 0.8 * ω_max .* (-1, 1))
-cf = heatmap!(
+hm = heatmap!(
     ax, ks, ωs_shift, w_plot;
     colormap = Reverse(:deep),
-    colorrange = round.(Int, extrema(w_plot)) .+ (3, 0),
+    colorrange = round.(Int, extrema(w_plot)) .+ (5, 0),
 )
-Colorbar(fig[1, 2], cf; label = L"\log \, |\hat{w}|^2", labelsize = 20)
+Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}|^2", labelsize = 20)
 hlines!(ax, 0; color = :white, linestyle = :dash, linewidth = 1)
-text!(ax, L"0"; position = (0.8 * k_max, 0), offset = (-4, +2), align = (:right, :bottom), color = :white, fontsize = 16)
+xright = rel2data(ax, :x, 1.0)  # rightmost coordinate (in data space)
+ybottom = rel2data(ax, :y, 0.0)
+text!(ax, L"0"; position = @lift(($xright, 0)), offset = (-4, +2), align = (:right, :bottom), color = :white, fontsize = 16)
 hlines!(ax, -2 * Ω; color = :yellow, linestyle = :dash, linewidth = 1)
-text!(ax, L"-2Ω"; position = (0.8 * k_max, -2 * Ω), offset = (-4, -2), align = (:right, :top), color = :yellow, fontsize = 16)
+text!(ax, L"-2Ω"; position = @lift(($xright, -2 * Ω)), offset = (-4, -2), align = (:right, :top), color = :yellow, fontsize = 16)
 let color = :lightblue
     vlines!(ax, k_ℓ; color, linestyle = :dot)
-    text!(ax, L"\frac{2π}{ℓ}"; position = (k_ℓ, -0.8 * ω_max), offset = (6, 4), align = (:left, :bottom), color, fontsize = 16)
+    text!(ax, L"\frac{2π}{ℓ}"; position = @lift((k_ℓ, $ybottom)), offset = (6, 4), align = (:left, :bottom), color, fontsize = 16)
 end
 # lines!(ax, ks_fine, ωs_small_k; color = :orangered, linestyle = :dash, linewidth = 1.5)
-lines!(ax, ks_fine, ωs_rajagopal; color = :lightgreen, linestyle = :dash, linewidth = 1.5)
-lines!(ax, ks_fine, ωs_ℓ; color=:yellow, linestyle=:dash, linewidth=1.5)
+# lines!(ax, ks_fine, ωs_rajagopal; color = :lightgreen, linestyle = :dash, linewidth = 1.5)
+lines!(ax, ks_fine, ωs_ℓ; color = (:yellow, 0.8), linestyle = :dash, linewidth = 2.0, label = L"2Ω + \frac{κ}{4π} \ln(ℓ/a)")
+axislegend(ax; position = (0, 0), framevisible = false, labelcolor = :white, labelsize = 16)
+# DataInspector(fig)
 fig
