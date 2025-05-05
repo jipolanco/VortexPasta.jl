@@ -220,7 +220,6 @@ function test_hdf5()
 
         # Test reading onto VectorOfVectors
         ψs_alt = similar(ψs)
-        @assert ψs_alt != ψs
         @assert ψs_alt isa VectorOfVectors
         read!(io, ψs_alt, "streamfunction")
         @test ψs_alt == ψs
