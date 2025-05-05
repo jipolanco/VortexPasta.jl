@@ -308,6 +308,7 @@ end
 
 # Perform a 2D FFT and plot the results
 fft!(ws_h, (1, 2))
+ws_h ./= length(ws_h)  # normalise FFT
 
 # Combine +k and -k wavenumbers and plot as a function of |k| (results should be symmetric anyways)
 ws_abs2 = @views abs2.(ws_h[1:((end + 1)÷2), :])  # from k = 0 to k = +kmax

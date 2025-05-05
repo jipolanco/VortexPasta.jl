@@ -361,6 +361,7 @@ function callback(iter)
         empty!(times)
         empty!(X_probe)
         empty!(energy)
+        t_checkpoint_next[] = t
         ## Remove VTKHDF files from a previous run
         for fname in readdir()
             if match(r"^kelvin_waves_(\d+)\.vtkhdf$", fname) !== nothing
@@ -730,7 +731,8 @@ std(zt) / mean(zt)    # ideally, the z positions shouldn't change over time
 # Similarly to before, we now write ``w(t) = x(t) + i y(t)`` and perform an FFT:
 
 inds_t = eachindex(times)[begin:end - 1]  # don't consider the last time to make sure the timestep Δt is constant
-wt = @views @. xt[inds_t] + im * yt[inds_t]
+w_equilibrium = 0.25L + im * 0.25L  # equilibrium position of first vortex (w = x + iy)
+wt = @views @. xt[inds_t] + im * yt[inds_t] - w_equilibrium  # we subtract the equilibrium position
 Nt = length(wt)           # number of time snapshots
 Δt = times[2] - times[1]  # timestep
 @assert times[begin:end-1] ≈ range(times[begin], times[end-1]; length = Nt)  # check that times are equispaced
@@ -796,21 +798,23 @@ fig
 # ## Dispersion relation
 
 # To verify the dispersion relation of Kelvin waves, we perform a new simulation where we
-# initially excite all resolved wavenumbers ``k``, instead of just perturbing a single scale
-# as above. This is simply achieved by applying a random perturbation to all vortex points.
+# initially excite a large range of wavenumbers ``k``, instead of just perturbing a single scale
+# as above.
 
 # ### Creating the initial condition
 
 # We start by defining one straight filament:
 
 p = PeriodicLine()  # no perturbation, we will perturb it afterwards
+w_equilibrium = 0.25L + im * 0.25L  # equilibrium position of vortex (w = x + iy)
 S = define_curve(p; scale = (+L, +L, +L), translate = (0.25L, 0.25L, 0.5L))
 f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
 nothing  # hide
 
 # We then perturb each point of the filament with random translations in the ``x`` and ``y``
 # directions.
-# We first define the perturbation in Fourier space:
+# We define the perturbation in Fourier space, which allows to select the range of
+# wavenumbers ``k`` which will be perturbed.
 
 using FFTW: fft, bfft, fftfreq
 
@@ -818,7 +822,7 @@ w_hat = zeros(ComplexF64, N)  # perturbation in Fourier space
 ks = fftfreq(N, 2π * N / L)   # wavenumbers associated to perturbation, in [-N/2, +N/2-1]
 kmax = π * N / L
 kmax_perturb = 0.5 * kmax   # perturb up to this wavenumber (to avoid issues at the discretisation scale)
-A_rms = 1e-3 * L  # perturbation amplitude (wanted rms value of ws[:])
+A_rms = 1e-6 * L  # perturbation amplitude (wanted rms value of ws[:])
 
 using StableRNGs: StableRNG  # for deterministic random number generation
 rng = StableRNG(42)  # initialise random number generator (RNG)
@@ -952,7 +956,6 @@ std(energy) / mean(energy)
 # the Kelvin wave cascade mechanism:
 
 ws_mat = reshape(ws_vec, N, :)  # reinterpret 1D vector as a 2D matrix: ws_mat[i, j] = w(z_i, t_j)
-w_hat = @views fft(ws_mat[:, end]) ./ N  # normalised FFT
 @views _, nk_start = wave_action_spectrum(ks, fft(ws_mat[:, begin]) ./ N)
 @views _, nk_end = wave_action_spectrum(ks, fft(ws_mat[:, end]) ./ N)
 fig = Figure()
@@ -981,6 +984,7 @@ fig
 t_inds = eachindex(times)[begin:end]  # this may be modified to use a subset of the simulation time
 Nt = length(t_inds)   # number of timesteps to analyse
 ws_h = ws_mat[:, t_inds]  # create copy of positions to avoid modifying the simulation output
+ws_h .-= w_equilibrium    # subtract equilibrium position
 
 # As detailed in the [Temporal analysis](@ref tutorial-kelvin-waves-temporal-analysis) section, we apply a window function
 # over the temporal dimension since the original signal is not exactly periodic in time:
@@ -992,34 +996,47 @@ end
 
 # We can now perform a 2D FFT and plot the results:
 
-w_hat = fft(ws_h) ./ length(ws_h)  # normalised FFT
-w_hat[1, 1] = 0  # remove the mean (corresponds to mode k = ω = 0 in Fourier space)
+fft!(ws_h)  # in-place FFT
+ws_h ./= length(ws_h)  # normalise FFT
 
-w_plot = fftshift(log10.(abs2.(w_hat)))
+## Combine +k and -k wavenumbers and plot as a function of |k| (results should be symmetric anyways)
+ws_abs2 = @views abs2.(ws_h[1:((end + 1)÷2), :])  # from k = 0 to k = +kmax
+@views ws_abs2[2:end, :] .+= abs2.(ws_h[end:-1:(end÷2 + 2), :])  # from -kmax to -1
+
 Δt = times[2] - times[1]  # timestep
-ks_shift = fftshift(ks)   # for visualisation: make sure k is in increasing order
-ωs_shift = fftshift(fftfreq(Nt, 2π / Δt))
+ks_pos = ks[1:(end + 1)÷2]  # wavenumbers (≥ 0 only)
+ωs = fftfreq(Nt, 2π / Δt)     # frequencies
+ωs_shift = fftshift(ωs)   # for visualisation: make sure ω is in increasing order
+w_plot = fftshift(log10.(ws_abs2), (2,))  # FFT shift along second dimension (frequencies)
 
-k_max = -ks_shift[begin]  # maximum wavenumber
+k_max = ks_pos[end]       # maximum wavenumber
 ω_max = -ωs_shift[begin]  # maximum frequency
 
 ## Analytical dispersion relation
-ks_fine = range(-k_max, k_max; step = ks[2] / 4)
+ks_fine = range(0, k_max; step = ks_pos[2] / 4)
 ωs_kw = @. -Γ * ks_fine^2 / (4 * π) * (
     log(2 / (abs(ks_fine) * a)) - γ + 1/2 - Δ
 )
 
+## We also plot the wavenumber associated to the mean inter-vortex distance for reference
+ℓ = sqrt(params.Ls[1] * params.Ls[2] / length(fs))  # mean inter-vortex distance
+k_ℓ = 2π / ℓ
+
 fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
-xlims!(ax, 0.8 * k_max .* (-1, 1))
+xlims!(ax, 0.8 * k_max .* (0, 1))
 ylims!(ax, 0.8 * ω_max .* (-1, 1))
-cf = contourf!(
-    ax, ks_shift, ωs_shift, w_plot;
-    mode = :relative, levels = range(0.3, 1.0; step = 0.05),
-    extendlow = :auto,
+hm = heatmap!(
+    ax, ks_pos, ωs_shift, w_plot;
+    colormap = Reverse(:deep),
+    colorrange = round.(Int, extrema(w_plot)) .+ (4, 0),
 )
-Colorbar(fig[1, 2], cf; label = L"\log \, |\hat{w}|^2", labelsize = 20)
+Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}|^2", labelsize = 20)
 hlines!(ax, 0; color = :white, linestyle = :dash, linewidth = 1)
+let color = :lightblue
+    vlines!(ax, k_ℓ; color, linestyle = :dot)
+    text!(ax, L"\frac{2π}{ℓ}"; position = (k_ℓ, -0.8 * ω_max), offset = (6, 4), align = (:left, :bottom), color, fontsize = 16)
+end
 lines!(ax, ks_fine, ωs_kw; color = (:orangered, 1.0), linestyle = :dash, linewidth = 1)
 fig
 
