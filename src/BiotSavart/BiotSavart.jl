@@ -179,7 +179,7 @@ done implicitly in Fourier space.
 The mean vorticity associated to the filaments is given by
 
 ```math
-⟨ \bm{ω} ⟩ = -\frac{Γ}{V} ∮_{\mathcal{C}} \mathrm{d}\bm{s},
+⟨ \bm{ω} ⟩ = \frac{Γ}{V} ∮_{\mathcal{C}} \mathrm{d}\bm{s},
 ```
 
 where $V = L^3$ is the periodic domain volume.
@@ -188,20 +188,22 @@ This quantity is always zero when all filaments are closed. It can be non-zero i
 infinite unclosed filaments which are not compensated by oppositely-oriented infinite filaments.
 
 When the mean filament vorticity is non-zero, one must compensate it by adding a uniform background
-vorticity $\bm{ω}_{\text{back}} = -⟨ \bm{ω} ⟩$, so that the total circulation around the
+vorticity ``\bm{ω}_{0} = -⟨ \bm{ω} ⟩``, so that the total circulation around the
 volume is zero.
+This should be interpreted by considering that computations are performed in a **rotating
+reference frame** with rotation rate ``\bm{Ω} = 2 ⟨ \bm{ω} ⟩ = -2 \bm{ω}_{0}``.
 
 In practice, in the long-range component of Ewald summation, this compensation is done
-implicitly by setting the zero mode $\hat{\bm{\omega}}(\bm{k} = \bm{0}) = \bm{0}$. As for
+implicitly by setting the zero mode ``\hat{\bm{\omega}}(\bm{k} = \bm{0}) = \bm{0}``. As for
 the short-range component, only the streamfunction needs to be corrected, while the velocity
 is not affected by the background vorticity.
 
 The correction to the short-range streamfunction is given by
 
 ```math
-\bm{ψ}^{<}_{\text{back}}
-= \frac{\bm{ω}_{\text{back}}}{4π} ∫_{\mathbb{R}^3} \frac{\operatorname{erfc}(α|\bm{r}|)}{|\bm{r}|} \, \mathrm{d}^3\bm{r}
-= \frac{\bm{ω}_{\text{back}}}{4 α^2}
+\bm{ψ}^{<}_{0}
+= \frac{\bm{ω}_{0}}{4π} ∫_{\mathbb{R}^3} \frac{\operatorname{erfc}(α|\bm{r}|)}{|\bm{r}|} \, \mathrm{d}^3\bm{r}
+= \frac{\bm{ω}_{0}}{4 α^2}
 ```
 
 Therefore, this function simply adds this short-range correction to the streamfunction.
