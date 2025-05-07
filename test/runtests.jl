@@ -60,6 +60,7 @@ println()
     @includetest "ring_friction.jl"
     @includetest "checkpoint.jl"
     @includetest "remove_small_filaments.jl"
+    @includetest "minimal_energy.jl"
     @includetest "trefoil.jl"
     @includetest "links.jl"
     @includetest "infinite_lines.jl"
