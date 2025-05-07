@@ -589,13 +589,15 @@ function init(
         Filaments.similar_filament(f; nderivs = Val(0), offset = zero(eltype(f)))
     end :: VectorOfVectors
     ψs = similar(vs)
+    tangents = map(similar ∘ nodes, fs)  # unit tangents (not interpolable)
 
+    quantities_base = (; vs, ψs, tangents,)
     quantities = if forcing isa NormalFluidForcing
-        (; vs, ψs, vL = similar(vs), vn = similar(vs), tangents = similar(vs),)
+        (; quantities_base..., vL = similar(vs), vn = similar(vs),)
     elseif forcing isa FourierBandForcing
-        (; vs, ψs, v_ns = similar(vs), vL = similar(vs),)  # we separately store vs and vL
+        (; quantities_base..., v_ns = similar(vs), vL = similar(vs),)  # we separately store vs and vL
     else
-        (; vs, ψs, vL = vs,)  # vL is an alias to vs
+        (; quantities_base..., vL = vs,)  # vL is an alias to vs
     end
 
     fs_sol = alias_u0 ? fs : copy(fs)
@@ -668,10 +670,11 @@ end
 
 function fields_to_interpolate(iter::VortexFilamentSolver)
     (; quantities,) = iter
-    if quantities.vs === quantities.vL  # they're aliased
-        values(@delete quantities.vL)  # interpolate all fields except vL (aliased with vs)
+    qs = @delete quantities.tangents  # don't interpolate tangents
+    if qs.vs === qs.vL  # they're aliased
+        values(@delete qs.vL)  # interpolate all fields except vL (aliased with vs)
     else
-        values(quantities)  # interpolate all fields (not sure we need all of them...)
+        values(qs)  # interpolate all fields (not sure we need all of them...)
     end
 end
 
@@ -779,11 +782,26 @@ function _update_values_at_nodes!(
     apply_forcing!(fields, iter, fs, t, iter.to)
 end
 
+function _update_unit_tangents!(tangents_all, fs)
+    scheduler = DynamicScheduler()  # for threading
+    for n in eachindex(fs, tangents_all)
+        f = fs[n]
+        tangents = tangents_all[n]
+        tforeach(eachindex(f, tangents); scheduler) do i
+            tangents[i] = f[i, UnitTangent()]
+        end
+    end
+    tangents_all
+end
+
 # This is the most general variant which should be called by timesteppers.
 function update_values_at_nodes!(
         fields::NamedTuple, fs, t::Real, iter;
         component = Val(:full),  # compute slow + fast components by default
     )
+    # First compute local tangents (this may be used by the forcing)
+    _update_unit_tangents!(iter.tangents, fs)
+    # Now compute velocities and optionally streamfunction values
     _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
 end
 
