@@ -67,7 +67,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t
     (; quantities,) = iter
     vs_all = quantities.vs  # self-induced velocities will be copied here
     vn_all = quantities.vn  # normal fluid velocities will be computed here
-    tangents_all = quantities.tangents  # local tangents
+    tangents_all = quantities.tangents  # local tangents (already computed)
     @assert vs_all !== vL_all
     @assert eachindex(vL_all) == eachindex(vn_all) == eachindex(tangents_all) == eachindex(vs_all) == eachindex(fs)
     scheduler = DynamicScheduler()  # for threading
@@ -81,7 +81,6 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t
             # At input, vL contains the self-induced velocity vs.
             # We copy vL -> vs before modifying vL with the actual vortex velocities.
             tforeach(eachindex(f, tangents); scheduler) do i
-                tangents[i] = f[i, UnitTangent()]  # TODO: can we reuse the tangents / computed elsewhere?
                 vs[i] = vL[i]  # usually this is the Biot-Savart velocity
                 vn[i] = forcing.vn(f[i])  # evaluate normal fluid velocity
             end

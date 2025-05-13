@@ -9,6 +9,7 @@ export init, solve!, step!, VortexFilamentProblem,
        save_checkpoint, load_checkpoint,
        inject_filament!,
        ShortRangeTerm, LocalTerm,
+       MinimalEnergy,
        ParamsBiotSavart,                           # from ..BiotSavart
        NoReconnections, ReconnectBasedOnDistance,  # from ..Reconnections
        reset_timer!  # from TimerOutputs
@@ -58,6 +59,7 @@ using ..Forcing: Forcing, AbstractForcing, NormalFluidForcing, FourierBandForcin
 # Reuse same init, solve! and step! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
 import CommonSolve: init, solve!, step!
+using LinearAlgebra: ×
 using OhMyThreads: OhMyThreads, DynamicScheduler, SerialScheduler, tforeach
 
 using Accessors: @delete  # allows to remove entry from (Named)Tuple
@@ -70,6 +72,14 @@ abstract type AbstractSolver end
     SUCCESS
     NO_VORTICES_LEFT
 end
+
+@enum SimulationMode begin
+    MODE_DEFAULT
+    MODE_MINIMAL_ENERGY
+end
+
+DefaultMode() = MODE_DEFAULT
+MinimalEnergy() = MODE_MINIMAL_ENERGY
 
 include("timesteppers/timesteppers.jl")
 include("adaptivity.jl")
@@ -206,6 +216,7 @@ struct VortexFilamentSolver{
         T,
         Problem <: VortexFilamentProblem{T},
         Filaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
+        Mode <: SimulationMode,
         Quantities <: NamedTuple,
         Refinement <: RefinementCriterion,
         Adaptivity <: AdaptivityCriterion,
@@ -225,6 +236,7 @@ struct VortexFilamentSolver{
     } <: AbstractSolver
     prob  :: Problem
     fs    :: Filaments
+    mode  :: Mode
     quantities :: Quantities  # stored fields: (vs, ψs) + optional ones (vn, tangents, ...)
     time  :: TimeInfo
     stats :: SimulationStats{T}
@@ -251,6 +263,9 @@ end
 function Base.show(io_in::IO, iter::VortexFilamentSolver)
     io = IOContext(io_in, :prefix => " │  ")  # this may be used by some `show` functions, for example for the forcing
     print(io, "VortexFilamentSolver with fields:")
+    if iter.mode !== DefaultMode()
+        print(io, "\n ├─ mode: ", iter.mode)
+    end
     print(io, "\n ├─ prob: ", iter.prob)
     _print_summary(io, iter.fs; pre = "\n ├─ fs: ", post = "vortex filaments")
     _print_summary(io, iter.vL; pre = "\n ├─ vL: ", post = "vortex line velocity (vs + mutual friction)")
@@ -545,6 +560,27 @@ version of the superfluid velocity induced by the vortices.
 Another way of injecting energy is simply by adding vortices to the simulation from time to
 time. This can be achieved by using an `affect!` function. See [`inject_filament!`](@ref) for
 some more details.
+
+## Energy minimisation mode
+
+It is also possible to run the simulation in "energy minimisation" mode, which can be useful
+for finding a minimal energy state from a given initial condition. In this mode, filaments
+will be advected not using the Biot–Savart velocity ``\bm{v}_{\text{s}}``, but using the velocity
+``-\bm{s}' × \bm{v}_{\text{s}}`` where ``\bm{s}'`` is the local unit tangent vector.
+
+This is because the functional derivative of the energy (per unit mass) with respect to the
+vortex positions is:
+
+```julia
+\frac{δE}{δ\bm{s}} = Γ \bm{s}' × \bm{v}_{\text{s}}
+```
+
+In principle, the simulation should converge to a state that (locally) minimises the kinetic
+energy. In some cases, e.g. when one starts with a single closed vortex, this is simply a
+state where all vortices have disappeared.
+
+Pass `mode = MinimalEnergy()` to enable this mode.
+Forcing should be disabled to run in this mode.
 """
 function init(
         prob::VortexFilamentProblem{T}, scheme::TemporalScheme;
@@ -563,6 +599,7 @@ function init(
         external_streamfunction::ExtStf = nothing,
         stretching_velocity::StretchingVelocity = nothing,
         forcing::ForcingType = nothing,
+        mode::SimulationMode = DefaultMode(),
         timer = TimerOutput("VortexFilament"),
     ) where {
         Callback <: Function,
@@ -589,13 +626,15 @@ function init(
         Filaments.similar_filament(f; nderivs = Val(0), offset = zero(eltype(f)))
     end :: VectorOfVectors
     ψs = similar(vs)
+    tangents = map(similar ∘ nodes, fs)  # unit tangents (not interpolable)
 
+    quantities_base = (; vs, ψs, tangents,)
     quantities = if forcing isa NormalFluidForcing
-        (; vs, ψs, vL = similar(vs), vn = similar(vs), tangents = similar(vs),)
+        (; quantities_base..., vL = similar(vs), vn = similar(vs),)
     elseif forcing isa FourierBandForcing
-        (; vs, ψs, v_ns = similar(vs), vL = similar(vs),)  # we separately store vs and vL
+        (; quantities_base..., v_ns = similar(vs), vL = similar(vs),)  # we separately store vs and vL
     else
-        (; vs, ψs, vL = vs,)  # vL is an alias to vs
+        (; quantities_base..., vL = vs,)  # vL is an alias to vs
     end
 
     fs_sol = alias_u0 ? fs : copy(fs)
@@ -645,7 +684,7 @@ function init(
     forcing_cache = Forcing.init_cache(forcing, cache_bs)
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
+        prob, fs_sol, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_fields,
         stretching_velocity, forcing, forcing_cache,
         timer, advect!, rhs!,
@@ -668,10 +707,11 @@ end
 
 function fields_to_interpolate(iter::VortexFilamentSolver)
     (; quantities,) = iter
-    if quantities.vs === quantities.vL  # they're aliased
-        values(@delete quantities.vL)  # interpolate all fields except vL (aliased with vs)
+    qs = @delete quantities.tangents  # don't interpolate tangents
+    if qs.vs === qs.vL  # they're aliased
+        values(@delete qs.vL)  # interpolate all fields except vL (aliased with vs)
     else
-        values(quantities)  # interpolate all fields (not sure we need all of them...)
+        values(qs)  # interpolate all fields (not sure we need all of them...)
     end
 end
 
@@ -779,12 +819,38 @@ function _update_values_at_nodes!(
     apply_forcing!(fields, iter, fs, t, iter.to)
 end
 
+function _update_unit_tangents!(tangents_all, fs)
+    scheduler = DynamicScheduler()  # for threading
+    for n in eachindex(fs, tangents_all)
+        f = fs[n]
+        tangents = tangents_all[n]
+        tforeach(eachindex(f, tangents); scheduler) do i
+            tangents[i] = f[i, UnitTangent()]
+        end
+    end
+    tangents_all
+end
+
 # This is the most general variant which should be called by timesteppers.
 function update_values_at_nodes!(
         fields::NamedTuple, fs, t::Real, iter;
         component = Val(:full),  # compute slow + fast components by default
     )
+    # First compute local tangents (this may be used by the forcing)
+    _update_unit_tangents!(iter.tangents, fs)
+    # Now compute velocities and optionally streamfunction values
     _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
+    if iter.mode === MinimalEnergy() && haskey(fields, :velocity)
+        # Replace velocities (which will be used for advection) with -s⃗ × v⃗ₛ
+        for n in eachindex(fields.velocity, iter.tangents)
+            vs = fields.velocity[n]
+            tangents = iter.tangents[n]
+            for i in eachindex(vs, tangents)
+                vs[i] = vs[i] × tangents[i]
+            end
+        end
+    end
+    fields
 end
 
 # Case where only the velocity is passed (generally used in internal RK substeps).
@@ -839,31 +905,6 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
         nref = Filaments.refine!(f, refinement)
     end
     n
-end
-
-# Variant called in RK substeps
-function _advect_filament!(f::T, fbase::T, vL, dt) where {T <: AbstractFilament}
-    Xs = nodes(f)
-    Ys = nodes(fbase)
-    for i ∈ eachindex(Xs, Ys, vL)
-        @inbounds Xs[i] = Ys[i] + dt * vL[i]
-    end
-    # Compute interpolation coefficients making sure that knots are preserved (and not
-    # recomputed from new locations).
-    Filaments.update_coefficients!(f; knots = knots(fbase))
-    nothing
-end
-
-# Variant called to really advect filaments from one timestep to the next
-function _advect_filament!(
-        f::AbstractFilament, fbase::Nothing, vL::VectorOfVelocities, dt::Real,
-    )
-    Xs = nodes(f)
-    for i ∈ eachindex(Xs, vL)
-        @inbounds Xs[i] = Xs[i] + dt * vL[i]
-    end
-    Filaments.update_coefficients!(f)  # note: in this case we recompute the knots
-    nothing
 end
 
 function after_advection!(iter::VortexFilamentSolver)
@@ -926,6 +967,31 @@ function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}
         @inbounds _advect_filament!(fs[i], fbase[i], vL[i], dt)
     end
     fs
+end
+
+# Variant called in RK substeps
+function _advect_filament!(f::T, fbase::T, vL, dt) where {T <: AbstractFilament}
+    Xs = nodes(f)
+    Ys = nodes(fbase)
+    for i ∈ eachindex(Xs, Ys, vL)
+        @inbounds Xs[i] = Ys[i] + dt * vL[i]
+    end
+    # Compute interpolation coefficients making sure that knots are preserved (and not
+    # recomputed from new locations).
+    Filaments.update_coefficients!(f; knots = knots(fbase))
+    nothing
+end
+
+# Variant called to really advect filaments from one timestep to the next
+function _advect_filament!(
+        f::AbstractFilament, fbase::Nothing, vL::VectorOfVelocities, dt::Real,
+    )
+    Xs = nodes(f)
+    for i ∈ eachindex(Xs, vL)
+        @inbounds Xs[i] = Xs[i] + dt * vL[i]
+    end
+    Filaments.update_coefficients!(f)  # note: in this case we recompute the knots
+    nothing
 end
 
 """

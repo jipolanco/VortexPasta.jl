@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `mode = MinimalEnergy()` option to `Timestepping.init`.
+  This evolves the vortices in "pseudo-time" such that the initial condition tends to a
+  minimal energy configuration.
+  For closed vortices, this simply makes the vortices shrink over time until they disappear.
+
 ## [0.27.1] - 2025-04-28
 
 ### Added
