@@ -6,6 +6,7 @@ using VortexPasta.BiotSavart
 using VortexPasta.Diagnostics
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
+using VortexPasta.FilamentIO
 using VortexPasta.Quadratures: Quadratures, GaussLegendre
 using VortexPasta.PredefinedCurves: PeriodicLine, define_curve
 using VortexPasta.Timestepping
@@ -107,6 +108,33 @@ function random_perturbation!(rng, ws::AbstractVector{<:Complex}; Lz::Real, A_rm
     ws
 end
 
+# Interpolate (x, y) locations on the vortex at equidistant z locations.
+# Locations are written in complex form, w = x + iy.
+function interpolate_at_equidistant_zs!(
+        positions::AbstractVector{<:Complex}, f::AbstractFilament;
+        Lz, atol = eps(Lz) * 100, maxiter = 10,
+    )
+    N = length(positions)
+    t = first(knots(f))  # initial location on the vortex; this is usually 0
+    for i in 1:N
+        # Interpolate points so that they're regularly spaced (constant Δz)
+        z_wanted = (i - 1) * Lz / N  # since the parameter t is equal to z
+        s⃗ = f(t)
+        niter = 0
+        while abs(z_wanted - s⃗.z) > atol && niter < maxiter
+            niter += 1
+            z′ = f(t, Derivative(1)).z
+            t = t + (z_wanted - s⃗.z) / z′
+            s⃗ = f(t)
+        end
+        @assert niter < maxiter  # convergence is usually very fast
+        @assert isapprox(s⃗.z, z_wanted; atol)
+        w = s⃗.x + im * s⃗.y
+        positions[i] = w
+    end
+    positions
+end
+
 # Incrementally integrate function `f` from xs[1] to xs[i] for each i.
 # We use functions from the VortexPasta.Quadratures module.
 function integrate_incremental!(f::F, ys, xs; quad) where {F}
@@ -148,148 +176,178 @@ function transform_val_space(ax::Axis, which::Int, spaces::Pair{Symbol,Symbol}, 
     @lift $new[which]
 end
 
-## Simulation parameters
+function run_simulation(;
+        lattice::Symbol = :square,   # :square or :hexagonal
+        Lz = 2π,             # domain period (vertical)
+        Lx = Lz,             # domain period (horizontal) -- proportional to inter-vortex distance
+        N = 64,              # number of points per vortex (= line resolution)
+        in_phase_perturbation = true,  # perturbations of all vortices are in phase?
+        nvort_per_dir = 2,   # number of vortices along X direction (number of vortices along Y depends on this and on `lattice` value)
+        A_rms = 1e-5 * Lz,   # amplitude of random perturbation (rms value)
+        method = QuinticSplineMethod(),  # filament discretisation method
+    )
+    #== Biot-Savart parameters ==#
+    # Domain size in y direction
+    Ly = if lattice == :square
+        Lx
+    elseif lattice == :hexagonal
+        Lx * sqrt(3)
+    else
+        throw(ArgumentError("`lattice` parameter should be :square or :hexagonal"))
+    end
+    Ls = (Lx, Ly, Lz)
+    params = init_biot_savart_parameters(; Ls)
+    println('\n', params)
+
+    #== Initialise vortices ==#
+    # Create "base" vortex from which we will create the actual vortices.
+    # This is a straight vortex that passes through the origin and goes from z = 0 to z = Lz.
+    p = PeriodicLine()
+    S = define_curve(p; scale = (1, 1, Lz), translate = (0, 0, 0.5 * Lz))
+    ts = range(0, 1; length = N + 1)[1:N]  # evaluation points in [0, 1) -- we make sure that z = 0 is included
+    f_base = Filaments.init(S, ClosedFilament, ts, method)
+    # plot_filaments(f_base, params.Ls)
+
+    # Create actual vortices, including random perturbation
+    fs = [f_base]; empty!(fs)  # creates empty vector with the right element type
+    w_equilibrium = ComplexF64[]  # equilibrium position (x + iy) of each filament
+    ws = zeros(ComplexF64, N)  # this will be used to store random perturbations
+    rng = StableRNG(42)        # initialise random number generator (RNG)
+
+    # Relative position of one or more vortices in cell (same for x and y coordinates)
+    cell_positions = if lattice == :square
+        [1/2]       # 1 vortex in the middle of the cell
+    elseif lattice == :hexagonal
+        [1/4, 3/4]  # 2 vortices in a minimal periodic unit cell
+    end
+
+    for j in 1:nvort_per_dir, i in 1:nvort_per_dir, pos in cell_positions
+        f = similar(f_base)
+        if !in_phase_perturbation || isempty(fs)
+            # Don't update ws if in_phase_perturbation == true and this is not the first vortex.
+            random_perturbation!(rng, ws; Lz, A_rms)  # compute random perturbation, modifying ws
+        end
+        x₀ = (i - 1 + pos) * params.Ls[1] / nvort_per_dir  # x position of vortex (before perturbation)
+        y₀ = (j - 1 + pos) * params.Ls[2] / nvort_per_dir  # y position of vortex (before perturbation)
+        for n in eachindex(f, f_base)
+            x = x₀ + real(ws[n])
+            y = y₀ + imag(ws[n])
+            z = f_base[n].z  # same z position as "base" vortex
+            f[n] = (x, y, z)
+        end
+        update_coefficients!(f)  # needed before any interpolations, plotting, ...
+        push!(fs, f)  # add new vortex to list
+        push!(w_equilibrium, x₀ + im * y₀)
+    end
+
+    # plot_filaments(fs, params.Ls)
+
+    # Mean inter-vortex distance (assuming nearly straight vortices => weak perturbation)
+    ℓ = sqrt(params.Ls[1] * params.Ls[2] / length(fs))  # = Lh / nvort_per_dir
+
+    # Rotation rate (Feynman's rule)
+    Ω = params.Γ / (2 * ℓ^2)
+
+    #== Run simulation ==#
+    # Initialise problem
+    # Tsim = 1 * BiotSavart.kelvin_wave_period(params, Lz)  # total simulation time
+    Tsim = 4 * 2π / Ω  # simulate 4 rotation periods
+    prob = VortexFilamentProblem(fs, Tsim, params)
+    println(prob, '\n')
+
+    # Define callback function to be called at each iteration
+    times = Float64[]            # will contain the time associated to each timestep
+    energy = Float64[]           # will contain the kinetic energy at each timestep
+    vortex_length = Float64[]    # will contain the total vortex length at each timestep
+    positions = ComplexF64[]  # will contain vortex positions (w = x + im * y) at each timestpp
+
+    tsf = TimeSeriesFile()
+
+    t_save_step = (prob.tspan[2] - prob.tspan[1]) / 101
+    t_save_next = Ref(prob.tspan[1])
+
+    function callback(iter)
+        local (; nstep, t,) = iter
+        local (; tspan,) = iter.prob
+        local (; Ls,) = iter.prob.p
+        if nstep == 0  # make sure vectors are empty at the beginning of the simulation
+            foreach(empty!, (times, energy, vortex_length, positions, tsf))
+            t_save_next[] = tspan[1]
+        end
+        local E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+        local Lvort = Diagnostics.filament_length(iter; quad = GaussLegendre(3))
+        t_rel = (t - tspan[1]) / (tspan[2] - tspan[1])
+        if nstep % 10 == 0
+            @show nstep, t, t_rel, E, Lvort
+        end
+        if t ≥ t_save_next[]
+            t_save_next[] += t_save_step
+            local fname = "rotation_$nstep.vtkhdf"
+            save_checkpoint(fname, iter; refinement = 4) do io
+                io["curvature"] = CurvatureScalar()
+            end
+            tsf[t] = fname
+            save("rotation.vtkhdf.series", tsf)
+        end
+        push!(times, t)
+        push!(energy, E)
+        push!(vortex_length, Lvort)
+        # Save locations of the first filament in complex form.
+        resize!(positions, length(positions) + N)
+        positions_t = @view positions[(end - N + 1):end]  # values to be filled
+        interpolate_at_equidistant_zs!(positions_t, iter.fs[1]; Lz = Ls[3])
+        nothing
+    end
+
+    # Determine timestep and temporal scheme
+    δ = Lz / N  # line resolution (assuming nearly straight lines)
+    dt_kw = BiotSavart.kelvin_wave_period(params, δ)
+    # scheme = RK4()
+    # dt = dt_kw
+    scheme = Strang(RK4(); nsubsteps = 4)  # Strang splitting allows to use larger timesteps
+    dt = 2 * scheme.nsubsteps * dt_kw
+
+    # Initialise and run simulation
+    iter = init(prob, scheme; dt, callback)
+    println(iter, '\t')
+    solve!(iter)
+    println(iter.to)  # show timing information
+
+    # Check average evolution of vortex length (wrt length of equilibrium position)
+    L_equilibrium = length(fs) * Lz
+    vortex_length_extra = @. (vortex_length / L_equilibrium - 1)
+    scatterlines(times, vortex_length_extra; axis = (xlabel = "Time", ylabel = "Normalised perturbation amplitude"))
+    @show std(vortex_length) / L_equilibrium
+    @show (vortex_length[end] - vortex_length[begin]) / L_equilibrium
+
+    (;
+        N, Ω, ℓ, params, times, energy, vortex_length, positions,
+        w_equilibrium,
+    )
+end
+
+## Run simulation
 
 lattice = :square
 # lattice = :hexagonal
 Lz = 2π       # domain period (vertical)
-Lx = Lz / 16  # domain period (horizontal) -- this is proportional to the inter-vortex distance
-if lattice == :square
-    Ly = Lx
-elseif lattice == :hexagonal
-    Ly = Lx * sqrt(3)
-end
-Ls = (Lx, Ly, Lz)
-params = init_biot_savart_parameters(; Ls)
-println(params)
+Lx = Lz / 8   # domain period (horizontal) -- this is proportional to the inter-vortex distance
 
 # Initial vortices
-N = 128             # number of discretisation points per line
-in_phase_perturbation = true  # perturbations of all vortices are in phase? (may help eliminate KW branches in DR)
-nvort_per_dir = 1   # number of vortices per direction (x, y)
-A_rms = 1e-6 * Lz   # amplitude of random perturbation (rms value)
+N = 64             # number of discretisation points per line
+in_phase_perturbation = true  # perturbations of all vortices are in phase?
+nvort_per_dir = 2   # number of vortices per direction (x, y)
+A_rms = 1e-5 * Lz   # amplitude of random perturbation (rms value)
 method = QuinticSplineMethod()  # filament discretisation method
-parametrisation = (Xs, i) -> @inbounds abs(Xs[i + 1].z - Xs[i].z)  # parametrise curves by z coordinate (relative to point i = 1!)
 
-## Initialise one or more vortices
-
-# Create "base" vortex from which we will create the actual vortices.
-# This is a straight vortex that passes through the origin and goes from z = 0 to z = Lz.
-p = PeriodicLine()
-S = define_curve(p; scale = (1, 1, Lz), translate = (0, 0, 0.5 * Lz))
-ts = range(0, 1; length = N + 1)[1:N]  # evaluation points in [0, 1) -- we make sure that z = 0 is included
-f_base = Filaments.init(S, ClosedFilament, ts, method; parametrisation)
-# plot_filaments(f_base, params.Ls)
-
-# Create actual vortices, including random perturbation
-fs = [f_base]; empty!(fs)  # creates empty vector with the right element type
-w_equilibrium = ComplexF64[]  # equilibrium position (x + iy) of each filament
-ws = zeros(ComplexF64, N)  # this will be used to store random perturbations
-rng = StableRNG(42)        # initialise random number generator (RNG)
-
-if lattice == :square
-    positions = [1/2]
-elseif lattice == :hexagonal
-    positions = [1/4, 3/4]  # 2 vortices in a minimal periodic unit cell
-end
-
-for j in 1:nvort_per_dir, i in 1:nvort_per_dir, pos in positions
-    f = similar(f_base)
-    if !in_phase_perturbation || isempty(fs)
-        # Don't update ws if in_phase_perturbation == true and this is not the first vortex.
-        random_perturbation!(rng, ws; Lz, A_rms)  # compute random perturbation, modifying ws
-    end
-    x₀ = (i - 1 + pos) * params.Ls[1] / nvort_per_dir  # x position of vortex (before perturbation)
-    y₀ = (j - 1 + pos) * params.Ls[2] / nvort_per_dir  # y position of vortex (before perturbation)
-    for n in eachindex(f, f_base)
-        x = x₀ + real(ws[n])
-        y = y₀ + imag(ws[n])
-        z = f_base[n].z  # same z position as "base" vortex
-        f[n] = (x, y, z)
-    end
-    update_coefficients!(f)  # needed before any interpolations, plotting, ...
-    push!(fs, f)  # add new vortex to list
-    push!(w_equilibrium, x₀ + im * y₀)
-end
-
-# plot_filaments(fs, params.Ls)
-
-# Mean inter-vortex distance (assuming nearly straight vortices => weak perturbation)
-ℓ = sqrt(params.Ls[1] * params.Ls[2] / length(fs))  # = Lh / nvort_per_dir
-
-# Rotation rate (Feynman's rule)
-Ω = params.Γ / (2 * ℓ^2)
-
-## Run simulation
-
-# Initialise problem
-# Tsim = 1 * BiotSavart.kelvin_wave_period(params, Lz)  # total simulation time
-Tsim = 4 * 2π / Ω  # simulate 4 rotation periods
-prob = VortexFilamentProblem(fs, Tsim, params)
-println(prob)
-
-# Define callback function to be called at each iteration
-times::Vector{Float64} = Float64[]            # will contain the time associated to each timestep
-energy::Vector{Float64} = Float64[]           # will contain the kinetic energy at each timestep
-vortex_length::Vector{Float64} = Float64[]    # will contain the total vortex length at each timestep
-positions::Vector{ComplexF64} = ComplexF64[]  # will contain vortex positions (w = x + im * y) at each timestpp
-
-function callback(iter)
-    (; nstep, t,) = iter
-    if nstep == 0  # make sure vectors are empty at the beginning of the simulation
-        foreach(empty!, (times, energy, vortex_length, positions))
-    end
-    local E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
-    local Lvort = Diagnostics.filament_length(iter; quad = GaussLegendre(3))
-    if nstep % 10 == 0
-        @show nstep, t, E, Lvort
-    end
-    push!(times, t)
-    push!(energy, E)
-    push!(vortex_length, Lvort)
-    # Save locations of the first filament in complex form
-    let f = iter.fs[1]
-        # Assume filaments are parametrised by z location
-        local Lz = Filaments.end_to_end_offset(f).z
-        @assert Filaments.parametrisation(f) isa Filaments.CustomParametrisation
-        @assert knots(f)[end + 1] ≈ knots(f)[begin] + Lz
-        local δz = f[1].z  # f(-δz).z should be approximately 0
-        @assert Lz > 0
-        for i in eachindex(f)
-            # Interpolate points so that they're regularly spaced (constant Δz)
-            local z_wanted = (i - 1) * Lz / N  # since the parameter t is equal to z
-            local s⃗ = f(z_wanted - δz)
-            # @show s⃗.z z_wanted
-            @assert isapprox(s⃗.z, z_wanted; atol = 1e-12)
-            w = s⃗.x + im * s⃗.y
-            push!(positions, w)
-        end
-    end
-    nothing
-end
-
-# Determine timestep and temporal scheme
-δ = Lz / N  # line resolution (assuming nearly straight lines)
-dt_kw = BiotSavart.kelvin_wave_period(params, δ)
-# scheme = RK4()
-# dt = dt_kw
-scheme = Strang(RK4(); nsubsteps = 4)  # Strang splitting allows to use larger timesteps
-dt = 2 * scheme.nsubsteps * dt_kw
-
-# Initialise and run simulation
-iter = init(prob, scheme; dt, callback)
-println(iter)
-solve!(iter)
-println(iter.to)  # show timing information
-
-# Check average evolution of vortex length (wrt length of equilibrium position)
-L_equilibrium = length(fs) * Lz
-vortex_length_extra = @. (vortex_length / L_equilibrium - 1)
-scatterlines(times, vortex_length_extra; axis = (xlabel = "Time", ylabel = "Normalised perturbation amplitude"))
-@show std(vortex_length) / L_equilibrium
-@show (vortex_length[end] - vortex_length[begin]) / L_equilibrium
+results = run_simulation(;
+    lattice, Lz, Lx, N, in_phase_perturbation,
+    nvort_per_dir, A_rms, method,
+)
 
 ## Spatiotemporal analysis
+
+(; N, positions, times, params, Ω, ℓ, w_equilibrium,) = results
 
 ws_mat = reshape(positions, N, :)  # reinterpret 1D vector as a 2D matrix: ws_mat[i, j] = w(z_i, t_j)
 
@@ -314,7 +372,7 @@ ws_h ./= length(ws_h)  # normalise FFT
 ws_abs2 = @views abs2.(ws_h[1:((end + 1)÷2), :])  # from k = 0 to k = +kmax
 @views ws_abs2[2:end, :] .+= abs2.(ws_h[end:-1:(end÷2 + 2), :])  # from -kmax to -1
 
-Δt = times[2] - times[1]      # timestep
+Δt = times[t_inds[2]] - times[t_inds[1]]      # timestep
 ks = fftfreq(N, 2π * N / Lz)[1:(end + 1)÷2]  # wavenumbers (≥ 0 only)
 ωs = fftfreq(Nt, 2π / Δt)     # frequencies
 ωs_shift = fftshift(ωs)
@@ -366,13 +424,13 @@ end
 k_ℓ = 2π / ℓ  # wavenumber associated to inter-vortex distance
 
 fig = Figure()
-ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
+ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω", xlabelsize = 20, ylabelsize = 20)
 xlims!(ax, 0.8 * k_max .* (0, 1))
 ylims!(ax, 0.8 * ω_max .* (-1, 1))
 hm = heatmap!(
     ax, ks, ωs_shift, w_plot;
     colormap = Reverse(:deep),
-    colorrange = round.(Int, extrema(w_plot)) .+ (5, 0),
+    colorrange = round.(Int, extrema(w_plot)) .+ (3, 0),
 )
 Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}|^2", labelsize = 20)
 hlines!(ax, 0; color = :white, linestyle = :dash, linewidth = 1)
@@ -386,8 +444,8 @@ let color = :lightblue
     text!(ax, L"\frac{2π}{ℓ}"; position = @lift((k_ℓ, $ybottom)), offset = (6, 4), align = (:left, :bottom), color, fontsize = 16)
 end
 # lines!(ax, ks_fine, ωs_small_k; color = :orangered, linestyle = :dash, linewidth = 1.5)
-# lines!(ax, ks_fine, ωs_rajagopal; color = :lightgreen, linestyle = :dash, linewidth = 1.5)
+lines!(ax, ks_fine, ωs_rajagopal; color = (:lightgreen, 0.8), linestyle = :dash, linewidth = 1.5, label = L"(2 - J) Ω + \frac{κ}{4π} \ln(2π/ka)")
 lines!(ax, ks_fine, ωs_ℓ; color = (:yellow, 0.8), linestyle = :dash, linewidth = 2.0, label = L"2Ω + \frac{κ}{4π} \ln(ℓ/a)")
-axislegend(ax; position = (0, 0), framevisible = false, labelcolor = :white, labelsize = 16)
+# axislegend(ax; position = (0, 0), framevisible = false, labelcolor = :white, labelsize = 16)
 # DataInspector(fig)
 fig
