@@ -735,131 +735,6 @@ function check_external_streamfunction(forcing::NamedTuple, Ls)
     nothing
 end
 
-# This variant computes the full BS law + any added velocities.
-function _update_values_at_nodes!(
-        ::Val{:full},
-        ::FastBiotSavartTerm,  # ignored in this case
-        fields::NamedTuple{Names, NTuple{N, V}},
-        fs::VectorOfFilaments,
-        t::Real,
-        iter::VortexFilamentSolver,
-    ) where {Names, N, V <: VectorOfVectors}
-    if iter.LIA
-        BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
-    else
-        BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
-    end
-    add_external_fields!(fields, iter, fs, t, iter.to)
-    apply_forcing!(fields, iter, fs, t, iter.to)
-end
-
-# Compute slow component only.
-# This is generally called in IMEX-RK substeps, where only the velocity (and not the
-# streamfunction) is needed.
-# We assume that the "slow" component is everything but LIA term when evolving the
-# Biot-Savart law.
-# This component will be treated explicitly by IMEX schemes.
-function _update_values_at_nodes!(
-        ::Val{:slow},
-        ::LocalTerm,
-        fields::NamedTuple{(:velocity,)},
-        fs::VectorOfFilaments,
-        t::Real,
-        iter::VortexFilamentSolver,
-    )
-    T = eltype_nested(Vec3, fields.velocity)
-    @assert T <: Vec3
-    if iter.LIA
-        fill!(fields.velocity, zero(T))
-    else
-        BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
-    end
-    nothing
-end
-
-function _update_values_at_nodes!(
-        ::Val{:slow},
-        ::ShortRangeTerm,
-        fields::NamedTuple{(:velocity,)},
-        fs::VectorOfFilaments,
-        t::Real,
-        iter::VortexFilamentSolver,
-    )
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = false)
-end
-
-# Compute fast component only.
-# This is generally called in IMEX-RK substeps, where only the velocity (and not the
-# streamfunction) is needed.
-# We assume that the "fast" component is the LIA term when evolving the Biot-Savart law.
-# This component will be treated implicitly by IMEX schemes.
-function _update_values_at_nodes!(
-        ::Val{:fast},
-        ::LocalTerm,
-        fields::NamedTuple{(:velocity,)},
-        fs::VectorOfFilaments,
-        t::Real,
-        iter::VortexFilamentSolver,
-    )
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
-    add_external_fields!(fields, iter, fs, t, iter.to)
-    apply_forcing!(fields, iter, fs, t, iter.to)
-end
-
-function _update_values_at_nodes!(
-        ::Val{:fast},
-        ::ShortRangeTerm,
-        fields::NamedTuple{(:velocity,)},
-        fs::VectorOfFilaments,
-        t::Real,
-        iter::VortexFilamentSolver,
-    )
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
-    add_external_fields!(fields, iter, fs, t, iter.to)
-    apply_forcing!(fields, iter, fs, t, iter.to)
-end
-
-function _update_unit_tangents!(tangents_all, fs)
-    scheduler = DynamicScheduler()  # for threading
-    for n in eachindex(fs, tangents_all)
-        f = fs[n]
-        tangents = tangents_all[n]
-        tforeach(eachindex(f, tangents); scheduler) do i
-            tangents[i] = f[i, UnitTangent()]
-        end
-    end
-    tangents_all
-end
-
-# This is the most general variant which should be called by timesteppers.
-function update_values_at_nodes!(
-        fields::NamedTuple, fs, t::Real, iter;
-        component = Val(:full),  # compute slow + fast components by default
-    )
-    # First compute local tangents (this may be used by the forcing)
-    _update_unit_tangents!(iter.tangents, fs)
-    # Now compute velocities and optionally streamfunction values
-    _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
-    if iter.mode === MinimalEnergy() && haskey(fields, :velocity)
-        # Replace velocities (which will be used for advection) with -s⃗ × v⃗ₛ
-        for n in eachindex(fields.velocity, iter.tangents)
-            vs = fields.velocity[n]
-            tangents = iter.tangents[n]
-            for i in eachindex(vs, tangents)
-                vs[i] = vs[i] × tangents[i]
-            end
-        end
-    end
-    fields
-end
-
-# Case where only the velocity is passed (generally used in internal RK substeps).
-function update_values_at_nodes!(vL::VectorOfVectors, args...; kws...)
-    fields = (velocity = vL,)
-    update_values_at_nodes!(fields, args...; kws...)
-    vL
-end
-
 # Here buf is usually a VectorOfFilaments or a vector of vectors of velocities
 # (containing the velocities of all filaments).
 # Resizes the higher-level vector without resizing the individual vectors it contains.
@@ -942,56 +817,6 @@ function _after_advection!(f::AbstractFilament, fields::Tuple; L_fold, refinemen
         map(vs -> resize!(vs, length(f)), fields)
     end
     f
-end
-
-# The possible values of fbase are:
-# - `nothing` (default), used when the filaments `fs` should be actually advected with the
-#   chosen velocity at the end of a timestep;
-# - some list of filaments similar to `fs`, used to advect from `fbase` to `fs` with the
-#   chosen velocity. This is generally done from within RK stages, and in this case things
-#   like filament refinement are not performed.
-advect_filaments!(fs, vL, dt; fbase = nothing, kws...) =
-    _advect_filaments!(fs, fbase, vL, dt; kws...)
-
-# Variant called at the end of a timestep.
-function _advect_filaments!(fs, fbase::Nothing, vL, dt)
-    for i ∈ eachindex(fs, vL)
-        @inbounds _advect_filament!(fs[i], nothing, vL[i], dt)
-    end
-    fs
-end
-
-# Variant called from within RK stages.
-function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}
-    for i ∈ eachindex(fs, fbase, vL)
-        @inbounds _advect_filament!(fs[i], fbase[i], vL[i], dt)
-    end
-    fs
-end
-
-# Variant called in RK substeps
-function _advect_filament!(f::T, fbase::T, vL, dt) where {T <: AbstractFilament}
-    Xs = nodes(f)
-    Ys = nodes(fbase)
-    for i ∈ eachindex(Xs, Ys, vL)
-        @inbounds Xs[i] = Ys[i] + dt * vL[i]
-    end
-    # Compute interpolation coefficients making sure that knots are preserved (and not
-    # recomputed from new locations).
-    Filaments.update_coefficients!(f; knots = knots(fbase))
-    nothing
-end
-
-# Variant called to really advect filaments from one timestep to the next
-function _advect_filament!(
-        f::AbstractFilament, fbase::Nothing, vL::VectorOfVelocities, dt::Real,
-    )
-    Xs = nodes(f)
-    for i ∈ eachindex(Xs, vL)
-        @inbounds Xs[i] = Xs[i] + dt * vL[i]
-    end
-    Filaments.update_coefficients!(f)  # note: in this case we recompute the knots
-    nothing
 end
 
 """
@@ -1212,6 +1037,8 @@ function inject_filament!(iter::VortexFilamentSolver, f::AbstractFilament)
     nothing
 end
 
+include("advect.jl")  # advect_filaments! (a.k.a. iter.advect!)
+include("rhs.jl")     # update_values_at_nodes! (a.k.a. iter.rhs!)
 include("forcing.jl")
 include("diagnostics.jl")
 include("checkpoint.jl")
