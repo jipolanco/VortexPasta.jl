@@ -713,7 +713,7 @@ function init(
     # Verify signature of callback and affect functions
     applicable(callback, iter) || throw(ArgumentError("`callback` function should be callable as `f(iter::VortexFilamentSolver)`"))
     applicable(affect!, iter) || throw(ArgumentError("`affect!` function should be callable as `f(iter::VortexFilamentSolver`)"))
-    applicable(affect_t!, iter, time.t) || throw(ArgumentError("`affect_t!` function must be callable as `f(iter::VortexFilamentSolver, t::Real)`"))
+    applicable(affect_t!, iter, time.t) || throw(ArgumentError("`affect_t!` function should be callable as `f(iter::VortexFilamentSolver, t::Real)`"))
 
     status = finalise_step!(iter)
     status == SUCCESS || error("reached status = $status at initialisation")
