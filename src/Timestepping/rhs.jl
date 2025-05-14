@@ -9,14 +9,17 @@
 # - `velocity`: will contain the instantaneous velocity of filament nodes
 # - `streamfunction` (optional): if included, will contain streamfunction values at filament nodes
 function update_values_at_nodes!(
-        fields::NamedTuple, fs, t::Real, iter;
+        fields::NamedTuple, fs, t::Real, iter::VortexFilamentSolver;
         component = Val(:full),  # compute slow + fast components by default
     )
     scheduler = DynamicScheduler()  # for threading
-    # First compute local tangents (this may be used by the forcing)
+    # (0) Apply affect_t! function (optional)
+    iter.affect_t!(iter, t)
+    # (1) Compute local tangents (this may be used by the forcing)
     _update_unit_tangents!(iter.tangents, fs; scheduler)
-    # Now compute velocities and optionally streamfunction values
+    # (2) Compute velocities and optionally streamfunction values
     _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
+    # (3) Modify final velocities if running in non-default mode (optional)
     if iter.mode === MinimalEnergy() && haskey(fields, :velocity)
         # Replace velocities (which will be used for advection) with -s⃗′ × v⃗ₛ
         _minimal_energy_velocities!(fields.velocity, iter.tangents; scheduler)

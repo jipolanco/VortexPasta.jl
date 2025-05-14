@@ -56,7 +56,7 @@ function generate_filaments(N; Ls)
     collect(filaments_from_functions(funcs, ClosedFilament{T}, N, method))
 end
 
-function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0)
+function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0, affect_t! = Returns(nothing))
     δ = minimum(node_distance, prob.fs)
     dt = BiotSavart.kelvin_wave_period(prob.p, δ) * dt_factor
     reconnect = ReconnectBasedOnDistance(δ / 2)
@@ -64,9 +64,12 @@ function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0)
     adaptivity = AdaptBasedOnSegmentLength(dt_factor) | AdaptBasedOnVelocity(δ / 2)
     iter = @inferred init(
         prob, RK4();
-        forcing,
+        forcing, affect_t!,
         dt, reconnect, refinement, adaptivity,
     )
+    if affect_t! !== Returns(nothing)
+        @test match(r"affect_t\!: Function", repr(iter)) !== nothing  # check that affect_t! appears in println(iter)
+    end
     if forcing isa FourierBandForcing
         @test iter.vs !== iter.vL
     end
@@ -217,6 +220,18 @@ end
             @test 1.15 < E_ratio < 1.25
             save_files && filaments_to_vtkhdf("forcing_normal.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "NormalFluidForcing")
+        end
+        @testset "NormalFluidForcing (time varying)" begin
+            forcing = @inferred NormalFluidForcing(vn; α, α′)
+            cs₀ = copy(vn.cs)  # initial Fourier coefficients of the forcing
+            function affect_t!(iter, t)
+                # Modify forcing with a chosen frequency
+                ω = 1 * 2π / tmax
+                @. iter.forcing.vn.cs = cs₀ * cis(ω * t)  # multiply initial coefficients by exp(im * ω * t)
+            end
+            (; iter, E_ratio, spectra) = simulate(prob, forcing; affect_t!)
+            # @show E_ratio  # = 1.080...
+            @test 1.04 < E_ratio < 1.12  # energy increases more slowly than with steady forcing, which makes sense!
         end
         @testset "FourierBandForcing" begin
             forcing = @inferred FourierBandForcing(vn; α, α′)

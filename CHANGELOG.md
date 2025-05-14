@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `affect_t!` option to `Timestepping.init`.
+  This is similar to `affect!`, but allows to modify the state of the solver in a
+  fine-grained manner, e.g. before every Runge–Kutta substep.
+  As opposed to `affect!` and `callback`, an `affect_t!` function takes two arguments:
+  an `iter::VortexFilamentSolver` and the current time `t::Real`.
+
 - Add `mode = MinimalEnergy()` option to `Timestepping.init`.
   This evolves the vortices in "pseudo-time" such that the initial condition tends to a
   minimal energy configuration.

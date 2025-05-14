@@ -226,6 +226,7 @@ struct VortexFilamentSolver{
         FastTerm <: FastBiotSavartTerm,
         Timer <: TimerOutput,
         Affect <: Function,
+        AffectTime <: Function,
         Callback <: Function,
         ExternalFields <: NamedTuple,
         StretchingVelocity <: Union{Nothing, Function},
@@ -249,8 +250,9 @@ struct VortexFilamentSolver{
     fast_term         :: FastTerm
     LIA           :: Bool
     fold_periodic :: Bool
-    affect!  :: Affect
-    callback :: Callback
+    affect!    :: Affect      # signature: affect!(iter)
+    affect_t!  :: AffectTime  # signature: affect_t!(iter, t) where t is the current time
+    callback :: Callback      # signature: callback(iter)
     external_fields    :: ExternalFields  # velocity and streamfunction forcing
     stretching_velocity :: StretchingVelocity
     forcing  :: Forcing  # typically normal fluid forcing (by mutual friction)
@@ -295,14 +297,9 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     summary(io, iter.cache_bs)
     print(io, "\n ├─ cache_timestepper: ")
     summary(io, iter.cache_timestepper)
-    affect! = _printable_function(iter.affect!)
-    callback = _printable_function(iter.callback)
-    if affect! !== identity
-        print(io, "\n ├─ affect!: Function (", affect!, ")")
-    end
-    if callback !== identity
-        print(io, "\n ├─ callback: Function (", callback, ")")
-    end
+    _maybe_print_function(io, "\n ├─ affect!:", iter.affect!)
+    _maybe_print_function(io, "\n ├─ affect_t!:", iter.affect_t!)
+    _maybe_print_function(io, "\n ├─ callback:", iter.callback)
     for (name, func) ∈ pairs(iter.external_fields)
         func === nothing || print(io, "\n ├─ external_fields.$name: Function ($func)")
     end
@@ -336,7 +333,18 @@ function Base.propertynames(iter::VortexFilamentSolver, private::Bool = false)
     (fieldnames(typeof(iter))..., propertynames(iter.quantities, private)..., propertynames(iter.time, private)...)
 end
 
+# Unwrap InstrumentedFunction (for timings)
 _printable_function(f::TimerOutputs.InstrumentedFunction) = f.func
+
+function _maybe_print_function(io, prefix, f_to::TimerOutputs.InstrumentedFunction)
+    f = _printable_function(f_to)
+    if f !== Returns(nothing)
+        m = methods(f)
+        @assert length(m) ≥ 1  # usually there is only a single method
+        print(io, prefix, " Function ", m[1])
+    end
+    nothing
+end
 
 get_dt(iter::VortexFilamentSolver) = iter.time.dt
 get_t(iter::VortexFilamentSolver) = iter.time.t
@@ -389,13 +397,17 @@ either [`step!`](@ref) or [`solve!`](@ref).
   filament, reconnections, …), besides possible spatial translations of the filaments
   proportional to the domain period.
 
-- `callback`: a function to be called at the end of each timestep. The function
-  must accept a single argument `iter::VortexFilamentSolver`. **Filaments should not be
-  modified** by this function. In that case use `affect!` instead. See notes below for more
-  details.
+- `callback`: a function to be called at the end of each timestep. Its signature must be
+  `callback(iter::VortexFilamentSolver)`. **Filaments should not be modified** by this
+  function. In that case use `affect!` instead. See notes below for more details.
 
-- `affect!`: similar to `callback`, but allows to modify filament definitions. See notes
-  below for more details.
+- `affect!`: similar to `callback`, but allows to modify filaments and other quantities at
+  the end of each timestep. Its signature must be `affect!(iter::VortexFilamentSolver)`.
+  See notes below for more details.
+
+- `affect_t!`: similar to `affect!`, but allows to modify filaments and other quantities
+  _within a timestep_ (e.g. within each Runge–Kutta substep). Its signature must be
+  `affect_t!(iter::VortexFilamentSolver, time::Real)`. See notes below for more details.
 
 - `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
   recording the time spent on different functions.
@@ -413,7 +425,7 @@ either [`step!`](@ref) or [`solve!`](@ref).
 
 # Extended help
 
-## Difference between `callback` and `affect!`
+## Difference between `callback`, `affect!` and `affect_t!`
 
 The difference between the `callback(iter)` and `affect!(iter)` functions is the time at
 which they are called:
@@ -430,6 +442,11 @@ which they are called:
   This means that the fields in `iter.quantities` have been computed from the latest filament positions.
   However, one **must not modify `iter.fs`**, or otherwise the velocity `iter.vs` (which
   will be used at the next timestep) will no longer correspond to the filament positions.
+
+In addition, one can also set an `affect_t!(iter, t)` function which can be used to modify
+the state of the solver in a fine-grained manner, e.g. at each Runge–Kutta substep. Note
+that this function must take an additional argument `t` (the current time) as a second argument.
+This may be used, for instance, to apply a forcing which varies in time.
 
 ## Forcing / energy injection methods
 
@@ -593,8 +610,9 @@ function init(
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         fold_periodic::Bool = true,
         LIA::Bool = false,
-        callback::Callback = identity,
-        affect!::Affect = identity,
+        callback::Callback = Returns(nothing),  # by default this is an empty function which just returns `nothing`
+        affect!::Affect = Returns(nothing),
+        affect_t!::AffectTime = Returns(nothing),
         external_velocity::ExtVel = nothing,
         external_streamfunction::ExtStf = nothing,
         stretching_velocity::StretchingVelocity = nothing,
@@ -604,6 +622,7 @@ function init(
     ) where {
         Callback <: Function,
         Affect <: Function,
+        AffectTime <: Function,
         ExtVel <: Union{Nothing, Function},
         ExtStf <: Union{Nothing, Function},
         StretchingVelocity <: Union{Nothing, Function},
@@ -648,6 +667,7 @@ function init(
     rhs! = timer(update_values_at_nodes!, "Update values at nodes")
     callback_ = timer(callback, "Callback")
     affect_ = timer(affect!, "Affect!")
+    affect_t_ = timer(affect_t!, "Affect! (fine-grained)")
 
     adaptivity_ = possibly_add_max_timestep(adaptivity, dt)
     if adaptivity_ !== NoAdaptivity() && !can_change_dt(scheme)
@@ -685,10 +705,15 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs_sol, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, callback_, external_fields,
+        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, affect_t_, callback_, external_fields,
         stretching_velocity, forcing, forcing_cache,
         timer, advect!, rhs!,
     )
+
+    # Verify signature of callback and affect functions
+    applicable(callback, iter) || throw(ArgumentError("`callback` function should be callable as `f(iter::VortexFilamentSolver)`"))
+    applicable(affect!, iter) || throw(ArgumentError("`affect!` function should be callable as `f(iter::VortexFilamentSolver`)"))
+    applicable(affect_t!, iter, time.t) || throw(ArgumentError("`affect_t!` function should be callable as `f(iter::VortexFilamentSolver, t::Real)`"))
 
     status = finalise_step!(iter)
     status == SUCCESS || error("reached status = $status at initialisation")
