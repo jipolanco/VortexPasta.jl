@@ -19,7 +19,7 @@ function update_values_at_nodes!(
     _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
     if iter.mode === MinimalEnergy() && haskey(fields, :velocity)
         # Replace velocities (which will be used for advection) with -s⃗′ × v⃗ₛ
-        _minimal_energy_velocities!(fields.velocity, iter.tangents)
+        _minimal_energy_velocities!(fields.velocity, iter.tangents; scheduler)
     end
     fields
 end
