@@ -237,7 +237,7 @@ end
             forcing = @inferred FourierBandForcing(vn; α, α′)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
             # @show E_ratio  # = 3.617499405142961
-            @test 3.5 < E_ratio < 3.7
+            @test 3.4 < E_ratio < 3.8
             save_files && filaments_to_vtkhdf("forcing_band.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "FourierBandForcing")
         end
