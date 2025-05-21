@@ -20,8 +20,11 @@ using InverseFunctions: InverseFunctions
 
 ## Helper functions
 
-function init_biot_savart_parameters(; Ls, β = 3.5, kws...)
-    rcut = min(Ls...) * (2/5)  # maximum possible cut-off distance for short-range part (depends on CellListsBackend parameters)
+function init_biot_savart_parameters(;
+        Ls, β = 3.5,
+        rcut = min(Ls...) * (2/5),  # default = maximum possible cut-off distance for short-range part (depends on CellListsBackend parameters)
+        kws...,
+    )
     α = β / rcut                # Ewald splitting parameter
     kmax = 2 * α * β            # maximum resolved wavenumber (Nyquist frequency) for long-range part
     Ns = map(Ls) do L
@@ -185,6 +188,7 @@ function run_simulation(;
         nvort_per_dir = 2,   # number of vortices along X direction (number of vortices along Y depends on this and on `lattice` value)
         A_rms = 1e-5 * Lz,   # amplitude of random perturbation (rms value)
         method = QuinticSplineMethod(),  # filament discretisation method
+        rcut_factor = 2/5,
     )
     #== Biot-Savart parameters ==#
     # Domain size in y direction
@@ -196,7 +200,8 @@ function run_simulation(;
         throw(ArgumentError("`lattice` parameter should be :square or :hexagonal"))
     end
     Ls = (Lx, Ly, Lz)
-    params = init_biot_savart_parameters(; Ls)
+    rcut = min(Ls...) * rcut_factor
+    params = init_biot_savart_parameters(; Ls, rcut)
     println('\n', params)
 
     #== Initialise vortices ==#
@@ -302,10 +307,10 @@ function run_simulation(;
     # Determine timestep and temporal scheme
     δ = Lz / N  # line resolution (assuming nearly straight lines)
     dt_kw = BiotSavart.kelvin_wave_period(params, δ)
-    # scheme = RK4()
-    # dt = dt_kw
-    scheme = Strang(RK4(); nsubsteps = 4)  # Strang splitting allows to use larger timesteps
-    dt = 2 * scheme.nsubsteps * dt_kw
+    scheme = RK4()
+    dt = dt_kw
+    # scheme = Strang(RK4(); nsubsteps = 4)  # Strang splitting allows to use larger timesteps
+    # dt = 2 * scheme.nsubsteps * dt_kw
 
     # Initialise and run simulation
     iter = init(prob, scheme; dt, callback)
@@ -335,8 +340,8 @@ Lx = Lz / 8   # domain period (horizontal) -- this is proportional to the inter-
 
 # Initial vortices
 N = 64             # number of discretisation points per line
-in_phase_perturbation = true  # perturbations of all vortices are in phase?
-nvort_per_dir = 2   # number of vortices per direction (x, y)
+in_phase_perturbation = false  # perturbations of all vortices are in phase?
+nvort_per_dir = 4   # number of vortices per direction (x, y)
 A_rms = 1e-5 * Lz   # amplitude of random perturbation (rms value)
 method = QuinticSplineMethod()  # filament discretisation method
 
