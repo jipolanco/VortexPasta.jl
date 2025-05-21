@@ -1,4 +1,4 @@
-# Parallelisation
+# Parallelisation and clusters
 
 VortexPasta.jl can take advantage of thread-based CPU parallelisation (equivalent to
 OpenMP).
@@ -64,21 +64,30 @@ which can be submitted using `sbatch`:
 #SBATCH --ntasks=1
 #SBATCH --hint=nomultithread
 #SBATCH --cpus-per-task=32
+#SBATCH --ntasks-per-node=1
+#SBATCH --threads-per-core=1
 #SBATCH --exclusive
 #SBATCH --mem=120G
-#SBATCH --threads-per-core=1
 
 echo " - SLURM_JOB_ID = $SLURM_JOB_ID"
 echo " - SLURM_JOB_NODELIST = $SLURM_JOB_NODELIST"
 echo " - SLURM_TASKS_PER_NODE = $SLURM_TASKS_PER_NODE"
 echo " - SLURM_CPUS_PER_TASK = $SLURM_CPUS_PER_TASK"
 
-srun --cpu-bind=verbose,cores julia -t auto --heap-size-hint=100G --project=. script.jl
+srun --cpu-bind=verbose,cores \
+  --cpus-per-task=$SLURM_CPUS_PER_TASK \
+  --ntasks-per-node=$SLURM_NTASKS_PER_NODE \
+  --threads-per-core=$SLURM_THREADS_PER_CORE \
+  julia -t auto --heap-size-hint=100G --project=. script.jl
 ```
 
 Here the number of threads is set via the `--cpus-per-task` option.
 
 Some other notes:
+
+- the precise `SBATCH` flags that need to be passed depend on the actual cluster.
+  For example, in some clusters one may also need to pass `--constraint` and `--account` flags,
+  while the `--partition` flag is not necessarily needed.
 
 - the `--exclusive` flag is optional; it is recommended if one wants to use
   a full node (i.e. if the number of requested CPUs corresponds to the total
