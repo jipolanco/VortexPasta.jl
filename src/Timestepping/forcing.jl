@@ -117,12 +117,20 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs,
     Forcing.update_cache!(cache, forcing, iter.cache_bs)
     scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
+        ε_total = zero(number_type(vs_all))
         @inbounds for n in eachindex(fs)
             f = fs[n]
             vL = vL_all[n]  # currently contains self-induced velocity vs
             copyto!(vs_all[n], vL)
             # Compute vL according to the given forcing (vL = vs at input).
-            Forcing.apply!(forcing, cache, vL, f; scheduler)
+            ε_total += Forcing.apply!(forcing, cache, vL, f; scheduler)
+        end
+        if forcing.ε_target != 0
+            # In this case, vL only contains the forcing velocities, which need to be
+            # rescaled to get the wanted energy injection rate (estimated).
+            @assert forcing.α == 0
+            α = forcing.ε_target / ε_total
+            @. vL_all = vs_all + α * vL_all
         end
     end
     nothing
