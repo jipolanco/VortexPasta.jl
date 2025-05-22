@@ -16,10 +16,11 @@ NormalFluidForcing
 apply!
 ```
 
-## Fourier band forcing
+## Fourier band forcings
 
 ```@docs
 FourierBandForcing
+FourierBandForcingBS
 ```
 
 ## Abstract types

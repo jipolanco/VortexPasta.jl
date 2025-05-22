@@ -9,11 +9,12 @@ using ..Filaments: AbstractFilament, UnitTangent
 using ..BiotSavart: BiotSavart, BiotSavartCache
 using ..SyntheticFields: SyntheticFields, FourierBandVectorField
 using LinearAlgebra: ×
+using KernelAbstractions: KernelAbstractions as KA
 using OhMyThreads: Scheduler, SerialScheduler, tforeach
 
 using Adapt: adapt
 
-export AbstractForcing, NormalFluidForcing, FourierBandForcing
+export AbstractForcing, NormalFluidForcing, FourierBandForcing, FourierBandForcingBS
 
 """
     AbstractForcing
@@ -45,5 +46,6 @@ function apply! end
 
 include("normal_fluid.jl")
 include("fourier_band.jl")
+include("fourier_band_bs.jl")
 
 end

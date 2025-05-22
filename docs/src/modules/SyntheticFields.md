@@ -19,6 +19,7 @@ UniformVectorField
 
 ```@docs
 FourierBandVectorField
+set_wavevector_band!
 init_coefficients!
 from_fourier_grid!
 remove_zeros!

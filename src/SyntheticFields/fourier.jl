@@ -9,7 +9,7 @@ abstract type FourierSyntheticVectorField{T, N} <: SyntheticVectorField{T, N} en
 
 @doc raw"""
     FourierBandVectorField{T, N} <: FourierSyntheticVectorField{T, N}
-    FourierBandVectorField(undef, Ls::NTuple; kmin, kmax)
+    FourierBandVectorField(undef, Ls::NTuple; [kmin], [kmax])
 
 Implements a synthetic vector field in Fourier space.
 
@@ -31,7 +31,7 @@ Moreover the state can be saved to an HDF5 file with
 
 - `Ls`: domain period in each direction. For example, `Ls = (2π, 2π, 2π)` for a ``2π``-periodic cubic domain.
 
-# Keyword arguments
+# Optional keyword arguments
 
 - `kmin`: minimum forcing wavenumber (magnitude);
 
@@ -39,6 +39,9 @@ Moreover the state can be saved to an HDF5 file with
 
 These should satisfy `0 ≤ kmin ≤ kmax`.
 Moreover, one usually wants `0 < kmin` to ensure that the generated field has zero mean value.
+
+If these are not passed, an empty `FourierBandVectorField` will be returned (with no wavevectors).
+It can be initialised later using [`set_wavevector_band!`](@ref).
 """
 struct FourierBandVectorField{
         T <: AbstractFloat, N,
@@ -207,14 +210,34 @@ end
 # We simply check if -k⃗ has been discarded.
 @inline has_implicit_conjugate(k⃗) = _discard_wavevector(Tuple(k⃗), Val(-1))
 
-function FourierBandVectorField(::UndefInitializer, Ls::NTuple{N, T}; kmin, kmax) where {T, N}
-    kmin = T(kmin)
-    kmax = T(kmax)
+function FourierBandVectorField(
+        ::UndefInitializer, Ls::NTuple{N, T};
+        kmin = nothing, kmax = nothing,
+    ) where {T, N}
+    # Notation: "q" represents a normalised wavenumber, q = k / Δk (takes integer values)
+    qs = NTuple{N, Int}[]  # normalised forced wave vectors (negative indices represent negative k's)
+    cs = SVector{N, Complex{T}}[]  # Fourier coefficients of vector field
+    Δks = T(2π) ./ Ls
+    field = FourierBandVectorField(qs, cs, Δks)
+    if kmin !== nothing && kmax !== nothing
+        set_wavevector_band!(field; kmin, kmax)
+    end
+    field
+end
+
+"""
+    SyntheticFields.set_wavevector_band!(field::FourierBandVectorField; kmin::Real, kmax::Real)
+
+Set active wavevectors of field within a Fourier band.
+
+This will set the normalised wavevectors `fields.qs` and resize the coefficients `fields.cs`.
+"""
+function set_wavevector_band!(field::FourierBandVectorField{T, N}; kmin::Real, kmax::Real) where {T, N}
+    (; qs, cs, Δks,) = field
+    empty!(qs)
     0 ≤ kmin ≤ kmax || throw(ArgumentError("expected 0 < kmin ≤ kmax"))
     # Determine forced wave vectors k⃗
     # Notation: "q" represents a normalised wavenumber, q = k / Δk (takes integer values)
-    qs_force = NTuple{N, Int}[]  # normalised forced wave vectors (negative indices represent negative k's)
-    Δks = T(2π) ./ Ls
     qmax_x = ceil(Int, kmax / Δks[1])
     qs_x = 0:qmax_x  # test wavenumbers along first dimension (Hermitian symmetry: discard modes kx < 0)
     qs_tail = ntuple(Val(N - 1)) do d
@@ -229,11 +252,12 @@ function FourierBandVectorField(::UndefInitializer, Ls::NTuple{N, T}; kmin, kmax
         k⃗ = q⃗ .* Δks
         k² = sum(abs2, k⃗)
         if kmin² ≤ k² ≤ kmax² && !discard_wavevector(q⃗)
-            push!(qs_force, q⃗)
+            push!(qs, q⃗)
         end
     end
-    cs = similar(qs_force, SVector{N, Complex{T}})
-    FourierBandVectorField(qs_force, cs, Δks)
+    resize!(cs, length(qs))
+    fill!(cs, zero(eltype(cs)))
+    field
 end
 
 # Generate divergence-free vector (could be generalised to 2D)
