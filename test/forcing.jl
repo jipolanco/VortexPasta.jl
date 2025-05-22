@@ -44,7 +44,7 @@ function filaments_from_functions(funcs::NTuple{N, F}, args...) where {N, F <: F
 end
 
 function generate_filaments(N; Ls)
-    p = PeriodicLine()  # unperturbed straight line
+    p = PeriodicLine(r = t -> 0.01 * cispi(2t))  # perturbed straight line
     T = Float64
     method = CubicSplineMethod()
     funcs = (
@@ -216,7 +216,7 @@ end
         @testset "NormalFluidForcing" begin
             forcing = @inferred NormalFluidForcing(vn; α, α′)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 1.2136651822544542
+            # @show E_ratio  # = 1.2096699608685284
             @test 1.15 < E_ratio < 1.25
             save_files && filaments_to_vtkhdf("forcing_normal.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "NormalFluidForcing")
@@ -230,13 +230,13 @@ end
                 @. iter.forcing.vn.cs = cs₀ * cis(ω * t)  # multiply initial coefficients by exp(im * ω * t)
             end
             (; iter, E_ratio, spectra) = simulate(prob, forcing; affect_t!)
-            # @show E_ratio  # = 1.080...
+            # @show E_ratio  # = 1.0795...
             @test 1.04 < E_ratio < 1.12  # energy increases more slowly than with steady forcing, which makes sense!
         end
         @testset "FourierBandForcing" begin
             forcing = @inferred FourierBandForcing(vn; α, α′)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 3.617499405142961
+            # @show E_ratio  # = 3.4612641897024696
             @test 3.4 < E_ratio < 3.8
             save_files && filaments_to_vtkhdf("forcing_band.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "FourierBandForcing")
@@ -244,10 +244,22 @@ end
         @testset "FourierBandForcing (filtered vorticity)" begin
             forcing = @inferred FourierBandForcing(vn; α, α′, filtered_vorticity = true)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 2.5623375372116857
-            @test 2.45 < E_ratio < 2.65
+            # @show E_ratio  # = 2.5823657991737927
+            @test 2.45 < E_ratio < 2.68
             save_files && filaments_to_vtkhdf("forcing_band_filtered_vorticity.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "FourierBandForcing (filtered vorticity)")
+        end
+        @testset "FourierBandForcingBS (constant α)" begin
+            forcing = @inferred FourierBandForcingBS(; α = 100.0, kmin = 0.5, kmax = 2.5)
+            (; iter, E_ratio, spectra) = simulate(prob, forcing)
+            # @show E_ratio  # = 1.1410585242365534
+            @test 1.10 < E_ratio < 1.20
+        end
+        @testset "FourierBandForcingBS (constant ε_target)" begin
+            forcing = @inferred FourierBandForcingBS(; ε_target = 1e-2, kmin = 0.5, kmax = 2.5)
+            (; iter, E_ratio, spectra) = simulate(prob, forcing)
+            # @show E_ratio  # = 1.084008928471282
+            @test 1.04 < E_ratio < 1.12
         end
     end
 
