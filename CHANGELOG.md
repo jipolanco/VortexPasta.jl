@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add Biot–Savart based forcing method (`FourierBandForcingBS`), which allows to force
+  specific wavevectors and depends only on the current vortex configuration. In particular,
+  compared to other forcing types, it doesn't require imposing an external "normal" fluid
+  velocity.
+
 ## [0.27.2] - 2025-05-14
 
 ### Added

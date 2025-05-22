@@ -54,7 +54,7 @@ using ..BiotSavart:
     VectorOfVelocities,
     periods
 
-using ..Forcing: Forcing, AbstractForcing, NormalFluidForcing, FourierBandForcing
+using ..Forcing: Forcing, AbstractForcing, NormalFluidForcing, FourierBandForcing, FourierBandForcingBS
 
 # Reuse same init, solve! and step! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
@@ -270,8 +270,8 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     end
     print(io, "\n ├─ prob: ", iter.prob)
     _print_summary(io, iter.fs; pre = "\n ├─ fs: ", post = "vortex filaments")
-    _print_summary(io, iter.vL; pre = "\n ├─ vL: ", post = "vortex line velocity (vs + mutual friction)")
-    _print_summary(io, iter.vs; pre = "\n ├─ vs: ", post = "self-induced + external superfluid velocity")
+    _print_summary(io, iter.vL; pre = "\n ├─ vL: ", post = "vortex line velocity (vs + mutual friction + forcing)")
+    _print_summary(io, iter.vs; pre = "\n ├─ vs: ", post = "self-induced superfluid velocity")
     if hasproperty(iter, :vn)
         _print_summary(io, iter.vn; pre = "\n ├─ vn: ", post = "normal fluid velocity")
     end
@@ -652,6 +652,8 @@ function init(
         (; quantities_base..., vL = similar(vs), vn = similar(vs),)
     elseif forcing isa FourierBandForcing
         (; quantities_base..., v_ns = similar(vs), vL = similar(vs),)  # we separately store vs and vL
+    elseif forcing isa FourierBandForcingBS
+        (; quantities_base..., vL = similar(vs),)  # no normal fluid in this case
     else
         (; quantities_base..., vL = vs,)  # vL is an alias to vs
     end

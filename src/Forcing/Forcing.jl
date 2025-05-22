@@ -5,15 +5,16 @@ Defines methods for injecting energy onto a system of vortices.
 """
 module Forcing
 
-using ..Filaments: AbstractFilament, UnitTangent
+using ..Filaments: Filaments, AbstractFilament, UnitTangent, Derivative, UnitTangent
 using ..BiotSavart: BiotSavart, BiotSavartCache
 using ..SyntheticFields: SyntheticFields, FourierBandVectorField
 using LinearAlgebra: ×
-using OhMyThreads: Scheduler, SerialScheduler, tforeach
+using KernelAbstractions: KernelAbstractions as KA
+using OhMyThreads: Scheduler, SerialScheduler, tforeach, tmapreduce
 
 using Adapt: adapt
 
-export AbstractForcing, NormalFluidForcing, FourierBandForcing
+export AbstractForcing, NormalFluidForcing, FourierBandForcing, FourierBandForcingBS
 
 """
     AbstractForcing
@@ -45,5 +46,6 @@ function apply! end
 
 include("normal_fluid.jl")
 include("fourier_band.jl")
+include("fourier_band_bs.jl")
 
 end

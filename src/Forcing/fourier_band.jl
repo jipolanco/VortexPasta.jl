@@ -62,26 +62,26 @@ function Base.show(io::IO, f::FourierBandForcing{T}) where {T}
     print(io, "\n$(prefix)└─ Friction coefficients: α = ", α, " and α′ = ", α′)
 end
 
-# Here vs_d is the superfluid velocity in Fourier space, optionally on a device (GPU).
+# Here vs_grid is the superfluid velocity in Fourier space, optionally on a device (GPU).
 function init_cache(f::FourierBandForcing{T, N}, cache_bs::BiotSavartCache) where {T, N}
     (; vn,) = f
-    vs_d = BiotSavart.get_longrange_field_fourier(cache_bs).field
-    A = eltype(vs_d).name.wrapper  # e.g. Array, CuArray, ... (XXX: relies on Julia internals!)
-    vn_d = adapt(A, vn)::FourierBandVectorField        # vn on the device
-    vtmp_h = similar(vn)::FourierBandVectorField       # temporary buffer (on host)
-    vtmp_d = adapt(A, vtmp_h)::FourierBandVectorField  # temporary buffer (on device)
+    vs_grid = BiotSavart.get_longrange_field_fourier(cache_bs).field
+    backend = KA.get_backend(vs_grid[1])  # CPU, CUDABackend, ROCBackend, ...
+    vn_d = adapt(backend, vn)::FourierBandVectorField        # vn on the device
+    vtmp_h = similar(vn)::FourierBandVectorField             # temporary buffer (on host)
+    vtmp_d = adapt(backend, vtmp_h)::FourierBandVectorField  # temporary buffer (on device)
     ω_h = similar(vtmp_h)  # coarse-grained superfluid vorticity
     if !with_filtered_vorticity(f)
         empty!(ω_h)  # we don't use this field
     end
-    ω_d = adapt(A, ω_h)
+    ω_d = adapt(backend, ω_h)
     (; vn_d, vtmp_d, vtmp_h, ω_h, ω_d)
 end
 
 function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartCache) where {T, N}
     (; vtmp_d, vn_d, vtmp_h, ω_h, ω_d) = cache
 
-    vs_d, ks_grid = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
+    vs_grid, ks_grid = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
         local (; state, field, wavenumbers,) = data
         @assert state.quantity == :velocity
         @assert state.smoothed == true
@@ -102,7 +102,7 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
         vs = φ * vs_filtered
         vn - vs
     end
-    SyntheticFields.from_fourier_grid!(op, vtmp_d, vs_d, ks_grid)  # vtmp_d now contains vn_d(k⃗) - vs_d(k⃗) in [kmin, kmax]
+    SyntheticFields.from_fourier_grid!(op, vtmp_d, vs_grid, ks_grid)  # vtmp_d now contains vn_d(k⃗) - vs_grid(k⃗) in [kmin, kmax]
 
     # Optionally compute coarse-grained vorticity.
     @inline function op_vorticity(_, vs_filtered, k⃗)
@@ -113,7 +113,7 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
     end
     if with_filtered_vorticity(f)
         @assert length(ω_h) == length(ω_d) == length(vtmp_d)
-        SyntheticFields.from_fourier_grid!(op_vorticity, ω_d, vs_d, ks_grid)
+        SyntheticFields.from_fourier_grid!(op_vorticity, ω_d, vs_grid, ks_grid)
     end
 
     # (3) Copy results to CPU if needed (avoided if the "device" is the CPU).
@@ -129,7 +129,7 @@ end
 
 function apply!(forcing::FourierBandForcing, cache, vs::AbstractVector, f::AbstractFilament; vdiff = nothing, scheduler = SerialScheduler())
     (; α, α′,) = forcing
-    (; vtmp_h, ω_h,) = cache  # contains vₙ - vₛ at large scale
+    (; vtmp_h, ω_h,) = cache  # vtmp_h contains vₙ - vₛ at large scale
     V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
     tforeach(eachindex(vs); scheduler) do i
         @inline
