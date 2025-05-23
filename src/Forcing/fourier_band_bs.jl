@@ -91,30 +91,45 @@ One can also try to estimate an energy injection rate at wavevector ``\bm{k}`` a
 
 ```math
 \frac{\text{d}E(\bm{k})}{\text{d}t}
-= ∮ \frac{δE(\bm{k})}{δ\bm{s}} \, \frac{\text{d}\bm{s}}{\text{d}t} \, \mathrm{d}ξ
+= ∮ \frac{δE(\bm{k})}{δ\bm{s}} ⋅ \frac{\text{d}\bm{s}}{\text{d}t} \, \mathrm{d}ξ
 = α \frac{Γ}{V} ∮ |\bm{v}_0|^2 \, \mathrm{d}ξ
 ```
 
-Unfortunately, this estimate is generally quite inaccurate since the forcing can also affect
-the energy at wavevectors other than ``\bm{k}``. Conversely, ``E(\bm{k})`` may also be
+In general, this estimate may be quite inaccurate since the forcing can also affect the
+energy at wavevectors other than ``\bm{k}``. Conversely, ``E(\bm{k})`` may also be
 affected by the forcing velocity associated to other forced wavevectors. But still, this
 estimate is the one used when ``ε_{\text{target}}`` is given, and may allow to obtain a
 roughly constant energy injection rate (even if it's generally different than the "target" one).
 """
-struct FourierBandForcingBS{T <: AbstractFloat} <: AbstractForcing
+struct FourierBandForcingBS{T <: AbstractFloat, N} <: AbstractForcing
     α    :: T
     ε_target :: T  # target energy injection rate [L²T⁻³]
     kmin :: T
     kmax :: T
+    qs   :: Vector{NTuple{N, Int}}  # list of normalised wavevectors (can be empty)
 end
 
-function FourierBandForcingBS(; α::Real = 0, ε_target = 0, kmin::Real, kmax::Real)
-    α * ε_target == 0 && α + ε_target != 0 || throw(ArgumentError("one should pass either α or ε_target, but not both"))
-    FourierBandForcingBS(promote(α, ε_target, kmin, kmax)...)
+function FourierBandForcingBS(; α::Real = 0, ε_target = 0, kmin = nothing, kmax = nothing, qs = nothing)
+    (α == 0) + (ε_target == 0) == 1 || throw(ArgumentError("one should pass either α or ε_target, but not both"))
+    _FourierBandForcingBS(α, ε_target, kmin, kmax, qs)
+end
+
+function _FourierBandForcingBS(α, ε_target, kmin::Real, kmax::Real, qs::Nothing)
+    scalars = promote(α, ε_target, kmin, kmax)
+    qs = Tuple{}[]  # empty vector of empty tuples
+    FourierBandForcingBS(scalars..., qs)
+end
+
+# This variant allows setting specific q⃗ normalised wavevectors (currently not documented!).
+function _FourierBandForcingBS(α, ε_target, kmin::Nothing, kmax::Nothing, qs::AbstractVector{NTuple{N, Int}}) where {N}
+    kmin = 0
+    kmax = 0
+    scalars = promote(α, ε_target, kmin, kmax)
+    FourierBandForcingBS(scalars..., qs)
 end
 
 function Base.show(io::IO, f::FourierBandForcingBS{T}) where {T}
-    (; α, ε_target, kmin, kmax,) = f
+    (; α, ε_target, kmin, kmax, qs,) = f
     prefix = get(io, :prefix, " ")  # single space by default
     print(io, "FourierBandForcingBS{$T} with:")
     if α != 0
@@ -122,16 +137,29 @@ function Base.show(io::IO, f::FourierBandForcingBS{T}) where {T}
     elseif ε_target != 0
         print(io, "\n$(prefix)├─ Target energy injection rate: ε_target = ", ε_target)
     end
-    print(io, "\n$(prefix)└─ Fourier band: |k⃗| ∈ [$kmin, $kmax]")
+    if isempty(qs)
+        print(io, "\n$(prefix)└─ Fourier band: |k⃗| ∈ [$kmin, $kmax]")
+    else
+        print(io, "\n$(prefix)└─ Normalised Fourier wave vectors: |q⃗| = ", qs)
+    end
 end
 
 # Here vs_grid is the superfluid velocity in Fourier space, optionally on a device (GPU).
 function init_cache(f::FourierBandForcingBS, cache_bs::BiotSavartCache)
-    (; kmin, kmax,) = f
+    (; kmin, kmax, qs,) = f
     (; params,) = cache_bs
     vs_grid = BiotSavart.get_longrange_field_fourier(cache_bs).field :: NTuple
     backend = KA.get_backend(vs_grid[1])  # CPU, CUDABackend, ROCBackend, ...
-    ψ_h = FourierBandVectorField(undef, params.Ls; kmin, kmax)  # on the host (CPU)
+    if isempty(qs)
+        # Activate all wavevectors within a Fourier band [kmin, kmax]
+        ψ_h = FourierBandVectorField(undef, params.Ls; kmin, kmax)  # on the host (CPU)
+    else
+        # Activate selected wavenumbers
+        ψ_h = FourierBandVectorField(undef, params.Ls)  # on the host (CPU)
+        for q⃗ in qs
+            SyntheticFields.add_normalised_wavevector!(ψ_h, q⃗)
+        end
+    end
     ψ_d = adapt(backend, ψ_h)  # on the "device" (GPU or CPU)
     prefactor = params.Γ / prod(params.Ls)
     (; ψ_d, ψ_h, prefactor,)
@@ -209,5 +237,7 @@ function apply!(
         end
         ε * dξ  # estimated energy injection rate around local node
     end
-    ε_total * cache.prefactor  # include Γ/V prefactor
+    # The factor 2 accounts for Hermitian symmetry: if we inject energy into the velocity at
+    # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
+    2 * ε_total * cache.prefactor  # include Γ/V prefactor
 end

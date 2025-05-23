@@ -56,7 +56,7 @@ function generate_filaments(N; Ls)
     collect(filaments_from_functions(funcs, ClosedFilament{T}, N, method))
 end
 
-function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0, affect_t! = Returns(nothing))
+function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0, callback = Returns(nothing), affect_t! = Returns(nothing))
     δ = minimum(node_distance, prob.fs)
     dt = BiotSavart.kelvin_wave_period(prob.p, δ) * dt_factor
     reconnect = ReconnectBasedOnDistance(δ / 2)
@@ -64,7 +64,7 @@ function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0, affect_
     adaptivity = AdaptBasedOnSegmentLength(dt_factor) | AdaptBasedOnVelocity(δ / 2)
     iter = @inferred init(
         prob, RK4();
-        forcing, affect_t!,
+        forcing, affect_t!, callback,
         dt, reconnect, refinement, adaptivity,
     )
     if affect_t! !== Returns(nothing)
@@ -149,6 +149,32 @@ function plot_spectra(spectra; title)
     plt = @views lineplot(ks[2:end], Ek_init[2:end]; title, xscale = :log10, yscale = :log10, ylim = (1e-3, 1e-1), name = "Initial")
     @views lineplot!(plt, ks[2:end], Ek_final[2:end]; name = "Final")
     display(plt)
+end
+
+function get_energy_at_normalised_wavenumber(cache::BiotSavart.BiotSavartCache, q⃗::NTuple{N}) where {N}
+    Ls = cache.params.Ls
+    α_ewald = cache.params.α
+    Δks = @. 2 * (π / Ls)
+    k⃗ = q⃗ .* Δks  # unnormalised wavevector
+    k² = sum(abs2, k⃗)
+
+    (; field, wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
+
+    # Find wavevector
+    wavenumbers::NTuple{N, AbstractVector}
+    inds_pos = map(wavenumbers, k⃗) do ks, k
+        findfirst(==(k), ks)
+    end
+    @assert all(!isnothing, inds_pos)
+
+    # Unsmoothed velocity at wavevector k⃗
+    @assert state.quantity == :velocity && state.smoothed == true
+    v̂ = Vec3(map(u -> u[inds_pos...], field)) * exp(k² / (4 * α_ewald^2))
+
+    # Energy at wavevectors k⃗ and -k⃗ (assuming Hermitian symmetry) -> hence no division by 2!
+    Ek = sum(abs2, v̂)
+
+    Ek
 end
 
 @testset "Forcing" begin
@@ -256,10 +282,47 @@ end
             @test 1.10 < E_ratio < 1.20
         end
         @testset "FourierBandForcingBS (constant ε_target)" begin
-            forcing = @inferred FourierBandForcingBS(; ε_target = 1e-2, kmin = 0.5, kmax = 2.5)
+            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-2, kmin = 0.5, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
             # @show E_ratio  # = 1.084008928471282
             @test 1.04 < E_ratio < 1.12
+        end
+        @testset "FourierBandForcingBS (single k⃗)" begin
+            qs = [(1, 2, 3)]  # force a single wavevector
+            forcing = @inferred FourierBandForcingBS(; ε_target = 1e-2, qs)
+            # @test repr(forcing)
+            times = Float64[]
+            energy_k = Float64[]
+            energy = Float64[]
+            function callback(iter)
+                iter.nstep == 0 && empty!.((times, energy, energy_k))
+                Ek = get_energy_at_normalised_wavenumber(iter.cache_bs, qs[1])
+                E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+                push!(times, iter.t)
+                push!(energy_k, Ek)
+                push!(energy, E)
+                nothing
+            end
+            (; iter, E_ratio, spectra) = simulate(prob, forcing; callback)
+            # In the following plot, one sees that energy at the active wavevector
+            # linearly increases with the wanted ε_target at the beginning. Later it
+            # saturates and tends to decrease, perhaps due to energy transfers to other
+            # wavevectors.
+            plots && let plt = lineplot(times, energy_k)
+                lineplot!(plt, times, times * forcing.ε_target)
+                display(plt)
+            end
+            save_files && open("energy_k.dat", "w") do io
+                for i in eachindex(times, energy_k)
+                    println(io, times[i], '\t', energy_k[i])
+                end
+            end
+            # Check linear evolution at beginning of simulation, with the expected ε.
+            let a = eachindex(times)[begin + 1], b = eachindex(times)[end ÷ 3]
+                ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # energy injection rate at wavenumber k⃗
+                @show ε_inj
+                @test ε_inj ≈ forcing.ε_target rtol=1e-3  # the ε_target really represents the energy injection rate at this wavevector!
+            end
         end
     end
 

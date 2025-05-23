@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `FourierBandForcingBS`: the `ε_target` parameter now includes energy injected at
+  wavevector $-\boldsymbol{k}$ due to Hermitian symmetry.
+
 ## [0.27.3] - 2025-05-23
 
 ### Fixed

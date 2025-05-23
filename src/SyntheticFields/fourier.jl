@@ -225,6 +225,12 @@ function FourierBandVectorField(
     field
 end
 
+function add_normalised_wavevector!(field::FourierBandVectorField{T, N}, q⃗::NTuple{N, Integer}) where {T, N}
+    push!(field.qs, q⃗)
+    resize!(field.cs, length(field.qs))
+    field
+end
+
 """
     SyntheticFields.set_wavevector_band!(field::FourierBandVectorField; kmin::Real, kmax::Real)
 
