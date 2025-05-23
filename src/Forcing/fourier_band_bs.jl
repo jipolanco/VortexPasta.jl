@@ -220,14 +220,12 @@ function apply!(
         (; qs, cs, Δks,) = ψ_h
         dt = (ts[i + 1] - ts[i - 1]) / 2
         dξ = dt * ds_dt  # estimated local segment length
-        ε = zero(eltype(s⃗))
         vf = zero(V)  # forcing velocity (excluding α prefactor)
         for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
             k⃗ = SVector(qs[n]) .* Δks
             ψ̂ = cs[n]
             u = _apply_forcing_matrix(k⃗, s⃗, s⃗′, ψ̂)
             vf_k = -imag(u)  # forcing velocity for this wavevector k⃗
-            ε += sum(abs2, vf_k)  # energy injection estimate (without prefactor Γ dξ / V)
             vf = vf + vf_k
         end
         if forcing.α != 0
@@ -235,7 +233,7 @@ function apply!(
         elseif forcing.ε_target != 0
             vs[i] = vf  # just overwrite the input
         end
-        ε * dξ  # estimated energy injection rate around local node
+        sum(abs2, vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
     end
     # The factor 2 accounts for Hermitian symmetry: if we inject energy into the velocity at
     # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
