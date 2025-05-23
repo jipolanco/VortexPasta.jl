@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fix `FourierBandForcing` with a time-varying normal fluid velocity and when running on GPUs.
+
 ### Added
 
 - Add Biot–Savart based forcing method (`FourierBandForcingBS`), which allows to force

@@ -89,6 +89,13 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
     end
     α_ewald = cache_bs.params.α
 
+    # (0) Copy normal fluid velocity from CPU to GPU, in case it has changed (e.g. if we're
+    # using a velocity that varies in time). We don't need to do this if vn_d and f.vn are
+    # the same object (typically in pure CPU simulations).
+    if f.vn !== vn_d
+        copyto!(vn_d, f.vn)
+    end
+
     # (1) Copy normal fluid velocity onto buffer (device -> device copy)
     @assert vtmp_d.cs !== vn_d.cs  # coefficients are not aliased
     copyto!(vtmp_d, vn_d)
