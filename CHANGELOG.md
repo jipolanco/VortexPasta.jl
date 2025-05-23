@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.27.3] - 2025-05-23
+
 ### Fixed
 
 - Fix `FourierBandForcing` with a time-varying normal fluid velocity and when running on GPUs.
