@@ -9,16 +9,11 @@ CollapsedDocStrings = true
 Forcing
 ```
 
-## Normal fluid forcing
+## Forcing types
 
 ```@docs
+NoForcing
 NormalFluidForcing
-apply!
-```
-
-## Fourier band forcings
-
-```@docs
 FourierBandForcing
 FourierBandForcingBS
 ```
@@ -27,4 +22,10 @@ FourierBandForcingBS
 
 ```@docs
 AbstractForcing
+```
+
+## Internals
+
+```@docs
+apply!
 ```

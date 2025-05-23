@@ -54,7 +54,7 @@ using ..BiotSavart:
     VectorOfVelocities,
     periods
 
-using ..Forcing: Forcing, AbstractForcing, NormalFluidForcing, FourierBandForcing, FourierBandForcingBS
+using ..Forcing: Forcing, AbstractForcing, NoForcing, NormalFluidForcing, FourierBandForcing, FourierBandForcingBS
 
 # Reuse same init, solve! and step! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
@@ -230,7 +230,7 @@ struct VortexFilamentSolver{
         Callback <: Function,
         ExternalFields <: NamedTuple,
         StretchingVelocity <: Union{Nothing, Function},
-        Forcing <: Union{Nothing, AbstractForcing},
+        Forcing <: AbstractForcing,
         ForcingCache,
         AdvectFunction <: Function,
         RHSFunction <: Function,
@@ -306,7 +306,7 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     if iter.stretching_velocity !== nothing
         print(io, "\n ├─ stretching_velocity: Function (", iter.stretching_velocity, ")")
     end
-    if iter.forcing !== nothing
+    if iter.forcing !== NoForcing()
         print(io, "\n ├─ forcing: ", iter.forcing)  # note: this draws a "subtree"
     end
     # print(io, "\n ├─ advect!: Function")
@@ -616,7 +616,7 @@ function init(
         external_velocity::ExtVel = nothing,
         external_streamfunction::ExtStf = nothing,
         stretching_velocity::StretchingVelocity = nothing,
-        forcing::ForcingType = nothing,
+        forcing::AbstractForcing = NoForcing(),
         mode::SimulationMode = DefaultMode(),
         timer = TimerOutput("VortexFilament"),
     ) where {
@@ -626,7 +626,6 @@ function init(
         ExtVel <: Union{Nothing, Function},
         ExtStf <: Union{Nothing, Function},
         StretchingVelocity <: Union{Nothing, Function},
-        ForcingType <: Union{Nothing, AbstractForcing},
         T,
     }
     (; tspan, state,) = prob

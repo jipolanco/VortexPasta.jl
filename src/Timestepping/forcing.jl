@@ -58,7 +58,7 @@ function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time
     fields
 end
 
-_apply_forcing!(vL, forcing::Nothing, cache::Nothing, args...) = nothing  # do nothing
+_apply_forcing!(vL, forcing::NoForcing, cache, args...) = nothing  # do nothing
 
 # Note: the cache is currently not used by NormalFluidForcing (it's empty anyway)
 function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t, to)

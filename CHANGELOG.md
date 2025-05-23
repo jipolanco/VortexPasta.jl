@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `NoForcing` type. This may be used in `Timestepping.init` for explicitly disabling
+  forcing (it's also the default).
+
 ## [0.27.4] - 2025-05-23
 
 ### Changed

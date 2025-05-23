@@ -14,7 +14,7 @@ using OhMyThreads: Scheduler, SerialScheduler, tforeach, tmapreduce
 
 using Adapt: adapt
 
-export AbstractForcing, NormalFluidForcing, FourierBandForcing, FourierBandForcingBS
+export AbstractForcing, NoForcing, NormalFluidForcing, FourierBandForcing, FourierBandForcingBS
 
 """
     AbstractForcing
@@ -23,7 +23,14 @@ Abstract type representing a forcing method.
 """
 abstract type AbstractForcing end
 
-init_cache(forcing::Nothing, args...) = nothing  # called when forcing is disabled
+"""
+    NoForcing() <: AbstractForcing
+
+Represents the absence of external forcing.
+"""
+struct NoForcing <: AbstractForcing end
+
+init_cache(::NoForcing, args...) = nothing  # called when forcing is disabled
 
 """
     Forcing.apply!(forcing::AbstractForcing, vs::AbstractVector{<:Vec3}, f::AbstractFilament; [scheduler])
