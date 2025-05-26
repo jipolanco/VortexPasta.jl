@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.27.5] - 2025-05-26
+
 ### Changed
 
 - `FourierBandForcingBS`: properly estimate energy injection rate when forcing more than one
