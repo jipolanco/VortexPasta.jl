@@ -23,7 +23,7 @@ using InverseFunctions: InverseFunctions
 function init_biot_savart_parameters(;
         Ls, β = 3.5,
         rcut = min(Ls...) * (2/5),  # default = maximum possible cut-off distance for short-range part (depends on CellListsBackend parameters)
-        kws...,
+        Γ = 1.0, a = 1e-8,
     )
     α = β / rcut                # Ewald splitting parameter
     kmax = 2 * α * β            # maximum resolved wavenumber (Nyquist frequency) for long-range part
@@ -31,13 +31,13 @@ function init_biot_savart_parameters(;
         1 + ceil(Int, kmax * L / π)  # long-range grid resolution (~FFT size)
     end
     ParamsBiotSavart(;
-        Γ = 1.0,    # vortex circulation
-        a = 1e-8,   # vortex core size
-        Δ = 1/4,    # vortex core parameter (1/4 for a constant vorticity distribution)
-        α = α,      # Ewald splitting parameter
-        Ls,  # same domain size in all directions
-        Ns,  # same long-range resolution in all directions
-        rcut = β / α,    # cut-off distance for short-range computations
+        Γ,   # vortex circulation
+        a,   # vortex core size
+        Δ = 1/2,    # vortex core parameter (1/4 for a constant vorticity distribution)
+        α,      # Ewald splitting parameter
+        Ls,     # same domain size in all directions
+        Ns,     # same long-range resolution in all directions
+        rcut,   # cut-off distance for short-range computations
         quadrature = GaussLegendre(3),        # quadrature for integrals over filament segments
         quadrature_near_singularity = GaussLegendre(3),
         lia_segment_fraction = 0.2,
@@ -201,7 +201,7 @@ function run_simulation(;
     end
     Ls = (Lx, Ly, Lz)
     rcut = min(Ls...) * rcut_factor
-    params = init_biot_savart_parameters(; Ls, rcut)
+    params = init_biot_savart_parameters(; Ls, rcut, Γ = 0.1, a = π * 1e-8)
     println('\n', params)
 
     #== Initialise vortices ==#
@@ -304,6 +304,28 @@ function run_simulation(;
         nothing
     end
 
+    function affect!(iter)
+        # If we have enabled in-phase perturbations, we enforce instantaneous
+        # perturbations to stay synchronised at the end of each timestep, by
+        # copying relative displacements of the first vortex to the other vortices.
+        # This avoids relative displacements from diverging over long simulation
+        # times due to numerical noise, and allows to obtain nicer looking dispersion relations.
+        if in_phase_perturbation
+            local f₁ = iter.fs[1]  # first vortex
+            for n in eachindex(iter.fs)[2:end]
+                local f = iter.fs[n]
+                for i in eachindex(f₁, f)
+                    local s⃗ = f₁[i]
+                    local dw = (s⃗.x + im * s⃗.y) - w_equilibrium[1]  # displacement relative to equilibrium position of first vortex
+                    local w = w_equilibrium[n] + dw  # new absolute position of vortex i
+                    f[i] = (real(w), imag(w), s⃗.z)   # update position of point in vortex i (also copying z position)
+                end
+                Filaments.update_coefficients!(f)  # this is needed after modifying a filament
+            end
+        end
+        nothing
+    end
+
     # Determine timestep and temporal scheme
     δ = Lz / N  # line resolution (assuming nearly straight lines)
     dt_kw = BiotSavart.kelvin_wave_period(params, δ)
@@ -313,7 +335,7 @@ function run_simulation(;
     # dt = 2 * scheme.nsubsteps * dt_kw
 
     # Initialise and run simulation
-    iter = init(prob, scheme; dt, callback)
+    iter = init(prob, scheme; dt, callback, affect!)
     println(iter, '\t')
     solve!(iter)
     println(iter.to)  # show timing information
@@ -336,12 +358,12 @@ end
 lattice = :square
 # lattice = :hexagonal
 Lz = 2π       # domain period (vertical)
-Lx = Lz / 8   # domain period (horizontal) -- this is proportional to the inter-vortex distance
+Lx = Lz / 32   # domain period (horizontal) -- this is proportional to the inter-vortex distance
 
 # Initial vortices
 N = 64             # number of discretisation points per line
-in_phase_perturbation = false  # perturbations of all vortices are in phase?
-nvort_per_dir = 4   # number of vortices per direction (x, y)
+in_phase_perturbation = true  # perturbations of all vortices are in phase?
+nvort_per_dir = 3   # number of vortices per direction (x, y)
 A_rms = 1e-5 * Lz   # amplitude of random perturbation (rms value)
 method = QuinticSplineMethod()  # filament discretisation method
 
