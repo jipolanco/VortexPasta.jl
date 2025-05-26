@@ -282,7 +282,7 @@ end
             @test 1.10 < E_ratio < 1.20
         end
         @testset "FourierBandForcingBS (constant ε_target)" begin
-            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-2, kmin = 0.5, kmax = 1.5)
+            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-2, kmin = 1.5, kmax = 2.5)
             times = Float64[]
             energy_k = Float64[]  # energy at forced wavevectors
             energy = Float64[]
@@ -297,12 +297,12 @@ end
                 push!(energy, E)
                 nothing
             end
-            (; iter, E_ratio, spectra) = simulate(prob, forcing; callback)
-            # @show E_ratio  # = 1.5378977662886022
-            @test 1.45 < E_ratio < 1.60
-            # In the plot one should see that energy first stays constant, then linearly
-            # increases with the imposed ε, and finally it saturates.
-            a, b = 0.3, 0.45
+            (; iter, E_ratio, spectra) = simulate(prob, forcing; callback, dt_factor = 0.5)
+            # @show E_ratio  # = 2.106383252320103
+            @test 2.0 < E_ratio < 2.2
+            # In the plot one should see that energy increases nearly linearly with the
+            # imposed ε, until it starts to saturate near the end.
+            a, b = 0.1, 0.4
             plots && let plt = lineplot(times, energy_k; xlim = (0, 1), ylim = (0, 0.02))
                 lineplot!(plt, times, times * forcing.ε_target)
                 vline!(plt, a)
