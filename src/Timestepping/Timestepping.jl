@@ -333,12 +333,24 @@ function Base.propertynames(iter::VortexFilamentSolver, private::Bool = false)
     (fieldnames(typeof(iter))..., propertynames(iter.quantities, private)..., propertynames(iter.time, private)...)
 end
 
+# Default value of callback and affect arguments of init.
+default_callback() = Returns(nothing)
+
+# Wrap function with a TimerOutputs timer, returning an InstrumentedFunction which will
+# report its running time each time it's called. We do _not_ do this if the function is the
+# default callback function (which doesn't do anything), simply to avoid "noise" in the
+# TimerOutputs outputs (e.g. calls to default affect! function when we haven't defined an
+# actual function that does something interesting).
+_maybe_wrap_function_with_timer(f::F, timer, name) where {F <: Function} = timer(f, name)::TimerOutputs.InstrumentedFunction
+_maybe_wrap_function_with_timer(f::typeof(default_callback()), timer, name) = f  # don't wrap function if it doesn't do anything
+
 # Unwrap InstrumentedFunction (for timings)
 _printable_function(f::TimerOutputs.InstrumentedFunction) = f.func
+_printable_function(f::Function) = f
 
-function _maybe_print_function(io, prefix, f_to::TimerOutputs.InstrumentedFunction)
+function _maybe_print_function(io, prefix, f_to::Function)
     f = _printable_function(f_to)
-    if f !== Returns(nothing)
+    if f !== default_callback()
         m = methods(f)
         @assert length(m) ≥ 1  # usually there is only a single method
         print(io, prefix, " Function ", m[1])
@@ -610,9 +622,9 @@ function init(
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         fold_periodic::Bool = true,
         LIA::Bool = false,
-        callback::Callback = Returns(nothing),  # by default this is an empty function which just returns `nothing`
-        affect!::Affect = Returns(nothing),
-        affect_t!::AffectTime = Returns(nothing),
+        callback::Callback = default_callback(),  # by default this is an empty function which just returns `nothing`
+        affect!::Affect = default_callback(),
+        affect_t!::AffectTime = default_callback(),
         external_velocity::ExtVel = nothing,
         external_streamfunction::ExtStf = nothing,
         stretching_velocity::StretchingVelocity = nothing,
@@ -666,9 +678,10 @@ function init(
     # Wrap functions with the timer, so that timings are estimated each time the function is called.
     advect! = timer(advect_filaments!, "Advect filaments")
     rhs! = timer(update_values_at_nodes!, "Update values at nodes")
-    callback_ = timer(callback, "Callback")
-    affect_ = timer(affect!, "Affect!")
-    affect_t_ = timer(affect_t!, "Affect! (fine-grained)")
+
+    callback_ = _maybe_wrap_function_with_timer(callback, timer, "Callback")
+    affect_ = _maybe_wrap_function_with_timer(affect!, timer, "Affect!")
+    affect_t_ = _maybe_wrap_function_with_timer(affect_t!, timer, "Affect! (fine-grained)")
 
     adaptivity_ = possibly_add_max_timestep(adaptivity, dt)
     if adaptivity_ !== NoAdaptivity() && !can_change_dt(scheme)

@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FourierBandForcingBS`: properly estimate energy injection rate when forcing more than one
   mode.
 
+- `Timestepping`: don't show default callback and affect functions in timings (`iter.to`) to
+  reduce visual noise.
+
 ### Added
 
 - Add `NoForcing` type. This may be used in `Timestepping.init` for explicitly disabling
