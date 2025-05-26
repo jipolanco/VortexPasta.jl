@@ -13,12 +13,11 @@ using Random
 using StableRNGs
 using Test
 
-function generate_biot_savart_parameters(::Type{T}) where {T}
+function generate_biot_savart_parameters(::Type{T}; aspect) where {T}
     Γ = 1.0
     a = 1e-6
     Δ = 1/4
     L = 2π
-    aspect = (1, 1, 2)
     Ls = aspect .* L
     β = 3.0
     rcut = L / 2
@@ -151,7 +150,7 @@ function plot_spectra(spectra; title)
     display(plt)
 end
 
-function get_energy_at_normalised_wavenumber(cache::BiotSavart.BiotSavartCache, q⃗::NTuple{N}) where {N}
+function get_energy_at_normalised_wavevector(cache::BiotSavart.BiotSavartCache, q⃗::NTuple{N}) where {N}
     Ls = cache.params.Ls
     α_ewald = cache.params.α
     Δks = @. 2 * (π / Ls)
@@ -180,7 +179,8 @@ end
 @testset "Forcing" begin
     # Compute self-induced velocity of vortex filaments
     N = 32
-    p = generate_biot_savart_parameters(Float64)
+    aspect = (1, 1, 2)
+    p = generate_biot_savart_parameters(Float64; aspect)
     fs = generate_filaments(N; Ls = p.Ls)
     cache_bs = BiotSavart.init_cache(p, fs)
     vs = map(similar ∘ nodes, fs)
@@ -282,10 +282,38 @@ end
             @test 1.10 < E_ratio < 1.20
         end
         @testset "FourierBandForcingBS (constant ε_target)" begin
-            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-2, kmin = 0.5, kmax = 2.5)
-            (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 1.084008928471282
-            @test 1.04 < E_ratio < 1.12
+            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-2, kmin = 1.5, kmax = 2.5)
+            times = Float64[]
+            energy_k = Float64[]  # energy at forced wavevectors
+            energy = Float64[]
+            function callback(iter)
+                iter.nstep == 0 && empty!.((times, energy, energy_k))
+                Ek = sum(iter.forcing_cache.qs) do q⃗  # sum energies of all forced wavevectors
+                    get_energy_at_normalised_wavevector(iter.cache_bs, q⃗)
+                end
+                E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+                push!(times, iter.t)
+                push!(energy_k, Ek)
+                push!(energy, E)
+                nothing
+            end
+            (; iter, E_ratio, spectra) = simulate(prob, forcing; callback, dt_factor = 0.5)
+            # @show E_ratio  # = 2.106383252320103
+            @test 2.0 < E_ratio < 2.2
+            # In the plot one should see that energy increases nearly linearly with the
+            # imposed ε, until it starts to saturate near the end.
+            a, b = 0.1, 0.4
+            plots && let plt = lineplot(times, energy_k; xlim = (0, 1), ylim = (0, 0.02))
+                lineplot!(plt, times, times * forcing.ε_target)
+                vline!(plt, a)
+                vline!(plt, b)
+                display(plt)
+            end
+            let a = searchsortedlast(times, a), b = searchsortedlast(times, b)
+                ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # mean energy injection rate at forced wavevectors
+                # @show ε_inj
+                @test ε_inj ≈ forcing.ε_target rtol=1e-2
+            end
         end
         @testset "FourierBandForcingBS (single k⃗)" begin
             qs = [(1, 2, 3)]  # force a single wavevector
@@ -296,7 +324,7 @@ end
             energy = Float64[]
             function callback(iter)
                 iter.nstep == 0 && empty!.((times, energy, energy_k))
-                Ek = get_energy_at_normalised_wavenumber(iter.cache_bs, qs[1])
+                Ek = get_energy_at_normalised_wavevector(iter.cache_bs, qs[1])
                 E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
                 push!(times, iter.t)
                 push!(energy_k, Ek)
@@ -320,7 +348,7 @@ end
             # Check linear evolution at beginning of simulation, with the expected ε.
             let a = eachindex(times)[begin + 1], b = eachindex(times)[end ÷ 3]
                 ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # energy injection rate at wavenumber k⃗
-                @show ε_inj
+                # @show ε_inj
                 @test ε_inj ≈ forcing.ε_target rtol=1e-3  # the ε_target really represents the energy injection rate at this wavevector!
             end
         end

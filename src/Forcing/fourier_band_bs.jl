@@ -1,6 +1,6 @@
 using ..BiotSavart: BiotSavart, BiotSavartCache
 using StaticArrays: SVector, SMatrix
-using LinearAlgebra: LinearAlgebra, ⋅
+using LinearAlgebra: LinearAlgebra, ⋅, ×
 
 @doc raw"""
     FourierBandForcingBS <: AbstractForcing
@@ -70,17 +70,21 @@ where ``\bm{B}`` is a ``3×3`` complex matrix which has dimensions of an inverse
 The functional derivative of ``E(\bm{k})`` can now be written as:
 
 ```math
+\begin{align*}
 \frac{δE(\bm{k})}{δ\bm{s}}
-= \frac{iΓ}{2V} \bm{B} \bm{ψ}(\bm{k}) + \text{c.c.}
-= ℜ \left\{ \frac{iΓ}{V} \bm{B} \bm{ψ}(\bm{k}) \right\}
-= -ℑ \left\{ \frac{Γ}{V} \bm{B} \bm{ψ}(\bm{k}) \right\}
+&= \frac{Γ}{2V} i \bm{B} \bm{ψ}(\bm{k}) + \text{c.c.}
+\\
+&= \frac{Γ}{2V} [\bm{s}' × \bm{v}(\bm{k})] e^{i \bm{k} ⋅ \bm{s}} + \text{c.c.}
+\\
+&= ℜ \left\{ \frac{Γ}{V} [\bm{s}' × \bm{v}(\bm{k})] e^{i \bm{k} ⋅ \bm{s}} \right\}
+\end{align*}
 ```
 
 Finally, the idea is to advect the filaments with a velocity which is parallel to this result for each forced ``\bm{k}``.
 One can write this velocity as
 
 ```math
-\bm{v}_{\text{f}}(\bm{k}, \bm{s}) = α \, \Re\left\{ i \bm{B} \bm{ψ}(\bm{k}) \right\} = α \, \bm{v}_0(\bm{k}, \bm{s})
+\bm{v}_{\text{f}}(\bm{k}, \bm{s}) = α \, ℜ \left\{ [\bm{s}' × \bm{v}(\bm{k})] e^{i \bm{k} ⋅ \bm{s}} \right\} = α \, \bm{v}_0(\bm{k}, \bm{s})
 ```
 
 where ``α`` is a non-dimensional parameter setting the forcing amplitude.
@@ -96,10 +100,9 @@ One can also try to estimate an energy injection rate at wavevector ``\bm{k}`` a
 ```
 
 In general, this estimate may be quite inaccurate since the forcing can also affect the
-energy at wavevectors other than ``\bm{k}``. Conversely, ``E(\bm{k})`` may also be
-affected by the forcing velocity associated to other forced wavevectors. But still, this
-estimate is the one used when ``ε_{\text{target}}`` is given, and may allow to obtain a
-roughly constant energy injection rate (even if it's generally different than the "target" one).
+energy at wavevectors other than ``\bm{k}``. But still, this estimate is the one used when
+``ε_{\text{target}}`` is given, and may allow to obtain a roughly constant energy injection
+rate (even if it's generally different than the "target" one).
 """
 struct FourierBandForcingBS{T <: AbstractFloat, N} <: AbstractForcing
     α    :: T
@@ -152,22 +155,22 @@ function init_cache(f::FourierBandForcingBS, cache_bs::BiotSavartCache)
     backend = KA.get_backend(vs_grid[1])  # CPU, CUDABackend, ROCBackend, ...
     if isempty(qs)
         # Activate all wavevectors within a Fourier band [kmin, kmax]
-        ψ_h = FourierBandVectorField(undef, params.Ls; kmin, kmax)  # on the host (CPU)
+        v_h = FourierBandVectorField(undef, params.Ls; kmin, kmax)  # on the host (CPU)
     else
         # Activate selected wavenumbers
-        ψ_h = FourierBandVectorField(undef, params.Ls)  # on the host (CPU)
+        v_h = FourierBandVectorField(undef, params.Ls)  # on the host (CPU)
         for q⃗ in qs
-            SyntheticFields.add_normalised_wavevector!(ψ_h, q⃗)
+            SyntheticFields.add_normalised_wavevector!(v_h, q⃗)
         end
     end
-    ψ_d = adapt(backend, ψ_h)  # on the "device" (GPU or CPU)
+    v_d = adapt(backend, v_h)  # on the "device" (GPU or CPU)
     prefactor = params.Γ / prod(params.Ls)
-    (; ψ_d, ψ_h, prefactor,)
+    (; v_d, v_h, qs = v_h.qs, prefactor,)
 end
 
-# After calling this function, cache.ψ_h contains ψ̂(k⃗) where ψ is the streamfunction.
+# After calling this function, cache.v_h contains the unfiltered Biot-Savart velocity in Fourier space v̂(k⃗).
 function update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache)
-    (; ψ_d, ψ_h,) = cache
+    (; v_d, v_h,) = cache
 
     vs_grid, ks_grid = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
         local (; state, field, wavenumbers,) = data
@@ -177,38 +180,29 @@ function update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache
     end
     α_ewald = cache_bs.params.α
 
-    # (1) Compute unfiltered streamfunction from filtered velocity within Fourier band
+    # (1) Compute unfiltered velocity within Fourier band
     inv_four_α² = 1 / (4 * α_ewald * α_ewald)
     @inline function op_streamfunction(_, vs_filtered, k⃗)
         k² = sum(abs2, k⃗)
-        φ = @fastmath exp(k² * inv_four_α²)
-        vs = φ * vs_filtered
-        im * (k⃗ × vs) ./ k²
+        φ = exp(k² * inv_four_α²)
+        φ * vs_filtered
     end
-    SyntheticFields.from_fourier_grid!(op_streamfunction, ψ_d, vs_grid, ks_grid)
+    SyntheticFields.from_fourier_grid!(op_streamfunction, v_d, vs_grid, ks_grid)
 
     # (2) Copy results to CPU if needed (avoided if the "device" is the CPU).
-    if ψ_d !== ψ_h
-        copyto!(ψ_h, ψ_d)
+    if v_d !== v_h
+        copyto!(v_h, v_d)
     end
 
     nothing
 end
 
-@inline function _apply_forcing_matrix(k⃗::SVector{N}, s⃗::SVector{N}, s⃗′::SVector{N}, ψ̂::SVector{N}) where {N}
-    ks′ = k⃗ ⋅ s⃗′
-    ψs′ = s⃗′ ⋅ ψ̂    # note: ψ̂ must be on the right because it's complex (otherwise it will be conjugated)
-    e = cis(k⃗ ⋅ s⃗)  # = exp(im * (k⃗ ⋅ s⃗))
-    e * (k⃗ * ψs′ - ψ̂ * ks′)
-end
-
-# Returns the estimated energy injection rate (a very rough estimate likely to be wrong, but
-# may still be useful to obtain a steady state).
+# Returns the estimated energy injection rate.
 function apply!(
         forcing::FourierBandForcingBS, cache, vs::AbstractVector, f::AbstractFilament;
         scheduler = SerialScheduler(),
     )
-    (; ψ_h,) = cache
+    (; v_h,) = cache
     V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
     ts = Filaments.knots(f)
     ε_total = tmapreduce(+, eachindex(vs); scheduler) do i
@@ -217,17 +211,12 @@ function apply!(
         ds⃗_dt = f[i, Derivative(1)]
         ds_dt = sqrt(sum(abs2, ds⃗_dt))  # vector norm
         s⃗′ = ds⃗_dt ./ ds_dt  # unit tangent
-        (; qs, cs, Δks,) = ψ_h
-        dt = (ts[i + 1] - ts[i - 1]) / 2
-        dξ = dt * ds_dt  # estimated local segment length
-        ε = zero(eltype(s⃗))
+        (; qs, cs, Δks,) = v_h
         vf = zero(V)  # forcing velocity (excluding α prefactor)
         for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
             k⃗ = SVector(qs[n]) .* Δks
-            ψ̂ = cs[n]
-            u = _apply_forcing_matrix(k⃗, s⃗, s⃗′, ψ̂)
-            vf_k = -imag(u)  # forcing velocity for this wavevector k⃗
-            ε += sum(abs2, vf_k)  # energy injection estimate (without prefactor Γ dξ / V)
+            v̂ = cs[n]
+            vf_k = s⃗′ × real(v̂ * cis(k⃗ ⋅ s⃗))  # forcing velocity for this wavevector k⃗
             vf = vf + vf_k
         end
         if forcing.α != 0
@@ -235,7 +224,9 @@ function apply!(
         elseif forcing.ε_target != 0
             vs[i] = vf  # just overwrite the input
         end
-        ε * dξ  # estimated energy injection rate around local node
+        dt = (ts[i + 1] - ts[i - 1]) / 2
+        dξ = dt * ds_dt  # estimated local segment length
+        sum(abs2, vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
     end
     # The factor 2 accounts for Hermitian symmetry: if we inject energy into the velocity at
     # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
