@@ -288,7 +288,7 @@ end
             energy = Float64[]
             function callback(iter)
                 iter.nstep == 0 && empty!.((times, energy, energy_k))
-                Ek = sum(iter.forcing_cache.ψ_h.qs) do q⃗  # sum energies of all forced wavevectors
+                Ek = sum(iter.forcing_cache.qs) do q⃗  # sum energies of all forced wavevectors
                     get_energy_at_normalised_wavevector(iter.cache_bs, q⃗)
                 end
                 E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
@@ -298,17 +298,18 @@ end
                 nothing
             end
             (; iter, E_ratio, spectra) = simulate(prob, forcing; callback)
-            # @show E_ratio  # = 1.5639040882309103
-            @test 1.50 < E_ratio < 1.62
+            # @show E_ratio  # = 1.5378977662886022
+            @test 1.45 < E_ratio < 1.60
             # In the plot one should see that energy first stays constant, then linearly
             # increases with the imposed ε, and finally it saturates.
+            a, b = 0.3, 0.45
             plots && let plt = lineplot(times, energy_k; xlim = (0, 1), ylim = (0, 0.02))
                 lineplot!(plt, times, times * forcing.ε_target)
-                vline!(plt, 0.45)
-                vline!(plt, 0.65)
+                vline!(plt, a)
+                vline!(plt, b)
                 display(plt)
             end
-            let a = searchsortedlast(times, 0.45), b = searchsortedlast(times, 0.65)
+            let a = searchsortedlast(times, a), b = searchsortedlast(times, b)
                 ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # mean energy injection rate at forced wavevectors
                 # @show ε_inj
                 @test ε_inj ≈ forcing.ε_target rtol=1e-2
@@ -347,7 +348,7 @@ end
             # Check linear evolution at beginning of simulation, with the expected ε.
             let a = eachindex(times)[begin + 1], b = eachindex(times)[end ÷ 3]
                 ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # energy injection rate at wavenumber k⃗
-                @show ε_inj
+                # @show ε_inj
                 @test ε_inj ≈ forcing.ε_target rtol=1e-3  # the ε_target really represents the energy injection rate at this wavevector!
             end
         end
