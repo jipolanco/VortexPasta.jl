@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `FourierBandForcingBS`: properly estimate energy injection rate when forcing more than one
+  mode.
+
 ### Added
 
 - Add `NoForcing` type. This may be used in `Timestepping.init` for explicitly disabling
