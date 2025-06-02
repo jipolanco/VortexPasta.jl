@@ -99,6 +99,7 @@ has_real_to_complex
 compute_vorticity_fourier!
 to_smoothed_streamfunction!
 to_smoothed_velocity!
+to_coarse_grained_vorticity!
 interpolate_to_physical!
 transform_to_fourier!
 similar(::LongRangeCache, ::Dims{3})

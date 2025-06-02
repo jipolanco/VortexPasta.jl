@@ -328,7 +328,7 @@ function callback_vorticity(cache::LongRangeCache)
     (; ewald_prefactor,) = cache.common
     (; field, wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
     @assert state.quantity == :vorticity
-    @assert state.smoothed == false
+    @assert state.smoothing_scale == 0  # unsmoothed field
     # To make things simple, we copy data to the CPU if it's on the GPU.
     wavenumbers = adapt(Array, wavenumbers)
     uhat = adapt(Array, field)::NTuple{3}  # (ωx, ωy, ωz) in Fourier space
@@ -425,7 +425,7 @@ function _compute_on_nodes!(
                     @timeit to "Convert to physical" begin
                         to_smoothed_field!(Streamfunction(), cache.longrange)
                         interpolate_to_physical!(cache.longrange)  # overwrites pointdata (charges)
-                        add_long_range_output!(ψs, cache.longrange)
+                        copy_long_range_output!(+, ψs, cache.longrange)
                     end
                 end
             end
@@ -435,7 +435,7 @@ function _compute_on_nodes!(
                     @timeit to "Convert to physical" begin
                         to_smoothed_field!(Velocity(), cache.longrange)
                         interpolate_to_physical!(cache.longrange)  # overwrites pointdata (charges)
-                        add_long_range_output!(vs, cache.longrange)
+                        copy_long_range_output!(+, vs, cache.longrange)
                     end
                 end
             end
@@ -558,10 +558,10 @@ function _compute_on_nodes!(
         @timeit to "Copy output (device → host)" let
             local ifield = 0
             if ψs !== nothing
-                add_long_range_output!(ψs, cache.longrange, outputs_lr[ifield += 1])
+                copy_long_range_output!(+, ψs, cache.longrange, outputs_lr[ifield += 1])
             end
             if vs !== nothing
-                add_long_range_output!(vs, cache.longrange, outputs_lr[ifield += 1])
+                copy_long_range_output!(+, vs, cache.longrange, outputs_lr[ifield += 1])
             end
         end
 

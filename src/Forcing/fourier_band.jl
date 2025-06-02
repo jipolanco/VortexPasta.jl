@@ -81,13 +81,11 @@ end
 function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartCache) where {T, N}
     (; vtmp_d, vn_d, vtmp_h, ω_h, ω_d) = cache
 
-    vs_grid, ks_grid = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
+    vs_grid, ks_grid, σ_gaussian = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
         local (; state, field, wavenumbers,) = data
         @assert state.quantity == :velocity
-        @assert state.smoothed == true
-        field, wavenumbers
+        field, wavenumbers, state.smoothing_scale
     end
-    α_ewald = cache_bs.params.α
 
     # (0) Copy normal fluid velocity from CPU to GPU, in case it has changed (e.g. if we're
     # using a velocity that varies in time). We don't need to do this if vn_d and f.vn are
@@ -100,12 +98,12 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
     @assert vtmp_d.cs !== vn_d.cs  # coefficients are not aliased
     copyto!(vtmp_d, vn_d)
 
-    # (2) Retrieve values from coarse-grained velocity field (Gaussian filtered with α_ewald parameter).
+    # (2) Retrieve values from coarse-grained (Gaussian-filtered) velocity field.
     # We "unfilter" the values, similarly to the way we compute energy spectra from the long-range velocity.
-    inv_four_α² = 1 / (4 * α_ewald * α_ewald)
+    σ²_over_two = σ_gaussian^2 / 2
     @inline function op(vn, vs_filtered, k⃗)
         k² = sum(abs2, k⃗)
-        φ = @fastmath exp(k² * inv_four_α²)
+        φ = @fastmath exp(σ²_over_two * k²)
         vs = φ * vs_filtered
         vn - vs
     end
@@ -114,7 +112,7 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
     # Optionally compute coarse-grained vorticity.
     @inline function op_vorticity(_, vs_filtered, k⃗)
         k² = sum(abs2, k⃗)
-        φ = @fastmath exp(k² * inv_four_α²)
+        φ = @fastmath exp(σ²_over_two * k²)
         vs = φ * vs_filtered
         im * (k⃗ × vs)
     end

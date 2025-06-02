@@ -3,27 +3,30 @@
 
 Describes the current state of the long-range fields in Fourier space.
 
-It has two fields, which allow to know which field is currently stored and whether it has
-been smoothed (Gaussian-filtered) or not:
+It has two fields, which allow to know which field is currently stored and its smoothing scale
+(width ``σ`` of Gaussian filter):
 
 - `quantity::Symbol` (can be `:undef`, `:vorticity`, `:velocity`, `:streamfunction`)
 
-- `smoothed::Bool` (`true` if the Gaussian filter associated to Ewald's method has already been applied)
+- `smoothing_scale::Float64`: width ``σ`` of applied Gaussian filter. This is typically
+  ``σ = 1 / α√2`` where ``α`` is Ewald's splitting parameter. Its value is 0 if the field
+  has not been (yet) smoothed. This is usually the case after calling
+  [`compute_vorticity_fourier!`](@ref).
 
 See [`BiotSavart.get_longrange_field_fourier`](@ref) for more details.
 """
 mutable struct LongRangeCacheState
     quantity :: Symbol  # quantity currently held by the cache (:undef, :vorticity, :velocity, :streamfunction)
-    smoothed :: Bool    # true if Ewald's Gaussian filter has already been applied
+    smoothing_scale :: Float64  # width σ of Gaussian filter (0 means unsmoothed)
 end
 
-LongRangeCacheState() = LongRangeCacheState(:undef, false)
+LongRangeCacheState() = LongRangeCacheState(:undef, 0)
 
-Base.copy(state::LongRangeCacheState) = LongRangeCacheState(state.quantity, state.smoothed)
+Base.copy(state::LongRangeCacheState) = LongRangeCacheState(state.quantity, state.smoothing_scale)
 
 function Base.show(io::IO, state::LongRangeCacheState)
-    (; quantity, smoothed,) = state
-    print(io, "LongRangeCacheState(quantity = $quantity, smoothed = $smoothed)")
+    (; quantity, smoothing_scale,) = state
+    print(io, "LongRangeCacheState(quantity = $quantity, smoothing_scale = $smoothing_scale)")
     nothing
 end
 
@@ -192,7 +195,7 @@ If one only needs the velocity and not the streamfunction, one can also directly
 function to_smoothed_streamfunction!(c::LongRangeCache)
     (; uhat_d, state, ewald_op_d,) = c.common
     @assert size(uhat_d) === size(ewald_op_d)
-    from_vorticity = state.quantity === :vorticity && !state.smoothed
+    from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
     @assert from_vorticity
     inds = eachindex(ewald_op_d, uhat_d)
     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
@@ -201,7 +204,7 @@ function to_smoothed_streamfunction!(c::LongRangeCache)
     uhat_comps = StructArrays.components(uhat_d)
     kernel(uhat_comps, ewald_op_d)
     state.quantity = :streamfunction
-    state.smoothed = true
+    state.smoothing_scale = ewald_smoothing_scale(c)
     uhat_d
 end
 
@@ -221,13 +224,31 @@ end
 end
 
 # Applies curl operator in Fourier space.
-@kernel function velocity_from_streamfunction_kernel!(uhat::NTuple, @Const(ks))
+@kernel function fourier_curl_kernel!(uhat::NTuple, @Const(ks))
     I = @index(Global, Cartesian)
     k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
     u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
     u⃗ = @inbounds im * u⃗
     # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
     u⃗ = @noinline k⃗ × u⃗
+    for n ∈ eachindex(uhat)
+        @inbounds uhat[n][I] = u⃗[n]
+    end
+    nothing
+end
+
+# Applies curl operator in Fourier space. The input is usually the velocity field smoothed
+# via Ewald's operator (with smoothing scale ℓ_old = 1 / α√2).
+@kernel function coarse_grained_vorticity_kernel!(uhat::NTuple, @Const(ks), @Const(ℓ::Real), @Const(ℓ_old::Real))
+    I = @index(Global, Cartesian)
+    k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
+    k² = sum(abs2, k⃗)
+    op = exp(-k² * (ℓ^2 - ℓ_old^2) / 2)
+    op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), ks, Tuple(I)))
+    u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
+    u⃗ = @inbounds im * u⃗
+    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
+    u⃗ = @noinline op_times_k⃗ × u⃗
     for n ∈ eachindex(uhat)
         @inbounds uhat[n][I] = u⃗[n]
     end
@@ -256,9 +277,10 @@ operator (``i \bm{k} ×``) is applied by this function.
 """
 function to_smoothed_velocity!(c::LongRangeCache)
     (; uhat_d, state, ewald_op_d, wavenumbers_d,) = c.common
+    σ = ewald_smoothing_scale(c)
     @assert size(uhat_d) === size(ewald_op_d)
-    from_vorticity = state.quantity === :vorticity && !state.smoothed
-    from_streamfunction = state.quantity === :streamfunction && state.smoothed
+    from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
+    from_streamfunction = state.quantity === :streamfunction && state.smoothing_scale == σ
     @assert from_vorticity || from_streamfunction
     ka_backend = KA.get_backend(c)
     uhat_comps = StructArrays.components(uhat_d)
@@ -267,13 +289,66 @@ function to_smoothed_velocity!(c::LongRangeCache)
             kernel(uhat_comps, wavenumbers_d, ewald_op_d)
         end
     elseif from_streamfunction
-        let kernel = ka_generate_kernel(velocity_from_streamfunction_kernel!, ka_backend, uhat_d)
+        let kernel = ka_generate_kernel(fourier_curl_kernel!, ka_backend, uhat_d)
             kernel(uhat_comps, wavenumbers_d)
         end
     end
     state.quantity = :velocity
-    state.smoothed = true
+    state.smoothing_scale = ewald_smoothing_scale(c)
     c
+end
+
+"""
+    to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real) -> NamedTuple
+
+Compute coarse-grained vorticity in Fourier space.
+
+The vorticity is coarse-grained at scale ``ℓ`` using a Gaussian filter.
+
+This can be useful for visualisations or physical analysis. It is _not_ used to compute
+Biot–Savart velocities, and the scale ``ℓ`` need not be similar to the splitting lengthscale
+in Ewald's method.
+
+This function also sets the [`LongRangeCacheState`](@ref) to `quantity = :vorticity`.
+
+This function returns the same thing as [`get_longrange_field_fourier`](@ref), including the
+resulting coarse-grained vorticity in Fourier space.
+
+## Example
+
+From a set of vortex filaments, evaluate their self-induced velocity (using
+[`compute_on_nodes!`](@ref)) and then the resulting coarse-grained vorticity at their
+locations:
+
+```julia
+# First compute the velocity on the filament nodes.
+# As an intermediate result, the velocity in Fourier space is stored in the cache.
+vs = map(similar ∘ nodes, fs)  # one velocity vector per filament node
+fields = (; velocity = vs,)
+cache = BiotSavart.init_cache(...)
+compute_on_nodes!(fields, cache, fs)
+
+# Now compute the coarse-grained vorticity (result is stored in the cache)
+ℓ = 0.1  # smoothing scale
+BiotSavart.to_coarse_grained_vorticity!(cache.longrange, ℓ)
+
+# Finally, evaluate the resulting vorticity on filament nodes
+ωs_ℓ = map(similar, vs)
+BiotSavart.interpolate_to_physical!(cache.longrange)       # interpolate to vortex positions (result stored in the cache)
+BiotSavart.copy_long_range_output!(ωs_ℓ, cache.longrange)  # copy results from cache to output array
+```
+"""
+function to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real)
+    (; uhat_d, state, wavenumbers_d,) = c.common
+    @assert state.quantity === :velocity
+    ℓ_old = state.smoothing_scale  # current smoothing scale (usually 1 / α√2, but can be different)
+    ka_backend = KA.get_backend(c)
+    uhat_comps = StructArrays.components(uhat_d)
+    kernel = ka_generate_kernel(coarse_grained_vorticity_kernel!, ka_backend, uhat_d)
+    kernel(uhat_comps, wavenumbers_d, ℓ, ℓ_old)
+    state.quantity = :vorticity
+    state.smoothing_scale = ℓ
+    get_longrange_field_fourier(c)
 end
 
 # These can be useful for generic code dealing with velocity, streamfunction or both.
@@ -281,12 +356,13 @@ to_smoothed_field!(::Velocity, c::LongRangeCache) = to_smoothed_velocity!(c)
 to_smoothed_field!(::Streamfunction, c::LongRangeCache) = to_smoothed_streamfunction!(c)
 
 """
-    interpolate_to_physical!([output::StructVector{<:Vec3},] cache::LongRangeCache)
+    interpolate_to_physical!([output::StructVector{<:Vec3},] cache::LongRangeCache) -> output
 
 Perform type-2 NUFFT to interpolate values in `cache.common.uhat_d` to non-uniform
 points in physical space.
 
 Results are written to the `output` vector, which defaults to `cache.pointdata_d.charges`.
+This vector is returned by this function.
 """
 function interpolate_to_physical!(cache::LongRangeCache)
     output = cache.common.pointdata_d.charges
@@ -294,6 +370,7 @@ function interpolate_to_physical!(cache::LongRangeCache)
 end
 
 function interpolate_to_physical!(output, cache::LongRangeCache)
+    # TODO: what if the output is in a different device? (CPU/GPU)?
     @assert typeof(output) === typeof(cache.common.pointdata_d.charges)
     _interpolate_to_physical!(output, cache)
     output
@@ -429,7 +506,7 @@ function compute_vorticity_fourier!(cache::LongRangeCache)
     transform_to_fourier!(cache)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
     state.quantity = :vorticity
-    state.smoothed = false
+    state.smoothing_scale = 0
     uhat_d
 end
 
@@ -524,27 +601,39 @@ end
 
 # Here pointdata_h is used as a buffer in the GPU implementation.
 # See set_interpolation_points! for details.
-function add_long_range_output!(
+# Here `op` is a binary operator `op(new, old)`. For example, to add the new value to a
+# previously existent value, pass op = +.
+function copy_long_range_output!(
+        op::F,
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
         charges = cache.common.pointdata_d.charges,
-    )
+    ) where {F}
     (; charges_h,) = cache.common.pointdata_d
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     ka_backend = KA.get_backend(cache)
-    add_long_range_output_impl!(ka_backend, vs, charges, charges_h)
+    copy_long_range_output_impl!(ka_backend, op, vs, charges, charges_h)
     vs
 end
 
-function add_long_range_output_impl!(::KA.CPU, vs, charges_d, charges_h)
+function copy_long_range_output!(
+        vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
+        charges = cache.common.pointdata_d.charges,
+    )
+    # By default, only keep the new value, discarding old values in vs.
+    op(new, old) = new
+    copy_long_range_output!(op, vs, cache, charges)
+end
+
+function copy_long_range_output_impl!(::KA.CPU, op::F, vs, charges_d, charges_h) where {F}
     @assert isempty(charges_h)  # never used in the CPU implementation (so it should stay empty)
-    _add_long_range_output!(vs, charges_d)
+    _copy_long_range_output!(op, vs, charges_d)
     nothing
 end
 
 # GPU implementation: first copy from charges_d (GPU) to charges_h (CPU), then add results
 # to `vs`.
-function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_h)
+function copy_long_range_output_impl!(ka_backend::KA.GPU, op::F, vs, charges_d, charges_h) where {F}
     # Device-to-host copy
     qs_d = StructArrays.components(charges_d)
     qs_h = StructArrays.components(charges_h)
@@ -555,15 +644,15 @@ function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_
     end
     KA.synchronize(ka_backend)  # make sure we're done copying data to CPU (needed on CUDA, where KA.copyto! is asynchronous)
     # Now add long-range values to `vs` output.
-    _add_long_range_output!(vs, charges_h)
+    _copy_long_range_output!(op, vs, charges_h)
     nothing
 end
 
-function _add_long_range_output!(vs, charges::StructVector)
+function _copy_long_range_output!(op::F, vs, charges::StructVector) where {F}
     n = 0
     @inbounds for v ∈ vs, j ∈ eachindex(v)
         q = charges[n += 1]
-        v[j] = v[j] + real(q)
+        v[j] = op(real(q), v[j])  # typically op == +, meaning that we add to the previous value
     end
     vs
 end

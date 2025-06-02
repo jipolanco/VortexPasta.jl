@@ -5,6 +5,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `BiotSavart.to_coarse_grained_vorticity!` and document how to interpolate results onto
+  vortex positions.
+
+### Changed
+
+- `LongRangeCacheState` now stores the smoothing scale `σ` (the width of the Gaussian
+  filter) instead of just a `smoothed` boolean stating whether the stored field has been
+  smoothed.
+
 ## [0.27.5] - 2025-05-26
 
 ### Changed

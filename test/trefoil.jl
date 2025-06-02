@@ -208,10 +208,10 @@ function compare_long_range(
     @test max_rel_error_physical < tol
 
     # Copy data to arrays.
-    vs_exact = map(f -> zero(nodes(f)), fs)
-    vs_default = map(f -> zero(nodes(f)), fs)
-    BiotSavart.add_long_range_output!(vs_exact, cache_exact)
-    BiotSavart.add_long_range_output!(vs_default, cache_default)
+    vs_exact = map(similar ∘ nodes, fs)
+    vs_default = map(similar ∘ nodes, fs)
+    BiotSavart.copy_long_range_output!(vs_exact, cache_exact)
+    BiotSavart.copy_long_range_output!(vs_default, cache_default)
 
     # Compare velocities one filament at a time.
     function l2_difference(us, vs)

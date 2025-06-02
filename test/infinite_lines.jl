@@ -80,7 +80,7 @@ function truncated_kinetic_energy_from_vorticity(cache::LongRangeCache)
     (; ewald_prefactor,) = cache.common
     (; field, wavenumbers, state,) = @inferred BiotSavart.get_longrange_field_fourier(cache)
     @test state.quantity == :vorticity
-    @test state.smoothed == false
+    @test state.smoothing_scale == 0  # unsmoothed vorticity
     @test startswith("LongRangeCacheState")(repr(state))
     # To make things simple, we copy data to the CPU if it's on the GPU.
     wavenumbers = adapt(Array, wavenumbers)
