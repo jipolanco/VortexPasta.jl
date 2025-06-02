@@ -182,7 +182,7 @@ function update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache
     σ²_over_two = σ_gaussian^2 / 2
     @inline function op_streamfunction(_, vs_filtered, k⃗)
         k² = sum(abs2, k⃗)
-        φ = exp(k² * σ²_over_two)
+        φ = exp(σ²_over_two * k²)
         φ * vs_filtered
     end
     SyntheticFields.from_fourier_grid!(op_streamfunction, v_d, vs_grid, ks_grid)

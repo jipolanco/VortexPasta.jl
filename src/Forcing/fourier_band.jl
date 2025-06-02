@@ -103,7 +103,7 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
     σ²_over_two = σ_gaussian^2 / 2
     @inline function op(vn, vs_filtered, k⃗)
         k² = sum(abs2, k⃗)
-        φ = @fastmath exp(k² * σ²_over_two)
+        φ = @fastmath exp(σ²_over_two * k²)
         vs = φ * vs_filtered
         vn - vs
     end
@@ -112,7 +112,7 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
     # Optionally compute coarse-grained vorticity.
     @inline function op_vorticity(_, vs_filtered, k⃗)
         k² = sum(abs2, k⃗)
-        φ = @fastmath exp(k² * inv_four_α²)
+        φ = @fastmath exp(σ²_over_two * k²)
         vs = φ * vs_filtered
         im * (k⃗ × vs)
     end
