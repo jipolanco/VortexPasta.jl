@@ -91,8 +91,9 @@ function energy_spectrum!(
         unfilter = true,  # undo Ewald smoothing filter
     )
     (; state, ewald_op_d, ewald_prefactor,) = cache.common
-    from_smoothed_velocity = state.quantity == :velocity && state.smoothed
-    from_vorticity = state.quantity == :vorticity && !state.smoothed
+    σ = BiotSavart.ewald_smoothing_scale(cache)
+    from_smoothed_velocity = state.quantity == :velocity && state.smoothing_scale == σ  # smoothed velocity
+    from_vorticity = state.quantity == :vorticity && state.smoothing_scale == 0  # unsmoothed vorticity
     γ² = ewald_prefactor^2  # = (Γ/V)^2
     if from_smoothed_velocity
         if unfilter

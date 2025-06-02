@@ -172,19 +172,17 @@ end
 function update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache)
     (; v_d, v_h,) = cache
 
-    vs_grid, ks_grid = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
+    vs_grid, ks_grid, σ_gaussian = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
         local (; state, field, wavenumbers,) = data
         @assert state.quantity == :velocity
-        @assert state.smoothed == true
-        field, wavenumbers
+        field, wavenumbers, state.smoothing_scale
     end
-    α_ewald = cache_bs.params.α
 
     # (1) Compute unfiltered velocity within Fourier band
-    inv_four_α² = 1 / (4 * α_ewald * α_ewald)
+    σ²_over_two = σ_gaussian^2 / 2
     @inline function op_streamfunction(_, vs_filtered, k⃗)
         k² = sum(abs2, k⃗)
-        φ = exp(k² * inv_four_α²)
+        φ = exp(k² * σ²_over_two)
         φ * vs_filtered
     end
     SyntheticFields.from_fourier_grid!(op_streamfunction, v_d, vs_grid, ks_grid)

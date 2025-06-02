@@ -3,27 +3,30 @@
 
 Describes the current state of the long-range fields in Fourier space.
 
-It has two fields, which allow to know which field is currently stored and whether it has
-been smoothed (Gaussian-filtered) or not:
+It has two fields, which allow to know which field is currently stored and its smoothing scale
+(width ``σ`` of Gaussian filter):
 
 - `quantity::Symbol` (can be `:undef`, `:vorticity`, `:velocity`, `:streamfunction`)
 
-- `smoothed::Bool` (`true` if the Gaussian filter associated to Ewald's method has already been applied)
+- `smoothing_scale::Float64`: width ``σ`` of applied Gaussian filter. This is typically
+  ``σ = 1 / α√2`` where ``α`` is Ewald's splitting parameter. Its value is 0 if the field
+  has not been (yet) smoothed. This is usually the case after calling
+  [`compute_vorticity_fourier!`](@ref).
 
 See [`BiotSavart.get_longrange_field_fourier`](@ref) for more details.
 """
 mutable struct LongRangeCacheState
     quantity :: Symbol  # quantity currently held by the cache (:undef, :vorticity, :velocity, :streamfunction)
-    smoothed :: Bool    # true if Ewald's Gaussian filter has already been applied
+    smoothing_scale :: Float64  # width σ of Gaussian filter (0 means unsmoothed)
 end
 
-LongRangeCacheState() = LongRangeCacheState(:undef, false)
+LongRangeCacheState() = LongRangeCacheState(:undef, false, 0)
 
-Base.copy(state::LongRangeCacheState) = LongRangeCacheState(state.quantity, state.smoothed)
+Base.copy(state::LongRangeCacheState) = LongRangeCacheState(state.quantity, state.smoothing_scale)
 
 function Base.show(io::IO, state::LongRangeCacheState)
-    (; quantity, smoothed,) = state
-    print(io, "LongRangeCacheState(quantity = $quantity, smoothed = $smoothed)")
+    (; quantity, smoothing_scale,) = state
+    print(io, "LongRangeCacheState(quantity = $quantity, smoothing_scale = $smoothing_scale)")
     nothing
 end
 
@@ -192,7 +195,7 @@ If one only needs the velocity and not the streamfunction, one can also directly
 function to_smoothed_streamfunction!(c::LongRangeCache)
     (; uhat_d, state, ewald_op_d,) = c.common
     @assert size(uhat_d) === size(ewald_op_d)
-    from_vorticity = state.quantity === :vorticity && !state.smoothed
+    from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
     @assert from_vorticity
     inds = eachindex(ewald_op_d, uhat_d)
     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
@@ -201,7 +204,7 @@ function to_smoothed_streamfunction!(c::LongRangeCache)
     uhat_comps = StructArrays.components(uhat_d)
     kernel(uhat_comps, ewald_op_d)
     state.quantity = :streamfunction
-    state.smoothed = true
+    state.smoothing_scale = ewald_smoothing_scale(c)
     uhat_d
 end
 
@@ -256,9 +259,10 @@ operator (``i \bm{k} ×``) is applied by this function.
 """
 function to_smoothed_velocity!(c::LongRangeCache)
     (; uhat_d, state, ewald_op_d, wavenumbers_d,) = c.common
+    σ = ewald_smoothing_scale(c)
     @assert size(uhat_d) === size(ewald_op_d)
-    from_vorticity = state.quantity === :vorticity && !state.smoothed
-    from_streamfunction = state.quantity === :streamfunction && state.smoothed
+    from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
+    from_streamfunction = state.quantity === :streamfunction && state.smoothing_scale == σ
     @assert from_vorticity || from_streamfunction
     ka_backend = KA.get_backend(c)
     uhat_comps = StructArrays.components(uhat_d)
@@ -272,7 +276,7 @@ function to_smoothed_velocity!(c::LongRangeCache)
         end
     end
     state.quantity = :velocity
-    state.smoothed = true
+    state.smoothing_scale = ewald_smoothing_scale(c)
     c
 end
 
@@ -281,12 +285,13 @@ to_smoothed_field!(::Velocity, c::LongRangeCache) = to_smoothed_velocity!(c)
 to_smoothed_field!(::Streamfunction, c::LongRangeCache) = to_smoothed_streamfunction!(c)
 
 """
-    interpolate_to_physical!([output::StructVector{<:Vec3},] cache::LongRangeCache)
+    interpolate_to_physical!([output::StructVector{<:Vec3},] cache::LongRangeCache) -> output
 
 Perform type-2 NUFFT to interpolate values in `cache.common.uhat_d` to non-uniform
 points in physical space.
 
 Results are written to the `output` vector, which defaults to `cache.pointdata_d.charges`.
+This vector is returned by this function.
 """
 function interpolate_to_physical!(cache::LongRangeCache)
     output = cache.common.pointdata_d.charges
@@ -294,6 +299,7 @@ function interpolate_to_physical!(cache::LongRangeCache)
 end
 
 function interpolate_to_physical!(output, cache::LongRangeCache)
+    # TODO: what if the output is in a different device? (CPU/GPU)?
     @assert typeof(output) === typeof(cache.common.pointdata_d.charges)
     _interpolate_to_physical!(output, cache)
     output
@@ -429,7 +435,7 @@ function compute_vorticity_fourier!(cache::LongRangeCache)
     transform_to_fourier!(cache)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
     state.quantity = :vorticity
-    state.smoothed = false
+    state.smoothing_scale = 0
     uhat_d
 end
 

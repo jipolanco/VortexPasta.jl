@@ -328,7 +328,7 @@ function callback_vorticity(cache::LongRangeCache)
     (; ewald_prefactor,) = cache.common
     (; field, wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
     @assert state.quantity == :vorticity
-    @assert state.smoothed == false
+    @assert state.smoothing_scale == 0  # unsmoothed field
     # To make things simple, we copy data to the CPU if it's on the GPU.
     wavenumbers = adapt(Array, wavenumbers)
     uhat = adapt(Array, field)::NTuple{3}  # (ωx, ωy, ωz) in Fourier space
