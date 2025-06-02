@@ -237,6 +237,24 @@ end
     nothing
 end
 
+# Applies curl operator in Fourier space. The input is usually the velocity field smoothed
+# via Ewald's operator (with smoothing scale ℓ_old = 1 / α√2).
+@kernel function coarse_grained_vorticity_kernel!(uhat::NTuple, @Const(ks), @Const(ℓ::Real), @Const(ℓ_old::Real))
+    I = @index(Global, Cartesian)
+    k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
+    k² = sum(abs2, k⃗)
+    op = exp(-k² * (ℓ^2 - ℓ_old^2) / 2)
+    op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), ks, Tuple(I)))
+    u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
+    u⃗ = @inbounds im * u⃗
+    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
+    u⃗ = @noinline op_times_k⃗ × u⃗
+    for n ∈ eachindex(uhat)
+        @inbounds uhat[n][I] = u⃗[n]
+    end
+    nothing
+end
+
 @doc raw"""
     to_smoothed_velocity!(cache::LongRangeCache)
 
@@ -278,6 +296,59 @@ function to_smoothed_velocity!(c::LongRangeCache)
     state.quantity = :velocity
     state.smoothing_scale = ewald_smoothing_scale(c)
     c
+end
+
+"""
+    to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real) -> NamedTuple
+
+Compute coarse-grained vorticity in Fourier space.
+
+The vorticity is coarse-grained at scale ``ℓ`` using a Gaussian filter.
+
+This can be useful for visualisations or physical analysis. It is _not_ used to compute
+Biot–Savart velocities, and the scale ``ℓ`` need not be similar to the splitting lengthscale
+in Ewald's method.
+
+This function also sets the [`LongRangeCacheState`](@ref) to `quantity = :vorticity`.
+
+This function returns the same thing as [`get_longrange_field_fourier`](@ref), including the
+resulting coarse-grained vorticity in Fourier space.
+
+## Example
+
+From a set of vortex filaments, evaluate their self-induced velocity (using
+[`compute_on_nodes!`](@ref)) and then the resulting coarse-grained vorticity at their
+locations:
+
+```julia
+# First compute the velocity on the filament nodes.
+# As an intermediate result, the velocity in Fourier space is also computed in the cache.
+vs = map(similar ∘ nodes, fs)  # one velocity vector per filament node
+fields = (; velocity = vs,)
+cache = BiotSavart.init_cache(...)
+compute_on_nodes!(fields, cache, fs)
+
+# Now compute coarse-grained vorticity (result is stored in the cache)
+ℓ = 0.1  # smoothing scale
+BiotSavart.to_coarse_grained_vorticity!(cache.longrange, ℓ)
+
+# Finally, evaluate the resulting vorticity on filament nodes
+ωs_ℓ = map(similar, vs)
+BiotSavart.interpolate_to_physical!(cache.longrange)       # interpolate to vortex positions (result stored in the cache)
+BiotSavart.copy_long_range_output!(ωs_ℓ, cache.longrange)  # copy results from cache to output array
+```
+"""
+function to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real)
+    (; uhat_d, state, wavenumbers_d,) = c.common
+    @assert state.quantity === :velocity
+    ℓ_old = state.smoothing_scale  # current smoothing scale (usually 1 / α√2, but can be different)
+    ka_backend = KA.get_backend(c)
+    uhat_comps = StructArrays.components(uhat_d)
+    kernel = ka_generate_kernel(coarse_grained_vorticity_kernel!, ka_backend, uhat_d)
+    kernel(uhat_comps, wavenumbers_d, ℓ, ℓ_old)
+    state.quantity = :vorticity
+    state.smoothing_scale = ℓ
+    get_longrange_field_fourier(c)
 end
 
 # These can be useful for generic code dealing with velocity, streamfunction or both.
@@ -530,27 +601,39 @@ end
 
 # Here pointdata_h is used as a buffer in the GPU implementation.
 # See set_interpolation_points! for details.
-function add_long_range_output!(
+# Here `op` is a binary operator `op(new, old)`. For example, to add the new value to a
+# previously existent value, pass op = +.
+function copy_long_range_output!(
+        op::F,
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
         charges = cache.common.pointdata_d.charges,
-    )
+    ) where {F}
     (; charges_h,) = cache.common.pointdata_d
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     ka_backend = KA.get_backend(cache)
-    add_long_range_output_impl!(ka_backend, vs, charges, charges_h)
+    copy_long_range_output_impl!(ka_backend, op, vs, charges, charges_h)
     vs
 end
 
-function add_long_range_output_impl!(::KA.CPU, vs, charges_d, charges_h)
+function copy_long_range_output!(
+        vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
+        charges = cache.common.pointdata_d.charges,
+    )
+    # By default, only keep the new value, discarding old values in vs.
+    op(new, old) = new
+    copy_long_range_output!(op, vs, cache, charges)
+end
+
+function copy_long_range_output_impl!(::KA.CPU, op::F, vs, charges_d, charges_h) where {F}
     @assert isempty(charges_h)  # never used in the CPU implementation (so it should stay empty)
-    _add_long_range_output!(vs, charges_d)
+    _copy_long_range_output!(op, vs, charges_d)
     nothing
 end
 
 # GPU implementation: first copy from charges_d (GPU) to charges_h (CPU), then add results
 # to `vs`.
-function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_h)
+function copy_long_range_output_impl!(ka_backend::KA.GPU, op::F, vs, charges_d, charges_h) where {F}
     # Device-to-host copy
     qs_d = StructArrays.components(charges_d)
     qs_h = StructArrays.components(charges_h)
@@ -561,15 +644,15 @@ function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_
     end
     KA.synchronize(ka_backend)  # make sure we're done copying data to CPU (needed on CUDA, where KA.copyto! is asynchronous)
     # Now add long-range values to `vs` output.
-    _add_long_range_output!(vs, charges_h)
+    _copy_long_range_output!(op, vs, charges_h)
     nothing
 end
 
-function _add_long_range_output!(vs, charges::StructVector)
+function _copy_long_range_output!(op::F, vs, charges::StructVector) where {F}
     n = 0
     @inbounds for v ∈ vs, j ∈ eachindex(v)
         q = charges[n += 1]
-        v[j] = v[j] + real(q)
+        v[j] = op(real(q), v[j])  # typically op == +, meaning that we add to the previous value
     end
     vs
 end
