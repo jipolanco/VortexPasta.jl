@@ -119,6 +119,6 @@ cache = evaluate_bs_on_nodes!(fields, fs, params)
     BiotSavart.copy_long_range_output!(ωs_ℓ, cache.longrange)  # copy results
 
     @test all(ω -> isapprox(ω, ωs_ℓ[1][1]; rtol = 1e-6), ωs_ℓ[1])  # all vorticities are equal (up to chosen accuracy)
-    ω⃗ = sum(ωs_ℓ[1]) ./ length(ωs[1])  # average vorticity
+    ω⃗ = sum(ωs_ℓ[1]) ./ length(ωs_ℓ[1])  # average vorticity
     @test ω⃗[3] ≈ ω_expected rtol=1e-5
 end
