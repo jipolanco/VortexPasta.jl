@@ -322,13 +322,13 @@ locations:
 
 ```julia
 # First compute the velocity on the filament nodes.
-# As an intermediate result, the velocity in Fourier space is also computed in the cache.
+# As an intermediate result, the velocity in Fourier space is stored in the cache.
 vs = map(similar ∘ nodes, fs)  # one velocity vector per filament node
 fields = (; velocity = vs,)
 cache = BiotSavart.init_cache(...)
 compute_on_nodes!(fields, cache, fs)
 
-# Now compute coarse-grained vorticity (result is stored in the cache)
+# Now compute the coarse-grained vorticity (result is stored in the cache)
 ℓ = 0.1  # smoothing scale
 BiotSavart.to_coarse_grained_vorticity!(cache.longrange, ℓ)
 
