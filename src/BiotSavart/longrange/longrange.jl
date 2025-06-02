@@ -20,7 +20,7 @@ mutable struct LongRangeCacheState
     smoothing_scale :: Float64  # width σ of Gaussian filter (0 means unsmoothed)
 end
 
-LongRangeCacheState() = LongRangeCacheState(:undef, false, 0)
+LongRangeCacheState() = LongRangeCacheState(:undef, 0)
 
 Base.copy(state::LongRangeCacheState) = LongRangeCacheState(state.quantity, state.smoothing_scale)
 
