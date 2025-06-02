@@ -224,7 +224,7 @@ end
 end
 
 # Applies curl operator in Fourier space.
-@kernel function velocity_from_streamfunction_kernel!(uhat::NTuple, @Const(ks))
+@kernel function fourier_curl_kernel!(uhat::NTuple, @Const(ks))
     I = @index(Global, Cartesian)
     k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
     u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
@@ -271,7 +271,7 @@ function to_smoothed_velocity!(c::LongRangeCache)
             kernel(uhat_comps, wavenumbers_d, ewald_op_d)
         end
     elseif from_streamfunction
-        let kernel = ka_generate_kernel(velocity_from_streamfunction_kernel!, ka_backend, uhat_d)
+        let kernel = ka_generate_kernel(fourier_curl_kernel!, ka_backend, uhat_d)
             kernel(uhat_comps, wavenumbers_d)
         end
     end
