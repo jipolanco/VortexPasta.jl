@@ -239,7 +239,7 @@ end
 
 # Applies curl operator in Fourier space. The input is usually the velocity field smoothed
 # via Ewald's operator (with smoothing scale ℓ_old = 1 / α√2).
-@kernel function coarse_grained_vorticity_kernel!(uhat::NTuple, @Const(ks), @Const(ℓ::Real), @Const(ℓ_old::Real))
+@kernel function coarse_grained_curl_kernel!(uhat::NTuple, @Const(ks), @Const(ℓ::Real), @Const(ℓ_old::Real))
     I = @index(Global, Cartesian)
     k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
     k² = sum(abs2, k⃗)
@@ -251,6 +251,18 @@ end
     u⃗ = @noinline op_times_k⃗ × u⃗
     for n ∈ eachindex(uhat)
         @inbounds uhat[n][I] = u⃗[n]
+    end
+    nothing
+end
+
+# This kernel just applies a Gaussian filter without any differential operators.
+@kernel function coarse_graining_kernel!(uhat::NTuple, @Const(ks), @Const(ℓ::Real), @Const(ℓ_old::Real))
+    I = @index(Global, Cartesian)
+    k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
+    k² = sum(abs2, k⃗)
+    op = exp(-k² * (ℓ^2 - ℓ_old^2) / 2)
+    for n ∈ eachindex(uhat)
+        @inbounds uhat[n][I] *= op
     end
     nothing
 end
@@ -305,6 +317,11 @@ Compute coarse-grained vorticity in Fourier space.
 
 The vorticity is coarse-grained at scale ``ℓ`` using a Gaussian filter.
 
+Ideally, for accuracy reasons, the smoothing scale ``ℓ`` should be larger than the Ewald
+splitting scale ``σ = 1 / α√2``. Also note that applying this function leads to loss of
+small-scale information, so that one should be careful when performing additional
+calculations (energy spectra, ...) afterwards.
+
 This can be useful for visualisations or physical analysis. It is _not_ used to compute
 Biot–Savart velocities, and the scale ``ℓ`` need not be similar to the splitting lengthscale
 in Ewald's method.
@@ -338,14 +355,26 @@ BiotSavart.interpolate_to_physical!(cache.longrange)       # interpolate to vort
 BiotSavart.copy_long_range_output!(ωs_ℓ, cache.longrange)  # copy results from cache to output array
 ```
 """
-function to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real)
+function to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real; warn = true)
     (; uhat_d, state, wavenumbers_d,) = c.common
-    @assert state.quantity === :velocity
+    σ_ewald = ewald_smoothing_scale(c)
+    if warn && ℓ < σ_ewald
+        @warn lazy"for accuracy reasons, the smoothing scale (ℓ = $ℓ) should be larger than the Ewald splitting scale (σ = $σ_ewald)"
+    end
     ℓ_old = state.smoothing_scale  # current smoothing scale (usually 1 / α√2, but can be different)
     ka_backend = KA.get_backend(c)
     uhat_comps = StructArrays.components(uhat_d)
-    kernel = ka_generate_kernel(coarse_grained_vorticity_kernel!, ka_backend, uhat_d)
-    kernel(uhat_comps, wavenumbers_d, ℓ, ℓ_old)
+    if state.quantity === :velocity
+        let kernel = ka_generate_kernel(coarse_grained_curl_kernel!, ka_backend, uhat_d)
+            kernel(uhat_comps, wavenumbers_d, ℓ, ℓ_old)
+        end
+    elseif state.quantity === :vorticity
+        let kernel = ka_generate_kernel(coarse_graining_kernel!, ka_backend, uhat_d)
+            kernel(uhat_comps, wavenumbers_d, ℓ, ℓ_old)
+        end
+    else
+        error(lazy"expected either the velocity or vorticity to be in the cache (got state.quantity = $(state.quantity))")
+    end
     state.quantity = :vorticity
     state.smoothing_scale = ℓ
     get_longrange_field_fourier(c)

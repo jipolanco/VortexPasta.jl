@@ -100,11 +100,17 @@ cache = evaluate_bs_on_nodes!(fields, fs, params)
 @testset "Coarse-grained vorticity" begin
     # Now that we have computed the actual fields in Fourier space, obtain the coarse-grained
     # vorticity at a chosen scale.
+    # Here the cache contains the velocity.
     ℓ = L / 8
     (; field, wavenumbers, state,) = BiotSavart.to_coarse_grained_vorticity!(cache.longrange, ℓ)
-
     @test state.quantity == :vorticity
     @test state.smoothing_scale == ℓ
+
+    # Check that the result doesn't change if we recompute the same thing (with the same ℓ)
+    # This is to test the kernel that already takes a vorticity in the cache.
+    field_orig = copy.(field)
+    (; field, wavenumbers, state,) = BiotSavart.to_coarse_grained_vorticity!(cache.longrange, ℓ)
+    @test all(field .== field_orig)
 
     ω_back = -params.Γ / L^2  # background vorticity required to neutralise the vortex charge
 

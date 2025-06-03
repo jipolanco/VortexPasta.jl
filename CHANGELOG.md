@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Coarse-grained vorticity: print warning if smoothing scale is too small (compared to Ewald
+  splitting scale) to guarantee good accuracy.
+
+- Coarse-grained vorticity: allow computation from an existent _vorticity_ field (as opposed
+  to a velocity field, which was already possible).
+
 ## [0.27.6] - 2025-06-03
 
 ### Added
