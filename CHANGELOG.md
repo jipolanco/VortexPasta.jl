@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.27.6] - 2025-06-03
+
 ### Added
 
 - Add `BiotSavart.to_coarse_grained_vorticity!` and document how to interpolate results onto
