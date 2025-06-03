@@ -1,0 +1,320 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - ext/ext/VortexPastaMakieExt.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">ext/ext</a> - VortexPastaMakieExt.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">97.4&nbsp;%</td>
+            <td class="headerCovTableEntry">116</td>
+            <td class="headerCovTableEntry">113</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-03-05 18:25:25</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : module VortexPastaMakieExt</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : using VortexPasta.Filaments</span>
+<span id="L4"><span class="lineNum">       4</span>              : import VortexPasta.Filaments: filamentplot, filamentplot!  # make sure @recipe overloads functions in VP.Filaments</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : using MakieCore: MakieCore</span>
+<span id="L7"><span class="lineNum">       7</span>              : using Observables: Observable, @map</span>
+<span id="L8"><span class="lineNum">       8</span>              : using LinearAlgebra: normalize</span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span>              : const MaybeObservable{T} = Union{Observable{T}, T}</span>
+<span id="L11"><span class="lineNum">      11</span>              : </span>
+<span id="L12"><span class="lineNum">      12</span> <span class="tlaGNC tlaBgGNC">           2 : MakieCore.plot(f::MaybeObservable{&lt;:AbstractFilament}, args...; kws...) =</span></span>
+<span id="L13"><span class="lineNum">      13</span>              :     filamentplot(f, args...; kws...)</span>
+<span id="L14"><span class="lineNum">      14</span> <span class="tlaGNC">           6 : MakieCore.plot!(ax, f::MaybeObservable{&lt;:AbstractFilament}, args...; kws...) =</span></span>
+<span id="L15"><span class="lineNum">      15</span>              :     filamentplot!(ax, f, args...; kws...)</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : # This macro defines the functions `filamentplot` and `filamentplot!` and the type FilamentPlot,</span>
+<span id="L18"><span class="lineNum">      18</span>              : # among other things.</span>
+<span id="L19"><span class="lineNum">      19</span>              : MakieCore.@recipe(FilamentPlot) do scene</span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC">           4 :     MakieCore.Attributes(</span></span>
+<span id="L21"><span class="lineNum">      21</span>              :         refinement = 1,</span>
+<span id="L22"><span class="lineNum">      22</span>              :         marker = :circle,</span>
+<span id="L23"><span class="lineNum">      23</span>              :         markersize = 10.0f0,</span>
+<span id="L24"><span class="lineNum">      24</span>              :         linewidth = 1.5f0,</span>
+<span id="L25"><span class="lineNum">      25</span>              :         linestyle = :solid,</span>
+<span id="L26"><span class="lineNum">      26</span>              :         cycle = [:color],  # this gives the default colour cycle (see e.g. docs for Makie.lines)</span>
+<span id="L27"><span class="lineNum">      27</span>              :         color = :black,</span>
+<span id="L28"><span class="lineNum">      28</span>              :         colormap = :viridis,</span>
+<span id="L29"><span class="lineNum">      29</span>              :         colorrange = MakieCore.Automatic(),</span>
+<span id="L30"><span class="lineNum">      30</span>              :         markercolor = nothing,  # defaults to `color`</span>
+<span id="L31"><span class="lineNum">      31</span>              :         tangents = false,</span>
+<span id="L32"><span class="lineNum">      32</span>              :         curvatures = false,</span>
+<span id="L33"><span class="lineNum">      33</span>              :         tangentcolor = nothing,</span>
+<span id="L34"><span class="lineNum">      34</span>              :         curvaturecolor = nothing,</span>
+<span id="L35"><span class="lineNum">      35</span>              :         vectorpos = 0.0,</span>
+<span id="L36"><span class="lineNum">      36</span>              :         velocitycolor = nothing,</span>
+<span id="L37"><span class="lineNum">      37</span>              :         periods = (nothing, nothing, nothing),</span>
+<span id="L38"><span class="lineNum">      38</span>              : </span>
+<span id="L39"><span class="lineNum">      39</span>              :         # Arrow attributes</span>
+<span id="L40"><span class="lineNum">      40</span>              :         arrowscale = 1.0f0,</span>
+<span id="L41"><span class="lineNum">      41</span>              :         arrowwidth = MakieCore.Automatic(),</span>
+<span id="L42"><span class="lineNum">      42</span>              :         arrowsize = MakieCore.Automatic(),</span>
+<span id="L43"><span class="lineNum">      43</span>              :     )</span>
+<span id="L44"><span class="lineNum">      44</span>              : end</span>
+<span id="L45"><span class="lineNum">      45</span>              : </span>
+<span id="L46"><span class="lineNum">      46</span>              : const PlotFilamentOnly = FilamentPlot{&lt;:Tuple{&lt;:AbstractFilament}}</span>
+<span id="L47"><span class="lineNum">      47</span>              : const PlotFilamentAndVelocities = FilamentPlot{&lt;:Tuple{&lt;:AbstractFilament, &lt;:AbstractVector{&lt;:Vec3}}}</span>
+<span id="L48"><span class="lineNum">      48</span>              : </span>
+<span id="L49"><span class="lineNum">      49</span>              : # For some reason the second argument (`len`) is also needed in dispatch (not really mentioned in the Makie docs...).</span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">         106 : MakieCore.argument_names(::Type{&lt;:PlotFilamentOnly}, len::Integer) = (:filament,)</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">          41 : MakieCore.argument_names(::Type{&lt;:PlotFilamentAndVelocities}, len::Integer) = (:filament, :velocities)</span></span>
+<span id="L52"><span class="lineNum">      52</span>              : </span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaUNC tlaBgUNC">           0 : fixfirst(f::F, x) where {F} = (ys...) -&gt; f(x, ys...)</span></span>
+<span id="L54"><span class="lineNum">      54</span>              : </span>
+<span id="L55"><span class="lineNum">      55</span>              : # We use the fact that `Makie.lift` (not included in MakieCore) is the same as `map`.</span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC tlaBgGNC">           4 : function MakieCore.plot!(p::FilamentPlot)</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">           4 :     argnames = MakieCore.argument_names(p)</span></span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">           4 :     f = p.filament :: Observable{&lt;:AbstractFilament}</span></span>
+<span id="L59"><span class="lineNum">      59</span> <span class="tlaGNC">           4 :     v = (:velocities ∈ argnames) ? p.velocities : nothing</span></span>
+<span id="L60"><span class="lineNum">      60</span> <span class="tlaGNC">           4 :     Xs_line = @map _refine_filament_for_plotting(&amp;f, &amp;p.refinement, &amp;p.periods)</span></span>
+<span id="L61"><span class="lineNum">      61</span> <span class="tlaGNC">           4 :     MakieCore.lines!(</span></span>
+<span id="L62"><span class="lineNum">      62</span>              :         p, Xs_line;</span>
+<span id="L63"><span class="lineNum">      63</span>              :         color = p.color, linewidth = p.linewidth, linestyle = p.linestyle,</span>
+<span id="L64"><span class="lineNum">      64</span>              :         colormap = p.colormap, colorrange = p.colorrange,</span>
+<span id="L65"><span class="lineNum">      65</span>              :     )</span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">           4 :     Xs_nodes = map(f, p.periods) do f, Ls</span></span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">           4 :         if all(isnothing, Ls)</span></span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">           3 :             nodes(f)</span></span>
+<span id="L69"><span class="lineNum">      69</span>              :         else</span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">          17 :             map(s⃗ -&gt; Filaments.to_main_periodic_cell(s⃗, Ls), nodes(f))</span></span>
+<span id="L71"><span class="lineNum">      71</span>              :         end</span>
+<span id="L72"><span class="lineNum">      72</span>              :     end</span>
+<span id="L73"><span class="lineNum">      73</span> <span class="tlaGNC">           4 :     MakieCore.scatter!(</span></span>
+<span id="L74"><span class="lineNum">      74</span>              :         p, Xs_nodes;</span>
+<span id="L75"><span class="lineNum">      75</span>              :         color = @map(something(&amp;p.markercolor, &amp;p.color)),</span>
+<span id="L76"><span class="lineNum">      76</span>              :         marker = p.marker, markersize = p.markersize,</span>
+<span id="L77"><span class="lineNum">      77</span>              :         colormap = p.colormap, colorrange = p.colorrange,</span>
+<span id="L78"><span class="lineNum">      78</span>              :     )</span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">           4 :     arrow_attrs = @map (&amp;p.arrowscale, &amp;p.arrowwidth, &amp;p.arrowsize)  # new observable from the 3 observables</span></span>
+<span id="L80"><span class="lineNum">      80</span> <span class="tlaUNC tlaBgUNC">           0 :     let</span></span>
+<span id="L81"><span class="lineNum">      81</span> <span class="tlaGNC tlaBgGNC">           4 :         tangentcolor = @map something(&amp;p.tangentcolor, &amp;p.color)</span></span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">           4 :         @map _plot_tangents!(</span></span>
+<span id="L83"><span class="lineNum">      83</span>              :             p, f, &amp;p.tangents, &amp;p.vectorpos, &amp;p.periods, &amp;arrow_attrs;</span>
+<span id="L84"><span class="lineNum">      84</span>              :             color = &amp;tangentcolor, colormap = &amp;p.colormap, colorrange = &amp;p.colorrange,</span>
+<span id="L85"><span class="lineNum">      85</span>              :         )</span>
+<span id="L86"><span class="lineNum">      86</span>              :     end</span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaUNC tlaBgUNC">           0 :     let</span></span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC tlaBgGNC">           4 :         curvaturecolor = @map something(&amp;p.curvaturecolor, &amp;p.color)</span></span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">           4 :         @map _plot_curvatures!(</span></span>
+<span id="L90"><span class="lineNum">      90</span>              :             p, f, &amp;p.curvatures, &amp;p.vectorpos, &amp;p.periods, &amp;arrow_attrs;</span>
+<span id="L91"><span class="lineNum">      91</span>              :             color = &amp;curvaturecolor, colormap = &amp;p.colormap, colorrange = &amp;p.colorrange,</span>
+<span id="L92"><span class="lineNum">      92</span>              :         )</span>
+<span id="L93"><span class="lineNum">      93</span>              :     end</span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaGNC">           4 :     if v !== nothing</span></span>
+<span id="L95"><span class="lineNum">      95</span> <span class="tlaGNC">           1 :         velocitycolor = @map something(&amp;p.velocitycolor, &amp;p.color)</span></span>
+<span id="L96"><span class="lineNum">      96</span> <span class="tlaGNC">           1 :         @map _plot_velocities!(</span></span>
+<span id="L97"><span class="lineNum">      97</span>              :             p, f, v, &amp;p.periods, &amp;arrow_attrs;</span>
+<span id="L98"><span class="lineNum">      98</span>              :             color = &amp;velocitycolor, colormap = &amp;p.colormap, colorrange = &amp;p.colorrange,</span>
+<span id="L99"><span class="lineNum">      99</span>              :         )</span>
+<span id="L100"><span class="lineNum">     100</span>              :     end</span>
+<span id="L101"><span class="lineNum">     101</span> <span class="tlaGNC">           4 :     p</span></span>
+<span id="L102"><span class="lineNum">     102</span>              : end</span>
+<span id="L103"><span class="lineNum">     103</span>              : </span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">           4 : function _refine_filament_for_plotting(</span></span>
+<span id="L105"><span class="lineNum">     105</span>              :         f::ClosedFilament, refinement::Int, Ls::Tuple,</span>
+<span id="L106"><span class="lineNum">     106</span>              :     )</span>
+<span id="L107"><span class="lineNum">     107</span> <span class="tlaGNC">           4 :     Xs_nodes = nodes(f)</span></span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">           4 :     refinement ≥ 1 || error(&quot;refinement must be ≥ 1&quot;)</span></span>
+<span id="L109"><span class="lineNum">     109</span>              :     # Note: if `Ls` contains values different from `nothing`, then lines may need to</span>
+<span id="L110"><span class="lineNum">     110</span>              :     # be &quot;broken&quot; by inserting NaNs, and we don't know a priori how many points we need to</span>
+<span id="L111"><span class="lineNum">     111</span>              :     # return.</span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">           4 :     with_periods = any(!isnothing, Ls)</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">           4 :     T = eltype(Xs_nodes)</span></span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">           4 :     x⃗_nan = fill(NaN, T)::T</span></span>
+<span id="L115"><span class="lineNum">     115</span> <span class="tlaGNC">           4 :     Xs = similar(Xs_nodes, 0)</span></span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">           4 :     N = refinement * length(f) + 1  # the +1 is to close the loop</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">           4 :     sizehint!(Xs, N)  # this length estimate is only true when we don't need to insert NaNs</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">           4 :     n = 0</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">           4 :     subinds = range(0, 1; length = refinement + 1)[1:refinement]</span></span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">          16 :     Lhs = map(L -&gt; L === nothing ? nothing : L / 2, Ls)  # half periods</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">           4 :     x⃗_prev = Filaments.to_main_periodic_cell(first(Xs_nodes), Ls)</span></span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">           4 :     njumps = 0</span></span>
+<span id="L123"><span class="lineNum">     123</span> <span class="tlaGNC">           4 :     for i ∈ eachindex(f)</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">         128 :         for ζ ∈ subinds</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">         336 :             x⃗ = Filaments.to_main_periodic_cell(f(i, ζ), Ls)</span></span>
+<span id="L126"><span class="lineNum">     126</span>              :             # Check if we &quot;jumped&quot; from the previous position.</span>
+<span id="L127"><span class="lineNum">     127</span>              :             # Insert a NaN point in that case.</span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">         336 :             if with_periods</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">         500 :                 if Filaments.is_jump(x⃗, x⃗_prev, Lhs)</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">           8 :                     njumps += 1</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">           8 :                     push!(Xs, x⃗_nan)</span></span>
+<span id="L132"><span class="lineNum">     132</span>              :                 end</span>
+<span id="L133"><span class="lineNum">     133</span>              :             end</span>
+<span id="L134"><span class="lineNum">     134</span> <span class="tlaGNC">         336 :             push!(Xs, x⃗)</span></span>
+<span id="L135"><span class="lineNum">     135</span> <span class="tlaGNC">         336 :             x⃗_prev = x⃗</span></span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">         608 :         end</span></span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">         124 :     end</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">           4 :     @assert length(Xs) == refinement * length(f) + njumps</span></span>
+<span id="L139"><span class="lineNum">     139</span>              :     # Close the loop.</span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">           4 :     let x⃗ = Filaments.to_main_periodic_cell(f(lastindex(f), 1.0), Ls)</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">          13 :         if !Filaments.is_jump(x⃗, x⃗_prev, Lhs)</span></span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">           4 :             push!(Xs, x⃗)</span></span>
+<span id="L143"><span class="lineNum">     143</span>              :         end</span>
+<span id="L144"><span class="lineNum">     144</span>              :     end</span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">           4 :     Xs</span></span>
+<span id="L146"><span class="lineNum">     146</span>              : end</span>
+<span id="L147"><span class="lineNum">     147</span>              : </span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">           2 : function _tangents_for_arrows(f::AbstractFilament, vectorpos::Real, Ls)</span></span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">           2 :     N = length(f)</span></span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">          16 :     Xs = ntuple(_ -&gt; Vector{Float32}(undef, N), 3)  # layout accepted by Makie.arrows</span></span>
+<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">           4 :     Vs = map(similar, Xs)</span></span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">           2 :     for i ∈ eachindex(f)</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">          32 :         x = f(i, vectorpos, Derivative(0))</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">          32 :         v = f(i, vectorpos, UnitTangent())</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">          32 :         for n ∈ eachindex(x)</span></span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">          96 :             Xs[n][i] = Filaments.to_main_periodic_cell(x[n], Ls[n])</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">          96 :             Vs[n][i] = v[n]</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">         128 :         end</span></span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">          62 :     end</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">           2 :     (Xs..., Vs...)</span></span>
+<span id="L161"><span class="lineNum">     161</span>              : end</span>
+<span id="L162"><span class="lineNum">     162</span>              : </span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">          10 : function _plot_arrows!(p, arrow_attrs, args...; kwargs...)</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">           5 :     MakieCore.arrows!(p, args...; kwargs..., _arrow_kwargs(arrow_attrs)...)</span></span>
+<span id="L165"><span class="lineNum">     165</span>              : end</span>
+<span id="L166"><span class="lineNum">     166</span>              : </span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">           8 : function _plot_tangents!(</span></span>
+<span id="L168"><span class="lineNum">     168</span>              :         p::FilamentPlot, f::Observable{&lt;:AbstractFilament}, tangents::Bool,</span>
+<span id="L169"><span class="lineNum">     169</span>              :         vectorpos::Real, periods::Tuple, arrow_attrs::Tuple;</span>
+<span id="L170"><span class="lineNum">     170</span>              :         kwargs...,</span>
+<span id="L171"><span class="lineNum">     171</span>              :     )</span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">           6 :     tangents || return p</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">           4 :     data = @map _tangents_for_arrows(&amp;f, vectorpos, periods)</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">          14 :     args = ntuple(i -&gt; @map((&amp;data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">           2 :     _plot_arrows!(p, arrow_attrs, args...; kwargs...)</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">           2 :     p</span></span>
+<span id="L177"><span class="lineNum">     177</span>              : end</span>
+<span id="L178"><span class="lineNum">     178</span>              : </span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">           2 : function _curvatures_for_arrows(f::AbstractFilament, vectorpos::Real, Ls)</span></span>
+<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">           2 :     N = length(f)</span></span>
+<span id="L181"><span class="lineNum">     181</span> <span class="tlaGNC">          16 :     Xs = ntuple(_ -&gt; Vector{Float32}(undef, N), 3)  # layout accepted by Makie.arrows</span></span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">           4 :     Vs = map(similar, Xs)</span></span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">           2 :     for i ∈ eachindex(f)</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">          32 :         x = f(i, vectorpos, Derivative(0))</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">          32 :         v = f(i, vectorpos, CurvatureVector())</span></span>
+<span id="L186"><span class="lineNum">     186</span>              :         # ρ = norm(v)  # curvature (= 1 / R)</span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">          32 :         for n ∈ eachindex(x)</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">          96 :             Xs[n][i] = Filaments.to_main_periodic_cell(x[n], Ls[n])</span></span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">          96 :             Vs[n][i] = v[n]</span></span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">         128 :         end</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">          62 :     end</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">           2 :     (Xs..., Vs...)</span></span>
+<span id="L193"><span class="lineNum">     193</span>              : end</span>
+<span id="L194"><span class="lineNum">     194</span>              : </span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">           8 : function _plot_curvatures!(</span></span>
+<span id="L196"><span class="lineNum">     196</span>              :         p::FilamentPlot, f::Observable{&lt;:AbstractFilament}, curvatures::Bool,</span>
+<span id="L197"><span class="lineNum">     197</span>              :         vectorpos::Real, periods::Tuple, arrow_attrs::Tuple;</span>
+<span id="L198"><span class="lineNum">     198</span>              :         kwargs...,</span>
+<span id="L199"><span class="lineNum">     199</span>              :     )</span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">           6 :     curvatures || return p</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">           4 :     data = @map _curvatures_for_arrows(&amp;f, vectorpos, periods)</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">          14 :     args = ntuple(i -&gt; @map((&amp;data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">           2 :     _plot_arrows!(p, arrow_attrs, args...; kwargs...)</span></span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC">           2 :     p</span></span>
+<span id="L205"><span class="lineNum">     205</span>              : end</span>
+<span id="L206"><span class="lineNum">     206</span>              : </span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">           1 : function _velocities_for_arrows(f::AbstractFilament, v::AbstractVector, Ls)</span></span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">           1 :     length(v) == length(f) || throw(DimensionMismatch(&quot;wrong length of velocity vector&quot;))</span></span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">           1 :     N = length(f)</span></span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">           8 :     Xs = ntuple(_ -&gt; Vector{Float32}(undef, N), 3)  # layout accepted by Makie.arrows</span></span>
+<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC">           2 :     Vs = map(similar, Xs)</span></span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">           1 :     for i ∈ eachindex(f), n ∈ eachindex(Xs)</span></span>
+<span id="L213"><span class="lineNum">     213</span> <span class="tlaGNC">          48 :         Xs[n][i] = Filaments.to_main_periodic_cell(f[i][n], Ls[n])</span></span>
+<span id="L214"><span class="lineNum">     214</span> <span class="tlaGNC">          48 :         Vs[n][i] = v[i][n]</span></span>
+<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">          63 :     end</span></span>
+<span id="L216"><span class="lineNum">     216</span> <span class="tlaGNC">           1 :     (Xs..., Vs...)</span></span>
+<span id="L217"><span class="lineNum">     217</span>              : end</span>
+<span id="L218"><span class="lineNum">     218</span>              : </span>
+<span id="L219"><span class="lineNum">     219</span> <span class="tlaGNC">           2 : function _plot_velocities!(</span></span>
+<span id="L220"><span class="lineNum">     220</span>              :         p::FilamentPlot, f::Observable{&lt;:AbstractFilament},</span>
+<span id="L221"><span class="lineNum">     221</span>              :         v::Observable{&lt;:AbstractVector}, periods::Tuple, arrow_attrs::Tuple;</span>
+<span id="L222"><span class="lineNum">     222</span>              :         kwargs...,</span>
+<span id="L223"><span class="lineNum">     223</span>              :     )</span>
+<span id="L224"><span class="lineNum">     224</span> <span class="tlaGNC">           2 :     data = @map _velocities_for_arrows(&amp;f, &amp;v, periods)</span></span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">           7 :     args = ntuple(i -&gt; @map((&amp;data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables</span></span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">           1 :     _plot_arrows!(p, arrow_attrs, args...; kwargs...)</span></span>
+<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">           1 :     p</span></span>
+<span id="L228"><span class="lineNum">     228</span>              : end</span>
+<span id="L229"><span class="lineNum">     229</span>              : </span>
+<span id="L230"><span class="lineNum">     230</span>              : # Convert input arrow arguments to arguments for MakieCore.arrows!.</span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">           5 : function _arrow_kwargs(arrow_attrs::Tuple)</span></span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">           5 :     arrowscale, arrowwidth, arrowsize = arrow_attrs</span></span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">           5 :     (;</span></span>
+<span id="L234"><span class="lineNum">     234</span>              :         arrowsize,</span>
+<span id="L235"><span class="lineNum">     235</span>              :         linewidth = arrowwidth,</span>
+<span id="L236"><span class="lineNum">     236</span>              :         lengthscale = arrowscale,</span>
+<span id="L237"><span class="lineNum">     237</span>              :     )</span>
+<span id="L238"><span class="lineNum">     238</span>              : end</span>
+<span id="L239"><span class="lineNum">     239</span>              : </span>
+<span id="L240"><span class="lineNum">     240</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
