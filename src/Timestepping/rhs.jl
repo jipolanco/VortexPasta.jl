@@ -22,7 +22,7 @@ function update_values_at_nodes!(
     # (3) Modify final velocities if running in non-default mode (optional)
     if iter.mode === MinimalEnergy() && haskey(fields, :velocity)
         # Replace velocities (which will be used for advection) with -s⃗′ × v⃗ₛ
-        _minimal_energy_velocities!(fields.velocity, iter.tangents; scheduler)
+        _minimal_energy_velocities!(fields.velocity, iter.tangents, iter; scheduler)
     end
     fields
 end
@@ -45,12 +45,15 @@ function _update_unit_tangents!(tangents_all, fs; scheduler)
     tangents_all
 end
 
-function _minimal_energy_velocities!(vs_all, tangents_all; scheduler)
-    for n in eachindex(vs_all, tangents_all)
+function _minimal_energy_velocities!(vL_all, tangents_all, iter; scheduler)
+    vs_all = iter.vs  # BS velocities will be copied here
+    for n in eachindex(vL_all, vs_all, tangents_all)
+        vL = vL_all[n]
         vs = vs_all[n]
         tangents = tangents_all[n]
-        tforeach(eachindex(vs, tangents); scheduler) do i
-            vs[i] = vs[i] × tangents[i]  # = -s⃗′ × v⃗ₛ
+        tforeach(eachindex(vL, vs, tangents); scheduler) do i
+            vs[i] = vL[i]  # copy actual BS velocity into iter.vs
+            vL[i] = vL[i] × tangents[i]  # = -s⃗′ × v⃗ₛ
         end
     end
     vs_all

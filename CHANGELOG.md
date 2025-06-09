@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `MinimalEnergy` mode: throw error if forcing is enabled. Also, store self-induced velocity
+  (`vs`) in addition to actual filament velocity (`vL`).
+
 ### Added
 
 - Coarse-grained vorticity: print warning if smoothing scale is too small (compared to Ewald

@@ -658,6 +658,12 @@ function init(
     ψs = similar(vs)
     tangents = map(similar ∘ nodes, fs)  # unit tangents (not interpolable)
 
+    mode === MinimalEnergy() && forcing !== NoForcing() && throw(
+        ArgumentError(
+            "forcing should be disabled in MinimalEnergy mode"
+        )
+    )
+
     quantities_base = (; vs, ψs, tangents,)
     quantities = if forcing isa NormalFluidForcing
         (; quantities_base..., vL = similar(vs), vn = similar(vs),)
@@ -665,6 +671,8 @@ function init(
         (; quantities_base..., v_ns = similar(vs), vL = similar(vs),)  # we separately store vs and vL
     elseif forcing isa FourierBandForcingBS
         (; quantities_base..., vL = similar(vs),)  # no normal fluid in this case
+    elseif mode === MinimalEnergy()
+        (; quantities_base..., vL = similar(vs),)  # vL and vs are different; in fact vL = -s′ × vs
     else
         (; quantities_base..., vL = vs,)  # vL is an alias to vs
     end

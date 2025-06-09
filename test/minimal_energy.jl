@@ -7,6 +7,7 @@ using VortexPasta.PredefinedCurves
 using VortexPasta.FilamentIO
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
+using LinearAlgebra: ×
 using Test
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
@@ -60,6 +61,15 @@ function test_with_rotation(; save_outputs = false,)
         mode = MinimalEnergy(),
     )
 
+    # Check that vs holds the Biot-Savart velocity, while vL holds the actual velocity
+    # applied to the vortices.
+    let (; vs, vL,) = iter
+        for n in eachindex(iter.fs), i in eachindex(iter.fs[n])
+            s⃗′ = iter.fs[n][i, UnitTangent()]
+            @test vL[n][i] ≈ -s⃗′ × vs[n][i]
+        end
+    end
+
     vortex_length_err = Inf    # this is 0 if all vortices are perfectly straight (converges fast)
     vortex_distance_err = Inf  # this is 0 if vortices form a perfectly regular lattice (takes more time to converge)
 
@@ -70,7 +80,8 @@ function test_with_rotation(; save_outputs = false,)
         if save_outputs && iter.nstep % 10 == 0
             filename = "min_energy_$(iter.nstep).vtkhdf"
             save_checkpoint(filename, iter) do io
-                io["velocity"] = iter.vs
+                io["velocity_BS"] = iter.vs
+                io["velocity_L"] = iter.vL
             end
             tsf[iter.t] = filename
             save("min_energy.vtkhdf.series", tsf)
@@ -79,7 +90,7 @@ function test_with_rotation(; save_outputs = false,)
         (; nstep, t) = iter
         Lvort = Diagnostics.filament_length(iter; quad = GaussLegendre(3))
         E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
-        v²_max = maximum(iter.vs) do vs
+        v²_max = maximum(iter.vL) do vs
             maximum(v -> sum(abs2, v), vs)
         end
         vortex_distance = (iter.fs[2][1] - iter.fs[1][1]).x
