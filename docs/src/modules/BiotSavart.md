@@ -2,7 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.BiotSavart
-CollapsedDocStrings = true
+CollapsedDocStrings = false
 ```
 
 ```@docs

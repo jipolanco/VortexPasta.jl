@@ -2,7 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.PredefinedCurves
-CollapsedDocStrings = true
+CollapsedDocStrings = false
 ```
 
 ```@docs

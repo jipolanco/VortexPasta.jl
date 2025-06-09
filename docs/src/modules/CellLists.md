@@ -2,7 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.CellLists
-CollapsedDocStrings = true
+CollapsedDocStrings = false
 ```
 
 ```@docs

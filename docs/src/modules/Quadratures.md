@@ -2,7 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.Quadratures
-CollapsedDocStrings = true
+CollapsedDocStrings = false
 ```
 
 ```@docs

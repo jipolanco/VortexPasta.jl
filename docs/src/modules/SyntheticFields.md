@@ -2,7 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.SyntheticFields
-CollapsedDocStrings = true
+CollapsedDocStrings = false
 ```
 
 ```@docs

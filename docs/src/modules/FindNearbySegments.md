@@ -2,7 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.FindNearbySegments
-CollapsedDocStrings = true
+CollapsedDocStrings = false
 ```
 
 ```@docs

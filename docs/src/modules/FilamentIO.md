@@ -2,7 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.FilamentIO
-CollapsedDocStrings = true
+CollapsedDocStrings = false
 ```
 
 ```@docs

@@ -2,7 +2,7 @@
 
 ```@meta
 CurrentModule = VortexPasta.Reconnections
-CollapsedDocStrings = true
+CollapsedDocStrings = false
 ```
 
 ```@docs
