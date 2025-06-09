@@ -43,11 +43,13 @@ of a periodic cell in periodic domains).
 
 ## Mandatory arguments
 
-- `ψs`: streamfunction values at filament nodes;
-
 - `fs`: vortex filament locations;
 
-- `Γ::Real`: quantum of circulation.
+- `ψs`: streamfunction values at filament nodes;
+
+- `Γ::Real`: quantum of circulation; or
+
+- `p::ParamsBiotSavart`: Biot–Savart parameters (see [`ParamsBiotSavart`](@ref)).
 
 ## Optional arguments
 
@@ -99,15 +101,6 @@ function kinetic_energy_from_streamfunction(fs::AbstractFilament, ψs::SingleFil
     kinetic_energy_from_streamfunction(fs, ψs, p.Γ, p.Ls; kws...)
 end
 
-function _domain_volume(Ls)
-    V = prod(Ls)
-    if V === Infinity()
-        true  # set volume to 1 for infinite domain
-    else
-        V
-    end
-end
-
 # 1. No quadratures (cheaper)
 function _kinetic_energy_from_streamfunction(::Nothing, f, ψf, Γ, Ls)
     prefactor = Γ / (2 * _domain_volume(Ls))
@@ -123,7 +116,7 @@ function _kinetic_energy_from_streamfunction(::Nothing, f, ψf, Γ, Ls)
     prefactor * E
 end
 
-# With quadratures (requires interpolating the streamfunction along filaments)
+# 2. With quadratures (requires interpolating the streamfunction along filaments)
 function _kinetic_energy_from_streamfunction(quad, f, ψf, args...)
     _kinetic_energy_from_streamfunction(isinterpolable(ψf), quad, f, ψf, args...)
 end

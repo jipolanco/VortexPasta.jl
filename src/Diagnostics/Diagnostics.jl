@@ -36,11 +36,23 @@ struct IsInterpolable{B}
     IsInterpolable(b::Bool) = new{b}()
 end
 
+(::IsInterpolable{a} & ::IsInterpolable{b}) where {a, b} = IsInterpolable(a && b)
+
 isinterpolable(::Type{<:AbstractVector}) = IsInterpolable(false)
 isinterpolable(::Type{<:AbstractFilament}) = IsInterpolable(true)
 isinterpolable(u::AbstractVector) = isinterpolable(typeof(u))  # note: this also applies to filaments (since AbstractFilament <: AbstractVector)
 
+function _domain_volume(Ls)
+    V = prod(Ls)
+    if V === Infinity()
+        true  # set volume to 1 for infinite domain
+    else
+        V
+    end
+end
+
 include("energy.jl")
+include("energy_injection.jl")
 include("helicity.jl")
 include("filament_length.jl")
 include("vortex_impulse.jl")

@@ -27,6 +27,12 @@ function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws.
     Diagnostics.kinetic_energy_nonperiodic(fs, vs, iter.prob.p; kws...)
 end
 
+function Diagnostics.energy_injection_rate(iter::VortexFilamentSolver; kws...)
+    (; vs, fs, vL,) = iter
+    p = iter.prob.p
+    Diagnostics.energy_injection_rate(fs, vL, vs, p; kws...)
+end
+
 # Note: filament_length is actually defined in the Filaments module, but we extend its
 # alias in Diagnostics just for consistency with the other diagnostics (it doesn't make any
 # difference really!).

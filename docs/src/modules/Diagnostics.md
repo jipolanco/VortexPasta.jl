@@ -17,6 +17,12 @@ kinetic_energy_from_streamfunction
 kinetic_energy_nonperiodic
 ```
 
+## Energy injection rate
+
+```@docs
+energy_injection_rate
+```
+
 ## Helicity
 
 ```@docs

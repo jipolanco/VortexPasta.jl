@@ -287,15 +287,18 @@ end
             times = Float64[]
             energy_k = Float64[]  # energy at forced wavevectors
             energy = Float64[]
+            ε_inj_time = Float64[]  # we currently don't use this
             function callback(iter)
                 iter.nstep == 0 && empty!.((times, energy, energy_k))
                 Ek = sum(iter.forcing_cache.qs) do q⃗  # sum energies of all forced wavevectors
                     get_energy_at_normalised_wavevector(iter.cache_bs, q⃗)
                 end
                 E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+                ε = Diagnostics.energy_injection_rate(iter; quad = GaussLegendre(3))
                 push!(times, iter.t)
                 push!(energy_k, Ek)
                 push!(energy, E)
+                push!(ε_inj_time, ε)
                 nothing
             end
             (; iter, E_ratio, spectra) = simulate(prob, forcing; callback, dt_factor = 0.5)
@@ -311,7 +314,7 @@ end
                 display(plt)
             end
             let a = searchsortedlast(times, a), b = searchsortedlast(times, b)
-                ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # mean energy injection rate at forced wavevectors
+                local ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # mean energy injection rate at forced wavevectors
                 # @show ε_inj
                 @test ε_inj ≈ forcing.ε_target rtol=1e-2
             end
@@ -323,13 +326,16 @@ end
             times = Float64[]
             energy_k = Float64[]
             energy = Float64[]
+            ε_inj_time = Float64[]  # we currently don't use this
             function callback(iter)
                 iter.nstep == 0 && empty!.((times, energy, energy_k))
                 Ek = get_energy_at_normalised_wavevector(iter.cache_bs, qs[1])
                 E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+                ε = Diagnostics.energy_injection_rate(iter; quad = GaussLegendre(3))
                 push!(times, iter.t)
                 push!(energy_k, Ek)
                 push!(energy, E)
+                push!(ε_inj_time, ε)
                 nothing
             end
             (; iter, E_ratio, spectra) = simulate(prob, forcing; callback)
@@ -348,7 +354,7 @@ end
             end
             # Check linear evolution at beginning of simulation, with the expected ε.
             let a = eachindex(times)[begin + 1], b = eachindex(times)[end ÷ 3]
-                ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # energy injection rate at wavenumber k⃗
+                local ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # energy injection rate at wavenumber k⃗
                 # @show ε_inj
                 @test ε_inj ≈ forcing.ε_target rtol=1e-3  # the ε_target really represents the energy injection rate at this wavevector!
             end

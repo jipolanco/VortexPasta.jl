@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `Diagnostics.energy_injection_rate` for estimation of energy injection (or
+  dissipation) rate due to external velocities / forcing.
+
 - Coarse-grained vorticity: print warning if smoothing scale is too small (compared to Ewald
   splitting scale) to guarantee good accuracy.
 
