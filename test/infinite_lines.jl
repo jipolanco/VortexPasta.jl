@@ -216,6 +216,10 @@ function test_infinite_lines(method)
 
     @testset "Energy spectrum" begin
         ks, Ek = Diagnostics.energy_spectrum(cache)
+        _, Hk = Diagnostics.helicity_spectrum(cache)
+        dk = ks[2] - ks[1]
+        # @show sum(abs, Hk) * dk / params.Γ^2
+        @test sum(abs, Hk) * dk / params.Γ^2 < 1e-14  # no helicity
         local (; Γ, Ls,) = params
         local Lvort = Diagnostics.filament_length(filaments; quad = GaussLegendre(4))
         local Cspec = Γ^2 * Lvort / (4π * prod(Ls))  # analytical prefactor of energy spectrum at large k

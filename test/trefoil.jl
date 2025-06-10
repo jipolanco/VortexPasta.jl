@@ -4,6 +4,7 @@ using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.Filaments
 using VortexPasta.Filaments: GeometricQuantity, Vec3
 using VortexPasta.BiotSavart
+using VortexPasta.Diagnostics
 using ForwardDiff: ForwardDiff
 using ThreadPinning: ThreadPinning  # for testing the interaction between ThreadPinning and FINUFFTBackend
 using FINUFFT: FINUFFT  # required for FINUFFTBackend
@@ -297,7 +298,7 @@ end
 
 function compute_filament_velocity_and_streamfunction(f::AbstractFilament; α, Ls, params_kws...)
     rcut = 4 * sqrt(2) / α
-    @assert rcut < minimum(Ls) / 3  # cell lists requirement
+    @assert rcut < minimum(Ls) * 2 / 5  # cell lists requirement (with nsubdiv = 2)
     params = ParamsBiotSavart(; params_kws..., α, Ls, rcut)
     fs = [f]
     cache = init_cache(params, fs)
@@ -336,6 +337,42 @@ function check_independence_on_ewald_parameter(f, αs; quad = GaussLegendre(2), 
     # @show maxdiffs_vel maxdiffs_stf
     @test maximum(maxdiffs_vel) < 3e-4
     @test maximum(maxdiffs_stf) < 1e-5
+    nothing
+end
+
+function test_helicity(f; quadrature = GaussLegendre(3), Ns, Ls, params_kws...)
+    β = 3.5
+    kmax = minimum(2π .* Ns ./ Ls)
+    α = kmax / 2β
+    rcut = β / α
+    backend_short = CellListsBackend(2)
+    params = ParamsBiotSavart(; α, Ns, Ls, rcut, quadrature, backend_short, params_kws...)
+    fs = [f]
+    cache = init_cache(params, fs)
+    vs = map(similar ∘ nodes, fs)
+    fields = (
+        velocity = vs,
+    )
+    ks, Hk = Diagnostics.init_spectrum(cache)
+    function callback_vorticity(cache::BiotSavart.LongRangeCache)
+        Diagnostics.helicity_spectrum!(Hk, ks, cache)  # compute helicity spectrum directly from vorticity
+        nothing
+    end
+    compute_on_nodes!(fields, cache, fs; callback_vorticity)
+    Hk_from_vort = copy(Hk)
+    fill!(Hk, 0)
+    Diagnostics.helicity_spectrum!(Hk, ks, cache)  # now compute helicity spectrum from smoothed velocity
+    @test Hk_from_vort ≈ Hk  # compare two different implementations
+    H = Diagnostics.helicity(fs, vs, params; quad = quadrature)
+    # open("Hk.dat", "w") do io
+    #     for H in Hk
+    #         println(io, H)
+    #     end
+    # end
+    dk = ks[2] - ks[1]
+    H_from_spectrum = sum(Hk) * dk
+    # @show H H_from_spectrum
+    @test 3H < H_from_spectrum < H < 0  # very rough approximation (spectrum decays very slowly; in fact I'm not sure it actually decays!)
     nothing
 end
 
@@ -379,7 +416,7 @@ end
     Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
     Ns = (3, 3, 4) .* 30
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    params_kws = (; Ls, Ns, Γ = 2.0, a = 1e-5,)
+    params_kws = (; Ls, Ns, Γ = 7.4, a = 1e-5,)
     α_default = kmax / 8
     @testset "Long range" begin
         # Test NUFFT backends with default parameters
@@ -407,6 +444,9 @@ end
             f_fourier = @inferred init_trefoil_filament(32; method = FourierMethod())
             check_independence_on_ewald_parameter(f_fourier, αs; params_kws...)
         end
+    end
+    @testset "Helicity" begin
+        test_helicity(f; params_kws...)
     end
     @testset "Curvature" begin
         methods = (FiniteDiffMethod(), CubicSplineMethod(), QuinticSplineMethod(), FourierMethod())

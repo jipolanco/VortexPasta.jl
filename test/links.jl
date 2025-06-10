@@ -26,7 +26,7 @@ function generate_biot_savart_parameters(::Type{T}; periodic = Val(true)) where 
     Ls = (L, L, L)
     Ns = (Ngrid, Ngrid, Ngrid)
     kmax = (Ngrid ÷ 2) * 2π / L
-    β = 3
+    β = 3.5
     α = kmax / 2β
     rcut = β / α
     backend_long = NonuniformFFTsBackend(σ = T(1.5), m = HalfSupport(4))
@@ -86,6 +86,17 @@ function test_linked_rings(
     @test H_no_quad isa T
     @test H isa T
 
+    if periodic === Val(true)
+        # Note: in this case the helicity spectrum decays very slowly, so the sum gives a
+        # very rough approximation to the actual helicity.
+        ks, Hk = @inferred Diagnostics.helicity_spectrum(iter)
+        dk = ks[2] - ks[1]
+        println(Hk ./ params.Γ^2)
+        H_from_spectrum = sum(Hk) * dk
+        # @show H H_from_spectrum
+        @test 2 * H_from_spectrum < H < H_from_spectrum < 0
+    end
+
     # @show (H - H_no_quad) / H
     @test isapprox(H, H_no_quad)  # there is really no difference between the two
 
@@ -96,7 +107,7 @@ function test_linked_rings(
     if periodic === Val(true)
         # When periodicity is enabled, the accuracy seems to be mainly controlled by the
         # splitting parameter α/kmax and by the accuracy of the NUFFTs.
-        rtol = 1e-5
+        rtol = 4e-6
     else
         rtol = 2e-9  # without periodicity things are really accurate
     end
@@ -161,6 +172,7 @@ end
     N = 48
     method = QuinticSplineMethod()
     R = 1.2
-    periodic = Val(false)  # in this case it's faster to disable periodicity
-    test_linked_rings(T, N, method; R, periodic)
+    @testset "Periodic: $periodic" for periodic in (Val(false), Val(true))
+        test_linked_rings(T, N, method; R, periodic)
+    end
 end

@@ -51,7 +51,7 @@ function helicity_spectrum!(
     )
     (; state, ewald_op_d, ewald_prefactor,) = cache.common
     σ = BiotSavart.ewald_smoothing_scale(cache)
-    p = BiotSavart.get_parameters(cache)
+    p = BiotSavart.get_parameters(cache).common
     V = prod(p.Ls)  # domain volume
     from_smoothed_velocity = state.quantity == :velocity && state.smoothing_scale == σ  # smoothed velocity
     from_vorticity = state.quantity == :vorticity && state.smoothing_scale == 0  # unsmoothed vorticity
@@ -85,8 +85,9 @@ function helicity_spectrum!(
         end
     elseif from_vorticity
         _compute_spectrum!(Hk, ks, cache) do ω⃗, k⃗, k², I
-            local u⃗ = im * (k⃗ × ω⃗) / k²
-            2V * γ² * real(u⃗ × ω⃗)
+            local β = ifelse(iszero(k²), one(γ²), γ² / k²)
+            local u⃗_lap = im * (k⃗ × ω⃗)  # this is k² * û
+            2V * β * real(u⃗_lap ⋅ ω⃗)
         end
     else
         error(lazy"the current state of the long-range cache ($state) is currently not supported")
