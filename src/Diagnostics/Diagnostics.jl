@@ -51,6 +51,8 @@ function _domain_volume(Ls)
     end
 end
 
+_domain_volume(p::ParamsBiotSavart) = _domain_volume(p.Ls)
+
 include("energy.jl")
 include("energy_injection.jl")
 include("helicity.jl")
