@@ -53,10 +53,12 @@ stretching_rate
 vortex_impulse
 ```
 
-## Energy spectrum
+## Energy and helicity spectrum
 
 ```@docs
-energy_spectrum!
+init_spectrum
 energy_spectrum
-init_energy_spectrum
+energy_spectrum!
+helicity_spectrum
+helicity_spectrum!
 ```
