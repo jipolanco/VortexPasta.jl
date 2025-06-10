@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.27.7] - 2025-06-10
+
 ### Changed
 
 - `MinimalEnergy` mode: throw error if forcing is enabled. Also, store self-induced velocity
