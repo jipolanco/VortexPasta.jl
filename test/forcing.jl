@@ -75,6 +75,7 @@ function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0, callbac
     E_init = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
     E_final = E_init
     ks_spec, Ek_init = Diagnostics.energy_spectrum(iter)
+    _, Hk_init = Diagnostics.helicity_spectrum(iter)
     while iter.t < prob.tspan[2]
         E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
         E_final = E
@@ -84,8 +85,9 @@ function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0, callbac
         step!(iter)
     end
     _, Ek_final = Diagnostics.energy_spectrum(iter)
+    _, Hk_final = Diagnostics.helicity_spectrum(iter)
     E_ratio = E_final / E_init
-    spectra = (; ks = ks_spec, Ek_init, Ek_final,)
+    spectra = (; ks = ks_spec, Ek_init, Ek_final, Hk_init, Hk_final,)
     (; iter, E_ratio, spectra,)
 end
 

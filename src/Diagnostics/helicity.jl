@@ -20,10 +20,16 @@ The [helicity](https://en.wikipedia.org/wiki/Hydrodynamical_helicity) is defined
 where ``\bm{u}(\bm{x})`` and ``\bm{ω}(\bm{x}) = \bm{∇} × \bm{u}(\bm{x})`` are the velocity
 and vorticity fields, and ``\bm{v}(\bm{s})`` is the velocity of the set of vortex filaments.
 
+Note that the returned helicity has units of a squared circulation (``Γ^2 ∼ L^4 T^{-2}``).
+
 # Arguments
 
 - `fs`: list of vortex filaments (or a single `AbstractFilament`);
+
 - `vs`: list of velocities on filament nodes (or a single vector of velocities on a filament);
+
+- `p`: Biot–Savart parameters; or
+
 - `Γ`: vortex circulation.
 
 See e.g. [`kinetic_energy_from_streamfunction`](@ref) for the meaning of the optional `quad`

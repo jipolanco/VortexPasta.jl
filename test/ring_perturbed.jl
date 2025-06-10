@@ -77,7 +77,7 @@ function test_perturbed_vortex_ring()
             yield()
         end
         local (; fs, ψs, vs,) = iter
-        local (; Ls,) = iter.prob.p
+        local (; Ls, Γ,) = iter.prob.p
         if nstep % 100 == 0  # don't output very often; just for tests
             # Compare with diagnostics implementations which don't take an interpolable
             # field as input, so they must build the interpolation themselves.
@@ -88,7 +88,8 @@ function test_perturbed_vortex_ring()
             dLdt_alt = Diagnostics.stretching_rate(fs, vs_p; quad)
             @test dLdt == dLdt_alt
             @test E ≈ E_alt atol=(10 * eps(E))  # these should be exactly the same, but may differ by ϵ
-            @test abs(H) < 1e-5  # in theory it's equal to zero
+            # @show abs(H / Γ)
+            @test abs(H / Γ) < 2e-5  # in theory it's equal to zero
             @test H ≈ H_alt
             let fname = "ring_perturbed_$nstep.vtkhdf"
                 save_checkpoint(fname, iter; refinement = 4) do io
@@ -153,7 +154,7 @@ function test_perturbed_vortex_ring()
     end
 
     # Helicity should be zero at all times.
-    Hnorm = helicity_time ./ Γ^2
+    Hnorm = helicity_time ./ Γ
     # @show extrema(Hnorm)
     @test maximum(abs, Hnorm) < 2e-5
 

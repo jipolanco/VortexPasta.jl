@@ -51,6 +51,8 @@ function _domain_volume(Ls)
     end
 end
 
+_domain_volume(p::ParamsBiotSavart) = _domain_volume(p.Ls)
+
 include("energy.jl")
 include("energy_injection.jl")
 include("helicity.jl")
@@ -58,5 +60,6 @@ include("filament_length.jl")
 include("vortex_impulse.jl")
 include("stretching.jl")
 include("spectra.jl")
+include("spectra_helicity.jl")
 
 end

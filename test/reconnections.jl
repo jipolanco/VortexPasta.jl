@@ -72,6 +72,14 @@ function no_jumps(f::AbstractFilament, lmax)
     maximum(norm, diff(Xs)) < lmax
 end
 
+function write_vectors(io, vecs...)
+    for i in eachindex(vecs...)
+        vals = map(v -> v[i], vecs)
+        join(io, vals, '\t')
+        print(io, '\n')
+    end
+end
+
 trefoil_scheme_dt(::Any) = trefoil_scheme_dt(RK4())  # default
 trefoil_scheme_dt(::RK4) = 1.0
 trefoil_scheme_dt(::DP5) = 1.0
@@ -88,15 +96,15 @@ function test_trefoil_knot_reconnection(scheme = RK4())
 
     params_bs = let L = 2π
         Ls = (1, 1, 1) .* L
-        β = 3.0  # accuracy coefficient
-        rcut = L / 2
+        β = 3.5  # accuracy coefficient
+        rcut = L / 4
         α = β / rcut
         kmax = 2α * β
         M = ceil(Int, kmax * L / π)
         Ns = (1, 1, 1) .* M
         ParamsBiotSavart(;
             Γ = 2.0, α, a = 1e-6, Δ = 1/4, rcut, Ls, Ns,
-            backend_short = NaiveShortRangeBackend(),
+            backend_short = CellListsBackend(2),
             backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(3)),
             quadrature = GaussLegendre(3),
             lia_segment_fraction = 0.2,
@@ -106,6 +114,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
 
     times = Float64[]
     energy = similar(times)
+    helicity = similar(times)
     n_reconnect = Ref(0)
     t_reconnect = Ref(0.0)
 
@@ -116,8 +125,11 @@ function test_trefoil_knot_reconnection(scheme = RK4())
             n_reconnect[] = t_reconnect[] = 0
         end
         push!(times, t)
-        E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(4))
+        local quad = GaussLegendre(4)
+        E = Diagnostics.kinetic_energy(iter; quad)
+        H = Diagnostics.helicity(iter; quad)
         push!(energy, E)
+        push!(helicity, H)
         Nf = length(fs)
         # write_vtkhdf("trefoil_$nstep.vtkhdf", fs; refinement = 4) do io
         #     io["velocity"] = iter.vs
@@ -153,6 +165,13 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         adaptivity = NoAdaptivity(),
         callback,
     )
+
+    let
+        ks, Ek = Diagnostics.energy_spectrum(iter)
+        _, Hk = Diagnostics.helicity_spectrum(iter)
+        # open(io -> write_vectors(io, ks, Ek, Hk), "trefoil_spectra_before.dat", "w")
+    end
+
     if VERBOSE
         @time solve!(iter)
         println(iter.to)
@@ -160,12 +179,24 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         solve!(iter)
     end
 
+    let
+        ks, Ek = Diagnostics.energy_spectrum(iter)
+        _, Hk = Diagnostics.helicity_spectrum(iter)
+        # open(io -> write_vectors(io, ks, Ek, Hk), "trefoil_spectra_after.dat", "w")
+    end
+
     energy_rel = energy ./ energy[begin]
+    helicity_rel = helicity ./ helicity[begin]
 
     if VERBOSE
         plt = lineplot(
             times, energy_rel;
             xlabel = "Time", ylabel = "Energy", title = "Trefoil knot / $scheme",
+        )
+        println(plt)
+        plt = lineplot(
+            times, helicity_rel;
+            xlabel = "Time", ylabel = "Helicity", title = "Trefoil knot / $scheme",
         )
         println(plt)
     end

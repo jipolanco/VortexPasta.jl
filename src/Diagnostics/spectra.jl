@@ -44,7 +44,7 @@ velocity field. Currently, the `unfilter` argument is ignored in this case.
 
 The vectors `Ek` and `ks` are expected to have the same length. Moreover, the vector of
 wavenumbers `ks` should satisfy `ks[begin] == 0` and have a constant step
-`Δk = ks[i + 1] - ks[i]`. For convenience, the [`init_energy_spectrum`](@ref) function can
+`Δk = ks[i + 1] - ks[i]`. For convenience, the [`init_spectrum`](@ref) function can
 be used to create these vectors.
 
 See also [`energy_spectrum`](@ref) for an allocating variant which doesn't need predefined
@@ -55,18 +55,19 @@ function energy_spectrum! end
 get_long_range_cache(c::BiotSavartCache) = c.longrange
 
 """
-    Diagnostics.init_energy_spectrum(cache) -> (ks, Ek)
+    Diagnostics.init_spectrum(iter::VortexFilamentSolver) -> (ks, Ek)
+    Diagnostics.init_spectrum(cache) -> (ks, Ek)
 
-Initialise fields for storing an energy spectrum.
+Initialise fields for storing an energy or helicity spectrum.
 
-Returns a wavenumber vector `ks` and an uninitialised energy spectrum `Ek` with the right
-dimensions, which can be then passed to [`energy_spectrum!`](@ref).
+Returns a wavenumber vector `ks` and an uninitialised spectrum `Ek` with the right
+dimensions, which can be then passed to [`energy_spectrum!`](@ref) or [`helicity_spectrum!](@ref).
 
 The returned arrays are always on the CPU, even when the `cache` contains GPU data.
 
 See [`energy_spectrum!`](@ref) for details on the `cache` argument.
 """
-function init_energy_spectrum(cache::LongRangeCache)
+function init_spectrum(cache::LongRangeCache)
     (; wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
     kxs = adapt(Array, wavenumbers[1])  # make sure these are on the CPU
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)
@@ -79,10 +80,12 @@ function init_energy_spectrum(cache::LongRangeCache)
     ks, Ek
 end
 
-init_energy_spectrum(c) = init_energy_spectrum(get_long_range_cache(c))
+init_spectrum(c) = init_spectrum(get_long_range_cache(c))
+
+init_energy_spectrum(c) = init_spectrum(c)  # for backwards compatibility
 
 function energy_spectrum(cache; kws...)
-    ks, Ek = init_energy_spectrum(cache)
+    ks, Ek = init_spectrum(cache)
     energy_spectrum!(Ek, ks, cache; kws...)
 end
 
@@ -97,10 +100,11 @@ function energy_spectrum!(
     γ² = ewald_prefactor^2  # = (Γ/V)^2
     if from_smoothed_velocity
         if unfilter
-            energy_spectrum!(Ek, ks, cache) do u², k⃗, k², I
+            _compute_spectrum!(Ek, ks, cache) do u⃗, k⃗, k², I
                 # It's slightly faster to reuse values in ewald_op_d than to recompute exponentials...
+                local u² = sum(abs2, u⃗)
                 local w = @inbounds k² * ewald_op_d[I]
-                β = ifelse(
+                local β = ifelse(
                     iszero(w),
                     one(γ²),   # set the factor to 1 if k² == 0
                     γ² / w^2,  # note: γ cancels out with prefactor already included in ewald_op_d
@@ -109,13 +113,14 @@ function energy_spectrum!(
                 u² * β
             end
         else
-            energy_spectrum!(Ek, ks, cache) do u², k⃗, k², I
-                u²  # return unmodified coefficient
+            _compute_spectrum!(Ek, ks, cache) do u⃗, k⃗, k², I
+                sum(abs2, u⃗)  # return unmodified coefficient
             end
         end
     elseif from_vorticity
-        energy_spectrum!(Ek, ks, cache) do u², k⃗, k², I
-            β = ifelse(iszero(k²), one(γ²), γ² / k²)
+        _compute_spectrum!(Ek, ks, cache) do u⃗, k⃗, k², I
+            local u² = sum(abs2, u⃗)
+            local β = ifelse(iszero(k²), one(γ²), γ² / k²)
             β * u²
         end
     else
@@ -127,13 +132,10 @@ end
 energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, cache; kws...) =
     energy_spectrum!(Ek, ks, get_long_range_cache(cache); kws...)
 
-energy_spectrum!(f::F, Ek::AbstractVector, ks::AbstractVector, cache; kws...) where {F <: Function} =
-    energy_spectrum!(f, Ek, ks, get_long_range_cache(cache); kws...)
-
 # This variant is for now internal and not documented.
 # Note: `Ek` is generally an array on the CPU, while the spectrum is computed on the GPU if
 # `cache` contains GPU data.
-function energy_spectrum!(
+function _compute_spectrum!(
         f::F, Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache,
     ) where {F <: Function}
     (; field, wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
@@ -162,7 +164,7 @@ function energy_spectrum!(
     ngroups = cld.(dims, groupsize)  # number of workgroups in each direction
     ndrange = ngroups .* groupsize   # pad array dimensions
     Nk = length(Ek)
-    kernel! = ka_generate_kernel(energy_spectrum_kernel!, backend, ndrange)
+    kernel! = ka_generate_kernel(compute_spectrum_kernel!, backend, ndrange)
 
     # Use Bumper to allocate temporary CPU arrays (doesn't do anything for GPU arrays).
     buf = Bumper.default_buffer()
@@ -201,7 +203,7 @@ end
 # Here Ek_blocks is an array of dimensions (Nk, number_of_workgroups...).
 # Note that `uhat` must be passed as a tuple of arrays (u, v, w).
 # NOTE: this is probably not optimal for CPU threads.
-@kernel function energy_spectrum_kernel!(
+@kernel function compute_spectrum_kernel!(
         f::F,
         Ek_blocks::AbstractArray, @Const(uhat::Tuple),
         @Const(wavenumbers::Tuple),
@@ -225,22 +227,24 @@ end
     #  - n = wavenumber bin corresponding to the local k⃗
     # Results are written to the shared memory arrays E_sm and n_sm (fast storage shared by the workgroup).
     if checkbounds(Bool, uhat[1], I)
-        k⃗ = map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I))
-        kx = k⃗[1]
+        k⃗ = Vec3(map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I)))
+        kx = k⃗[1]::T
 
         # Find bin for current k⃗
         factor = ifelse(!with_hermitian_symmetry || iszero(kx), T(0.5), T(1.0))
-        k² = sum(abs2, k⃗)
+        k² = sum(abs2, k⃗)::T
         knorm = sqrt(k²)
         n = 1 + unsafe_trunc(Int, knorm * Δk_inv + T(0.5))  # this implicitly assumes ks[begin] == 0
 
         # Compute energy at current k⃗ and fill local arrays
         if n ≤ Nk
-            u² = zero(T)
-            for d in eachindex(uhat)
-                @inbounds u² += abs2(uhat[d][I])
-            end
-            v² = f(u², k⃗, k², I)  # possibly modifies the computed coefficient
+            u⃗ = Vec3(
+                ntuple(Val(3)) do d
+                    @inline
+                    @inbounds(uhat[d][I])::Complex{T}
+                end
+            )
+            v² = f(u⃗, k⃗, k², I)  # possibly modifies the input coefficients
             @inbounds E_sm[tid] = factor * v² * Δk_inv
             @inbounds n_sm[tid] = n
         else
