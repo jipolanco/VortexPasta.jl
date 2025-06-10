@@ -21,13 +21,13 @@ numerical resolution effects.
 
 - `p::ParamsBiotSavart`: Biot–Savart parameters (see [`ParamsBiotSavart`](@ref));
 
-- `quad`: an optional quadrature rule (such as [`GaussLegendre`](@ref)) for accurate line integrals.
+- `quad`: an optional quadrature rule (such as [`GaussLegendre`](@ref VortexPasta.Quadratures.GaussLegendre)) for accurate line integrals.
 
 # Extended help
 
 ## Definition
 
-The energy injection rate (in ``L^2 T^-3`` units) can be expressed as
+The energy injection rate (in ``L^2 T^{-3}`` units) can be expressed as
 
 ```math
 ε_{\text{inj}} = \frac{Γ}{V} ∮ \left[ \bm{s}' × \bm{v}_{\text{s}} \right] ⋅ \bm{v}_{\text{L}} \, \mathrm{d}ξ,
@@ -42,7 +42,7 @@ latter can be written as
 ```
 
 where ``\bm{v}_{\text{ext}}`` is an externally applied velocity (for example, representing
-the interaction with a _normal_ fluid). Note that ``\bm{v}_{\text{s}}`` doesn't contribute
+the interaction with a normal fluid). Note that ``\bm{v}_{\text{s}}`` doesn't contribute
 to energy injection, so that energy is conserved (excluding other dissipative effects) in
 the absence of an external velocity.
 """
