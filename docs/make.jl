@@ -99,7 +99,7 @@ else
     Remotes.GitHub("jipolanco", "VortexPasta.jl")
 end
 
-function make_all(; generate_tutorials = true,)
+function make_all(; draft = false,)
     repo = REPO
     warnonly = Symbol[]
 
@@ -112,7 +112,7 @@ function make_all(; generate_tutorials = true,)
         "01-vortex_ring.jl",
         "02-kelvin_waves.jl",
     ]
-    if !generate_tutorials
+    if draft
         empty!(tutorials)
         # Some cross-references will be broken if we don't generate the tutorials
         push!(warnonly, :cross_references)
@@ -195,16 +195,16 @@ function make_all(; generate_tutorials = true,)
             ],
             "References" => "references.md",
         ],
-        draft = with_liveserver,
+        draft = draft || with_liveserver,
         pagesonly = true,
         warnonly,
         plugins = [bib],
         repo,
-        doctest = true,
+        doctest = false,
     )
 end
 
-make_all(; generate_tutorials = true,)
+make_all(; draft = false,)
 
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
