@@ -1,7 +1,7 @@
 export NonuniformFFTsBackend, HalfSupport
 
 using NonuniformFFTs: NonuniformFFTs, HalfSupport
-using AbstractFFTs: fftfreq
+using AbstractFFTs: rfftfreq, fftfreq
 using FFTW: FFTW
 
 """
@@ -147,7 +147,8 @@ function init_cache_long_ewald(
     d = length(Ns)  # dimensionality (usually 3)
     plan = NonuniformFFTs.PlanNUFFT(T, Ns; ntransforms = Val(d), m, σ, kws...)  # plan for real-to-complex transform
     wavenumbers = ntuple(Val(d)) do i
-        i == 1 ? rfftfreq(Ns[i], 2π * Ns[i] / Ls[i]) : fftfreq(Ns[i], 2π * Ns[i] / Ls[i])
+        freq = T(2π * Ns[i] / Ls[i])
+        i == 1 ? rfftfreq(Ns[i], freq) : fftfreq(Ns[i], freq)
     end
     cache_common = LongRangeCacheCommon(pc, params, wavenumbers, args...)
     NonuniformFFTsCache(cache_common, plan)

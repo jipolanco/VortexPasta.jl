@@ -179,7 +179,7 @@ function init_cache_long_ewald(
     (; Ls,) = pc
     (; backend, Ns,) = params
     n_modes = collect(Int64, Ns)  # type expected by finufft_makeplan
-    wavenumbers = map((N, L) -> fftfreq(N, 2π * N / L), Ns, Ls)
+    wavenumbers = map((N, L) -> fftfreq(N, T(2π * N / L)), Ns, Ls)
     cache_common = LongRangeCacheCommon(pc, params, wavenumbers, args...)
     Nks = map(length, wavenumbers)  # in this case (complex-to-complex transform) this is the same as Ns
     @assert Ns == Nks

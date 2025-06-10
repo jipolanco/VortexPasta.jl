@@ -101,7 +101,8 @@ function compute_coefficients!(
 
     # Compute derivatives in Fourier space.
     N = length(cs)
-    ks = FFTW.rfftfreq(N, N)  # assumes parametrisation period T = 2π!!
+    Tk = number_type(Xs)
+    ks = FFTW.rfftfreq(N, Tk(N))  # assumes parametrisation period T = 2π!!
     Nk = length(ks)
     resize!(ubuf, N)
     resize!(vbuf, Nk)

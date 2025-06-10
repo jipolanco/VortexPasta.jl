@@ -31,7 +31,7 @@ function init_cache_long_ewald(
     wavenumbers = ntuple(Val(3)) do i
         N, L = Ns[i], Ls[i]
         f = i == 1 ? rfftfreq : fftfreq
-        f(N, 2π * N / L)
+        f(N, T(2π * N / L))
     end
     cache_common = LongRangeCacheCommon(pc, params, wavenumbers, args...)
     ExactSumCache(cache_common)

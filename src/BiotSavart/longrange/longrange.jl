@@ -33,7 +33,7 @@ end
 struct LongRangeCacheCommon{
         T <: AbstractFloat,
         Params <: ParamsLongRange,
-        WaveNumbers <: NTuple{3, AbstractVector},
+        WaveNumbers <: NTuple{3, AbstractVector{T}},
         PointCharges <: PointData{T},
         FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
         RealScalarField <: AbstractArray{T, 3},
