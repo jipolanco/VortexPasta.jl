@@ -53,7 +53,7 @@ end
                 tangents = true, tangentcolor = :Blue,
                 curvatures = true, curvaturecolor = :Red,
                 vectorpos = 0.3,
-                arrowscale = 0.5, arrowsize = (0.1, 0.1, 0.2),
+                arrows3d = (lengthscale = 0.5,),
                 periods,
             )
             wireframe!(ax, Rect(0, 0, 0, periods...); color = :grey)
@@ -70,6 +70,7 @@ end
                 color = :Grey,
                 velocitycolor = norm.(velocities),
                 colormap = :cividis,
+                arrows3d = (lengthscale = 0.5,)
             )
             save("trefoil_velocities.png", fig)
             @test isfile("trefoil_velocities.png")
