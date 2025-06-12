@@ -60,22 +60,14 @@ plot!(ax, f)  # f is a filament
 
 - `colorrange = MakieCore.Automatic()`
 
-### Arrow arguments
+### Arrow properties
 
-The following are used when plotting arrows (tangents, curvatures, velocities, …):
+One can pass an `arrows3d` named tuple to set arrow properties. For example:
 
-- `arrowscale = 1.0f0` allows to scale vectors (controls their *length*).
-  Corresponds to `lengthscale` in `Makie.arrows`;
+`arrows3d = (; shaftlength = 0.6, lengthscale = 2.0,)`
 
-- `arrowsize = MakieCore.Automatic()` controls the head size.
-  It has the same name in `Makie.arrows`.
-  It should be a tuple `(sx, sy, sz)`, where the first 2 set the width of the cone, and `sz`
-  its height;
-
-- `arrowwidth = MakieCore.Automatic()` sets the linewidth of the arrow.
-  Corresponds to `linewidth` in `Makie.arrows`.
-
-See also the [Makie docs on arrows](https://docs.makie.org/stable/reference/plots/arrows/index.html).
+See the [Makie docs](https://docs.makie.org/stable/reference/plots/arrows#Arrows3D) for a
+full list of available options.
 
 ### Plotting tangent and curvature vectors
 

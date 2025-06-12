@@ -152,7 +152,7 @@ plot!(
     refinement = 4, linewidth = 4, markersize = 12,
     tangents = true, tangentcolor = :Yellow,         # plot tangent vectors
     curvatures = true, curvaturecolor = :LightBlue,  # plot curvature vectors
-    arrowwidth = 0.03, arrowscale = 1.2, arrowsize = (1, 1, 1.2) .* 0.1,  # arrow properties
+    arrows3d = (shaftlength = 1.0,),
     vectorpos = 0.5,    # plot vectors at the midpoint in-between nodes
 )
 fig
@@ -315,7 +315,7 @@ zlims!(ax, 0.5, 1.5)
 plot!(
     ax, fs[1], vs[1];
     refinement = 4,
-    arrowscale = 0.2, arrowwidth = 0.02, arrowsize = (0.08, 0.08, 0.10),
+    arrows3d = (lengthscale = 0.5,),
 )
 fig
 

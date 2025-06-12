@@ -1,7 +1,7 @@
 name = "VortexPasta"
 uuid = "3d0f1e53-df37-477e-a492-0d33e6039c24"
-version = "0.27.7"
 authors = ["Juan Ignacio Polanco<juan-ignacio.polanco@cnrs.fr>"]
+version = "0.27.8"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -32,6 +32,7 @@ VectorizationBase = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
 [weakdeps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 FINUFFT = "d8beea63-0952-562e-9c6a-8e8ef7364055"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 MakieCore = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
 Observables = "510215fc-4207-5dde-b226-833fc4488ee2"
 ThreadPinning = "811555cd-349b-4f26-b7bc-1f208b848042"
@@ -39,7 +40,7 @@ ThreadPinning = "811555cd-349b-4f26-b7bc-1f208b848042"
 [extensions]
 VortexPastaCuFINUFFTExt = ["FINUFFT", "CUDA"]
 VortexPastaFINUFFTExt = ["FINUFFT"]
-VortexPastaMakieExt = ["MakieCore", "Observables"]
+VortexPastaMakieExt = ["Makie", "MakieCore", "Observables"]
 VortexPastaThreadPinningExt = ["ThreadPinning"]
 
 [compat]
@@ -59,7 +60,8 @@ HCubature = "1.5"
 HDF5 = "0.16, 0.17"
 KernelAbstractions = "0.9.24"
 LinearAlgebra = "1.9"
-MakieCore = "0.6, 0.7, 0.8, 0.9"
+MakieCore = "0.10"
+Makie = "0.23"
 NonuniformFFTs = "0.5.1, 0.6, 0.7"
 Observables = "0.5"
 OhMyThreads = "0.7.0, 0.8"
