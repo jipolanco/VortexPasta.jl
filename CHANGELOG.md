@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.27.8] - 2025-06-12
+
+### Changed
+
+- Makie extension (for plotting): adapt to changes in Makie 0.23. We now require this version of Makie.
+
 ## [0.27.7] - 2025-06-10
 
 ### Changed
