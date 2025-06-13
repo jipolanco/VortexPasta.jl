@@ -48,7 +48,7 @@ function init_cache(
     S = non_uniform_type(T, backend(p.longrange))  # type required for non-uniform data by long-range backend
     pointdata = PointData(T, S, eltype(fs))
     shortrange = init_cache_short(p.common, p.shortrange, pointdata, timer)
-    longrange = init_cache_long(p.longrange, pointdata, timer)
+    longrange = init_cache_long(p, pointdata, timer)
     BiotSavartCache(p, pointdata, shortrange, longrange, timer)
 end
 

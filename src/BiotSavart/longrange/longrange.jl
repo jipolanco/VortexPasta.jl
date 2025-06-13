@@ -33,6 +33,7 @@ end
 struct LongRangeCacheCommon{
         T <: AbstractFloat,
         Params <: ParamsLongRange,
+        ParamsAll <: ParamsBiotSavart{T},
         WaveNumbers <: NTuple{3, AbstractVector{T}},
         PointCharges <: PointData{T},
         FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
@@ -41,6 +42,7 @@ struct LongRangeCacheCommon{
     }
     # NOTE: the _d suffix means that data is on the device (i.e. GPU for GPU-based backends)
     params        :: Params
+    params_all    :: ParamsAll  # note: params === params_all.longrange
     wavenumbers_d :: WaveNumbers
     pointdata_d   :: PointCharges        # non-uniform data in physical space
     uhat_d        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
@@ -51,12 +53,13 @@ struct LongRangeCacheCommon{
 end
 
 function LongRangeCacheCommon(
-        pcommon::ParamsCommon,
-        params::ParamsLongRange,
+        params_all::ParamsBiotSavart{T},
         wavenumbers::NTuple{3, AbstractVector},
         pointdata::PointData{T},
         timer::TimerOutput,
     ) where {T}
+    pcommon = params_all.common
+    params = params_all.longrange
     (; Γ, Ls, α,) = pcommon
     (; backend,) = params
     @assert T === eltype(pcommon)
@@ -69,7 +72,7 @@ function LongRangeCacheCommon(
     pointdata_d = adapt(device, pointdata)      # create PointData replica on the device if needed
     ewald_op_d = init_ewald_fourier_operator(T, backend, wavenumbers_d, α, ewald_prefactor)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, wavenumbers_d, pointdata_d, uhat_d, ewald_prefactor, ewald_op_d, state, timer)
+    LongRangeCacheCommon(params, params_all, wavenumbers_d, pointdata_d, uhat_d, ewald_prefactor, ewald_op_d, state, timer)
 end
 
 has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
@@ -101,22 +104,22 @@ struct NullLongRangeCache <: LongRangeCache end
 backend(::NullLongRangeCache) = NullLongRangeBackend()
 
 """
-    init_cache_long(p::ParamsLongRange, pointdata::PointData, [to::TimerOutput]) -> LongRangeCache
+    init_cache_long(p::ParamsBiotSavart, pointdata::PointData, [to::TimerOutput]) -> LongRangeCache
 
-Initialise the cache for the long-range backend defined in `p`.
+Initialise the cache for the long-range backend defined in `p.longrange`.
 
-Note that, if `pc.α === Zero()`, then long-range computations are disabled and
+Note that, if `p.α === Zero()`, then long-range computations are disabled and
 this returns a [`NullLongRangeCache`](@ref).
 """
-function init_cache_long(p::ParamsLongRange, pointdata::PointData, to = TimerOutput())
-    (; common, backend,)= p
+function init_cache_long(params::ParamsBiotSavart, pointdata::PointData, to = TimerOutput())
+    (; backend,) = params.longrange
     # If long-range stuff is run on a GPU, we create a separate TimerOutput.
     # This is to avoid short- and long-range parts writing asynchronously to the same timer.
     to_d = KA.get_backend(backend) isa KA.CPU ? to : TimerOutput("Long range (GPU)")
-    if common.α === Zero()
+    if params.α === Zero()
         NullLongRangeCache()  # disables Ewald method / long-range computations
     else
-        init_cache_long_ewald(common, p, pointdata, to_d)
+        init_cache_long_ewald(params, params.longrange, pointdata, to_d)
     end
 end
 
@@ -140,8 +143,11 @@ function Base.similar(cache::LongRangeCache, Ns::Dims{3})
     params_old = cache.common.params :: ParamsLongRange
     (; backend, quad, common,) = params_old
     params_new = ParamsLongRange(backend, quad, common, Ns, params_old.truncate_spherical)
+    params_bs = let p = get_parameters(cache)::ParamsBiotSavart
+        ParamsBiotSavart(p.common, p.shortrange, params_new)
+    end
     pointdata = copy(cache.common.pointdata_d)
-    BiotSavart.init_cache_long(params_new, pointdata)
+    BiotSavart.init_cache_long(params_bs, pointdata)
 end
 
 """

@@ -138,9 +138,11 @@ struct NonuniformFFTsCache{
 end
 
 function init_cache_long_ewald(
-        pc::ParamsCommon{T},
+        params_all::ParamsBiotSavart{T},
         params::ParamsLongRange{T, <:NonuniformFFTsBackend}, args...,
     ) where {T}
+    pc = params_all.common
+    @assert params === params_all.longrange
     (; Ls,) = pc
     (; backend, Ns,) = params
     (; m, σ, kws,) = backend
@@ -150,7 +152,7 @@ function init_cache_long_ewald(
         freq = T(2π * Ns[i] / Ls[i])
         i == 1 ? rfftfreq(Ns[i], freq) : fftfreq(Ns[i], freq)
     end
-    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, args...)
+    cache_common = LongRangeCacheCommon(params_all, wavenumbers, args...)
     NonuniformFFTsCache(cache_common, plan)
 end
 

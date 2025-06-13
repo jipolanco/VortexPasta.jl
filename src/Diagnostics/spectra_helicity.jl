@@ -51,7 +51,7 @@ function helicity_spectrum!(
     )
     (; state, ewald_op_d, ewald_prefactor,) = cache.common
     σ = BiotSavart.ewald_smoothing_scale(cache)
-    p = BiotSavart.get_parameters(cache).common
+    p = BiotSavart.get_parameters(cache)
     V = prod(p.Ls)  # domain volume
     from_smoothed_velocity = state.quantity == :velocity && state.smoothing_scale == σ  # smoothed velocity
     from_vorticity = state.quantity == :vorticity && state.smoothing_scale == 0  # unsmoothed vorticity

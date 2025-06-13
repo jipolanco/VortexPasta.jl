@@ -23,9 +23,11 @@ end
 has_real_to_complex(::ExactSumBackend) = true
 
 function init_cache_long_ewald(
-        pc::ParamsCommon{T},
+        params_all::ParamsBiotSavart{T},
         params::ParamsLongRange{T, <:ExactSumBackend}, args...,
     ) where {T}
+    pc = params_all.common
+    @assert params === params_all.longrange
     (; Ls,) = pc
     (; Ns,) = params
     wavenumbers = ntuple(Val(3)) do i
@@ -33,7 +35,7 @@ function init_cache_long_ewald(
         f = i == 1 ? rfftfreq : fftfreq
         f(N, T(2π * N / L))
     end
-    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, args...)
+    cache_common = LongRangeCacheCommon(params_all, wavenumbers, args...)
     ExactSumCache(cache_common)
 end
 

@@ -132,9 +132,9 @@ The following functions must be implemented by a cache:
 """
 abstract type LongRangeCache end
 
-get_parameters(c::LongRangeCache) = c.common.params
-backend(c::LongRangeCache) = backend(get_parameters(c))
-ewald_smoothing_scale(c::LongRangeCache) = get_parameters(c).common.σ
+get_parameters(c::LongRangeCache) = c.common.params_all::ParamsBiotSavart
+backend(c::LongRangeCache) = backend(get_parameters(c).longrange)
+ewald_smoothing_scale(c::LongRangeCache) = get_parameters(c).σ
 has_real_to_complex(c::LongRangeCache) = has_real_to_complex(c.common)
 KA.get_backend(c::LongRangeCache) = KA.get_backend(backend(c))
 

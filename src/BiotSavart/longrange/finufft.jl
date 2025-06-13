@@ -173,14 +173,16 @@ end
 
 # This should work for CPU and GPU versions.
 function init_cache_long_ewald(
-        pc::ParamsCommon{T},
+        params_all::ParamsBiotSavart{T},
         params::ParamsLongRange{T, <:AbstractFINUFFTBackend}, args...,
     ) where {T <: AbstractFloat}
+    pc = params_all.common
+    @assert params === params_all.longrange
     (; Ls,) = pc
     (; backend, Ns,) = params
     n_modes = collect(Int64, Ns)  # type expected by finufft_makeplan
     wavenumbers = map((N, L) -> fftfreq(N, T(2π * N / L)), Ns, Ls)
-    cache_common = LongRangeCacheCommon(pc, params, wavenumbers, args...)
+    cache_common = LongRangeCacheCommon(params_all, wavenumbers, args...)
     Nks = map(length, wavenumbers)  # in this case (complex-to-complex transform) this is the same as Ns
     @assert Ns == Nks
     plan_type1 = _make_finufft_plan_type1(backend, n_modes, T)
