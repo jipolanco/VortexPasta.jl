@@ -1,11 +1,30 @@
-# This stores the locations s⃗ and charges q * s⃗′ used to compute both short-range and
-# long-range interactions, allowing to reuse computations. Note that locations and charges
-# are obtained via interpolation in-between filament nodes.
-#
-# This is also reused by long-range interactions to perform interpolations from Fourier to
-# physical space (see `interpolate_to_physical!`).
-# In that case, `points` contains the interpolation points (usually the filament nodes) and
-# `charges` the interpolation values (usually velocities or streamfunction values).
+"""
+    PointData
+
+Stores point data (values on filaments) used to compute short-range and long-range interactions.
+
+This includes the locations `s⃗` and charges `q * s⃗′` used to compute both short-range and
+long-range interactions, allowing to reuse computations. Note that locations and charges
+are obtained via interpolation in-between filament nodes.
+
+This is also reused by long-range interactions to perform interpolations from Fourier to
+physical space (see [`interpolate_to_physical!`](@ref)). In that case, `points` contains the
+interpolation points (usually the filament nodes) and `charges` the interpolation values
+(usually velocities or streamfunction values).
+
+# Construction
+
+    PointData(::Type{T}, ::Type{S}, ::Type{F}) -> PointData
+
+where:
+
+- `T` is a float type (usually `Float32` or `Float64`).
+
+- `S` is either `T` (for real-valued charges) or `Complex{T}` (for complex-valued charges).
+  Usually `T` is fine; `Complex{T}` may be needed by specific long-range backends (such as `FINUFFTBackend`).
+
+- `F <: AbstractFilament` is the filament type (e.g. `ClosedFilament{…}`).
+"""
 struct PointData{
         T <: AbstractFloat,
         S <: Union{T, Complex{T}},

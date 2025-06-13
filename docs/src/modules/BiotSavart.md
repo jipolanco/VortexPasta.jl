@@ -87,6 +87,7 @@ get_longrange_field_fourier
 ### Internals
 
 ```@docs
+PointData
 LongRangeCache
 NullLongRangeCache
 LongRangeCacheState
