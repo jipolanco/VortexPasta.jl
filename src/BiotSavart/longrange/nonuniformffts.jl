@@ -156,15 +156,18 @@ function init_cache_long_ewald(
     NonuniformFFTsCache(cache_common, plan)
 end
 
-function transform_to_fourier!(c::NonuniformFFTsCache)
+function transform_to_fourier!(c::NonuniformFFTsCache, prefactor::Real)
     (; plan,) = c
     (; pointdata_d, uhat_d,) = c.common
     (; points, charges,) = pointdata_d
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     charges_data = StructArrays.components(charges)
     uhat_data = StructArrays.components(uhat_d)
+    # Note: we could apply prefactor either in non-uniform (physical) or in uniform (Fourier) space.
+    # For now we choose to do it in uniform space, not sure if it's better though.
+    callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = @inline((ω̂, idx) -> ω̂ .* prefactor))  # use a callback to apply prefactor
     NonuniformFFTs.set_points!(plan, points)
-    NonuniformFFTs.exec_type1!(uhat_data, plan, charges_data)  # execute NUFFT on all components at once
+    NonuniformFFTs.exec_type1!(uhat_data, plan, charges_data; callbacks)  # execute NUFFT on all components at once
     _ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
     c
 end

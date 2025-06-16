@@ -95,11 +95,11 @@ Most useful fields of a `cache::LongRangeCache` are in the `cache.common` field.
 In particular, `cache.common` contains the fields:
 
 - `wavenumbers_d::NTuple{3, AbstractVector}`: Fourier wavenumbers in each direction;
+
 - `uhat_d::StructArray{Vec3{Complex{T}}, 3}`: a full vector field in Fourier space;
+
 - `pointdata_d::PointData`: data associated to vector charges applied on non-uniform points.
   These are available in `pointdata_d.charges` and `pointdata_d.points`;
-- `ewald_prefactor::Real`: the quantity ``Γ / V`` where ``V`` is the volume of a periodic
-  cell.
 
 The `_d` suffixes means that data is on the computing device associated to the long-range
 backend (i.e. on the GPU for GPU-based backends).
