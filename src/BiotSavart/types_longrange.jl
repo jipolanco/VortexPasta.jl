@@ -9,13 +9,6 @@ Abstract type denoting the backend to use for computing long-range interactions.
   Fourier transform (NUFFT) using the
   [NonuniformFFTs.jl](https://github.com/jipolanco/NonuniformFFTs.jl) package;
 
-- [`FINUFFTBackend`](@ref): estimates long-range interactions via the NUFFT using the
-  [FINUFFT](https://github.com/flatironinstitute/finufft) library;
-
-- [`CuFINUFFTBackend`](@ref): estimates long-range interactions via the NUFFT using the CUDA
-  implementation of the [FINUFFT](https://github.com/flatironinstitute/finufft) library.
-  CUDA.jl must be loaded before using this backend (CUDA devices only);
-
 - [`ExactSumBackend`](@ref): computes long-range interactions using exact Fourier sums. This
   is really inefficient and should only be used for testing.
 
@@ -55,8 +48,8 @@ This function is useful in particular for:
 - knowing which kind of non-uniform data (vorticities) one must give to the backend;
 - knowing how to interpret Fourier-space data, e.g. to compute Fourier spectra.
 
-This function returns `false` for backends such as [`FINUFFTBackend`](@ref), as these
-require complex input data and don't take advantage of Hermitian symmetry.
+Currently, this function always returns `true`. It used to return `false` for the
+`FINUFFTBackend`, which has been removed.
 """
 function has_real_to_complex end
 
@@ -70,7 +63,7 @@ struct NullLongRangeBackend <: LongRangeBackend end
 Domain period expected by the backend.
 
 This is used for rescaling input coordinates to the requirements of the backend.
-For instance, FINUFFT assumes a period ``2π``, and therefore coordinates are
+For instance, NonuniformFFTs.jl assumes a period ``2π``, and therefore coordinates are
 rescaled if the input data has a period different from ``2π``.
 """
 expected_period(::LongRangeBackend) = nothing
@@ -82,7 +75,6 @@ Domain limits required by the backend.
 
 This is used for folding input coordinates so that they are within the limits
 expected by the backend.
-For instance, FINUFFT requires coordinates to be in the ``[-3π, 3π]`` interval.
 
 Note that, if a backend defines `folding_limits`, then it must also define
 [`expected_period`](@ref).

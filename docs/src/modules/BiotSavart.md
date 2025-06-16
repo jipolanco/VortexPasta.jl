@@ -70,8 +70,6 @@ nearby_charges
 ```@docs
 LongRangeBackend
 NonuniformFFTsBackend
-FINUFFTBackend
-CuFINUFFTBackend
 ExactSumBackend
 ```
 

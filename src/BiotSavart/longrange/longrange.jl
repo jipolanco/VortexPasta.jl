@@ -79,8 +79,8 @@ has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
 
 # Initialise Fourier vector field with the right memory layout.
 # This default implementation can be overridden by other backends.
-# That's the case of FINUFFT, which needs a specific memory layout to perform simultaneous
-# NUFFTs of the 3 vector field components.
+# That's the case of the old FINUFFT backend (which has been removed), which needs a
+# specific memory layout to perform simultaneous NUFFTs of the 3 vector field components.
 function init_fourier_vector_field(backend::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
     device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     # Initialising arrays in parallel (using KA) may be good for performance;
@@ -511,8 +511,8 @@ end
 end
 
 # Determines whether the backend requires non-uniform values to be complex.
-# By default this is not the case, but backends needing that (such as FINUFFT) return
-# Complex{T} instead of T.
+# By default this is not the case, but backends needing that (such as the FINUFFT backend,
+# which has been removed) return Complex{T} instead of T.
 non_uniform_type(::Type{T}, ::LongRangeBackend) where {T <: AbstractFloat} = T
 
 """
@@ -536,8 +536,8 @@ After calling this function, one may want to use [`to_smoothed_streamfunction!`]
 """
 function compute_vorticity_fourier!(cache::LongRangeCache)
     (; uhat_d, state,) = cache.common
-    rescale_coordinates!(cache)  # may be needed by the backend (e.g. FINUFFT requires period L = 2π)
-    fold_coordinates!(cache)     # may be needed by the backend (e.g. FINUFFT requires x ∈ [-3π, 3π])
+    rescale_coordinates!(cache)  # may be needed by the backend (e.g. NonuniformFFTs.jl requires period L = 2π)
+    fold_coordinates!(cache)     # may be needed by the backend (e.g. NonuniformFFTs.jl prefers x ∈ [0, 2π])
     transform_to_fourier!(cache)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
     state.quantity = :vorticity

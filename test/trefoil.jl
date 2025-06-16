@@ -6,21 +6,9 @@ using VortexPasta.Filaments: GeometricQuantity, Vec3
 using VortexPasta.BiotSavart
 using VortexPasta.Diagnostics
 using ForwardDiff: ForwardDiff
-using ThreadPinning: ThreadPinning  # for testing the interaction between ThreadPinning and FINUFFTBackend
-using FINUFFT: FINUFFT  # required for FINUFFTBackend
 using LaTeXStrings  # used for plots only (L"...")
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
-
-# Check that all threads are currently pinned.
-# This tests the :default thread pool, which is the one used in parallel computations.
-function check_pinned_threads()
-    pool = :default
-    for threadid in Threads.threadpooltids(pool)
-        @test ThreadPinning.ispinned(; threadid) == true
-    end
-    nothing
-end
 
 function trefoil_function()
     R = π / 3
@@ -177,10 +165,6 @@ function compare_long_range(
     end
 
     # Compare velocities in Fourier space.
-    # Note: when using FINUFFTBackend, the comparison is not straightforward since the
-    # wavenumbers are not the same.
-    # The "exact" implementation takes advantage of Hermitian symmetry to avoid
-    # computing half of the data, while FINUFFT doesn't make this possible...
     ks_default = cache_default.common.wavenumbers_d
     ks_exact = cache_exact.common.wavenumbers_d
     inds_to_compare = ntuple(Val(3)) do i
@@ -407,11 +391,6 @@ end
 @testset "Trefoil" begin
     # Note: for testing purposes it's important to discretise the vortex with a *small*
     # number of discretisation points.
-    ThreadPinning.pinthreads(:cores)
-    VERBOSE && ThreadPinning.threadinfo()
-    cpuids = ThreadPinning.getcpuids()
-    check_pinned_threads()  # verify that threads have been pinned
-    @test cpuids !== ThreadPinning.getcpuids()  # make sure they're not aliased (otherwise the ThreadPinning extension might need to be corrected)
     f = @inferred init_trefoil_filament(30)
     Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
     Ns = (3, 3, 4) .* 30
@@ -423,9 +402,6 @@ end
         tol = 1e-5  # allowed relative error
         @testset "NonuniformFFTsBackend" begin
             compare_long_range([f], NonuniformFFTsBackend(); tol, params_kws..., α = α_default, rcut = 4 / α_default)
-        end
-        @testset "FINUFFTBackend" begin
-            compare_long_range([f], FINUFFTBackend(); tol, params_kws..., α = α_default, rcut = 4 / α_default)
         end
         @testset "$quantity near r = 0" for quantity ∈ (Velocity(), Streamfunction())
             test_long_range_accuracy_near_zero(Float64, quantity)
@@ -460,9 +436,6 @@ end
             test_trefoil_quantity(method, TorsionScalar())
         end
     end
-    # Check that threads are still pinned after all of this.
-    check_pinned_threads()
-    @test cpuids == ThreadPinning.getcpuids()
 end
 
 ##
