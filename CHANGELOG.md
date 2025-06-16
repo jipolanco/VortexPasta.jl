@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.27.9] - 2025-06-16
+
+### Changed
+
+- The internal `BiotSavart.get_parameters(::LongRangeCache)` function now
+  returns all Biot–Savart parameters (`ParamsBiotSavart`) instead of just the
+  long-range parameters (`ParamsLongRange`).
+
 ## [0.27.8] - 2025-06-12
 
 ### Changed
