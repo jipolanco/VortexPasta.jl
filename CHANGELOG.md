@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.27.10] - 2025-06-16
+
+### Added
+
+- Allow NonuniformFFTs.jl 0.8.
+
 ## [0.27.9] - 2025-06-16
 
 ### Changed
