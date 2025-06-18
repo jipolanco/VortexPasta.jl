@@ -161,7 +161,7 @@ function compare_long_range(
     foreach((cache_exact, cache_default)) do c
         BiotSavart.add_point_charges!(c.common.pointdata_d, fs, quad)
         BiotSavart.compute_vorticity_fourier!(c)
-        BiotSavart.to_smoothed_velocity!(c)
+        BiotSavart.compute_velocity_fourier!(c)
     end
 
     # Compare velocities in Fourier space.
@@ -180,10 +180,11 @@ function compare_long_range(
     end
     @test diffnorm_L2 < tol^2
 
-    # Interpolate velocity back to filament positions
+    # Interpolate long-range velocity back to filament positions
     foreach((cache_exact, cache_default)) do c
         BiotSavart.set_interpolation_points!(c, fs)
-        BiotSavart.interpolate_to_physical!(c)
+        local callback = BiotSavart.get_ewald_interpolation_callback(c)  # this is to make sure we get the *long-range* (smoothed) velocity
+        BiotSavart.interpolate_to_physical!(callback, c)
     end
 
     charges(cache) = cache.common.pointdata_d.charges  # get charges from cache

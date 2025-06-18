@@ -410,7 +410,7 @@ The optional `callback` function should be a function `f(û, k⃗)` which takes
 
 This can be used to modify the Fourier-space fields to be interpolated, but without really
 modifying the values in `uhat_d` (and thus the state of the cache). For example, to
-interpolate a Gaussian-filtered field:
+apply a Gaussian filter before interpolating:
 
 ```julia
 σ = 0.1  # width of Gaussian filter (in physical space)

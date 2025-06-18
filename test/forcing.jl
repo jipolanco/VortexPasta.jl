@@ -102,21 +102,10 @@ function check_fourier_band_forcing(forcing::FourierBandForcing, f::AbstractFila
     # Copy coefficients from vs_hat
     data_bs = @inferred BiotSavart.get_longrange_field_fourier(cache_bs)
     @test data_bs.state.quantity == :velocity
-    @test data_bs.state.smoothing_scale > 0  # this means that the field needs to be unsmoothed (by reverting Gaussian filter)
+    @test data_bs.state.smoothing_scale == 0  # the field has not been smoothed
     vs_hat = map(Array, data_bs.field)  # GPU -> CPU copy in case `field` is a tuple of GPU arrays
     ks_grid = data_bs.wavenumbers
     SyntheticFields.from_fourier_grid!(vs_band, vs_hat, ks_grid)  # copy coefficients of smoothed velocity field
-
-    # Revert Gaussian filter
-    σ_gaussian = data_bs.state.smoothing_scale
-    σ²_over_two = σ_gaussian^2 / 2
-    let (; cs, qs, Δks) = vs_band
-        for i in eachindex(cs, qs)
-            k⃗ = Δks .* qs[i]
-            k² = sum(abs2, k⃗)
-            cs[i] = cs[i] * exp(σ²_over_two * k²)  # deconvolve
-        end
-    end
 
     # Compute v_{ns} in Fourier band
     vns_band = similar(vn_band)
@@ -170,8 +159,8 @@ function get_energy_at_normalised_wavevector(cache::BiotSavart.BiotSavartCache, 
 
     # Unsmoothed velocity at wavevector k⃗
     @assert state.quantity == :velocity
-    σ = state.smoothing_scale
-    v̂ = Vec3(map(u -> u[inds_pos...], field)) * exp(σ^2 * k² / 2)
+    @assert state.smoothing_scale == 0
+    v̂ = Vec3(map(u -> u[inds_pos...], field))
 
     # Energy at wavevectors k⃗ and -k⃗ (assuming Hermitian symmetry) -> hence no division by 2!
     Ek = sum(abs2, v̂)
@@ -191,12 +180,12 @@ end
     vs_self = map(copy, vs)
     α_ewald = p.α
 
-    # Obtain coarse-grained velocity field in Fourier space
+    # Obtain velocity field in Fourier space
     data = BiotSavart.get_longrange_field_fourier(cache_bs)
     vs_hat = data.field
     state = data.state
     @test state.quantity == :velocity
-    @test state.smoothing_scale > 0
+    @test state.smoothing_scale == 0
 
     # Initialise random normal fluid velocity in Fourier space
     rng = StableRNG(42)
