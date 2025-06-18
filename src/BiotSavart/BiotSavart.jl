@@ -415,11 +415,12 @@ function _compute_on_nodes!(
             @timeit to "Set interpolation points" begin
                 set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata (points)
             end
+            callback_interp = get_ewald_interpolation_callback(cache.longrange)
             if ψs !== nothing
                 @timeit to "Streamfunction" begin
                     @timeit to "Convert to physical" begin
-                        to_smoothed_field!(Streamfunction(), cache.longrange)
-                        interpolate_to_physical!(cache.longrange)  # overwrites pointdata (charges)
+                        compute_field_fourier!(Streamfunction(), cache.longrange)
+                        interpolate_to_physical!(callback_interp, cache.longrange)  # overwrites pointdata (charges)
                         copy_long_range_output!(+, ψs, cache.longrange)
                     end
                 end
@@ -428,8 +429,8 @@ function _compute_on_nodes!(
                 # Velocity must be computed after streamfunction if both are enabled.
                 @timeit to "Velocity" begin
                     @timeit to "Convert to physical" begin
-                        to_smoothed_field!(Velocity(), cache.longrange)
-                        interpolate_to_physical!(cache.longrange)  # overwrites pointdata (charges)
+                        compute_field_fourier!(Velocity(), cache.longrange)
+                        interpolate_to_physical!(callback_interp, cache.longrange)  # overwrites pointdata (charges)
                         copy_long_range_output!(+, vs, cache.longrange)
                     end
                 end
@@ -493,23 +494,24 @@ function _compute_on_nodes!(
                     set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d (points)
                 end
                 # Interpolate streamfunction and/or velocity.
+                callback_interp = get_ewald_interpolation_callback(cache.longrange)
                 local ifield = 0
                 if ψs !== nothing
-                    @timeit to_d "Smoothed field ψ (Fourier)" begin
-                        to_smoothed_field!(Streamfunction(), cache.longrange)
+                    @timeit to_d "Streamfunction field (Fourier)" begin
+                        compute_field_fourier!(Streamfunction(), cache.longrange)
                     end
                     @timeit to_d "Interpolate to physical" begin
                         # Write interpolation output to outputs_lr[ifield + 1]
-                        interpolate_to_physical!(outputs_lr[ifield += 1], cache.longrange)
+                        interpolate_to_physical!(callback_interp, outputs_lr[ifield += 1], cache.longrange)
                     end
                 end
                 if vs !== nothing
-                    @timeit to_d "Smoothed field v (Fourier)" begin
-                        to_smoothed_field!(Velocity(), cache.longrange)
+                    @timeit to_d "Velocity field (Fourier)" begin
+                        compute_field_fourier!(Velocity(), cache.longrange)
                     end
                     @timeit to_d "Interpolate to physical" begin
                         # Write interpolation output to outputs_lr[ifield + 1]
-                        interpolate_to_physical!(outputs_lr[ifield += 1], cache.longrange)
+                        interpolate_to_physical!(callback_interp, outputs_lr[ifield += 1], cache.longrange)
                     end
                 end
                 @timeit to_d "Synchronise GPU" KA.synchronize(device_lr)  # wait for the GPU to finish its work

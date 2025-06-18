@@ -96,8 +96,8 @@ set_num_points!
 add_point_charges!
 has_real_to_complex
 compute_vorticity_fourier!
-to_smoothed_streamfunction!
-to_smoothed_velocity!
+compute_streamfunction_fourier!
+compute_velocity_fourier!
 to_coarse_grained_vorticity!
 interpolate_to_physical!
 transform_to_fourier!

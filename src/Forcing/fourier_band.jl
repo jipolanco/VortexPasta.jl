@@ -86,6 +86,7 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
         @assert state.quantity == :velocity
         field, wavenumbers, state.smoothing_scale
     end
+    @assert σ_gaussian == 0  # fields are unfiltered
 
     # (0) Copy normal fluid velocity from CPU to GPU, in case it has changed (e.g. if we're
     # using a velocity that varies in time). We don't need to do this if vn_d and f.vn are
@@ -98,24 +99,13 @@ function update_cache!(cache, f::FourierBandForcing{T, N}, cache_bs::BiotSavartC
     @assert vtmp_d.cs !== vn_d.cs  # coefficients are not aliased
     copyto!(vtmp_d, vn_d)
 
-    # (2) Retrieve values from coarse-grained (Gaussian-filtered) velocity field.
-    # We "unfilter" the values, similarly to the way we compute energy spectra from the long-range velocity.
-    σ²_over_two = σ_gaussian^2 / 2
-    @inline function op(vn, vs_filtered, k⃗)
-        k² = sum(abs2, k⃗)
-        φ = @fastmath exp(σ²_over_two * k²)
-        vs = φ * vs_filtered
-        vn - vs
-    end
+    # (2) Retrieve values from Fourier-space velocity field.
+    @inline op(vn, vs, k⃗) = vn - vs
     SyntheticFields.from_fourier_grid!(op, vtmp_d, vs_grid, ks_grid)  # vtmp_d now contains vn_d(k⃗) - vs_grid(k⃗) in [kmin, kmax]
 
     # Optionally compute coarse-grained vorticity.
-    @inline function op_vorticity(_, vs_filtered, k⃗)
-        k² = sum(abs2, k⃗)
-        φ = @fastmath exp(σ²_over_two * k²)
-        vs = φ * vs_filtered
-        im * (k⃗ × vs)
-    end
+    @inline op_vorticity(_, vs, k⃗) = im * (k⃗ × vs)
+
     if with_filtered_vorticity(f)
         @assert length(ω_h) == length(ω_d) == length(vtmp_d)
         SyntheticFields.from_fourier_grid!(op_vorticity, ω_d, vs_grid, ks_grid)
