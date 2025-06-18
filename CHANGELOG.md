@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Vorticity in Fourier space now has the right dimensions (previously, it was
-  missing a `Γ/V` factor, which was included later when computing the
+- **BREAKING**: velocity and streamfunction fields contained in `LongRangeCache` are **no
+  longer Gaussian-filtered** to avoid loss of information when doing operations non related
+  to Ewald's method (such as energy spectra, some forcing methods, ...). This requires
+  modifications (usually simplifications) to all code that uses these Fourier-space fields.
+
+- **BREAKING**: as a result of the item above, the `unfilter` keyword argument of
+  `Diagnostics.energy_spectrum` and `Diagnostics.helicity_spectrum` is no longer accepted,
+  and the returned results are always "unfiltered".
+
+- (Slightly) **BREAKING**: Vorticity in Fourier space now has the right dimensions
+  (previously, it was missing a `Γ/V` factor, which was included later when computing the
   streamfunction or velocity).
 
 ### Removed

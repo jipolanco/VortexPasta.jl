@@ -1,6 +1,6 @@
 """
-    helicity_spectrum(iter::VortexFilamentSolver; unfilter = true) -> (ks, Hk)
-    helicity_spectrum(cache; unfilter = true) -> (ks, Hk)
+    helicity_spectrum(iter::VortexFilamentSolver) -> (ks, Hk)
+    helicity_spectrum(cache) -> (ks, Hk)
 
 Compute helicity spectrum associated to vortex filament state.
 
@@ -12,7 +12,7 @@ See also [`helicity_spectrum!`](@ref) for a non-allocating variant and for more 
 function helicity_spectrum end
 
 @doc raw"""
-    helicity_spectrum!(Hk::AbstractVector, ks::AbstractVector, cache; unfilter = true)
+    helicity_spectrum!(Hk::AbstractVector, ks::AbstractVector, cache)
 
 Compute helicity spectrum associated to vortex filament state.
 
@@ -35,8 +35,7 @@ As usual, this function computes the sum of ``H(\bm{k})`` over spherical shells 
 Defined as above, the total helicity in a (cubic) periodic domain of volume ``V = L^3`` is
 ``H = ∑_{\bm{k}} H(\bm{k}) Δk`` where ``Δk = 2π/L`` is the resolution in wavenumber space.
 
-See [`energy_spectrum!`](@ref) for details on accepted `cache` arguments and on the optional
-`unfilter` argument.
+See [`energy_spectrum!`](@ref) for details on accepted `cache` arguments.
 """
 function helicity_spectrum! end
 
@@ -47,40 +46,19 @@ end
 
 function helicity_spectrum!(
         Hk::AbstractVector, ks::AbstractVector, cache::LongRangeCache;
-        unfilter = true,  # undo Ewald smoothing filter
     )
-    (; state, ewald_op_d,) = cache.common
-    σ = BiotSavart.ewald_smoothing_scale(cache)
+    (; state,) = cache.common
     p = BiotSavart.get_parameters(cache)
     V = prod(p.Ls)  # domain volume
-    from_smoothed_velocity = state.quantity == :velocity && state.smoothing_scale == σ  # smoothed velocity
-    from_vorticity = state.quantity == :vorticity && state.smoothing_scale == 0  # unsmoothed vorticity
-    if from_smoothed_velocity
-        if unfilter
-            _compute_spectrum!(Hk, ks, cache) do u⃗, k⃗, k², I
-                # It's slightly faster to reuse values in ewald_op_d than to recompute exponentials...
-                local w = @inbounds k² * ewald_op_d[I]
-                local β = ifelse(
-                    iszero(w),
-                    one(w),   # set the factor to 1 if k² == 0
-                    1 / w^2,
-                )
-                # @assert β ≈ exp(k² / (2 * cache.common.params.common.α^2))
-                # @assert β ≈ exp(k² * σ^2)
-                ω⃗ = im * (k⃗ × u⃗)
-                H = u⃗ ⋅ ω⃗
-                # @assert real(H) + imag(H) ≈ real(H)  # result is purely real
-                # @assert H ≈ 2 * (k⃗ ⋅ (real(u⃗) × imag(u⃗)))  # alternative way of computing H(k⃗)
-                2V * β * real(H)
-            end
-        else
-            _compute_spectrum!(Hk, ks, cache) do u⃗, k⃗, k², I
-                # Note: û ⋅ ω̂ is expected to be purely real.
-                # Also, the factor 2 is because _compute_spectrum applies a factor 0.5 (for
-                # energy), which is not present in the helicity.
-                ω⃗ = im * (k⃗ × u⃗)
-                2V * real(u⃗ ⋅ ω⃗)
-            end
+    from_velocity = state.quantity == :velocity && state.smoothing_scale == 0
+    from_vorticity = state.quantity == :vorticity && state.smoothing_scale == 0
+    if from_velocity
+        _compute_spectrum!(Hk, ks, cache) do u⃗, k⃗, k², I
+            # Note: û ⋅ ω̂ is expected to be purely real.
+            # Also, the factor 2 is because _compute_spectrum applies a factor 0.5 (for
+            # energy), which is not present in the helicity.
+            ω⃗ = im * (k⃗ × u⃗)
+            2V * real(u⃗ ⋅ ω⃗)
         end
     elseif from_vorticity
         _compute_spectrum!(Hk, ks, cache) do ω⃗, k⃗, k², I

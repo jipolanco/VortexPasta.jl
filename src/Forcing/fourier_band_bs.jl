@@ -168,7 +168,7 @@ function init_cache(f::FourierBandForcingBS, cache_bs::BiotSavartCache)
     (; v_d, v_h, qs = v_h.qs, prefactor,)
 end
 
-# After calling this function, cache.v_h contains the unfiltered Biot-Savart velocity in Fourier space v̂(k⃗).
+# After calling this function, cache.v_h contains the Biot-Savart velocity in Fourier space v̂(k⃗).
 function update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache)
     (; v_d, v_h,) = cache
 
@@ -177,15 +177,10 @@ function update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache
         @assert state.quantity == :velocity
         field, wavenumbers, state.smoothing_scale
     end
+    @assert σ_gaussian == 0  # fields are unfiltered
 
-    # (1) Compute unfiltered velocity within Fourier band
-    σ²_over_two = σ_gaussian^2 / 2
-    @inline function op_streamfunction(_, vs_filtered, k⃗)
-        k² = sum(abs2, k⃗)
-        φ = exp(σ²_over_two * k²)
-        φ * vs_filtered
-    end
-    SyntheticFields.from_fourier_grid!(op_streamfunction, v_d, vs_grid, ks_grid)
+    # (1) Copy velocity coefficients within Fourier band
+    SyntheticFields.from_fourier_grid!(v_d, vs_grid, ks_grid)
 
     # (2) Copy results to CPU if needed (avoided if the "device" is the CPU).
     if v_d !== v_h

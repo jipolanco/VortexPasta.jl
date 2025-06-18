@@ -1,8 +1,8 @@
 export energy_spectrum, energy_spectrum!
 
 """
-    energy_spectrum(iter::VortexFilamentSolver; unfilter = true) -> (ks, Ek)
-    energy_spectrum(cache; unfilter = true) -> (ks, Ek)
+    energy_spectrum(iter::VortexFilamentSolver) -> (ks, Ek)
+    energy_spectrum(cache) -> (ks, Ek)
 
 Compute kinetic energy spectrum associated to vortex filament state.
 
@@ -14,7 +14,7 @@ See also [`energy_spectrum!`](@ref) for a non-allocating variant and for more de
 function energy_spectrum end
 
 """
-    energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, cache; unfilter = true)
+    energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, cache)
 
 Compute kinetic energy spectrum associated to vortex filament state.
 
@@ -25,22 +25,14 @@ Here `cache` contains the results of long-range Biot–Savart computations. It c
 - a `VortexFilamentSolver` from the `Timestepping` module (which contains a `BiotSavartCache`).
 
 The energy spectrum is computed from a recent Biot–Savart calculation using fast Ewald
-summation. More precisely, it is computed from the long-range velocity field in Fourier
-space. The [`LongRangeCache`](@ref) associated to the calculation is expected to currently
-contain this field.
+summation. More precisely, it is computed from the (Fourier-truncated) velocity field in
+Fourier space. The [`LongRangeCache`](@ref) associated to the calculation is expected to
+currently contain this field.
 
-In its most usual state, a `LongRangeCache` contains the long-range velocity field in the
-Ewald method, which is a Gaussian-filtered field (see e.g.
-[`BiotSavart.to_smoothed_velocity!`](@ref)). By default this function undoes the Gaussian
-filter, so that the returned kinetic energy spectrum is that of the unsmoothed velocity
-(which is singular at vortex positions, so it presents a slow decay in wavenumber space).
-One can pass `unfilter = false` to return the spectrum associated to the smoothed field.
-
-The cache can also contain an unsmoothed vorticity field in Fourier space (the result
+The cache can also contain the vorticity field in Fourier space (the result
 obtained right after performing a NUFFT from the filament locations, see
-[`BiotSavart.compute_vorticity_fourier!`](@ref). In this case this
-function does the right thing and also computes the spectrum of the associated (unsmoothed)
-velocity field. Currently, the `unfilter` argument is ignored in this case.
+[`BiotSavart.compute_vorticity_fourier!`](@ref). In this case this function does the right
+thing and also computes the spectrum of the associated velocity field.
 
 The vectors `Ek` and `ks` are expected to have the same length. Moreover, the vector of
 wavenumbers `ks` should satisfy `ks[begin] == 0` and have a constant step
@@ -90,31 +82,14 @@ function energy_spectrum(cache; kws...)
 end
 
 function energy_spectrum!(
-        Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache;
-        unfilter = true,  # undo Ewald smoothing filter
+        Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache,
     )
-    (; state, ewald_op_d,) = cache.common
-    σ = BiotSavart.ewald_smoothing_scale(cache)
-    from_smoothed_velocity = state.quantity == :velocity && state.smoothing_scale == σ  # smoothed velocity
-    from_vorticity = state.quantity == :vorticity && state.smoothing_scale == 0  # unsmoothed vorticity
-    if from_smoothed_velocity
-        if unfilter
-            _compute_spectrum!(Ek, ks, cache) do u⃗, k⃗, k², I
-                # It's slightly faster to reuse values in ewald_op_d than to recompute exponentials...
-                local u² = sum(abs2, u⃗)
-                local w = @inbounds k² * ewald_op_d[I]
-                local β = ifelse(
-                    iszero(w),
-                    one(w),   # set the factor to 1 if k² == 0
-                    1 / w^2,
-                )
-                # @assert β ≈ exp(k² / (2 * params.common.α^2))
-                u² * β
-            end
-        else
-            _compute_spectrum!(Ek, ks, cache) do u⃗, k⃗, k², I
-                sum(abs2, u⃗)  # return unmodified coefficient
-            end
+    (; state,) = cache.common
+    from_velocity = state.quantity == :velocity && state.smoothing_scale == 0
+    from_vorticity = state.quantity == :vorticity && state.smoothing_scale == 0
+    if from_velocity
+        _compute_spectrum!(Ek, ks, cache) do u⃗, k⃗, k², I
+            sum(abs2, u⃗)  # return unmodified coefficient
         end
     elseif from_vorticity
         _compute_spectrum!(Ek, ks, cache) do u⃗, k⃗, k², I
