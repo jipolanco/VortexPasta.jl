@@ -3,7 +3,6 @@ using VortexPasta.Filaments
 using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
-using FINUFFT: FINUFFT  # required for FINUFFTBackend
 
 ##
 
@@ -24,7 +23,7 @@ function biot_savart_parameters()
         Γ, a, Δ,
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
-        backend_long = FINUFFTBackend(),
+        backend_long = NonuniformFFTsBackend(),
         quadrature = GaussLegendre(3),
     )
 end

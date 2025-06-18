@@ -97,7 +97,6 @@ function test_kelvin_waves(
             # backend_short = CellListsBackend(2),
             backend_short = NaiveShortRangeBackend(),
             backend_long = NonuniformFFTsBackend(m = HalfSupport(5), σ = 1.5),  # => 1e-8 accuracy
-            # backend_long = FINUFFTBackend(upsampfac = 1.25, tol = 1e-8),
             quadrature = quad,
             lia_segment_fraction = 0.1,
         )

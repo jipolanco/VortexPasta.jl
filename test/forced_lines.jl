@@ -16,7 +16,6 @@ using VortexPasta.Diagnostics
 using UnicodePlots: lineplot, lineplot!
 using JET: JET
 using KernelAbstractions: KernelAbstractions as KA  # for JET only
-using FINUFFT: FINUFFT  # required for FINUFFTBackend
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
@@ -204,7 +203,6 @@ function generate_biot_savart_parameters()
         # backend_short = CellListsBackend(2),
         backend_short = NaiveShortRangeBackend(),  # needed when rcut > L/2 (which is the case here, since Ngrid is small)
         backend_long = NonuniformFFTsBackend(m = HalfSupport(4), σ = 1.5),
-        # backend_long = FINUFFTBackend(tol = 1e-6),
         quadrature = GaussLegendre(3),
     )
 end
@@ -365,16 +363,16 @@ function test_forced_lines(
     ## Inference tests
     enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
     if enable_jet
-        # Check that everything is inferred (except for issues coming from FINUFFT.jl).
+        # Check that everything is inferred.
         # (This is only for tests and can be ignored!)
-        JET.@test_opt ignored_modules=(FINUFFT, Base, Base.PCRE, KA, Base.IteratorsMD) init(
+        JET.@test_opt ignored_modules=(Base, Base.PCRE, KA, Base.IteratorsMD) init(
             prob, scheme;
             dt,
             callback, affect!,
             external_velocity = forcing_velocity,
             external_streamfunction = forcing_streamfunction,
         )
-        JET.@test_opt ignored_modules=(FINUFFT, Base, Base.PCRE, KA, Base.IteratorsMD) step!(iter)
+        JET.@test_opt ignored_modules=(Base, Base.PCRE, KA, Base.IteratorsMD) step!(iter)
     end
 
     nothing

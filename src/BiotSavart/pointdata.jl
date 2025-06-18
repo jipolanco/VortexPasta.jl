@@ -21,7 +21,8 @@ where:
 - `T` is a float type (usually `Float32` or `Float64`).
 
 - `S` is either `T` (for real-valued charges) or `Complex{T}` (for complex-valued charges).
-  Usually `T` is fine; `Complex{T}` may be needed by specific long-range backends (such as `FINUFFTBackend`).
+  Usually `T` is fine; `Complex{T}` may be needed by specific long-range backends (such as
+  `FINUFFTBackend`, which is no longer available).
 
 - `F <: AbstractFilament` is the filament type (e.g. `ClosedFilament{…}`).
 """

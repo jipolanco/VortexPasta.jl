@@ -49,13 +49,12 @@ function helicity_spectrum!(
         Hk::AbstractVector, ks::AbstractVector, cache::LongRangeCache;
         unfilter = true,  # undo Ewald smoothing filter
     )
-    (; state, ewald_op_d, ewald_prefactor,) = cache.common
+    (; state, ewald_op_d,) = cache.common
     σ = BiotSavart.ewald_smoothing_scale(cache)
     p = BiotSavart.get_parameters(cache)
     V = prod(p.Ls)  # domain volume
     from_smoothed_velocity = state.quantity == :velocity && state.smoothing_scale == σ  # smoothed velocity
     from_vorticity = state.quantity == :vorticity && state.smoothing_scale == 0  # unsmoothed vorticity
-    γ² = ewald_prefactor^2  # = (Γ/V)^2
     if from_smoothed_velocity
         if unfilter
             _compute_spectrum!(Hk, ks, cache) do u⃗, k⃗, k², I
@@ -63,8 +62,8 @@ function helicity_spectrum!(
                 local w = @inbounds k² * ewald_op_d[I]
                 local β = ifelse(
                     iszero(w),
-                    one(γ²),   # set the factor to 1 if k² == 0
-                    γ² / w^2,  # note: γ cancels out with prefactor already included in ewald_op_d
+                    one(w),   # set the factor to 1 if k² == 0
+                    1 / w^2,
                 )
                 # @assert β ≈ exp(k² / (2 * cache.common.params.common.α^2))
                 # @assert β ≈ exp(k² * σ^2)
@@ -85,7 +84,7 @@ function helicity_spectrum!(
         end
     elseif from_vorticity
         _compute_spectrum!(Hk, ks, cache) do ω⃗, k⃗, k², I
-            local β = ifelse(iszero(k²), one(γ²), γ² / k²)
+            local β = ifelse(iszero(k²), one(k²), 1 / k²)
             local u⃗_lap = im * (k⃗ × ω⃗)  # this is k² * û
             2V * β * real(u⃗_lap ⋅ ω⃗)
         end

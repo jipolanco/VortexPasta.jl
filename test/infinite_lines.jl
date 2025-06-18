@@ -77,7 +77,6 @@ end
 # Compute kinetic energy included in truncated Fourier coefficients of the vorticity.
 # This is basically the example in the docs of BiotSavart.compute_on_nodes!.
 function truncated_kinetic_energy_from_vorticity(cache::LongRangeCache)
-    (; ewald_prefactor,) = cache.common
     (; field, wavenumbers, state,) = @inferred BiotSavart.get_longrange_field_fourier(cache)
     @test state.quantity == :vorticity
     @test state.smoothing_scale == 0  # unsmoothed vorticity
@@ -88,7 +87,6 @@ function truncated_kinetic_energy_from_vorticity(cache::LongRangeCache)
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
     # @show BiotSavart.backend(cache) with_hermitian_symmetry
     @assert with_hermitian_symmetry == (wavenumbers[1][end] > 0)
-    γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
     E = 0.0
     for I ∈ CartesianIndices(uhat[1])
         k⃗ = map(getindex, wavenumbers, Tuple(I))
@@ -97,7 +95,7 @@ function truncated_kinetic_energy_from_vorticity(cache::LongRangeCache)
         k² = sum(abs2, k⃗)
         if !iszero(k²)
             ω⃗ = (uhat[1][I], uhat[2][I], uhat[3][I])  # Fourier coefficient of the vorticity
-            E += γ² * factor * sum(abs2, ω⃗) / k²
+            E += factor * sum(abs2, ω⃗) / k²
         end
     end
     E

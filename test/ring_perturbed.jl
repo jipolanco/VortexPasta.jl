@@ -7,7 +7,6 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics: Diagnostics
 using UnicodePlots: lineplot
-using FINUFFT: FINUFFT  # required for FINUFFTBackend
 using LinearAlgebra: ⋅
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
@@ -35,7 +34,7 @@ function test_perturbed_vortex_ring()
         Γ, a, Δ,
         α, rcut, Ls, Ns,
         backend_short = CellListsBackend(2),
-        backend_long = FINUFFTBackend(tol = 1e-6),
+        backend_long = NonuniformFFTsBackend(),
         quadrature = GaussLegendre(2),
     )
 

@@ -308,13 +308,10 @@ This argument should be a function `callback_vorticity(cache)` which takes a
 [`LongRangeCache`](@ref). The callback should not modify anything inside the cache, or
 otherwise the streamfunction and velocity computed by this function will likely be wrong.
 Moreover, one can call [`get_longrange_field_fourier`](@ref) to get the vorticity field from
-within the callback. Of course, this callback never be called if long-range computations are disabled.
+within the callback. Of course, this callback is never be called if long-range computations are disabled.
 
-Note that, when the callback is called, the vorticity coefficients returned by `get_longrange_field_fourier`
-don't have the right physical dimensions as they have not yet been multiplied by
-``Γ/V`` (where ``V`` is the volume of a unit cell). Note that ``Γ/V`` is directly available
-in `cache.common.ewald_prefactor`. Besides, the vorticity coefficients at this stage have
-not yet been Gaussian-filtered according to Ewald's method.
+When the callback is called, the available field is simply a Fourier-truncated vorticity, as
+the coarse-graining due to Ewald's method has not been applied yet.
 
 An example of how to compute the (large-scale) kinetic energy associated to the
 Fourier-truncated vorticity field:
@@ -325,7 +322,6 @@ using Adapt: adapt  # useful in case FFTs are computed on the GPU
 E_from_vorticity = Ref(0.0)  # "global" variable updated when calling compute_on_nodes!
 
 function callback_vorticity(cache::LongRangeCache)
-    (; ewald_prefactor,) = cache.common
     (; field, wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
     @assert state.quantity == :vorticity
     @assert state.smoothing_scale == 0  # unsmoothed field
@@ -334,7 +330,6 @@ function callback_vorticity(cache::LongRangeCache)
     uhat = adapt(Array, field)::NTuple{3}  # (ωx, ωy, ωz) in Fourier space
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
     @assert with_hermitian_symmetry == wavenumbers[1][end] > 0
-    γ² = ewald_prefactor^2  # = (Γ/V)^2 [prefactor not included in the vorticity]
     E = 0.0
     for I ∈ CartesianIndices(uhat[1])
         k⃗ = map(getindex, wavenumbers, Tuple(I))
@@ -343,7 +338,7 @@ function callback_vorticity(cache::LongRangeCache)
         k² = sum(abs2, k⃗)
         if !iszero(k²)
             ω⃗ = (uhat[1][I], uhat[2][I], uhat[3][I])  # Fourier coefficient of the vorticity
-            E += γ² * factor * sum(abs2, ω⃗) / k²
+            E += factor * sum(abs2, ω⃗) / k²
         end
     end
     E_from_vorticity[] = E  # update value of "global" variable

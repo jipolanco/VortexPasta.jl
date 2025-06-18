@@ -69,7 +69,7 @@ end
 
 _ensure_hermitian_symmetry!(::ExactSumCache, ::Val{0}, us) = us  # we're done, do nothing
 
-function transform_to_fourier!(c::ExactSumCache)
+function transform_to_fourier!(c::ExactSumCache, prefactor::Real)
     (; uhat_d, wavenumbers_d, pointdata_d,) = c.common
     (; points, charges,) = pointdata_d
     @assert size(uhat_d) == map(length, wavenumbers_d)
@@ -77,7 +77,7 @@ function transform_to_fourier!(c::ExactSumCache)
     inds = CartesianIndices(uhat_d)
     @inbounds for i ∈ eachindex(points, charges)
         X = points[i]
-        Q = charges[i]
+        Q = prefactor * charges[i]
         @inbounds Threads.@threads for I ∈ inds
             k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))
             uhat_d[I] += Q * cis(-k⃗ ⋅ X)

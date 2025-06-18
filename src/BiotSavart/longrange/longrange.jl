@@ -46,8 +46,8 @@ struct LongRangeCacheCommon{
     wavenumbers_d :: WaveNumbers
     pointdata_d   :: PointCharges        # non-uniform data in physical space
     uhat_d        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
-    ewald_prefactor :: T                 # prefactor Γ/V (also included in ewald_op_d)
-    ewald_op_d      :: RealScalarField    # real-valued Ewald operator in Fourier space ([Nx, Ny, Nz])
+    vorticity_prefactor :: T             # prefactor Γ/V appearing in the Fourier transform of the vorticity
+    ewald_op_d      :: RealScalarField   # real-valued Ewald operator in Fourier space ([Nx, Ny, Nz])
     state           :: LongRangeCacheState
     to_d            :: Timer             # timer for operations run on the device
 end
@@ -66,21 +66,21 @@ function LongRangeCacheCommon(
     @assert α !== Zero()
     Nks = map(length, wavenumbers)
     uhat_d = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
-    ewald_prefactor = Γ / prod(Ls)
+    vorticity_prefactor = Γ / prod(Ls)
     device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers_d = adapt(device, wavenumbers)  # copy wavenumbers onto device if needed
     pointdata_d = adapt(device, pointdata)      # create PointData replica on the device if needed
-    ewald_op_d = init_ewald_fourier_operator(T, backend, wavenumbers_d, α, ewald_prefactor)
+    ewald_op_d = init_ewald_fourier_operator(T, backend, wavenumbers_d, α)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, params_all, wavenumbers_d, pointdata_d, uhat_d, ewald_prefactor, ewald_op_d, state, timer)
+    LongRangeCacheCommon(params, params_all, wavenumbers_d, pointdata_d, uhat_d, vorticity_prefactor, ewald_op_d, state, timer)
 end
 
 has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
 
 # Initialise Fourier vector field with the right memory layout.
 # This default implementation can be overridden by other backends.
-# That's the case of FINUFFT, which needs a specific memory layout to perform simultaneous
-# NUFFTs of the 3 vector field components.
+# That's the case of the old FINUFFT backend (which has been removed), which needs a
+# specific memory layout to perform simultaneous NUFFTs of the 3 vector field components.
 function init_fourier_vector_field(backend::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
     device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     # Initialising arrays in parallel (using KA) may be good for performance;
@@ -151,11 +151,14 @@ function Base.similar(cache::LongRangeCache, Ns::Dims{3})
 end
 
 """
-    transform_to_fourier!(cache::LongRangeCache)
+    transform_to_fourier!(cache::LongRangeCache, prefactor::Real)
 
 Transform stored non-uniform data to Fourier space.
 
 This usually corresponds to a type-1 NUFFT.
+
+The `prefactor` is a real value that will be used to multiply each non-uniform value (or
+equivalently each uniform value in Fourier space).
 
 Non-uniform data must be first added via [`add_point_charges!`](@ref).
 """
@@ -184,15 +187,13 @@ This operation can be simply written as:
 where
 
 ```math
-ϕ_α(k) = \frac{Γ}{V} \, \frac{e^{-k^2 / 4α^2}}{k^2}
+ϕ_α(k) = \frac{e^{-k^2 / 4α^2}}{k^2}
 ```
 
 is the Ewald operator. The effect of this operator is to:
 
 1. invert the Laplacian in ``-∇² \bm{ψ} = \bm{\omega}``;
-2. smoothen the fields according to the Ewald parameter ``α`` (an inverse length scale);
-3. rescale values by the vortex circulation ``Γ`` and the volume ``V`` of a periodic cell
-   so that the streamfunction has the right units (``L^2 T^{-1}``).
+2. smoothen the fields according to the Ewald parameter ``α`` (an inverse length scale).
 
 This function should be called after [`compute_vorticity_fourier!`](@ref).
 If one only needs the velocity and not the streamfunction, one can also directly call
@@ -415,19 +416,18 @@ end
         u::AbstractArray{T, 3} where {T},
         @Const(ks),
         @Const(β::Real),  # = -1/(4α²)
-        @Const(prefactor::Real),
     )
     I = @index(Global, Cartesian)
     k⃗ = map(getindex, ks, Tuple(I))
     k² = sum(abs2, k⃗)
     # Operator converting vorticity to coarse-grained streamfunction
-    y = prefactor * exp(β * k²) / k²
+    y = exp(β * k²) / k²
     @inbounds u[I] = ifelse(iszero(k²), zero(y), y)
     nothing
 end
 
 function init_ewald_fourier_operator(
-        ::Type{T}, backend::LongRangeBackend, ks, α::Real, prefactor::Real,
+        ::Type{T}, backend::LongRangeBackend, ks, α::Real,
     ) where {T <: Real}
     ka_backend = KA.get_backend(backend)
     dims = map(length, ks)
@@ -435,7 +435,7 @@ function init_ewald_fourier_operator(
     @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device
     β = -1 / (4 * α^2)
     kernel = ka_generate_kernel(init_ewald_fourier_operator_kernel!, ka_backend, u)
-    kernel(u, ks, β, prefactor)
+    kernel(u, ks, β)
     u
 end
 
@@ -511,8 +511,8 @@ end
 end
 
 # Determines whether the backend requires non-uniform values to be complex.
-# By default this is not the case, but backends needing that (such as FINUFFT) return
-# Complex{T} instead of T.
+# By default this is not the case, but backends needing that (such as the FINUFFT backend,
+# which has been removed) return Complex{T} instead of T.
 non_uniform_type(::Type{T}, ::LongRangeBackend) where {T <: AbstractFloat} = T
 
 """
@@ -520,14 +520,10 @@ non_uniform_type(::Type{T}, ::LongRangeBackend) where {T <: AbstractFloat} = T
 
 Estimate vorticity in Fourier space.
 
-The vorticity, written to `cache.common.uhat_d`, is estimated using some variant of
+The vorticity, written to `cache.common.uhat_d`, is estimated using some kind of
 non-uniform Fourier transforms (depending on the chosen backend).
 
 Note that this function doesn't perform smoothing over the vorticity using the Ewald operator.
-Moreover, the resulting vorticity doesn't have the right dimensions, as it must be
-multiplied by ``Γ/V`` (where ``Γ`` is the circulation and ``V`` is the volume of a periodic
-cell) to have dimensions ``T^{-1}``. In fact, this factor is included in the Ewald operator
-(see [`to_smoothed_streamfunction!`](@ref) for details).
 
 Must be called after [`add_point_charges!`](@ref).
 
@@ -535,10 +531,10 @@ After calling this function, one may want to use [`to_smoothed_streamfunction!`]
 [`to_smoothed_velocity!`](@ref) to obtain the respective fields.
 """
 function compute_vorticity_fourier!(cache::LongRangeCache)
-    (; uhat_d, state,) = cache.common
-    rescale_coordinates!(cache)  # may be needed by the backend (e.g. FINUFFT requires period L = 2π)
-    fold_coordinates!(cache)     # may be needed by the backend (e.g. FINUFFT requires x ∈ [-3π, 3π])
-    transform_to_fourier!(cache)
+    (; uhat_d, state, vorticity_prefactor,) = cache.common
+    rescale_coordinates!(cache)  # may be needed by the backend (e.g. NonuniformFFTs.jl requires period L = 2π)
+    fold_coordinates!(cache)     # may be needed by the backend (e.g. NonuniformFFTs.jl prefers x ∈ [0, 2π])
+    transform_to_fourier!(cache, vorticity_prefactor)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
     state.quantity = :vorticity
     state.smoothing_scale = 0
@@ -723,5 +719,4 @@ _ensure_hermitian_symmetry!(wavenumbers, ::Val{0}, us) = us  # we're done, do no
 
 include("ka_utils.jl")
 include("exact_sum.jl")
-include("finufft.jl")
 include("nonuniformffts.jl")
