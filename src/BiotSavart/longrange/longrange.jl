@@ -9,9 +9,8 @@ It has two fields, which allow to know which field is currently stored and its s
 - `quantity::Symbol` (can be `:undef`, `:vorticity`, `:velocity`, `:streamfunction`)
 
 - `smoothing_scale::Float64`: width ``σ`` of applied Gaussian filter. This is typically
-  ``σ = 1 / α√2`` where ``α`` is Ewald's splitting parameter. Its value is 0 if the field
-  has not been (yet) smoothed. This is usually the case after calling
-  [`compute_vorticity_fourier!`](@ref).
+  0 (if the field has not been smoothed), but that can change if one calls
+  [`to_coarse_grained_vorticity!`](@ref).
 
 See [`BiotSavart.get_longrange_field_fourier`](@ref) for more details.
 """
@@ -47,10 +46,24 @@ struct LongRangeCacheCommon{
     pointdata_d   :: PointCharges        # non-uniform data in physical space
     uhat_d        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
     vorticity_prefactor :: T             # prefactor Γ/V appearing in the Fourier transform of the vorticity
-    ewald_op_d      :: RealScalarField   # real-valued Ewald operator in Fourier space ([Nx, Ny, Nz])
+    ewald_gaussian_d    :: RealScalarField   # real-valued Ewald Gaussian smoothing in Fourier space ([Nx, Ny, Nz])
     state           :: LongRangeCacheState
     to_d            :: Timer             # timer for operations run on the device
 end
+
+get_wavenumbers(c::LongRangeCacheCommon) = c.wavenumbers_d
+get_wavenumbers(c::LongRangeCache) = get_wavenumbers(c.common)
+
+@inline function get_ewald_interpolation_callback(c::LongRangeCacheCommon)
+    # We generate a callback function which multiplies the input û with a Gaussian filter
+    # before performing interpolations in physical space.
+    @inline function (û::Vec3, I::CartesianIndex)
+        @inbounds op = c.ewald_gaussian_d[I]
+        û * op
+    end
+end
+
+@inline get_ewald_interpolation_callback(c::LongRangeCache) = get_ewald_interpolation_callback(c.common)
 
 function LongRangeCacheCommon(
         params_all::ParamsBiotSavart{T},
@@ -70,9 +83,9 @@ function LongRangeCacheCommon(
     device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers_d = adapt(device, wavenumbers)  # copy wavenumbers onto device if needed
     pointdata_d = adapt(device, pointdata)      # create PointData replica on the device if needed
-    ewald_op_d = init_ewald_fourier_operator(T, backend, wavenumbers_d, α)
+    ewald_gaussian_d = init_ewald_gaussian_operator(T, backend, wavenumbers_d, α)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, params_all, wavenumbers_d, pointdata_d, uhat_d, vorticity_prefactor, ewald_op_d, state, timer)
+    LongRangeCacheCommon(params, params_all, wavenumbers_d, pointdata_d, uhat_d, vorticity_prefactor, ewald_gaussian_d, state, timer)
 end
 
 has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
@@ -164,66 +177,58 @@ Non-uniform data must be first added via [`add_point_charges!`](@ref).
 """
 function transform_to_fourier! end
 
-@kernel function to_smoothed_streamfunction_kernel!(us::NTuple, @Const(ewald_op))
-    I = @index(Global, Linear)
+@doc raw"""
+    compute_streamfunction_fourier!(cache::LongRangeCache)
+
+Convert Fourier-transformed vorticity field to streamfunction field in Fourier space.
+
+This simply corresponds to inverting a Laplacian (``-∇^2 \bm{ψ} = \bm{ω}``), which in
+Fourier space is:
+
+```math
+\hat{\bm{ψ}}_{α}(\bm{k}) = \hat{\bm{ω}}(\bm{k}) / k²
+```
+
+This function should be called after [`compute_vorticity_fourier!`](@ref).
+If one only needs the velocity and not the streamfunction, one can also directly call
+[`compute_velocity_fourier!`](@ref).
+"""
+function compute_streamfunction_fourier!(c::LongRangeCache)
+    (; uhat_d, state,) = c.common
+    wavenumbers_d = get_wavenumbers(c)
+    from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
+    @assert from_vorticity
+    ka_backend = KA.get_backend(c)
+    kernel = ka_generate_kernel(fourier_inverse_laplacian_kernel!, ka_backend, uhat_d)
+    uhat_comps = StructArrays.components(uhat_d)
+    kernel(uhat_comps, wavenumbers_d)
+    state.quantity = :streamfunction
+    uhat_d
+end
+
+# This inverts -∇²ψ = ω  <-->  k² ψ̂ = ω̂
+@kernel function fourier_inverse_laplacian_kernel!(us::NTuple, @Const(ks))
+    I = @index(Global, Cartesian)
+    k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
+    k² = sum(abs2, k⃗)
+    k²_inv = ifelse(iszero(k²), zero(k²), inv(k²))  # this implicitly sets the k⃗ = 0 mode to zero
     for u ∈ us
-        @inbounds u[I] *= ewald_op[I]
+        @inbounds u[I] *= k²_inv
     end
     nothing
 end
 
-@doc raw"""
-    to_smoothed_streamfunction!(cache::LongRangeCache)
-
-Convert Fourier-transformed vorticity field to coarse-grained streamfunction field in
-Fourier space.
-
-This operation can be simply written as:
-
-```math
-\hat{\bm{ψ}}_{α}(\bm{k}) = ϕ_α(|\bm{k}|) \, \hat{\bm{ω}}(\bm{k})
-```
-
-where
-
-```math
-ϕ_α(k) = \frac{e^{-k^2 / 4α^2}}{k^2}
-```
-
-is the Ewald operator. The effect of this operator is to:
-
-1. invert the Laplacian in ``-∇² \bm{ψ} = \bm{\omega}``;
-2. smoothen the fields according to the Ewald parameter ``α`` (an inverse length scale).
-
-This function should be called after [`compute_vorticity_fourier!`](@ref).
-If one only needs the velocity and not the streamfunction, one can also directly call
-[`to_smoothed_velocity!`](@ref).
-"""
-function to_smoothed_streamfunction!(c::LongRangeCache)
-    (; uhat_d, state, ewald_op_d,) = c.common
-    @assert size(uhat_d) === size(ewald_op_d)
-    from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
-    @assert from_vorticity
-    inds = eachindex(ewald_op_d, uhat_d)
-    @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)
-    ka_backend = KA.get_backend(c)
-    kernel = ka_generate_kernel(to_smoothed_streamfunction_kernel!, ka_backend, uhat_d)
-    uhat_comps = StructArrays.components(uhat_d)
-    kernel(uhat_comps, ewald_op_d)
-    state.quantity = :streamfunction
-    state.smoothing_scale = ewald_smoothing_scale(c)
-    uhat_d
-end
-
 # Applies Biot-Savart + Gaussian smoothing operators in Fourier space.
-@kernel function velocity_from_vorticity_kernel!(uhat::NTuple, @Const(ks), @Const(ewald_op))
+@kernel function fourier_biot_savart_kernel!(uhat::NTuple, @Const(ks))
     I = @index(Global, Cartesian)
-    @inbounds op = ewald_op[I]
-    op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), ks, Tuple(I)))
+    k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
     u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
     u⃗ = @inbounds im * u⃗
-    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
-    u⃗ = @noinline op_times_k⃗ × u⃗
+    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?) -- XXX: is this still the case?
+    u⃗ = @noinline k⃗ × u⃗
+    k² = sum(abs2, k⃗)
+    k²_inv = ifelse(iszero(k²), zero(k²), inv(k²))  # this implicitly sets the k⃗ = 0 mode to zero
+    u⃗ = u⃗ * k²_inv
     for n ∈ eachindex(uhat)
         @inbounds uhat[n][I] = u⃗[n]
     end
@@ -236,7 +241,7 @@ end
     k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
     u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
     u⃗ = @inbounds im * u⃗
-    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
+    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?) -- XXX: is this still the case?
     u⃗ = @noinline k⃗ × u⃗
     for n ∈ eachindex(uhat)
         @inbounds uhat[n][I] = u⃗[n]
@@ -275,37 +280,33 @@ end
 end
 
 @doc raw"""
-    to_smoothed_velocity!(cache::LongRangeCache)
+    compute_velocity_fourier!(cache::LongRangeCache)
 
-Convert Fourier-transformed vorticity field to coarse-grained velocity field in
-Fourier space.
+Convert Fourier-transformed vorticity field to velocity field in Fourier space.
 
 If called right after [`compute_vorticity_fourier!`](@ref), this function performs the
 operation:
 
 ```math
-\hat{\bm{v}}_{α}(\bm{k}) = i \bm{k} × ϕ_α(|\bm{k}|) \, \, \hat{\bm{ω}}(\bm{k}),
+\hat{\bm{v}}_{α}(\bm{k}) = \frac{i \bm{k} × \, \hat{\bm{ω}}(\bm{k})}{k^2}.
 ```
 
-where ``ϕ_α`` is the Ewald operator defined in [`to_smoothed_streamfunction!`](@ref).
-
 Optionally, if one is also interested in the streamfunction, one can call
-[`to_smoothed_streamfunction!`](@ref) *before* this function.
-In that case, the cache already contains the smoothed streamfunction, and only the curl
+[`compute_streamfunction_fourier!`](@ref) *before* this function.
+In that case, the cache already contains the streamfunction, and only the curl
 operator (``i \bm{k} ×``) is applied by this function.
 """
-function to_smoothed_velocity!(c::LongRangeCache)
-    (; uhat_d, state, ewald_op_d, wavenumbers_d,) = c.common
-    σ = ewald_smoothing_scale(c)
-    @assert size(uhat_d) === size(ewald_op_d)
+function compute_velocity_fourier!(c::LongRangeCache)
+    (; uhat_d, state,) = c.common
+    wavenumbers_d = get_wavenumbers(c)
     from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
-    from_streamfunction = state.quantity === :streamfunction && state.smoothing_scale == σ
+    from_streamfunction = state.quantity === :streamfunction && state.smoothing_scale == 0
     @assert from_vorticity || from_streamfunction
     ka_backend = KA.get_backend(c)
     uhat_comps = StructArrays.components(uhat_d)
     if from_vorticity
-        let kernel = ka_generate_kernel(velocity_from_vorticity_kernel!, ka_backend, uhat_d)
-            kernel(uhat_comps, wavenumbers_d, ewald_op_d)
+        let kernel = ka_generate_kernel(fourier_biot_savart_kernel!, ka_backend, uhat_d)
+            kernel(uhat_comps, wavenumbers_d)
         end
     elseif from_streamfunction
         let kernel = ka_generate_kernel(fourier_curl_kernel!, ka_backend, uhat_d)
@@ -313,7 +314,6 @@ function to_smoothed_velocity!(c::LongRangeCache)
         end
     end
     state.quantity = :velocity
-    state.smoothing_scale = ewald_smoothing_scale(c)
     c
 end
 
@@ -325,15 +325,15 @@ Compute coarse-grained vorticity in Fourier space.
 The vorticity is coarse-grained at scale ``ℓ`` using a Gaussian filter.
 
 Ideally, for accuracy reasons, the smoothing scale ``ℓ`` should be larger than the Ewald
-splitting scale ``σ = 1 / α√2``. Also note that applying this function leads to loss of
-small-scale information, so that one should be careful when performing additional
+splitting scale ``σ = 1 / α√2``. Also note that applying this function leads to **loss of
+small-scale information**, so that one should be careful when performing additional
 calculations (energy spectra, ...) afterwards.
 
 This can be useful for visualisations or physical analysis. It is _not_ used to compute
 Biot–Savart velocities, and the scale ``ℓ`` need not be similar to the splitting lengthscale
 in Ewald's method.
 
-This function also sets the [`LongRangeCacheState`](@ref) to `quantity = :vorticity`.
+This function also sets the [`LongRangeCacheState`](@ref) to `quantity = :vorticity` and `smoothing_scale = ℓ`.
 
 This function returns the same thing as [`get_longrange_field_fourier`](@ref), including the
 resulting coarse-grained vorticity in Fourier space.
@@ -363,12 +363,13 @@ BiotSavart.copy_long_range_output!(ωs_ℓ, cache.longrange)  # copy results fro
 ```
 """
 function to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real; warn = true)
-    (; uhat_d, state, wavenumbers_d,) = c.common
+    (; uhat_d, state,) = c.common
+    wavenumbers_d = get_wavenumbers(c)
     σ_ewald = ewald_smoothing_scale(c)
     if warn && ℓ < σ_ewald
         @warn lazy"for accuracy reasons, the smoothing scale (ℓ = $ℓ) should be larger than the Ewald splitting scale (σ = $σ_ewald)"
     end
-    ℓ_old = state.smoothing_scale  # current smoothing scale (usually 1 / α√2, but can be different)
+    ℓ_old = state.smoothing_scale  # current smoothing scale (usually 0, but can be different)
     ka_backend = KA.get_backend(c)
     uhat_comps = StructArrays.components(uhat_d)
     if state.quantity === :velocity
@@ -388,8 +389,8 @@ function to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real; warn = true)
 end
 
 # These can be useful for generic code dealing with velocity, streamfunction or both.
-to_smoothed_field!(::Velocity, c::LongRangeCache) = to_smoothed_velocity!(c)
-to_smoothed_field!(::Streamfunction, c::LongRangeCache) = to_smoothed_streamfunction!(c)
+compute_field_fourier!(::Velocity, c::LongRangeCache) = compute_velocity_fourier!(c)
+compute_field_fourier!(::Streamfunction, c::LongRangeCache) = compute_streamfunction_fourier!(c)
 
 """
     interpolate_to_physical!([callback::Function], [output::StructVector{<:Vec3}], cache::LongRangeCache) -> output
@@ -405,7 +406,7 @@ This vector is returned by this function.
 The optional `callback` function should be a function `f(û, k⃗)` which takes:
 
 - `û::Vec3{<:Complex}` a Fourier coefficient;
-- `k⃗::Vec3{<:Real}` the wavevector associated to `û`.
+- `I::CartesianIndex{3}` the index of `û` on the Fourier grid.
 
 This can be used to modify the Fourier-space fields to be interpolated, but without really
 modifying the values in `uhat_d` (and thus the state of the cache). For example, to
@@ -413,8 +414,10 @@ interpolate a Gaussian-filtered field:
 
 ```julia
 σ = 0.1  # width of Gaussian filter (in physical space)
+ks = BiotSavart.get_wavenumbers(cache.longrange)
 
-callback(û::Vec3, k⃗::Vec3) = let
+callback(û::Vec3, I::CartesianIndex{3}) = let
+    k⃗ = @inbounds getindex.(ks, Tuple(I))
     k² = sum(abs2, k⃗)
     û * exp(-σ^2 * k² / 2)
 end
@@ -424,7 +427,7 @@ interpolate_to_physical!(callback, cache)
 """
 function interpolate_to_physical! end
 
-@inline default_callback_interp(û, k⃗) = û  # by default we leave the original value unmodified
+@inline default_callback_interp(û::Vec3, I::CartesianIndex{3}) = û  # by default we leave the original value unmodified
 
 interpolate_to_physical!(cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, cache)
 interpolate_to_physical!(output::StructVector, cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, output, cache)
@@ -441,7 +444,7 @@ function interpolate_to_physical!(callback::F, output::StructVector, cache::Long
     output
 end
 
-@kernel function init_ewald_fourier_operator_kernel!(
+@kernel function init_ewald_gaussian_operator_kernel!(
         u::AbstractArray{T, 3} where {T},
         @Const(ks),
         @Const(β::Real),  # = -1/(4α²)
@@ -449,13 +452,12 @@ end
     I = @index(Global, Cartesian)
     k⃗ = map(getindex, ks, Tuple(I))
     k² = sum(abs2, k⃗)
-    # Operator converting vorticity to coarse-grained streamfunction
-    y = exp(β * k²) / k²
-    @inbounds u[I] = ifelse(iszero(k²), zero(y), y)
+    # This is simply a Gaussian smoothing operator in Fourier space (note: β = -1/4α²).
+    @inbounds u[I] = exp(β * k²)
     nothing
 end
 
-function init_ewald_fourier_operator(
+function init_ewald_gaussian_operator(
         ::Type{T}, backend::LongRangeBackend, ks, α::Real,
     ) where {T <: Real}
     ka_backend = KA.get_backend(backend)
@@ -463,7 +465,7 @@ function init_ewald_fourier_operator(
     u = KA.zeros(ka_backend, T, dims)
     @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device
     β = -1 / (4 * α^2)
-    kernel = ka_generate_kernel(init_ewald_fourier_operator_kernel!, ka_backend, u)
+    kernel = ka_generate_kernel(init_ewald_gaussian_operator_kernel!, ka_backend, u)
     kernel(u, ks, β)
     u
 end
@@ -556,8 +558,8 @@ Note that this function doesn't perform smoothing over the vorticity using the E
 
 Must be called after [`add_point_charges!`](@ref).
 
-After calling this function, one may want to use [`to_smoothed_streamfunction!`](@ref) and/or
-[`to_smoothed_velocity!`](@ref) to obtain the respective fields.
+After calling this function, one may want to use [`compute_streamfunction_fourier!`](@ref) and/or
+[`compute_velocity_fourier!`](@ref) to obtain the respective fields.
 """
 function compute_vorticity_fourier!(cache::LongRangeCache)
     (; uhat_d, state, vorticity_prefactor,) = cache.common
@@ -583,7 +585,8 @@ end
 end
 
 function truncate_spherical!(cache)
-    (; uhat_d, params, wavenumbers_d,) = cache.common
+    (; uhat_d, params,) = cache.common
+    wavenumbers_d = get_wavenumbers(cache)
     if !params.truncate_spherical
         return  # don't apply spherical truncation
     end
