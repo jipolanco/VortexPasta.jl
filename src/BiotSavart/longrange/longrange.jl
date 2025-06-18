@@ -392,23 +392,52 @@ to_smoothed_field!(::Velocity, c::LongRangeCache) = to_smoothed_velocity!(c)
 to_smoothed_field!(::Streamfunction, c::LongRangeCache) = to_smoothed_streamfunction!(c)
 
 """
-    interpolate_to_physical!([output::StructVector{<:Vec3},] cache::LongRangeCache) -> output
+    interpolate_to_physical!([callback::Function], [output::StructVector{<:Vec3}], cache::LongRangeCache) -> output
 
 Perform type-2 NUFFT to interpolate values in `cache.common.uhat_d` to non-uniform
 points in physical space.
 
 Results are written to the `output` vector, which defaults to `cache.pointdata_d.charges`.
 This vector is returned by this function.
-"""
-function interpolate_to_physical!(cache::LongRangeCache)
-    output = cache.common.pointdata_d.charges
-    interpolate_to_physical!(output, cache)
+
+## Using callbacks
+
+The optional `callback` function should be a function `f(û, k⃗)` which takes:
+
+- `û::Vec3{<:Complex}` a Fourier coefficient;
+- `k⃗::Vec3{<:Real}` the wavevector associated to `û`.
+
+This can be used to modify the Fourier-space fields to be interpolated, but without really
+modifying the values in `uhat_d` (and thus the state of the cache). For example, to
+interpolate a Gaussian-filtered field:
+
+```julia
+σ = 0.1  # width of Gaussian filter (in physical space)
+
+callback(û::Vec3, k⃗::Vec3) = let
+    k² = sum(abs2, k⃗)
+    û * exp(-σ^2 * k² / 2)
 end
 
-function interpolate_to_physical!(output, cache::LongRangeCache)
+interpolate_to_physical!(callback, cache)
+```
+"""
+function interpolate_to_physical! end
+
+@inline default_callback_interp(û, k⃗) = û  # by default we leave the original value unmodified
+
+interpolate_to_physical!(cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, cache)
+interpolate_to_physical!(output::StructVector, cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, output, cache)
+
+function interpolate_to_physical!(callback::F, cache::LongRangeCache) where {F}
+    output = cache.common.pointdata_d.charges
+    interpolate_to_physical!(callback, output, cache)
+end
+
+function interpolate_to_physical!(callback::F, output::StructVector, cache::LongRangeCache) where {F}
     # TODO: what if the output is in a different device? (CPU/GPU)?
     @assert typeof(output) === typeof(cache.common.pointdata_d.charges)
-    _interpolate_to_physical!(output, cache)
+    _interpolate_to_physical!(callback, output, cache)
     output
 end
 

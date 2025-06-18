@@ -88,7 +88,7 @@ function transform_to_fourier!(c::ExactSumCache, prefactor::Real)
     c
 end
 
-function _interpolate_to_physical!(output::StructVector, c::ExactSumCache)
+function _interpolate_to_physical!(callback::F, output::StructVector, c::ExactSumCache) where {F}
     (; uhat_d, wavenumbers_d, pointdata_d,) = c.common
     (; points,) = pointdata_d
     @assert length(points) == length(output)
@@ -100,7 +100,8 @@ function _interpolate_to_physical!(output::StructVector, c::ExactSumCache)
         q⃗ = zero(real(eltype(uhat_d)))
         for I ∈ CartesianIndices(uhat_d)
             k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))
-            v = uhat_d[I]
+            v_orig = uhat_d[I]::Vec3
+            v = callback(v_orig, k⃗)
             z = cis(k⃗ ⋅ X)
             δq⃗ = if k⃗[1] ∈ kx_lims
                 # Note: the imaginary part will cancel out with -k⃗ (also computed)
