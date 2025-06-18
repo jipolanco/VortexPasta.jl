@@ -5,6 +5,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Vorticity in Fourier space now has the right dimensions (previously, it was
+  missing a `Γ/V` factor, which was included later when computing the
+  streamfunction or velocity).
+
+### Removed
+
+- Remove `FINUFFTBackend` and `CuFINUFFTBackend`. This is in part because we're
+  starting to use the new callback feature of NonuniformFFTs.jl to avoid extra
+  memory copies when computing NUFFTs. This will be useful to store the
+  non-smoothed streamfunction andvelocity fields in Fourier space, while
+  transfoming the smoothed (long-range) fields to physical space.
+
 ## [0.27.10] - 2025-06-16
 
 ### Added
