@@ -376,15 +376,22 @@ end
 
         times = Float64[]
         energy = Float64[]
-        ε_inj_time = Float64[]  # should be negative at all times if no forcing
+        ε_inj_time = Float64[]
+        ε_diss_time = Float64[]
 
         function callback(iter)
-            iter.nstep == 0 && empty!.((times, energy, ε_inj_time))
+            iter.nstep == 0 && empty!.((times, energy, ε_inj_time, ε_diss_time))
             E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
-            ε = Diagnostics.energy_injection_rate(iter; quad = GaussLegendre(3))
+            if iter.forcing isa FourierBandForcingBS
+                ε_inj = Diagnostics.energy_injection_rate(iter, iter.vf; quad = GaussLegendre(3))
+            else
+                ε_inj = 0.0  # iter.vf is not defined
+            end
+            ε_diss = -Diagnostics.energy_injection_rate(iter, iter.vdiss; quad = GaussLegendre(3))
             push!(times, iter.t)
             push!(energy, E)
-            push!(ε_inj_time, ε)
+            push!(ε_inj_time, ε_inj)
+            push!(ε_diss_time, ε_diss)
             nothing
         end
 
@@ -392,7 +399,7 @@ end
             dissipation = @inferred SmallScaleDissipationBS(; α = 0.1, kdiss)
             (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
             @test iter.vL ≈ iter.vs + iter.vdiss
-            @test all(<(0), ε_inj_time)  # energy injection is negative (=> dissipation)
+            @test all(>(0), ε_diss_time)  # energy dissipation is positive
             @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
             plots && plot_spectra(spectra; title = "SmallScaleDissipationBS (constant α)")
         end
@@ -401,10 +408,10 @@ end
             dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
             (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
             @test iter.vL ≈ iter.vs + iter.vdiss
-            @test all(<(0), ε_inj_time)  # energy injection is negative (=> dissipation)
+            @test all(>(0), ε_diss_time)  # energy dissipation is positive
             @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
             # Chosen dissipation rate corresponds quite well to actual dissipation rate (differences are up to 5%).
-            @test all(ε_inj -> isapprox(-ε_inj, dissipation.ε_target; rtol = 0.05), ε_inj_time)
+            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.05), ε_diss_time)
             plots && plot_spectra(spectra; title = "SmallScaleDissipationBS (constant ε_target)")
         end
 
@@ -412,8 +419,8 @@ end
             dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
             forcing = @inferred FourierBandForcingBS(; ε_target = 2e-4, kmin = 0.1, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob_diss, forcing, dissipation; callback)
-            # Here the results are more complex, we just test the relation between the different terms.
             @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
+            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.05), ε_diss_time)
             plots && plot_spectra(spectra; title = "Forcing + dissipation")
         end
 

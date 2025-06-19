@@ -1,13 +1,14 @@
 using LinearAlgebra: ⋅, ×
 
 @doc raw"""
-    energy_injection_rate(iter::VortexFilamentSolver; quad = nothing) -> Real
+    energy_injection_rate(iter::VortexFilamentSolver, [vL]; quad = nothing) -> Real
     energy_injection_rate(fs, vL, vs, p::ParamsBiotSavart; quad = nothing) -> Real
 
 Compute energy injection rate from current filament velocities.
 
-This is typically the energy injected by a forcing or externally imposed velocity.
-It can be negative if these processes actually dissipate energy.
+This is typically the energy injected by an advecting vortex velocity `vL`, given the
+self-induced (Biot–Savart) velocity `vs`.
+It can be negative if `vL` actually dissipates energy.
 It does not include the contributions to the dissipation by vortex reconnections or
 numerical resolution effects.
 
