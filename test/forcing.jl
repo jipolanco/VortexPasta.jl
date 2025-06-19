@@ -42,8 +42,13 @@ function filaments_from_functions(funcs::NTuple{N, F}, args...) where {N, F <: F
     (f, f_next...)
 end
 
-function generate_filaments(N; Ls)
-    p = PeriodicLine(r = t -> 0.01 * cispi(2t))  # perturbed straight line
+function generate_filaments(N; Ls, small_scales = false)
+    r(t) = if small_scales
+        0.01 * cispi(2t) + 0.01 * cispi(N/4 * t)
+    else
+        0.01 * cispi(2t)
+    end
+    p = PeriodicLine(; r)  # perturbed straight line
     T = Float64
     method = CubicSplineMethod()
     funcs = (
@@ -55,7 +60,10 @@ function generate_filaments(N; Ls)
     collect(filaments_from_functions(funcs, ClosedFilament{T}, N, method))
 end
 
-function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0, callback = Returns(nothing), affect_t! = Returns(nothing))
+function simulate(
+        prob::VortexFilamentProblem, forcing, dissipation = NoDissipation();
+        dt_factor = 1.0, callback = Returns(nothing), affect_t! = Returns(nothing),
+    )
     δ = minimum(node_distance, prob.fs)
     dt = BiotSavart.kelvin_wave_period(prob.p, δ) * dt_factor
     reconnect = ReconnectBasedOnDistance(δ / 2)
@@ -63,14 +71,21 @@ function simulate(prob::VortexFilamentProblem, forcing; dt_factor = 1.0, callbac
     adaptivity = AdaptBasedOnSegmentLength(dt_factor) | AdaptBasedOnVelocity(δ / 2)
     iter = @inferred init(
         prob, RK4();
-        forcing, affect_t!, callback,
+        forcing, dissipation, affect_t!, callback,
         dt, reconnect, refinement, adaptivity,
     )
     if affect_t! !== Returns(nothing)
         @test match(r"affect_t\!: Function", repr(iter)) !== nothing  # check that affect_t! appears in println(iter)
     end
+    if dissipation isa SmallScaleDissipationBS
+        @test match(r"dissipation: SmallScaleDissipationBS", repr(iter)) !== nothing  # check that dissipation parameters are printed
+    end
     if forcing isa FourierBandForcing
         @test iter.vs !== iter.vL
+    elseif forcing isa FourierBandForcingBS && dissipation isa NoDissipation
+        @test iter.vs !== iter.vL
+        # Check that vf is separately stored and that it contains the right thing.
+        @test iter.vL == iter.vs + iter.vf
     end
     E_init = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
     E_final = E_init
@@ -172,13 +187,13 @@ end
     # Compute self-induced velocity of vortex filaments
     N = 32
     aspect = (1, 1, 2)
-    p = generate_biot_savart_parameters(Float64; aspect)
-    fs = generate_filaments(N; Ls = p.Ls)
-    cache_bs = BiotSavart.init_cache(p, fs)
+    params = generate_biot_savart_parameters(Float64; aspect)
+    fs = generate_filaments(N; Ls = params.Ls)
+    cache_bs = BiotSavart.init_cache(params, fs)
     vs = map(similar ∘ nodes, fs)
     velocity_on_nodes!(vs, cache_bs, fs)
     vs_self = map(copy, vs)
-    α_ewald = p.α
+    α_ewald = params.α
 
     # Obtain velocity field in Fourier space
     data = BiotSavart.get_longrange_field_fourier(cache_bs)
@@ -189,7 +204,7 @@ end
 
     # Initialise random normal fluid velocity in Fourier space
     rng = StableRNG(42)
-    Ls = p.Ls
+    Ls = params.Ls
 
     @testset "Static" begin
         # For testing purposes, we set a kmax which is larger than the kmax of the long-range grid.
@@ -230,7 +245,7 @@ end
         Random.seed!(rng, 42)
         SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
         tmax = 1.0
-        prob = VortexFilamentProblem(fs, (zero(tmax), tmax), p)
+        prob = VortexFilamentProblem(fs, (zero(tmax), tmax), params)
         @testset "NormalFluidForcing" begin
             forcing = @inferred NormalFluidForcing(vn; α, α′)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
@@ -319,7 +334,7 @@ end
             energy = Float64[]
             ε_inj_time = Float64[]  # we currently don't use this
             function callback(iter)
-                iter.nstep == 0 && empty!.((times, energy, energy_k))
+                iter.nstep == 0 && empty!.((times, energy, energy_k, ε_inj_time))
                 Ek = get_energy_at_normalised_wavevector(iter.cache_bs, qs[1])
                 E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
                 ε = Diagnostics.energy_injection_rate(iter; quad = GaussLegendre(3))
@@ -350,6 +365,80 @@ end
                 @test ε_inj ≈ forcing.ε_target rtol=1e-3  # the ε_target really represents the energy injection rate at this wavevector!
             end
         end
+        @testset "SmallScaleDissipationBS (constant α)" begin
+            # Note: we have no forcing, so energy should decay over time
+            fs_diss = generate_filaments(N; Ls, small_scales = true)
+            prob = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params)
+            # kdiss = min((π .* params.longrange.Ns ./ params.Ls)...) * 0.8  # make sure kdiss is resolved in the Fourier grid
+            kdiss = 3  # dissipate at relatively small k for testing purposes
+            dissipation = @inferred SmallScaleDissipationBS(; α = 0.1, kdiss)
+            times = Float64[]
+            energy = Float64[]
+            ε_inj_time = Float64[]  # should be negative at all times
+            function callback(iter)
+                iter.nstep == 0 && empty!.((times, energy, ε_inj_time))
+                E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+                ε = Diagnostics.energy_injection_rate(iter; quad = GaussLegendre(3))
+                push!(times, iter.t)
+                push!(energy, E)
+                push!(ε_inj_time, ε)
+                nothing
+            end
+            (; iter, E_ratio, spectra) = simulate(prob, NoForcing(), dissipation; callback)
+            # @test iter.vL != iter.vs
+            # @test iter.vL ≈ iter.vs + iter.vdiss
+        end
     end
 
+    @testset "Dissipation" begin
+        tmax = 1.0
+        fs_diss = generate_filaments(N; Ls, small_scales = true)
+        prob_diss = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params)
+        kdiss = 3  # dissipate at relatively small k for testing purposes
+
+        times = Float64[]
+        energy = Float64[]
+        ε_inj_time = Float64[]  # should be negative at all times if no forcing
+
+        function callback(iter)
+            iter.nstep == 0 && empty!.((times, energy, ε_inj_time))
+            E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+            ε = Diagnostics.energy_injection_rate(iter; quad = GaussLegendre(3))
+            push!(times, iter.t)
+            push!(energy, E)
+            push!(ε_inj_time, ε)
+            nothing
+        end
+
+        @testset "Constant α" begin
+            dissipation = @inferred SmallScaleDissipationBS(; α = 0.1, kdiss)
+            (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
+            @test iter.vL ≈ iter.vs + iter.vdiss
+            @test all(<(0), ε_inj_time)  # energy injection is negative (=> dissipation)
+            @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
+        end
+
+        @testset "Constant ε_target" begin
+            dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
+            (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
+            @test iter.vL ≈ iter.vs + iter.vdiss
+            @test all(<(0), ε_inj_time)  # energy injection is negative (=> dissipation)
+            @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
+            # Chosen dissipation rate corresponds quite well to actual dissipation rate (differences are up to 5%).
+            @test all(ε_inj -> isapprox(-ε_inj, dissipation.ε_target; rtol = 0.05), ε_inj_time)
+        end
+
+        @testset "Forcing + dissipation" begin
+            dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
+            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-4, kmin = 0.1, kmax = 2.5)
+            (; iter, E_ratio, spectra) = simulate(prob_diss, forcing, dissipation; callback)
+            # Here the results are more complex, we just test the relation between the different terms.
+            @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
+        end
+
+        @testset "Error if kdiss is too large" begin
+            dissipation = @inferred SmallScaleDissipationBS(; ε_target = 0.1, kdiss = 10000)
+            @test_throws "dissipative wavenumber (kdiss = $(dissipation.kdiss)) is too large" simulate(prob_diss, forcing, dissipation; callback)
+        end
+    end
 end

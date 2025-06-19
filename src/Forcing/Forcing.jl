@@ -14,17 +14,26 @@ using OhMyThreads: Scheduler, SerialScheduler, tforeach, tmapreduce
 
 using Adapt: adapt
 
-export AbstractForcing, NoForcing, NormalFluidForcing, FourierBandForcing, FourierBandForcingBS, SmallScaleDissipationBS
+export AbstractForcing, AbstractDissipation, NoForcing, NoDissipation,
+    NormalFluidForcing, FourierBandForcing, FourierBandForcingBS, SmallScaleDissipationBS
 
 """
     AbstractForcing
 
-Abstract type representing a forcing or dissipation method.
+Abstract type representing a forcing method.
 
 Note that, in general, all forcing methods can also be used as dissipation methods (e.g. by
 setting forcing coefficients to a negative value).
 """
 abstract type AbstractForcing end
+
+"""
+    AbstractDissipation
+
+Abstract type representing a dissipation method (via an extra dissipation term in the vortex
+velocity).
+"""
+abstract type AbstractDissipation end
 
 """
     NoForcing() <: AbstractForcing
@@ -34,6 +43,15 @@ Represents the absence of external forcing.
 struct NoForcing <: AbstractForcing end
 
 init_cache(::NoForcing, args...) = nothing  # called when forcing is disabled
+
+"""
+    NoDissipation() <: AbstractDissipation
+
+Repersents the absence of dissipation term.
+"""
+struct NoDissipation <: AbstractDissipation end
+
+init_cache(::NoDissipation, args...) = nothing  # called when dissipation term is disabled
 
 """
     Forcing.apply!(forcing::AbstractForcing, vs::AbstractVector{<:Vec3}, f::AbstractFilament; [scheduler])

@@ -145,6 +145,7 @@ function Base.show(io::IO, f::FourierBandForcingBS{T}) where {T}
     else
         print(io, "\n$(prefix)└─ Normalised Fourier wave vectors: |q⃗| = ", qs)
     end
+    nothing
 end
 
 # Here vs_grid is the superfluid velocity in Fourier space, optionally on a device (GPU).
@@ -200,26 +201,28 @@ function apply!(
     ts = Filaments.knots(f)
     ε_total = tmapreduce(+, eachindex(vs); scheduler) do i
         @inline
-        s⃗ = f[i]
-        ds⃗_dt = f[i, Derivative(1)]
-        ds_dt = sqrt(sum(abs2, ds⃗_dt))  # vector norm
-        s⃗′ = ds⃗_dt ./ ds_dt  # unit tangent
-        (; qs, cs, Δks,) = v_h
-        vf = zero(V)  # forcing velocity (excluding α prefactor)
-        for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
-            k⃗ = SVector(qs[n]) .* Δks
-            v̂ = cs[n]
-            vf_k = s⃗′ × real(v̂ * cis(k⃗ ⋅ s⃗))  # forcing velocity for this wavevector k⃗
-            vf = vf + vf_k
+        @inbounds begin
+            s⃗ = f[i]
+            ds⃗_dt = f[i, Derivative(1)]
+            ds_dt = sqrt(sum(abs2, ds⃗_dt))  # vector norm
+            s⃗′ = ds⃗_dt ./ ds_dt  # unit tangent
+            (; qs, cs, Δks,) = v_h
+            vf = zero(V)  # forcing velocity (excluding α prefactor)
+            for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
+                k⃗ = SVector(qs[n]) .* Δks
+                v̂ = cs[n]
+                vf_k = s⃗′ × real(v̂ * cis(k⃗ ⋅ s⃗))  # forcing velocity for this wavevector k⃗
+                vf = vf + vf_k
+            end
+            if forcing.α != 0
+                vs[i] = vs[i] + forcing.α * vf  # apply forcing
+            elseif forcing.ε_target != 0
+                vs[i] = vf  # just overwrite the input
+            end
+            dt = (ts[i + 1] - ts[i - 1]) / 2
+            dξ = dt * ds_dt  # estimated local segment length
+            sum(abs2, vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor) -- only valid in ε_target mode!
         end
-        if forcing.α != 0
-            vs[i] = vs[i] + forcing.α * vf  # apply forcing
-        elseif forcing.ε_target != 0
-            vs[i] = vf  # just overwrite the input
-        end
-        dt = (ts[i + 1] - ts[i - 1]) / 2
-        dξ = dt * ds_dt  # estimated local segment length
-        sum(abs2, vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
     end
     # The factor 2 accounts for Hermitian symmetry: if we inject energy into the velocity at
     # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).

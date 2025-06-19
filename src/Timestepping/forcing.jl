@@ -46,7 +46,7 @@ function _add_stretching_velocity!(vs_all, stretching_velocity::F, fs, to) where
 end
 
 ## ================================================================================ ##
-## (2) Apply mutual friction-like forcing (normal fluid)
+## (2) Apply optional external forcing and dissipation terms.
 
 function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time, to)
     if haskey(fields, :velocity)
@@ -54,11 +54,22 @@ function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time
         # After applying a normal fluid forcing, fields.velocity will contain the actual
         # vortex velocity vL. The self-induced velocity will be copied to iter.quantities.vs.
         _apply_forcing!(fields.velocity, iter.forcing, iter.forcing_cache, iter, fs, time, to)
+        # NOTE: dissipation should be applied _after_ forcing, since forcing assumes that vL
+        # currently contains the Biot-Savart velocity (with no extra terms).
+        _apply_dissipation!(fields.velocity, iter.dissipation, iter.dissipation_cache, iter, fs, time, to)
     end
     fields
 end
 
-_apply_forcing!(vL, forcing::NoForcing, cache, args...) = nothing  # do nothing
+# For consistency with other forcing methods, we must copy vL -> iter.vs (the self-induced BS velocity).
+function _apply_forcing!(vL, forcing::NoForcing, cache, iter, args...)
+    if iter.vs !== vL
+        copyto!(iter.vs, vL)
+    end
+    nothing
+end
+
+_apply_dissipation!(vL, dissipation::NoDissipation, cache, args...) = nothing  # do nothing
 
 # Note: the cache is currently not used by NormalFluidForcing (it's empty anyway)
 function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t, to)
@@ -114,6 +125,7 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs,
     @assert eachindex(vL_all) === eachindex(fs)
     (; quantities,) = iter
     vs_all = quantities.vs  # self-induced velocities will be copied here
+    vf_all = quantities.vf  # forcing velocities will be copied here
     Forcing.update_cache!(cache, forcing, iter.cache_bs)
     scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
@@ -125,13 +137,32 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs,
             # Compute vL according to the given forcing (vL = vs at input).
             ε_total += Forcing.apply!(forcing, cache, vL, f; scheduler)
         end
-        if forcing.ε_target != 0
+        if forcing.ε_target != 0 && ε_total != 0
             # In this case, vL only contains the forcing velocities, which need to be
             # rescaled to get the wanted energy injection rate (estimated).
             @assert forcing.α == 0
             α = forcing.ε_target / ε_total
             @. vL_all = vs_all + α * vL_all
         end
+        @. vf_all = vL_all - vs_all
+    end
+    nothing
+end
+
+function _apply_dissipation!(vL_all, dissipation::SmallScaleDissipationBS, cache, iter, fs, t, to)
+    @assert eachindex(vL_all) === eachindex(fs)
+    (; quantities,) = iter
+    @assert quantities.vs !== vL_all  # not aliased
+    scheduler = DynamicScheduler()  # for threading
+    @timeit to "Add dissipation" begin
+        # This will:
+        # - add dissipation term to vL_all
+        # - write dissipation term into vdiss
+        Forcing.apply!(
+            dissipation, cache,
+            vL_all, quantities.vdiss, quantities.vs, fs;
+            scheduler,
+        )
     end
     nothing
 end
