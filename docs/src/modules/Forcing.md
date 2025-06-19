@@ -9,7 +9,7 @@ CollapsedDocStrings = false
 Forcing
 ```
 
-## Forcing types
+## Forcing methods
 
 ```@docs
 NoForcing
@@ -18,10 +18,18 @@ FourierBandForcing
 FourierBandForcingBS
 ```
 
+## Dissipation methods
+
+```@docs
+NoDissipation
+SmallScaleDissipationBS
+```
+
 ## Abstract types
 
 ```@docs
 AbstractForcing
+AbstractDissipation
 ```
 
 ## Internals

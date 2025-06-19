@@ -152,7 +152,7 @@ end
 
 function plot_spectra(spectra; title)
     (; ks, Ek_init, Ek_final,) = spectra
-    plt = @views lineplot(ks[2:end], Ek_init[2:end]; title, xscale = :log10, yscale = :log10, ylim = (1e-3, 1e-1), name = "Initial")
+    plt = @views lineplot(ks[2:end], Ek_init[2:end]; title, xscale = :log10, yscale = :log10, ylim = (1e-4, 1e-1), name = "Initial")
     @views lineplot!(plt, ks[2:end], Ek_final[2:end]; name = "Final")
     display(plt)
 end
@@ -184,6 +184,9 @@ function get_energy_at_normalised_wavevector(cache::BiotSavart.BiotSavartCache, 
 end
 
 @testset "Forcing" begin
+    save_files = false
+    plots = false
+
     # Compute self-induced velocity of vortex filaments
     N = 32
     aspect = (1, 1, 2)
@@ -240,8 +243,6 @@ end
         α = 5.0
         α′ = 0.0
         vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 1.5)
-        save_files = false
-        plots = false
         Random.seed!(rng, 42)
         SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
         tmax = 1.0
@@ -365,29 +366,6 @@ end
                 @test ε_inj ≈ forcing.ε_target rtol=1e-3  # the ε_target really represents the energy injection rate at this wavevector!
             end
         end
-        @testset "SmallScaleDissipationBS (constant α)" begin
-            # Note: we have no forcing, so energy should decay over time
-            fs_diss = generate_filaments(N; Ls, small_scales = true)
-            prob = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params)
-            # kdiss = min((π .* params.longrange.Ns ./ params.Ls)...) * 0.8  # make sure kdiss is resolved in the Fourier grid
-            kdiss = 3  # dissipate at relatively small k for testing purposes
-            dissipation = @inferred SmallScaleDissipationBS(; α = 0.1, kdiss)
-            times = Float64[]
-            energy = Float64[]
-            ε_inj_time = Float64[]  # should be negative at all times
-            function callback(iter)
-                iter.nstep == 0 && empty!.((times, energy, ε_inj_time))
-                E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
-                ε = Diagnostics.energy_injection_rate(iter; quad = GaussLegendre(3))
-                push!(times, iter.t)
-                push!(energy, E)
-                push!(ε_inj_time, ε)
-                nothing
-            end
-            (; iter, E_ratio, spectra) = simulate(prob, NoForcing(), dissipation; callback)
-            # @test iter.vL != iter.vs
-            # @test iter.vL ≈ iter.vs + iter.vdiss
-        end
     end
 
     @testset "Dissipation" begin
@@ -416,6 +394,7 @@ end
             @test iter.vL ≈ iter.vs + iter.vdiss
             @test all(<(0), ε_inj_time)  # energy injection is negative (=> dissipation)
             @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
+            plots && plot_spectra(spectra; title = "SmallScaleDissipationBS (constant α)")
         end
 
         @testset "Constant ε_target" begin
@@ -426,6 +405,7 @@ end
             @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
             # Chosen dissipation rate corresponds quite well to actual dissipation rate (differences are up to 5%).
             @test all(ε_inj -> isapprox(-ε_inj, dissipation.ε_target; rtol = 0.05), ε_inj_time)
+            plots && plot_spectra(spectra; title = "SmallScaleDissipationBS (constant ε_target)")
         end
 
         @testset "Forcing + dissipation" begin
@@ -434,11 +414,12 @@ end
             (; iter, E_ratio, spectra) = simulate(prob_diss, forcing, dissipation; callback)
             # Here the results are more complex, we just test the relation between the different terms.
             @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
+            plots && plot_spectra(spectra; title = "Forcing + dissipation")
         end
 
         @testset "Error if kdiss is too large" begin
             dissipation = @inferred SmallScaleDissipationBS(; ε_target = 0.1, kdiss = 10000)
-            @test_throws "dissipative wavenumber (kdiss = $(dissipation.kdiss)) is too large" simulate(prob_diss, forcing, dissipation; callback)
+            @test_throws "dissipative wavenumber (kdiss = $(dissipation.kdiss)) is too large" simulate(prob_diss, NoForcing(), dissipation; callback)
         end
     end
 end
