@@ -91,7 +91,7 @@ function test_linked_rings(
         # very rough approximation to the actual helicity.
         ks, Hk = @inferred Diagnostics.helicity_spectrum(iter)
         dk = ks[2] - ks[1]
-        println(Hk ./ params.Γ^2)
+        # println(Hk ./ params.Γ^2)
         H_from_spectrum = sum(Hk) * dk
         # @show H H_from_spectrum
         @test 2 * H_from_spectrum < H < H_from_spectrum < 0
