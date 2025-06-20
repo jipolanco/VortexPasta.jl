@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.28.1] - 2025-06-20
+
 ### Added
 
 - Add `SmallScaleDissipationBS`, which allows to dissipate energy at small scales
