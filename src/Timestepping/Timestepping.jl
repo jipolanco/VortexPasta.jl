@@ -54,7 +54,8 @@ using ..BiotSavart:
     VectorOfVelocities,
     periods
 
-using ..Forcing: Forcing, AbstractForcing, NoForcing, NormalFluidForcing, FourierBandForcing, FourierBandForcingBS
+using ..Forcing: Forcing, AbstractForcing, AbstractDissipation, NoForcing, NoDissipation,
+    NormalFluidForcing, FourierBandForcing, FourierBandForcingBS, SmallScaleDissipationBS
 
 # Reuse same init, solve! and step! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
@@ -211,6 +212,11 @@ then the following quantities are also available:
 For convenience, if there is no normal fluid, then `vL` is defined as an alias of `vs`
 (they're the same object).
 
+If `forcing = FourierBandForcingBS(...)` is passed (see [`FourierBandForcingBS`](@ref)),
+then the `vf` field contains the forcing term.
+Similarly, if `dissipation = SmallScaleDissipationBS(...)` (see [`SmallScaleDissipationBS`](@ref)), then
+the `vdiss` field contains the dissipation term.
+
 """
 struct VortexFilamentSolver{
         T,
@@ -232,6 +238,8 @@ struct VortexFilamentSolver{
         StretchingVelocity <: Union{Nothing, Function},
         Forcing <: AbstractForcing,
         ForcingCache,
+        Dissipation <: AbstractDissipation,
+        DissipationCache,
         AdvectFunction <: Function,
         RHSFunction <: Function,
     } <: AbstractSolver
@@ -255,8 +263,10 @@ struct VortexFilamentSolver{
     callback :: Callback      # signature: callback(iter)
     external_fields    :: ExternalFields  # velocity and streamfunction forcing
     stretching_velocity :: StretchingVelocity
-    forcing  :: Forcing  # typically normal fluid forcing (by mutual friction)
+    forcing  :: Forcing  # forcing term added to the vortex velocity: vL = vs + vf (+ possibly other terms)
     forcing_cache  :: ForcingCache
+    dissipation  :: Dissipation  # dissipation term added to the vortex velocity: vL = vs + vdiss (+ possibly other terms)
+    dissipation_cache  :: DissipationCache
     to       :: Timer
     advect!  :: AdvectFunction  # function for advecting filaments with a known velocity
     rhs!     :: RHSFunction     # function for estimating filament velocities (and sometimes streamfunction) from their positions
@@ -308,6 +318,9 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     end
     if iter.forcing !== NoForcing()
         print(io, "\n ├─ forcing: ", iter.forcing)  # note: this draws a "subtree"
+    end
+    if iter.dissipation !== NoDissipation()
+        print(io, "\n ├─ dissipation: ", iter.dissipation)  # note: this draws a "subtree"
     end
     # print(io, "\n ├─ advect!: Function")
     # print(io, "\n ├─ rhs!: Function")
@@ -432,8 +445,12 @@ either [`step!`](@ref) or [`solve!`](@ref).
   However, it can also lead to spurious Kelvin waves.
   See "Adding a stretching velocity" below for more details.
 
-- `forcing`: allows to modify the vortex velocities due to mutual friction with an imposed
-  normal fluid velocity field. See "Forcing via a normal fluid" below for more details.
+- `forcing`: adds an extra term to the vortex velocities representing a forcing term which
+  generally injects energy (but it can also dissipate). See the [`Forcing`](@ref) module for
+  different options.
+
+- `dissipation`: adds an extra term to the vortex velocities representing a dissipation term
+  which generally dissipates energy. See the [`Forcing`](@ref) module for different options.
 
 # Extended help
 
@@ -629,6 +646,7 @@ function init(
         external_streamfunction::ExtStf = nothing,
         stretching_velocity::StretchingVelocity = nothing,
         forcing::AbstractForcing = NoForcing(),
+        dissipation::AbstractDissipation = NoDissipation(),
         mode::SimulationMode = DefaultMode(),
         timer = TimerOutput("VortexFilament"),
     ) where {
@@ -665,16 +683,23 @@ function init(
     )
 
     quantities_base = (; vs, ψs, tangents,)
-    quantities = if forcing isa NormalFluidForcing
+
+    quantities_with_forcing = if forcing isa NormalFluidForcing
         (; quantities_base..., vL = similar(vs), vn = similar(vs),)
     elseif forcing isa FourierBandForcing
         (; quantities_base..., v_ns = similar(vs), vL = similar(vs),)  # we separately store vs and vL
     elseif forcing isa FourierBandForcingBS
-        (; quantities_base..., vL = similar(vs),)  # no normal fluid in this case
-    elseif mode === MinimalEnergy()
-        (; quantities_base..., vL = similar(vs),)  # vL and vs are different; in fact vL = -s′ × vs
+        (; quantities_base..., vf = similar(vs), vL = similar(vs),)  # no normal fluid in this case
+    elseif mode === MinimalEnergy() || dissipation !== NoDissipation()
+        (; quantities_base..., vL = similar(vs),)  # vL and vs are different
     else
         (; quantities_base..., vL = vs,)  # vL is an alias to vs
+    end
+
+    quantities = if dissipation isa NoDissipation
+        quantities_with_forcing
+    else
+        (; quantities_with_forcing..., vdiss = similar(vs),)  # include dissipation term vdiss
     end
 
     fs_sol = alias_u0 ? fs : copy(fs)
@@ -724,11 +749,12 @@ function init(
     end
 
     forcing_cache = Forcing.init_cache(forcing, cache_bs)
+    dissipation_cache = Forcing.init_cache(dissipation, cache_bs)
 
     iter = VortexFilamentSolver(
         prob, fs_sol, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, affect_t_, callback_, external_fields,
-        stretching_velocity, forcing, forcing_cache,
+        stretching_velocity, forcing, forcing_cache, dissipation, dissipation_cache,
         timer, advect!, rhs!,
     )
 

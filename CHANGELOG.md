@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `SmallScaleDissipationBS`, which allows to dissipate energy at small scales
+  (**experimental**).
+
+- When using `FourierBandForcingBS`, the `iter.vf` field is now available in
+  `VortexFilamentSolver` which includes the forcing term.
+
 ## [0.28.0] - 2025-06-18
 
 ### Changed

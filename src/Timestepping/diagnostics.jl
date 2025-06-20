@@ -27,8 +27,8 @@ function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws.
     Diagnostics.kinetic_energy_nonperiodic(fs, vs, iter.prob.p; kws...)
 end
 
-function Diagnostics.energy_injection_rate(iter::VortexFilamentSolver; kws...)
-    (; vs, fs, vL,) = iter
+function Diagnostics.energy_injection_rate(iter::VortexFilamentSolver, vL = iter.vL; kws...)
+    (; vs, fs,) = iter
     p = iter.prob.p
     Diagnostics.energy_injection_rate(fs, vL, vs, p; kws...)
 end
