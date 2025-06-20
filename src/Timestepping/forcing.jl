@@ -62,8 +62,11 @@ function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time
 end
 
 # For consistency with other forcing methods, we must copy vL -> iter.vs (the self-induced BS velocity).
+# This is needed in particular if we're including a dissipation term.
 function _apply_forcing!(vL, forcing::NoForcing, cache, iter, args...)
-    if iter.vs !== vL
+    # The condition below basically means that there is a dissipation term.
+    # Note: iter.vL is not necessarily the same as vL, especially if we're inside of a RK substep.
+    if iter.vs !== iter.vL
         copyto!(iter.vs, vL)
     end
     nothing
