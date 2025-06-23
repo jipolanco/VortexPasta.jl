@@ -191,10 +191,9 @@ end
         # Memory shared across work items (threads) in a single workgroup (block):
         E_sm = @localmem T Nt       # energy E(k) * dk for each visited k⃗ (one per work item)
         n_sm = @localmem UInt16 Nt  # bin index associated to each visited k⃗ (one per work item)
+        I = @index(Global, Cartesian)
+        tid = @index(Local, Linear)  # thread id (in 1:Nt)
     end
-
-    I = @index(Global, Cartesian)
-    tid = @index(Local, Linear)  # thread id (in 1:Nt)
 
     # Step 1: compute pair (n, E) associated to this thread, where:
     #  - E = "energy" in the local k⃗
