@@ -54,15 +54,20 @@ end
 get_wavenumbers(c::LongRangeCacheCommon) = c.wavenumbers_d
 get_wavenumbers(c::LongRangeCache) = get_wavenumbers(c.common)
 
-@inline function get_ewald_interpolation_callback(c::LongRangeCacheCommon)
-    # We generate a callback function which multiplies the input û with a Gaussian filter
-    # before performing interpolations in physical space.
-    @inline function (û::Vec3, I::CartesianIndex)
-        @inbounds op = c.ewald_gaussian_d[I]
-        û * op
-    end
+# Callback to be used right before interpolation into physical space, which applies the
+# Gaussian filter in Ewald's method.
+# We wrap it in a struct to make sure it works correctly on GPUs.
+struct EwaldInterpolationCallback{ScalarField <: AbstractArray} <: Function
+    data :: ScalarField
 end
 
+# Note: to be compatible with NonuniformFFTs, the callback must have the signature f(û::NTuple{3}, idx::NTuple{3}).
+@inline function (f::EwaldInterpolationCallback)(û::NTuple{3,T}, idx::NTuple{3}) where {T}
+    @inbounds op = f.data[idx...]
+    map(v -> T(v * op), û)
+end
+
+@inline get_ewald_interpolation_callback(c::LongRangeCacheCommon) = EwaldInterpolationCallback(c.ewald_gaussian_d)
 @inline get_ewald_interpolation_callback(c::LongRangeCache) = get_ewald_interpolation_callback(c.common)
 
 function LongRangeCacheCommon(

@@ -172,18 +172,14 @@ function transform_to_fourier!(c::NonuniformFFTsCache, prefactor::Real)
     c
 end
 
-# Note: the input callback (callback_vec) takes (û::Vec3, I::CartesianIndex{3}), while callbacks in
-# NonuniformFFTs take (û::NTuple{3}, idx::NTuple{3,Int}). We need to convert between the two (this usually has zero cost).
-function _interpolate_to_physical!(callback_vec::F, output::StructVector, c::NonuniformFFTsCache) where {F}
+# Note: the callback must have the signature (û::NTuple{3}, idx::NTuple{3,Int}).
+function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c::NonuniformFFTsCache) where {F <: Function}
     (; plan,) = c
     (; pointdata_d, uhat_d,) = c.common
     (; points,) = pointdata_d
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     charges = StructArrays.components(output)
     uhat_data = StructArrays.components(uhat_d)
-    @inline function callback_uniform(û::NTuple{3}, idx::NTuple{3})
-        @inline callback_vec(Vec3(û), CartesianIndex(idx))
-    end
     callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = callback_uniform)
     NonuniformFFTs.set_points!(plan, points)
     NonuniformFFTs.exec_type2!(charges, plan, uhat_data; callbacks)
