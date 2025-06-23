@@ -5,12 +5,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.28.3] - 2025-06-23
+
 ### Fixed
 
 - Fix evaluation of physical-space quantities (long-range velocity, ...) when using GPUs.
   Previously, callbacks passed to NonuniformFFTs failed to compile on CUDA.
   This should also fix `SmallScaleDissipationBS` on GPUs.
   (This fixes an issue which appeared in v0.28.0.)
+
+- Fix computation of spectra on GPUs, which failed with a compilation error on
+  recent versions (v0.28.0 probably?).
 
 ## [0.28.2] - 2025-06-23
 
