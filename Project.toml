@@ -31,11 +31,9 @@ VectorizationBase = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
 
 [weakdeps]
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-MakieCore = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
-Observables = "510215fc-4207-5dde-b226-833fc4488ee2"
 
 [extensions]
-VortexPastaMakieExt = ["Makie", "MakieCore", "Observables"]
+VortexPastaMakieExt = ["Makie"]
 
 [compat]
 AbstractFFTs = "1.3"
@@ -52,10 +50,8 @@ HCubature = "1.5"
 HDF5 = "0.16, 0.17"
 KernelAbstractions = "0.9.24"
 LinearAlgebra = "1.9"
-Makie = "0.23"
-MakieCore = "0.10"
+Makie = "0.24"
 NonuniformFFTs = "0.8"
-Observables = "0.5"
 OhMyThreads = "0.7.0, 0.8"
 PrecompileTools = "1"
 Random = "1.10"
