@@ -62,6 +62,7 @@ struct EwaldInterpolationCallback{ScalarField <: AbstractArray} <: Function
 end
 
 # Note: to be compatible with NonuniformFFTs, the callback must have the signature f(û::NTuple{3}, idx::NTuple{3}).
+# (Same signature as default_callback_interp.)
 @inline function (f::EwaldInterpolationCallback)(û::NTuple{3,T}, idx::NTuple{3}) where {T}
     @inbounds op = f.data[idx...]
     map(v -> T(v * op), û)
@@ -432,7 +433,7 @@ interpolate_to_physical!(callback, cache)
 """
 function interpolate_to_physical! end
 
-@inline default_callback_interp(û::Vec3, I::CartesianIndex{3}) = û  # by default we leave the original value unmodified
+@inline default_callback_interp(û::NTuple{3}, idx::NTuple{3}) = û  # by default we leave the original value unmodified
 
 interpolate_to_physical!(cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, cache)
 interpolate_to_physical!(output::StructVector, cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, output, cache)
