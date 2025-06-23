@@ -3,103 +3,90 @@ module VortexPastaMakieExt
 using VortexPasta.Filaments
 import VortexPasta.Filaments: filamentplot, filamentplot!  # make sure @recipe overloads functions in VP.Filaments
 
-# As of Makie 0.23, MakieCore.arrows3d! is not defined, and we need to load Makie for this.
-# In fact, since we're using a package extension, it's fine to require Makie.jl, and we
-# could remove the dependencies on lightweight packages (MakieCore, Observables) which are
-# included in Makie anyways.
-using Makie: Makie
-using MakieCore: MakieCore, Attributes
-using Observables: Observable, @map
+using Makie: Makie, Attributes, Observable, @lift, lift, @recipe
 using LinearAlgebra: normalize
 
 const MaybeObservable{T} = Union{Observable{T}, T}
 
-MakieCore.plot(f::MaybeObservable{<:AbstractFilament}, args...; kws...) =
+Makie.plot(f::MaybeObservable{<:AbstractFilament}, args...; kws...) =
     filamentplot(f, args...; kws...)
-MakieCore.plot!(ax, f::MaybeObservable{<:AbstractFilament}, args...; kws...) =
+Makie.plot!(ax, f::MaybeObservable{<:AbstractFilament}, args...; kws...) =
     filamentplot!(ax, f, args...; kws...)
 
 # This macro defines the functions `filamentplot` and `filamentplot!` and the type FilamentPlot,
 # among other things.
-MakieCore.@recipe(FilamentPlot) do scene
-    Attributes(
-        refinement = 1,
-        marker = :circle,
-        markersize = 10.0f0,
-        linewidth = 1.5f0,
-        linestyle = :solid,
-        cycle = [:color],  # this gives the default colour cycle (see e.g. docs for Makie.lines)
-        color = :black,
-        colormap = :viridis,
-        colorrange = MakieCore.Automatic(),
-        markercolor = nothing,  # defaults to `color`
-        tangents = false,
-        curvatures = false,
-        tangentcolor = nothing,
-        curvaturecolor = nothing,
-        vectorpos = 0.0,
-        velocitycolor = nothing,
-        periods = (nothing, nothing, nothing),
+@recipe FilamentPlot (filament::AbstractFilament, velocities::Union{Nothing, AbstractVector}) begin
+    "Number of points per filament segment."
+    refinement = 1
+    marker = :circle
+    markersize = 10.0f0
+    linewidth = 1.5f0
+    linestyle = :solid
+    cycle = [:color]  # this gives the default colour cycle (see e.g. docs for Makie.lines)
+    color = @inherit color
+    colormap = :viridis
+    colorrange = Makie.Automatic()
+    markercolor = nothing  # by default, this is the same as `color`
 
-        # Arrow attributes (see Makie.arrows3d)
-        arrows3d = Attributes(),
-    )
+    "Plot tangent vectors?"
+    tangents = false
+
+    "Plot curvature vectors?"
+    curvatures = false
+
+    "Location of vectors within segment (in [0, 1])."
+    vectorpos = 0.0
+
+    visible = true
+
+    tangentcolor = nothing
+    curvaturecolor = nothing
+    velocitycolor = nothing
+
+    periods = (nothing, nothing, nothing)
+
+    "Arrow attributes (see Makie.arrows3d docs)."
+    arrows3d = NamedTuple()
 end
 
-const PlotFilamentOnly = FilamentPlot{<:Tuple{<:AbstractFilament}}
-const PlotFilamentAndVelocities = FilamentPlot{<:Tuple{<:AbstractFilament, <:AbstractVector{<:Vec3}}}
+Makie.convert_arguments(::Type{<:FilamentPlot}, f::AbstractFilament) = (f, nothing)  # in case we didn't pass a velocities vector (second argument)
 
-# For some reason the second argument (`len`) is also needed in dispatch (not really mentioned in the Makie docs...).
-MakieCore.argument_names(::Type{<:PlotFilamentOnly}, len::Integer) = (:filament,)
-MakieCore.argument_names(::Type{<:PlotFilamentAndVelocities}, len::Integer) = (:filament, :velocities)
+Makie.preferred_axis_type(::FilamentPlot) = Makie.Axis3
 
 fixfirst(f::F, x) where {F} = (ys...) -> f(x, ys...)
 
-# We use the fact that `Makie.lift` (not included in MakieCore) is the same as `map`.
-function MakieCore.plot!(p::FilamentPlot)
-    argnames = MakieCore.argument_names(p)
-    f = p.filament :: Observable{<:AbstractFilament}
-    v = (:velocities ∈ argnames) ? p.velocities : nothing
-    Xs_line = @map _refine_filament_for_plotting(&f, &p.refinement, &p.periods)
-    MakieCore.lines!(
-        p, Xs_line;
-        color = p.color, linewidth = p.linewidth, linestyle = p.linestyle,
-        colormap = p.colormap, colorrange = p.colorrange,
-    )
-    Xs_nodes = map(f, p.periods) do f, Ls
+function Makie.plot!(p::FilamentPlot)
+    f = p.filament
+    v = (p.velocities === nothing) ? nothing : p.velocities
+    Xs_line = @lift _refine_filament_for_plotting($f, $(p.refinement), $(p.periods))
+    Makie.lines!(p, p.attributes, Xs_line)
+    Xs_nodes = lift(f, p.periods) do f, Ls
         if all(isnothing, Ls)
             nodes(f)
         else
             map(s⃗ -> Filaments.to_main_periodic_cell(s⃗, Ls), nodes(f))
         end
     end
-    MakieCore.scatter!(
-        p, Xs_nodes;
-        color = @map(something(&p.markercolor, &p.color)),
-        marker = p.marker, markersize = p.markersize,
-        colormap = p.colormap, colorrange = p.colorrange,
-    )
-    if !(p.arrows3d isa Attributes)
-        throw(ArgumentError("arrows3d should be a NamedTuple or a Makie.Attributes"))
-    end
+    Makie.scatter!(p, p.attributes, Xs_nodes)
     let
-        tangentcolor = @map something(&p.tangentcolor, &p.color)
+        tangentcolor = @lift something($(p.tangentcolor), $(p.color))
         _plot_tangents!(
-            p, f, p.tangents[], p.vectorpos, p.periods, p.arrows3d;
+            p, f, p.tangents[], p.vectorpos, p.periods, p.arrows3d[];
             color = tangentcolor, colormap = p.colormap, colorrange = p.colorrange,
         )
     end
+    return nothing
     let
-        curvaturecolor = @map something(&p.curvaturecolor, &p.color)
+        curvaturecolor = @lift something($p.curvaturecolor, $p.color)
         _plot_curvatures!(
-            p, f, p.curvatures[], p.vectorpos, p.periods, p.arrows3d;
+            p, f, p.curvatures[], p.vectorpos, p.periods, p.arrows3d[];
             color = curvaturecolor, colormap = p.colormap, colorrange = p.colorrange,
         )
     end
     if v !== nothing
-        velocitycolor = @map something(&p.velocitycolor, &p.color)
+        velocitycolor = @lift something($p.velocitycolor, $p.color)
         _plot_velocities!(
-            p, f, v, p.periods, p.arrows3d;
+            p, f, v, p.periods, p.arrows3d[];
             color = velocitycolor, colormap = p.colormap, colorrange = p.colorrange,
         )
     end
@@ -120,7 +107,6 @@ function _refine_filament_for_plotting(
     Xs = similar(Xs_nodes, 0)
     N = refinement * length(f) + 1  # the +1 is to close the loop
     sizehint!(Xs, N)  # this length estimate is only true when we don't need to insert NaNs
-    n = 0
     subinds = range(0, 1; length = refinement + 1)[1:refinement]
     Lhs = map(L -> L === nothing ? nothing : L / 2, Ls)  # half periods
     x⃗_prev = Filaments.to_main_periodic_cell(first(Xs_nodes), Ls)
@@ -165,19 +151,19 @@ function _tangents_for_arrows(f::AbstractFilament, vectorpos::Real, Ls)
     (Xs..., Vs...)
 end
 
-function _plot_arrows!(p, arrow_attrs, args...; kwargs...)
-    Makie.arrows3d!(p, args...; kwargs..., arrow_attrs...)
+function _plot_arrows!(p, arrows3d, args...; kwargs...)
+    Makie.arrows3d!(p, p.attributes, args...; kwargs..., arrows3d...)
 end
 
 function _plot_tangents!(
-        p::FilamentPlot, f::Observable{<:AbstractFilament}, tangents::Bool,
-        vectorpos::Observable, periods::Observable, arrow_attrs::Attributes;
+        p::FilamentPlot, f, tangents::Bool,
+        vectorpos, periods, arrows3d::NamedTuple;
         kwargs...,
     )
     tangents || return p
-    data = @map _tangents_for_arrows(&f, &vectorpos, &periods)
-    args = ntuple(i -> @map((&data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
-    _plot_arrows!(p, arrow_attrs, args...; kwargs...)
+    data = @lift _tangents_for_arrows($f, $vectorpos, $periods)
+    args = ntuple(i -> @lift(($data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
+    _plot_arrows!(p, arrows3d, args...; kwargs...)
     p
 end
 
@@ -198,14 +184,14 @@ function _curvatures_for_arrows(f::AbstractFilament, vectorpos::Real, Ls)
 end
 
 function _plot_curvatures!(
-        p::FilamentPlot, f::Observable{<:AbstractFilament}, curvatures::Bool,
-        vectorpos::Observable, periods::Observable, arrow_attrs::Attributes;
+        p::FilamentPlot, f, curvatures::Bool,
+        vectorpos, periods, arrows3d::NamedTuple;
         kwargs...,
     )
     curvatures || return p
-    data = @map _curvatures_for_arrows(&f, &vectorpos, &periods)
-    args = ntuple(i -> @map((&data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
-    _plot_arrows!(p, arrow_attrs, args...; kwargs...)
+    data = @lift _curvatures_for_arrows($f, $vectorpos, $periods)
+    args = ntuple(i -> @lift(($data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
+    _plot_arrows!(p, arrows3d, args...; kwargs...)
     p
 end
 
@@ -222,13 +208,13 @@ function _velocities_for_arrows(f::AbstractFilament, v::AbstractVector, Ls)
 end
 
 function _plot_velocities!(
-        p::FilamentPlot, f::Observable{<:AbstractFilament},
-        v::Observable{<:AbstractVector}, periods::Observable, arrow_attrs::Attributes;
+        p::FilamentPlot, f,
+        v, periods, arrows3d::NamedTuple;
         kwargs...,
     )
-    data = @map _velocities_for_arrows(&f, &v, &periods)
-    args = ntuple(i -> @map((&data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
-    _plot_arrows!(p, arrow_attrs, args...; kwargs...)
+    data = @lift _velocities_for_arrows($f, $v, $periods)
+    args = ntuple(i -> @lift(($data)[i]), Val(6))  # convert Observable of tuples to tuple of Observables
+    _plot_arrows!(p, arrows3d, args...; kwargs...)
     p
 end
 

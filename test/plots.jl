@@ -24,7 +24,7 @@ end
     @testset "Filaments" begin
         f = init_trefoil_filament(16)
         @testset "Trefoil basic" begin
-            plt = plot(f; axis = (type = Axis3,))  # same as `filamentplot`
+            plt = plot(f; linestyle = :dash, refinement = 4, color = :red, axis = (type = Axis3,))  # same as `filamentplot`
             save("trefoil_basic.png", plt)
             @test isfile("trefoil_basic.png")
         end
@@ -38,6 +38,7 @@ end
                 tangents = true, tangentcolor = :Blue,
                 curvatures = true, curvaturecolor = :Red,
                 vectorpos = 0.3,
+                arrows3d = (lengthscale = 0.5,),
             )
             save("trefoil.png", fig)
             @test isfile("trefoil.png")
