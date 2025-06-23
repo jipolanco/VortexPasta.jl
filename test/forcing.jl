@@ -1,6 +1,7 @@
 using VortexPasta
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
+using VortexPasta.BiotSavart: PseudoGPU  # for testing only
 using VortexPasta.PredefinedCurves
 using VortexPasta.Forcing
 using VortexPasta.FilamentIO
@@ -13,7 +14,7 @@ using Random
 using StableRNGs
 using Test
 
-function generate_biot_savart_parameters(::Type{T}; aspect) where {T}
+function generate_biot_savart_parameters(::Type{T}; aspect, kws...) where {T}
     Γ = 1.0
     a = 1e-6
     Δ = 1/4
@@ -31,6 +32,7 @@ function generate_biot_savart_parameters(::Type{T}; aspect) where {T}
         backend_short = NaiveShortRangeBackend(),
         backend_long = NonuniformFFTsBackend(σ = T(1.5), m = HalfSupport(4)),
         quadrature = GaussLegendre(3),
+        kws...,
     )
 end
 
@@ -422,6 +424,18 @@ end
             @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
             @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.05), ε_diss_time)
             plots && plot_spectra(spectra; title = "Forcing + dissipation")
+        end
+
+        @testset "Forcing + dissipation (PseudoGPU)" begin
+            backend_long = NonuniformFFTsBackend(PseudoGPU(); σ = 1.5, m = HalfSupport(4))
+            params_gpu = generate_biot_savart_parameters(Float64; aspect, backend_long)
+            prob_gpu = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params_gpu)
+            dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
+            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-4, kmin = 0.1, kmax = 2.5)
+            (; iter, E_ratio, spectra) = simulate(prob_gpu, forcing, dissipation; callback)
+            @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
+            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.05), ε_diss_time)
+            plots && plot_spectra(spectra; title = "Forcing + dissipation (PseudoGPU)")
         end
 
         @testset "Error if kdiss is too large" begin

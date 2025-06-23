@@ -95,6 +95,21 @@ function init_cache(dissipation::SmallScaleDissipationBS, cache_bs::BiotSavartCa
     (; longrange = cache_bs.longrange, prefactor,)
 end
 
+# Creating a callable struct makes sure that the callback can be compiled for GPUs.
+# See also EwaldInterpolationCallback in the BiotSavart module, which does a similar thing.
+struct FourierTruncationCallback{T, Wavenumbers} <: Function
+    k²_max :: T
+    wavenumbers :: Wavenumbers
+end
+
+@inline function (f::FourierTruncationCallback)(û::NTuple{3, T}, idx::NTuple{3}) where {T}
+    (; k²_max, wavenumbers,) = f
+    k⃗ = ntuple(d -> @inbounds(wavenumbers[d][idx[d]]), Val(length(idx)))
+    k² = sum(abs2, k⃗)
+    û_zero = map(v -> zero(v), û)
+    ifelse(k² > k²_max, û_zero, û)
+end
+
 function _update_cache!(cache, dissipation::SmallScaleDissipationBS)
     # Interpolate Fourier-truncated Biot-Savart velocities at filament locations (results
     # are written somewhere in cache.longrange).
@@ -103,12 +118,8 @@ function _update_cache!(cache, dissipation::SmallScaleDissipationBS)
     @assert state.quantity == :velocity && state.smoothing_scale == 0
     # Interpolate Fourier velocity, but first discarding Fourier coefficients k > kdiss.
     kdiss² = kdiss * kdiss
-    BiotSavart.interpolate_to_physical!(cache.longrange) do û::SVector{3}, I::CartesianIndex{3}
-        @inline
-        @inbounds k⃗ = getindex.(wavenumbers, Tuple(I))
-        k² = sum(abs2, k⃗)
-        ifelse(k² > kdiss², zero(û), û)
-    end
+    callback = FourierTruncationCallback(kdiss², wavenumbers)
+    BiotSavart.interpolate_to_physical!(callback, cache.longrange)
     nothing
 end
 

@@ -101,7 +101,7 @@ function _interpolate_to_physical!(callback::F, output::StructVector, c::ExactSu
         for I ∈ CartesianIndices(uhat_d)
             k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))
             v_orig = uhat_d[I]::Vec3
-            v = @inline callback(v_orig, I)
+            v = Vec3(@inline callback(Tuple(v_orig), Tuple(I)))  # the callback takes tuples and returns tuples
             z = cis(k⃗ ⋅ X)
             δq⃗ = if k⃗[1] ∈ kx_lims
                 # Note: the imaginary part will cancel out with -k⃗ (also computed)

@@ -177,7 +177,7 @@ end
 # Here Ek_blocks is an array of dimensions (Nk, number_of_workgroups...).
 # Note that `uhat` must be passed as a tuple of arrays (u, v, w).
 # NOTE: this is probably not optimal for CPU threads.
-@kernel function compute_spectrum_kernel!(
+@kernel unsafe_indices=true function compute_spectrum_kernel!(
         f::F,
         Ek_blocks::AbstractArray, @Const(uhat::Tuple),
         @Const(wavenumbers::Tuple),
@@ -193,7 +193,15 @@ end
         n_sm = @localmem UInt16 Nt  # bin index associated to each visited k⃗ (one per work item)
     end
 
-    I = @index(Global, Cartesian)
+    # We use unsafe_indices=true since we explicitly check that we're inbounds below.
+    # This means that we should avoid explicitly asking for global indices.
+    idx_local = @index(Local, NTuple)
+    idx_group = @index(Group, NTuple)
+    group_size = @groupsize()
+    I = CartesianIndex(
+        (@. idx_local + (idx_group - 1) * group_size)
+    )
+
     tid = @index(Local, Linear)  # thread id (in 1:Nt)
 
     # Step 1: compute pair (n, E) associated to this thread, where:
@@ -236,8 +244,7 @@ end
     @synchronize  # make sure E_sm and n_sm are synchronised across threads
 
     # Step 2: add results to global memory.
-    group_idx = @index(Group, NTuple)
-    @inbounds Ek_wg = view(Ek_blocks, 1:Nk, group_idx...)  # local part of the output array
+    @inbounds Ek_wg = view(Ek_blocks, 1:Nk, idx_group...)  # local part of the output array
     if tid == 1
         fill!(Ek_wg, 0)
         @inbounds for l ∈ 1:Nt
