@@ -62,13 +62,13 @@ Here ``\mathcal{C}_0`` denotes a portion of the set of curves ``\mathcal{C}`` wh
 To illustrate this, the figure below shows a [trefoil knot](https://en.wikipedia.org/wiki/Trefoil_knot) curve, or rather its projection on the XY plane.
 Note that here we represent a *discretised* version of the curve, where the number of degrees of freedom is finite and controlled by the positions of the markers.
 
-![](trefoil_local.svg)
+![](trefoil_local.png)
 
 !!! details "Code for this figure"
 
     ```@example
     using CairoMakie
-    CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)
+    CairoMakie.activate!(pt_per_unit = 1.0)
     Makie.set_theme!()
 
     using VortexPasta.Filaments
@@ -82,14 +82,14 @@ Note that here we represent a *discretised* version of the curve, where the numb
     colours = Makie.wong_colors()
     f = Filaments.init(trefoil, ClosedFilament, N, CubicSplineMethod())
 
-    fig = Figure(Text = (fontsize = 24,))
-    ax = Axis(fig[1, 1]; aspect = DataAspect(), xlabel = "x", ylabel = "y")
+    fig = Figure(; Text = (fontsize = 24,), size = (600, 500))
+    ax = Axis(fig[1, 1]; aspect = DataAspect(), xlabel = L"x", ylabel = L"y")
     hidexdecorations!(ax; label = false, ticklabels = false, ticks = false)
     hideydecorations!(ax; label = false, ticklabels = false, ticks = false)
 
     # Plot complete filament in grey
     let color = (:grey, 0.6)
-        plot!(ax, f; refinement, color, linewidth = 1.5)
+        plot!(ax, f; refinement, color, linewidth = 1.5, arrows3d = (;))
         text!(
             ax, f(i ÷ 2 + 1, 0.6);
             text = L"\bar{\mathcal{C}}_{\!i}", align = (:right, :bottom), color,
@@ -137,19 +137,22 @@ Note that here we represent a *discretised* version of the curve, where the numb
         s⃗ = f[i]
         t̂ = f[i, UnitTangent()]
         ρ⃗ = f[i, CurvatureVector()]
-        arrows!(ax, [s⃗[1]], [s⃗[2]], [t̂[1]], [t̂[2]]; color = arrowcol)
-        arrows!(ax, [s⃗[1]], [s⃗[2]], [ρ⃗[1]], [ρ⃗[2]]; color = arrowcol)
+        lengthscale = 1.2
+        arrows2d!(ax, [s⃗[1]], [s⃗[2]], [t̂[1]], [t̂[2]]; color = arrowcol, shaftwidth = 1.5, tipwidth = 10, lengthscale)
+        arrows2d!(ax, [s⃗[1]], [s⃗[2]], [ρ⃗[1]], [ρ⃗[2]]; color = arrowcol, shaftwidth = 1.5, tipwidth = 10, lengthscale)
         text!(
-            ax, s⃗ + t̂ + Vec3(0.05, 0.0, 0.0);
+            ax, s⃗ + lengthscale * t̂;
             text = L"\mathbf{s}′", align = (:left, :center), color = arrowcol,
+            offset = (2, -4),
         )
         text!(
-            ax, s⃗ + ρ⃗ + Vec3(0.0, 0.04, 0.0);
-            text = L"\mathbf{s}″", align = (:center, :bottom), color = arrowcol,
+            ax, s⃗ + lengthscale * ρ⃗;
+            text = L"\mathbf{s}″", align = (:right, :center), color = arrowcol,
+            offset = (4, 6),
         )
     end
 
-    save("trefoil_local.svg", fig)
+    save("trefoil_local.png", fig)
     nothing  # hide
     ```
 

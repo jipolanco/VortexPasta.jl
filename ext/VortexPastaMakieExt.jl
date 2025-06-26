@@ -46,7 +46,7 @@ Makie.plot!(ax, f::MaybeObservable{<:AbstractFilament}, args...; kws...) =
     periods = (nothing, nothing, nothing)
 
     "Arrow attributes (see Makie.arrows3d docs)."
-    arrows3d = NamedTuple()
+    arrows3d = Attributes()
 end
 
 Makie.convert_arguments(::Type{<:FilamentPlot}, f::AbstractFilament) = (f, nothing)  # in case we didn't pass a velocities vector (second argument)
@@ -71,7 +71,7 @@ function Makie.plot!(p::FilamentPlot)
     let
         tangentcolor = @lift something($(p.tangentcolor), $(p.color))
         _plot_tangents!(
-            p, f, p.tangents[], p.vectorpos, p.periods, p.arrows3d[];
+            p, f, p.tangents[], p.vectorpos, p.periods, p.arrows3d;
             color = tangentcolor, colormap = p.colormap, colorrange = p.colorrange,
         )
     end
@@ -79,14 +79,14 @@ function Makie.plot!(p::FilamentPlot)
     let
         curvaturecolor = @lift something($p.curvaturecolor, $p.color)
         _plot_curvatures!(
-            p, f, p.curvatures[], p.vectorpos, p.periods, p.arrows3d[];
+            p, f, p.curvatures[], p.vectorpos, p.periods, p.arrows3d;
             color = curvaturecolor, colormap = p.colormap, colorrange = p.colorrange,
         )
     end
     if v !== nothing
         velocitycolor = @lift something($p.velocitycolor, $p.color)
         _plot_velocities!(
-            p, f, v, p.periods, p.arrows3d[];
+            p, f, v, p.periods, p.arrows3d;
             color = velocitycolor, colormap = p.colormap, colorrange = p.colorrange,
         )
     end
@@ -152,12 +152,12 @@ function _tangents_for_arrows(f::AbstractFilament, vectorpos::Real, Ls)
 end
 
 function _plot_arrows!(p, arrows3d, args...; kwargs...)
-    Makie.arrows3d!(p, p.attributes, args...; kwargs..., arrows3d...)
+    attrs = arrows3d[]::Attributes
+    Makie.arrows3d!(p, attrs, args...; kwargs...)
 end
 
 function _plot_tangents!(
-        p::FilamentPlot, f, tangents::Bool,
-        vectorpos, periods, arrows3d::NamedTuple;
+        p::FilamentPlot, f, tangents::Bool, vectorpos, periods, arrows3d;
         kwargs...,
     )
     tangents || return p
@@ -185,7 +185,7 @@ end
 
 function _plot_curvatures!(
         p::FilamentPlot, f, curvatures::Bool,
-        vectorpos, periods, arrows3d::NamedTuple;
+        vectorpos, periods, arrows3d;
         kwargs...,
     )
     curvatures || return p
@@ -208,8 +208,7 @@ function _velocities_for_arrows(f::AbstractFilament, v::AbstractVector, Ls)
 end
 
 function _plot_velocities!(
-        p::FilamentPlot, f,
-        v, periods, arrows3d::NamedTuple;
+        p::FilamentPlot, f, v, periods, arrows3d;
         kwargs...,
     )
     data = @lift _velocities_for_arrows($f, $v, $periods)
