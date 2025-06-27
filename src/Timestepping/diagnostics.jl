@@ -55,3 +55,9 @@ end
 
 # This allows passing a VortexFilamentSolver to energy_spectrum / energy_spectrum!.
 Diagnostics.get_long_range_cache(iter::VortexFilamentSolver) = iter.cache_bs.longrange
+
+function Diagnostics.integral_lengthscale(
+        ks::AbstractVector{T}, Ek::AbstractVector{T}, Etot::T, Lvort::T, iter::VortexFilamentSolver{T}
+    ) where {T}
+    Diagnostics.integral_lengthscale(ks, Ek, Etot, Lvort, iter.prob.p)
+end

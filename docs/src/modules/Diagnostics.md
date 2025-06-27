@@ -62,3 +62,9 @@ energy_spectrum!
 helicity_spectrum
 helicity_spectrum!
 ```
+
+## Length scales
+
+```@docs
+integral_lengthscale
+```

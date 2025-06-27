@@ -188,7 +188,7 @@ function test_infinite_lines(method)
     E_from_vorticity = Ref(0.0)  # large-scale kinetic energy from vorticity field
 
     function callback_vorticity(cache)
-        E = truncated_kinetic_energy_from_vorticity(cache)
+        local E = truncated_kinetic_energy_from_vorticity(cache)
         E_from_vorticity[] = E
         nothing
     end
@@ -210,7 +210,7 @@ function test_infinite_lines(method)
         end
     end
 
-    E = Diagnostics.kinetic_energy(filaments, ψs, params)
+    E = Diagnostics.kinetic_energy(filaments, ψs, params; quad = GaussLegendre(4))
 
     @testset "Energy spectrum" begin
         ks, Ek = Diagnostics.energy_spectrum(cache)
@@ -261,6 +261,23 @@ function test_infinite_lines(method)
         # parameters...).
         @test 0.2 < E_spec/E < 0.3
         @test 0.2 < E_spec_ext/E < 0.3
+
+        # @show E_spec E_spec_ext E
+
+        @testset "Integral length scale" begin
+            Etot = E
+            L_int_truncated_energy = Diagnostics.integral_lengthscale(ks, Ek)  # estimates energy as integral of E(k) (wrong, since E(k) decays too slowly)
+            L_int_truncated = Diagnostics.integral_lengthscale(ks, Ek, Etot)  # spectrum not extended beyond kmax
+            L_int_truncated_ext = Diagnostics.integral_lengthscale(ks_ext, Ek_ext, Etot)  # spectrum not extended beyond kmax
+            L_int = Diagnostics.integral_lengthscale(ks, Ek, Etot, Lvort, params)  # extended spectrum
+            L_int_ext = Diagnostics.integral_lengthscale(ks_ext, Ek_ext, Etot, Lvort, params)
+            # @show L_int_truncated_energy L_int_truncated L_int_truncated_ext L_int L_int_ext
+            @test L_int_truncated_energy > L_int  # L_int_truncated_energy gives huge values since it underestimates Etot (in denominator)
+            @test L_int_truncated < L_int_truncated_ext  # since we integrate E(k)/k up to a larger kmax
+            @test L_int_truncated_ext < L_int  # since L_int includes the analytical spectrum extension to infinity
+            # @show (L_int - L_int_ext) / L_int
+            @test L_int ≈ L_int_ext rtol=4e-4  # extending the spectrum doesn't matter much here => this means that the analytical extension is right
+        end
     end
 
     @testset "FilamentIO" begin
