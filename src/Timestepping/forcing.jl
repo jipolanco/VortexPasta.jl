@@ -152,7 +152,9 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs,
     nothing
 end
 
-function _apply_dissipation!(vL_all, dissipation::SmallScaleDissipationBS, cache, iter, fs, t, to)
+_apply_dissipation!(vL_all, dissipation::NoDissipation, cache, iter, fs, t, to) = nothing
+
+function _apply_dissipation!(vL_all, dissipation::AbstractDissipation, cache, iter, fs, t, to)
     @assert eachindex(vL_all) === eachindex(fs)
     (; quantities,) = iter
     @assert quantities.vs !== vL_all  # not aliased

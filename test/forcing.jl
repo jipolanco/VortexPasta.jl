@@ -397,7 +397,27 @@ end
             nothing
         end
 
-        @testset "Constant α" begin
+        @testset "DissipationBS: Constant α" begin
+            dissipation = @inferred DissipationBS(; α = 0.1)
+            (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
+            @test iter.vL ≈ iter.vs + iter.vdiss
+            @test all(>(0), ε_diss_time)  # energy dissipation is positive
+            @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
+            plots && plot_spectra(spectra; title = "DissipationBS (constant α)")
+        end
+
+        @testset "DissipationBS: Constant ε_target" begin
+            dissipation = @inferred DissipationBS(; ε_target = 1e-4)
+            (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
+            @test iter.vL ≈ iter.vs + iter.vdiss
+            @test all(>(0), ε_diss_time)  # energy dissipation is positive
+            @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
+            # Chosen dissipation rate corresponds almost exactly to actual dissipation rate.
+            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 2e-3), ε_diss_time)
+            plots && plot_spectra(spectra; title = "DissipationBS (constant ε_target)")
+        end
+
+        @testset "SmallScaleDissipationBS: Constant α" begin
             dissipation = @inferred SmallScaleDissipationBS(; α = 0.1, kdiss)
             (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
             @test iter.vL ≈ iter.vs + iter.vdiss
@@ -406,7 +426,7 @@ end
             plots && plot_spectra(spectra; title = "SmallScaleDissipationBS (constant α)")
         end
 
-        @testset "Constant ε_target" begin
+        @testset "SmallScaleDissipationBS: Constant ε_target" begin
             dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
             (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
             @test iter.vL ≈ iter.vs + iter.vdiss
@@ -417,7 +437,16 @@ end
             plots && plot_spectra(spectra; title = "SmallScaleDissipationBS (constant ε_target)")
         end
 
-        @testset "Forcing + dissipation" begin
+        @testset "Forcing + dissipation (DissipationBS)" begin
+            dissipation = @inferred DissipationBS(; ε_target = 1e-4)
+            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-4, kmin = 0.1, kmax = 2.5)
+            (; iter, E_ratio, spectra) = simulate(prob_diss, forcing, dissipation; callback)
+            @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
+            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.05), ε_diss_time)
+            plots && plot_spectra(spectra; title = "Forcing + dissipation")
+        end
+
+        @testset "Forcing + dissipation (SmallScaleDissipationBS)" begin
             dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
             forcing = @inferred FourierBandForcingBS(; ε_target = 2e-4, kmin = 0.1, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob_diss, forcing, dissipation; callback)
@@ -426,7 +455,7 @@ end
             plots && plot_spectra(spectra; title = "Forcing + dissipation")
         end
 
-        @testset "Forcing + dissipation (PseudoGPU)" begin
+        @testset "Forcing + dissipation (PseudoGPU, SmallScaleDissipationBS)" begin
             backend_long = NonuniformFFTsBackend(PseudoGPU(); σ = 1.5, m = HalfSupport(4))
             params_gpu = generate_biot_savart_parameters(Float64; aspect, backend_long)
             prob_gpu = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params_gpu)
@@ -438,7 +467,7 @@ end
             plots && plot_spectra(spectra; title = "Forcing + dissipation (PseudoGPU)")
         end
 
-        @testset "Error if kdiss is too large" begin
+        @testset "SmallScaleDissipationBS: Error if kdiss is too large" begin
             dissipation = @inferred SmallScaleDissipationBS(; ε_target = 0.1, kdiss = 10000)
             @test_throws "dissipative wavenumber (kdiss = $(dissipation.kdiss)) is too large" simulate(prob_diss, NoForcing(), dissipation; callback)
         end

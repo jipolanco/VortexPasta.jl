@@ -22,6 +22,7 @@ FourierBandForcingBS
 
 ```@docs
 NoDissipation
+DissipationBS
 SmallScaleDissipationBS
 ```
 

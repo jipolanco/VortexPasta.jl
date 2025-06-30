@@ -55,7 +55,7 @@ using ..BiotSavart:
     periods
 
 using ..Forcing: Forcing, AbstractForcing, AbstractDissipation, NoForcing, NoDissipation,
-    NormalFluidForcing, FourierBandForcing, FourierBandForcingBS, SmallScaleDissipationBS
+    NormalFluidForcing, FourierBandForcing, FourierBandForcingBS, DissipationBS, SmallScaleDissipationBS
 
 # Reuse same init, solve! and step! functions from the SciML ecosystem, to avoid clashes.
 # See https://docs.sciml.ai/CommonSolve/stable/
@@ -214,8 +214,8 @@ For convenience, if there is no normal fluid, then `vL` is defined as an alias o
 
 If `forcing = FourierBandForcingBS(...)` is passed (see [`FourierBandForcingBS`](@ref)),
 then the `vf` field contains the forcing term.
-Similarly, if `dissipation = SmallScaleDissipationBS(...)` (see [`SmallScaleDissipationBS`](@ref)), then
-the `vdiss` field contains the dissipation term.
+Similarly, if `dissipation` contains a dissipation term (e.g. [`DissipationBS`](@ref) or
+[`SmallScaleDissipationBS`](@ref)), then the `vdiss` field contains the dissipation term.
 
 """
 struct VortexFilamentSolver{

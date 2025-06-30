@@ -15,7 +15,8 @@ using OhMyThreads: Scheduler, SerialScheduler, tforeach, tmapreduce
 using Adapt: adapt
 
 export AbstractForcing, AbstractDissipation, NoForcing, NoDissipation,
-    NormalFluidForcing, FourierBandForcing, FourierBandForcingBS, SmallScaleDissipationBS
+    NormalFluidForcing, FourierBandForcing, FourierBandForcingBS,
+    SmallScaleDissipationBS, DissipationBS
 
 """
     AbstractForcing
@@ -76,5 +77,6 @@ include("normal_fluid.jl")
 include("fourier_band.jl")
 include("fourier_band_bs.jl")
 include("dissipation_bs.jl")
+include("dissipation_bs_small_scales.jl")
 
 end
