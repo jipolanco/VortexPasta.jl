@@ -99,7 +99,7 @@ The parameters giving the fastest runtime are returned.
 ## Typical values of ``β`` and NUFFT parameters
 
 The following table roughly relates accuracy (in number of digits) and values of ``β``, as
-detailed in [Polanco2024](@citet):
+detailed in [Polanco2025](@citet):
 
 | Precision digits |   ``β``   |  NUFFT ``w`` |
 | :--------------: | :-------: | :----------: |

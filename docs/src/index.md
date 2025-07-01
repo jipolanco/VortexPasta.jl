@@ -2,7 +2,7 @@
 
 A vortex filament solver for the simulation of quantum vortex flows.
 
-This solver implements the methods described in [Polanco2024](@citet) for the fast evaluation of Biot--Savart integrals in periodic domains.
+This solver implements the methods described in [Polanco2025](@citet) for the fast evaluation of Biot--Savart integrals in periodic domains.
 
 ```@contents
 Pages = ["index.md"]
@@ -45,7 +45,7 @@ Note that the influence of a vortex on the surrounding space decays relatively s
 A naive implementation, where all such pair interactions are computed one by one, leads to a computational complexity of ``\mathcal{O}(N^2)``, that is, the computational cost increases quickly with the number of discretisation points (or vortices).
 For this reason, simulating fully turbulent flows is prohibitively costly with naive methods.
 
-The VortexPasta.jl solver provides an efficient and accurate implementation of the VFM [Polanco2024](@cite), specifically intended for vortex flows in **periodic domains**.
+The VortexPasta.jl solver provides an efficient and accurate implementation of the VFM [Polanco2025](@cite), specifically intended for vortex flows in **periodic domains**.
 Its efficiency comes from the use of a [splitting technique](@ref methods-Ewald) derived from the
 [Ewald summation](https://en.wikipedia.org/wiki/Ewald_summation) method, which splits the Biot--Savart integral into a *short-range* and a *long-range* parts.
 This kind of methods is routinely used in the context of molecular dynamics simulations to compute electrostatic Coulomb interactions between point charges.

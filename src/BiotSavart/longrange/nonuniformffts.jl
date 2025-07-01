@@ -62,7 +62,7 @@ for a full list of possible keyword arguments.
 ## Effect of parameters on accuracy
 
 The following table roughly relates accuracy (in number of digits) and NUFFT parameters, as
-detailed in [Polanco2024](@citet):
+detailed in [Polanco2025](@citet):
 
 | Precision digits |  NUFFT ``m`` |  NUFFT ``σ`` |  Ewald ``β`` |
 | :--------------: | :----------: | :----------: | :----------: |
@@ -75,7 +75,7 @@ detailed in [Polanco2024](@citet):
 |        14        |      8       |     1.5      |     5.5      |
 
 The last column is the associated value of the accuracy parameter ``β`` in Ewald's method as
-formulated in [Polanco2024](@citet). Once one has set ``β`` and Ewald's splitting parameter
+formulated in [Polanco2025](@citet). Once one has set ``β`` and Ewald's splitting parameter
 ``α`` (an inverse lengthscale), the cut-offs in physical and Fourier space are ``r_{\\text{cut}} = β / α``
 and ``k_{\\text{max}} = 2βα``. In this formulation, ``β`` controls the method accuracy while
 ``α`` is tuned to maximise performance.

@@ -4,7 +4,7 @@ The main originality of the VortexPasta solver is that it adapts the [Ewald summ
 See for example [Arnold2005](@citet) for a nice introduction to Ewald methods applied to the electrostatic interaction between point charges.
 
 The adaptation of these methods to the vortex filament model is
-described in [Polanco2024](@citet).
+described in [Polanco2025](@citet).
 That paper also explains the role of the different parameters entering
 the method on accuracy and performance.
 
@@ -379,7 +379,7 @@ In practice, we use [Gauss--Legendre quadratures](https://en.wikipedia.org/wiki/
 As detailed above, this method introduces a few parameters which must be tuned for accuracy and performance.
 In fact, **most of these parameters are related** and should not be treated independently.
 For instance, the physical- and Fourier-space cut-offs ``r_\text{cut}`` and ``k_\text{max}`` are clearly related to the Ewald splitting parameter ``α``.
-As described in [Polanco2024](@citet), these can be related by a unique
+As described in [Polanco2025](@citet), these can be related by a unique
 non-dimensional parameter ``β = α r_\text{cut} = k_\text{max} / 2α``
 controlling the accuracy of the method.
 

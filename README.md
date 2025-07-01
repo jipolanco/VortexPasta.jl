@@ -5,10 +5,12 @@
 [![coverage](https://jipolanco.github.io/VortexPasta.jl/dev/coverage/coverage.svg)](https://jipolanco.github.io/VortexPasta.jl/dev/coverage)
 [![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/jipolanco/VortexPasta.jl/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/jipolanco/VortexPasta.jl)
 
-A vortex filament solver for the simulation of quantum vortex flows.
+An efficient vortex filament solver for the simulation of quantum vortex flows.
 
 See the [documentation](https://jipolanco.github.io/VortexPasta.jl/dev/) for an introduction, installation instructions, examples and much more.
 
 ## References
 
-[1] J. I. Polanco, *Fast and accurate evaluation of Biot–Savart integrals over spatial curves* (2024), [arXiv:2406.07366](https://arxiv.org/abs/2406.07366)
+[1] J. I. Polanco, *Fast and Accurate Evaluation of Biot–Savart Integrals over Spatial Curves in Periodic Domains*,
+    [SIAM J. Sci. Comput. **47**, B822](https://doi.org/10.1137/24M1684682) (2025)
+    [\[PDF\]](https://arxiv.org/pdf/2406.07366)

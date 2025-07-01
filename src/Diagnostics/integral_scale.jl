@@ -41,7 +41,7 @@ some maximum wavenumber ``k_{\text{max}}``, we necessarily incur some truncation
 may be non-negligible. For this reason, we estimate the contribution beyond
 ``k_{\text{max}}`` by assuming that the spectrum takes the form ``E(k) = (Γ^2 L_v / 4πV) k^{-1}``,
 where ``L_v`` is the total vortex length (`Lvort`) and ``V`` the volume of the periodic
-domain (see e.g. [Polanco2024](@citet)).
+domain (see e.g. [Polanco2025](@citet) [supplementary material](https://epubs.siam.org/doi/suppl/10.1137/24M1684682/suppl_file/m168468_supplement.pdf)).
 """
 function integral_lengthscale end
 
