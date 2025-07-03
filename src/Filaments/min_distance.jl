@@ -63,17 +63,17 @@ Returns a `NamedTuple` with the following fields:
 
 """
 function find_min_distance(
-        fx::AbstractFilament, fy::AbstractFilament,
+        fx::AbstractFilament{T}, fy::AbstractFilament{T},
         i::Int, j::Int;
         periods::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
         maxiter = 4,
-        rtol = 1e-2,
-    )
-    periods_half = map(L -> L / 2, periods)
+        rtol::T = T(1e-2),
+    ) where {T}
+    periods_half = map(L -> L / T(2), periods)
     tx, ty = knots(fx), knots(fy)
     Δts = SVector(tx[i + 1] - tx[i], ty[j + 1] - ty[j])
 
-    ζs = SVector(0.5, 0.5)  # initial guess: middle of each segment
+    ζs = SVector(T(0.5), T(0.5))  # initial guess: middle of each segment
 
     # Use Newton's method to find minimum distance.
     # We minimise the squared distance d² between the two segments.
