@@ -112,11 +112,6 @@ function find_reconnection_pairs!(
     r_crit = T(1.5) * r_cut
     r²_crit = r_crit * r_crit
     Lhs = map(L -> L / 2, Ls)
-    function check_distance(r⃗_in)
-        r⃗ = deperiodise_separation(r⃗_in, Ls, Lhs)
-        r² = sum(abs2, r⃗)
-        r² < r²_crit
-    end
     @timeit to "set_filaments!" set_filaments!(finder, fs)  # this is needed in particular to initialise cell lists
     lck = ReentrantLock()
     @timeit to "find segment pairs" for (i, f) ∈ pairs(fs)
@@ -132,8 +127,8 @@ function find_reconnection_pairs!(
             for (j, seg_b) ∈ nearby_segments(finder, x⃗)
                 # 1. Apply slightly finer filters to determine whether we keep this candidate.
                 # TODO combine these two criteria?
-                segment_is_close(seg_b, x⃗, d_crit, d²_crit, Ls, Lhs) || continue
-                keep_segment_pair(check_distance, seg_a, seg_b) || continue
+                @inline segment_is_close(seg_b, x⃗, d_crit, d²_crit, Ls, Lhs) || continue
+                keep_segment_pair(seg_a, seg_b) || continue
                 candidate = ReconnectionCandidate(seg_a, seg_b, i, j)
                 # 2. Now check if the chosen criterion is verified
                 info = should_reconnect(crit, candidate; periods = Ls)
@@ -211,19 +206,14 @@ end
 
 # This is to make sure we don't reconnect nearly neighbouring segments belonging to the same
 # filament.
-function keep_segment_pair(check_distance::F, a::Segment, b::Segment) where {F <: Function}
+function keep_segment_pair(a::Segment, b::Segment)
     f, i = a.f, a.i
     g, j = b.f, b.i
     if f === g
-        i === j && return false  # same segment
         dist_max = 2  # disallow reconnection between segment i and segment j = i ± {0, 1, 2}
         N = length(f)
-        Nh = N >> 1
-        i′, j′ = ifelse(i < j, (i, j), (j, i))
-        while j′ - i′ > Nh
-            i′, j′ = j′ - N, i′
-        end
-        if j′ - i′ ≤ dist_max
+        dist = abs(i - j)
+        if dist ≤ dist_max || (N - dist) ≤ dist_max  # note: N - dist is always ≥ 0
             return false
         end
     end
