@@ -331,7 +331,7 @@ init_coefficients!(f::FourierBandVectorField, u_rms::Real; kws...) =
         j = ifelse(q ≥ 0, q + 1, M + q + 1)  # source index (assuming the input is large enough)
         ifelse(abs(q) > qs_max[d], 0, j)     # set to zero indices which are not present in the input (because the Fourier grid is too small compared to the Fourier band)
     end
-    k⃗ = SVector(q⃗ .* Δks)
+    k⃗ = SVector(ntuple(d -> @inbounds(q⃗[d] * Δks[d]), Val(N)))
     T = eltype(ûs[1])
     if any(iszero, js)
         û = zero(SVector{N, T})  # coefficient not present in input
