@@ -7,8 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Performance
 
-- Improve performance of reconnections, by "invalidating" reconnecting
-  filaments as early as possible in the reconnection process.
+- Various major performance improvements to reconnections.
 
 ## [0.28.5] - 2025-06-30
 
