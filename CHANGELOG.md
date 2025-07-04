@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.28.7] - 2025-07-04
+
+### Added
+
+- `ReconnectBasedOnDistance`: add `max_passes` option for performing multiple reconnection passes.
+
 ## [0.28.6] - 2025-07-04
 
 ### Performance
