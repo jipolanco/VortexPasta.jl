@@ -153,7 +153,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
     δ = Filaments.minimum_node_distance(prob.fs)
     d_crit = 0.75 * δ
-    reconnect = ReconnectBasedOnDistance(d_crit)
+    reconnect = ReconnectBasedOnDistance(d_crit; max_passes = 4)
     dt = BiotSavart.kelvin_wave_period(params_bs, δ) * trefoil_scheme_dt(scheme)
     # @show δ d_crit dt
     iter = @inferred init(
@@ -533,6 +533,19 @@ end
             @test sum(length, fs) == N  # number of nodes didn't change
             @test all(f -> iszero(end_to_end_offset(f)), fs)  # all closed filaments
             @test all(f -> no_jumps(f, 2.1 * l_min), fs)
+
+            @testset "Using max_passes = 10" begin
+                crit = @inferred ReconnectBasedOnDistance(l_min / 2; max_passes = 10)
+                fs = copy.(fs_orig)
+                cache = @inferred Reconnections.init_cache(crit, fs, Ls)
+                rec = @inferred reconnect!(cache, fs)
+                @test rec.reconnection_count == 4  # total number of reconnections
+                @test rec.npasses == 5  # total number of passes required (the last one doesn't do any reconnections)
+                @test length(fs) == 3
+                @test sum(length, fs) == N  # number of nodes didn't change
+                @test all(f -> iszero(end_to_end_offset(f)), fs)  # all closed filaments
+                @test all(f -> no_jumps(f, 2.1 * l_min), fs)
+            end
         end
     end
 

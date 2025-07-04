@@ -57,7 +57,7 @@ Moreover, this function will remove reconnected filaments if their number of nod
 Optionally, `vs` can be a vector containing all instantaneous filament velocities.
 In this case, this will be used to discard reconnections between filaments which are moving
 in opposite directions. This is required if the [`ReconnectBasedOnDistance`](@ref) criterion
-is used with its default option `use_velocity = true`.
+is used with its option `use_velocity = true` (default if `max_passes = 1`).
 
 ## Returns
 
@@ -103,12 +103,24 @@ function reconnect!(
     filaments_removed_count = 0
     filaments_removed_length = zero(T)
     reconnection_length_loss = zero(T)  # decrease of vortex length due to reconnections (not due to removals)
-    ret_base = (;
+    ret = (;
         reconnection_count,
         reconnection_length_loss,
         filaments_removed_count,
         filaments_removed_length,
     )
+    nmax = max_passes(cache)
+    npasses = 0
+    while npasses < nmax
+        nrec = ret.reconnection_count
+        ret = _reconnect_pass!(callback, ret, cache, fs, vs; to)
+        npasses += 1
+        nrec == ret.reconnection_count && break  # no new reconnections were performed
+    end
+    (; ret..., npasses,)
+end
+
+function _reconnect_pass!(callback::F, ret_base, cache, fs, vs; to) where {F <: Function}
     if criterion(cache) === NoReconnections()
         return ret_base
     end
@@ -116,6 +128,7 @@ function reconnect!(
         to_reconnect = find_reconnection_pairs!(cache, fs, vs; to)
     end
     isempty(to_reconnect) && return ret_base
+    (; reconnection_count, reconnection_length_loss, filaments_removed_count, filaments_removed_length,) = ret_base
     Nf = length(fs)
     invalidated_filaments = falses(Nf)  # if invalidated_filaments[i] is true, it means fs[i] can no longer be reconnected
     @timeit to "reconnect pairs" for reconnect_info ∈ to_reconnect

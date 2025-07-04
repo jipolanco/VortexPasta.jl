@@ -45,10 +45,11 @@ struct NoReconnections <: ReconnectionCriterion end
 
 distance(::NoReconnections) = nothing
 should_reconnect(::NoReconnections, fx, fy, i, j; kws...) = nothing
+max_passes(::NoReconnections) = 0
 
 """
     ReconnectBasedOnDistance <: ReconnectionCriterion
-    ReconnectBasedOnDistance(d_crit; use_velocity = true, decrease_length = true, cos_max = 0.97)
+    ReconnectBasedOnDistance(d_crit; max_passes = 1, use_velocity = (max_passes == 1), decrease_length = true, cos_max = 0.97)
 
 Reconnects filament segments which are at a distance `d < d_crit`.
 
@@ -56,7 +57,13 @@ Reconnects filament segments which are at a distance `d < d_crit`.
 
 - `use_velocity`: if `true` (default), use filament velocity information in reconnections.
   For now, this is used to discard a reconnection between two points if they are
-  instantaneously getting away from each other.
+  instantaneously getting away from each other. If `max_passes > 1`, then `use_velocity` **must**
+  be set to `false`.
+
+- `max_passes`: maximum number of scans through all segment pairs to detect and perform
+  reconnections. In a single pass, a filament can only be reconnected at most once.
+  Therefore, this parameter can be useful to make sure that all required reconnections have
+  been performed. **Setting `max_passes > 1` also requires `use_velocity = false`.**
 
 - `decrease_length`: if `true` (default), a reconnection will only be performed
   if it will decrease the total filament length. Since, for vortices, the total
@@ -75,15 +82,22 @@ struct ReconnectBasedOnDistance <: ReconnectionCriterion
     dist_sq    :: Float64
     cos_max    :: Float64
     cos_max_sq :: Float64
+    max_passes  :: Int
     use_velocity    :: Bool
     decrease_length :: Bool
-
-    function ReconnectBasedOnDistance(dist; cos_max = 0.97, use_velocity = true, decrease_length = true)
-        new(dist, dist^2, cos_max, cos_max^2, use_velocity, decrease_length)
+    function ReconnectBasedOnDistance(dist; cos_max = 0.97, max_passes = 1, use_velocity = (max_passes == 1), decrease_length = true)
+        max_passes < 1 && throw(ArgumentError("ReconnectBasedOnDistance: max_passes should be >= 1"))
+        max_passes > 1 && use_velocity && throw(ArgumentError("ReconnectBasedOnDistance: use_velocity can only be activated if max_passes = 1"))
+        new(dist, dist^2, cos_max, cos_max^2, max_passes, use_velocity, decrease_length)
     end
 end
 
 distance(c::ReconnectBasedOnDistance) = c.dist
+max_passes(c::ReconnectBasedOnDistance) = c.max_passes
+
+function Base.show(io::IO, c::ReconnectBasedOnDistance)
+    print(io, "ReconnectBasedOnDistance($(c.dist); cos_max = $(c.cos_max), max_passes = $(c.max_passes), use_velocity = $(c.use_velocity), decrease_length = $(c.decrease_length))")
+end
 
 function should_reconnect(
         c::ReconnectBasedOnDistance, fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;

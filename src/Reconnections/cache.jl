@@ -27,6 +27,7 @@ end
 
 criterion(c::ReconnectionCache) = c.crit
 periods(c::ReconnectionCache) = c.Ls
+max_passes(c::ReconnectionCache) = max_passes(c.crit)
 
 """
     Reconnections.init_cache(
