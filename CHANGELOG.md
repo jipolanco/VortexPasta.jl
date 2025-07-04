@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Various major performance improvements to reconnections.
 
+### Fixed
+
+- Fix `FourierBandForcingBS` on AMDGPU.
+
 ## [0.28.5] - 2025-06-30
 
 ### Added
