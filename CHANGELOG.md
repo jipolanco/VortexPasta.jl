@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Performance
+
+- Various major performance improvements to reconnections.
+
 ## [0.28.5] - 2025-06-30
 
 ### Added

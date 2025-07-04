@@ -116,13 +116,13 @@ function reconnect!(
         to_reconnect = find_reconnection_pairs!(cache, fs, vs; to)
     end
     isempty(to_reconnect) && return ret_base
-    Fil = eltype(fs)
-    invalidated_filaments = Set{Fil}()  # list of invalidated filaments (can no longer be reconnected)
+    Nf = length(fs)
+    invalidated_filaments = falses(Nf)  # if invalidated_filaments[i] is true, it means fs[i] can no longer be reconnected
     @timeit to "reconnect pairs" for reconnect_info ∈ to_reconnect
         (; candidate, info,) = reconnect_info
-        (; a, b,) = candidate
-        @timeit to "reconnect" if a.f === b.f
-            if a.f ∈ invalidated_filaments
+        (; a, b, filament_idx_a, filament_idx_b,) = candidate
+        @timeit to "reconnect" if filament_idx_a === filament_idx_b
+            if invalidated_filaments[filament_idx_a]
                 continue  # don't reconnect this filament if it was already reconnected earlier
             end
             # Reconnect filament with itself => split filament into two
@@ -130,15 +130,15 @@ function reconnect!(
             nremoved, Lremoved = reconnect_with_itself!(callback, fs, a.f, a.i, b.i, info)
             filaments_removed_count += nremoved
             filaments_removed_length += Lremoved
-            push!(invalidated_filaments, a.f)
+            invalidated_filaments[filament_idx_a] = true
         else
             # Reconnect two different filaments => merge them into one
-            if a.f ∈ invalidated_filaments || b.f ∈ invalidated_filaments
+            if invalidated_filaments[filament_idx_a] || invalidated_filaments[filament_idx_b]
                 continue  # don't reconnect if one of these filaments was already reconnected earlier
             end
             reconnect_with_other!(callback, fs, a.f, b.f, a.i, b.i, info)
-            push!(invalidated_filaments, a.f)
-            push!(invalidated_filaments, b.f)
+            invalidated_filaments[filament_idx_a] = true
+            invalidated_filaments[filament_idx_b] = true
         end
         reconnection_length_loss += info.length_before - info.length_after
         reconnection_count += 1
