@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.28.8] - 2025-07-04
+
+### Fixed
+
+- Fix simulations with `reconnect = NoReconnections()` (issue introduced in v0.28.7).
+
 ## [0.28.7] - 2025-07-04
 
 ### Added

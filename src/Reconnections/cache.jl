@@ -12,6 +12,7 @@ using OhMyThreads: OhMyThreads
 abstract type AbstractReconnectionCache end
 
 distance(c::AbstractReconnectionCache) = distance(criterion(c))
+max_passes(c::AbstractReconnectionCache) = max_passes(criterion(c))
 
 struct ReconnectionCache{
         Criterion <: ReconnectionCriterion,
@@ -27,7 +28,6 @@ end
 
 criterion(c::ReconnectionCache) = c.crit
 periods(c::ReconnectionCache) = c.Ls
-max_passes(c::ReconnectionCache) = max_passes(c.crit)
 
 """
     Reconnections.init_cache(
