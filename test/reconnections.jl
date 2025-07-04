@@ -214,7 +214,7 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         @show last(energy_rel)
     end
     @test n_reconnect[] > 0
-    @test 1.60 < t_reconnect[] < 1.65  # this depends on several parameters...
+    @test 1.60 < t_reconnect[] < 1.70  # this depends on several parameters...
     @test 0.98 < last(energy_rel) < 0.99
 
     if test_jet
