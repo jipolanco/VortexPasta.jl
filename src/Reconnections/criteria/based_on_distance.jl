@@ -9,13 +9,126 @@ using ..FindNearbySegments:
 using ..CellLists: CellLists
 using OhMyThreads: OhMyThreads
 
-abstract type AbstractReconnectionCache end
+"""
+    ReconnectBasedOnDistance <: ReconnectionCriterion
+    ReconnectBasedOnDistance(d_crit; max_passes = 1, use_velocity = (max_passes == 1), decrease_length = true, cos_max = 0.97)
 
-distance(c::AbstractReconnectionCache) = distance(criterion(c))
-max_passes(c::AbstractReconnectionCache) = max_passes(criterion(c))
+Reconnects filament segments which are at a distance `d < d_crit`.
 
-struct ReconnectionCache{
-        Criterion <: ReconnectionCriterion,
+# Optional keyword arguments
+
+- `use_velocity`: if `true` (default), use filament velocity information in reconnections.
+  For now, this is used to discard a reconnection between two points if they are
+  instantaneously getting away from each other. If `max_passes > 1`, then `use_velocity` **must**
+  be set to `false`.
+
+- `max_passes`: maximum number of scans through all segment pairs to detect and perform
+  reconnections. In a single pass, a filament can only be reconnected at most once.
+  Therefore, this parameter can be useful to make sure that all required reconnections have
+  been performed. **Setting `max_passes > 1` also requires `use_velocity = false`.**
+
+- `decrease_length`: if `true` (default), a reconnection will only be performed
+  if it will decrease the total filament length. Since, for vortices, the total
+  energy is roughly related to the vortex length, this means that reconnections
+  should always tend to dissipate energy.
+
+- `cos_max`: allows to disable reconnections of nearly parallel segments. Two segments
+  are considered to be "nearly parallel" if `cos(θ) > cos_max`.
+  The default value `cos_max = 0.97` disables reconnections when the angle between lines
+  is ``θ < \\arccos(0.97) ≈ 14°``.
+  Note that the angle ``θ`` is signed (it takes values in ``[-1, 1]``).
+  Negative angles mean that the segments are antiparallel, and in this case reconnections are always performed.
+"""
+struct ReconnectBasedOnDistance <: ReconnectionCriterion
+    dist       :: Float64
+    dist_sq    :: Float64
+    cos_max    :: Float64
+    cos_max_sq :: Float64
+    max_passes  :: Int
+    use_velocity    :: Bool
+    decrease_length :: Bool
+    function ReconnectBasedOnDistance(dist; cos_max = 0.97, max_passes = 1, use_velocity = (max_passes == 1), decrease_length = true)
+        max_passes < 1 && throw(ArgumentError("ReconnectBasedOnDistance: max_passes should be >= 1"))
+        max_passes > 1 && use_velocity && throw(ArgumentError("ReconnectBasedOnDistance: use_velocity can only be activated if max_passes = 1"))
+        new(dist, dist^2, cos_max, cos_max^2, max_passes, use_velocity, decrease_length)
+    end
+end
+
+distance(c::ReconnectBasedOnDistance) = c.dist
+max_passes(c::ReconnectBasedOnDistance) = c.max_passes
+
+function Base.show(io::IO, c::ReconnectBasedOnDistance)
+    print(io, "ReconnectBasedOnDistance($(c.dist); cos_max = $(c.cos_max), max_passes = $(c.max_passes), use_velocity = $(c.use_velocity), decrease_length = $(c.decrease_length))")
+end
+
+"""
+    should_reconnect(
+        c::ReconnectBasedOnDistance,
+        fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;
+        periods,
+    ) -> Union{Nothing, NamedTuple}
+
+Check whether two filaments should reconnect according to the chosen criterion.
+
+Checks for a possible reconnection between filament segments `fx[i:i+1]` and `fy[j:j+1]`.
+
+If the filament segments should reconnect, this function returns a `NamedTuple`
+with reconnection information, which includes in particular all the fields
+returned by [`find_min_distance`](@ref).
+
+Otherwise, returns `nothing` if the filament segments should not reconnect.
+"""
+function should_reconnect end
+
+should_reconnect(c::ReconnectBasedOnDistance, candidate::ReconnectionCandidate; kws...) =
+    should_reconnect(c, candidate.a, candidate.b; kws...)
+should_reconnect(c::ReconnectBasedOnDistance, a::Segment, b::Segment; kws...) =
+    should_reconnect(c, a.f, b.f, a.i, b.i; kws...)
+
+function should_reconnect(
+        c::ReconnectBasedOnDistance, fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;
+        periods,
+        can_return_nothing = Val(true),  # this is set to false to obtain the return type when constructing a ReconnectBasedOnDistanceCache
+    )
+    (; dist_sq, cos_max_sq, decrease_length,) = c
+
+    min_dist = find_min_distance(fx, fy, i, j; periods)
+    (; d⃗, p⃗, ζx, ζy,) = min_dist
+    d² = sum(abs2, d⃗)
+    if can_return_nothing === Val(true)
+        d² > dist_sq && return nothing  # don't reconnect
+    end
+
+    # Make sure that reconnections reduce the total length (makes sense energetically for vortices).
+    length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])
+    length_after = norm(fy[j + 1] - fx[i] - p⃗) + norm(fx[i + 1] - fy[j] + p⃗)
+    if decrease_length && can_return_nothing === Val(true)
+        length_after > length_before && return nothing
+    end
+
+    X′ = fx(i, ζx, Derivative(1))
+    Y′ = fy(j, ζy, Derivative(1))
+
+    # Return the output of find_min_distance + other stuff if segments should reconnect.
+    info = (;
+        min_dist...,
+        d², length_before, length_after,
+    )
+
+    xy = X′ ⋅ Y′
+    xy < 0 && return info  # always reconnect antiparallel vortices
+
+    cos² = (xy * xy) / (sum(abs2, X′) * sum(abs2, Y′))
+
+    if cos² < cos_max_sq || can_return_nothing !== Val(true)
+        info
+    else
+        nothing
+    end
+end
+
+struct ReconnectBasedOnDistanceCache{
+        Criterion <: ReconnectBasedOnDistance,
         Finder <: NearbySegmentFinder,
         ReconnectionInfo,
         Periods <: Tuple{Vararg{Real}},
@@ -26,42 +139,10 @@ struct ReconnectionCache{
     Ls       :: Periods
 end
 
-criterion(c::ReconnectionCache) = c.crit
-periods(c::ReconnectionCache) = c.Ls
+criterion(c::ReconnectBasedOnDistanceCache) = c.crit
+periods(c::ReconnectBasedOnDistanceCache) = c.Ls
 
-"""
-    Reconnections.init_cache(
-        crit::ReconnectionCriterion,
-        fs::AbstractVector{<:AbstractFilament},
-        Ls::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
-    ) -> AbstractReconnectionCache
-
-Initialise reconnection cache.
-
-Required arguments are a reconnection criterion `crit` and the domain dimensions (or *periods*) `Ls`.
-
-The type of cache will vary depending on the inputs:
-
-- if `crit = NoReconnections()`, then reconnections are disabled and this returns a
-  `NullReconnectionCache`;
-- otherwise, it returns a `ReconnectionCache`.
-
-In the second case, the detection of reconnection pairs can follow two different
-strategies:
-
-- if the domain is infinite (default), a naive iteration across all filament segment pairs
-is performed;
-- if the domain is periodic, an efficient cell lists algorithm is used (see the [`CellLists`](@ref) module).
-"""
-function init_cache(
-        crit::ReconnectionCriterion,
-        fs::AbstractVector{<:AbstractFilament},
-        Ls::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
-    )
-    _init_cache(crit, fs, Ls)
-end
-
-function _init_cache(crit::ReconnectionCriterion, fs, Ls)
+function _init_cache(crit::ReconnectBasedOnDistance, fs, Ls)
     has_nonperiodic_directions = any(L -> L === Infinity(), Ls)
     # Note: we make the cutoff distance larger than the actual critical distance, since this
     # distance is only used to compare the segment *midpoints*.
@@ -88,16 +169,11 @@ function _init_cache(crit::ReconnectionCriterion, fs, Ls)
         @assert isconcretetype(ReconnectionInfo)
         Vector{ReconnectionInfo}()
     end
-    ReconnectionCache(crit, finder, to_reconnect, Ls)
+    ReconnectBasedOnDistanceCache(crit, finder, to_reconnect, Ls)
 end
 
-# Used when reconnections are disabled.
-struct NullReconnectionCache <: AbstractReconnectionCache end
-_init_cache(::NoReconnections, args...) = NullReconnectionCache()
-criterion(::NullReconnectionCache) = NoReconnections()
-
 function find_reconnection_pairs!(
-        cache::ReconnectionCache,
+        cache::ReconnectBasedOnDistanceCache,
         fs::AbstractVector{<:AbstractFilament},
         vs::Union{Nothing, AbstractVector{<:AbstractFilament}} = nothing;
         to = TimerOutput(),
@@ -235,4 +311,62 @@ function keep_segment_pair(a::Segment, b::Segment)
         end
     end
     true
+end
+
+function _reconnect_pass!(callback::F, ret_base, cache::ReconnectBasedOnDistanceCache, fs, vs; to) where {F <: Function}
+    @timeit to "find reconnection pairs" begin
+        to_reconnect = find_reconnection_pairs!(cache, fs, vs; to)
+    end
+    isempty(to_reconnect) && return ret_base
+    (; reconnection_count, reconnection_length_loss, filaments_removed_count, filaments_removed_length,) = ret_base
+    Nf = length(fs)
+    invalidated_filaments = falses(Nf)  # if invalidated_filaments[i] is true, it means fs[i] can no longer be reconnected
+    @timeit to "reconnect pairs" for reconnect_info ∈ to_reconnect
+        (; candidate, info,) = reconnect_info
+        (; a, b, filament_idx_a, filament_idx_b,) = candidate
+        @timeit to "reconnect" if filament_idx_a === filament_idx_b
+            if invalidated_filaments[filament_idx_a]
+                continue  # don't reconnect this filament if it was already reconnected earlier
+            end
+            # Reconnect filament with itself => split filament into two
+            @assert a.i ≠ b.i
+            nremoved, Lremoved = reconnect_with_itself!(callback, fs, a.f, a.i, b.i, info)
+            filaments_removed_count += nremoved
+            filaments_removed_length += Lremoved
+            invalidated_filaments[filament_idx_a] = true
+        else
+            # Reconnect two different filaments => merge them into one
+            if invalidated_filaments[filament_idx_a] || invalidated_filaments[filament_idx_b]
+                continue  # don't reconnect if one of these filaments was already reconnected earlier
+            end
+            reconnect_with_other!(callback, fs, a.f, b.f, a.i, b.i, info)
+            invalidated_filaments[filament_idx_a] = true
+            invalidated_filaments[filament_idx_b] = true
+        end
+        reconnection_length_loss += info.length_before - info.length_after
+        reconnection_count += 1
+    end
+    (;
+        reconnection_count,
+        reconnection_length_loss,
+        filaments_removed_count,
+        filaments_removed_length,
+    ) :: typeof(ret_base)
+end
+
+# Here ζ ∈ [0, 1] is the location within the segment where the minimum distance was found by
+# `should_reconnect`. If ζ = 0, the minimum location was found at the segment starting
+# point, which means that we might find a smaller distance if we look at the previous
+# segment. Similar thing if ζ = 1.
+@inline function choose_neighbouring_segment(s::Segment, ζ)
+    (; f, i,) = s
+    if ζ == 0
+        j = ifelse(i == firstindex(f), lastindex(f), i - 1)  # basically j = i - 1 (except when i = 1)
+        Segment(f, j)
+    elseif ζ == 1
+        j = ifelse(i == lastindex(f), firstindex(f), i + 1)
+        Segment(f, j)
+    else
+        s
+    end
 end

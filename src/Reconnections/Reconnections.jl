@@ -28,6 +28,44 @@ using ..Filaments: Filaments,
 using TimerOutputs
 using LinearAlgebra: ⋅, norm
 
+"""
+    ReconnectionCriterion
+
+Abstract type describing a criterion for filament reconnections.
+
+Implemented reconnection criteria include:
+
+- [`NoReconnections`](@ref): disables reconnections;
+
+- [`ReconnectBasedOnDistance`](@ref): reconnects filament segments which are closer than a
+  critical distance.
+"""
+abstract type ReconnectionCriterion end
+
+abstract type AbstractReconnectionCache end
+distance(c::AbstractReconnectionCache) = distance(criterion(c))
+max_passes(c::AbstractReconnectionCache) = max_passes(criterion(c))
+
+"""
+    Reconnections.init_cache(
+        crit::ReconnectionCriterion,
+        fs::AbstractVector{<:AbstractFilament},
+        Ls::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+    ) -> AbstractReconnectionCache
+
+Initialise reconnection cache.
+
+Required arguments are a reconnection criterion `crit` and the domain dimensions (or *periods*) `Ls`.
+The type of cache will vary depending on the chosen reconnection criterion.
+"""
+function init_cache(
+        crit::ReconnectionCriterion,
+        fs::AbstractVector{<:AbstractFilament},
+        Ls::NTuple{3, Real} = (Infinity(), Infinity(), Infinity()),
+    )
+    _init_cache(crit, fs, Ls)
+end
+
 struct ReconnectionCandidate{S <: Segment}
     a :: S
     b :: S
@@ -35,8 +73,8 @@ struct ReconnectionCandidate{S <: Segment}
     filament_idx_b :: Int  # filament id where segment `b` is located
 end
 
-include("criteria.jl")
-include("cache.jl")
+include("criteria/no_reconnections.jl")
+include("criteria/based_on_distance.jl")
 
 """
     reconnect!(
@@ -109,77 +147,20 @@ function reconnect!(
         filaments_removed_count,
         filaments_removed_length,
     )
+    R = typeof(ret)
     nmax = max_passes(cache)
     npasses = 0
     while npasses < nmax
         nrec = ret.reconnection_count
-        ret = _reconnect_pass!(callback, ret, cache, fs, vs; to)
+        ret = _reconnect_pass!(callback, ret, cache, fs, vs; to)::R
         npasses += 1
         nrec == ret.reconnection_count && break  # no new reconnections were performed
     end
     (; ret..., npasses,)
 end
 
-function _reconnect_pass!(callback::F, ret_base, cache, fs, vs; to) where {F <: Function}
-    if criterion(cache) === NoReconnections()
-        return ret_base
-    end
-    @timeit to "find reconnection pairs" begin
-        to_reconnect = find_reconnection_pairs!(cache, fs, vs; to)
-    end
-    isempty(to_reconnect) && return ret_base
-    (; reconnection_count, reconnection_length_loss, filaments_removed_count, filaments_removed_length,) = ret_base
-    Nf = length(fs)
-    invalidated_filaments = falses(Nf)  # if invalidated_filaments[i] is true, it means fs[i] can no longer be reconnected
-    @timeit to "reconnect pairs" for reconnect_info ∈ to_reconnect
-        (; candidate, info,) = reconnect_info
-        (; a, b, filament_idx_a, filament_idx_b,) = candidate
-        @timeit to "reconnect" if filament_idx_a === filament_idx_b
-            if invalidated_filaments[filament_idx_a]
-                continue  # don't reconnect this filament if it was already reconnected earlier
-            end
-            # Reconnect filament with itself => split filament into two
-            @assert a.i ≠ b.i
-            nremoved, Lremoved = reconnect_with_itself!(callback, fs, a.f, a.i, b.i, info)
-            filaments_removed_count += nremoved
-            filaments_removed_length += Lremoved
-            invalidated_filaments[filament_idx_a] = true
-        else
-            # Reconnect two different filaments => merge them into one
-            if invalidated_filaments[filament_idx_a] || invalidated_filaments[filament_idx_b]
-                continue  # don't reconnect if one of these filaments was already reconnected earlier
-            end
-            reconnect_with_other!(callback, fs, a.f, b.f, a.i, b.i, info)
-            invalidated_filaments[filament_idx_a] = true
-            invalidated_filaments[filament_idx_b] = true
-        end
-        reconnection_length_loss += info.length_before - info.length_after
-        reconnection_count += 1
-    end
-    (;
-        reconnection_count,
-        reconnection_length_loss,
-        filaments_removed_count,
-        filaments_removed_length,
-    ) :: typeof(ret_base)
-end
-
-# Here ζ ∈ [0, 1] is the location within the segment where the minimum distance was found by
-# `should_reconnect`. If ζ = 0, the minimum location was found at the segment starting
-# point, which means that we might find a smaller distance if we look at the previous
-# segment. Similar thing if ζ = 1.
-@inline function choose_neighbouring_segment(s::Segment, ζ)
-    (; f, i,) = s
-    if ζ == 0
-        j = ifelse(i == firstindex(f), lastindex(f), i - 1)  # basically j = i - 1 (except when i = 1)
-        Segment(f, j)
-    elseif ζ == 1
-        j = ifelse(i == lastindex(f), firstindex(f), i + 1)
-        Segment(f, j)
-    else
-        s
-    end
-end
+reconnect!(cache::AbstractReconnectionCache, args...; kws...) =
+    reconnect!(Returns(nothing), cache, args...; kws...)
 
 # Find the index of a filament in a vector of filaments.
 # Returns `nothing` if the filament is not found.
@@ -268,8 +249,5 @@ function reconnect_with_other!(callback::F, fs, f, g, i, j, info) where {F}
 
     nothing
 end
-
-reconnect!(cache::AbstractReconnectionCache, args...; kws...) =
-    reconnect!(Returns(nothing), cache, args...; kws...)
 
 end
