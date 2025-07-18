@@ -5,25 +5,30 @@ Module for dealing with the reconnection of filaments.
 """
 module Reconnections
 
-export ReconnectionCriterion,
-       NoReconnections,
-       ReconnectBasedOnDistance,
-       reconnect!
+export
+    ReconnectionCriterion,
+    NoReconnections,
+    ReconnectBasedOnDistance,
+    ReconnectFast,
+    reconnect!
 
 using ..Constants: Infinity
 
-using ..Filaments: Filaments,
-                   AbstractFilament,
-                   Segment,
-                   Derivative,
-                   segments,
-                   split!, merge!,
-                   update_coefficients!,
-                   find_min_distance,
-                   filament_length,
-                   deperiodise_separation,
-                   number_type,
-                   check_nodes
+using ..Filaments:
+    Filaments,
+    AbstractFilament,
+    ClosedFilament,
+    Segment,
+    Derivative,
+    Vec3,
+    segments,
+    split!, merge!,
+    update_coefficients!,
+    find_min_distance,
+    filament_length,
+    deperiodise_separation,
+    number_type,
+    check_nodes
 
 using TimerOutputs
 using LinearAlgebra: ⋅, norm
@@ -38,7 +43,10 @@ Implemented reconnection criteria include:
 - [`NoReconnections`](@ref): disables reconnections;
 
 - [`ReconnectBasedOnDistance`](@ref): reconnects filament segments which are closer than a
-  critical distance.
+  critical distance;
+
+- [`ReconnectFast`](@ref): considers segments as straight lines, enabling to perform all
+  required reconnections in a single pass.
 """
 abstract type ReconnectionCriterion end
 
@@ -75,6 +83,7 @@ end
 
 include("criteria/no_reconnections.jl")
 include("criteria/based_on_distance.jl")
+include("criteria/reconnect_fast.jl")
 
 """
     reconnect!(
@@ -136,25 +145,27 @@ function reconnect!(
         vs::Union{Nothing, AbstractVector{<:AbstractFilament}} = nothing;
         to::TimerOutput = TimerOutput(),
     ) where {F <: Function}
-    T = number_type(fs)
-    reconnection_count = 0
-    filaments_removed_count = 0
-    filaments_removed_length = zero(T)
-    reconnection_length_loss = zero(T)  # decrease of vortex length due to reconnections (not due to removals)
-    ret = (;
-        reconnection_count,
-        reconnection_length_loss,
-        filaments_removed_count,
-        filaments_removed_length,
-    )
-    R = typeof(ret)
-    nmax = max_passes(cache)
-    npasses = 0
-    while npasses < nmax
-        nrec = ret.reconnection_count
-        ret = _reconnect_pass!(callback, ret, cache, fs, vs; to)::R
-        npasses += 1
-        nrec == ret.reconnection_count && break  # no new reconnections were performed
+    @timeit to "Reconnect" begin
+        T = number_type(fs)
+        reconnection_count = 0
+        filaments_removed_count = 0
+        filaments_removed_length = zero(T)
+        reconnection_length_loss = zero(T)  # decrease of vortex length due to reconnections (not due to removals)
+        ret = (;
+            reconnection_count,
+            reconnection_length_loss,
+            filaments_removed_count,
+            filaments_removed_length,
+        )
+        R = typeof(ret)
+        nmax = max_passes(cache)
+        npasses = 0
+        while npasses < nmax
+            nrec = ret.reconnection_count
+            ret = _reconnect_pass!(callback, ret, cache, fs, vs; to)::R
+            npasses += 1
+            nrec == ret.reconnection_count && break  # no new reconnections were performed
+        end
     end
     (; ret..., npasses,)
 end

@@ -667,12 +667,7 @@ function init(
     #     Filaments.update_coefficients!(f)
     # end
 
-    # Describe the velocity and streamfunction on filament locations using the
-    # ClosedFilament type, so that we can interpolate these fields on filaments.
-    # For now we don't require any derivatives.
-    vs = map(fs) do f
-        Filaments.similar_filament(f; nderivs = Val(0), offset = zero(eltype(f)))
-    end :: VectorOfVectors
+    vs = map(allocate_field_for_filament, fs)::VectorOfVectors
     ψs = similar(vs)
     tangents = map(similar ∘ nodes, fs)  # unit tangents (not interpolable)
 
@@ -769,6 +764,23 @@ function init(
     iter
 end
 
+function allocate_field_for_filament(f::AbstractFilament)
+    allocate_field_for_filament(typeof(f), f)  # by default, return a Filament
+end
+
+# This is to allocate a vector to hold quantities such as velocity, ...
+# We currently represent them as filaments because we want them to be interpolable,
+# as this is convenient for some diagnostics.
+# For now we don't require any derivatives.
+function allocate_field_for_filament(::Type{<:AbstractFilament}, f::AbstractFilament)
+    Filaments.similar_filament(f; nderivs = Val(0), offset = zero(eltype(f)))
+end
+
+# Variant that returns a PaddedVector instead of a Filament
+function allocate_field_for_filament(::Type{<:AbstractVector}, f::AbstractFilament)
+    similar(Filaments.nodes(f))
+end
+
 function fields_to_resize(iter::VortexFilamentSolver)
     (; quantities,) = iter
     if quantities.vs === quantities.vL  # they're aliased
@@ -858,7 +870,7 @@ end
 function after_advection!(iter::VortexFilamentSolver)
     (; fs, prob, refinement, fold_periodic, stats, to,) = iter
     # Perform reconnections, possibly changing the number of filaments.
-    @timeit to "reconnect!" rec = reconnect!(iter)
+    rec = reconnect!(iter)
     @debug lazy"Number of reconnections: $(rec.reconnection_count)"
     stats.reconnection_count += rec.reconnection_count
     stats.reconnection_length_loss += rec.reconnection_length_loss
@@ -990,7 +1002,10 @@ end
         @debug lazy"Filament was appended at index $i"
         @assert f === fs[i]
         # @assert i == lastindex(fields[1]) + 1
-        map(vs -> push!(vs, similar(first(vs), length(f))), fields)
+        map(fields) do vs
+            vf = allocate_field_for_filament(eltype(vs), f)
+            push!(vs, vf)
+        end
     elseif mode === :modified
         @debug lazy"Filament was modified at index $i"
         @assert f === fs[i]

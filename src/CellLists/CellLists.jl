@@ -194,6 +194,12 @@ function Base.empty!(cl::PeriodicCellList)
     cl
 end
 
+function Base.sizehint!(cl::PeriodicCellList, Np)
+    sizehint!(cl.elements, Np)
+    sizehint!(cl.next_index, Np)
+    cl
+end
+
 @inline function determine_cell_index(x, rcut, L, N)
     while x < 0
         x += L

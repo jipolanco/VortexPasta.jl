@@ -24,6 +24,7 @@ reconnect!
 ReconnectionCriterion
 NoReconnections
 ReconnectBasedOnDistance
+ReconnectFast
 ```
 
 ## Internals
