@@ -10,8 +10,8 @@ export init, solve!, step!, VortexFilamentProblem,
        inject_filament!,
        ShortRangeTerm, LocalTerm,
        MinimalEnergy,
-       ParamsBiotSavart,                           # from ..BiotSavart
-       NoReconnections, ReconnectBasedOnDistance,  # from ..Reconnections
+       ParamsBiotSavart,                                          # from ..BiotSavart
+       NoReconnections, ReconnectBasedOnDistance, ReconnectFast,  # from ..Reconnections
        reset_timer!  # from TimerOutputs
 
 using ..VortexPasta: VortexPasta  # version()
