@@ -182,7 +182,7 @@ function test_trefoil_knot_reconnection(
         reconnect = ReconnectBasedOnDistance(d_crit; max_passes = 4, use_velocity = false)
     elseif Criterion <: ReconnectFast
         d_crit = 0.75 * δ
-        reconnect = ReconnectFast(d_crit)
+        reconnect = ReconnectFast(d_crit; use_velocity = true)
     end
     dt = BiotSavart.kelvin_wave_period(params_bs, δ) * trefoil_scheme_dt(scheme)
     # @show δ d_crit dt
@@ -249,8 +249,8 @@ function test_trefoil_knot_reconnection(
         @test 1.60 < t_reconnect[] < 1.70  # this depends on several parameters...
         @test 0.98 < last(energy_rel) < 0.99
     elseif Criterion <: ReconnectFast
-        @test 1.65 < t_reconnect[] < 1.75
-        @test 0.96 < last(energy_rel) < 0.97
+        @test 1.60 < t_reconnect[] < 1.70
+        @test 0.965 < last(energy_rel) < 0.975
     end
 
     if test_jet
@@ -790,7 +790,7 @@ end
     end
 
     @testset "Dynamic: trefoil knot" begin
-        schemes = (SSPRK33(),)
+        schemes = (RK4(),)
         @testset "Scheme: $scheme" for scheme ∈ schemes
             test_trefoil_knot_reconnection(; scheme)
         end

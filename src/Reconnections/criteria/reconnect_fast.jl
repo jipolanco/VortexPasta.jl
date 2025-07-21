@@ -3,7 +3,7 @@ using LinearAlgebra: norm, ⋅
 
 """
     ReconnectFast <: ReconnectionCriterion
-    ReconnectFast(d_crit; decrease_length = true, cos_max = 0.97)
+    ReconnectFast(d_crit; use_velocity = false, decrease_length = true, cos_max = 0.97)
 
 Reconnects filament segments which are at a distance `d < d_crit`.
 
@@ -23,7 +23,7 @@ struct ReconnectFast <: ReconnectionCriterion
     dist_sq    :: Float64
     cos_max    :: Float64
     cos_max_sq :: Float64
-    use_velocity    :: Bool  # this is currently ignored (TODO: implement?)
+    use_velocity    :: Bool
     decrease_length :: Bool
     function ReconnectFast(dist; cos_max = 0.97, use_velocity = false, decrease_length = true)
         new(dist, dist^2, cos_max, cos_max^2, use_velocity, decrease_length)
@@ -49,6 +49,7 @@ struct ReconnectFastCache{
     cl::Finder
     Ls::Periods
     nodes::PointsVector       # length Np = number of nodes (filament points)
+    velocities::PointsVector  # length Np (only if crit.use_velocity == true)
     node_next::IndexVector    # length Np; values in 1:Np
     node_prev::IndexVector    # length Np; values in 1:Np
     reconstructed::BitVector  # length Np
@@ -62,6 +63,7 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     has_nonperiodic_directions && throw(ArgumentError("ReconnectFast only allows fully periodic domains"))
     Ls = map(T, Ls_in)    # convert number type if needed
     nodes = similar(Filaments.nodes(first(fs)), 0)
+    velocities = similar(nodes)
     node_next = Vector{Int}(undef, 0)
     node_prev = similar(node_next)
     reconstructed = BitVector(undef, 0)
@@ -78,25 +80,33 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     nsubdiv = Val(M)
     I = eltype(node_next)  # integer type
     cl = PeriodicCellList(I, rs, Ls, nsubdiv)  # a single element is a node index (in 1:Np)
-    ReconnectFastCache(crit, cl, Ls, nodes, node_next, node_prev, reconstructed)
+    ReconnectFastCache(crit, cl, Ls, nodes, velocities, node_next, node_prev, reconstructed)
 end
 
-function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFilament})
-    (; cl, nodes, node_next, node_prev,) = cache
+function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFilament}, vs)
+    (; cl, nodes, velocities, node_next, node_prev,) = cache
+    # If `use_velocity` is disabled, then we expect the `vs` input to be `nothing`.
+    @assert (vs === nothing) == (cache.crit.use_velocity == false)
     Np = sum(length, fs)  # total number of filament nodes
     resize!(nodes, Np)
     resize!(node_next, Np)
     resize!(node_prev, Np)
+    if vs !== nothing
+        resize!(velocities, Np)
+    end
     empty!(cl)  # remove previous elements
     sizehint!(cl, Np)
     n = 0
-    @inbounds for f in fs
+    @inbounds for (i, f) in pairs(fs)
         nstart = n + 1  # this filament currently starts at node n + 1
         xs = Filaments.nodes(f)
-        for x in xs
+        for (j, x) in pairs(xs)
             n += 1
             CellLists.add_element!(cl, n, x)
             nodes[n] = x
+            if vs !== nothing
+                velocities[n] = vs[i][j]
+            end
             node_prev[n] = n - 1
             node_next[n] = n + 1
         end
@@ -108,8 +118,8 @@ function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFi
     cache
 end
 
-function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_next)
-    (; dist_sq, cos_max, decrease_length,) = crit
+function should_reconnect(crit::ReconnectFast, nodes, velocities, i, j; Ls, node_prev, node_next)
+    (; use_velocity, dist_sq, cos_max, decrease_length,) = crit
 
     # Check that we're not trying to reconnect the same or neighbouring points.
     i == j && return nothing
@@ -130,6 +140,16 @@ function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_
 
     if d² > dist_sq
         return nothing
+    end
+
+    if use_velocity
+        # Velocity criterion
+        v⃗_x = @inbounds velocities[i]
+        v⃗_y = @inbounds velocities[j]
+        v_d = d⃗ ⋅ (v⃗_x - v⃗_y)  # separation velocity (should be divided by |d⃗| = sqrt(d²), but we only care about the sign)
+        if v_d > 0  # they're getting away from each other
+            return nothing  # don't reconnect them
+        end
     end
 
     # Determine best segment to reconnect.
@@ -238,14 +258,14 @@ function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_
 end
 
 function _reconnect_from_cache!(cache::ReconnectFastCache)
-    (; crit, cl, nodes, node_prev, node_next, Ls,) = cache
+    (; crit, cl, nodes, velocities, node_prev, node_next, Ls,) = cache
     # TODO: parallelise?
     reconnection_count = 0
     reconnection_length_loss = zero(number_type(nodes))
     @inbounds for i in eachindex(nodes)
         x⃗ = nodes[i]
         for j in CellLists.nearby_elements(cl, x⃗)
-            info = should_reconnect(crit, nodes, i, j; Ls, node_prev, node_next)
+            info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
             info === nothing && continue
             (; is, js, length_before, length_after,) = info
             i⁻, i⁺ = is
@@ -336,11 +356,18 @@ function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) whe
     (; filaments_removed_count, filaments_removed_length)
 end
 
-# TODO: support vs input? (if use_velocity = true)
 function _reconnect_pass!(callback::F, ret_base, cache::ReconnectFastCache, fs, vs; to) where {F <: Function}
     (; reconnection_count, reconnection_length_loss, filaments_removed_count, filaments_removed_length,) = ret_base
+    (; use_velocity,) = cache.crit
+    if use_velocity && vs === nothing
+        error("`use_velocity` was set to `true` in the reconnection criterion, but velocity information was not passed to `reconnect!`")
+    end
     rec_before = reconnection_count
-    @timeit to "Set points" _update_cache!(cache, fs)
+    if use_velocity
+        @timeit to "Set points (with vel.)" _update_cache!(cache, fs, vs)
+    else
+        @timeit to "Set points" _update_cache!(cache, fs, nothing)
+    end
     @timeit to "Find reconnections" let
         local ret = _reconnect_from_cache!(cache)
         reconnection_count += ret.reconnection_count
