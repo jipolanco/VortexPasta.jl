@@ -49,11 +49,8 @@ struct ReconnectFastCache{
     cl::Finder
     Ls::Periods
     nodes::PointsVector          # length Np = number of nodes (filament points)
-    filament_modified::Vector{Bool}  # length Nf; whether each filament has been modified
-    filament_idx::IndexVector    # length Np; filament index each node currently belongs to
     node_next::IndexVector       # length Np; values in 1:Np
     node_prev::IndexVector       # length Np; values in 1:Np
-    node_reconnected::BitVector  # length Np
 end
 
 criterion(c::ReconnectFastCache) = c.crit
@@ -66,9 +63,6 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     nodes = similar(Filaments.nodes(first(fs)), 0)
     node_next = Vector{Int}(undef, 0)
     node_prev = similar(node_next)
-    filament_modified = Vector{Bool}(undef, 0)
-    node_reconnected = falses(0)
-    filament_idx = similar(node_next)
     d_reconnect = distance(crit)
     r_cut = T(d_reconnect)
     Lmin = T(min(Ls...))
@@ -82,31 +76,24 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     nsubdiv = Val(M)
     I = eltype(node_next)  # integer type
     cl = PeriodicCellList(I, rs, Ls, nsubdiv)  # a single element is a node index (in 1:Np)
-    ReconnectFastCache(crit, cl, Ls, nodes, filament_modified, filament_idx, node_next, node_prev, node_reconnected)
+    ReconnectFastCache(crit, cl, Ls, nodes, node_next, node_prev)
 end
 
-function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFilament}; to)
-    (; cl, nodes, node_next, node_prev, filament_idx, filament_modified, node_reconnected,) = cache
+function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFilament})
+    (; cl, nodes, node_next, node_prev,) = cache
     Np = sum(length, fs)  # total number of filament nodes
-    Nf = length(fs)       # number of filaments
     resize!(nodes, Np)
     resize!(node_next, Np)
     resize!(node_prev, Np)
-    resize!(filament_idx, Np)       # TODO: do we use this?
-    resize!(filament_modified, Nf)  # TODO: do we use this?
     empty!(cl)  # remove previous elements
     sizehint!(cl, Np)
-    resize!(node_reconnected, Np)
-    fill!(node_reconnected, false)  # TODO: do we use this?
     n = 0
-    @inbounds for (i, f) in pairs(fs)
-        filament_modified[i] = false
+    @inbounds for f in fs
         nstart = n + 1  # this filament currently starts at node n + 1
         xs = Filaments.nodes(f)
         for x in xs
             n += 1
             CellLists.add_element!(cl, n, x)
-            filament_idx[n] = i
             nodes[n] = x
             node_prev[n] = n - 1
             node_next[n] = n + 1
@@ -248,30 +235,17 @@ function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_
     end
 end
 
-function _reconnect_from_cache!(cache::ReconnectFastCache; to)
-    (; crit, cl, nodes, node_prev, node_next, node_reconnected, filament_idx, filament_modified, Ls,) = cache
+function _reconnect_from_cache!(cache::ReconnectFastCache)
+    (; crit, cl, nodes, node_prev, node_next, Ls,) = cache
     # TODO: parallelise?
     reconnection_count = 0
     reconnection_length_loss = zero(number_type(nodes))
     @inbounds for i in eachindex(nodes)
         x⃗ = nodes[i]
         for j in CellLists.nearby_elements(cl, x⃗)
-            # i == j && continue
             info = should_reconnect(crit, nodes, i, j; Ls, node_prev, node_next)
             info === nothing && continue
-            # fi = filament_idx[i]  # this is the filament index before any reconnections
-            # fj = filament_idx[j]
-            # same_filament = fi == fj
             (; is, js, length_before, length_after,) = info
-
-            # TODO: remove this?
-            # already_reconnected = any(n -> node_reconnected[n], (is..., js...))
-            # already_reconnected && continue
-            # for n in (is..., js...)
-            #     # @assert node_reconnected[n] == false
-            #     node_reconnected[n] = true
-            # end
-
             i⁻, i⁺ = is
             j⁻, j⁺ = js
             reconnection_count += 1
@@ -281,17 +255,8 @@ function _reconnect_from_cache!(cache::ReconnectFastCache; to)
             node_prev[j⁺] = i⁻
             node_next[j⁻] = i⁺
             node_prev[i⁺] = j⁻
-            # if same_filament
-            #     # filament_modified[fi] = true  # TODO: is this used?
-            #     Nf_after += 1  # self-reconnection creates a new filament
-            # else
-            #     # filament_modified[fi] = true
-            #     # filament_modified[fj] = true
-            #     Nf_after -= 1  # two filaments were merged
-            # end
         end
     end
-    # @show length(filament_modified) sum(filament_modified) Nf_after
     (; reconnection_count, reconnection_length_loss,)
 end
 
@@ -314,13 +279,12 @@ end
 end
 
 function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) where {F}
-    (; nodes, node_prev, node_next, filament_idx, Ls,) = cache
+    (; nodes, node_next, Ls,) = cache
     filaments_removed_count = 0
     filaments_removed_length = zero(number_type(nodes))
     Lhs = map(L -> L / 2, Ls)
     # For now, simply delete all previous filaments and recreate new ones.
     fbase = first(fs)  # this is just to make it easier to create new filaments of the right type
-    method = Filaments.discretisation_method(fbase)
     for i in reverse(eachindex(fs))
         f = pop!(fs)
         callback(f, i, :removed)
@@ -372,9 +336,9 @@ end
 function _reconnect_pass!(callback::F, ret_base, cache::ReconnectFastCache, fs, vs; to) where {F <: Function}
     (; reconnection_count, reconnection_length_loss, filaments_removed_count, filaments_removed_length,) = ret_base
     rec_before = reconnection_count
-    @timeit to "Set points" _update_cache!(cache, fs; to)
+    @timeit to "Set points" _update_cache!(cache, fs)
     @timeit to "Find reconnections" let
-        local ret = _reconnect_from_cache!(cache; to)
+        local ret = _reconnect_from_cache!(cache)
         reconnection_count += ret.reconnection_count
         reconnection_length_loss += ret.reconnection_length_loss
     end
