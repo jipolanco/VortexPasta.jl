@@ -149,7 +149,7 @@ function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_
     #
     # We use deperiodise_separation just in case we're at the start or the end of an
     # infinite filament with non-zero end-to-end offset (i.e. an unclosed filament).
-    # We could avoid this if we included points begin-1 and end+1 in the `nodes` vector
+    # We could avoid this if we included points `begin - 1` and `end + 1` in the `nodes` vector
     # (but this might introduce other complications).
     i_prev, i_next = node_prev[i], node_next[i]
     j_prev, j_next = node_prev[j], node_next[j]
@@ -205,8 +205,8 @@ function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_
 
     # Separation of segments after reconnection.
     # Often, of these two is exactly equal to the d² computed above.
-    δa² = sum(abs2, y⃗⁺ - x⃗⁻)
-    δb² = sum(abs2, x⃗⁺ - y⃗⁻)
+    δa² = sum(abs2, deperiodise_separation(y⃗⁺ - x⃗⁻, Ls, Lhs))
+    δb² = sum(abs2, deperiodise_separation(x⃗⁺ - y⃗⁻, Ls, Lhs))
     if min(δa², δb²) < d²
         # If one of the distances is smaller than d, it means that the original (i, j)
         # pair is not the minimum distance between nodes, and there might be a better
@@ -219,7 +219,7 @@ function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_
     δb = sqrt(δb²)
 
     # Separation of segments to be reconnected (with the right orientation)
-    δx⃗ = x⃗⁺ - x⃗⁻
+    δx⃗ = x⃗⁺ - x⃗⁻  # no need to deperiodise this one, it's already done
     δy⃗ = y⃗⁺ - y⃗⁻
     δx = norm(δx⃗)
     δy = norm(δy⃗)
