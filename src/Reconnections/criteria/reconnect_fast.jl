@@ -143,7 +143,7 @@ function should_reconnect(crit::ReconnectFast, nodes, velocities, i, j; Ls, node
     end
 
     if use_velocity
-        # Velocity criterion
+        # TODO: should we rather use the estimated _segment_ velocity? (=> average of velocity at points x⃗⁻ and x⃗⁺)
         v⃗_x = @inbounds velocities[i]
         v⃗_y = @inbounds velocities[j]
         v_d = d⃗ ⋅ (v⃗_x - v⃗_y)  # separation velocity (should be divided by |d⃗| = sqrt(d²), but we only care about the sign)
