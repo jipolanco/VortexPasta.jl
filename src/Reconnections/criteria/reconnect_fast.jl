@@ -63,13 +63,11 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     has_nonperiodic_directions = any(L -> L === Infinity(), Ls_in)
     has_nonperiodic_directions && throw(ArgumentError("ReconnectFast only allows fully periodic domains"))
     Ls = map(T, Ls_in)    # convert number type if needed
-    Np = sum(length, fs)  # total number of filament nodes
-    Nf = length(fs)       # number of filaments
-    nodes = similar(Filaments.nodes(first(fs)), Np)
-    node_next = Vector{Int}(undef, Np)
+    nodes = similar(Filaments.nodes(first(fs)), 0)
+    node_next = Vector{Int}(undef, 0)
     node_prev = similar(node_next)
-    filament_modified = Vector{Bool}(undef, Nf)
-    node_reconnected = falses(Np)
+    filament_modified = Vector{Bool}(undef, 0)
+    node_reconnected = falses(0)
     filament_idx = similar(node_next)
     d_reconnect = distance(crit)
     r_cut = T(d_reconnect)
@@ -124,6 +122,17 @@ end
 function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_next)
     (; dist_sq, cos_max, decrease_length,) = crit
 
+    # Check that we're not trying to reconnect the same or neighbouring points.
+    i == j && return nothing
+    @inbounds let i_next = i, j_next = j
+        for _ in 1:2
+            i_next = node_next[i_next]
+            j == i_next && return nothing
+            j_next = node_next[j_next]
+            i == j_next && return nothing
+        end
+    end
+
     Lhs = map(L -> L / 2, Ls)
     x⃗ = @inbounds nodes[i]
     y⃗ = @inbounds nodes[j]
@@ -134,54 +143,91 @@ function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_
         return nothing
     end
 
-    # Determine best segment to reconnect (2×2 possible combinations).
-    # We want to determine which pair of neighbouring points is closer to each other.
-    is_neighbours = @inbounds (node_prev[i], node_next[i])
-    js_neighbours = @inbounds (node_prev[j], node_next[j])
-    d²_other = oftype(d², Inf)
-    ni_other, nj_other = 0, 0
-    for ni in 1:2, nj in 1:2
-        x⃗′ = @inbounds nodes[is_neighbours[ni]]
-        y⃗′ = @inbounds nodes[js_neighbours[ni]]
-        d⃗′ = deperiodise_separation(x⃗′ - y⃗′, Ls, Lhs)
-        d′² = sum(abs2, d⃗′)
-        if d′² < d²_other
-            ni_other, nj_other = ni, nj
-            d²_other = d′²
+    # Determine best segment to reconnect.
+    # For this, we want to find the nearest pair of segments containing points (i, j).
+    # There are 2×2 = 4 possible combinations.
+    #
+    # We use deperiodise_separation just in case we're at the start or the end of an
+    # infinite filament with non-zero end-to-end offset (i.e. an unclosed filament).
+    # We could avoid this if we included points begin-1 and end+1 in the `nodes` vector
+    # (but this might introduce other complications).
+    i_prev, i_next = node_prev[i], node_next[i]
+    j_prev, j_next = node_prev[j], node_next[j]
+    x⃗_prev = x⃗ + deperiodise_separation(nodes[i_prev] - x⃗, Ls, Lhs)  # this is usually just nodes[i_prev]
+    x⃗_next = x⃗ + deperiodise_separation(nodes[i_next] - x⃗, Ls, Lhs)
+    y⃗_prev = y⃗ + deperiodise_separation(nodes[j_prev] - y⃗, Ls, Lhs)
+    y⃗_next = y⃗ + deperiodise_separation(nodes[j_next] - y⃗, Ls, Lhs)
+
+    # Segment midpoints
+    x⃗_mid_prev = (x⃗_prev + x⃗) ./ 2
+    x⃗_mid_next = (x⃗ + x⃗_next) ./ 2
+    y⃗_mid_prev = (y⃗_prev + y⃗) ./ 2
+    y⃗_mid_next = (y⃗ + y⃗_next) ./ 2
+
+    # Four possible segment combinations
+    cases = (
+        (
+            (i_prev, i, x⃗_prev, x⃗, x⃗_mid_prev),
+            (j_prev, j, y⃗_prev, y⃗, y⃗_mid_prev),
+        ),
+        (
+            (i_prev, i, x⃗_prev, x⃗, x⃗_mid_prev),
+            (j, j_next, y⃗, y⃗_next, y⃗_mid_next),
+        ),
+        (
+            (i, i_next, x⃗, x⃗_next, x⃗_mid_next),
+            (j_prev, j, y⃗_prev, y⃗, y⃗_mid_prev),
+        ),
+        (
+            (i, i_next, x⃗, x⃗_next, x⃗_mid_next),
+            (j, j_next, y⃗, y⃗_next, y⃗_mid_next),
+        ),
+    )
+
+    d²_seg_min = oftype(d², Inf)  # minimum distance between segment midpoints
+    ncase_best = 0
+
+    for (ncase, case) in pairs(cases)
+        px, py = case
+        x⃗_mid = px[5]
+        y⃗_mid = py[5]
+        d⃗_seg = deperiodise_separation(x⃗_mid - y⃗_mid, Ls, Lhs)
+        d²_seg = sum(abs2, d⃗_seg)
+        if d²_seg < d²_seg_min
+            ncase_best = ncase
+            d²_seg_min = d²_seg
         end
     end
 
-    if d²_other < d²
-        # In fact we found a neighbouring pair that is even closer than the (i, j) pair,
-        # so we let them be reconnected in a different call to this function.
+    case_best = @inbounds cases[ncase_best]
+    i⁻, i⁺, x⃗⁻, x⃗⁺, _ = case_best[1]
+    j⁻, j⁺, y⃗⁻, y⃗⁺, _ = case_best[2]
+
+    # Separation of segments after reconnection.
+    # Often, of these two is exactly equal to the d² computed above.
+    δa² = sum(abs2, y⃗⁺ - x⃗⁻)
+    δb² = sum(abs2, x⃗⁺ - y⃗⁻)
+    if min(δa², δb²) < d²
+        # If one of the distances is smaller than d, it means that the original (i, j)
+        # pair is not the minimum distance between nodes, and there might be a better
+        # reconnection candidate within neighbouring segments. So we stop here and keep
+        # looking for other candidates.
         return nothing
     end
 
-    i⁻, i⁺ = if ni_other == 1  # left segment (nodes i - 1, i)
-        is_neighbours[1], i
-    else  # right segment (nodes i, i + 1)
-        i, is_neighbours[2]
-    end
-    j⁻, j⁺ = if nj_other == 1
-        js_neighbours[1], j
-    else
-        j, js_neighbours[2]
-    end
+    δa = sqrt(δa²)
+    δb = sqrt(δb²)
 
-    # Separation vector of segments to be reconnected (with the right orientation)
-    r⃗_i = @inbounds nodes[i⁺] - nodes[i⁻]
-    r⃗_i = deperiodise_separation(r⃗_i, Ls, Lhs)
+    # Separation of segments to be reconnected (with the right orientation)
+    δx⃗ = x⃗⁺ - x⃗⁻
+    δy⃗ = y⃗⁺ - y⃗⁻
+    δx = norm(δx⃗)
+    δy = norm(δy⃗)
 
-    r⃗_j = @inbounds nodes[j⁺] - nodes[j⁻]
-    r⃗_j = deperiodise_separation(r⃗_j, Ls, Lhs)
-
-    d_i = norm(r⃗_i)
-    d_j = norm(r⃗_j)
-
-    length_before = d_i + d_j
-    length_after = sqrt(d²) + sqrt(d²_other)  # total straight segment length after reconnection
-    if decrease_length
-        length_after > length_before && return nothing
+    length_before = δx + δy
+    length_after = δa + δb
+    if decrease_length && length_after > length_before
+        return nothing
     end
 
     info = (;
@@ -190,10 +236,10 @@ function should_reconnect(crit::ReconnectFast, nodes, i, j; Ls, node_prev, node_
         js = (j⁻, j⁺),
     )
 
-    xy = r⃗_i ⋅ r⃗_j
+    xy = δx⃗ ⋅ δy⃗
     xy < 0 && return info  # always reconnect antiparallel vortices
 
-    cos_xy = xy / (d_i * d_j)
+    cos_xy = xy / (δx * δy)
 
     if cos_xy < cos_max
         info
@@ -210,12 +256,22 @@ function _reconnect_from_cache!(cache::ReconnectFastCache; to)
     @inbounds for i in eachindex(nodes)
         x⃗ = nodes[i]
         for j in CellLists.nearby_elements(cl, x⃗)
+            # i == j && continue
             info = should_reconnect(crit, nodes, i, j; Ls, node_prev, node_next)
             info === nothing && continue
             # fi = filament_idx[i]  # this is the filament index before any reconnections
             # fj = filament_idx[j]
             # same_filament = fi == fj
             (; is, js, length_before, length_after,) = info
+
+            # TODO: remove this?
+            # already_reconnected = any(n -> node_reconnected[n], (is..., js...))
+            # already_reconnected && continue
+            # for n in (is..., js...)
+            #     # @assert node_reconnected[n] == false
+            #     node_reconnected[n] = true
+            # end
+
             i⁻, i⁺ = is
             j⁻, j⁺ = js
             reconnection_count += 1
@@ -225,10 +281,6 @@ function _reconnect_from_cache!(cache::ReconnectFastCache; to)
             node_prev[j⁺] = i⁻
             node_next[j⁻] = i⁺
             node_prev[i⁺] = j⁻
-            # for n in (is..., js...)
-            #     @assert node_reconnected[n] == false
-            #     node_reconnected[n] = true
-            # end
             # if same_filament
             #     # filament_modified[fi] = true  # TODO: is this used?
             #     Nf_after += 1  # self-reconnection creates a new filament

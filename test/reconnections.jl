@@ -87,7 +87,10 @@ trefoil_scheme_dt(::SSPRK33) = 0.8
 trefoil_scheme_dt(::KenCarp3) = 0.5
 trefoil_scheme_dt(::Midpoint) = 0.3
 
-function test_trefoil_knot_reconnection(scheme = RK4())
+function test_trefoil_knot_reconnection(
+        ::Type{Criterion} = ReconnectBasedOnDistance;
+        scheme = RK4(),
+    ) where {Criterion <: ReconnectionCriterion}
     test_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
     S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
     N = 64
@@ -131,17 +134,17 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         push!(energy, E)
         push!(helicity, H)
         Nf = length(fs)
-        # write_vtkhdf("trefoil_$nstep.vtkhdf", fs; refinement = 4) do io
+        # save_checkpoint("trefoil_$nstep.vtkhdf", iter; refinement = 4, periods = nothing) do io
         #     io["velocity"] = iter.vs
         #     io["streamfunction"] = iter.ψs
         # end
-        # write_vtkhdf("trefoil_points_$nstep.vtkhdf", fs; refinement = 1) do io
+        # save_checkpoint("trefoil_points_$nstep.vtkhdf", iter; refinement = 1) do io
         #     io["velocity"] = iter.vs
         #     io["streamfunction"] = iter.ψs
         # end
-        # if nstep % 10 == 0
-        #     @show nstep, t, Nf, E
-        # end
+        if VERBOSE
+            @show nstep, t, Nf, E
+        end
         if n_reconnect[] == 0 && Nf == 2
             t_reconnect[] = t
             n_reconnect[] = nstep
@@ -152,8 +155,13 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     tspan = (0.0, 2.0)
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
     δ = Filaments.minimum_node_distance(prob.fs)
-    d_crit = 0.75 * δ
-    reconnect = ReconnectBasedOnDistance(d_crit; max_passes = 4)
+    if Criterion <: ReconnectBasedOnDistance
+        d_crit = 0.75 * δ
+        reconnect = ReconnectBasedOnDistance(d_crit; max_passes = 4, use_velocity = false)
+    elseif Criterion <: ReconnectFast
+        d_crit = 0.75 * δ
+        reconnect = ReconnectFast(d_crit)
+    end
     dt = BiotSavart.kelvin_wave_period(params_bs, δ) * trefoil_scheme_dt(scheme)
     # @show δ d_crit dt
     iter = @inferred init(
@@ -201,6 +209,11 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         println(plt)
     end
 
+    if VERBOSE
+        @show t_reconnect[]
+        @show last(energy_rel)
+    end
+
     let stats = iter.stats
         VERBOSE && @show stats
         @test stats.reconnection_count == 3        # total number of reconnections
@@ -209,13 +222,14 @@ function test_trefoil_knot_reconnection(scheme = RK4())
         @test stats.filaments_removed_length == 0  # no filaments were removed
     end
 
-    if VERBOSE
-        @show t_reconnect[]
-        @show last(energy_rel)
-    end
     @test n_reconnect[] > 0
-    @test 1.60 < t_reconnect[] < 1.70  # this depends on several parameters...
-    @test 0.98 < last(energy_rel) < 0.99
+    if Criterion <: ReconnectBasedOnDistance
+        @test 1.60 < t_reconnect[] < 1.70  # this depends on several parameters...
+        @test 0.98 < last(energy_rel) < 0.99
+    elseif Criterion <: ReconnectFast
+        @test 1.65 < t_reconnect[] < 1.75
+        @test 0.96 < last(energy_rel) < 0.97
+    end
 
     if test_jet
         JET.@test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
@@ -225,19 +239,20 @@ function test_trefoil_knot_reconnection(scheme = RK4())
     nothing
 end
 
-##
+function test_static_figure_eight_knot(
+        ::Type{Criterion} = ReconnectBasedOnDistance;
+    ) where {Criterion <: ReconnectionCriterion}
+    Az = 0.001
+    curve = figure_eight_curve(; a = π / 4, Az, translate = (0, 0, 0))
+    (; S, tlims,) = curve
+    N = 32
+    ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+    f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
 
-@testset "Reconnections" begin
-    @testset "Static self-reconnection: figure-eight knot" begin
-        Az = 0.001
-        curve = figure_eight_curve(; a = π / 4, Az, translate = (0, 0, 0))
-        (; S, tlims,) = curve
-        N = 32
-        ζs = range(tlims...; length = 2N + 1)[2:2:2N]
-        f = Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+    l_min = minimum_knot_increment(f)
 
-        l_min = minimum_knot_increment(f)
-
+    if Criterion <: ReconnectBasedOnDistance
+        # This doesn't really depend on the reconnection criterion
         @testset "Filaments.split!" begin
             i = length(f) ÷ 4
             j = 3i
@@ -248,30 +263,191 @@ end
             @test f1 == f[i + 1:j]
             @test f2 == vcat(f[j + 1:end], f[begin:i])
         end
-
-        @testset "reconnect!" begin
-            crit = @inferred ReconnectBasedOnDistance(l_min / 2; use_velocity = false)
-            fc = copy(f)
-            fs_all = [fc]
-            cache = @inferred Reconnections.init_cache(crit, fs_all)
-            # @test_opt ignored_modules=(Base,) reconnect!(cache, fs_all)
-            rec = @inferred reconnect!(cache, fs_all)
-            @test rec.reconnection_count == 1
-            @test length(fs_all) == 2  # filament split into two!
-            f1, f2 = fs_all[1], fs_all[2]
-
-            # Check that the reconnection happened at the right place
-            i = length(f) ÷ 4
-            j = 3i
-            @test length(f1) == length(f2) == length(f) ÷ 2
-            @test f1 == f[i + 1:j]
-            @test f2 == vcat(f[j + 1:end], f[begin:i])
-        end
     end
 
+    @testset "reconnect!" begin
+        if Criterion <: ReconnectBasedOnDistance
+            crit = @inferred ReconnectBasedOnDistance(l_min / 2; use_velocity = false)
+        elseif Criterion <: ReconnectFast
+            crit = @inferred ReconnectFast(0.9 * l_min; use_velocity = false)
+        end
+        fc = copy(f)
+        fs_all = [fc]
+        Ls = (2π, 2π, 2π)
+        cache = @inferred Reconnections.init_cache(crit, fs_all, Ls)
+        # @test_opt ignored_modules=(Base,) reconnect!(cache, fs_all)
+        rec = @inferred reconnect!(cache, fs_all)
+        @test rec.reconnection_count == 1
+        @test length(fs_all) == 2  # filament split into two!
+        f1, f2 = fs_all[1], fs_all[2]
+
+        # # Check that the reconnection happened at the right place
+        # i = length(f) ÷ 4
+        # j = 3i
+        # @test length(f1) == length(f2) == length(f) ÷ 2
+        # @test f1 == f[i + 1:j]
+        # @test f2 == vcat(f[j + 1:end], f[begin:i])
+    end
+end
+
+function test_static_antiparallel_rings(
+        ::Type{Criterion};
+    ) where {Criterion <: ReconnectionCriterion}
+    # Test two nearly overlapping rings with the same sign (they should reconnect,
+    # since they're antiparallel at the reconnection point).
+    R = π / 4
+    ϵ = 0.02R
+    rings = (
+        ring_curve(; scale = R, translate = Vec3(π - (R + ϵ), π, π), sign = +1),
+        ring_curve(; scale = R, translate = Vec3(π + (R + ϵ), π, π), sign = +1),
+    )
+    d_min = norm(rings[2].S(0.5) - rings[1].S(0.0))  # minimum distance between the rings
+    @assert d_min ≈ 2ϵ
+
+    fs_orig = map(rings) do ring
+        (; S, tlims,) = ring
+        N = 32
+        ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+        Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+    end
+    l_min = minimum(minimum_knot_increment, fs_orig)
+    d_min_nodes = let (f, g) = fs_orig
+        minimum(Iterators.product(eachindex(f), eachindex(g))) do (i, j)
+            norm(f[i] - g[j])
+        end
+    end
+    if Criterion <: ReconnectBasedOnDistance
+        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes; use_velocity = false)
+    elseif Criterion <: ReconnectFast
+        crit = ReconnectFast(1.2 * d_min_nodes; use_velocity = false)
+    end
+
+    @testset "reconnect!" begin
+        fs = collect(copy.(fs_orig))
+        if Criterion <: ReconnectFast
+            Ls = (2π, 2π, 2π)  # ReconnectFast requires periodic domain
+            cache = @inferred Reconnections.init_cache(crit, fs, Ls)
+        else
+            cache = @inferred Reconnections.init_cache(crit, fs)
+        end
+        rec = @inferred reconnect!(cache, fs)
+        @test rec.reconnection_count == 1  # one reconnection
+        @test length(fs) == 1
+        @test length(fs[1]) == sum(length, fs_orig)
+        @test maximum_knot_increment(fs) < 2 * l_min  # check that there are no crazy jumps
+    end
+
+    nothing
+end
+
+function test_static_nearly_overlapping_rings(
+        ::Type{Criterion};
+    ) where {Criterion <: ReconnectionCriterion}
+    # Test two nearly overlapping rings (with some small offset in z) which should reconnect at two points.
+    # We should end up with two separate vortices.
+    # With ReconnectBasedOnDistance, this requires two reconnection steps:
+    #   (1) the two vortices merge at one of the reconnection points, and
+    #   (2) the resulting vortex splits into two at the other reconnection point.
+    R = π / 4
+    ϵ = 0.02R
+    rings = (
+        ring_curve(; scale = R, translate = Vec3(π - R / sqrt(2), π, π + ϵ), sign = +1),
+        ring_curve(; scale = R, translate = Vec3(π + R / sqrt(2), π, π - ϵ), sign = +1),
+    )
+
+    fs_orig = map(rings) do ring
+        (; S, tlims,) = ring
+        N = 32
+        ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+        Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+    end
+    d_min_nodes = let (f, g) = fs_orig
+        minimum(Iterators.product(eachindex(f), eachindex(g))) do (i, j)
+            norm(f[i] - g[j])
+        end
+    end
+    fs = collect(copy.(fs_orig))
+
+    if Criterion <: ReconnectBasedOnDistance
+        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes; use_velocity = false)
+        cache = @inferred Reconnections.init_cache(crit, fs)
+        # We need two reconnect! passes to arrive to the final state.
+        for n ∈ 1:4
+            rec = reconnect!(cache, fs)
+            nrec = rec.reconnection_count
+            if n ≤ 2
+                @test nrec == 1
+            else
+                @test nrec == 0
+                break
+            end
+        end
+    elseif Criterion <: ReconnectFast
+        crit = ReconnectFast(1.2 * d_min_nodes; use_velocity = false)
+        Ls = (2π, 2π, 2π)  # ReconnectFast requires periodic domain
+        cache = @inferred Reconnections.init_cache(crit, fs, Ls)
+        # This criterion should perform all reconnections in a single pass.
+        rec = reconnect!(cache, fs)
+        @test rec.reconnection_count == 2
+    end
+
+    @test length(fs) == 2
+    @test fs[1] != fs_orig[1]  # reconnection happened
+    @test fs[2] != fs_orig[2]  # reconnection happened
+    @test length(fs[1]) ≠ length(fs[2])  # the resulting vortices have different sizes
+
+    nothing
+end
+
+function test_static_periodic_nearly_overlapping_ellipses(
+        ::Type{Criterion};
+    ) where {Criterion <: ReconnectionCriterion}
+    # Periodic ellipses which almost touch (distance 2ϵ).
+    # A single ellipse reconnects into 2 infinite lines.
+    # We use an ellipse instead of a circle to make sure that reconnections happen
+    # along one direction only (simpler).
+    # Note that we could also use a circular ring with different domain periodicities...
+    periods = 2π .* (1, 1, 1)
+    R = π
+    ϵ = π / 100
+    N = 32
+    scale = R * SDiagonal(1, 0.5, 1)  # "squeeze" ring along `y` direction
+    ring = ring_curve(; scale, translate = π * Vec3(1, 1, 1),)
+    f_orig = let
+        (; S, tlims,) = ring
+        ζs = range(tlims...; length = 2N + 1)[2:2:2N]
+        Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+    end
+
+    l_min = minimum_knot_increment(f_orig)
+
+    fs_orig = [copy(f_orig)]
+    if Criterion <: ReconnectBasedOnDistance
+        crit = ReconnectBasedOnDistance(4 * ϵ; use_velocity = false)
+    elseif Criterion <: ReconnectFast
+        crit = ReconnectFast(4 * ϵ; use_velocity = false)
+    end
+    fs = copy.(fs_orig)
+    cache = @inferred Reconnections.init_cache(crit, fs, periods)
+    rec = @inferred reconnect!(cache, fs)
+
+    @test rec.reconnection_count == 1
+    @test length(fs) == 2
+    @test abs(end_to_end_offset(fs[1])[1]) ≈ 2π  # infinite line in x
+    @test abs(end_to_end_offset(fs[2])[1]) ≈ 2π  # infinite line in x
+    foreach(Filaments.update_coefficients!, fs)
+    @test all(f -> no_jumps(f, 2 * l_min), fs)
+
+    nothing
+end
+
+##
+
+@testset "Reconnections" begin
     # Test filament removal after a self-reconnection, when one or the two resulting
     # filaments is too small (≤ 3 nodes for CubicSplineMethod).
     # Here we test the internal function `reconnect_with_itself!`.
+    # (This is used in ReconnectBasedOnDistance only.)
     @testset "Static: remove filaments" begin
         Az = 0.001
         curve = figure_eight_curve(; a = π / 4, Az, translate = (0, 0, 0))
@@ -326,129 +502,33 @@ end
     @testset "Dynamic: trefoil knot" begin
         schemes = (SSPRK33(),)
         @testset "Scheme: $scheme" for scheme ∈ schemes
-            test_trefoil_knot_reconnection(scheme)
+            test_trefoil_knot_reconnection(; scheme)
+        end
+    end
+
+    @testset "Static self-reconnection: figure-eight knot" begin
+        for Criterion in (ReconnectBasedOnDistance, ReconnectFast)
+            @testset "$Criterion" test_static_figure_eight_knot(Criterion)
         end
     end
 
     @testset "Static: antiparallel rings" begin
-        # Test two nearly overlapping rings with the same sign (they should reconnect,
-        # since they're antiparallel at the reconnection point).
-        R = π / 4
-        ϵ = 0.02R
-        rings = (
-            ring_curve(; scale = R, translate = Vec3(π - (R + ϵ), π, π), sign = +1),
-            ring_curve(; scale = R, translate = Vec3(π + (R + ϵ), π, π), sign = +1),
-        )
-        d_min = norm(rings[2].S(0.5) - rings[1].S(0.0))  # minimum distance between the rings
-        @assert d_min ≈ 2ϵ
-
-        fs_orig = map(rings) do ring
-            (; S, tlims,) = ring
-            N = 32
-            ζs = range(tlims...; length = 2N + 1)[2:2:2N]
-            Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
-        end
-        l_min = minimum(minimum_knot_increment, fs_orig)
-        d_min_nodes = let (f, g) = fs_orig
-            minimum(Iterators.product(eachindex(f), eachindex(g))) do (i, j)
-                norm(f[i] - g[j])
-            end
-        end
-        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes; use_velocity = false)
-
-        @testset "reconnect!" begin
-            fs = collect(copy.(fs_orig))
-            cache = @inferred Reconnections.init_cache(crit, fs)
-            rec = @inferred reconnect!(cache, fs)
-            @test rec.reconnection_count == 1  # one reconnection
-            @test length(fs) == 1
-            @test length(fs[1]) == sum(length, fs_orig)
-            @test maximum_knot_increment(fs) < 2 * l_min  # check that there are no crazy jumps
+        for Criterion in (ReconnectBasedOnDistance, ReconnectFast)
+            @testset "$Criterion" test_static_antiparallel_rings(Criterion)
         end
     end
 
     @testset "Static: nearly overlapping rings" begin
-        # Test two nearly overlapping rings (with some small offset in z) which should reconnect at two points.
-        # We should end up with two separate vortices.
-        # This requires two reconnection steps:
-        #   (1) the two vortices merge at one of the reconnection points, and
-        #   (2) the resulting vortex splits into two at the other reconnection point.
-        R = π / 4
-        ϵ = 0.02R
-        rings = (
-            ring_curve(; scale = R, translate = Vec3(π - R / sqrt(2), π, π + ϵ), sign = +1),
-            ring_curve(; scale = R, translate = Vec3(π + R / sqrt(2), π, π - ϵ), sign = +1),
-        )
-
-        fs_orig = map(rings) do ring
-            (; S, tlims,) = ring
-            N = 32
-            ζs = range(tlims...; length = 2N + 1)[2:2:2N]
-            Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+        for Criterion in (ReconnectBasedOnDistance, ReconnectFast)
+            @testset "$Criterion" test_static_nearly_overlapping_rings(Criterion)
         end
-        d_min_nodes = let (f, g) = fs_orig
-            minimum(Iterators.product(eachindex(f), eachindex(g))) do (i, j)
-                norm(f[i] - g[j])
-            end
-        end
-        crit = ReconnectBasedOnDistance(1.2 * d_min_nodes; use_velocity = false)
-
-        fs = collect(copy.(fs_orig))
-        cache = @inferred Reconnections.init_cache(crit, fs)
-
-        # We need two reconnect! passes to arrive to the final state.
-        for n ∈ 1:4
-            rec = reconnect!(cache, fs) do f, i, mode
-                nothing
-            end
-            nrec = rec.reconnection_count
-            if n ≤ 2
-                @test nrec == 1
-            else
-                @test nrec == 0
-                break
-            end
-        end
-
-        @test length(fs) == 2
-        @test fs[1] != fs_orig[1]  # reconnection happened
-        @test fs[2] != fs_orig[2]  # reconnection happened
-        @test length(fs[1]) ≠ length(fs[2])  # the resulting vortices have different sizes
     end
 
     @testset "Static periodic self-reconnection" begin
         @testset "Nearly overlapping ellipses" begin
-            # Periodic ellipses which almost touch (distance 2ϵ).
-            # A single ellipse reconnects into 2 infinite lines.
-            # We use an ellipse instead of a circle to make sure that reconnections happen
-            # along one direction only (simpler).
-            # Note that we could also use a circular ring with different domain periodicities...
-            periods = 2π .* (1, 1, 1)
-            R = π
-            ϵ = π / 100
-            N = 32
-            scale = R * SDiagonal(1, 0.5, 1)  # "squeeze" ring along `y` direction
-            ring = ring_curve(; scale, translate = π * Vec3(1, 1, 1),)
-            f_orig = let
-                (; S, tlims,) = ring
-                ζs = range(tlims...; length = 2N + 1)[2:2:2N]
-                Filaments.init(ClosedFilament, S.(ζs), CubicSplineMethod())
+            for Criterion in (ReconnectBasedOnDistance, ReconnectFast)
+                @testset "$Criterion" test_static_periodic_nearly_overlapping_ellipses(Criterion)
             end
-
-            l_min = minimum_knot_increment(f_orig)
-
-            fs_orig = [copy(f_orig)]
-            crit = ReconnectBasedOnDistance(4 * ϵ; use_velocity = false)
-            fs = copy.(fs_orig)
-            cache = @inferred Reconnections.init_cache(crit, fs, periods)
-            rec = @inferred reconnect!(cache, fs)
-
-            @test rec.reconnection_count == 1
-            @test length(fs) == 2
-            @test abs(end_to_end_offset(fs[1])[1]) ≈ 2π  # infinite line in x
-            @test abs(end_to_end_offset(fs[2])[1]) ≈ 2π  # infinite line in x
-            foreach(Filaments.update_coefficients!, fs)
-            @test all(f -> no_jumps(f, 2 * l_min), fs)
         end
 
         @testset "Overlapping ellipses" begin
