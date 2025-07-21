@@ -48,9 +48,10 @@ struct ReconnectFastCache{
     crit::Criterion
     cl::Finder
     Ls::Periods
-    nodes::PointsVector          # length Np = number of nodes (filament points)
-    node_next::IndexVector       # length Np; values in 1:Np
-    node_prev::IndexVector       # length Np; values in 1:Np
+    nodes::PointsVector       # length Np = number of nodes (filament points)
+    node_next::IndexVector    # length Np; values in 1:Np
+    node_prev::IndexVector    # length Np; values in 1:Np
+    reconstructed::BitVector  # length Np
 end
 
 criterion(c::ReconnectFastCache) = c.crit
@@ -63,6 +64,7 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     nodes = similar(Filaments.nodes(first(fs)), 0)
     node_next = Vector{Int}(undef, 0)
     node_prev = similar(node_next)
+    reconstructed = BitVector(undef, 0)
     d_reconnect = distance(crit)
     r_cut = T(d_reconnect)
     Lmin = T(min(Ls...))
@@ -76,7 +78,7 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     nsubdiv = Val(M)
     I = eltype(node_next)  # integer type
     cl = PeriodicCellList(I, rs, Ls, nsubdiv)  # a single element is a node index (in 1:Np)
-    ReconnectFastCache(crit, cl, Ls, nodes, node_next, node_prev)
+    ReconnectFastCache(crit, cl, Ls, nodes, node_next, node_prev, reconstructed)
 end
 
 function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFilament})
@@ -279,7 +281,7 @@ end
 end
 
 function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) where {F}
-    (; nodes, node_next, Ls,) = cache
+    (; nodes, node_next, Ls, reconstructed,) = cache
     filaments_removed_count = 0
     filaments_removed_length = zero(number_type(nodes))
     Lhs = map(L -> L / 2, Ls)
@@ -290,9 +292,10 @@ function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) whe
         callback(f, i, :removed)
     end
     @assert isempty(fs)
-    reconstructed = falses(length(nodes))
+    resize!(reconstructed, length(nodes))
+    fill!(reconstructed, false)
     i_start = firstindex(nodes)
-    while i_start <= lastindex(nodes)
+    @inbounds while i_start <= lastindex(nodes)
         # Reconstruct a single filament
         reconstructed[i_start] = true
         x_first = nodes[i_start]
@@ -333,6 +336,7 @@ function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) whe
     (; filaments_removed_count, filaments_removed_length)
 end
 
+# TODO: support vs input? (if use_velocity = true)
 function _reconnect_pass!(callback::F, ret_base, cache::ReconnectFastCache, fs, vs; to) where {F <: Function}
     (; reconnection_count, reconnection_length_loss, filaments_removed_count, filaments_removed_length,) = ret_base
     rec_before = reconnection_count
