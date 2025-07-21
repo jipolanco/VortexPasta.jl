@@ -43,6 +43,7 @@ using ..Reconnections:
     ReconnectionCriterion,
     NoReconnections,
     ReconnectBasedOnDistance,
+    ReconnectFast,
     reconnect!
 
 using ..BiotSavart:
