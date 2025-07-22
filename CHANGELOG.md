@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add alternative `ReconnectFast` reconnection criterion.
+  Compared to `ReconnectBasedOnDistance`, this criterion is able to perform all required reconnections at once, instead of needing multiple passes.
+  Geometrically, this criterion is less accurate than `ReconnectBasedOnDistance` because it considers filament segments as straight.
+
 ## [0.28.8] - 2025-07-04
 
 ### Fixed
