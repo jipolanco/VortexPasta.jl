@@ -52,7 +52,7 @@ struct ReconnectFastCache{
     velocities::PointsVector  # length Np (only if crit.use_velocity == true)
     node_next::IndexVector    # length Np; values in 1:Np
     node_prev::IndexVector    # length Np; values in 1:Np
-    reconstructed::BitVector  # length Np
+    reconnected::BitVector    # length Np
 end
 
 criterion(c::ReconnectFastCache) = c.crit
@@ -66,7 +66,7 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     velocities = similar(nodes)
     node_next = Vector{Int}(undef, 0)
     node_prev = similar(node_next)
-    reconstructed = BitVector(undef, 0)
+    reconnected = BitVector(undef, 0)
     d_reconnect = distance(crit)
     r_cut = T(d_reconnect)
     Lmin = T(min(Ls...))
@@ -80,17 +80,18 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     nsubdiv = Val(M)
     I = eltype(node_next)  # integer type
     cl = PeriodicCellList(I, rs, Ls, nsubdiv)  # a single element is a node index (in 1:Np)
-    ReconnectFastCache(crit, cl, Ls, nodes, velocities, node_next, node_prev, reconstructed)
+    ReconnectFastCache(crit, cl, Ls, nodes, velocities, node_next, node_prev, reconnected)
 end
 
 function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFilament}, vs)
-    (; cl, nodes, velocities, node_next, node_prev,) = cache
+    (; cl, nodes, velocities, node_next, node_prev, reconnected,) = cache
     # If `use_velocity` is disabled, then we expect the `vs` input to be `nothing`.
     @assert (vs === nothing) == (cache.crit.use_velocity == false)
     Np = sum(length, fs)  # total number of filament nodes
     resize!(nodes, Np)
     resize!(node_next, Np)
     resize!(node_prev, Np)
+    resize!(reconnected, Np)
     if vs !== nothing
         resize!(velocities, Np)
     end
@@ -109,11 +110,13 @@ function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFi
             end
             node_prev[n] = n - 1
             node_next[n] = n + 1
+            reconnected[n] = false
         end
         # "Close" the filament
         node_prev[nstart] = n
         node_next[n] = nstart
     end
+    @assert n == Np
     CellLists.finalise_cells!(cl)
     cache
 end
@@ -258,20 +261,35 @@ function should_reconnect(crit::ReconnectFast, nodes, velocities, i, j; Ls, node
 end
 
 function _reconnect_from_cache!(cache::ReconnectFastCache)
-    (; crit, cl, nodes, velocities, node_prev, node_next, Ls,) = cache
-    # TODO: parallelise?
-    reconnection_count = 0
-    reconnection_length_loss = zero(number_type(nodes))
-    @inbounds for i in eachindex(nodes)
-        x⃗ = nodes[i]
-        for j in CellLists.nearby_elements(cl, x⃗)
+    (; crit, cl, nodes, velocities, node_prev, node_next, reconnected, Ls,) = cache
+    # @assert count(reconnected) == 0  # all false
+    reconnection_count = Ref(0)
+    reconnection_length_loss = Ref(zero(number_type(nodes)))
+    lck = ReentrantLock()
+    scheduler = DynamicScheduler()
+    tforeach(eachindex(nodes); scheduler) do i
+        @inbounds x⃗ = nodes[i]
+        @inbounds for j in CellLists.nearby_elements(cl, x⃗)
             info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
             info === nothing && continue
             (; is, js, length_before, length_after,) = info
             i⁻, i⁺ = is
             j⁻, j⁺ = js
-            reconnection_count += 1
-            reconnection_length_loss += length_before - length_after
+            inds = (is..., js...)
+            skip = Ref(false)
+            lock(lck) do
+                # Ensure a node can only be reconnected once to avoid possible race conditions.
+                if any(n -> reconnected[n], inds)
+                    skip[] = true
+                    return
+                end
+                for n in inds
+                    reconnected[n] = true
+                end
+            end
+            skip[] && continue
+            reconnection_count[] += 1
+            reconnection_length_loss[] += length_before - length_after
             # Reconnect i⁻ -> j⁺ and j⁻ -> i⁺
             node_next[i⁻] = j⁺
             node_prev[j⁺] = i⁻
@@ -279,7 +297,7 @@ function _reconnect_from_cache!(cache::ReconnectFastCache)
             node_prev[i⁺] = j⁻
         end
     end
-    (; reconnection_count, reconnection_length_loss,)
+    (; reconnection_count = reconnection_count[], reconnection_length_loss = reconnection_length_loss[],)
 end
 
 @inline function periodic_offset(x⃗::Vec3, y⃗::Vec3, Ls::Tuple, Lhs::Tuple)
@@ -301,7 +319,7 @@ end
 end
 
 function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) where {F}
-    (; nodes, node_next, Ls, reconstructed,) = cache
+    (; nodes, node_next, Ls, reconnected,) = cache
     filaments_removed_count = 0
     filaments_removed_length = zero(number_type(nodes))
     Lhs = map(L -> L / 2, Ls)
@@ -310,7 +328,8 @@ function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) whe
     fbase = first(fs)  # this is just to make it easier to create new filaments of the right type
     min_nodes = Filaments.minimum_nodes(fbase)
 
-    resize!(reconstructed, length(nodes))
+    reconstructed = reconnected  # reuse `reconnected` vector for reconstruction
+    @assert length(reconstructed) == length(nodes)
     fill!(reconstructed, false)
 
     i_start = firstindex(nodes)

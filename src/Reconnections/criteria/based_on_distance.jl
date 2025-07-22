@@ -6,8 +6,6 @@ using ..FindNearbySegments:
     set_filaments!,
     segment_is_close,
     nearby_segments
-using ..CellLists: CellLists
-using OhMyThreads: OhMyThreads
 
 """
     ReconnectBasedOnDistance <: ReconnectionCriterion

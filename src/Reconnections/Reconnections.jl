@@ -30,6 +30,9 @@ using ..Filaments:
     number_type,
     check_nodes
 
+using ..CellLists: CellLists
+
+using OhMyThreads: OhMyThreads, tforeach, DynamicScheduler
 using TimerOutputs
 using LinearAlgebra: ⋅, norm
 
