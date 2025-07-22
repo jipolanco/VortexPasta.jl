@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Compared to `ReconnectBasedOnDistance`, this criterion is able to perform all required reconnections at once, instead of needing multiple passes.
   Geometrically, this criterion is less accurate than `ReconnectBasedOnDistance` because it considers filament segments as straight.
 
+- Document and extend `Filaments.minimum_nodes`.
+
 ## [0.28.8] - 2025-07-04
 
 ### Fixed

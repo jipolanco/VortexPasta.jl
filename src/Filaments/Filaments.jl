@@ -611,16 +611,29 @@ while it throws an error in its second form.
 For now, the only requirement is that the number of nodes must be larger than
 some small value. In particular, one can't have a closed filament with less
 than 3 nodes (but the specific discretisation method might impose some other small value).
+
+See also [`minimum_nodes`](@ref).
 """
 check_nodes(::Type{Bool}, f::AbstractFilament) = _check_nodes(Bool, f)
 check_nodes(f::AbstractFilament) = _check_nodes(Nothing, f)
+
+"""
+    Filaments.minimum_nodes(method::DiscretisationMethod) -> Int
+    Filaments.minimum_nodes(f::AbstractFilament) -> Int
+
+Return the minimum number of filament nodes needed by the method.
+
+This is usually equal or larger than 3, depending on the method.
+"""
+function minimum_nodes end
+
+minimum_nodes(f::AbstractFilament) = minimum_nodes(discretisation_method(f))
 
 # Limit set by the discretisation method. Can be overridden by other discretisation methods.
 minimum_nodes(::DiscretisationMethod) = 3
 
 function _check_nodes(::Type{T}, f::AbstractFilament) where {T}
-    method = discretisation_method(f)
-    M = minimum_nodes(method)
+    M = minimum_nodes(f)
     N = length(f)
     if N < M
         if T === Bool

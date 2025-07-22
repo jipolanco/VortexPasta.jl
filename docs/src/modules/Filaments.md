@@ -66,6 +66,7 @@ maximum_knot_increment
 nodes
 filament_length
 Filaments.distance_to_field
+Filaments.minimum_nodes
 ```
 
 ## Modifying filaments

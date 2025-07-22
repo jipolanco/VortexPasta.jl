@@ -305,23 +305,28 @@ function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) whe
     filaments_removed_count = 0
     filaments_removed_length = zero(number_type(nodes))
     Lhs = map(L -> L / 2, Ls)
-    # For now, simply delete all previous filaments and recreate new ones.
+
+    @assert !isempty(fs)
     fbase = first(fs)  # this is just to make it easier to create new filaments of the right type
-    for i in reverse(eachindex(fs))
-        f = pop!(fs)
-        callback(f, i, :removed)
-    end
-    @assert isempty(fs)
+    min_nodes = Filaments.minimum_nodes(fbase)
+
     resize!(reconstructed, length(nodes))
     fill!(reconstructed, false)
+
     i_start = firstindex(nodes)
+    filament_idx = firstindex(fs) - 1
+    Nf_prev = lastindex(fs)  # number of filaments before reconnection
+
+    xs = eltype(fbase)[]
+
     @inbounds while i_start <= lastindex(nodes)
         # Reconstruct a single filament
         reconstructed[i_start] = true
         x_first = nodes[i_start]
         x_prev = x_first
-        xs = [x_first]
+        push!(empty!(xs), x_first)
         i = node_next[i_start]
+
         while i != i_start
             reconstructed[i] = true
             x = nodes[i]
@@ -332,27 +337,58 @@ function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) whe
             i = node_next[i]
             x_prev = x
         end
-        p⃗L = periodic_offset(x_first, x_prev, Ls, Lhs)  # needed to "close" the filament
-        Np = length(xs)  # number of points in the filament
-        f = Filaments.similar_filament(fbase, (Np,); offset = p⃗L)
-        f .= xs
-        if !Filaments.check_nodes(Bool, f)
-            # Completely remove this filament, as it is too small to be represented by the
-            # discretisation method (usually < 3 or < 5 nodes, depending on the method).
-            f[end + 1] = f[begin] + p⃗L  # needed for correct length estimation
-            local Lfil = Filaments.filament_length(f; quad = nothing)
-            filaments_removed_count += 1
-            filaments_removed_length += Lfil
-        else
-            Filaments.update_coefficients!(f)
-            push!(fs, f)
-            callback(f, lastindex(fs), :appended)
-        end
+
         # Find next node to be reconstructed
         while i_start <= lastindex(reconstructed) && reconstructed[i_start]
             i_start += 1
         end
+
+        Np = length(xs)  # number of points in the filament
+        p⃗L = periodic_offset(x_first, x_prev, Ls, Lhs)  # needed to "close" the filament
+
+        if Np < min_nodes
+            # Completely remove this filament, as it is too small to be represented by the
+            # discretisation method (usually < 3 or < 5 nodes, depending on the method).
+            Lfil = zero(eltype(xs))
+            for n in eachindex(xs)[2:end]
+                Lfil += sqrt(sum(abs2, xs[n] - xs[n - 1]))
+            end
+            x_wrap = xs[begin] + p⃗L
+            Lfil += sqrt(sum(abs2, x_wrap - xs[end]))
+            filaments_removed_count += 1
+            filaments_removed_length += Lfil
+            continue
+        end
+
+        filament_idx += 1
+
+        if filament_idx <= Nf_prev
+            # Modify existent filament
+            f = Filaments.change_offset(fs[filament_idx], p⃗L)
+            if length(f) != Np
+                resize!(f, Np)
+            end
+            f .= xs
+            Filaments.update_coefficients!(f)
+            fs[filament_idx] = f
+            callback(f, filament_idx, :modified)
+        else
+            # Append new filament
+            f = Filaments.similar_filament(fbase, (Np,); offset = p⃗L)
+            f .= xs
+            Filaments.update_coefficients!(f)
+            push!(fs, f)
+            callback(f, lastindex(fs), :appended)
+        end
     end
+
+    # If the number of filaments has been reduced, remove old filaments at the end of fs.
+    while filament_idx < Nf_prev
+        f = pop!(fs)
+        callback(f, lastindex(fs) + 1, :removed)
+        filament_idx += 1
+    end
+
     (; filaments_removed_count, filaments_removed_length)
 end
 
