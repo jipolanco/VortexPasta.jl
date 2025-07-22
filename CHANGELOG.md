@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.29.0] - 2025-07-22
+
 ### Added
 
 - Add alternative `ReconnectFast` reconnection criterion.
