@@ -349,7 +349,7 @@ function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) whe
         if Np < min_nodes
             # Completely remove this filament, as it is too small to be represented by the
             # discretisation method (usually < 3 or < 5 nodes, depending on the method).
-            Lfil = zero(eltype(xs))
+            Lfil = zero(number_type(xs))
             for n in eachindex(xs)[2:end]
                 Lfil += sqrt(sum(abs2, xs[n] - xs[n - 1]))
             end
