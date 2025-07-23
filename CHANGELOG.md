@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.29.3] - 2025-07-23
+
+### Fixed
+
+- Fix construction of `SimulationStats` (issue introduced in v0.29.2).
+
 ## [0.29.2] - 2025-07-23
 
 ### Added

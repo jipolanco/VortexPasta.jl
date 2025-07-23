@@ -161,7 +161,12 @@ function _read_all_properties!(g, obj)
     foreach(propertynames(obj)) do name
         @inline
         T = fieldtype(typeof(obj), name)
-        val = read(g, string(name) => T)::T
+        val = if haskey(g, string(name))
+            read(g, string(name) => T)::T
+        else
+            @warn "Property not found in checkpoint file: $name" g
+            zero(T)  # if the property doesn't exist (e.g. if the file was written with an old VP version where it didn't exist)
+        end
         setproperty!(obj, name, val)
     end
     obj

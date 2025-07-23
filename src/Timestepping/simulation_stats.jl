@@ -34,7 +34,7 @@ mutable struct SimulationStats{T <: AbstractFloat}
     reconnection_passes      :: Int
 end
 
-SimulationStats(::Type{T}) where {T} = SimulationStats(0, zero(T), 0, zero(T))
+SimulationStats(::Type{T}) where {T} = SimulationStats(0, zero(T), 0, zero(T), 0)
 
 function Base.show(io::IO, stats::SimulationStats)
     print(io, "SimulationStats:")
