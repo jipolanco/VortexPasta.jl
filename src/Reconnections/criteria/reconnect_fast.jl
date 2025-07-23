@@ -3,7 +3,7 @@ using LinearAlgebra: norm, ⋅
 
 """
     ReconnectFast <: ReconnectionCriterion
-    ReconnectFast(d_crit; use_velocity = false, decrease_length = true, cos_max = 0.97)
+    ReconnectFast(d_crit; max_passes = 1, nthreads = Threads.nthreads(), use_velocity = false, decrease_length = true, cos_max = 0.97)
 
 Reconnects filament segments which are at a distance `d < d_crit`.
 
@@ -11,8 +11,14 @@ This criterion is similar to [`ReconnectBasedOnDistance`](@ref) but with importa
 
 - filament segments are considered as straight lines (which may be less accurate);
 
-- all reconnections are made at once, i.e. each filament will be reconnected multiple times if needed.
-  In other words, a single pass should be needed to reconnect all segments satisfying the chosen criterion.
+- each filament can be reconnected multiple times, meaning that fewer passes are needed to
+  perform all required reconnections;
+
+- one can combine `use_velocity = true` with `max_passes > 1`.
+
+Moreover, this criterion accepts an `nthreads` option which allows to manually choose the number of threads to use.
+In particular, if `nthreads = 1`, a serial implementation will be used which generally needs
+a small number of passes (so it can in fact be faster if running with a small number of threads).
 
 This criterion only supports periodic domains.
 
@@ -23,18 +29,24 @@ struct ReconnectFast <: ReconnectionCriterion
     dist_sq    :: Float64
     cos_max    :: Float64
     cos_max_sq :: Float64
+    max_passes :: Int
+    nthreads :: Int
     use_velocity    :: Bool
     decrease_length :: Bool
-    function ReconnectFast(dist; cos_max = 0.97, use_velocity = false, decrease_length = true)
-        new(dist, dist^2, cos_max, cos_max^2, use_velocity, decrease_length)
+    function ReconnectFast(dist; cos_max = 0.97, max_passes = 1, use_velocity = false, decrease_length = true, nthreads = Threads.nthreads())
+        new(dist, dist^2, cos_max, cos_max^2, max_passes, nthreads, use_velocity, decrease_length)
     end
 end
 
 distance(c::ReconnectFast) = c.dist
+
+# From the point of view of the main reconnect! function, this criterion always performs a
+# single pass (i.e. _reconnect_pass! is called only once). In fact, passes are performed at
+# a finer-grained level, by calling _reconnect_from_cache! multiple times in _reconnect_pass!.
 max_passes(c::ReconnectFast) = 1
 
 function Base.show(io::IO, c::ReconnectFast)
-    print(io, "ReconnectFast($(c.dist); cos_max = $(c.cos_max), use_velocity = $(c.use_velocity), decrease_length = $(c.decrease_length))")
+    print(io, "ReconnectFast($(c.dist); nthreads = $(c.nthreads), max_passes = $(c.max_passes), use_velocity = $(c.use_velocity), cos_max = $(c.cos_max), decrease_length = $(c.decrease_length))")
 end
 
 struct ReconnectFastCache{
@@ -110,7 +122,6 @@ function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFi
             end
             node_prev[n] = n - 1
             node_next[n] = n + 1
-            reconnected[n] = false
         end
         # "Close" the filament
         node_prev[nstart] = n
@@ -260,13 +271,50 @@ function should_reconnect(crit::ReconnectFast, nodes, velocities, i, j; Ls, node
     end
 end
 
+function _reconnect_from_cache_serial!(cache::ReconnectFastCache)
+    (; crit, cl, nodes, velocities, node_prev, node_next, Ls,) = cache
+    @assert crit.nthreads == 1
+    reconnection_count = 0
+    reconnection_length_loss = zero(number_type(nodes))
+    for i in eachindex(nodes)
+        @inbounds x⃗ = nodes[i]
+        @inbounds for j in CellLists.nearby_elements(cl, x⃗)
+            info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
+            info === nothing && continue
+            (; is, js, length_before, length_after,) = info
+            i⁻, i⁺ = is
+            j⁻, j⁺ = js
+            reconnection_count += 1
+            reconnection_length_loss += length_before - length_after
+            # Reconnect i⁻ -> j⁺ and j⁻ -> i⁺
+            node_next[i⁻] = j⁺
+            node_prev[j⁺] = i⁻
+            node_next[j⁻] = i⁺
+            node_prev[i⁺] = j⁻
+        end
+    end
+    (; reconnection_count, reconnection_length_loss,)
+end
+
 function _reconnect_from_cache!(cache::ReconnectFastCache)
     (; crit, cl, nodes, velocities, node_prev, node_next, reconnected, Ls,) = cache
+
+    if crit.nthreads == 1
+        return _reconnect_from_cache_serial!(cache)
+    end
+
     # @assert count(reconnected) == 0  # all false
     reconnection_count = Ref(0)
     reconnection_length_loss = Ref(zero(number_type(nodes)))
     lck = ReentrantLock()
-    scheduler = DynamicScheduler()
+    scheduler = DynamicScheduler(; ntasks = crit.nthreads)
+
+    # Reset `reconnected` to false (in parallel)
+    tforeach(eachindex(reconnected); scheduler) do i
+        @inbounds reconnected[i] = false
+    end
+
+    # Perform reconnections by exchanging node connectivities.
     tforeach(eachindex(nodes); scheduler) do i
         @inbounds x⃗ = nodes[i]
         @inbounds for j in CellLists.nearby_elements(cl, x⃗)
@@ -297,6 +345,7 @@ function _reconnect_from_cache!(cache::ReconnectFastCache)
             node_prev[i⁺] = j⁻
         end
     end
+
     (; reconnection_count = reconnection_count[], reconnection_length_loss = reconnection_length_loss[],)
 end
 
@@ -319,7 +368,7 @@ end
 end
 
 function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) where {F}
-    (; nodes, node_next, Ls, reconnected,) = cache
+    (; nodes, node_next, Ls,) = cache
     filaments_removed_count = 0
     filaments_removed_length = zero(number_type(nodes))
     Lhs = map(L -> L / 2, Ls)
@@ -328,9 +377,14 @@ function _reconstruct_filaments!(callback::F, fs, cache::ReconnectFastCache) whe
     fbase = first(fs)  # this is just to make it easier to create new filaments of the right type
     min_nodes = Filaments.minimum_nodes(fbase)
 
-    reconstructed = reconnected  # reuse `reconnected` vector for reconstruction
+    reconstructed = cache.reconnected  # reuse `reconnected` vector for reconstruction
     @assert length(reconstructed) == length(nodes)
-    fill!(reconstructed, false)
+
+    # Reset `reconstructed` to false (in parallel)
+    scheduler = DynamicScheduler()
+    tforeach(eachindex(reconstructed); scheduler) do i
+        @inbounds reconstructed[i] = false
+    end
 
     i_start = firstindex(nodes)
     filament_idx = firstindex(fs) - 1
@@ -413,20 +467,26 @@ end
 
 function _reconnect_pass!(callback::F, ret_base, cache::ReconnectFastCache, fs, vs; to) where {F <: Function}
     (; reconnection_count, reconnection_length_loss, filaments_removed_count, filaments_removed_length,) = ret_base
-    (; use_velocity,) = cache.crit
-    if use_velocity && vs === nothing
+    (; crit,) = cache
+    if crit.use_velocity && vs === nothing
         error("`use_velocity` was set to `true` in the reconnection criterion, but velocity information was not passed to `reconnect!`")
     end
     rec_before = reconnection_count
-    if use_velocity
+    if crit.use_velocity
         @timeit to "Set points (with vel.)" _update_cache!(cache, fs, vs)
     else
         @timeit to "Set points" _update_cache!(cache, fs, nothing)
     end
-    @timeit to "Find reconnections" let
-        local ret = _reconnect_from_cache!(cache)
+    npasses = 0
+    while npasses < crit.max_passes
+        local ret
+        npasses += 1
+        @timeit to "Reconnection pass" begin
+            ret = _reconnect_from_cache!(cache)
+        end
         reconnection_count += ret.reconnection_count
         reconnection_length_loss += ret.reconnection_length_loss
+        ret.reconnection_count == 0 && break  # no reconnections were performed
     end
     if reconnection_count - rec_before > 0  # if reconnections were performed
         @timeit to "Reconstruct filaments" let
@@ -440,5 +500,6 @@ function _reconnect_pass!(callback::F, ret_base, cache::ReconnectFastCache, fs, 
         reconnection_length_loss,
         filaments_removed_count,
         filaments_removed_length,
+        npasses = ret_base.npasses + npasses,
     )::typeof(ret_base)
 end

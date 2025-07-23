@@ -150,27 +150,24 @@ function reconnect!(
     ) where {F <: Function}
     @timeit to "Reconnect" begin
         T = number_type(fs)
-        reconnection_count = 0
-        filaments_removed_count = 0
-        filaments_removed_length = zero(T)
-        reconnection_length_loss = zero(T)  # decrease of vortex length due to reconnections (not due to removals)
         ret = (;
-            reconnection_count,
-            reconnection_length_loss,
-            filaments_removed_count,
-            filaments_removed_length,
+            reconnection_count = 0,
+            reconnection_length_loss = zero(T),  # decrease of vortex length due to reconnections (not due to removals)
+            filaments_removed_count = 0,
+            filaments_removed_length = zero(T),
+            npasses = 0,
         )
         R = typeof(ret)
         nmax = max_passes(cache)
         npasses = 0
         while npasses < nmax
+            npasses += 1
             nrec = ret.reconnection_count
             ret = _reconnect_pass!(callback, ret, cache, fs, vs; to)::R
-            npasses += 1
             nrec == ret.reconnection_count && break  # no new reconnections were performed
         end
     end
-    (; ret..., npasses,)
+    ret
 end
 
 reconnect!(cache::AbstractReconnectionCache, args...; kws...) =

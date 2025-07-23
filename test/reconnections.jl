@@ -179,10 +179,10 @@ function test_trefoil_knot_reconnection(
     δ = Filaments.minimum_node_distance(prob.fs)
     if Criterion <: ReconnectBasedOnDistance
         d_crit = 0.75 * δ
-        reconnect = ReconnectBasedOnDistance(d_crit; max_passes = 4, use_velocity = false)
+        reconnect = ReconnectBasedOnDistance(d_crit; max_passes = 1, use_velocity = true)
     elseif Criterion <: ReconnectFast
         d_crit = 0.75 * δ
-        reconnect = ReconnectFast(d_crit; use_velocity = true)
+        reconnect = ReconnectFast(d_crit; nthreads = 1, max_passes = 4, use_velocity = true)  # we use nthreads = 1 to test the serial implementation
     end
     dt = BiotSavart.kelvin_wave_period(params_bs, δ) * trefoil_scheme_dt(scheme)
     # @show δ d_crit dt
@@ -289,7 +289,7 @@ function test_static_figure_eight_knot(
 
     @testset "reconnect!" begin
         if Criterion <: ReconnectBasedOnDistance
-            crit = @inferred ReconnectBasedOnDistance(l_min / 2; use_velocity = false)
+            crit = @inferred ReconnectBasedOnDistance(l_min / 2; max_passes = 2, use_velocity = false)
         elseif Criterion <: ReconnectFast
             crit = @inferred ReconnectFast(0.9 * l_min; use_velocity = false)
         end
