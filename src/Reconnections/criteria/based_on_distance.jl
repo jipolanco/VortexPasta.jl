@@ -7,6 +7,8 @@ using ..FindNearbySegments:
     segment_is_close,
     nearby_segments
 
+using Accessors: @set
+
 """
     ReconnectBasedOnDistance <: ReconnectionCriterion
     ReconnectBasedOnDistance(d_crit; max_passes = 1, use_velocity = (max_passes == 1), decrease_length = true, cos_max = 0.97)
@@ -42,7 +44,7 @@ struct ReconnectBasedOnDistance <: ReconnectionCriterion
     dist_sq    :: Float64
     cos_max    :: Float64
     cos_max_sq :: Float64
-    max_passes  :: Int
+    max_passes :: Int
     use_velocity    :: Bool
     decrease_length :: Bool
     function ReconnectBasedOnDistance(dist; cos_max = 0.97, max_passes = 1, use_velocity = (max_passes == 1), decrease_length = true)
@@ -315,7 +317,10 @@ function _reconnect_pass!(callback::F, ret_base, cache::ReconnectBasedOnDistance
     @timeit to "find reconnection pairs" begin
         to_reconnect = find_reconnection_pairs!(cache, fs, vs; to)
     end
-    isempty(to_reconnect) && return ret_base
+    if isempty(to_reconnect)
+        ret = @set ret_base.npasses += 1
+        return ret
+    end
     (; reconnection_count, reconnection_length_loss, filaments_removed_count, filaments_removed_length,) = ret_base
     Nf = length(fs)
     invalidated_filaments = falses(Nf)  # if invalidated_filaments[i] is true, it means fs[i] can no longer be reconnected
@@ -349,6 +354,7 @@ function _reconnect_pass!(callback::F, ret_base, cache::ReconnectBasedOnDistance
         reconnection_length_loss,
         filaments_removed_count,
         filaments_removed_length,
+        npasses = ret_base.npasses + 1,
     ) :: typeof(ret_base)
 end
 
