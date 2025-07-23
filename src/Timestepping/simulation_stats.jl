@@ -19,13 +19,19 @@ simulation.
 - `filaments_removed_length::T`: **total length of removed filaments**. Note that this length is
   estimated using a straight segment approximation (no quadratures). This is because
   filaments are removed when they can no longer be represented using a continuous
-  interpolation function.
+  interpolation function;
+
+- `reconnection_passes::Int`: **total number of reconnection passes**. This is the total
+  number of reconnection scans since the beginning of the simulation. Note that the
+  [`ReconnectBasedOnDistance`](@ref) and [`ReconnectFast`](@ref) accept a `max_passes` option,
+  thus allowing multiple reconnection passes per timestep.
 """
 mutable struct SimulationStats{T <: AbstractFloat}
     reconnection_count       :: Int
     reconnection_length_loss :: T
     filaments_removed_count  :: Int
     filaments_removed_length :: T
+    reconnection_passes      :: Int
 end
 
 SimulationStats(::Type{T}) where {T} = SimulationStats(0, zero(T), 0, zero(T))
@@ -36,6 +42,7 @@ function Base.show(io::IO, stats::SimulationStats)
     print(io, "\n - reconnection_length_loss  = ", stats.reconnection_length_loss)
     print(io, "\n - filaments_removed_count   = ", stats.filaments_removed_count)
     print(io, "\n - filaments_removed_length  = ", stats.filaments_removed_length)
+    print(io, "\n - reconnection_passes       = ", stats.reconnection_passes)
 end
 
 Base.summary(io::IO, stats::SimulationStats) = print(io, typeof(stats), "(...)")

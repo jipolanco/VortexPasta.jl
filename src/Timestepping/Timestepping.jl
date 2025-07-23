@@ -877,6 +877,7 @@ function after_advection!(iter::VortexFilamentSolver)
     stats.reconnection_length_loss += rec.reconnection_length_loss
     stats.filaments_removed_count += rec.filaments_removed_count
     stats.filaments_removed_length += rec.filaments_removed_length
+    stats.reconnection_passes += rec.npasses
     L_fold = periods(prob.p)  # box size (periodicity)
     fields = fields_to_resize(iter)
     after_advection!(fs, fields; L_fold, refinement, fold_periodic,)
