@@ -5,6 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.29.4] - 2025-07-23
+
+### Added
+
+- Support loading VTKHDF file written with a different discretisation method.
+  Previously this failed when there were filaments with too few nodes compared to the
+  requirements of the chosen method. For example, if the file was written with
+  `CubicSplineMethod`, it may include filaments with 3 or 4 nodes, which is not allowed by
+  `QuinticSplineMethod`. In this case, filaments are now removed and a warning is shown.
+
 ## [0.29.3] - 2025-07-23
 
 ### Fixed

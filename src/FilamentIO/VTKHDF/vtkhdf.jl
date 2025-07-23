@@ -745,13 +745,35 @@ function read_filaments(
             ts = knots(f)
             Tper = ts[end + 1] - ts[begin]
             pad_periodic!(ts, Tper)  # apply padding to remaining parametrisation values
-            update_coefficients!(f; knots = ts)
+            if Filaments.check_nodes(Bool, f)
+                update_coefficients!(f; knots = ts)
+            end
         end
     else
         # Compute interpolation and derivative coefficients, also recomputing knots.
         foreach(fs) do f
-            update_coefficients!(f)
+            if Filaments.check_nodes(Bool, f)
+                update_coefficients!(f)
+            end
         end
+    end
+
+    number_of_filaments_in_file = length(fs)
+
+    # Remove filaments that don't have enough nodes to be represented by the discretisation
+    # method. This can happen e.g. if the files were written with filaments using
+    # CubicSplineMethod (requires ≥ 3 nodes), and loaded using QuinticSplineMethod (requires ≥ 5 nodes).
+    for i in reverse(eachindex(fs))
+        if !Filaments.check_nodes(Bool, fs[i])
+            popat!(fs, i)
+        end
+    end
+
+    if length(fs) < number_of_filaments_in_file
+        @warn(
+            "Loaded number of filaments is smaller than number of filaments in file. This can happen if the discretisation method changed.",
+            HDF5.filename(io), number_of_filaments_in_file, length(fs), method,
+        )
     end
 
     VTKHDFFile(gtop, fs, refinement)
