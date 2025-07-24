@@ -409,10 +409,12 @@ This vector is returned by this function.
 
 ## Using callbacks
 
-The optional `callback` function should be a function `f(û, k⃗)` which takes:
+The optional `callback` function should be a function `f(û, idx)` which takes:
 
-- `û::Vec3{<:Complex}` a Fourier coefficient;
-- `I::CartesianIndex{3}` the index of `û` on the Fourier grid.
+- `û::NTuple{3, <:Complex}` a Fourier coefficient;
+- `idx::NTuple{3, Int}` the index of `û` on the Fourier grid.
+
+The function should return a tuple with the same type as `û`.
 
 This can be used to modify the Fourier-space fields to be interpolated, but without really
 modifying the values in `uhat_d` (and thus the state of the cache). For example, to
@@ -422,14 +424,40 @@ apply a Gaussian filter before interpolating:
 σ = 0.1  # width of Gaussian filter (in physical space)
 ks = BiotSavart.get_wavenumbers(cache.longrange)
 
-callback(û::Vec3, I::CartesianIndex{3}) = let
-    k⃗ = @inbounds getindex.(ks, Tuple(I))
+callback(û::NTuple{3}, idx::NTuple{3}) = let
+    k⃗ = @inbounds getindex.(ks, idx)
     k² = sum(abs2, k⃗)
-    û * exp(-σ^2 * k² / 2)
+    û .* exp(-σ^2 * k² / 2)
 end
 
 interpolate_to_physical!(callback, cache)
 ```
+
+!!! note "GPU usage"
+
+    As written above, the GPU kernels using the callback might not compile correctly.
+    If that is the case, a possible solution is to use a callable struct instead.
+    For example:
+
+    ```julia
+    struct GaussianFilter{WaveNumbers} <: Function
+        α::Float64
+        ks::WaveNumbers
+    end
+
+    @inline function (f::GaussianFilter)(û::NTuple{3}, idx::NTuple{3})
+        (; α, ks) = f
+        k⃗ = @inbounds getindex.(ks, idx)
+        k² = sum(abs2, k⃗)
+        û .* exp(-σ^2 * k² / 2)
+    end
+
+    callback = GaussianFilter(0.1, BiotSavart.get_wavenumbers(cache.longrange))  # this is now a callable object
+    interpolate_to_physical(callback, cache)
+    ```
+
+    If this still doesn't work, one might need to replace broadcasts (`.`) with calls to `map` or `ntuple`.
+
 """
 function interpolate_to_physical! end
 
