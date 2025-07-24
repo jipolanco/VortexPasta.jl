@@ -1,0 +1,531 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/SyntheticFields/src/SyntheticFields/fourier.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/SyntheticFields/src/SyntheticFields</a> - fourier.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">98.0&nbsp;%</td>
+            <td class="headerCovTableEntry">203</td>
+            <td class="headerCovTableEntry">199</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-06-23 14:40:57</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : &quot;&quot;&quot;</span>
+<span id="L2"><span class="lineNum">       2</span>              :     FourierSyntheticVectorField{T, N} &lt;: SyntheticVectorField{T, N}</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : Abstract type representing a synthetic vector field implemented in Fourier space.</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : See also [`SyntheticVectorField`](@ref).</span>
+<span id="L7"><span class="lineNum">       7</span>              : &quot;&quot;&quot;</span>
+<span id="L8"><span class="lineNum">       8</span>              : abstract type FourierSyntheticVectorField{T, N} &lt;: SyntheticVectorField{T, N} end</span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L11"><span class="lineNum">      11</span>              :     FourierBandVectorField{T, N} &lt;: FourierSyntheticVectorField{T, N}</span>
+<span id="L12"><span class="lineNum">      12</span>              :     FourierBandVectorField(undef, Ls::NTuple; [kmin], [kmax])</span>
+<span id="L13"><span class="lineNum">      13</span>              : </span>
+<span id="L14"><span class="lineNum">      14</span>              : Implements a synthetic vector field in Fourier space.</span>
+<span id="L15"><span class="lineNum">      15</span>              : </span>
+<span id="L16"><span class="lineNum">      16</span>              : This type is adapted for vector fields described by a relatively small number of non-zero Fourier</span>
+<span id="L17"><span class="lineNum">      17</span>              : modes. The non-zero modes are within a &quot;band&quot; given by ``k_{\min} ≤ |\bm{k}| ≤ k_{\max}``.</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              : One should initialise the Fourier coefficients of the vector field before performing any evaluations.</span>
+<span id="L20"><span class="lineNum">      20</span>              : For this one can call [`SyntheticFields.init_coefficients!`](@ref) after creating the vector field.</span>
+<span id="L21"><span class="lineNum">      21</span>              : After that, one can evaluate the field as described in [`SyntheticVectorField`](@ref).</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span>              : Moreover the state can be saved to an HDF5 file with</span>
+<span id="L24"><span class="lineNum">      24</span>              : [`SyntheticFields.save_coefficients`](@ref) and loaded back with</span>
+<span id="L25"><span class="lineNum">      25</span>              : [`SyntheticFields.load_coefficients!`](@ref).</span>
+<span id="L26"><span class="lineNum">      26</span>              : </span>
+<span id="L27"><span class="lineNum">      27</span>              : # Positional arguments</span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span>              : - `undef`: this is Julia's `undef` variable, used here to explicitly indicate that Fourier</span>
+<span id="L30"><span class="lineNum">      30</span>              :   coefficients are not initialised by this function (but only allocated).</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              : - `Ls`: domain period in each direction. For example, `Ls = (2π, 2π, 2π)` for a ``2π``-periodic cubic domain.</span>
+<span id="L33"><span class="lineNum">      33</span>              : </span>
+<span id="L34"><span class="lineNum">      34</span>              : # Optional keyword arguments</span>
+<span id="L35"><span class="lineNum">      35</span>              : </span>
+<span id="L36"><span class="lineNum">      36</span>              : - `kmin`: minimum forcing wavenumber (magnitude);</span>
+<span id="L37"><span class="lineNum">      37</span>              : </span>
+<span id="L38"><span class="lineNum">      38</span>              : - `kmax`: maximum forcing wavenumber (magnitude).</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span>              : These should satisfy `0 ≤ kmin ≤ kmax`.</span>
+<span id="L41"><span class="lineNum">      41</span>              : Moreover, one usually wants `0 &lt; kmin` to ensure that the generated field has zero mean value.</span>
+<span id="L42"><span class="lineNum">      42</span>              : </span>
+<span id="L43"><span class="lineNum">      43</span>              : If these are not passed, an empty `FourierBandVectorField` will be returned (with no wavevectors).</span>
+<span id="L44"><span class="lineNum">      44</span>              : It can be initialised later using [`set_wavevector_band!`](@ref).</span>
+<span id="L45"><span class="lineNum">      45</span>              : &quot;&quot;&quot;</span>
+<span id="L46"><span class="lineNum">      46</span>              : struct FourierBandVectorField{</span>
+<span id="L47"><span class="lineNum">      47</span>              :         T &lt;: AbstractFloat, N,</span>
+<span id="L48"><span class="lineNum">      48</span>              :         NormalisedWaveVectors &lt;: AbstractVector{NTuple{N, Int}},</span>
+<span id="L49"><span class="lineNum">      49</span>              :         FourierCoefficients &lt;: AbstractVector{SVector{N, Complex{T}}},</span>
+<span id="L50"><span class="lineNum">      50</span>              :     } &lt;: FourierSyntheticVectorField{T, N}</span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC tlaBgGNC">          37 :     qs::NormalisedWaveVectors  # forced wave vectors (length Nf) -- normalised to integer values</span></span>
+<span id="L52"><span class="lineNum">      52</span>              :     cs::FourierCoefficients    # Fourier coefficients of velocity field (length Nf)</span>
+<span id="L53"><span class="lineNum">      53</span>              :     Δks::NTuple{N, T}          # wavenumber increment in each direction (Δk = 2π/L)</span>
+<span id="L54"><span class="lineNum">      54</span>              : end</span>
+<span id="L55"><span class="lineNum">      55</span>              : </span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">          14 : function Base.similar(field::FourierBandVectorField)</span></span>
+<span id="L57"><span class="lineNum">      57</span>              :     # Note: we copy the wavenumbers; in general we want them to be the same as for the input.</span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">          28 :     FourierBandVectorField(copy(field.qs), similar(field.cs), field.Δks)</span></span>
+<span id="L59"><span class="lineNum">      59</span>              : end</span>
+<span id="L60"><span class="lineNum">      60</span>              : </span>
+<span id="L61"><span class="lineNum">      61</span>              : # This may be used to free used memory (even though a FourierBandVectorField usually doesn't</span>
+<span id="L62"><span class="lineNum">      62</span>              : # use much memory).</span>
+<span id="L63"><span class="lineNum">      63</span> <span class="tlaGNC">           2 : function Base.empty!(field::FourierBandVectorField)</span></span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">        4950 :     empty!(field.qs)</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">        4950 :     empty!(field.cs)</span></span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">           2 :     field</span></span>
+<span id="L67"><span class="lineNum">      67</span>              : end</span>
+<span id="L68"><span class="lineNum">      68</span>              : </span>
+<span id="L69"><span class="lineNum">      69</span>              : # This allows conversion between CPU and GPU arrays using adapt(...).</span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">          14 : @inline function Adapt.adapt_structure(to, field::FourierBandVectorField)</span></span>
+<span id="L71"><span class="lineNum">      71</span> <span class="tlaGNC">          14 :     FourierBandVectorField(</span></span>
+<span id="L72"><span class="lineNum">      72</span>              :         adapt(to, field.qs),</span>
+<span id="L73"><span class="lineNum">      73</span>              :         adapt(to, field.cs),</span>
+<span id="L74"><span class="lineNum">      74</span>              :         field.Δks,</span>
+<span id="L75"><span class="lineNum">      75</span>              :     )</span>
+<span id="L76"><span class="lineNum">      76</span>              : end</span>
+<span id="L77"><span class="lineNum">      77</span>              : </span>
+<span id="L78"><span class="lineNum">      78</span>              : # Returns the number of elements (vector wavenumbers) describing the field.</span>
+<span id="L79"><span class="lineNum">      79</span>              : # It assumes that qs and cs have the same length.</span>
+<span id="L80"><span class="lineNum">      80</span> <span class="tlaGNC">        2080 : Base.length(field::FourierBandVectorField) = length(field.cs)</span></span>
+<span id="L81"><span class="lineNum">      81</span>              : </span>
+<span id="L82"><span class="lineNum">      82</span>              : # This is mainly used for CPU &lt;-&gt; GPU transfers.</span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">         699 : function Base.copyto!(dst::FourierBandVectorField, src::FourierBandVectorField)</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">         699 :     length(dst) == length(src) || throw(DimensionMismatch(&quot;the destination field has the wrong size&quot;))</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">        1398 :     copyto!(dst.cs, src.cs)  # copy coefficients only; assume wavenumbers are the same</span></span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">         699 :     nothing</span></span>
+<span id="L87"><span class="lineNum">      87</span>              : end</span>
+<span id="L88"><span class="lineNum">      88</span>              : </span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">           5 : function get_kmin_kmax(field::FourierBandVectorField{T}) where {T}</span></span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaGNC">           5 :     (; qs, Δks,) = field</span></span>
+<span id="L91"><span class="lineNum">      91</span>              :     # Get actual range of wavevector magnitudes</span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">           5 :     kext² = extrema(qs; init = (T(Inf), T(0))) do q⃗</span></span>
+<span id="L93"><span class="lineNum">      93</span> <span class="tlaGNC">        9949 :         k⃗ = q⃗ .* Δks</span></span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaGNC">        9949 :         sum(abs2, k⃗)</span></span>
+<span id="L95"><span class="lineNum">      95</span>              :     end</span>
+<span id="L96"><span class="lineNum">      96</span> <span class="tlaGNC">           5 :     sqrt.(kext²)</span></span>
+<span id="L97"><span class="lineNum">      97</span>              : end</span>
+<span id="L98"><span class="lineNum">      98</span>              : </span>
+<span id="L99"><span class="lineNum">      99</span> <span class="tlaGNC">           5 : function Base.show(io::IO, field::FourierBandVectorField{T, N}) where {T, N}</span></span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">           5 :     kmin, kmax = round.(get_kmin_kmax(field); sigdigits = 5)</span></span>
+<span id="L101"><span class="lineNum">     101</span> <span class="tlaGNC">           5 :     Nk = length(field)</span></span>
+<span id="L102"><span class="lineNum">     102</span> <span class="tlaGNC">           5 :     print(io, &quot;FourierBandVectorField{$T, $N} with $Nk independent Fourier coefficients in |k⃗| ∈ [$kmin, $kmax]&quot;)</span></span>
+<span id="L103"><span class="lineNum">     103</span>              : end</span>
+<span id="L104"><span class="lineNum">     104</span>              : </span>
+<span id="L105"><span class="lineNum">     105</span>              : &quot;&quot;&quot;</span>
+<span id="L106"><span class="lineNum">     106</span>              :     SyntheticFields.remove_zeros!(field::FourierBandVectorField) -&gt; Int</span>
+<span id="L107"><span class="lineNum">     107</span>              : </span>
+<span id="L108"><span class="lineNum">     108</span>              : Remove entries associated to Fourier coefficients which are currently equal to zero.</span>
+<span id="L109"><span class="lineNum">     109</span>              : </span>
+<span id="L110"><span class="lineNum">     110</span>              : Returns the number of removed coefficients. Coefficients and their associated wavevectors</span>
+<span id="L111"><span class="lineNum">     111</span>              : are removed.</span>
+<span id="L112"><span class="lineNum">     112</span>              : </span>
+<span id="L113"><span class="lineNum">     113</span>              : This can help avoid useless computations when evaluating the Fourier sum in physical space.</span>
+<span id="L114"><span class="lineNum">     114</span>              : &quot;&quot;&quot;</span>
+<span id="L115"><span class="lineNum">     115</span> <span class="tlaGNC">           4 : function remove_zeros!(field::FourierBandVectorField)</span></span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">           4 :     (; cs, qs,) = field</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">           4 :     nremoved = 0</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">           8 :     for i in reverse(eachindex(cs, qs))</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">         136 :         if iszero(cs[i])</span></span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">           2 :             popat!(cs, i)</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">           2 :             popat!(qs, i)</span></span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">           2 :             nremoved += 1</span></span>
+<span id="L123"><span class="lineNum">     123</span>              :         end</span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">         268 :     end</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">           4 :     nremoved</span></span>
+<span id="L126"><span class="lineNum">     126</span>              : end</span>
+<span id="L127"><span class="lineNum">     127</span>              : </span>
+<span id="L128"><span class="lineNum">     128</span>              : &quot;&quot;&quot;</span>
+<span id="L129"><span class="lineNum">     129</span>              :     SyntheticFields.save_coefficients(fname::AbstractString, field::FourierBandVectorField)</span>
+<span id="L130"><span class="lineNum">     130</span>              :     SyntheticFields.save_coefficients(g::Union{HDF5.File, HDF5.Group}, field::FourierBandVectorField)</span>
+<span id="L131"><span class="lineNum">     131</span>              : </span>
+<span id="L132"><span class="lineNum">     132</span>              : Save Fourier coefficients to HDF5 file.</span>
+<span id="L133"><span class="lineNum">     133</span>              : </span>
+<span id="L134"><span class="lineNum">     134</span>              : This can be useful for restarting a simulation keeping the same synthetic field.</span>
+<span id="L135"><span class="lineNum">     135</span>              : </span>
+<span id="L136"><span class="lineNum">     136</span>              : See also [`SyntheticFields.load_coefficients!`](@ref).</span>
+<span id="L137"><span class="lineNum">     137</span>              : &quot;&quot;&quot;</span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">           2 : function save_coefficients(fname::AbstractString, field::FourierBandVectorField)</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">           2 :     endswith(&quot;.h5&quot;)(fname) || @warn lazy&quot;saving HDF5 file: expected .h5 extension (got $fname).&quot;</span></span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">           4 :     h5open(ff -&gt; save_coefficients(ff, field), fname, &quot;w&quot;)</span></span>
+<span id="L141"><span class="lineNum">     141</span>              : end</span>
+<span id="L142"><span class="lineNum">     142</span>              : </span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">           2 : function save_coefficients(g::Union{HDF5.File, HDF5.Group}, field::FourierBandVectorField)</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">           2 :     (; qs, cs, Δks,) = field</span></span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">           2 :     g[&quot;wavevectors_normalised&quot;] = reinterpret(reshape, eltype(eltype(qs)), qs)</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">           4 :     g[&quot;wavevectors_step&quot;] = collect(Δks)</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">           2 :     g[&quot;fourier_coefficients&quot;] = reinterpret(reshape, eltype(eltype(cs)), cs)</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">           2 :     g</span></span>
+<span id="L149"><span class="lineNum">     149</span>              : end</span>
+<span id="L150"><span class="lineNum">     150</span>              : </span>
+<span id="L151"><span class="lineNum">     151</span>              : &quot;&quot;&quot;</span>
+<span id="L152"><span class="lineNum">     152</span>              :     SyntheticFields.load_coefficients!(fname::AbstractString, field::FourierBandVectorField)</span>
+<span id="L153"><span class="lineNum">     153</span>              :     SyntheticFields.load_coefficients!(g::Union{HDF5.File, HDF5.Group}, field::FourierBandVectorField)</span>
+<span id="L154"><span class="lineNum">     154</span>              : </span>
+<span id="L155"><span class="lineNum">     155</span>              : Load Fourier coefficients from HDF5 file.</span>
+<span id="L156"><span class="lineNum">     156</span>              : </span>
+<span id="L157"><span class="lineNum">     157</span>              : This can be useful for restarting a simulation keeping the same synthetic field.</span>
+<span id="L158"><span class="lineNum">     158</span>              : </span>
+<span id="L159"><span class="lineNum">     159</span>              : See also [`SyntheticFields.save_coefficients`](@ref).</span>
+<span id="L160"><span class="lineNum">     160</span>              : &quot;&quot;&quot;</span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">           2 : function load_coefficients!(fname::AbstractString, field::FourierBandVectorField)</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">           2 :     endswith(&quot;.h5&quot;)(fname) || @warn lazy&quot;loading HDF5 file: expected .h5 extension (got $fname).&quot;</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">           4 :     h5open(ff -&gt; load_coefficients!(ff, field), fname, &quot;r&quot;)</span></span>
+<span id="L164"><span class="lineNum">     164</span>              : end</span>
+<span id="L165"><span class="lineNum">     165</span>              : </span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">           2 : function load_coefficients!(g::Union{HDF5.File, HDF5.Group}, field::FourierBandVectorField{T, N}) where {T, N}</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">           2 :     (; qs, cs, Δks,) = field</span></span>
+<span id="L168"><span class="lineNum">     168</span>              :     # Check that Δks is the same as in the file. If that's not the case it's because the</span>
+<span id="L169"><span class="lineNum">     169</span>              :     # domain sizes are not the same.</span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">           2 :     Δks_file = read(g[&quot;wavevectors_step&quot;]) :: Vector{T}</span></span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">           2 :     length(Δks_file) == N || throw(DimensionMismatch(&quot;wrong dimensions of input file&quot;))</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">           2 :     NTuple{N, T}(Δks_file) == Δks || error(&quot;domain periods from file are not the same as current ones&quot;)</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">           2 :     qs_file = read(g[&quot;wavevectors_normalised&quot;]) :: Matrix{Int}</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">           2 :     cs_file = read(g[&quot;fourier_coefficients&quot;])   :: Matrix{Complex{T}}</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">           2 :     @assert size(qs_file, 1) == size(cs_file, 1) == N</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">           2 :     Nc = size(qs_file, 2)</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">           2 :     @assert Nc == size(cs_file, 2)</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">           2 :     resize!(qs, Nc)</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">           2 :     resize!(cs, Nc)</span></span>
+<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">           4 :     reinterpret(reshape, eltype(eltype(qs)), qs) .= qs_file</span></span>
+<span id="L181"><span class="lineNum">     181</span> <span class="tlaGNC">           4 :     reinterpret(reshape, eltype(eltype(cs)), cs) .= cs_file</span></span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">           2 :     g</span></span>
+<span id="L183"><span class="lineNum">     183</span>              : end</span>
+<span id="L184"><span class="lineNum">     184</span>              : </span>
+<span id="L185"><span class="lineNum">     185</span>              : # Determine whether a wavevector k⃗ should be discarded to preserve Hermitian symmetry</span>
+<span id="L186"><span class="lineNum">     186</span>              : # (ensuring real-valued fields in physical space). The coefficient associated to a discarded</span>
+<span id="L187"><span class="lineNum">     187</span>              : # wavevector is redundant as it can be directly obtained from that associated to -k⃗ (its</span>
+<span id="L188"><span class="lineNum">     188</span>              : # conjugate).</span>
+<span id="L189"><span class="lineNum">     189</span>              : #</span>
+<span id="L190"><span class="lineNum">     190</span>              : # In 3D, this will discard wavevectors (kx, ky, kz) satisfying either:</span>
+<span id="L191"><span class="lineNum">     191</span>              : #</span>
+<span id="L192"><span class="lineNum">     192</span>              : #  * kx &lt; 0                       -- can be replaced with (-kx, -ky, -kz) with -kx ≥ 0;</span>
+<span id="L193"><span class="lineNum">     193</span>              : #  * kx == 0 &amp;&amp; ky &lt; 0            -- can be replaced with (  0, -ky, -kz) with -ky ≥ 0;</span>
+<span id="L194"><span class="lineNum">     194</span>              : #  * kx == 0 &amp;&amp; ky == 0 &amp;&amp; kz &lt; 0 -- can be replaced with (  0,   0, -kz) with -kz ≥ 0.</span>
+<span id="L195"><span class="lineNum">     195</span>              : #</span>
+<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">       11532 : @inline discard_wavevector(k⃗) = _discard_wavevector(Tuple(k⃗), Val(+1))</span></span>
+<span id="L197"><span class="lineNum">     197</span>              : </span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">    11966786 : @inline function _discard_wavevector(k⃗::Tuple, _sign::Val{sign}) where {sign}</span></span>
+<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC">    12061556 :     kx = k⃗[begin] * sign</span></span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">    12236710 :     kx &lt; 0 &amp;&amp; return true</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">     4271824 :     kx &gt; 0 &amp;&amp; return false</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">     4298033 :     k⃗_tail = Base.tail(k⃗)</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">     4281617 :     _discard_wavevector(k⃗_tail, _sign)</span></span>
+<span id="L204"><span class="lineNum">     204</span>              : end</span>
+<span id="L205"><span class="lineNum">     205</span>              : </span>
+<span id="L206"><span class="lineNum">     206</span> <span class="tlaUNC tlaBgUNC">           0 : @inline _discard_wavevector(k⃗::Tuple{}, ::Val) = false</span></span>
+<span id="L207"><span class="lineNum">     207</span>              : </span>
+<span id="L208"><span class="lineNum">     208</span>              : # Returns true if the Fourier coefficient associated to the -k⃗ wavevector is not explicitly</span>
+<span id="L209"><span class="lineNum">     209</span>              : # included and should be obtained from that associated to +k⃗ (as its conjugate).</span>
+<span id="L210"><span class="lineNum">     210</span>              : # We simply check if -k⃗ has been discarded.</span>
+<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC tlaBgGNC">    11019554 : @inline has_implicit_conjugate(k⃗) = _discard_wavevector(Tuple(k⃗), Val(-1))</span></span>
+<span id="L212"><span class="lineNum">     212</span>              : </span>
+<span id="L213"><span class="lineNum">     213</span> <span class="tlaGNC">          18 : function FourierBandVectorField(</span></span>
+<span id="L214"><span class="lineNum">     214</span>              :         ::UndefInitializer, Ls::NTuple{N, T};</span>
+<span id="L215"><span class="lineNum">     215</span>              :         kmin = nothing, kmax = nothing,</span>
+<span id="L216"><span class="lineNum">     216</span>              :     ) where {T, N}</span>
+<span id="L217"><span class="lineNum">     217</span>              :     # Notation: &quot;q&quot; represents a normalised wavenumber, q = k / Δk (takes integer values)</span>
+<span id="L218"><span class="lineNum">     218</span> <span class="tlaGNC">           9 :     qs = NTuple{N, Int}[]  # normalised forced wave vectors (negative indices represent negative k's)</span></span>
+<span id="L219"><span class="lineNum">     219</span> <span class="tlaGNC">           9 :     cs = SVector{N, Complex{T}}[]  # Fourier coefficients of vector field</span></span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">           9 :     Δks = T(2π) ./ Ls</span></span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">           9 :     field = FourierBandVectorField(qs, cs, Δks)</span></span>
+<span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">           9 :     if kmin !== nothing &amp;&amp; kmax !== nothing</span></span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">           8 :         set_wavevector_band!(field; kmin, kmax)</span></span>
+<span id="L224"><span class="lineNum">     224</span>              :     end</span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">           9 :     field</span></span>
+<span id="L226"><span class="lineNum">     226</span>              : end</span>
+<span id="L227"><span class="lineNum">     227</span>              : </span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">           1 : function add_normalised_wavevector!(field::FourierBandVectorField{T, N}, q⃗::NTuple{N, Integer}) where {T, N}</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">           1 :     push!(field.qs, q⃗)</span></span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">           1 :     resize!(field.cs, length(field.qs))</span></span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">           1 :     field</span></span>
+<span id="L232"><span class="lineNum">     232</span>              : end</span>
+<span id="L233"><span class="lineNum">     233</span>              : </span>
+<span id="L234"><span class="lineNum">     234</span>              : &quot;&quot;&quot;</span>
+<span id="L235"><span class="lineNum">     235</span>              :     SyntheticFields.set_wavevector_band!(field::FourierBandVectorField; kmin::Real, kmax::Real)</span>
+<span id="L236"><span class="lineNum">     236</span>              : </span>
+<span id="L237"><span class="lineNum">     237</span>              : Set active wavevectors of field within a Fourier band.</span>
+<span id="L238"><span class="lineNum">     238</span>              : </span>
+<span id="L239"><span class="lineNum">     239</span>              : This will set the normalised wavevectors `fields.qs` and resize the coefficients `fields.cs`.</span>
+<span id="L240"><span class="lineNum">     240</span>              : &quot;&quot;&quot;</span>
+<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">          16 : function set_wavevector_band!(field::FourierBandVectorField{T, N}; kmin::Real, kmax::Real) where {T, N}</span></span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">           8 :     (; qs, cs, Δks,) = field</span></span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">           8 :     empty!(qs)</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">           8 :     0 ≤ kmin ≤ kmax || throw(ArgumentError(&quot;expected 0 &lt; kmin ≤ kmax&quot;))</span></span>
+<span id="L245"><span class="lineNum">     245</span>              :     # Determine forced wave vectors k⃗</span>
+<span id="L246"><span class="lineNum">     246</span>              :     # Notation: &quot;q&quot; represents a normalised wavenumber, q = k / Δk (takes integer values)</span>
+<span id="L247"><span class="lineNum">     247</span> <span class="tlaGNC">           8 :     qmax_x = ceil(Int, kmax / Δks[1])</span></span>
+<span id="L248"><span class="lineNum">     248</span> <span class="tlaGNC">           8 :     qs_x = 0:qmax_x  # test wavenumbers along first dimension (Hermitian symmetry: discard modes kx &lt; 0)</span></span>
+<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">           8 :     qs_tail = ntuple(Val(N - 1)) do d</span></span>
+<span id="L250"><span class="lineNum">     250</span> <span class="tlaGNC">          16 :         qmax_d = ceil(Int, kmax / Δks[d + 1])</span></span>
+<span id="L251"><span class="lineNum">     251</span> <span class="tlaGNC">          16 :         -qmax_d:qmax_d  # test wavenumbers along dimension d + 1</span></span>
+<span id="L252"><span class="lineNum">     252</span>              :     end</span>
+<span id="L253"><span class="lineNum">     253</span> <span class="tlaGNC">           8 :     qs_iter = Iterators.product(qs_tail...)</span></span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">           8 :     kmin² = kmin * kmin</span></span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">           8 :     kmax² = kmax * kmax</span></span>
+<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">          16 :     for q⃗_tail ∈ qs_iter, qx ∈ qs_x</span></span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">       13595 :         q⃗ = (qx, q⃗_tail...)</span></span>
+<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">       13595 :         k⃗ = q⃗ .* Δks</span></span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">       13595 :         k² = sum(abs2, k⃗)</span></span>
+<span id="L260"><span class="lineNum">     260</span> <span class="tlaGNC">       19361 :         if kmin² ≤ k² ≤ kmax² &amp;&amp; !discard_wavevector(q⃗)</span></span>
+<span id="L261"><span class="lineNum">     261</span> <span class="tlaGNC">        5304 :             push!(qs, q⃗)</span></span>
+<span id="L262"><span class="lineNum">     262</span>              :         end</span>
+<span id="L263"><span class="lineNum">     263</span> <span class="tlaGNC">       15049 :     end</span></span>
+<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">           8 :     resize!(cs, length(qs))</span></span>
+<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">        5304 :     fill!(cs, zero(eltype(cs)))</span></span>
+<span id="L266"><span class="lineNum">     266</span> <span class="tlaGNC">           8 :     field</span></span>
+<span id="L267"><span class="lineNum">     267</span>              : end</span>
+<span id="L268"><span class="lineNum">     268</span>              : </span>
+<span id="L269"><span class="lineNum">     269</span>              : # Generate divergence-free vector (could be generalised to 2D)</span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC">        5018 : function generate_divfree(u⃗::T, k⃗::SVector{3}) where {T &lt;: SVector{3}}</span></span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">        5018 :     k² = sum(abs2, k⃗)</span></span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">        5018 :     iszero(k²) ? u⃗ : T(u⃗ - ((k⃗ ⋅ u⃗) / k²) * k⃗)</span></span>
+<span id="L273"><span class="lineNum">     273</span>              : end</span>
+<span id="L274"><span class="lineNum">     274</span>              : </span>
+<span id="L275"><span class="lineNum">     275</span>              : &quot;&quot;&quot;</span>
+<span id="L276"><span class="lineNum">     276</span>              :     SyntheticFields.init_coefficients!([rng::AbstractRNG,] f::FourierBandVectorField, u_rms::Real)</span>
+<span id="L277"><span class="lineNum">     277</span>              : </span>
+<span id="L278"><span class="lineNum">     278</span>              : Initialise Fourier coefficients of vector field.</span>
+<span id="L279"><span class="lineNum">     279</span>              : </span>
+<span id="L280"><span class="lineNum">     280</span>              : The &quot;active&quot; Fourier modes are chosen randomly following a normal distribution such that the</span>
+<span id="L281"><span class="lineNum">     281</span>              : resulting velocity components have an rms value given by `u_rms` (on average).</span>
+<span id="L282"><span class="lineNum">     282</span>              : The generated field is divergence-free (in 3D).</span>
+<span id="L283"><span class="lineNum">     283</span>              : </span>
+<span id="L284"><span class="lineNum">     284</span>              : # Positional arguments</span>
+<span id="L285"><span class="lineNum">     285</span>              : </span>
+<span id="L286"><span class="lineNum">     286</span>              : - `rng` (optional): random number generator for determining Fourier coefficients of the</span>
+<span id="L287"><span class="lineNum">     287</span>              :   forcing velocity field. Default value is `Random.default_rng()`.</span>
+<span id="L288"><span class="lineNum">     288</span>              : </span>
+<span id="L289"><span class="lineNum">     289</span>              : - `f`: field to be initialised (of type [`FourierBandVectorField`](@ref)).</span>
+<span id="L290"><span class="lineNum">     290</span>              : </span>
+<span id="L291"><span class="lineNum">     291</span>              : - `u_rms`: typical magnitude (rms value) of _each_ vector component.</span>
+<span id="L292"><span class="lineNum">     292</span>              : </span>
+<span id="L293"><span class="lineNum">     293</span>              : The total rms value of the vector field is `N * u_rms` where `N` is the number of dimensions.</span>
+<span id="L294"><span class="lineNum">     294</span>              : Note that the rms value of a single component may slightly differ from `u_rms`.</span>
+<span id="L295"><span class="lineNum">     295</span>              : &quot;&quot;&quot;</span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">           4 : function init_coefficients!(rng::AbstractRNG, f::FourierBandVectorField{T, N}, u_rms::Real) where {T, N}</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">           4 :     (; qs, cs, Δks,) = f</span></span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">           4 :     V = eltype(cs)</span></span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">           4 :     sum2 = zero(T)</span></span>
+<span id="L300"><span class="lineNum">     300</span> <span class="tlaGNC">           4 :     for i ∈ eachindex(qs, cs)</span></span>
+<span id="L301"><span class="lineNum">     301</span> <span class="tlaGNC">        5084 :         u⃗ = randn(rng, V)  # all modes have the same std</span></span>
+<span id="L302"><span class="lineNum">     302</span> <span class="tlaGNC">        5018 :         q⃗ = qs[i]</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">        5018 :         k⃗ = SVector(q⃗ .* Δks)</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">        5018 :         u⃗ = generate_divfree(u⃗, k⃗)  # make it divergence-free (orthogonal to k⃗)</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">        5018 :         cs[i] = u⃗</span></span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaGNC">        5403 :         factor = 1 + has_implicit_conjugate(k⃗)  # include -k⃗ in the sum if kx ≠ 0 (Hermitian symmetry)</span></span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaGNC">        5018 :         sum2 += factor * sum(abs2, u⃗)</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaGNC">       10032 :     end</span></span>
+<span id="L309"><span class="lineNum">     309</span>              :     # Ensure that modes (0, ky, kz...) respect Hermitian symmetry (this is not automatic).</span>
+<span id="L310"><span class="lineNum">     310</span>              :     # We want u_rms^2 to be the (average) variance of a *single* velocity component.</span>
+<span id="L311"><span class="lineNum">     311</span>              :     # Therefore, N * u_rms^2 is the variance of the full field.</span>
+<span id="L312"><span class="lineNum">     312</span> <span class="tlaGNC">           4 :     normalisation = sqrt(N * T(u_rms)^2 / sum2)</span></span>
+<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">           4 :     @. cs = cs * normalisation</span></span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">           4 :     f</span></span>
+<span id="L315"><span class="lineNum">     315</span>              : end</span>
+<span id="L316"><span class="lineNum">     316</span>              : </span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaUNC tlaBgUNC">           0 : init_coefficients!(f::FourierBandVectorField, u_rms::Real; kws...) =</span></span>
+<span id="L318"><span class="lineNum">     318</span>              :     init_coefficients!(Random.default_rng(), f, u_rms; kws...)</span>
+<span id="L319"><span class="lineNum">     319</span>              : </span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaUNC">           0 : @kernel function from_fourier_grid_kernel!(</span></span>
+<span id="L321"><span class="lineNum">     321</span>              :         op::F, cs::AbstractVector, @Const(qs::AbstractVector), @Const(Δks::NTuple{N}),</span>
+<span id="L322"><span class="lineNum">     322</span>              :         @Const(ûs::NTuple{N}), @Const(qs_max::NTuple{N})</span>
+<span id="L323"><span class="lineNum">     323</span>              :     ) where {F, N}</span>
+<span id="L324"><span class="lineNum">     324</span> <span class="tlaUNC">           0 :     i = @index(Global, Linear)</span></span>
+<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC tlaBgGNC">       95941 :     Ms = size(ûs[1])</span></span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">       95986 :     q⃗ = @inbounds qs[i]  # normalised wavevector</span></span>
+<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">       95987 :     js = ntuple(Val(N)) do d</span></span>
+<span id="L328"><span class="lineNum">     328</span> <span class="tlaGNC">      287823 :         @inline</span></span>
+<span id="L329"><span class="lineNum">     329</span> <span class="tlaGNC">      287826 :         q = q⃗[d]</span></span>
+<span id="L330"><span class="lineNum">     330</span> <span class="tlaGNC">      287834 :         M = Ms[d]</span></span>
+<span id="L331"><span class="lineNum">     331</span> <span class="tlaGNC">      287833 :         j = ifelse(q ≥ 0, q + 1, M + q + 1)  # source index (assuming the input is large enough)</span></span>
+<span id="L332"><span class="lineNum">     332</span> <span class="tlaGNC">      287843 :         ifelse(abs(q) &gt; qs_max[d], 0, j)     # set to zero indices which are not present in the input (because the Fourier grid is too small compared to the Fourier band)</span></span>
+<span id="L333"><span class="lineNum">     333</span>              :     end</span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">       96020 :     k⃗ = SVector(q⃗ .* Δks)</span></span>
+<span id="L335"><span class="lineNum">     335</span> <span class="tlaGNC">       96022 :     T = eltype(ûs[1])</span></span>
+<span id="L336"><span class="lineNum">     336</span> <span class="tlaGNC">      351557 :     if any(iszero, js)</span></span>
+<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">       16396 :         û = zero(SVector{N, T})  # coefficient not present in input</span></span>
+<span id="L338"><span class="lineNum">     338</span>              :     else</span>
+<span id="L339"><span class="lineNum">     339</span> <span class="tlaGNC">      318666 :         û = SVector(map(u -&gt; @inbounds(u[js...]), ûs))</span></span>
+<span id="L340"><span class="lineNum">     340</span>              :     end</span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">       95983 :     cs[i] = @inline op(cs[i], û, k⃗)</span></span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">       95950 :     nothing</span></span>
+<span id="L343"><span class="lineNum">     343</span>              : end</span>
+<span id="L344"><span class="lineNum">     344</span>              : </span>
+<span id="L345"><span class="lineNum">     345</span>              : &quot;&quot;&quot;</span>
+<span id="L346"><span class="lineNum">     346</span>              :     SyntheticFields.from_fourier_grid!(</span>
+<span id="L347"><span class="lineNum">     347</span>              :         [op::Function], field::FourierBandVectorField{T, N},</span>
+<span id="L348"><span class="lineNum">     348</span>              :         ûs_grid::NTuple{N, AbstractArray}, ks_grid::NTuple{N, AbstractVector},</span>
+<span id="L349"><span class="lineNum">     349</span>              :     )</span>
+<span id="L350"><span class="lineNum">     350</span>              : </span>
+<span id="L351"><span class="lineNum">     351</span>              : Copy values from vector field `ûs_grid` in Fourier space onto a [`FourierBandVectorField`](@ref).</span>
+<span id="L352"><span class="lineNum">     352</span>              : </span>
+<span id="L353"><span class="lineNum">     353</span>              : Only the wavenumbers within the band `[kmin, kmax]` in which `field` is defined are copied.</span>
+<span id="L354"><span class="lineNum">     354</span>              : </span>
+<span id="L355"><span class="lineNum">     355</span>              : The `ks_grid` argument should contain the wavevectors associated to the grid where `ûs_grid` is defined.</span>
+<span id="L356"><span class="lineNum">     356</span>              : </span>
+<span id="L357"><span class="lineNum">     357</span>              : By default, old values in `field` are discarded and are simply replaced by the values in `ûs_grid`.</span>
+<span id="L358"><span class="lineNum">     358</span>              : One can use the optional `op` argument to change this behaviour, which should be a function</span>
+<span id="L359"><span class="lineNum">     359</span>              : `op(old, new, k⃗)` taking 3 `SVector{N}`.</span>
+<span id="L360"><span class="lineNum">     360</span>              : For example, passing `op(old, new, k⃗) = old - new * sum(abs2, k⃗)` means that new values are first multiplied by ``|\\bm{k}|^2``</span>
+<span id="L361"><span class="lineNum">     361</span>              : and then subtracted from previously existent ones. The result is then written onto `field`.</span>
+<span id="L362"><span class="lineNum">     362</span>              : &quot;&quot;&quot;</span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">        2125 : function from_fourier_grid!(</span></span>
+<span id="L364"><span class="lineNum">     364</span>              :         op::F, field::FourierBandVectorField{T, N},</span>
+<span id="L365"><span class="lineNum">     365</span>              :         ûs_grid::NTuple{N, AbstractArray}, ks_grid::NTuple{N, AbstractVector}</span>
+<span id="L366"><span class="lineNum">     366</span>              :     ) where {F, T, N}</span>
+<span id="L367"><span class="lineNum">     367</span> <span class="tlaGNC">        2125 :     (; qs, cs, Δks) = field</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">        2125 :     Base.require_one_based_indexing(ûs_grid...)  # assumed in GPU kernel</span></span>
+<span id="L369"><span class="lineNum">     369</span> <span class="tlaGNC">        2125 :     dims_u = size(ûs_grid[1])</span></span>
+<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">        2125 :     dims_k = map(length, ks_grid)</span></span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">        2125 :     for d in 1:N</span></span>
+<span id="L372"><span class="lineNum">     372</span> <span class="tlaGNC">        6375 :         @assert Δks[d] ≈ ks_grid[d][2]</span></span>
+<span id="L373"><span class="lineNum">     373</span> <span class="tlaGNC">       10625 :     end</span></span>
+<span id="L374"><span class="lineNum">     374</span> <span class="tlaGNC">        2125 :     with_hermitian_symmetry = ks_grid[1][end] &gt; 0</span></span>
+<span id="L375"><span class="lineNum">     375</span>              :     # Determine kmax (in integer units) from dimensions of the Fourier grid.</span>
+<span id="L376"><span class="lineNum">     376</span>              :     # This is just in case the Fourier grid's kmax is smaller than the Fourier band's kmax.</span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">        2125 :     qs_max = ntuple(Val(N)) do d</span></span>
+<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">        6375 :         if d == 1 &amp;&amp; with_hermitian_symmetry</span></span>
+<span id="L379"><span class="lineNum">     379</span> <span class="tlaGNC">        2125 :             dims_u[d] - 1  # we skip the last element</span></span>
+<span id="L380"><span class="lineNum">     380</span>              :         else</span>
+<span id="L381"><span class="lineNum">     381</span> <span class="tlaGNC">        4250 :             (dims_u[d] - 1) ÷ 2  # we skip an element in the even case</span></span>
+<span id="L382"><span class="lineNum">     382</span>              :         end</span>
+<span id="L383"><span class="lineNum">     383</span>              :     end</span>
+<span id="L384"><span class="lineNum">     384</span> <span class="tlaGNC">        2125 :     dims_u == dims_k || throw(DimensionMismatch(&quot;wrong number of wavevectors&quot;))</span></span>
+<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">        2125 :     backend = KA.get_backend(qs)</span></span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">        2125 :     backend === KA.get_backend(ûs_grid[1]) || throw(ArgumentError(&quot;arrays are expected to be on the same device&quot;))</span></span>
+<span id="L387"><span class="lineNum">     387</span> <span class="tlaGNC">        4245 :     groupsize = clamp(nextpow(2, length(qs)), 32, 1024)</span></span>
+<span id="L388"><span class="lineNum">     388</span> <span class="tlaGNC">        2125 :     ndrange = size(qs)</span></span>
+<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">        2125 :     kernel! = from_fourier_grid_kernel!(backend, groupsize, ndrange)</span></span>
+<span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">        2125 :     kernel!(op, cs, qs, Δks, ûs_grid, qs_max)</span></span>
+<span id="L391"><span class="lineNum">     391</span> <span class="tlaGNC">        2125 :     field</span></span>
+<span id="L392"><span class="lineNum">     392</span>              : end</span>
+<span id="L393"><span class="lineNum">     393</span>              : </span>
+<span id="L394"><span class="lineNum">     394</span> <span class="tlaGNC">       73568 : from_fourier_grid_default_op(old, new, k⃗) = new  # replace old values with new ones from Fourier-space fields</span></span>
+<span id="L395"><span class="lineNum">     395</span> <span class="tlaGNC">        1205 : from_fourier_grid!(field::FourierBandVectorField, args...) = from_fourier_grid!(from_fourier_grid_default_op, field, args...)</span></span>
+<span id="L396"><span class="lineNum">     396</span>              : </span>
+<span id="L397"><span class="lineNum">     397</span>              : # Copy coefficients to regular tuple of arrays (one array = one vector component), which can</span>
+<span id="L398"><span class="lineNum">     398</span>              : # be used for FFTs or other verifications.</span>
+<span id="L399"><span class="lineNum">     399</span>              : # Currently this is only used in tests.</span>
+<span id="L400"><span class="lineNum">     400</span>              : # Note: this may fail or give wrong results if the ûs arrays are not large enough.</span>
+<span id="L401"><span class="lineNum">     401</span> <span class="tlaGNC">           2 : function to_fourier_grid!(ûs::NTuple{N, AbstractArray}, field::FourierBandVectorField{T, N}) where {T, N}</span></span>
+<span id="L402"><span class="lineNum">     402</span> <span class="tlaGNC">           2 :     (; qs, cs,) = field</span></span>
+<span id="L403"><span class="lineNum">     403</span> <span class="tlaGNC">           2 :     Ms = size(ûs[1])</span></span>
+<span id="L404"><span class="lineNum">     404</span> <span class="tlaGNC">           2 :     for u ∈ ûs</span></span>
+<span id="L405"><span class="lineNum">     405</span> <span class="tlaGNC">         936 :         fill!(u, 0)</span></span>
+<span id="L406"><span class="lineNum">     406</span> <span class="tlaGNC">           8 :     end</span></span>
+<span id="L407"><span class="lineNum">     407</span> <span class="tlaGNC">           2 :     for i ∈ eachindex(qs, cs)</span></span>
+<span id="L408"><span class="lineNum">     408</span> <span class="tlaGNC">          68 :         q⃗ = qs[i]</span></span>
+<span id="L409"><span class="lineNum">     409</span> <span class="tlaGNC">          68 :         js = map(q⃗, Ms) do q, M</span></span>
+<span id="L410"><span class="lineNum">     410</span> <span class="tlaGNC">         204 :             ifelse(q ≥ 0, q + 1, M + q + 1)  # destination index</span></span>
+<span id="L411"><span class="lineNum">     411</span>              :         end</span>
+<span id="L412"><span class="lineNum">     412</span> <span class="tlaGNC">          68 :         û = cs[i]</span></span>
+<span id="L413"><span class="lineNum">     413</span> <span class="tlaGNC">          68 :         for n ∈ eachindex(û)</span></span>
+<span id="L414"><span class="lineNum">     414</span> <span class="tlaGNC">         204 :             ûs[n][js...] = û[n]</span></span>
+<span id="L415"><span class="lineNum">     415</span> <span class="tlaGNC">         272 :         end</span></span>
+<span id="L416"><span class="lineNum">     416</span>              :         # Also include implicit conjugate if kx = 0.</span>
+<span id="L417"><span class="lineNum">     417</span>              :         # For example, the output field includes the wavenumber k⃗ = (0, ky, kz) for ky &lt; 0, but</span>
+<span id="L418"><span class="lineNum">     418</span>              :         # this wavenumber is not included in the FourierBandVectorField since it is</span>
+<span id="L419"><span class="lineNum">     419</span>              :         # redundant with -k⃗ (which is included).</span>
+<span id="L420"><span class="lineNum">     420</span> <span class="tlaGNC">          98 :         if iszero(q⃗[1]) &amp;&amp; has_implicit_conjugate(q⃗)</span></span>
+<span id="L421"><span class="lineNum">     421</span> <span class="tlaGNC">          30 :             js_conj = ntuple(Val(N - 1)) do d</span></span>
+<span id="L422"><span class="lineNum">     422</span> <span class="tlaGNC">          60 :                 q = -q⃗[d + 1]</span></span>
+<span id="L423"><span class="lineNum">     423</span> <span class="tlaGNC">          60 :                 M = Ms[d + 1]</span></span>
+<span id="L424"><span class="lineNum">     424</span> <span class="tlaGNC">          60 :                 ifelse(q ≥ 0, q + 1, M + q + 1)  # destination index</span></span>
+<span id="L425"><span class="lineNum">     425</span>              :             end</span>
+<span id="L426"><span class="lineNum">     426</span> <span class="tlaGNC">          30 :             for n ∈ eachindex(û)</span></span>
+<span id="L427"><span class="lineNum">     427</span> <span class="tlaGNC">          90 :                 ûs[n][js[1], js_conj...] = conj(û[n])</span></span>
+<span id="L428"><span class="lineNum">     428</span> <span class="tlaGNC">         120 :             end</span></span>
+<span id="L429"><span class="lineNum">     429</span>              :         end</span>
+<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">         134 :     end</span></span>
+<span id="L431"><span class="lineNum">     431</span> <span class="tlaGNC">           2 :     ûs</span></span>
+<span id="L432"><span class="lineNum">     432</span>              : end</span>
+<span id="L433"><span class="lineNum">     433</span>              : </span>
+<span id="L434"><span class="lineNum">     434</span> <span class="tlaGNC">      395068 : function evaluate_direct(field::FourierBandVectorField{T, N}, x⃗) where {T, N}</span></span>
+<span id="L435"><span class="lineNum">     435</span> <span class="tlaGNC">      395076 :     @assert length(x⃗) == N</span></span>
+<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">      395070 :     (; qs, cs, Δks,) = field</span></span>
+<span id="L437"><span class="lineNum">     437</span> <span class="tlaGNC">      394975 :     w⃗ = zero(SVector{N, T})</span></span>
+<span id="L438"><span class="lineNum">     438</span> <span class="tlaGNC">      394937 :     for i ∈ eachindex(qs, cs)</span></span>
+<span id="L439"><span class="lineNum">     439</span> <span class="tlaGNC">     8755320 :         u⃗ = cs[i]</span></span>
+<span id="L440"><span class="lineNum">     440</span> <span class="tlaGNC">     8769373 :         q⃗ = SVector(qs[i])  # normalised wave vector (integer values)</span></span>
+<span id="L441"><span class="lineNum">     441</span> <span class="tlaGNC">     8702569 :         k⃗ = q⃗ .* Δks</span></span>
+<span id="L442"><span class="lineNum">     442</span> <span class="tlaGNC">     8723417 :         θ::T = k⃗ ⋅ x⃗</span></span>
+<span id="L443"><span class="lineNum">     443</span> <span class="tlaGNC">     8697181 :         s, c = sincos(θ)</span></span>
+<span id="L444"><span class="lineNum">     444</span> <span class="tlaGNC">    11011069 :         factor = 1 + has_implicit_conjugate(k⃗)  # include -k⃗ in the sum if kx ≠ 0 (Hermitian symmetry)</span></span>
+<span id="L445"><span class="lineNum">     445</span> <span class="tlaGNC">     8557886 :         w⃗ = muladd(factor, real(u⃗) * c - imag(u⃗) * s, w⃗)</span></span>
+<span id="L446"><span class="lineNum">     446</span> <span class="tlaGNC">    16924691 :     end</span></span>
+<span id="L447"><span class="lineNum">     447</span> <span class="tlaGNC">      394180 :     w⃗</span></span>
+<span id="L448"><span class="lineNum">     448</span>              : end</span>
+<span id="L449"><span class="lineNum">     449</span>              : </span>
+<span id="L450"><span class="lineNum">     450</span>              : # Evaluate field at location</span>
+<span id="L451"><span class="lineNum">     451</span> <span class="tlaGNC">      394803 : (f::FourierBandVectorField)(x⃗) = evaluate_direct(f, x⃗)</span></span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
