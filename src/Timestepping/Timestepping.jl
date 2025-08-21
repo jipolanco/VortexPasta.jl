@@ -5,7 +5,7 @@ Module defining timestepping solvers for vortex filament simulations.
 """
 module Timestepping
 
-export init, solve!, step!, VortexFilamentProblem,
+export init, solve!, step!, VortexFilamentProblem, VortexFilamentSolver,
        save_checkpoint, load_checkpoint,
        inject_filament!,
        ShortRangeTerm, LocalTerm,
