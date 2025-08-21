@@ -385,13 +385,6 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
             is_local_segment = seg === sa || seg === sb
             r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
             r² = sum(abs2, r⃗)
-            # Ignore this element if this is a local segment or if we're beyond the cut-off distance.
-            ignore = is_local_segment || r² > rcut²
-            if ignore
-                y = iterate(it, state)  # jump to next charge
-                continue
-            end
-            mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
             for j ∈ eachindex(r⃗, q⃗)
                 qj = real(q⃗[j])  # just in case data is complex
                 q⃗s[i, j] = qj
@@ -399,6 +392,11 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
                 r⃗s[i, j] = rj
             end
             r²s[i] = r²
+            # Ignore this element if this is a local segment or if we're beyond the cut-off distance.
+            include_element = !is_local_segment && r² ≤ rcut²
+            if include_element
+                mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
+            end
             y = iterate(it, state)
         end
 
