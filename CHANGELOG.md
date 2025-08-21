@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Avoid using VectorizationBase.jl for SIMD, as this package is no longer supported.
+  This package seems to cause compilation issues in certain computing clusters.
+  SIMD is used for computing `erf(x)` in the short-range component of Ewald summation.
+  We now use the SIMD.jl package instead.
+
 ## [0.29.4] - 2025-07-23
 
 ### Added
