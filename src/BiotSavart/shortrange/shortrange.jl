@@ -400,14 +400,16 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
             y = iterate(it, state)
         end
 
-        # while i < W
-        #     # If we're here, it's because the iterator finished before being able to read W
-        #     # elements.
-        #     # We could do something here, but for now everything is taken care of by the
-        #     # mask being zero by default (unless set explicitly to 1 above).
-        #     @assert y === nothing
-        #     i += 1
-        # end
+        while i < W
+            # If we're here, it's because the iterator finished before being able to read W
+            # elements. We simply set the missing elements of q⃗s and r⃗s to zero.
+            # @assert y === nothing
+            i += 1
+            @inbounds for j ∈ axes(q⃗s, 2)
+                q⃗s[i, j] = 0
+                r⃗s[i, j] = 0
+            end
+        end
 
         # There's nothing interesting to compute if mask is fully zero.
         iszero(mask) && continue
@@ -437,6 +439,7 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
             @inline
             δu⃗_simd = short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)::NTuple{3, SIMD.Vec}
             δu⃗_data = map(δu⃗_simd) do component
+                @inline
                 sum(component)  # reduction operation: sum the W elements (multiplying with mask to discard elements)
             end
             u⃗ = u⃗ + oftype(u⃗, δu⃗_data)
@@ -448,26 +451,28 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
 end
 
 # Note: all input values may be SIMD types (Vec or tuple of Vec).
-function short_range_integrand(::Velocity, erfc_αr::V, exp_term::V, r_inv::V, r³_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V <: SIMD.Vec}
+@inline function short_range_integrand(::Velocity, erfc_αr::V, exp_term::V, r_inv::V, r³_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V <: SIMD.Vec}
     factor = (erfc_αr + exp_term) * r³_inv
     vec = crossprod(qs⃗′, r⃗)
     map(vec) do component
+        @inline
         factor * component
     end
 end
 
-function crossprod(u::T, v::T) where {T <: NTuple{3, SIMD.Vec}}
-    (
+@inline function crossprod(u::T, v::T) where {T <: NTuple{3, SIMD.Vec}}
+    @inbounds (
         u[2] * v[3] - u[3] * v[2],
         u[3] * v[1] - u[1] * v[3],
         u[1] * v[2] - u[2] * v[1],
     ) :: T
 end
 
-function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
+@inline function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
     factor = erfc_αr * r_inv
     vec = qs⃗′
     map(vec) do component
+        @inline
         factor * component
     end
 end
