@@ -8,6 +8,9 @@ using Static: dynamic
 using SpecialFunctions: SpecialFunctions
 using SIMD: SIMD
 
+include("SIMDFunctions.jl")
+using .SIMDFunctions: verf
+
 """
     init_cache_short(
         pc::ParamsCommon, p::ParamsShortRange,
@@ -45,8 +48,7 @@ struct ShortRange <: EwaldComponent end
 struct LongRange <: EwaldComponent end
 struct FullIntegrand <: EwaldComponent end  # ShortRange + LongRange
 
-# TODO: implement SIMD-accelerated erf
-erfc(x::SIMD.Vec) = one(x) - SIMD.Vec(SpecialFunctions.erf.(Tuple(x)))
+erfc(x::SIMD.Vec) = one(x) - verf(x)
 
 erf(x::AbstractFloat) = SpecialFunctions.erf(x)
 erf(::Zero) = Zero()
