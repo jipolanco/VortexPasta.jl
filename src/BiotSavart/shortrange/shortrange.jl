@@ -2,9 +2,11 @@ using LinearAlgebra: ×, norm
 using StaticArrays: MVector, MMatrix, SVector, SMatrix
 using ..Filaments: deperiodise_separation, Segment, segments
 
-# Includes SIMD-vectorised erf implementation (quite accurate as well)
-using VectorizationBase: VectorizationBase, VecUnroll, vload, Unroll, stridedpointer
-const VB = VectorizationBase
+# SIMD-specific stuff, in particular for erf implementation
+using HostCPUFeatures: pick_vector_width
+using Static: dynamic
+using SpecialFunctions: SpecialFunctions
+using SIMD: SIMD
 
 """
     init_cache_short(
@@ -43,14 +45,14 @@ struct ShortRange <: EwaldComponent end
 struct LongRange <: EwaldComponent end
 struct FullIntegrand <: EwaldComponent end  # ShortRange + LongRange
 
-# Use erf from VectorizationBase, and simply define erfc = 1 - erf.
-erf(x) = VB.verf(x)
-erfc(x) = one(x) - VB.verf(x)
+# TODO: implement SIMD-accelerated erf
+erfc(x::SIMD.Vec) = one(x) - SIMD.Vec(SpecialFunctions.erf.(Tuple(x)))
 
+erf(x::AbstractFloat) = SpecialFunctions.erf(x)
 erf(::Zero) = Zero()
 erfc(::Zero) = true  # in the sense of true == 1
 
-two_over_sqrt_pi(::VB.AbstractSIMD{W,T}) where {W,T} = 2 / sqrt(T(π))
+two_over_sqrt_pi(::SIMD.Vec{W,T}) where {W,T} = 2 / sqrt(T(π))
 two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
 two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway
 
@@ -334,6 +336,19 @@ end
 full_integrand(::Velocity, r_inv, r³_inv, qs⃗′, r⃗) = r³_inv * (qs⃗′ × r⃗)
 full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗′
 
+function mask_to_simd_vec(::Type{SIMD.Vec{W, T}}, mask::Unsigned) where {W, T}
+    tup = ntuple(Val(W)) do i
+        T((mask >> (i - 1)) & one(mask))
+    end
+    SIMD.Vec{W, T}(tup)
+end
+
+function smatrix_to_simd_vecs(A::SMatrix{W, N, T}) where {W, N, T}
+    ntuple(Val(N)) do j
+        SIMD.Vec{W, T}(Tuple(A[:, j]))
+    end
+end
+
 # Periodic case (with Ewald summation)
 function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T <: AbstractFloat}
     (; Ls,) = params.common
@@ -341,10 +356,10 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
     rcut² = params.rcut_sq
     # with_velocity = any(x -> first(x) === Velocity(), vecs)
 
-    # We use VectorizationBase and MVector/MMatrix to enforce the use of SIMD.
+    # We use SIMD.jl and MVector/MMatrix to enforce the use of SIMD.
     # This enables important gains in modern CPUs, especially in the computation of erf/erfc.
-    W = VB.dynamic(VB.pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
-    Vec = VB.Vec  # SIMD vector type
+    W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
+    Vec = SIMD.Vec{W, T}
 
     r²s = MVector{W, T}(undef)
 
@@ -397,33 +412,33 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
         # There's nothing interesting to compute if mask is fully zero.
         iszero(mask) && continue
 
-        # Convert MVector to SIMD type from VectorizationBase.
+        # Convert mask to SIMD vector.
+        mask_simd = mask_to_simd_vec(SIMD.Vec{W, Bool}, mask)
+
+        # Convert MVector to SIMD vector.
         # The next operations should all take advantage of SIMD.
-        r²s_simd = Vec(Tuple(r²s)...) :: Vec
+        r²s_simd = Vec(Tuple(r²s))
         rs = sqrt(r²s_simd)
-        rs_inv = 1 / rs
-        r³s_inv = 1 / (r²s_simd * rs)
+        rs_inv = SIMD.vifelse(mask_simd, inv(rs), zero(rs))  # replace values with 0 if mask is false => the contribution of masked elements is 0
+        r³s_inv = SIMD.vifelse(mask_simd, inv(r²s_simd * rs), zero(rs))
         αr = α * rs
         erfc_αr = erfc(αr)
         αr_sq = αr * αr
-        exp_term = two_over_sqrt_pi(αr) * αr * VB.vexp(-αr_sq)
+        exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
 
-        mask_simd = VB.Mask{W}(mask)
-
-        # Convert SMatrix data onto a VecUnroll for more explicit SIMD.
-        # In VectorizationBase, a VecUnroll basically consists of a tuple of Vec's.
-        # In our case, a single tuple represents a single vector component (e.g. rx, ry and rz).
+        # Convert SMatrix data onto a tuple of Vec for more explicit SIMD.
+        # A single tuple represents a single vector component (e.g. rx, ry and rz).
         # It makes sense to use this to describe vector values (e.g. separation vector,
-        # tangent vector, velocity). The construction is quite awkward; see the help of
-        # VectorizationBase.Unroll for some details.
-        q⃗s_simd = vload(stridedpointer(SMatrix(q⃗s)), Unroll{2, 1, N, 1, W, zero(UInt), 1}((1,)))::VecUnroll{(N - 1), W}
-        r⃗s_simd = vload(stridedpointer(SMatrix(r⃗s)), Unroll{2, 1, N, 1, W, zero(UInt), 1}((1,)))::VecUnroll{(N - 1), W}
+        # tangent vector, velocity).
+        q⃗s_simd = smatrix_to_simd_vecs(SMatrix(q⃗s))
+        r⃗s_simd = smatrix_to_simd_vecs(SMatrix(r⃗s))
 
         vecs = map(vecs) do (quantity, u⃗)
             @inline
-            δu⃗_simd = mask_simd * short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)
-            δu⃗ = VB.vsum(δu⃗_simd) :: VecUnroll{(N - 1), 1}  # reduction operation: sum the W elements
-            δu⃗_data = getfield(δu⃗, :data) :: NTuple{3, T}   # access the actual data (which is simply a tuple)
+            δu⃗_simd = short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)::NTuple{3, SIMD.Vec}
+            δu⃗_data = map(δu⃗_simd) do component
+                sum(component)  # reduction operation: sum the W elements (multiplying with mask to discard elements)
+            end
             u⃗ = u⃗ + oftype(u⃗, δu⃗_data)
             quantity => u⃗
         end
@@ -432,15 +447,16 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
     vecs
 end
 
-# Note: all input values may be SIMD types (Vec, VecUnroll).
-function short_range_integrand(::Velocity, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
-    ((erfc_αr + exp_term) * r³_inv) * crossprod(qs⃗′, r⃗)
+# Note: all input values may be SIMD types (Vec or tuple of Vec).
+function short_range_integrand(::Velocity, erfc_αr::V, exp_term::V, r_inv::V, r³_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V <: SIMD.Vec}
+    factor = (erfc_αr + exp_term) * r³_inv
+    vec = crossprod(qs⃗′, r⃗)
+    map(vec) do component
+        factor * component
+    end
 end
 
-crossprod(u::VecUnroll, v::VecUnroll) = VecUnroll(crossprod(getfield(u, :data), getfield(v, :data)))
-
-# These are generally tuples of SIMD vectors (VectorizationBase.Vec).
-function crossprod(u::T, v::T) where {T <: NTuple{3}}
+function crossprod(u::T, v::T) where {T <: NTuple{3, SIMD.Vec}}
     (
         u[2] * v[3] - u[3] * v[2],
         u[3] * v[1] - u[1] * v[3],
@@ -449,7 +465,11 @@ function crossprod(u::T, v::T) where {T <: NTuple{3}}
 end
 
 function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
-    (erfc_αr * r_inv) * qs⃗′
+    factor = erfc_αr * r_inv
+    vec = qs⃗′
+    map(vec) do component
+        factor * component
+    end
 end
 
 include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)
