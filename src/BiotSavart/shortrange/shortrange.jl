@@ -462,8 +462,8 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
         # The next operations should all take advantage of SIMD.
         r²s_simd = Vec(Tuple(r²s))
         rs = sqrt(r²s_simd)
-        rs_inv = SIMD.vifelse(mask_simd, inv(rs), zero(rs))  # replace values with 0 if mask is false => the contribution of masked elements is 0
-        r³s_inv = SIMD.vifelse(mask_simd, inv(r²s_simd * rs), zero(rs))
+        rs_inv = inv(rs)
+        r³s_inv = inv(r²s_simd * rs)
         αr = α * rs
         erfc_αr = erfc(αr)
         αr_sq = αr * αr
@@ -481,6 +481,7 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
             δu⃗_simd = short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)::NTuple{3, SIMD.Vec}
             δu⃗_data = map(δu⃗_simd) do component
                 @inline
+                component = SIMD.vifelse(mask_simd, component, zero(component))  # remove contributions of masked elements
                 sum(component)  # reduction operation: sum the W elements
             end
             u⃗ = u⃗ + oftype(u⃗, δu⃗_data)
