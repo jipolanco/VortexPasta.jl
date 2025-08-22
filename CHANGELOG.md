@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `ParamsBiotSavart`: add `use_simd` option allowing to disable explicit SIMD implementation
+  of short-range computations.
+
 ### Changed
 
 - Avoid using VectorizationBase.jl for SIMD, as this package is no longer maintained.
