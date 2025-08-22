@@ -98,6 +98,7 @@ function test_kelvin_waves(
             backend_short = NaiveShortRangeBackend(),
             backend_long = NonuniformFFTsBackend(m = HalfSupport(5), σ = 1.5),  # => 1e-8 accuracy
             quadrature = quad,
+            use_simd = false,  # this is just to test the no-SIMD implementation
             lia_segment_fraction = 0.1,
         )
     end
