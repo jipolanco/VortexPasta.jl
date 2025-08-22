@@ -85,11 +85,13 @@ struct ParamsShortRange{
     rcut    :: CutoffDist  # cutoff distance
     rcut_sq :: CutoffDist  # squared cutoff distance
     lia_segment_fraction :: LIASegmentFraction
+    use_simd :: Bool
 
     function ParamsShortRange(
             backend::ShortRangeBackend, quad::StaticSizeQuadrature,
             common::ParamsCommon{T}, rcut_::Real,
             lia_segment_fraction_in,
+            use_simd::Bool,
         ) where {T}
         (; Ls,) = common
         rcut = maybe_convert(T, rcut_)
@@ -107,7 +109,7 @@ struct ParamsShortRange{
             T, typeof(backend), typeof(quad), typeof(common), typeof(rcut),
             typeof(lia_segment_fraction)
         }(
-            backend, quad, common, rcut, rcut_sq, lia_segment_fraction,
+            backend, quad, common, rcut, rcut_sq, lia_segment_fraction, use_simd,
         )
     end
 end
@@ -121,6 +123,7 @@ function Base.show(io::IO, p::ParamsShortRange)
     print(io, "\n   * Short-range cut-off:        r_cut = ", rcut, " (r_cut/L = ", rcut_L, ")")
     print(io, "\n   * Short-range cut-off coeff.: β_shortrange = ", β_shortrange)
     print(io, "\n   * Local segment fraction:     ", something(lia_segment_fraction, 1))
+    print(io, "\n   * Short-range uses SIMD:      ", p.use_simd)
     nothing
 end
 
@@ -132,12 +135,13 @@ function to_hdf5(g, p::ParamsShortRange{T}) where {T}
     g["beta_shortrange"] = β_shortrange
     g["r_cut"] = convert(T, rcut)
     g["lia_segment_fraction"] = lia_segment_fraction === nothing ? one(T) : lia_segment_fraction  # setting this to nothing is equivalent to setting it to 1
+    g["use_simd"] = p.use_simd
     nothing
 end
 
 # Create a new ParamsShortRange based on the type of ParamsCommon.
 function change_float_type(p::ParamsShortRange, common::ParamsCommon{T}) where {T}
-    ParamsShortRange(p.backend, p.quad, common, p.rcut, p.lia_segment_fraction)
+    ParamsShortRange(p.backend, p.quad, common, p.rcut, p.lia_segment_fraction, p.use_simd)
 end
 
 struct ParamsLongRange{
@@ -238,7 +242,7 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
   unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
   This parameter is not required if `α = Zero()`.
 
-## Optional keyword arguments (and their defaults)
+## Optional keyword arguments and their defaults
 
 ### General
 
@@ -252,6 +256,12 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
   short-range interactions. The default is `CellListsBackend(2)`, unless periodicity is
   disabled, in which case `NaiveShortRangeBackend()` is used.
   See [`ShortRangeBackend`](@ref) for a list of possible backends;
+
+- `use_simd::Bool = true`: whether to use explicit SIMD during the computation of short-range
+  interactions. This applies to the CPU implementation of short-range interactions in
+  periodic domains only, where the SIMD implementation can accelerate the computation of `erfc(x)`.
+  Usually there is no reason to disable this, other than to verify the accuracy or
+  performance of the SIMD implementation.
 
 ### Long-range interactions
 
@@ -322,6 +332,7 @@ function ParamsBiotSavart(
         longrange_truncate_spherical::Bool = false,
         Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,
+        use_simd::Bool = default_use_simd(Ls),
         kws...,
     ) where {T}
     # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
@@ -333,7 +344,7 @@ function ParamsBiotSavart(
     end
     quad = _parse_quadrature_args(quadrature, quadrature_short, quadrature_long)
     common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quadrature_near_singularity)
-    sr = ParamsShortRange(backend_short, quad, common, rcut, lia_segment_fraction)
+    sr = ParamsShortRange(backend_short, quad, common, rcut, lia_segment_fraction, use_simd)
     lr = ParamsLongRange(backend_long, quad, common, Ns, longrange_truncate_spherical)
     ParamsBiotSavart(common, sr, lr)
 end
@@ -375,6 +386,10 @@ function default_long_range_backend(Ls::Tuple)
         NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4))
     end
 end
+
+# By default, use explicit SIMD in periodic domains (this option is simply ignored in
+# non-periodic domains, as explicit SIMD is not implemented).
+default_use_simd(Ls::Tuple) = is_open_domain(Ls) ? false : true
 
 # Returns the float type used (e.g. Float64)
 Base.eltype(::Type{<:ParamsBiotSavart{T}}) where {T} = T

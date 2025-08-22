@@ -49,6 +49,7 @@ struct LongRange <: EwaldComponent end
 struct FullIntegrand <: EwaldComponent end  # ShortRange + LongRange
 
 erfc(x::SIMD.Vec) = one(x) - verf(x)
+erfc(x::AbstractFloat) = SpecialFunctions.erfc(x)
 
 erf(x::AbstractFloat) = SpecialFunctions.erf(x)
 erf(::Zero) = Zero()
@@ -302,12 +303,18 @@ function add_short_range_fields!(
 end
 
 # Optimised computation of short-range pair interactions.
-function add_pair_interactions_shortrange(vecs, cache, x⃗, params, sa, sb, Lhs)
+function add_pair_interactions_shortrange(vecs, cache, x⃗, params::ParamsShortRange, sa, sb, Lhs)
+    (; use_simd,) = params
     (; α,) = params.common
-    _add_pair_interactions_shortrange(α, vecs, cache, x⃗, params, sa, sb, Lhs)
+    use_simd_actual = use_simd && (α isa AbstractFloat)  # explicit SIMD not used if α == Zero() [non-periodic domains]
+    if use_simd_actual
+        _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, sb, Lhs)
+    else
+        _add_pair_interactions_shortrange(α, vecs, cache, x⃗, params, sa, sb, Lhs)
+    end
 end
 
-# Non-periodic case (no Ewald summation; naive computation)
+# Non-periodic case (no Ewald summation, no cutoff distance, no SIMD, naive computation)
 function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, sa, sb, Lhs)
     (; Ls,) = params.common
     rcut² = params.rcut_sq
@@ -319,7 +326,7 @@ function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, 
         s⃗, q⃗, seg = charge
         is_local_segment = seg === sa || seg === sb
         is_local_segment && continue
-        qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
+        qs⃗′ = real(q⃗)  # just in case data is complex
         r⃗ = x⃗ - s⃗
         r² = sum(abs2, r⃗)
         r = sqrt(r²)
@@ -328,6 +335,37 @@ function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, 
         vecs = map(vecs) do (quantity, u⃗)
             δu⃗ = full_integrand(quantity, r_inv, r³_inv, qs⃗′, r⃗)
             u⃗ = u⃗ + δu⃗
+            quantity => u⃗
+        end
+    end
+    vecs
+end
+
+# Ewald summation without explicit SIMD.
+function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T <: AbstractFloat}
+    (; Ls,) = params.common
+    rcut² = params.rcut_sq
+    it = nearby_charges(cache, x⃗)
+    for charge ∈ it
+        s⃗, q⃗, seg = charge
+        is_local_segment = seg === sa || seg === sb
+        qs⃗′ = real(q⃗)  # just in case data is complex
+        r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
+        r² = sum(abs2, r⃗)
+        if is_local_segment || r² > rcut²
+            continue
+        end
+        r = sqrt(r²)
+        r_inv = 1 / r
+        r³_inv = 1 / (r² * r)
+        αr = α * r
+        erfc_αr = erfc(αr)
+        αr_sq = αr * αr
+        exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
+        vecs = map(vecs) do (quantity, u⃗)
+            @inline
+            δu⃗ = short_range_integrand(quantity, erfc_αr, exp_term, r_inv, r³_inv, Tuple(qs⃗′), Tuple(r⃗))
+            u⃗ = u⃗ + oftype(u⃗, δu⃗)
             quantity => u⃗
         end
     end
@@ -352,14 +390,17 @@ function smatrix_to_simd_vecs(A::SMatrix{W, N, T}) where {W, N, T}
 end
 
 # Periodic case (with Ewald summation)
-function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T <: AbstractFloat}
-    (; Ls,) = params.common
+function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, sb, Lhs)
+    (; Ls, α,) = params.common
+    @assert !is_open_domain(Ls)
     N = length(x⃗)  # number of dimensions (= 3)
     rcut² = params.rcut_sq
     # with_velocity = any(x -> first(x) === Velocity(), vecs)
 
     # We use SIMD.jl and MVector/MMatrix to enforce the use of SIMD.
     # This enables important gains in modern CPUs, especially in the computation of erf/erfc.
+    T = typeof(α)
+    @assert T <: AbstractFloat
     W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
     Vec = SIMD.Vec{W, T}
 
@@ -440,7 +481,7 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
             δu⃗_simd = short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)::NTuple{3, SIMD.Vec}
             δu⃗_data = map(δu⃗_simd) do component
                 @inline
-                sum(component)  # reduction operation: sum the W elements (multiplying with mask to discard elements)
+                sum(component)  # reduction operation: sum the W elements
             end
             u⃗ = u⃗ + oftype(u⃗, δu⃗_data)
             quantity => u⃗
@@ -451,7 +492,7 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
 end
 
 # Note: all input values may be SIMD types (Vec or tuple of Vec).
-@inline function short_range_integrand(::Velocity, erfc_αr::V, exp_term::V, r_inv::V, r³_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V <: SIMD.Vec}
+@inline function short_range_integrand(::Velocity, erfc_αr::V, exp_term::V, r_inv::V, r³_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V}
     factor = (erfc_αr + exp_term) * r³_inv
     vec = crossprod(qs⃗′, r⃗)
     map(vec) do component
@@ -460,7 +501,8 @@ end
     end
 end
 
-@inline function crossprod(u::T, v::T) where {T <: NTuple{3, SIMD.Vec}}
+# Note: V may be a real or a SIMD vector.
+@inline function crossprod(u::T, v::T) where {T <: NTuple{3}}
     @inbounds (
         u[2] * v[3] - u[3] * v[2],
         u[3] * v[1] - u[1] * v[3],
