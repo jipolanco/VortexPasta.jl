@@ -415,7 +415,9 @@ end
         αs = [kmax / 5, kmax / 6, kmax / 7, kmax / 8, kmax / 12, kmax / 16]
         quadratures = (GaussLegendre(3), NoQuadrature())
         @testset "$quad" for quad ∈ quadratures
-            check_independence_on_ewald_parameter(f, αs; quad, params_kws...)
+            @testset "use_simd = $use_simd" for use_simd ∈ (true, false)
+                check_independence_on_ewald_parameter(f, αs; quad, use_simd, params_kws...)
+            end
         end
         @testset "FourierMethod()" begin
             f_fourier = @inferred init_trefoil_filament(32; method = FourierMethod())

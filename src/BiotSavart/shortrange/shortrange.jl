@@ -2,9 +2,14 @@ using LinearAlgebra: ×, norm
 using StaticArrays: MVector, MMatrix, SVector, SMatrix
 using ..Filaments: deperiodise_separation, Segment, segments
 
-# Includes SIMD-vectorised erf implementation (quite accurate as well)
-using VectorizationBase: VectorizationBase, VecUnroll, vload, Unroll, stridedpointer
-const VB = VectorizationBase
+# SIMD-specific stuff, in particular for erf implementation
+using HostCPUFeatures: pick_vector_width
+using Static: dynamic
+using SpecialFunctions: SpecialFunctions
+using SIMD: SIMD
+
+include("SIMDFunctions.jl")
+using .SIMDFunctions: verf
 
 """
     init_cache_short(
@@ -43,14 +48,14 @@ struct ShortRange <: EwaldComponent end
 struct LongRange <: EwaldComponent end
 struct FullIntegrand <: EwaldComponent end  # ShortRange + LongRange
 
-# Use erf from VectorizationBase, and simply define erfc = 1 - erf.
-erf(x) = VB.verf(x)
-erfc(x) = one(x) - VB.verf(x)
+erfc(x::SIMD.Vec) = one(x) - verf(x)
+erfc(x::AbstractFloat) = SpecialFunctions.erfc(x)
 
+erf(x::AbstractFloat) = SpecialFunctions.erf(x)
 erf(::Zero) = Zero()
 erfc(::Zero) = true  # in the sense of true == 1
 
-two_over_sqrt_pi(::VB.AbstractSIMD{W,T}) where {W,T} = 2 / sqrt(T(π))
+two_over_sqrt_pi(::SIMD.Vec{W,T}) where {W,T} = 2 / sqrt(T(π))
 two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
 two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway
 
@@ -298,12 +303,18 @@ function add_short_range_fields!(
 end
 
 # Optimised computation of short-range pair interactions.
-function add_pair_interactions_shortrange(vecs, cache, x⃗, params, sa, sb, Lhs)
+function add_pair_interactions_shortrange(vecs, cache, x⃗, params::ParamsShortRange, sa, sb, Lhs)
+    (; use_simd,) = params
     (; α,) = params.common
-    _add_pair_interactions_shortrange(α, vecs, cache, x⃗, params, sa, sb, Lhs)
+    use_simd_actual = use_simd && (α isa AbstractFloat)  # explicit SIMD not used if α == Zero() [non-periodic domains]
+    if use_simd_actual
+        _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, sb, Lhs)
+    else
+        _add_pair_interactions_shortrange(α, vecs, cache, x⃗, params, sa, sb, Lhs)
+    end
 end
 
-# Non-periodic case (no Ewald summation; naive computation)
+# Non-periodic case (no Ewald summation, no cutoff distance, no SIMD, naive computation)
 function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, sa, sb, Lhs)
     (; Ls,) = params.common
     rcut² = params.rcut_sq
@@ -315,7 +326,7 @@ function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, 
         s⃗, q⃗, seg = charge
         is_local_segment = seg === sa || seg === sb
         is_local_segment && continue
-        qs⃗′ = real(q⃗)  # just in case data is complex (case of NaiveShortRangeBackend)
+        qs⃗′ = real(q⃗)  # just in case data is complex
         r⃗ = x⃗ - s⃗
         r² = sum(abs2, r⃗)
         r = sqrt(r²)
@@ -330,21 +341,68 @@ function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, 
     vecs
 end
 
+# Ewald summation without explicit SIMD.
+function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T <: AbstractFloat}
+    (; Ls,) = params.common
+    rcut² = params.rcut_sq
+    it = nearby_charges(cache, x⃗)
+    for charge ∈ it
+        s⃗, q⃗, seg = charge
+        is_local_segment = seg === sa || seg === sb
+        qs⃗′ = real(q⃗)  # just in case data is complex
+        r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
+        r² = sum(abs2, r⃗)
+        if is_local_segment || r² > rcut²
+            continue
+        end
+        r = sqrt(r²)
+        r_inv = 1 / r
+        r³_inv = 1 / (r² * r)
+        αr = α * r
+        erfc_αr = erfc(αr)
+        αr_sq = αr * αr
+        exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
+        vecs = map(vecs) do (quantity, u⃗)
+            @inline
+            δu⃗ = short_range_integrand(quantity, erfc_αr, exp_term, r_inv, r³_inv, Tuple(qs⃗′), Tuple(r⃗))
+            u⃗ = u⃗ + oftype(u⃗, δu⃗)
+            quantity => u⃗
+        end
+    end
+    vecs
+end
+
 # Non-Ewald (non-periodic) case
 full_integrand(::Velocity, r_inv, r³_inv, qs⃗′, r⃗) = r³_inv * (qs⃗′ × r⃗)
 full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗′
 
+function mask_to_simd_vec(::Type{SIMD.Vec{W, T}}, mask::Unsigned) where {W, T}
+    tup = ntuple(Val(W)) do i
+        T((mask >> (i - 1)) & one(mask))
+    end
+    SIMD.Vec{W, T}(tup)
+end
+
+function smatrix_to_simd_vecs(A::SMatrix{W, N, T}) where {W, N, T}
+    ntuple(Val(N)) do j
+        SIMD.Vec{W, T}(Tuple(A[:, j]))
+    end
+end
+
 # Periodic case (with Ewald summation)
-function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T <: AbstractFloat}
-    (; Ls,) = params.common
+function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, sb, Lhs)
+    (; Ls, α,) = params.common
+    @assert !is_open_domain(Ls)
     N = length(x⃗)  # number of dimensions (= 3)
     rcut² = params.rcut_sq
     # with_velocity = any(x -> first(x) === Velocity(), vecs)
 
-    # We use VectorizationBase and MVector/MMatrix to enforce the use of SIMD.
+    # We use SIMD.jl and MVector/MMatrix to enforce the use of SIMD.
     # This enables important gains in modern CPUs, especially in the computation of erf/erfc.
-    W = VB.dynamic(VB.pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
-    Vec = VB.Vec  # SIMD vector type
+    T = typeof(α)
+    @assert T <: AbstractFloat
+    W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
+    Vec = SIMD.Vec{W, T}
 
     r²s = MVector{W, T}(undef)
 
@@ -368,13 +426,6 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
             is_local_segment = seg === sa || seg === sb
             r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
             r² = sum(abs2, r⃗)
-            # Ignore this element if this is a local segment or if we're beyond the cut-off distance.
-            ignore = is_local_segment || r² > rcut²
-            if ignore
-                y = iterate(it, state)  # jump to next charge
-                continue
-            end
-            mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
             for j ∈ eachindex(r⃗, q⃗)
                 qj = real(q⃗[j])  # just in case data is complex
                 q⃗s[i, j] = qj
@@ -382,48 +433,57 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
                 r⃗s[i, j] = rj
             end
             r²s[i] = r²
+            # Ignore this element if this is a local segment or if we're beyond the cut-off distance.
+            include_element = !is_local_segment && r² ≤ rcut²
+            if include_element
+                mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
+            end
             y = iterate(it, state)
         end
 
-        # while i < W
-        #     # If we're here, it's because the iterator finished before being able to read W
-        #     # elements.
-        #     # We could do something here, but for now everything is taken care of by the
-        #     # mask being zero by default (unless set explicitly to 1 above).
-        #     @assert y === nothing
-        #     i += 1
-        # end
+        while i < W
+            # If we're here, it's because the iterator finished before being able to read W
+            # elements. We simply set the missing elements of q⃗s and r⃗s to zero.
+            # @assert y === nothing
+            i += 1
+            @inbounds for j ∈ axes(q⃗s, 2)
+                q⃗s[i, j] = 0
+                r⃗s[i, j] = 0
+            end
+        end
 
         # There's nothing interesting to compute if mask is fully zero.
         iszero(mask) && continue
 
-        # Convert MVector to SIMD type from VectorizationBase.
+        # Convert mask to SIMD vector.
+        mask_simd = mask_to_simd_vec(SIMD.Vec{W, Bool}, mask)
+
+        # Convert MVector to SIMD vector.
         # The next operations should all take advantage of SIMD.
-        r²s_simd = Vec(Tuple(r²s)...) :: Vec
+        r²s_simd = Vec(Tuple(r²s))
         rs = sqrt(r²s_simd)
-        rs_inv = 1 / rs
-        r³s_inv = 1 / (r²s_simd * rs)
+        rs_inv = inv(rs)
+        r³s_inv = inv(r²s_simd * rs)
         αr = α * rs
         erfc_αr = erfc(αr)
         αr_sq = αr * αr
-        exp_term = two_over_sqrt_pi(αr) * αr * VB.vexp(-αr_sq)
+        exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
 
-        mask_simd = VB.Mask{W}(mask)
-
-        # Convert SMatrix data onto a VecUnroll for more explicit SIMD.
-        # In VectorizationBase, a VecUnroll basically consists of a tuple of Vec's.
-        # In our case, a single tuple represents a single vector component (e.g. rx, ry and rz).
+        # Convert SMatrix data onto a tuple of Vec for more explicit SIMD.
+        # A single tuple represents a single vector component (e.g. rx, ry and rz).
         # It makes sense to use this to describe vector values (e.g. separation vector,
-        # tangent vector, velocity). The construction is quite awkward; see the help of
-        # VectorizationBase.Unroll for some details.
-        q⃗s_simd = vload(stridedpointer(SMatrix(q⃗s)), Unroll{2, 1, N, 1, W, zero(UInt), 1}((1,)))::VecUnroll{(N - 1), W}
-        r⃗s_simd = vload(stridedpointer(SMatrix(r⃗s)), Unroll{2, 1, N, 1, W, zero(UInt), 1}((1,)))::VecUnroll{(N - 1), W}
+        # tangent vector, velocity).
+        q⃗s_simd = smatrix_to_simd_vecs(SMatrix(q⃗s))
+        r⃗s_simd = smatrix_to_simd_vecs(SMatrix(r⃗s))
 
         vecs = map(vecs) do (quantity, u⃗)
             @inline
-            δu⃗_simd = mask_simd * short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)
-            δu⃗ = VB.vsum(δu⃗_simd) :: VecUnroll{(N - 1), 1}  # reduction operation: sum the W elements
-            δu⃗_data = getfield(δu⃗, :data) :: NTuple{3, T}   # access the actual data (which is simply a tuple)
+            δu⃗_simd = short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)::NTuple{3, SIMD.Vec}
+            δu⃗_data = map(δu⃗_simd) do component
+                @inline
+                component = SIMD.vifelse(mask_simd, component, zero(component))  # remove contributions of masked elements
+                sum(component)  # reduction operation: sum the W elements
+            end
             u⃗ = u⃗ + oftype(u⃗, δu⃗_data)
             quantity => u⃗
         end
@@ -432,24 +492,32 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
     vecs
 end
 
-# Note: all input values may be SIMD types (Vec, VecUnroll).
-function short_range_integrand(::Velocity, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
-    ((erfc_αr + exp_term) * r³_inv) * crossprod(qs⃗′, r⃗)
+# Note: all input values may be SIMD types (Vec or tuple of Vec).
+@inline function short_range_integrand(::Velocity, erfc_αr::V, exp_term::V, r_inv::V, r³_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V}
+    factor = (erfc_αr + exp_term) * r³_inv
+    vec = crossprod(qs⃗′, r⃗)
+    map(vec) do component
+        @inline
+        factor * component
+    end
 end
 
-crossprod(u::VecUnroll, v::VecUnroll) = VecUnroll(crossprod(getfield(u, :data), getfield(v, :data)))
-
-# These are generally tuples of SIMD vectors (VectorizationBase.Vec).
-function crossprod(u::T, v::T) where {T <: NTuple{3}}
-    (
+# Note: V may be a real or a SIMD vector.
+@inline function crossprod(u::T, v::T) where {T <: NTuple{3}}
+    @inbounds (
         u[2] * v[3] - u[3] * v[2],
         u[3] * v[1] - u[1] * v[3],
         u[1] * v[2] - u[2] * v[1],
     ) :: T
 end
 
-function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
-    (erfc_αr * r_inv) * qs⃗′
+@inline function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
+    factor = erfc_αr * r_inv
+    vec = qs⃗′
+    map(vec) do component
+        @inline
+        factor * component
+    end
 end
 
 include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)
