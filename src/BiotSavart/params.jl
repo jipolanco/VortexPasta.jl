@@ -259,7 +259,8 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
 
 - `use_simd::Bool = true`: whether to use explicit SIMD during the computation of short-range
   interactions. This applies to the CPU implementation of short-range interactions in
-  periodic domains only, where the SIMD implementation can accelerate the computation of `erfc(x)`.
+  periodic domains only, where the SIMD implementation can accelerate the computation of
+  `erfc(x)` in particular.
   Usually there is no reason to disable this, other than to verify the accuracy or
   performance of the SIMD implementation.
 
