@@ -37,7 +37,6 @@ println()
 @info "Running tests with $(Threads.nthreads()) threads"
 
 @testset "VortexPasta.jl" begin
-    @includetest "trefoil.jl"
     @includetest "plots.jl"
     @includetest "synthetic_fields.jl"
     @includetest "forcing.jl"
@@ -62,6 +61,7 @@ println()
     @includetest "checkpoint.jl"
     @includetest "remove_small_filaments.jl"
     @includetest "minimal_energy.jl"
+    @includetest "trefoil.jl"
     @includetest "links.jl"
     @includetest "infinite_lines.jl"
     @includetest "imex.jl"
