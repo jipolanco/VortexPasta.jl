@@ -163,7 +163,7 @@ function remove_long_range_self_interaction!(
     segs = segments(f)
     Lhs = map(L -> L / 2, params.Ls)
     prefactor = params.Γ / (4π)
-    @inbounds for i in eachindex(Xs, vs)
+    @inbounds Threads.@threads for i ∈ eachindex(Xs, vs)
         x⃗ = Xs[i]
         sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
         sb = Segment(f, i)  # segment i
@@ -177,10 +177,9 @@ end
 function remove_long_range_self_interaction!(
         vs::AbstractVector{<:VectorOfVec},
         fs::VectorOfFilaments,
-        args...;
-        scheduler = DynamicScheduler(; chunksize = 1,),  # 1 parallel task = 1 filament, to help load balancing
+        args...,
     )
-    OhMyThreads.tforeach(eachindex(vs, fs); scheduler) do i
+    for i ∈ eachindex(vs, fs)
         @inbounds v, f = vs[i], fs[i]
         remove_long_range_self_interaction!(v, f, args...)
     end
@@ -191,10 +190,13 @@ function add_short_range_fields!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::ShortRangeCache,
         fs::VectorOfFilaments;
-        scheduler = DynamicScheduler(; chunksize = 1,),  # 1 parallel task = 1 filament, to help load balancing
         kws...,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    OhMyThreads.tforeach(eachindex(fs); scheduler) do i
+    # Note: we don't parallelise here but inside add_short_range_fields!, at the level of
+    # the filament nodes. This makes sense when filaments have different lengths, or when we
+    # only have a few filaments. And it's ok because the cost of each iteration (work per
+    # filament node) is relatively large, so the overhead of threads is hidden.
+    for i ∈ eachindex(fs)
         fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
         add_short_range_fields!(fields_i, cache, fs[i]; kws...)
     end
@@ -243,7 +245,7 @@ function add_short_range_fields!(
     nonlia_lims = nonlia_integration_limits(lia_segment_fraction)
     ps = _fields_to_pairs(fields)
 
-    for i in eachindex(Xs)
+    Threads.@threads for i ∈ eachindex(Xs)
         x⃗ = Xs[i]
 
         # Determine segments `sa` and `sb` in contact with the singular point x⃗.
