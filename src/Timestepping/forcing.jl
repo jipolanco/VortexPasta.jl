@@ -129,6 +129,7 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs,
     (; quantities,) = iter
     vs_all = quantities.vs  # self-induced velocities will be copied here
     vf_all = quantities.vf  # forcing velocities will be copied here
+    tangents_all = quantities.tangents  # local tangents (already computed)
     Forcing.update_cache!(cache, forcing, iter.cache_bs)
     scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
@@ -145,7 +146,22 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs,
             # rescaled to get the wanted energy injection rate (estimated).
             @assert forcing.α == 0
             α = forcing.ε_target / ε_total
-            @. vL_all = vs_all + α * vL_all
+            @inbounds for n in eachindex(fs, vs_all, vL_all)
+                f = fs[n]
+                vL = vL_all[n]
+                vs = vs_all[n]
+                tangents = tangents_all[n]
+                if forcing.α′ == 0
+                    for i in eachindex(f, vs, vL)
+                        vL[i] = vs[i] + α * vL[i]
+                    end
+                else
+                    for i in eachindex(f, vs, vL, tangents)
+                        s⃗′ = tangents[i]
+                        vL[i] = vs[i] + α * vL[i] - forcing.α′ * (s⃗′ × vL[i])
+                    end
+                end
+            end
         end
         @. vf_all = vL_all - vs_all
     end
