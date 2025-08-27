@@ -51,6 +51,11 @@ Some relevant keyword arguments are:
 
 - `m = HalfSupport(4)`: the half-width of the NUFFT kernels. Larger means higher accuracy;
 
+- `use_atomics = Threads.nthreads() > 4`: whether to use atomics (instead of locks) in
+  spreading on the CPU (ignored on GPU devices). See NonuniformFFTs docs for details.
+  By default we enable this for relatively large number of threads, in which case it can be
+  beneficial;
+
 - `fftw_flags = FFTW.MEASURE`: flags passed to the FFTW planner (ignored on GPU devices).
 
 The default parameters (`σ = 1.5`, `m = HalfSupport(4)`) correspond to a relative NUFFT
@@ -95,13 +100,14 @@ struct NonuniformFFTsBackend{
             σ = 1.5,
             m = HalfSupport(4),
             fftw_flags = FFTW.MEASURE,
+            use_atomics = Threads.nthreads() > 4,
             other...,
         )
         # Pass the chosen device to NonuniformFFTs, except if the device is a PseudoGPU
         # (used in testing only). Actually passing a PseudoGPU to NonuniformFFTs might work,
         # but would need to be tested...
         backend = device isa PseudoGPU ? ka_default_cpu_backend() : device
-        kws = (; backend, fftw_flags, other...,)
+        kws = (; backend, fftw_flags, use_atomics, other...,)
         hs = to_halfsupport(m)
         new{typeof(hs), typeof(σ), typeof(device), typeof(kws)}(hs, σ, device, kws)
     end
