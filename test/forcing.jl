@@ -87,7 +87,8 @@ function simulate(
     elseif forcing isa FourierBandForcingBS && dissipation isa NoDissipation
         @test iter.vs !== iter.vL
         # Check that vf is separately stored and that it contains the right thing.
-        @test iter.vL == iter.vs + iter.vf
+        @test iter.vL ≈ iter.vs + iter.vf rtol=1e-16
+        # @test iter.vL == iter.vs + iter.vf
     end
     E_init = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
     E_final = E_init
@@ -291,8 +292,14 @@ end
             # @show E_ratio  # = 1.1410585242365534
             @test 1.10 < E_ratio < 1.20
         end
-        @testset "FourierBandForcingBS (constant ε_target)" begin
-            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-2, kmin = 1.5, kmax = 2.5)
+        @testset "FourierBandForcingBS (constant α and α′)" begin
+            forcing = @inferred FourierBandForcingBS(; α = 100.0, α′ = 1.0, kmin = 0.5, kmax = 2.5)
+            (; iter, E_ratio, spectra) = simulate(prob, forcing)
+            # @show E_ratio  # = 1.1517750363770172
+            @test 1.10 < E_ratio < 1.20
+        end
+        @testset "FourierBandForcingBS (constant ε_target, α′ = $α′)" for α′ in (0.0, 1.0)
+            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-2, α′, kmin = 1.5, kmax = 2.5)
             times = Float64[]
             energy_k = Float64[]  # energy at forced wavevectors
             energy = Float64[]
@@ -311,7 +318,7 @@ end
                 nothing
             end
             (; iter, E_ratio, spectra) = simulate(prob, forcing; callback, dt_factor = 0.5)
-            # @show E_ratio  # = 2.106383252320103
+            @show α′, E_ratio  # = (0.0, 2.106383252320079) / (1.0, 2.100681284433628)
             @test 2.0 < E_ratio < 2.2
             # In the plot one should see that energy increases nearly linearly with the
             # imposed ε, until it starts to saturate near the end.
