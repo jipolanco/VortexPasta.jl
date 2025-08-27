@@ -295,7 +295,7 @@ function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) 
         x⃗ = @inline cl.to_coordinate(el)
         inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
         I = CartesianIndex(inds .+ nghosts)  # shift by number of ghost cells, since we access raw data associated to padded array
-        head_old = @inbounds Atomix.@atomicswap head_indices_data[I] = n  # returns the old value
+        head_old = Atomix.@atomicswap :monotonic head_indices_data[I] = n  # returns the old value
         # head_old = head_indices[I]
         # head_indices[I] = n       # the new element is the new head
         next_index[n] = head_old  # the old head now comes after the new element
