@@ -14,7 +14,8 @@ module CellLists
 
 export PeriodicCellList, static, nearby_elements
 
-using ..PaddedArrays: PaddedArray, pad_periodic!
+using ..PaddedArrays: PaddedArrays, PaddedArray, pad_periodic!
+using Atomix: Atomix
 using Static: StaticInt, static, dynamic
 
 # This is used either to mean that a cell has no elements, or that an element is the last
@@ -277,22 +278,27 @@ It must take and index `n` in `1:Np` (this assumes one-based indexing!).
 
 This function resets the cell list, removing all previously existent points.
 It can be used as a replacement for [`empty(::PeriodicCellList)`](@ref) + [`add_element!`](@ref) + [`finalise_cells!`](@ref).
+Currently, this can be particularly interesting because `set_elements!` is parallelised.
 """
 function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) where {F <: Function, N, T}
     (; elements, next_index, head_indices, Ls, rs_cut,) = cl
-    fill!(parent(head_indices), EMPTY)  # this can be slow with too many cells?
+    head_indices_data = parent(head_indices)   # full data associated to padded array
+    nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
+    fill!(head_indices_data, EMPTY)  # this can be slow with too many cells?
     resize!(elements, Np)
     resize!(next_index, Np)
     Base.require_one_based_indexing(elements)
     Base.require_one_based_indexing(next_index)
-    @inbounds for n in 1:Np
+    @inbounds Threads.@threads for n in 1:Np
         el = @inline get_element(n)
         elements[n] = el
         x⃗ = @inline cl.to_coordinate(el)
         inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
-        I = CartesianIndex(inds)
-        next_index[n] = head_indices[I]  # the old head now comes after the new element
-        head_indices[I] = n              # the new element is the new head
+        I = CartesianIndex(inds .+ nghosts)  # shift by number of ghost cells, since we access raw data associated to padded array
+        head_old = @inbounds Atomix.@atomicswap head_indices_data[I] = n  # returns the old value
+        # head_old = head_indices[I]
+        # head_indices[I] = n       # the new element is the new head
+        next_index[n] = head_old  # the old head now comes after the new element
     end
     pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity (can be slow?)
     cl.isready[] = true
