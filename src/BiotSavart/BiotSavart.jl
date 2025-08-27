@@ -41,7 +41,7 @@ using KernelAbstractions:
 using StableTasks: StableTasks
 
 using Bumper: Bumper, @no_escape, @alloc
-using ChunkSplitters: ChunkSplitters
+using OhMyThreads: OhMyThreads
 using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
 

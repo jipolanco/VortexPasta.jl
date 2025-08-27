@@ -119,7 +119,7 @@ before [`compute_vorticity_fourier!`](@ref).
 function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, quad::StaticSizeQuadrature)
     Ncharges = _count_charges(quad, fs)
     set_num_points!(data, Ncharges)
-    inds = ChunkSplitters.chunks(eachindex(fs); n = Threads.nthreads())
+    inds = OhMyThreads.chunks(eachindex(fs); n = Threads.nthreads())
     Threads.@threads for subinds ∈ inds
         subinds === nothing && continue  # subinds can be nothing; see iterate(c::Chunk) in ChunkSplitters
         prev_indices = firstindex(fs):(first(subinds) - 1)  # filament indices given to all previous chunks
