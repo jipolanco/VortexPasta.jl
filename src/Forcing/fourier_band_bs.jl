@@ -4,7 +4,7 @@ using LinearAlgebra: LinearAlgebra, ⋅, ×
 
 @doc raw"""
     FourierBandForcingBS <: AbstractForcing
-    FourierBandForcingBS(; kmin, kmax, α, ε_target)
+    FourierBandForcingBS(; kmin, kmax, α, ε_target, α′ = 0)
 
 Forcing based on Biot–Savart energetics within a given range of wavenumbers.
 
@@ -25,6 +25,25 @@ energy injection (negative values lead to energy dissipation):
 # Extended help
 
 ## Forcing definition
+
+The applied forcing velocity has the basic form:
+
+```math
+\bm{v}_{\text{f}} = α \bm{s}' × \tilde{\bm{v}}_{\text{s}},
+```
+
+where $\tilde{\bm{v}}_{\text{s}}$ is the bandpass filtered Biot–Savart velocity between the
+active Fourier wavenumbers `kmin` and `kmax`. This choice ensures that energy is
+injected within this range of wavenumbers.
+
+If ``α′ ≠ 0``, an extra term is included which does not modify the energy content at the
+chosen wavenumbers:
+
+```math
+\bm{v}_{\text{f}} = α \bm{s}' × \tilde{\bm{v}}_{\text{s}} - α′ \bm{s}' × \left[\bm{s}' × \tilde{\bm{v}}_{\text{s}}\right].
+```
+
+## Explanations
 
 This forcing attempts to increase the kinetic energy at selected wavenumbers.
 Its definition starts from the expression for the kinetic energy at wavenumber ``\bm{k}``:
@@ -106,39 +125,43 @@ rate (even if it's generally different than the "target" one).
 """
 struct FourierBandForcingBS{T <: AbstractFloat, N} <: AbstractForcing
     α    :: T
+    α′   :: T
     ε_target :: T  # target energy injection rate [L²T⁻³]
     kmin :: T
     kmax :: T
     qs   :: Vector{NTuple{N, Int}}  # list of normalised wavevectors (can be empty)
 end
 
-function FourierBandForcingBS(; α::Real = 0, ε_target = 0, kmin = nothing, kmax = nothing, qs = nothing)
+function FourierBandForcingBS(; α::Real = 0, ε_target = 0, α′ = 0, kmin = nothing, kmax = nothing, qs = nothing)
     (α == 0) + (ε_target == 0) == 1 || throw(ArgumentError("one should pass either α or ε_target, but not both"))
-    _FourierBandForcingBS(α, ε_target, kmin, kmax, qs)
+    _FourierBandForcingBS(α, α′, ε_target, kmin, kmax, qs)
 end
 
-function _FourierBandForcingBS(α, ε_target, kmin::Real, kmax::Real, qs::Nothing)
-    scalars = promote(α, ε_target, kmin, kmax)
+function _FourierBandForcingBS(α, α′, ε_target, kmin::Real, kmax::Real, qs::Nothing)
+    scalars = promote(α, α′, ε_target, kmin, kmax)
     qs = Tuple{}[]  # empty vector of empty tuples
     FourierBandForcingBS(scalars..., qs)
 end
 
 # This variant allows setting specific q⃗ normalised wavevectors (currently not documented!).
-function _FourierBandForcingBS(α, ε_target, kmin::Nothing, kmax::Nothing, qs::AbstractVector{NTuple{N, Int}}) where {N}
+function _FourierBandForcingBS(α, α′, ε_target, kmin::Nothing, kmax::Nothing, qs::AbstractVector{NTuple{N, Int}}) where {N}
     kmin = 0
     kmax = 0
-    scalars = promote(α, ε_target, kmin, kmax)
+    scalars = promote(α, α′, ε_target, kmin, kmax)
     FourierBandForcingBS(scalars..., qs)
 end
 
 function Base.show(io::IO, f::FourierBandForcingBS{T}) where {T}
-    (; α, ε_target, kmin, kmax, qs,) = f
+    (; α, α′, ε_target, kmin, kmax, qs,) = f
     prefix = get(io, :prefix, " ")  # single space by default
     print(io, "FourierBandForcingBS{$T} with:")
     if α != 0
         print(io, "\n$(prefix)├─ Magnitude: α = ", α)
     elseif ε_target != 0
         print(io, "\n$(prefix)├─ Target energy injection rate: ε_target = ", ε_target)
+    end
+    if α′ != 0
+        print(io, "\n$(prefix)├─ Drift coefficient: α′ = ", α′)
     end
     if isempty(qs)
         print(io, "\n$(prefix)└─ Fourier band: |k⃗| ∈ [$kmin, $kmax]")
@@ -211,11 +234,12 @@ function apply!(
             for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
                 k⃗ = SVector(qs[n]) .* Δks
                 v̂ = cs[n]
-                vf_k = s⃗′ × real(v̂ * cis(k⃗ ⋅ s⃗))  # forcing velocity for this wavevector k⃗
+                vf_k = real(v̂ * cis(k⃗ ⋅ s⃗))  # forcing velocity for this wavevector k⃗
                 vf = vf + vf_k
             end
+            vf = s⃗′ × vf
             if forcing.α != 0
-                vs[i] = vs[i] + forcing.α * vf  # apply forcing
+                vs[i] = vs[i] + forcing.α * vf - forcing.α′ * (s⃗′ × vf)  # apply forcing
             elseif forcing.ε_target != 0
                 vs[i] = vf  # just overwrite the input
             end
