@@ -294,6 +294,7 @@ function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) 
         next_index[n] = head_indices[I]  # the old head now comes after the new element
         head_indices[I] = n              # the new element is the new head
     end
+    pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity (can be slow?)
     cl.isready[] = true
     cl
 end
