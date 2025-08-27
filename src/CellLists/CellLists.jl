@@ -266,6 +266,38 @@ function finalise_cells!(cl::PeriodicCellList)
     cl
 end
 
+"""
+    CellLists.set_elements!(get_element::Function, cl::PeriodicCellList, Np::Integer)
+
+Set all elements of the cell list.
+
+Here `get_element(n::Integer)` is a function that returns a single element given its index `n`.
+It must take and index `n` in `1:Np` (this assumes one-based indexing!).
+`Np` is the total number of elements.
+
+This function resets the cell list, removing all previously existent points.
+It can be used as a replacement for [`empty(::PeriodicCellList)`](@ref) + [`add_element!`](@ref) + [`finalise_cells!`](@ref).
+"""
+function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) where {F <: Function, N, T}
+    (; elements, next_index, head_indices, Ls, rs_cut,) = cl
+    fill!(parent(head_indices), EMPTY)  # this can be slow with too many cells?
+    resize!(elements, Np)
+    resize!(next_index, Np)
+    Base.require_one_based_indexing(elements)
+    Base.require_one_based_indexing(next_index)
+    @inbounds for n in 1:Np
+        el = @inline get_element(n)
+        elements[n] = el
+        x⃗ = @inline cl.to_coordinate(el)
+        inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
+        I = CartesianIndex(inds)
+        next_index[n] = head_indices[I]  # the old head now comes after the new element
+        head_indices[I] = n              # the new element is the new head
+    end
+    cl.isready[] = true
+    cl
+end
+
 ## ================================================================================ ##
 ## Iteration over elements in cell lists
 

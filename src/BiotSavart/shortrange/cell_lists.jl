@@ -71,15 +71,17 @@ end
 function process_point_charges!(c::CellListsCache, data::PointData)
     (; cl,) = c
     (; points, charges, segments,) = data
-    empty!(cl)
-    @inbounds for i ∈ eachindex(points, charges, segments)
-        s⃗ = points[i]
-        qs⃗′ = real(charges[i])  # note: `charges` may contain complex numbers (but purely real) because it's needed by some NUFFT backends
-        seg = segments[i]
-        charge = (s⃗, qs⃗′, seg)
-        CellLists.add_element!(cl, charge)
+    @assert eachindex(points) == eachindex(charges) == eachindex(segments)
+    Base.require_one_based_indexing(points)
+    CellLists.set_elements!(cl, length(points)) do i  # here i is one-based (it's in 1:length(points))
+        @inline
+        @inbounds begin
+            s⃗ = points[i]
+            qs⃗′ = charges[i]
+            seg = segments[i]
+        end
+        (s⃗, qs⃗′, seg)  # this is a single element
     end
-    CellLists.finalise_cells!(cl)
     nothing
 end
 

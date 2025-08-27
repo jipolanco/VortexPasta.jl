@@ -18,6 +18,7 @@ PeriodicCellList
 ## Functions
 
 ```@docs
+set_elements!
 add_element!
 finalise_cells!
 empty!
