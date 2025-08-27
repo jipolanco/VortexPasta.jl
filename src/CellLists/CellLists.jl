@@ -277,7 +277,7 @@ It must take and index `n` in `1:Np` (this assumes one-based indexing!).
 `Np` is the total number of elements.
 
 This function resets the cell list, removing all previously existent points.
-It can be used as a replacement for [`empty(::PeriodicCellList)`](@ref) + [`add_element!`](@ref) + [`finalise_cells!`](@ref).
+It can be used as a replacement for [`empty!`](@ref) + [`add_element!`](@ref) + [`finalise_cells!`](@ref).
 Currently, this can be particularly interesting because `set_elements!` is parallelised.
 """
 function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) where {F <: Function, N, T}
