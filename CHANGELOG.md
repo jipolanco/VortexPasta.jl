@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Parallelise cell list initialisation. This is now used to speed-up short-range Biot--Savart computations.
+
 ## [0.29.6] - 2025-08-27
 
 ### Added
