@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.29.6] - 2025-08-27
+
+### Added
+
+- `FourierBandForcingBS` now accepts an optional `α′` parameter for including
+  a "drift" term which doesn't inject energy at the targeted wavenumbers.
+
 ## [0.29.5] - 2025-08-22
 
 ### Added
