@@ -549,7 +549,7 @@ function test_static_periodic_overlapping_circles(
     if Criterion <: ReconnectBasedOnDistance
         nfilaments = (2, 3, 2, 3)  # expected number of filaments after each pass
         for n ∈ 1:10
-            write_vtkhdf("reconnect_big_circle_$(Criterion)_step$(n - 1).vtkhdf", fs)
+            # write_vtkhdf("reconnect_big_circle_$(Criterion)_step$(n - 1).vtkhdf", fs)
             rec = @inferred reconnect!(cache, fs)
             nrec = rec.reconnection_count
             if n ≤ 4
@@ -562,7 +562,7 @@ function test_static_periodic_overlapping_circles(
         end
     else
         rec = @inferred reconnect!(cache, fs)
-        write_vtkhdf("reconnect_big_circle_$(Criterion).vtkhdf", fs)
+        # write_vtkhdf("reconnect_big_circle_$(Criterion).vtkhdf", fs)
         @test rec.reconnection_count == 4
     end
 

@@ -91,7 +91,8 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     rs = map(_ -> r_cut, Ls)
     nsubdiv = Val(M)
     I = eltype(node_next)  # integer type
-    cl = PeriodicCellList(I, rs, Ls, nsubdiv)  # a single element is a node index (in 1:Np)
+    @inline to_coordinate(n) = @inbounds nodes[n]  # get coordinate from element in cell list
+    cl = PeriodicCellList(I, rs, Ls, nsubdiv; to_coordinate)  # a single element is a node index (in 1:Np)
     ReconnectFastCache(crit, cl, Ls, nodes, velocities, node_next, node_prev, reconnected)
 end
 
@@ -107,15 +108,12 @@ function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFi
     if vs !== nothing
         resize!(velocities, Np)
     end
-    empty!(cl)  # remove previous elements
-    sizehint!(cl, Np)
     n = 0
     @inbounds for (i, f) in pairs(fs)
         nstart = n + 1  # this filament currently starts at node n + 1
         xs = Filaments.nodes(f)
         for (j, x) in pairs(xs)
             n += 1
-            CellLists.add_element!(cl, n, x)
             nodes[n] = x
             if vs !== nothing
                 velocities[n] = vs[i][j]
@@ -128,7 +126,9 @@ function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFi
         node_next[n] = nstart
     end
     @assert n == Np
-    CellLists.finalise_cells!(cl)
+    Base.require_one_based_indexing(nodes)
+    get_element = identity  # an element is an index n ∈ 1:Np
+    CellLists.set_elements!(get_element, cl, Np)
     cache
 end
 

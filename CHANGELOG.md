@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Reconnections: use the new (parallelised) `CellLists.set_elements!` when choosing the
+  `ReconnectFast` criterion.
+
 ## [0.29.8] - 2025-08-28
 
 ### Changed
