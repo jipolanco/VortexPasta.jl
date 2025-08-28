@@ -177,12 +177,13 @@ end
 function remove_long_range_self_interaction!(
         vs::AbstractVector{<:VectorOfVec},
         fs::VectorOfFilaments,
-        args...;
-        scheduler = DynamicScheduler(; chunksize = 1,),  # 1 parallel task = 1 filament, to help load balancing
+        args...,
     )
-    OhMyThreads.tforeach(eachindex(vs, fs); scheduler) do i
-        @inbounds v, f = vs[i], fs[i]
-        remove_long_range_self_interaction!(v, f, args...)
+    @sync for i in eachindex(vs, fs)
+        Threads.@spawn begin
+            @inbounds v, f = vs[i], fs[i]
+            remove_long_range_self_interaction!(v, f, args...)
+        end
     end
     vs
 end
@@ -191,12 +192,13 @@ function add_short_range_fields!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::ShortRangeCache,
         fs::VectorOfFilaments;
-        scheduler = DynamicScheduler(; chunksize = 1,),  # 1 parallel task = 1 filament, to help load balancing
         kws...,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    OhMyThreads.tforeach(eachindex(fs); scheduler) do i
-        fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
-        add_short_range_fields!(fields_i, cache, fs[i]; kws...)
+    @sync for i in eachindex(fs)
+        Threads.@spawn begin
+            fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
+            add_short_range_fields!(fields_i, cache, fs[i]; kws...)
+        end
     end
     fields
 end
