@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Improve CPU parallelisation of short-range interactions.
+  This should improve performance in general cases, especially when the number of nodes per
+  filament varies greatly from one filament to another (as can be the case in turbulence
+  simulations).
+
 ## [0.29.7] - 2025-08-27
 
 ### Added
