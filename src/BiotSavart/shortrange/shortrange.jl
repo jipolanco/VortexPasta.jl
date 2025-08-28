@@ -163,6 +163,8 @@ function remove_long_range_self_interaction!(
     segs = segments(f)
     Lhs = map(L -> L / 2, params.Ls)
     prefactor = params.Γ / (4π)
+    # Note: parallelising here usually leads to worse performance, likely because the work
+    # per iteration is small (we might also have false sharing issues due to memory locality).
     @inbounds for i in eachindex(Xs, vs)
         x⃗ = Xs[i]
         sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
@@ -174,13 +176,42 @@ function remove_long_range_self_interaction!(
     vs
 end
 
+# Try to distribute filaments over different threads so that each thread has approximately
+# the same number of filament nodes (discrete points).
+# Actually, the number of nodes per filament may be very unequal in practical situations, with
+# e.g. a single filament having a lot of points and many other small filaments.
+# In this case, we may end up with empty chunks (and thus "inactive" threads), which is ok.
+# In fact, since we also use threading across filament nodes (in add_short_range_fields!),
+# these threads will also perform work.
+function create_chunks_for_threading(fs::VectorOfFilaments; nchunks = Threads.nthreads())
+    @assert !isempty(fs)
+    Np_total = sum(length, fs)  # total number of filament nodes
+    Np_accumulated = zero(Np_total)
+    j_prev = firstindex(fs) - 1
+    chunks = Memory{UnitRange{Int}}(undef, nchunks)  # note: Memory requires Julia 1.11
+    @inbounds for n in 1:nchunks
+        Np_accumulated_wanted = (n * Np_total) ÷ nchunks  # how many nodes do we want up to this chunk included
+        i = j_prev + 1  # where this chunk starts
+        j = i - 1       # where this chunk ends
+        while Np_accumulated < Np_accumulated_wanted && j < lastindex(fs)
+            j += 1
+            Np_accumulated += length(fs[j])
+        end
+        j_prev = j
+        chunks[n] = i:j
+    end
+    chunks
+end
+
 function remove_long_range_self_interaction!(
         vs::AbstractVector{<:VectorOfVec},
         fs::VectorOfFilaments,
         args...,
     )
-    @sync for i in eachindex(vs, fs)
-        Threads.@spawn begin
+    chunks = create_chunks_for_threading(fs)
+    @sync for chunk in chunks
+        isempty(chunk) && continue  # don't spawn a task if it will do no work
+        Threads.@spawn for i in chunk
             @inbounds v, f = vs[i], fs[i]
             remove_long_range_self_interaction!(v, f, args...)
         end
@@ -194,8 +225,10 @@ function add_short_range_fields!(
         fs::VectorOfFilaments;
         kws...,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    @sync for i in eachindex(fs)
-        Threads.@spawn begin
+    chunks = create_chunks_for_threading(fs)
+    @sync for chunk in chunks
+        isempty(chunk) && continue  # don't spawn a task if it will do no work
+        Threads.@spawn for i in chunk
             fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
             add_short_range_fields!(fields_i, cache, fs[i]; kws...)
         end
@@ -245,7 +278,10 @@ function add_short_range_fields!(
     nonlia_lims = nonlia_integration_limits(lia_segment_fraction)
     ps = _fields_to_pairs(fields)
 
-    for i in eachindex(Xs)
+    # Note: we parallelise here even thought we also parallelised earlier at the level of
+    # the filaments. This is ok since we use dynamic threading here (and also at the upper
+    # level, since using @spawn also corresponds to dynamic threading)
+    Threads.@threads :dynamic for i in eachindex(Xs)
         x⃗ = Xs[i]
 
         # Determine segments `sa` and `sb` in contact with the singular point x⃗.
