@@ -176,6 +176,8 @@ function remove_long_range_self_interaction!(
     vs
 end
 
+# ==================================================================================================== #
+
 # Try to distribute filaments over different threads so that each thread has approximately
 # the same number of filament nodes (discrete points).
 # Actually, the number of nodes per filament may be very unequal in practical situations, with
@@ -183,32 +185,56 @@ end
 # In this case, we may end up with empty chunks (and thus "inactive" threads), which is ok.
 # In fact, since we also use threading across filament nodes (in add_short_range_fields!),
 # these threads will also perform work.
-function create_chunks_for_threading(fs::VectorOfFilaments; nchunks = Threads.nthreads())
-    @assert !isempty(fs)
+struct FilamentChunkIterator{Filaments <: AbstractVector{<:AbstractVector}}
+    fs::Filaments
+    nchunks::Int
+end
+
+FilamentChunkIterator(fs::VectorOfFilaments; nchunks = Threads.nthreads()) =
+    FilamentChunkIterator(fs, nchunks)
+
+Base.IteratorSize(::Type{<:FilamentChunkIterator}) = Base.HasLength()
+Base.IteratorEltype(::Type{<:FilamentChunkIterator}) = Base.HasEltype()
+Base.length(it::FilamentChunkIterator) = it.nchunks
+Base.eltype(::FilamentChunkIterator) = typeof(1:10)  # = UnitRange{Int}
+
+function Base.iterate(it::FilamentChunkIterator)
+    (; fs,) = it
     Np_total = sum(length, fs)  # total number of filament nodes
     Np_accumulated = zero(Np_total)
-    j_prev = firstindex(fs) - 1
-    chunks = Memory{UnitRange{Int}}(undef, nchunks)  # note: Memory requires Julia 1.11
-    @inbounds for n in 1:nchunks
-        Np_accumulated_wanted = (n * Np_total) ÷ nchunks  # how many nodes do we want up to this chunk included
-        i = j_prev + 1  # where this chunk starts
-        j = i - 1       # where this chunk ends
-        while Np_accumulated < Np_accumulated_wanted && j < lastindex(fs)
-            j += 1
-            Np_accumulated += length(fs[j])
-        end
-        j_prev = j
-        chunks[n] = i:j
-    end
-    chunks
+    nchunk = 0  # index of current chunk
+    j_prev = firstindex(fs) - 1  # last filament of previous chunk
+    state = (; nchunk, j_prev, Np_total, Np_accumulated)
+    iterate(it, state)
 end
+
+function Base.iterate(it::FilamentChunkIterator, state)
+    (; fs, nchunks,) = it
+    (; nchunk, j_prev, Np_total, Np_accumulated,) = state
+    if nchunk == it.nchunks
+        return nothing  # we're done iterating
+    end
+    nchunk += 1
+    Np_accumulated_wanted = (nchunk * Np_total) ÷ nchunks  # how many nodes do we want up to this chunk included
+    j = j_prev  # where this chunk ends
+    i = j + 1   # where this chunk starts
+    @inbounds while Np_accumulated < Np_accumulated_wanted && j < lastindex(fs)
+        j += 1
+        Np_accumulated += length(fs[j])
+    end
+    j_prev = j
+    state_new = (; nchunk, j_prev, Np_total, Np_accumulated)::typeof(state)
+    i:j, state_new
+end
+
+# ==================================================================================================== #
 
 function remove_long_range_self_interaction!(
         vs::AbstractVector{<:VectorOfVec},
         fs::VectorOfFilaments,
         args...,
     )
-    chunks = create_chunks_for_threading(fs)
+    chunks = FilamentChunkIterator(fs)
     @sync for chunk in chunks
         isempty(chunk) && continue  # don't spawn a task if it will do no work
         Threads.@spawn for i in chunk
@@ -225,7 +251,7 @@ function add_short_range_fields!(
         fs::VectorOfFilaments;
         kws...,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    chunks = create_chunks_for_threading(fs)
+    chunks = FilamentChunkIterator(fs)
     @sync for chunk in chunks
         isempty(chunk) && continue  # don't spawn a task if it will do no work
         Threads.@spawn for i in chunk
