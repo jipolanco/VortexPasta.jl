@@ -1,5 +1,7 @@
 using LinearAlgebra: ⋅, ×
 
+export energy_injection_rate
+
 @doc raw"""
     energy_injection_rate(iter::VortexFilamentSolver, [vL]; quad = nothing) -> Real
     energy_injection_rate(fs, vL, vs, p::ParamsBiotSavart; quad = nothing) -> Real

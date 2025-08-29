@@ -63,6 +63,12 @@ helicity_spectrum
 helicity_spectrum!
 ```
 
+## Spectral energy fluxes
+
+```@docs
+energy_flux
+```
+
 ## Length scales
 
 ```@docs

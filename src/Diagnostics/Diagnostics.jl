@@ -61,6 +61,7 @@ include("vortex_impulse.jl")
 include("stretching.jl")
 include("spectra.jl")
 include("spectra_helicity.jl")
+include("energy_flux.jl")
 include("integral_scale.jl")
 
 end
