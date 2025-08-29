@@ -318,8 +318,16 @@ end
                 nothing
             end
             (; iter, E_ratio, spectra) = simulate(prob, forcing; callback, dt_factor = 0.5)
-            @show α′, E_ratio  # = (0.0, 2.106383252320079) / (1.0, 2.100681284433628)
+            # @show α′, E_ratio  # = (0.0, 2.106383252320079) / (1.0, 2.100681284433628)
             @test 2.0 < E_ratio < 2.2
+            let
+                ks, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad = GaussLegendre(3))
+                @test length(ks) ≤ 8
+                @test length(fluxes) == 2
+                @test hasproperty(fluxes, :vs)
+                @test hasproperty(fluxes, :vf)
+                @test fluxes.vf[end] > 0  # positive energy injection
+            end
             # In the plot one should see that energy increases nearly linearly with the
             # imposed ε, until it starts to saturate near the end.
             a, b = 0.1, 0.4
@@ -422,6 +430,13 @@ end
             # Chosen dissipation rate corresponds almost exactly to actual dissipation rate.
             @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 2e-3), ε_diss_time)
             plots && plot_spectra(spectra; title = "DissipationBS (constant ε_target)")
+            let
+                ks, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad = GaussLegendre(3))
+                @test length(ks) ≤ 8
+                @test length(fluxes) == 2
+                @test hasproperty(fluxes, :vs)
+                @test hasproperty(fluxes, :vdiss)
+            end
         end
 
         @testset "SmallScaleDissipationBS: Constant α" begin
@@ -450,6 +465,14 @@ end
             (; iter, E_ratio, spectra) = simulate(prob_diss, forcing, dissipation; callback)
             @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
             @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.05), ε_diss_time)
+            let
+                ks, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad = GaussLegendre(3))
+                @test length(ks) ≤ 8
+                @test length(fluxes) == 3
+                @test hasproperty(fluxes, :vs)
+                @test hasproperty(fluxes, :vf)
+                @test hasproperty(fluxes, :vdiss)
+            end
             plots && plot_spectra(spectra; title = "Forcing + dissipation")
         end
 

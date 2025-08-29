@@ -104,14 +104,14 @@ DropLargeWavenumbers(kcut, ks) = DropLargeWavenumbers(kcut, kcut^2, ks)
     end
 end
 
-function energy_flux(cache_in, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart; kws...)
+function energy_flux(cache_in, fs, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart; kws...)
     cache = get_long_range_cache(cache_in)::LongRangeCache
-    energy_flux(cache, velocities, Nk, params; kws...)
+    energy_flux(cache, fs, velocities, Nk, params; kws...)
 end
 
 function energy_flux(
-        cache::LongRangeCache, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart;
-        quad = nothing, vs_buf = similar(first(velocities)),
+        cache::LongRangeCache, fs, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart;
+        quad = nothing, vs_buf = similar(first(velocities).field),
     )
     (; wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
     @assert state.quantity == :velocity
@@ -120,15 +120,15 @@ function energy_flux(
     # Determine target wavenumbers.
     ks_full = init_spectrum_wavenumbers(cache)  # = 0:Δk:kmax
     Δk = ks_full[begin + 1] - ks_full[begin]
-    ks_log = collect(logrange(ks[begin + 1], ks[end]; length = Nk))  # logarithmically-spaced wavenumbers
-    ks_flux = unique!(floor.(ks_log ./ Δk) .* Δk)  # remove repeated and "fractional" wavenumbers
+    ks_log = collect(logrange(ks_full[begin + 1], ks_full[end]; length = Nk))  # logarithmically-spaced wavenumbers
+    ks = unique!(floor.(ks_log ./ Δk) .* Δk)  # remove repeated and "fractional" wavenumbers
 
     # Initialise flux vectors.
-    fluxes = map(_ -> similar(ks_flux), velocities)
+    fluxes = map(_ -> similar(ks), velocities)
 
     # Iterate over target wavenumbers.
     vs_filtered = vs_buf
-    for (i, k_flux) in pairs(ks_flux)
+    for (i, k_flux) in pairs(ks)
         callback = DropLargeWavenumbers(k_flux, wavenumbers)
         BiotSavart.interpolate_to_physical!(callback, cache)
         BiotSavart.copy_long_range_output!(vs_filtered, cache)
@@ -136,17 +136,13 @@ function energy_flux(
             Filaments.update_coefficients!(vs_filtered[i]; knots = Filaments.knots(fs[i]))
         end
         # Compute dissipation of large-scale energy by each input velocity
-        for n in eachindex(velocities, fluxes)
-            # The integrand is [s′ × vs] ⋅ vL == - [s′ × vs^>] ⋅ velocities[n]
-            vL = vs_filtered
-            vs = velocities[n]
-            fluxes[n][i] = Diagnostics.energy_injection_rate(fs, vL, vs, params; quad)
+        for n in eachindex(values(velocities), values(fluxes))
+            # The integrand is [s′ × vs] ⋅ vL == [s′ × vs^>] ⋅ velocities[n]
+            vs = vs_filtered
+            vL = velocities[n].field
+            s = velocities[n].sign  # -1 if dissipation, +1 if injection
+            fluxes[n][i] = s * Diagnostics.energy_injection_rate(fs, vL, vs, params; quad)
         end
-    end
-
-    # Energy injection term has a negative sign by convention (since it injects energy).
-    if hasproperty(fluxes, :vf)
-        fluxes.vf .*= -1
     end
 
     ks, fluxes
