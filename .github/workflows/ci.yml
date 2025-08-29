@@ -23,8 +23,8 @@ jobs:
       matrix:
         experimental: [false]
         julia-version:
-          - 'lts'  # currently = 1.10
           - '1.11'
+          - 'pre'  # prerelease (currently 1.12-rc1)
         os:
           - ubuntu-24.04
         arch:
