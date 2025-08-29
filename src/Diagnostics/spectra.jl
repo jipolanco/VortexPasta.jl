@@ -46,6 +46,18 @@ function energy_spectrum! end
 
 get_long_range_cache(c::BiotSavartCache) = c.longrange
 
+function init_spectrum_wavenumbers(cache::LongRangeCache)
+    (; wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
+    kxs = adapt(Array, wavenumbers[1])  # make sure these are on the CPU
+    with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)
+    @assert with_hermitian_symmetry == (kxs[end] > 0)
+    M = with_hermitian_symmetry ? length(kxs) : (length(kxs) + 1) ÷ 2
+    @assert kxs[M] > 0
+    @assert kxs[begin] == 0
+    Δk = kxs[begin + 1] - kxs[begin]
+    range(0, kxs[M]; step = Δk)
+end
+
 """
     Diagnostics.init_spectrum(iter::VortexFilamentSolver) -> (ks, Ek)
     Diagnostics.init_spectrum(cache) -> (ks, Ek)
@@ -60,14 +72,7 @@ The returned arrays are always on the CPU, even when the `cache` contains GPU da
 See [`energy_spectrum!`](@ref) for details on the `cache` argument.
 """
 function init_spectrum(cache::LongRangeCache)
-    (; wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
-    kxs = adapt(Array, wavenumbers[1])  # make sure these are on the CPU
-    with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)
-    @assert with_hermitian_symmetry == (kxs[end] > 0)
-    M = with_hermitian_symmetry ? length(kxs) : (length(kxs) + 1) ÷ 2
-    @assert kxs[M] > 0
-    Δk = kxs[begin + 1] - kxs[begin]
-    ks = range(0, kxs[M]; step = Δk)
+    ks = init_spectrum_wavenumbers(cache)
     Ek = similar(ks)  # this one is also on the CPU
     ks, Ek
 end
