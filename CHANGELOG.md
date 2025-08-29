@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `Diagnostics.energy_flux`.
+
 ## [0.29.9] - 2025-08-28
 
 ### Changed
