@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `Diagnostics.energy_flux`.
 
+### Changed
+
+- Require Julia 1.11.
+
 ## [0.29.9] - 2025-08-28
 
 ### Changed
