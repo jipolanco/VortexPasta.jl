@@ -466,11 +466,11 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
     W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
     Vec = SIMD.Vec{W, T}
 
-    r²s = MVector{W, T}(undef)
+    r²s = zero(MVector{W, T})
 
     NW = N * W
-    r⃗s = MMatrix{W, N, T, NW}(undef)
-    q⃗s = similar(r⃗s)
+    r⃗s = zero(MMatrix{W, N, T, NW})
+    q⃗s = copy(r⃗s)
 
     it = nearby_charges(cache, x⃗)
     y = iterate(it)

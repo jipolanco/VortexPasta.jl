@@ -117,7 +117,7 @@ end
 function sortperm_for_adaptive_quadrature(nlevels)
     N = 1 << nlevels  # this gives 0 if nlevels is too large (such that 2^nlevels can't be represented by an Int)
     @assert N > 0
-    ks = Vector{Int}(undef, N)
+    ks = zeros(Int, N)
     l = firstindex(ks) - 1
 
     # Level 0

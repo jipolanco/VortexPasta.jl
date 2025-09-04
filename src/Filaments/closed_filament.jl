@@ -151,7 +151,9 @@ function init(
         parametrisation::F = default_parametrisation(method), kws...,
     ) where {T, F}
     M = npad(method)
-    Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))
+    data = Vector{Vec3{T}}(undef, N + 2M)
+    fill!(data, zero(Vec3{T}))
+    Xs = PaddedVector{M}(data)
     ClosedFilament(parametrisation, Xs, method; kws...)
 end
 
