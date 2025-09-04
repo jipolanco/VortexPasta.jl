@@ -101,7 +101,15 @@ function Base.copyto!(vs::VectorOfVectors, us::VectorOfVectors)
 end
 
 # This is called when doing push!.
-Base.resize!(vs::VectorOfVectors, n::Integer) = (resize!(vs.u, n); vs)
+function Base.resize!(vs::VectorOfVectors, n::Integer)
+    n_prev = length(vs)
+    resize!(vs.u, n)
+    Base.require_one_based_indexing(vs)
+    for i in (n_prev + 1):n
+        fill!(vs[i], zero(eltype(vs[i])))
+    end
+    vs
+end
 Base.pop!(vs::VectorOfVectors) = pop!(vs.u)
 Base.popat!(vs::VectorOfVectors, i::Integer, args...) = popat!(vs.u, i, args...)
 Base.empty!(vs::VectorOfVectors) = resize!(vs, 0)

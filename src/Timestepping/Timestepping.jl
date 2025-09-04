@@ -843,9 +843,10 @@ function resize_container!(buf, fs::VectorOfFilaments)
 end
 
 function resize_contained_vectors!(buf, fs::VectorOfFilaments)
-    for (i, f) ∈ pairs(fs)
+    @inbounds for (i, f) ∈ pairs(fs)
         N = length(f)
         resize!(buf[i], N)
+        fill!(buf[i], zero(eltype(buf[i])))
     end
     buf
 end
@@ -903,7 +904,10 @@ function _after_advection!(f::AbstractFilament, fields::Tuple; L_fold, refinemen
     end
     refinement_steps = refine!(f, refinement)
     if refinement_steps > 0  # refinement was performed
-        map(vs -> resize!(vs, length(f)), fields)
+        foreach(fields) do vs
+            resize!(vs, length(f))
+            fill!(vs, zero(eltype(vs)))
+        end
     end
     f
 end
@@ -1014,7 +1018,10 @@ end
         @debug lazy"Filament was modified at index $i"
         @assert f === fs[i]
         # @assert i ≤ lastindex(fs) == lastindex(fields[1])
-        map(vs -> resize!(vs[i], length(f)), fields)
+        foreach(fields) do vs
+            resize!(vs, length(f))
+            fill!(vs, zero(eltype(vs)))
+        end
     end
     nothing
 end

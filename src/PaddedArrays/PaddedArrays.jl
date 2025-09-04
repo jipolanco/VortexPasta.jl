@@ -189,7 +189,11 @@ const PaddedVector{M, T, V} = PaddedArray{M, T, 1, V}
 PaddedVector{M}(data::AbstractVector) where {M} = PaddedArray{M}(data)
 
 function Base.resize!(v::PaddedVector, n::Integer)
-    resize!(parent(v), n + 2 * npad(v))
+    n_prev = length(v)
+    if n_prev != n
+        resize!(parent(v), n + 2 * npad(v))
+        fill!(parent(v), zero(eltype(v)))  # reset all values just in case
+    end
     v
 end
 

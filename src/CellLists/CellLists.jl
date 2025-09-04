@@ -287,6 +287,8 @@ function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) 
     fill!(head_indices_data, EMPTY)  # this can be slow with too many cells?
     resize!(elements, Np)
     resize!(next_index, Np)
+    fill!(elements, zero(eltype(elements)))
+    fill!(next_index, zero(eltype(next_index)))
     Base.require_one_based_indexing(elements)
     Base.require_one_based_indexing(next_index)
     @inbounds Threads.@threads for n in 1:Np

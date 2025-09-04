@@ -64,9 +64,11 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
         for fbuf ∈ fc
             @assert length(fbuf) == length(fs)
             resize!(fbuf[i], N)
+            fill!(fbuf[i], zero(eltype(fbuf[i])))
         end
         for vbuf ∈ vc
             resize!(vbuf[i], N)
+            # fill!(vbuf[i], zero(eltype(vbuf[i])))
         end
     end
 
