@@ -45,8 +45,8 @@ struct AdaptiveTanhSinh{T <: AbstractFloat} <: PreallocatedQuadrature{T}
         ps = sortperm_for_adaptive_quadrature(nlevels)
 
         # Compute nodes and weigths, sorted in access order.
-        xs = similar(ts)
-        ws = similar(ts)
+        xs = copy(ts)
+        ws = copy(ts)
         for i ∈ eachindex(ps, xs, ws)
             j = ps[i]
             t = ts[j]

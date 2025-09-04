@@ -72,7 +72,10 @@ end
 Base.parent(x::VectorOfVectors) = x.u
 Base.length(x::VectorOfVectors) = length(x.u)
 Base.size(x::VectorOfVectors) = (length(x),)
-Base.similar(x::VectorOfVectors, ::Type{T}) where {T} = map(v -> similar(v, T), x) :: VectorOfVectors
+Base.similar(x::VectorOfVectors, ::Type{T}) where {T} = map(x) do v
+    w = similar(v, T)
+    fill!(w, zero(T)) 
+end::VectorOfVectors
 Base.similar(x::VectorOfVectors{T}) where {T} = similar(x, T)
 Base.fill!(x::VectorOfVectors, value) = (foreach(y -> fill!(y, value), x); x)
 Base.push!(x::VectorOfVectors, item) = push!(x.u, item)

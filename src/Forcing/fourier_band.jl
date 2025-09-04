@@ -68,9 +68,9 @@ function init_cache(f::FourierBandForcing{T, N}, cache_bs::BiotSavartCache) wher
     vs_grid = BiotSavart.get_longrange_field_fourier(cache_bs).field
     backend = KA.get_backend(vs_grid[1])  # CPU, CUDABackend, ROCBackend, ...
     vn_d = adapt(backend, vn)::FourierBandVectorField        # vn on the device
-    vtmp_h = similar(vn)::FourierBandVectorField             # temporary buffer (on host)
+    vtmp_h = copy(vn)::FourierBandVectorField                # temporary buffer (on host)
     vtmp_d = adapt(backend, vtmp_h)::FourierBandVectorField  # temporary buffer (on device)
-    ω_h = similar(vtmp_h)  # coarse-grained superfluid vorticity
+    ω_h = copy(vtmp_h)  # coarse-grained superfluid vorticity
     if !with_filtered_vorticity(f)
         empty!(ω_h)  # we don't use this field
     end

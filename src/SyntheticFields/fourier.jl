@@ -55,7 +55,7 @@ end
 
 function Base.similar(field::FourierBandVectorField)
     # Note: we copy the wavenumbers; in general we want them to be the same as for the input.
-    FourierBandVectorField(copy(field.qs), similar(field.cs), field.Δks)
+    FourierBandVectorField(copy(field.qs), copy(field.cs), field.Δks)
 end
 
 # This may be used to free used memory (even though a FourierBandVectorField usually doesn't

@@ -79,17 +79,23 @@ function init_coefficients(
     M = npad(method)
     cs = similar_padded(ys, Val(M))
     Nderiv = max(Nderiv_in, required_derivatives(method))  # the method may require additional derivatives
-    cderivs = ntuple(_ -> similar(cs), Val(Nderiv))
+    cderivs = ntuple(_ -> fill!(similar(cs), zero(eltype(cs))), Val(Nderiv))
     init_coefficients(method, cs, cderivs)
 end
 
 function similar_padded(ys::AbstractVector, ::Val{M}) where {M}
     @assert !(ys isa PaddedVector)
     N = length(ys)
-    PaddedVector{M}(similar(ys, N + 2M))
+    data = similar(ys, N + 2M)
+    fill!(data, zero(eltype(data)))
+    PaddedVector{M}(data)
 end
 
-similar_padded(ys::PaddedVector{M}, ::Val{M}) where {M} = similar(ys)  # we assume ys has the right padding
+function similar_padded(ys::PaddedVector{M}, ::Val{M}) where {M}
+    zs = similar(ys)  # we assume ys has the right padding
+    fill!(zs, zero(eltype(zs)))
+    zs
+end
 
 function _check_coefficients(
         method::DiscretisationMethod, cs::V, cderivs::NTuple{N, V},

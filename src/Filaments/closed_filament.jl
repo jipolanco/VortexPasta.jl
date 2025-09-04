@@ -124,6 +124,7 @@ function ClosedFilament(
     ) where {F <: Function, M, T, Nderivs}
     @assert M == npad(method)
     ts = similar(Xs, T)
+    fill!(ts, zero(T))
     coefs = init_coefficients(method, Xs, nderivs)
     C = continuity(method)
     # Always allow Nderivs ≤ 2
@@ -238,6 +239,7 @@ function similar_filament(
         nderivs::Val = Val(nderivatives(f)),
     ) where {T <: Number}
     Xs = similar(nodes(f), Vec3{T}, dims)
+    fill!(Xs, zero(Vec3{T}))
     ClosedFilament(f.parametrisation, Xs, method; offset, nderivs)
 end
 

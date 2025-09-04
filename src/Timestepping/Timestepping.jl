@@ -830,7 +830,9 @@ function resize_container!(buf, fs::VectorOfFilaments)
     i === N && return buf
     while i < N
         i += 1
-        push!(buf, similar(first(buf), length(fs[i])))
+        data = similar(first(buf), length(fs[i]))
+        fill!(data, zero(eltype(data)))
+        push!(buf, data)
     end
     while i > N
         i -= 1
@@ -1122,6 +1124,7 @@ function inject_filament!(iter::VortexFilamentSolver, f::AbstractFilament)
     for us ∈ fields_to_resize(iter)
         @assert !isempty(us)
         u_new = similar(first(us), length(f))
+        fill!(u_new, zero(eltype(u_new)))
         push!(us, u_new)
     end
     nothing

@@ -469,7 +469,11 @@ function _compute_on_nodes!(
     # Allocate temporary arrays on the GPU for interpolation outputs (manually deallocated later).
     if with_longrange
         noutputs = sum(length, fs)  # total number of interpolation points
-        outputs_lr = map(_ -> similar(pointdata_d.charges, noutputs), values(fields))
+        outputs_lr = map(values(fields)) do _
+            local data = similar(pointdata_d.charges, noutputs)
+            fill!(data, zero(eltype(data)))
+            data
+        end
     end
 
     # Compute long-range part asynchronously on the GPU.

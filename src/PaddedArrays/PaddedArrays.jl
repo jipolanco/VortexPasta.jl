@@ -91,8 +91,12 @@ Base.:(==)(w::PaddedArray{M}, v::PaddedArray{M}) where {M} = w.data == v.data
 Base.isapprox(w::PaddedArray{M}, v::PaddedArray{M}; kwargs...) where {M} =
     isapprox(w.data, v.data; kwargs...)
 
+Base.fill!(v::PaddedArray, x) = fill!(parent(v), x)
+
 function Base.similar(v::PaddedArray{M, T, N}, ::Type{S}, dims::Dims{N}) where {S, M, T, N}
-    PaddedArray{M}(similar(v.data, S, dims .+ 2M))
+    data = similar(v.data, S, dims .+ 2M)
+    fill!(data, zero(S))
+    PaddedArray{M}(data)
 end
 
 Base.@propagate_inbounds function Base.getindex(v::PaddedArray{M, T, N}, I::Vararg{Int, N}) where {M, T, N}

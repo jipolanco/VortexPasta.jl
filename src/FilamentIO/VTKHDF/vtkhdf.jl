@@ -866,7 +866,11 @@ function Base.read(
         ::Type{V} = eltype(eltype(reader.fs)),  # Vec3{T} by default
     ) where {V}
     (; fs,) = reader
-    vs = map(f -> similar(nodes(f), V), fs)  # one PaddedVector for each filament
+    vs = map(fs) do f  # one PaddedVector for each filament
+        v = similar(nodes(f), V)
+        fill!(v, zero(eltype(v)))
+        v
+    end
     read!(reader, vs, name)
 end
 

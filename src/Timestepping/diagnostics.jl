@@ -43,6 +43,7 @@ function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk::Integer; kws...
         velocities = (; velocities..., vdiss = (field = iter.vdiss, sign = -1))
     end
     vs_buf = similar(iter.vs)
+    fill!(vs_buf, zero(eltype(vs_buf)))
     Diagnostics.energy_flux(iter, iter.fs, velocities, Nk, p; vs_buf, kws...)
 end
 

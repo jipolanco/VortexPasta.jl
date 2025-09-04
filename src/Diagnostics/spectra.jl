@@ -74,6 +74,7 @@ See [`energy_spectrum!`](@ref) for details on the `cache` argument.
 function init_spectrum(cache::LongRangeCache)
     ks = init_spectrum_wavenumbers(cache)
     Ek = similar(ks)  # this one is also on the CPU
+    fill!(Ek, zero(eltype(Ek)))
     ks, Ek
 end
 
