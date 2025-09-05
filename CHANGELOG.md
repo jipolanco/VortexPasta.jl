@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- **Fix infamous "restart" bug.**
+  In fact this wasn't really an issue with restarts, but an issue with filament buffers used
+  in timestepping (for RK substeps), i.e. the `fc` field of `TemporalSchemeCache`. In fact,
+  we never updated the end-to-end offset of these filament buffers, even when the offset of
+  the actual filaments changed (typically after reconnections).
+
 ## [0.29.10] - 2025-08-29
 
 ### Added

@@ -78,11 +78,14 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
     map(buf -> resize_container!(buf, fs), vc)
 
     # 2. Resize individual vectors if number of nodes in each filament changed.
+    # Also, make sure that filament buffers have the same end-to-end offset as the original filaments.
     for (i, f) ∈ pairs(fs)
         N = length(f)
         for fbuf ∈ fc
             @assert length(fbuf) == length(fs)
             resize!(fbuf[i], N)
+            offset = Filaments.end_to_end_offset(f)
+            fbuf[i] = Filaments.change_offset(fbuf[i], offset)  # this doesn't really allocate anything
         end
         for vbuf ∈ vc
             resize!(vbuf[i], N)

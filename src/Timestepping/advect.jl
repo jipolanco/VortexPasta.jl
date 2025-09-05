@@ -48,6 +48,7 @@ function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}
 end
 
 function _advect_filament!(f::T, fbase::T, vL, dt) where {T <: AbstractFilament}
+    @assert Filaments.end_to_end_offset(f) == Filaments.end_to_end_offset(fbase)
     Xs = nodes(f)
     Ys = nodes(fbase)
     for i ∈ eachindex(Xs, Ys, vL)
