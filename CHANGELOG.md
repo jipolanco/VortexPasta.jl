@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.29.11] - 2025-09-05
+
 ### Fixed
 
 - **Fix infamous "restart" bug.**
