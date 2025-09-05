@@ -109,12 +109,17 @@ trefoil_scheme_dt(::SSPRK33) = 0.8
 trefoil_scheme_dt(::KenCarp3) = 0.5
 trefoil_scheme_dt(::Midpoint) = 0.3
 
+# The `large_trefoil = true` case was added after the "restart" bug (not really related to
+# restarts) was fixed. It allows to check that filament buffers stay valid after
+# reconnections involving a change of end-to-end offset.
 function test_trefoil_knot_reconnection(
         ::Type{Criterion} = ReconnectBasedOnDistance;
+        large_trefoil = false,
         scheme = RK4(),
     ) where {Criterion <: ReconnectionCriterion}
     test_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
-    S = define_curve(TrefoilKnot(); translate = π, scale = π / 4)
+    scale = large_trefoil ? (π / 2.8) : (π / 4)
+    S = define_curve(TrefoilKnot(); translate = π, scale)
     N = 64
     f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
     fs_init = [f]
@@ -209,6 +214,17 @@ function test_trefoil_knot_reconnection(
         solve!(iter)
     end
 
+    for f in iter.fs
+        offset = Filaments.end_to_end_offset(f)
+        if large_trefoil
+            # End-to-end offsets are nonzero in "large" case (this is the whole purpose of
+            # the test).
+            @test offset != zero(offset)
+        else
+            @test offset == zero(offset)  # end-to-end offsets are zero in "small" case
+        end
+    end
+
     let
         ks, Ek = Diagnostics.energy_spectrum(iter)
         _, Hk = Diagnostics.helicity_spectrum(iter)
@@ -245,7 +261,10 @@ function test_trefoil_knot_reconnection(
     end
 
     @test n_reconnect[] > 0
-    if Criterion <: ReconnectBasedOnDistance
+    if large_trefoil
+        @test 0.57 < t_reconnect[] < 0.67
+        @test 0.965 < last(energy_rel) < 0.985
+    elseif Criterion <: ReconnectBasedOnDistance
         @test 1.60 < t_reconnect[] < 1.70  # this depends on several parameters...
         @test 0.98 < last(energy_rel) < 0.99
     elseif Criterion <: ReconnectFast
@@ -791,8 +810,13 @@ end
 
     @testset "Dynamic: trefoil knot" begin
         schemes = (RK4(),)
-        @testset "Scheme: $scheme" for scheme ∈ schemes
-            test_trefoil_knot_reconnection(; scheme)
+        criteria = (ReconnectBasedOnDistance, ReconnectFast)
+        @testset "Scheme: $scheme" for scheme in schemes
+            @testset "Criterion: $Criterion" for Criterion in criteria
+                @testset "Large trefoil: $large_trefoil" for large_trefoil in (false, true)
+                    test_trefoil_knot_reconnection(Criterion; scheme, large_trefoil)
+                end
+            end
         end
     end
 
