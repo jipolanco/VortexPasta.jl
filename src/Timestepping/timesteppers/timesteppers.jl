@@ -50,6 +50,26 @@ function init_cache(
     TemporalSchemeCache(scheme, fc, vc)
 end
 
+# Here buf is usually a VectorOfFilaments or a vector of vectors of velocities
+# (containing the velocities of all filaments).
+# Resizes the higher-level vector without resizing the individual vectors it contains.
+function resize_container!(buf::AbstractVector{<:AbstractVector}, fs::VectorOfFilaments)
+    i = lastindex(buf)
+    N = lastindex(fs)
+    i === N && return buf
+    while i < N
+        i += 1
+        el = similar(first(buf), length(fs[i]))  # this can be a filament, a vector of velocities, ...
+        push!(buf, el)
+    end
+    while i > N
+        i -= 1
+        pop!(buf)
+    end
+    @assert length(fs) == length(buf)
+    buf
+end
+
 function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
     (; fc, vc,) = cache
 
@@ -58,7 +78,6 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
     map(buf -> resize_container!(buf, fs), vc)
 
     # 2. Resize individual vectors if number of nodes in each filament changed.
-    # This is similar to resize_contained_vectors!.
     for (i, f) ∈ pairs(fs)
         N = length(f)
         for fbuf ∈ fc

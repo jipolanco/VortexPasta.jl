@@ -821,33 +821,6 @@ function check_external_streamfunction(forcing::NamedTuple, Ls)
     nothing
 end
 
-# Here buf is usually a VectorOfFilaments or a vector of vectors of velocities
-# (containing the velocities of all filaments).
-# Resizes the higher-level vector without resizing the individual vectors it contains.
-function resize_container!(buf, fs::VectorOfFilaments)
-    i = lastindex(buf)
-    N = lastindex(fs)
-    i === N && return buf
-    while i < N
-        i += 1
-        push!(buf, similar(first(buf), length(fs[i])))
-    end
-    while i > N
-        i -= 1
-        pop!(buf)
-    end
-    @assert length(fs) == length(buf)
-    buf
-end
-
-function resize_contained_vectors!(buf, fs::VectorOfFilaments)
-    for (i, f) ∈ pairs(fs)
-        N = length(f)
-        resize!(buf[i], N)
-    end
-    buf
-end
-
 function refine!(f::AbstractFilament, refinement::RefinementCriterion)
     nref = Filaments.refine!(f, refinement)  # we assume update_coefficients! was already called
     n = 0
