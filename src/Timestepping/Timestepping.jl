@@ -729,6 +729,9 @@ function init(
         stats = SimulationStats(T)
     else  # with state, restarting from checkpoint
         time = state.time
+        if adaptivity === NoAdaptivity()
+            time.dt = dt  # use constant timestep given as input
+        end
         stats = state.stats::SimulationStats{T}
     end
 
@@ -887,11 +890,16 @@ Advance vortex filament solver to the ending time.
 See also [`step!`](@ref) for advancing one step at a time.
 """
 function solve!(iter::VortexFilamentSolver)
-    (; time,) = iter
+    (; time, adaptivity,) = iter
     t_end = iter.prob.tspan[2]
     while time.t < t_end
-        if can_change_dt(iter.cache_timestepper)
+        if adaptivity === NoAdaptivity()  # constant timestep
+            if isapprox(time.t, t_end; atol = time.dt / 1000)
+                break  # stop simulation if we're very close to the end time
+            end
+        elseif can_change_dt(iter.cache_timestepper)
             # Try to finish exactly at t = t_end.
+            # Note: we don't do this when using a constant timestep.
             time.dt = min(time.dt, t_end - time.t)
         end
         status = step!(iter)
