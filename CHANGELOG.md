@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.29.12] - 2025-09-09
+
+### Added
+
+- Timestepping: include `iter.vf` field when using `NormalFluidForcing` and `FourierBandForcing`
+  to match the behaviour of `FourierBandForcingBS`.
+
 ## [0.29.11] - 2025-09-05
 
 ### Fixed

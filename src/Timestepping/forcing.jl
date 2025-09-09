@@ -81,6 +81,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t
     (; quantities,) = iter
     vs_all = quantities.vs  # self-induced velocities will be copied here
     vn_all = quantities.vn  # normal fluid velocities will be computed here
+    vf_all = quantities.vf  # actual forcing velocity
     tangents_all = quantities.tangents  # local tangents (already computed)
     @assert vs_all !== vL_all
     @assert eachindex(vL_all) == eachindex(vn_all) == eachindex(tangents_all) == eachindex(vs_all) == eachindex(fs)
@@ -90,6 +91,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t
             f = fs[n]
             vs = vs_all[n]
             vL = vL_all[n]
+            vf = vf_all[n]
             vn = vn_all[n]
             tangents = tangents_all[n]
             # At input, vL contains the self-induced velocity vs.
@@ -99,6 +101,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t
                 vn[i] = forcing.vn(f[i])  # evaluate normal fluid velocity
             end
             Forcing.apply!(forcing, vL, vn, tangents; scheduler)  # compute vL according to the given forcing (vL = vs at input)
+            @. vf = vL - vs  # obtain forcing velocity (useful for postprocessing / diagnostics)
         end
     end
     nothing
@@ -109,16 +112,20 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t
     (; quantities,) = iter
     vs_all = quantities.vs  # self-induced velocities will be copied here
     v_ns_all = quantities.v_ns  # slip velocity used in forcing
+    vf_all = quantities.vf  # actual forcing velocity
     Forcing.update_cache!(cache, forcing, iter.cache_bs)
     scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
         @inbounds for n in eachindex(fs)
             f = fs[n]
             vL = vL_all[n]  # currently contains self-induced velocity vs
-            copyto!(vs_all[n], vL)
+            vs = vs_all[n]  # will contain self-induced velocity vs
+            vf = vf_all[n]  # will contain forcing velocity
+            copyto!(vs, vL)
             # Compute vL according to the given forcing (vL = vs at input).
             # This will also store filtered slip velocities in v_ns.
             Forcing.apply!(forcing, cache, vL, f; vdiff = v_ns_all[n], scheduler)
+            @. vf = vL - vs  # obtain forcing velocity (useful for postprocessing / diagnostics)
         end
     end
     nothing

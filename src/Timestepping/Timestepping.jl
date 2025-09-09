@@ -681,9 +681,9 @@ function init(
     quantities_base = (; vs, ψs, tangents,)
 
     quantities_with_forcing = if forcing isa NormalFluidForcing
-        (; quantities_base..., vL = similar(vs), vn = similar(vs),)
+        (; quantities_base..., vL = similar(vs), vf = similar(vs), vn = similar(vs),)
     elseif forcing isa FourierBandForcing
-        (; quantities_base..., v_ns = similar(vs), vL = similar(vs),)  # we separately store vs and vL
+        (; quantities_base..., v_ns = similar(vs), vf = similar(vs), vL = similar(vs),)  # we separately store vs and vL
     elseif forcing isa FourierBandForcingBS
         (; quantities_base..., vf = similar(vs), vL = similar(vs),)  # no normal fluid in this case
     elseif mode === MinimalEnergy() || dissipation !== NoDissipation()
