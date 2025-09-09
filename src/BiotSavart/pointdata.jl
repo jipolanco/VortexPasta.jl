@@ -119,13 +119,15 @@ before [`compute_vorticity_fourier!`](@ref).
 function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, quad::StaticSizeQuadrature)
     Ncharges = _count_charges(quad, fs)
     set_num_points!(data, Ncharges)
-    inds = OhMyThreads.chunks(eachindex(fs); n = Threads.nthreads())
-    Threads.@threads for subinds ∈ inds
-        subinds === nothing && continue  # subinds can be nothing; see iterate(c::Chunk) in ChunkSplitters
-        prev_indices = firstindex(fs):(first(subinds) - 1)  # filament indices given to all previous chunks
-        n = _count_charges(quad, view(fs, prev_indices))    # we will start writing at index n + 1
-        for i ∈ subinds
-            n = _add_point_charges!(data, fs[i], n, quad)
+    chunks = FilamentChunkIterator(fs)  # defined in shortrange/shortrange.jl
+    @sync for chunk in chunks
+        isempty(chunk) && continue  # don't spawn a task if it will do no work
+        Threads.@spawn let
+            prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
+            n = _count_charges(quad, view(fs, prev_indices))  # we will start writing at index n + 1
+            for i in chunk
+                n = _add_point_charges!(data, fs[i], n, quad)
+            end
         end
     end
     nothing
