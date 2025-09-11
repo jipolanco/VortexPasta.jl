@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `Diagnostics.energy_flux`: allow passing a vector of wavenumbers `ks` instead
+  of the wanted number of wavenumbers `Nk`.
+
 ## [0.29.12] - 2025-09-09
 
 ### Added

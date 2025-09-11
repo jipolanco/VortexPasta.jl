@@ -33,7 +33,7 @@ function Diagnostics.energy_injection_rate(iter::VortexFilamentSolver, vL = iter
     Diagnostics.energy_injection_rate(fs, vL, vs, p; kws...)
 end
 
-function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk::Integer; kws...)
+function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
     velocities = (vs = (field = iter.vs, sign = -1),)
     p = iter.prob.p
     if hasproperty(iter, :vf)
@@ -43,7 +43,7 @@ function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk::Integer; kws...
         velocities = (; velocities..., vdiss = (field = iter.vdiss, sign = -1))
     end
     vs_buf = similar(iter.vs)
-    Diagnostics.energy_flux(iter, iter.fs, velocities, Nk, p; vs_buf, kws...)
+    Diagnostics.energy_flux(iter, iter.fs, velocities, Nk_or_ks, p; vs_buf, kws...)
 end
 
 # Note: filament_length is actually defined in the Filaments module, but we extend its

@@ -4,12 +4,13 @@ using Adapt: Adapt, adapt
 
 @doc raw"""
     energy_flux(iter::VortexFilamentSolver, Nk::Integer; quad = nothing) -> (ks, fluxes)
+    energy_flux(iter::VortexFilamentSolver, ks::AbstractVector; quad = nothing) -> (ks, fluxes)
 
 Compute the energy "flux" across scales due to various velocity terms.
 
-The `Nk` argument is the maximum number of wavenumbers that will be considered.
-This function will then define a vector of logarithmically-spaced wavenumbers `ks`
-across which the fluxes will be computed.
+The second argument can be either the wanted number of output wavenumbers `Nk`, or the
+actual output wavenumbers `ks`. In the first case, this function will choose
+logarithmically-spaced wavenumbers `ks` across which the fluxes will be computed.
 In general, the length of `ks` will be slightly lower than `Nk` to avoid possible
 repetitions.
 
@@ -104,24 +105,32 @@ DropLargeWavenumbers(kcut, ks) = DropLargeWavenumbers(kcut, kcut^2, ks)
     end
 end
 
-function energy_flux(cache_in, fs, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart; kws...)
+# Determine wavenumbers over which the flux will be computed.
+function flux_wavenumbers(cache::LongRangeCache, Nk::Integer)
+    ks_full = init_spectrum_wavenumbers(cache)  # = 0:Δk:kmax
+    Δk = ks_full[begin + 1] - ks_full[begin]
+    ks_log = collect(logrange(ks_full[begin + 1], ks_full[end]; length = Nk))  # logarithmically-spaced wavenumbers
+    unique!(floor.(ks_log ./ Δk) .* Δk)  # remove repeated and "fractional" wavenumbers
+end
+
+function energy_flux(cache_in, fs, velocities::NamedTuple, Nk_or_ks, params::ParamsBiotSavart; kws...)
     cache = get_long_range_cache(cache_in)::LongRangeCache
-    energy_flux(cache, fs, velocities, Nk, params; kws...)
+    energy_flux(cache, fs, velocities, Nk_or_ks, params; kws...)
+end
+
+function energy_flux(cache::LongRangeCache, fs, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart; kws...)
+    ks = flux_wavenumbers(cache, Nk)
+    energy_flux(cache, fs, velocities, ks, params; kws...)
 end
 
 function energy_flux(
-        cache::LongRangeCache, fs, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart;
+        cache::LongRangeCache, fs, velocities::NamedTuple,
+        ks::AbstractVector, params::ParamsBiotSavart;
         quad = nothing, vs_buf = similar(first(velocities).field),
     )
     (; wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
     @assert state.quantity == :velocity
     @assert state.smoothing_scale == 0
-    
-    # Determine target wavenumbers.
-    ks_full = init_spectrum_wavenumbers(cache)  # = 0:Δk:kmax
-    Δk = ks_full[begin + 1] - ks_full[begin]
-    ks_log = collect(logrange(ks_full[begin + 1], ks_full[end]; length = Nk))  # logarithmically-spaced wavenumbers
-    ks = unique!(floor.(ks_log ./ Δk) .* Δk)  # remove repeated and "fractional" wavenumbers
 
     # Initialise flux vectors.
     fluxes = map(_ -> similar(ks), velocities)
