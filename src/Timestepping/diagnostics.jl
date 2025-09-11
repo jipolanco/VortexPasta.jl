@@ -49,6 +49,13 @@ function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
     Diagnostics.energy_flux(iter, iter.fs, velocities, Nk_or_ks, p; vs_buf, kws...)
 end
 
+function Diagnostics.energy_transfer_matrix(iter::VortexFilamentSolver, Nk_or_ks; kws...)
+    params = iter.prob.p
+    Diagnostics.energy_transfer_matrix(
+        iter, iter.fs, iter.vs, Nk_or_ks, params; kws...
+    )
+end
+
 # Note: filament_length is actually defined in the Filaments module, but we extend its
 # alias in Diagnostics just for consistency with the other diagnostics (it doesn't make any
 # difference really!).

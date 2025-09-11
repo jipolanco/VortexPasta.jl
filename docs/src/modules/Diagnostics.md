@@ -67,6 +67,7 @@ helicity_spectrum!
 
 ```@docs
 energy_flux
+energy_transfer_matrix
 ```
 
 ## Length scales
