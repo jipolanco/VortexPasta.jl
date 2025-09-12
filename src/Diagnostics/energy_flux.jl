@@ -127,7 +127,7 @@ DropLargeWavenumbers(kcut, ks) = DropLargeWavenumbers(kcut, kcut^2, ks)
 end
 
 # Determine wavenumbers over which the flux will be computed.
-function flux_wavenumbers(cache::LongRangeCache, Nk::Integer)
+function flux_wavenumbers_logspaced(cache::LongRangeCache, Nk::Integer)
     ks_full = init_spectrum_wavenumbers(cache)  # = 0:Δk:kmax
     Δk = ks_full[begin + 1] - ks_full[begin]
     ks_log = collect(logrange(ks_full[begin + 1], ks_full[end]; length = Nk))  # logarithmically-spaced wavenumbers
@@ -140,7 +140,7 @@ function energy_flux(cache_in, fs, velocities::NamedTuple, Nk_or_ks, params::Par
 end
 
 function energy_flux(cache::LongRangeCache, fs, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart; kws...)
-    ks = flux_wavenumbers(cache, Nk)
+    ks = flux_wavenumbers_logspaced(cache, Nk)
     energy_flux(cache, fs, velocities, ks, params; kws...)
 end
 
@@ -190,9 +190,13 @@ end
 
 Compute energy transfers between different Fourier shells.
 
-Returns a square antisymmetric matrix of dimensions `(Nk, Nk)` where `Nk` is the length of
+Returns a square antisymmetric matrix of dimensions `(Nk + 1, Nk + 1)` where `Nk` is the length of
 the returned `ks` vector (which might be smaller than the input `Nk`, if there are not
-enough resolved wavenumbers).
+enough resolved wavenumbers). Note that the `ks` vector does not include the mode `k = 0`.
+
+This function defines `Nk + 1` shells, such that the `i`-th shell contains wavenumbers `ks[i - 1] < k ≤ ks[i]`,
+with the conventions `ks[0] = 0` and `ks[Nk + 1] = ∞`. In other words, the last "shell"
+contains all small wavenumbers `k > ks[end]`.
 
 See [`energy_flux`](@ref) for more details on the accepted arguments.
 
@@ -206,9 +210,6 @@ T_{AB} = \frac{Γ}{V} ∮ \left[ \bm{s}' × \bm{v}_{\text{s}}^{\text{A}} \right]
 
 where ``\bm{v}_{\text{s}}^{\text{A}}`` and ``\bm{v}_{\text{s}}^{\text{B}}`` are Fourier
 band-pass-filtered fields, including only the coefficients within the chosen shells.
-
-By convention, the first shell is given by ``0 < |\bm{k}| ≤ k_1`` where ``k_1`` is the first element of `ks`.
-The second shell is between ``k_1`` and ``k_2`` and so on.
 """
 function energy_transfer_matrix end
 
@@ -255,8 +256,7 @@ function energy_transfer_matrix(
         cache::LongRangeCache, fs::AbstractVector, vs::AbstractVector, Nk::Integer, params::ParamsBiotSavart;
         kws...
     )
-    ks_full = init_spectrum_wavenumbers(cache)   # = 0:Δk:kmax
-    ks = ks_full[begin + 1]:ks_full[min(end, begin + Nk)]  # select all wavenumbers up to the Nk-th
+    ks = flux_wavenumbers_logspaced(cache, Nk)  # logarithmically-spaced wavenumbers
     energy_transfer_matrix(cache, fs, vs, ks, params; kws...)
 end
 
@@ -272,7 +272,9 @@ function energy_transfer_matrix(
     Base.require_one_based_indexing(ks)
 
     # Initialise filament velocities for each wavenumber shell
-    vs_shells = [similar(vs) for _ in 1:Nk]
+    nshells = Nk + 1
+    vs_shells = [similar(vs) for _ in 1:nshells]
+    vs_large = last(vs_shells)  # accumulated large-scale velocity
 
     # Compute shell-filtered velocities
     k_prev = zero(eltype(ks))
@@ -282,18 +284,30 @@ function energy_transfer_matrix(
         kmax = k_shell
         callback = KeepFourierShell(kmin, kmax, wavenumbers)
         BiotSavart.interpolate_to_physical!(callback, cache)
-        vs_filtered = vs_shells[i]
-        BiotSavart.copy_long_range_output!(vs_filtered, cache)
-        for n in eachindex(vs_filtered, fs)
-            Filaments.update_coefficients!(vs_filtered[n]; knots = Filaments.knots(fs[n]))
+        vs_shell = vs_shells[i]
+        BiotSavart.copy_long_range_output!(vs_shell, cache)
+        if i == 1
+            vs_large .= vs_shell
+        else
+            vs_large .+= vs_shell  # vs_large now includes the velocity for 0 < k < k_shell
         end
         k_prev = k_shell
     end
 
+    vs_shells[end] .= vs .- vs_large  # the last shell now has the small-scale velocity (wavenumbers k > ks[end])
+
+    Threads.@threads for vs_shell in vs_shells
+        for n in eachindex(vs_shell, fs)
+            Filaments.update_coefficients!(vs_shell[n]; knots = Filaments.knots(fs[n]))
+        end
+    end
+
     # Compute energy transfer matrix
-    transfers = similar(ks, (Nk, Nk))
-    for j in eachindex(vs_shells), i in eachindex(vs_shells)
-        transfers[i, j] = Diagnostics.energy_injection_rate(fs, vs_shells[j], vs_shells[i], params; quad)
+    transfers = similar(ks, (nshells, nshells))
+    Threads.@threads for j in eachindex(vs_shells)
+        for i in eachindex(vs_shells)
+            transfers[i, j] = Diagnostics.energy_injection_rate(fs, vs_shells[j], vs_shells[i], params; quad)
+        end
     end
 
     ks, transfers
