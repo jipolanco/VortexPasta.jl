@@ -4,7 +4,7 @@ using LinearAlgebra: LinearAlgebra, ⋅, ×
 
 @doc raw"""
     FourierBandForcingBS <: AbstractForcing
-    FourierBandForcingBS(; kmin, kmax, α, ε_target, α′ = 0)
+    FourierBandForcingBS(; kmin, kmax, α, ε_target, α′ = 0, modify_length = true)
 
 Forcing based on Biot–Savart energetics within a given range of wavenumbers.
 
@@ -21,6 +21,12 @@ energy injection (negative values lead to energy dissipation):
 - `ε_target` (`\varepsilon_target`) has the units of an energy injection rate. In this case,
   the amplitude ``α`` will be adjusted over time in order to keep a roughly constant energy
   injection rate (which in general will _not_ be equal to `ε_target`, see remarks below).
+
+The `modify_length` parameter can be set to `false` to avoid this forcing from increasing
+(or decreasing) the vortex length. This changes the forcing velocity by removing the component that is parallel
+to the local vortex curvature, such that it doesn't modify the vortex length locally.
+This is experimental, and might help (or not) avoiding non-local energy transfers from large
+to small scales.
 
 # Extended help
 
@@ -129,26 +135,27 @@ struct FourierBandForcingBS{T <: AbstractFloat, N} <: AbstractForcing
     ε_target :: T  # target energy injection rate [L²T⁻³]
     kmin :: T
     kmax :: T
+    modify_length :: Bool
     qs   :: Vector{NTuple{N, Int}}  # list of normalised wavevectors (can be empty)
 end
 
-function FourierBandForcingBS(; α::Real = 0, ε_target = 0, α′ = 0, kmin = nothing, kmax = nothing, qs = nothing)
+function FourierBandForcingBS(; α::Real = 0, ε_target = 0, α′ = 0, modify_length = true, kmin = nothing, kmax = nothing, qs = nothing)
     (α == 0) + (ε_target == 0) == 1 || throw(ArgumentError("one should pass either α or ε_target, but not both"))
-    _FourierBandForcingBS(α, α′, ε_target, kmin, kmax, qs)
+    _FourierBandForcingBS(α, α′, ε_target, kmin, kmax, modify_length, qs)
 end
 
-function _FourierBandForcingBS(α, α′, ε_target, kmin::Real, kmax::Real, qs::Nothing)
+function _FourierBandForcingBS(α, α′, ε_target, kmin::Real, kmax::Real, modify_length, qs::Nothing)
     scalars = promote(α, α′, ε_target, kmin, kmax)
     qs = Tuple{}[]  # empty vector of empty tuples
-    FourierBandForcingBS(scalars..., qs)
+    FourierBandForcingBS(scalars..., modify_length, qs)
 end
 
 # This variant allows setting specific q⃗ normalised wavevectors (currently not documented!).
-function _FourierBandForcingBS(α, α′, ε_target, kmin::Nothing, kmax::Nothing, qs::AbstractVector{NTuple{N, Int}}) where {N}
+function _FourierBandForcingBS(α, α′, ε_target, kmin::Nothing, kmax::Nothing, modify_length, qs::AbstractVector{NTuple{N, Int}}) where {N}
     kmin = 0
     kmax = 0
     scalars = promote(α, α′, ε_target, kmin, kmax)
-    FourierBandForcingBS(scalars..., qs)
+    FourierBandForcingBS(scalars..., modify_length, qs)
 end
 
 function Base.show(io::IO, f::FourierBandForcingBS{T}) where {T}
@@ -163,6 +170,7 @@ function Base.show(io::IO, f::FourierBandForcingBS{T}) where {T}
     if α′ != 0
         print(io, "\n$(prefix)├─ Drift coefficient: α′ = ", α′)
     end
+    print(io, "\n$(prefix)├─ Forcing modifies length: ", f.modify_length)
     if isempty(qs)
         print(io, "\n$(prefix)└─ Fourier band: |k⃗| ∈ [$kmin, $kmax]")
     else
@@ -226,9 +234,10 @@ function apply!(
         @inline
         @inbounds begin
             s⃗ = f[i]
-            ds⃗_dt = f[i, Derivative(1)]
-            ds_dt = sqrt(sum(abs2, ds⃗_dt))  # vector norm
-            s⃗′ = ds⃗_dt ./ ds_dt  # unit tangent
+            s⃗ₜ = f[i, Derivative(1)]
+            sₜ² = sum(abs2, s⃗ₜ)
+            sₜ = sqrt(sₜ²)  # vector norm
+            s⃗′ = s⃗ₜ ./ sₜ   # unit tangent
             (; qs, cs, Δks,) = v_h
             vf = zero(V)  # forcing velocity (excluding α prefactor)
             for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
@@ -238,14 +247,23 @@ function apply!(
                 vf = vf + vf_k
             end
             vf = s⃗′ × vf
+            vs_filtered = vf  # velocity filtered at target wavevectors
+            if !forcing.modify_length
+                # See also definition of CurvatureVector in Filaments/quantities.jl
+                s⃗ₜₜ = f[i, Derivative(2)]
+                s⃗″ = s⃗ₜ × (s⃗ₜₜ × s⃗ₜ)  # curvature vector (up to a scalar constant)
+                # @assert s⃗″ ≈ f[i, CurvatureVector()] * (sₜ² * sₜ²)
+                s″_norm2 = sum(abs2, s⃗″)
+                vf = vf - ((vf ⋅ s⃗″) / s″_norm2) * s⃗″
+            end
             if forcing.α != 0
                 vs[i] = vs[i] + forcing.α * vf - forcing.α′ * (s⃗′ × vf)  # apply forcing
             elseif forcing.ε_target != 0
                 vs[i] = vf  # just overwrite the input
             end
             dt = (ts[i + 1] - ts[i - 1]) / 2
-            dξ = dt * ds_dt  # estimated local segment length
-            sum(abs2, vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor) -- only valid in ε_target mode!
+            dξ = dt * sₜ  # estimated local segment length
+            (vs_filtered ⋅ vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor) -- only valid in ε_target mode!
         end
     end
     # The factor 2 accounts for Hermitian symmetry: if we inject energy into the velocity at

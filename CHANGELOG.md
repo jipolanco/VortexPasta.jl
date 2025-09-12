@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `modify_length` option to `FourierBandForcingBS`. If set to `false`, the
+  forcing velocity will be adapted so that it doesn't locally modify vortex lengths.
+
 - `Diagnostics.energy_flux`: compute additional `fluxes.vinf` field for estimating non-local
   transfer to very small scales.
 
