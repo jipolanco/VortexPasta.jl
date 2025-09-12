@@ -323,8 +323,9 @@ end
             let
                 ks, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad = GaussLegendre(3))
                 @test length(ks) ≤ 8
-                @test length(fluxes) == 2
+                @test length(fluxes) == 3
                 @test hasproperty(fluxes, :vs)
+                @test hasproperty(fluxes, :vinf)
                 @test hasproperty(fluxes, :vf)
                 @test fluxes.vf[end] > 0  # positive energy injection
             end
@@ -433,8 +434,9 @@ end
             let
                 ks, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad = GaussLegendre(3))
                 @test length(ks) ≤ 8
-                @test length(fluxes) == 2
+                @test length(fluxes) == 3
                 @test hasproperty(fluxes, :vs)
+                @test hasproperty(fluxes, :vinf)
                 @test hasproperty(fluxes, :vdiss)
             end
         end
@@ -468,8 +470,9 @@ end
             let
                 ks, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad = GaussLegendre(3))
                 @test length(ks) ≤ 8
-                @test length(fluxes) == 3
+                @test length(fluxes) == 4
                 @test hasproperty(fluxes, :vs)
+                @test hasproperty(fluxes, :vinf)
                 @test hasproperty(fluxes, :vf)
                 @test hasproperty(fluxes, :vdiss)
             end
