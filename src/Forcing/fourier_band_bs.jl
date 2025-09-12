@@ -255,6 +255,7 @@ function apply!(
                 # @assert s⃗″ ≈ f[i, CurvatureVector()] * (sₜ² * sₜ²)
                 s″_norm2 = sum(abs2, s⃗″)
                 vf = vf - ((vf ⋅ s⃗″) / s″_norm2) * s⃗″
+                # @assert norm(vf ⋅ f[i, CurvatureVector()]) < 1e-12
             end
             if forcing.α != 0
                 vs[i] = vs[i] + forcing.α * vf - forcing.α′ * (s⃗′ × vf)  # apply forcing

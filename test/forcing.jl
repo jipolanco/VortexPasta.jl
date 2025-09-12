@@ -90,23 +90,29 @@ function simulate(
         @test iter.vL ≈ iter.vs + iter.vf rtol=1e-16
         # @test iter.vL == iter.vs + iter.vf
     end
-    E_init = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+    quad = GaussLegendre(3)
+    E_init = Diagnostics.kinetic_energy(iter; quad)
+    L_init = Diagnostics.filament_length(iter; quad)
     E_final = E_init
+    L_final = L_init
     ks_spec, Ek_init = Diagnostics.energy_spectrum(iter)
     _, Hk_init = Diagnostics.helicity_spectrum(iter)
     while iter.t < prob.tspan[2]
-        E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+        E = Diagnostics.kinetic_energy(iter; quad)
         E_final = E
+        L = Diagnostics.filament_length(iter; quad)
+        L_final = L
         Nf = length(iter.fs)
         Np = sum(length, iter.fs; init = 0)
-        # @show iter.t, E, Nf, Np
+        # @show iter.t, E, L, Nf, Np
         step!(iter)
     end
     _, Ek_final = Diagnostics.energy_spectrum(iter)
     _, Hk_final = Diagnostics.helicity_spectrum(iter)
     E_ratio = E_final / E_init
+    L_ratio = L_final / L_init
     spectra = (; ks = ks_spec, Ek_init, Ek_final, Hk_init, Hk_final,)
-    (; iter, E_ratio, spectra,)
+    (; iter, E_ratio, L_ratio, spectra,)
 end
 
 # Check that the Fourier band forcing computes the right thing.
@@ -291,6 +297,12 @@ end
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
             # @show E_ratio  # = 1.1410585242365534
             @test 1.10 < E_ratio < 1.20
+        end
+        @testset "FourierBandForcingBS (constant ε_target, modify_length = false)" begin
+            forcing = @inferred FourierBandForcingBS(; ε_target = 1e-2, kmin = 0.5, kmax = 2.5, modify_length = false)
+            (; iter, E_ratio, spectra) = simulate(prob, forcing)
+            @show E_ratio  # = 1.688073535711441
+            @test 1.60 < E_ratio < 1.80
         end
         @testset "FourierBandForcingBS (constant α and α′)" begin
             forcing = @inferred FourierBandForcingBS(; α = 100.0, α′ = 1.0, kmin = 0.5, kmax = 2.5)
