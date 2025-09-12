@@ -34,7 +34,10 @@ function Diagnostics.energy_injection_rate(iter::VortexFilamentSolver, vL = iter
 end
 
 function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
-    velocities = (vs = (field = iter.vs, sign = -1),)
+    velocities = (
+        vs = (field = iter.vs, sign = -1),
+        vinf = (field = CurvatureVector(), sign = -1),
+    )
     p = iter.prob.p
     if hasproperty(iter, :vf)
         velocities = (; velocities..., vf = (field = iter.vf, sign = +1))

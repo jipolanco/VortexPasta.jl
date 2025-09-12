@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Diagnostics.energy_flux`: compute additional `fluxes.vinf` field for estimating non-local
+  transfer to very small scales.
+
 - `Diagnostics.energy_flux`: allow passing a vector of wavenumbers `ks` instead
   of the wanted number of wavenumbers `Nk`.
 

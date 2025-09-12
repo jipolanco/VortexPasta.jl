@@ -33,6 +33,8 @@ Depending on the fields available in `iter`, the returned `fluxes` can include t
 
 - `vs`: energy flux across scale ``k`` due to the Biot–Savart self-induced velocity;
 
+- `vinf`: estimated non-local energy flux from scales ``≤ k`` to scales ``k ∼ ∞``;
+
 - `vf`: accumulated energy injection rate (by external forcing term) up to scale ``k``;
 
 - `vdiss`: accumulated energy dissipation rate (by external dissipation term) up to scale ``k``.
@@ -55,7 +57,26 @@ Note that this looks very similar to the [`energy_injection_rate`](@ref) definit
 this is because ``Π_k`` can indeed be interpreted as the dissipation of large-scale energy
 (associated to ``\bm{v}_{\text{s}}^{<}``) by the full Biot–Savart velocity ``\bm{v}_{\text{s}}``.
 
-Similarly, the accumulated energy dissipation rate (`fluxes.vdiss`) is given by:
+Similarly, the estimated non-local energy flux (`fluxes.vinf`) from scales ``≤ k`` to scales ``k ∼ ∞``
+is defined as:
+
+```math
+\begin{align}
+Π_k^{∞}
+&= - \frac{Γ}{V} ∮ \left[ \bm{s}' × \bm{v}_{\text{s}}^{<} \right] ⋅ \bm{v}_{\text{s}}^{∞} \, \mathrm{d}ξ
+\\
+&= - \frac{Γ^2}{4π V} ∮ \bm{s}'' ⋅ \bm{v}_{\text{s}}^{<} \, \mathrm{d}ξ,
+\end{align}
+```
+
+where ``\bm{v}_{\text{s}}^{∞} ≡ \frac{Γ}{4π} \bm{s}' × \bm{s}''`` is an estimate for the
+"singular" part of the self-induced velocity, associated to very high wavenumbers ``k``.
+This is only an estimate which allows to have an idea of the non-local energy transfers from
+large to small scales. Also note the close similarity of this expression with the filament
+stretching rate (see [`stretching_rate`](@ref)). Indeed, ``Π_k^{∞}`` is proportional to the
+increase of filament length due to the large-scale velocity ``\bm{v}_{\text{s}}^{<}``.
+
+If an external dissipation term is included, the accumulated energy dissipation rate (`fluxes.vdiss`) is given by:
 
 ```math
 D_k = - \frac{Γ}{V} ∮ \left[ \bm{s}' × \bm{v}_{\text{s}}^{<} \right] ⋅ \bm{v}_{\text{diss}} \, \mathrm{d}ξ,
@@ -133,7 +154,7 @@ function energy_flux(
     @assert state.smoothing_scale == 0
 
     # Initialise flux vectors.
-    fluxes = map(_ -> similar(ks), velocities)
+    fluxes = map(_ -> similar(ks), velocities)::NamedTuple
 
     # Iterate over target wavenumbers.
     vs_filtered = vs_buf
@@ -141,13 +162,17 @@ function energy_flux(
         callback = DropLargeWavenumbers(k_flux, wavenumbers)
         BiotSavart.interpolate_to_physical!(callback, cache)
         BiotSavart.copy_long_range_output!(vs_filtered, cache)
-        for i in eachindex(vs_filtered, fs)
-            Filaments.update_coefficients!(vs_filtered[i]; knots = Filaments.knots(fs[i]))
+
+        for j in eachindex(vs_filtered, fs)
+            Filaments.update_coefficients!(vs_filtered[j]; knots = Filaments.knots(fs[j]))
         end
+
         # Compute dissipation of large-scale energy by each input velocity
         for n in eachindex(values(velocities), values(fluxes))
             # The integrand is [s′ × vs] ⋅ vL == [s′ × vs^>] ⋅ velocities[n]
             vs = vs_filtered
+            # In principle this is type unstable, since vL can either be a vector of velocities or CurvatureVector().
+            # In practice this doesn't seem to be an issue as the loop is probably unrolled.
             vL = velocities[n].field
             s = velocities[n].sign  # -1 if dissipation, +1 if injection
             fluxes[n][i] = s * Diagnostics.energy_injection_rate(fs, vL, vs, params; quad)
