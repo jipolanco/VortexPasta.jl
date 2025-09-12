@@ -48,6 +48,24 @@ where ``\bm{v}_{\text{ext}}`` is an externally applied velocity (for example, re
 the interaction with a normal fluid). Note that ``\bm{v}_{\text{s}}`` doesn't contribute
 to energy injection, so that energy is conserved (excluding other dissipative effects) in
 the absence of an external velocity.
+
+## Energy transfer from "singular" to total velocity
+
+It is also possible to estimate an energy transfer from the "singular" part of the BS
+velocity to its non-singular part.
+Here we define the "singular" BS velocity as ``\bm{v}_{\text{s}}^{∞} ≡ \frac{Γ}{4π} \bm{s}' × \bm{s}''``.
+Choosing this as ``\bm{v}_{\text{L}}`` leads to:
+
+```math
+ε_{\text{inj}}^{∞} = \frac{Γ^2}{4π V} ∮ \bm{s}'' × \bm{v}_{\text{s}} \, \mathrm{d}ξ.
+```
+
+With a negative sign, this may be interpreted as the energy transfered from the non-local to
+the local part of the Biot–Savart velocity. Note that this is directly related to the filament stretching rate
+(see [`stretching_rate`](@ref)).
+
+To compute this estimate, one should pass `vL = CurvatureVector()` as the second argument to
+this function.
 """
 function energy_injection_rate(
         fs::VectorOfFilaments,
@@ -64,15 +82,32 @@ function energy_injection_rate(
     ε
 end
 
+# Compute local-nonlocal transfers.
+# Note: the integral is identical to the one in `stretching_rate`, so we simply call that
+# function and multiply by needed prefactor (also changing the sign by convention).
 function energy_injection_rate(
-        f::AbstractFilament, vL::SingleFilamentData, vs::SingleFilamentData, p::ParamsBiotSavart{T};
+        fs::VectorOfFilaments,
+        vL::CurvatureVector,
+        vs::SetOfFilamentsData,
+        p::ParamsBiotSavart{T};
+        kws...,
+    ) where {T <: AbstractFloat}
+    @assert T === number_type(fs) === number_type(vs)
+    Γ = p.Γ
+    V = _domain_volume(p.Ls)
+    prefactor = T(-Γ^2 / (V * 4 * π))
+    prefactor * stretching_rate(fs, vs)
+end
+
+function energy_injection_rate(
+        f::AbstractFilament, vL, vs::SingleFilamentData, p::ParamsBiotSavart{T};
         quad = nothing,
     ) where {T <: AbstractFloat}
     _energy_injection_rate(quad, f, vL, vs, p)
 end
 
 # 1. No quadratures (cheaper)
-function _energy_injection_rate(quad::Nothing, f, vL, vs, p)
+function _energy_injection_rate(quad::Nothing, f, vL::SingleFilamentData, vs, p)
     prefactor = p.Γ / _domain_volume(p.Ls)
     T = eltype(p)
     ε = zero(T)

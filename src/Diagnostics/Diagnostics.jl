@@ -10,7 +10,7 @@ using ..PaddedArrays: PaddedVector
 using ..Filaments:
     Filaments,
     AbstractFilament, ClosedFilament,
-    Derivative, UnitTangent, Vec3,
+    Derivative, UnitTangent, CurvatureVector, Vec3,
     knots, segments, integrate,
     number_type
 
