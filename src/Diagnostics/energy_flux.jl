@@ -305,8 +305,11 @@ function energy_transfer_matrix(
     # Compute energy transfer matrix
     transfers = similar(ks, (nshells, nshells))
     Threads.@threads for j in eachindex(vs_shells)
-        for i in eachindex(vs_shells)
-            transfers[i, j] = Diagnostics.energy_injection_rate(fs, vs_shells[j], vs_shells[i], params; quad)
+        transfers[j, j] = 0  # by definition diagonal values are zero
+        for i in (j + 1):lastindex(vs_shells)
+            Tij = Diagnostics.energy_injection_rate(fs, vs_shells[j], vs_shells[i], params; quad)
+            transfers[i, j] = Tij
+            transfers[j, i] = -Tij  # matrix is antisymmetric
         end
     end
 
