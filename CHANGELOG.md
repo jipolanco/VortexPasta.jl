@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `Diagnostics.energy_transfer_matrix`.
+
 - Add `modify_length` option to `FourierBandForcingBS`. If set to `false`, the
   forcing velocity will be adapted so that it doesn't locally modify vortex lengths.
 
