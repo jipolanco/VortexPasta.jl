@@ -1,4 +1,4 @@
-export energy_flux
+export energy_flux, energy_transfer_matrix
 
 using Adapt: Adapt, adapt
 
@@ -127,7 +127,7 @@ DropLargeWavenumbers(kcut, ks) = DropLargeWavenumbers(kcut, kcut^2, ks)
 end
 
 # Determine wavenumbers over which the flux will be computed.
-function flux_wavenumbers(cache::LongRangeCache, Nk::Integer)
+function flux_wavenumbers_logspaced(cache::LongRangeCache, Nk::Integer)
     ks_full = init_spectrum_wavenumbers(cache)  # = 0:Δk:kmax
     Δk = ks_full[begin + 1] - ks_full[begin]
     ks_log = collect(logrange(ks_full[begin + 1], ks_full[end]; length = Nk))  # logarithmically-spaced wavenumbers
@@ -140,7 +140,7 @@ function energy_flux(cache_in, fs, velocities::NamedTuple, Nk_or_ks, params::Par
 end
 
 function energy_flux(cache::LongRangeCache, fs, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart; kws...)
-    ks = flux_wavenumbers(cache, Nk)
+    ks = flux_wavenumbers_logspaced(cache, Nk)
     energy_flux(cache, fs, velocities, ks, params; kws...)
 end
 
@@ -180,4 +180,135 @@ function energy_flux(
     end
 
     ks, fluxes
+end
+
+## ========================================================================================== ##
+
+@doc raw"""
+    energy_transfer_matrix(iter::VortexFilamentSolver, Nk::Integer; quad = nothing) -> (ks, transfers)
+    energy_transfer_matrix(iter::VortexFilamentSolver, ks::AbstractVector; quad = nothing) -> (ks, transfers)
+
+Compute energy transfers between different Fourier shells.
+
+Returns a square antisymmetric matrix of dimensions `(Nk + 1, Nk + 1)` where `Nk` is the length of
+the returned `ks` vector (which might be smaller than the input `Nk`, if there are not
+enough resolved wavenumbers). Note that the `ks` vector does not include the mode `k = 0`.
+
+This function defines `Nk + 1` shells, such that the `i`-th shell contains wavenumbers `ks[i - 1] < k ≤ ks[i]`,
+with the conventions `ks[0] = 0` and `ks[Nk + 1] = ∞`. In other words, the last "shell"
+contains all small wavenumbers `k > ks[end]`.
+
+See [`energy_flux`](@ref) for more details on the accepted arguments.
+
+## Definitions
+
+The energy transfer between Fourier shells A and B is defined as
+
+```math
+T_{AB} = \frac{Γ}{V} ∮ \left[ \bm{s}' × \bm{v}_{\text{s}}^{\text{A}} \right] ⋅ \bm{v}_{\text{s}}^{\text{B}} \, \mathrm{d}ξ,
+```
+
+where ``\bm{v}_{\text{s}}^{\text{A}}`` and ``\bm{v}_{\text{s}}^{\text{B}}`` are Fourier
+band-pass-filtered fields, including only the coefficients within the chosen shells.
+"""
+function energy_transfer_matrix end
+
+# Callable struct to be used as a callback (similar to DropLargeWavenumbers).
+struct KeepFourierShell{T <: Real, WavenumberVectors <: NTuple} <: Function
+    kmin  :: T
+    kmin² :: T
+    kmax  :: T
+    kmax² :: T
+    ks :: WavenumberVectors
+end
+
+function Adapt.adapt_structure(to, f::KeepFourierShell)
+    KeepFourierShell(
+        f.kmin,
+        f.kmin²,
+        f.kmax,
+        f.kmax²,
+        map(k -> adapt(to, k), f.ks),
+    )
+end
+
+KeepFourierShell(kmin, kmax, ks) = KeepFourierShell(kmin, kmin^2, kmax, kmax^2, ks)
+
+@inline function (f::KeepFourierShell)(û::NTuple{N}, idx::NTuple{N}) where {N}
+    (; ks, kmin², kmax²) = f
+    k⃗ = ntuple(d -> @inbounds(ks[d][idx[d]]), Val(N))
+    k² = sum(abs2, k⃗)
+    û_zero = ntuple(d -> @inbounds(zero(û[d])), Val(N))::typeof(û)
+    if kmin² < k² <= kmax²
+        û
+    else
+        û_zero
+    end
+end
+
+function energy_transfer_matrix(cache_in, fs, vs, args...; kws...)
+    @assert !(cache_in isa LongRangeCache)
+    cache = get_long_range_cache(cache_in)
+    energy_transfer_matrix(cache, fs, vs, args...; kws...)
+end
+
+function energy_transfer_matrix(
+        cache::LongRangeCache, fs::AbstractVector, vs::AbstractVector, Nk::Integer, params::ParamsBiotSavart;
+        kws...
+    )
+    ks = flux_wavenumbers_logspaced(cache, Nk)  # logarithmically-spaced wavenumbers
+    energy_transfer_matrix(cache, fs, vs, ks, params; kws...)
+end
+
+function energy_transfer_matrix(
+        cache::LongRangeCache, fs::AbstractVector, vs::AbstractVector, ks::AbstractVector, params::ParamsBiotSavart;
+        quad = nothing,
+    )
+    (; wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
+    @assert state.quantity == :velocity
+    @assert state.smoothing_scale == 0
+
+    Nk = length(ks)
+    Base.require_one_based_indexing(ks)
+
+    # Initialise filament velocities for each wavenumber shell
+    nshells = Nk + 1
+    vs_shells = [similar(vs) for _ in 1:nshells]
+    vs_large = last(vs_shells)  # accumulated large-scale velocity
+
+    # Compute shell-filtered velocities
+    k_prev = zero(eltype(ks))
+    for (i, k_shell) in enumerate(ks)
+        # Shell limits
+        kmin = k_prev
+        kmax = k_shell
+        callback = KeepFourierShell(kmin, kmax, wavenumbers)
+        BiotSavart.interpolate_to_physical!(callback, cache)
+        vs_shell = vs_shells[i]
+        BiotSavart.copy_long_range_output!(vs_shell, cache)
+        if i == 1
+            vs_large .= vs_shell
+        else
+            vs_large .+= vs_shell  # vs_large now includes the velocity for 0 < k < k_shell
+        end
+        k_prev = k_shell
+    end
+
+    vs_shells[end] .= vs .- vs_large  # the last shell now has the small-scale velocity (wavenumbers k > ks[end])
+
+    Threads.@threads for vs_shell in vs_shells
+        for n in eachindex(vs_shell, fs)
+            Filaments.update_coefficients!(vs_shell[n]; knots = Filaments.knots(fs[n]))
+        end
+    end
+
+    # Compute energy transfer matrix
+    transfers = similar(ks, (nshells, nshells))
+    Threads.@threads for j in eachindex(vs_shells)
+        for i in eachindex(vs_shells)
+            transfers[i, j] = Diagnostics.energy_injection_rate(fs, vs_shells[j], vs_shells[i], params; quad)
+        end
+    end
+
+    ks, transfers
 end
