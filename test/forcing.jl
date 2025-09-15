@@ -8,7 +8,7 @@ using VortexPasta.FilamentIO
 using VortexPasta.SyntheticFields
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
-using LinearAlgebra: ×
+using LinearAlgebra: ×, norm
 using UnicodePlots
 using Random
 using StableRNGs
@@ -301,7 +301,7 @@ end
         @testset "FourierBandForcingBS (constant ε_target, modify_length = false)" begin
             forcing = @inferred FourierBandForcingBS(; ε_target = 1e-2, kmin = 0.5, kmax = 2.5, modify_length = false)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            @show E_ratio  # = 1.688073535711441
+            # @show E_ratio  # = 1.688073535711441
             @test 1.60 < E_ratio < 1.80
         end
         @testset "FourierBandForcingBS (constant α and α′)" begin
@@ -333,13 +333,23 @@ end
             # @show α′, E_ratio  # = (0.0, 2.106383252320079) / (1.0, 2.100681284433628)
             @test 2.0 < E_ratio < 2.2
             let
-                ks, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad = GaussLegendre(3))
-                @test length(ks) ≤ 8
+                quad = GaussLegendre(3)
+                ks_flux, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad)
+                @test length(ks_flux) ≤ 8
                 @test length(fluxes) == 3
                 @test hasproperty(fluxes, :vs)
                 @test hasproperty(fluxes, :vinf)
                 @test hasproperty(fluxes, :vf)
                 @test fluxes.vf[end] > 0  # positive energy injection
+                # Compute energy transfer matrix and check that it's consistent with energy fluxes.
+                ks_transfer, Tmat = @inferred Diagnostics.energy_transfer_matrix(iter, 8; quad)
+                @test norm(Tmat + Tmat') < eps(eltype(Tmat))  # matrix is antisymmetric
+                @test ks_flux == ks_transfer  # this is the default
+                T_k = vec(sum(Tmat; dims = 1))
+                @test length(T_k) == length(ks_transfer) + 1
+                fluxes_from_Tmat = cumsum(T_k)
+                @test fluxes_from_Tmat[begin:(end - 1)] ≈ fluxes.vs
+                @test abs(fluxes_from_Tmat[end]) < eps(eltype(fluxes_from_Tmat))  # the last element is zero
             end
             # In the plot one should see that energy increases nearly linearly with the
             # imposed ε, until it starts to saturate near the end.
