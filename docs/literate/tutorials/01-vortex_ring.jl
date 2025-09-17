@@ -185,7 +185,7 @@ fig
 # 1. Set physical and numerical parameters ([`ParamsBiotSavart`](@ref)),
 # 2. initialise a "cache" containing arrays and data needed for computations
 #    ([`BiotSavart.init_cache`](@ref)),
-# 3. compute filament velocities from their positions ([`velocity_on_nodes!`](@ref)).
+# 3. compute filament velocities from their positions ([`velocity_on_nodes`](@ref)).
 #
 # ### Physical and numerical parameters
 #
@@ -267,26 +267,23 @@ fs = [f]  # note: we need to pass a *vector* of filaments
 cache = BiotSavart.init_cache(params, fs)
 nothing  # hide
 
-# We can now estimate the velocity of all filament nodes using [`velocity_on_nodes!`](@ref).
-# But first we need to allocate the output, which will contain all velocities:
+# We can now compute the velocity of all filament nodes using [`velocity_on_nodes`](@ref):
 
-vs = map(similar ∘ nodes, fs)
+vs = velocity_on_nodes(cache, fs)
 @show summary(vs) summary(vs[1])
 nothing  # hide
 
-# Note that this is a 1-element vector (because we only have 1 filament).
+# We have done our first Biot--Savart calculation!
+# Note that `vs` is a 1-element vector (because we only have 1 filament).
 # Moreover, the element `vs[1]` is a vector of [`Vec3`](@ref) (3-element vectors,
 # specifically velocity vectors in this case), in which the element
-# `vs[1][i]` will be the velocity of the filament node `fs[1][i]`.
+# `vs[1][i]` is the velocity of the filament node `fs[1][i]`.
 #
-# To actually fill `vs` with the velocities of the filament nodes, we call
-# [`velocity_on_nodes!`](@ref):
+# We can now print the velocity of all nodes of the ring:
 
-velocity_on_nodes!(vs, cache, fs)
-vs[1]  # prints the velocities of all nodes of the first (and only) filament
+vs[1]
 
-# We have done our first Biot--Savart calculation!
-# We can see that all nodes have practically zero velocity in the ``x`` and ``y``
+# We see that all nodes have practically zero velocity in the ``x`` and ``y``
 # directions, while they all have approximately the same velocity in the ``z`` direction.
 # Good news, this is exactly what we expect for a vortex ring!
 #
@@ -399,8 +396,7 @@ params_inf = ParamsBiotSavart(;
 # We can now compute the vortex ring velocity in the absence of periodic effects:
 
 cache_inf = BiotSavart.init_cache(params_inf, fs)
-vs_inf = map(similar, vs)
-velocity_on_nodes!(vs_inf, cache_inf, fs)
+vs_inf = velocity_on_nodes(cache_inf, fs)
 v_mean_inf = mean(vs_inf[1])
 v_std_inf = std(vs_inf[1])
 v_std_normalised_inf = v_std_inf / norm(v_mean_inf)
