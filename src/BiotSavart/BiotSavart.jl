@@ -15,7 +15,7 @@ export
     init_cache,
     has_real_to_complex,
     periods,
-    velocity_on_nodes!,
+    velocity_on_nodes, velocity_on_nodes!,
     compute_on_nodes!,
     CPU,  # from KernelAbstractions
     reset_timer!  # from TimerOutputs
@@ -63,6 +63,25 @@ include("autotune.jl")
 
 include("shortrange/shortrange.jl")
 include("longrange/longrange.jl")
+
+"""
+    velocity_on_nodes(cache::BiotSavartCache, fs::AbstractVector{<:AbstractFilament}; kws...) -> vs
+
+Compute velocity induced by vortex filaments on filament nodes.
+
+Returns a `vs` vector containing the velocities on filament nodes.
+
+See [`velocity_on_nodes!`](@ref) for more details.
+"""
+function velocity_on_nodes(
+        cache::BiotSavartCache,
+        fs::AbstractVector{<:AbstractFilament};
+        kws...,
+    )
+    vs = map(similar ∘ nodes, fs)
+    velocity_on_nodes!(vs, cache, fs; kws...)
+    vs
+end
 
 """
     velocity_on_nodes!(

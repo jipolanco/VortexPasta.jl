@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `BiotSavart.velocity_on_nodes` (without the `!`), which doesn't require a preallocated
+  vector of velocities.
+
 ## [0.29.13] - 2025-09-15
 
 ### Added

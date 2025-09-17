@@ -30,6 +30,7 @@ domain_is_periodic
 
 ```@docs
 init_cache
+velocity_on_nodes
 velocity_on_nodes!
 compute_on_nodes!
 ```
