@@ -88,6 +88,16 @@ function test_restarts(::Type{T}; scheme = RK4(), dt_factor = T(0.5),) where {T}
     @test times[N] == times[end]
     @test energy[N] ≈ energy[end] rtol=1e-4  # note: the variability comes from threading; with 1 thread these are basically equal
 
+    @testset "Restart from t = 0" begin
+        checkpoint = @inferred load_checkpoint("trefoil_checkpoint.vtkhdf", T, method; read_time = false)
+        @test checkpoint.time.t == 0
+        @test checkpoint.time.nstep == 0
+        let prob = @inferred VortexFilamentProblem(checkpoint, tsim_2, params_bs)
+            @test prob.tspan[1] == 0
+            @test prob.tspan[2] == tsim_2
+        end
+    end
+
     nothing
 end
 

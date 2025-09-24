@@ -95,11 +95,14 @@ struct LoadedCheckpoint{Filaments, Time <: TimeInfo, Stats <: SimulationStats}
 end
 
 """
-    load_checkpoint(filename, T, method::DiscretisationMethod) -> LoadedCheckpoint
+    load_checkpoint(filename, T, method::DiscretisationMethod; read_time = true) -> LoadedCheckpoint
 
 Load simulation state previously written by [`save_checkpoint`](@ref).
 
 The resulting checkpoint can be used to construct a [`VortexFilamentProblem`](@ref).
+
+If `read_time = false`, time information will _not_ be read from the checkpoint file.
+This can be used to make sure that the new simulation starts at time `t = 0` (and `nstep = 0`).
 
 ## Examples
 
@@ -114,8 +117,8 @@ iter = init(prob, RK4(); ...)
 solve!(iter)
 ```
 """
-function load_checkpoint(filename, ::Type{T}, method::DiscretisationMethod) where {T <: AbstractFloat}
-    time = TimeInfo()
+function load_checkpoint(filename, ::Type{T}, method::DiscretisationMethod; read_time = true) where {T <: AbstractFloat}
+    time = TimeInfo()  # this initialises all fields to 0 (t = 0, nstep = 0, ...)
     stats = SimulationStats(T)
     fs = FilamentIO.read_vtkhdf(filename, T, method) do io
         gbase = FilamentIO.root(io)  # "/" group in HDF5 file
@@ -127,8 +130,10 @@ function load_checkpoint(filename, ::Type{T}, method::DiscretisationMethod) wher
         )
         gtop = HDF5.open_group(gbase, "VortexPasta")
         let g = HDF5.open_group(gtop, "VortexFilamentSolver")
-            let g = HDF5.open_group(g, "Time")
-                _read_all_properties!(g, time)
+            if read_time
+                let g = HDF5.open_group(g, "Time")
+                    _read_all_properties!(g, time)
+                end
             end
             let g = HDF5.open_group(g, "SimulationStats")
                 _read_all_properties!(g, stats)

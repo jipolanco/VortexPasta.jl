@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.29.15] - 2025-09-24
+
+### Added
+
+- `Timestepping.load_checkpoint`: add `read_time = false` option, allowing to restart a
+  simulation from time `t = 0`.
+
 ## [0.29.14] - 2025-09-17
 
 ### Added
