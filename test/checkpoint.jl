@@ -95,6 +95,8 @@ function test_restarts(::Type{T}; scheme = RK4(), dt_factor = T(0.5),) where {T}
         let prob = @inferred VortexFilamentProblem(checkpoint, tsim_2, params_bs)
             @test prob.tspan[1] == 0
             @test prob.tspan[2] == tsim_2
+            local iter = @inferred init(prob, scheme; dt, refinement, reconnect, adaptivity, callback)
+            @test iter.dt > 0
         end
     end
 

@@ -177,10 +177,14 @@ function estimate_timestep(crit::AdaptBasedOnVelocity, iter::AbstractSolver)
     T = typeof(dt_prev)
     v_max = maximum_vector_norm(iter.quantities.vL)
     dt_estimate::T = crit.safety_factor * crit.δ / v_max
-    # Avoid increasing the dt too abruptly compared to the previous timestep.
-    # This seems to help reduce the number of rejected timesteps, in case the dt was reduced
-    # in the previous iteration due to the a posteriori displacements.
-    min(dt_estimate, 2 * dt_prev)::T
+    if dt_prev == 0  # ignore dt_prev it it's equal to 0 (may be the case in the first timestep)
+        dt_estimate::T
+    else
+        # Avoid increasing the dt too abruptly compared to the previous timestep.
+        # This seems to help reduce the number of rejected timesteps, in case the dt was reduced
+        # in the previous iteration due to the a posteriori displacements.
+        min(dt_estimate, 2 * dt_prev)::T
+    end
 end
 
 """
