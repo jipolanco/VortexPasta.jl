@@ -66,3 +66,6 @@ StaticArrays = "1.5"
 StructArrays = "0.6, 0.7"
 TimerOutputs = "0.5.23"
 julia = "1.11"
+
+[workspace]
+projects = ["test", "docs"]
