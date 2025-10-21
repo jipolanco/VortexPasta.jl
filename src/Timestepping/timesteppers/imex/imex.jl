@@ -10,19 +10,6 @@ non-local interactions), treating it implicitly is not very expensive.
 """
 abstract type ImplicitExplicitScheme <: TemporalScheme end
 
-function vector_difference(
-        fs::AbstractVector{<:AbstractVector{<:SVector}},
-        gs::AbstractVector{<:AbstractVector{<:SVector}},
-    )
-    sqdiff = 0.0
-    for (f, g) ∈ zip(fs, gs)
-        for i ∈ eachindex(f, g)
-            @inbounds sqdiff += sum(abs2, f[i] - g[i])
-        end
-    end
-    sqrt(sqdiff)
-end
-
 function imex_rhs_implicit(rhs!::F) where {F}
     (args...) -> rhs!(args...; component = Val(:fast))
 end

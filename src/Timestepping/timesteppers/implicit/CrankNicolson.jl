@@ -18,10 +18,17 @@ function _update_velocities!(
     ftmp = fc[1]
     v_explicit = vc[1]
 
-    # Initial guess for locations at time t + dt
-    advect!(ftmp, vs, dt; fbase = fs)
-
     @. v_explicit = vs / 2  # explicit part of the RHS
+
+    # Initial guess for locations at time t + dt
+    #
+    # - Explicit Euler
+    # advect!(ftmp, vs, dt; fbase = fs)
+    #
+    # - Explicit midpoint (RK2) -- helps with convergence!
+    advect!(ftmp, vs, dt/2; fbase = fs)
+    rhs!(vs, ftmp, t + dt/2, iter)
+    advect!(ftmp, vs, dt; fbase = fs)
 
     # At the end, `vs` contains the advecting velocity = (v[n] + v[n + 1]) / 2.
     solve_fixed_point!(
