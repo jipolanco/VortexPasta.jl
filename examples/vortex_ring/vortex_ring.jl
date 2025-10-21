@@ -1,4 +1,5 @@
-# Reconnection of two vortex rings initially on the same plane.
+# Simple vortex ring example in a periodic box.
+# This script can be used to test the stability of different timestepping methods.
 
 using VortexPasta.Filaments
 using VortexPasta.Filaments: Vec3
@@ -10,8 +11,6 @@ using VortexPasta.Diagnostics
 using VortexPasta.Forcing
 using VortexPasta
 using LinearAlgebra: norm, ⋅
-using Rotations: Rotations
-using TimerOutputs: @timeit
 using GLMakie
 
 function generate_biot_savart_parameters(;
@@ -46,113 +45,85 @@ function generate_biot_savart_parameters(;
     )
 end
 
-function generate_ring_filaments(
+function generate_ring_filament(
         ::Type{T}, Np, method = QuinticSplineMethod();
-        R, distance,
-        angle_degrees = 0.0,
+        R, Ls,
     ) where {T}
-    p = Ring()
-    h = distance / 2
-    orientation = -1
-    scale = (R, R, R)
-    α = deg2rad(angle_degrees) / 2
-    rot_l = Rotations.RotX(-α)  # rotation of -α about the X axis
-    rot_r = Rotations.RotX(+α)  # rotation of +α about the X axis
-    Sl = define_curve(p; scale, orientation, rotate = rot_l, translate = (-(R + h), 0, 0))  # left ring
-    Sr = define_curve(p; scale, orientation, rotate = rot_r, translate = (+(R + h), 0, 0))  # right ring
-    [
-        Filaments.init(Sl, ClosedFilament{T}, Np, method),
-        Filaments.init(Sr, ClosedFilament{T}, Np, method),
-    ]
+    S = define_curve(Ring(); scale = R, translate = Ls ./ 2)
+    [Filaments.init(S, ClosedFilament{T}, Np, method)]
 end
 
-function run_reconnections(
+function run_vortex_ring(
         params::ParamsBiotSavart{T};
         method = QuinticSplineMethod(),
         dissipation = NoDissipation(),
         dt_factor = 0.5,
         scheme = RK4(),
         outdir = "output",
-        Np = 256,
+        Np = 64,
         R = T(1.0),
-        distance = R / 40,
         tsim_factor = 1,
     ) where {T}
-    # Initialise vortex rings
-    angle_degrees = 0
-
-    fs = generate_ring_filaments(T, Np, method; R, distance, angle_degrees,)
-
     # Initialise problem
-    tsim = tsim_factor * distance^2 / params.Γ
+    fs = generate_ring_filament(T, Np, method; R, Ls = params.Ls)
+    tsim = tsim_factor * R^2 / params.Γ
     prob = VortexFilamentProblem(fs, tsim, params)
     println(prob)
 
     # Initialise solver
-    δ = minimum_node_distance(fs)
-    δ_min = 0.8 * δ
-    reconnect = ReconnectFast(δ_min)
-    refinement = RefineBasedOnSegmentLength(δ_min)
+    δ_min = minimum_node_distance(fs)
     dt = dt_factor * BiotSavart.kelvin_wave_period(params, δ_min)
-
-    # adaptivity = AdaptBasedOnSegmentLength(dt_factor)
-    adaptivity = NoAdaptivity()
-
-    iter = init(
-        prob, scheme;
-        dt,
-        reconnect,
-        dissipation,
-        refinement, adaptivity,
-        fold_periodic = false,
-    )
 
     mkpath(outdir)
 
-    # Run solver
     times = T[]
-    dts = T[]
     vortex_length = T[]
     energies = T[]
     impulse = Vec3{T}[]
-    helicities = T[]
-
     tsf = TimeSeriesFile()
 
-    while iter.t < tsim
+    function callback(iter::VortexFilamentSolver)
         local (; nstep, t, dt, fs, to,) = iter
         local quad = params.quad
-        @timeit to "Energy" E = Diagnostics.kinetic_energy(iter; quad)
-        Lvort = Diagnostics.filament_length(iter; quad)
-        p⃗ = Diagnostics.vortex_impulse(iter; quad)
-        @timeit to "Helicity" H = Diagnostics.helicity(iter; quad)
+        local E = Diagnostics.kinetic_energy(iter; quad)
+        local Lvort = Diagnostics.filament_length(iter; quad)
+        local p⃗ = Diagnostics.vortex_impulse(iter; quad)
+
         push!(times, t)
         push!(energies, E)
-        push!(helicities, H)
         push!(vortex_length, Lvort)
         push!(impulse, p⃗)
-        push!(dts, dt)
 
-        cd(outdir) do
-            local fname = "reconnect_points_$nstep.vtkhdf"
-            @timeit to "Write VTKHDF (R1)" write_vtkhdf(fname, fs; refinement = 1) do io
-                io["velocity"] = iter.vs
-                io["Curvature"] = CurvatureScalar()
+        if nstep % 10 == 0
+            cd(outdir) do
+                local fname = "vortex_ring_$nstep.vtkhdf"
+                write_vtkhdf(fname, fs; refinement = 1) do io
+                    io["velocity"] = iter.vs
+                    io["Curvature"] = CurvatureScalar()
+                end
+                tsf[t] = fname
+                save("vortex_ring.vtkhdf.series", tsf)
             end
-            tsf[t] = fname
-            save("reconnect_points.vtkhdf.series", tsf)
         end
 
         if nstep % 10 == 0
-            @show nstep, t/tsim, dt, length(fs), E
+            let E₀ = energies[begin]
+                @show nstep, t/tsim, dt, E/E₀
+            end
         end
-        # length(fs) == 1 && break  # stop right after reconnection
-        step!(iter)
     end
+
+    iter = init(
+        prob, scheme;
+        dt, dissipation, fold_periodic = false,
+        callback,
+    )
+    println(iter)
+    solve!(iter)
 
     println(iter.to)
 
-    (; iter, params, prob, times, dts, energies, helicities, impulse, vortex_length,)
+    (; iter, params, prob, times, energies, impulse, vortex_length,)
 end
 
 ##
@@ -166,26 +137,27 @@ dissipation = NoDissipation()
 
 outdir = "output"
 
-results = run_reconnections(
+results = run_vortex_ring(
     params;
     method = QuinticSplineMethod(),
     dt_factor = 1.0,
     dissipation, outdir,
-    scheme = RK4(),
-    tsim_factor = 10.0,
+    scheme = SSPRK33(),
+    tsim_factor = 1.0,
+    Np = 64, R = 1.0,
 );
 
 ##
 
-(; iter, times, energies, helicities, impulse, vortex_length,) = results
+(; iter, times, energies, impulse, vortex_length,) = results
 
 impulse_norm = map(norm, impulse);
 
 fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = "Time", ylabel = "Relative change")
-ylims!(ax, 0.995, 1.001)
+# ylims!(ax, 0.995, 1.001)
 scatterlines!(ax, times, energies ./ first(energies); label = "Energy")
 scatterlines!(ax, times, impulse_norm ./ first(impulse_norm); label = "Impulse")
-# scatterlines!(ax, times, vortex_length ./ first(vortex_length); label = "Vortex length")
+scatterlines!(ax, times, vortex_length ./ first(vortex_length); label = "Vortex length")
 axislegend(ax; position = (0, 0))
 fig
