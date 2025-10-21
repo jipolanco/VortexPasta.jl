@@ -52,16 +52,18 @@ function solve_fixed_point!(
         # Compute new full velocity estimate
         @. vtmp = v_explicit + aI_diag * vtmp  # full velocity estimate
         # Exit if error is small
-        ε_vel = mean_implicit_error(ftmp, fbase, vtmp, cdt)  # TODO: dt or cdt??
+        ε_vel = mean_implicit_error(ftmp, fbase, vtmp, dt)
         if ε_vel < rtol * vnorm
             break
         end
         n += 1
         # Update guess for filament location
-        advect!(ftmp, vtmp, dt; fbase)   # TODO: dt or cdt??
+        advect!(ftmp, vtmp, dt; fbase)
         rhs!(vtmp, ftmp, t + cdt, iter)  # compute RHS at the latest location
     end
-    # @show n
+    if n == nmax
+        @warn lazy"reached maximum number of fixed-point iterations (n = $nmax). Convergence of implicit solver is not ensured."
+    end
     vtmp  # total effective advecting velocity
 end
 
