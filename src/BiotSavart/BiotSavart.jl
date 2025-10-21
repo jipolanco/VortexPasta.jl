@@ -597,7 +597,7 @@ function _compute_LIA_on_nodes!(
     T = typeof(Γ)
     prefactor = Γ / T(4π)
     @timeit to "LIA term (only)" begin
-        Threads.@threads for n ∈ eachindex(fs)
+        Threads.@threads :dynamic for n ∈ eachindex(fs)
             f = fs[n]
             ps = @inbounds _fields_to_pairs(fields, n)
             _compute_LIA_on_nodes!(ps, cache, f; prefactor)
@@ -619,7 +619,7 @@ function _compute_LIA_on_nodes!(
     (; Γ, a, Δ,) = params.common
     T = typeof(Γ)
     prefactor_ = prefactor === nothing ? (Γ / T(4π)) : prefactor
-    for i ∈ eachindex(f)
+    Threads.@threads :dynamic for i ∈ eachindex(f)
         for (quantity, values) ∈ ps
             # Here `quantity` is either Velocity() or Streamfunction()
             @inbounds values[i] = local_self_induced(

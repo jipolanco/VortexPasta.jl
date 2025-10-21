@@ -113,20 +113,21 @@ nonlia_integration_limits(::Nothing) = (nothing, nothing)
 nonlia_integration_limits(γ::Real) = ((zero(γ), one(γ) - γ), (γ, one(γ)))
 
 # Alternative estimation using quadratures.
-function _local_self_induced(
+@inline function _local_self_induced(
         ::Velocity, quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real, segment_fraction::Union{Nothing, Real} = nothing,
         kws...,
     )
     lims = lia_integration_limits(segment_fraction)
-    ℓ₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
-        norm(f(j, ζ, Derivative(1)))
+    ℓ₋² = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
+        sum(abs2, f(j, ζ, Derivative(1)))
     end
-    ℓ₊ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
-        norm(f(j, ζ, Derivative(1)))
+    ℓ₊² = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
+        sum(abs2, f(j, ζ, Derivative(1)))
     end
     b⃗ = f[i, CurvatureBinormal()]
-    β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)
+    ℓ = sqrt(sqrt(ℓ₋² * ℓ₊²))
+    β = prefactor * (log(2 * ℓ / a) - Δ)
     β * b⃗
 end
 
@@ -143,7 +144,7 @@ function _local_self_induced(
     β * t̂
 end
 
-function _local_self_induced(
+@inline function _local_self_induced(
         ::Streamfunction, quad::AbstractQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real,
