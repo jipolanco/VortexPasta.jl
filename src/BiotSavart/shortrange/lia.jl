@@ -119,14 +119,14 @@ nonlia_integration_limits(γ::Real) = ((zero(γ), one(γ) - γ), (γ, one(γ)))
         kws...,
     )
     lims = lia_integration_limits(segment_fraction)
-    ℓ₋² = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
-        sum(abs2, f(j, ζ, Derivative(1)))
+    ℓ₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
+        norm(f(j, ζ, Derivative(1)))
     end
-    ℓ₊² = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
-        sum(abs2, f(j, ζ, Derivative(1)))
+    ℓ₊ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
+        norm(f(j, ζ, Derivative(1)))
     end
     b⃗ = f[i, CurvatureBinormal()]
-    ℓ = sqrt(sqrt(ℓ₋² * ℓ₊²))
+    ℓ = sqrt(ℓ₋ * ℓ₊)
     β = prefactor * (log(2 * ℓ / a) - Δ)
     β * b⃗
 end
