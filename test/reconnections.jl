@@ -12,7 +12,7 @@ using VortexPasta.Timestepping: VortexFilamentSolver
 using VortexPasta.Diagnostics
 using StaticArrays
 using Rotations
-using UnicodePlots: lineplot
+using UnicodePlots: lineplot, lineplot!
 using LinearAlgebra: norm, I, ⋅
 using JET: JET
 using KernelAbstractions: KernelAbstractions as KA  # for JET only
@@ -145,22 +145,37 @@ function test_trefoil_knot_reconnection(
     times = Float64[]
     energy = similar(times)
     helicity = similar(times)
+    torsion_integral = similar(times)
     n_reconnect = Ref(0)
     t_reconnect = Ref(0.0)
 
     function callback(iter)
         local (; fs, t, dt, nstep,) = iter
+        local (; Γ,) = iter.prob.p
         if nstep == 0
             foreach(empty!, (times, energy))
             n_reconnect[] = t_reconnect[] = 0
         end
         push!(times, t)
         local quad = GaussLegendre(4)
-        E = Diagnostics.kinetic_energy(iter; quad)
-        H = Diagnostics.helicity(iter; quad)
+        local E = Diagnostics.kinetic_energy(iter; quad)
+        local H = Diagnostics.helicity(iter; quad)
         push!(energy, E)
         push!(helicity, H)
         Nf = length(fs)
+
+        # Compute torsion integral
+        local tor = zero(eltype(torsion_integral))
+        for f in fs
+            tor += integrate(f, quad) do ff, i, ζ
+                local s⃗′ = ff(i, ζ, Derivative(1))
+                local τ = ff(i, ζ, TorsionScalar())
+                τ * norm(s⃗′)
+            end
+        end
+        tor /= 2π
+        push!(torsion_integral, tor)
+
         # save_checkpoint("trefoil_$nstep.vtkhdf", iter; refinement = 4, periods = nothing) do io
         #     io["velocity"] = iter.vs
         #     io["streamfunction"] = iter.ψs
@@ -170,7 +185,7 @@ function test_trefoil_knot_reconnection(
         #     io["streamfunction"] = iter.ψs
         # end
         if VERBOSE
-            @show nstep, t, Nf, E
+            @show nstep, t, Nf, E, H/Γ^2, tor
         end
         if n_reconnect[] == 0 && Nf == 2
             t_reconnect[] = t
@@ -198,6 +213,7 @@ function test_trefoil_knot_reconnection(
         # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
         reconnect,
         adaptivity = NoAdaptivity(),
+        filament_nderivs = Val(3),  # for computation of torsion
         callback,
     )
 
@@ -232,7 +248,6 @@ function test_trefoil_knot_reconnection(
     end
 
     energy_rel = energy ./ energy[begin]
-    helicity_rel = helicity ./ helicity[begin]
 
     if VERBOSE
         plt = lineplot(
@@ -241,9 +256,10 @@ function test_trefoil_knot_reconnection(
         )
         println(plt)
         plt = lineplot(
-            times, helicity_rel;
+            times, helicity;
             xlabel = "Time", ylabel = "Helicity", title = "Trefoil knot / $scheme",
         )
+        # lineplot!(plt, times, torsion_integral)
         println(plt)
     end
 
