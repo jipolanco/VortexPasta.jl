@@ -395,9 +395,6 @@ either [`step!`](@ref) or [`solve!`](@ref).
 
 # Optional keyword arguments
 
-- `alias_u0 = false`: if `true`, the solver is allowed to modify the initial vortex
-  filaments.
-
 - `refinement = NoRefinement()`: criterion used for adaptive refinement of vortex
   filaments. See [`RefinementCriterion`](@ref) for a list of possible criteria.
 
@@ -422,6 +419,12 @@ either [`step!`](@ref) or [`solve!`](@ref).
   visualisation purposes. This setting doesn't affect the results (velocity of each
   filament, reconnections, …), besides possible spatial translations of the filaments
   proportional to the domain period.
+
+- `filament_nderivs = Val(2)`: this allows to modify the maximum number of derivatives which
+  can be computed from the filaments in `iter.fs`. It corresponds to the `nderivs` argument
+  of [`Filaments.init`](@ref). This may be useful if one wants to compute higher order
+  derivatives along filaments (e.g. `Val(3)` is required to obtain filament torsion). Note
+  that not all discretisation methods are capable of computing derivatives higher than order 2.
 
 - `callback`: a function to be called at the end of each timestep. Its signature must be
   `callback(iter::VortexFilamentSolver)`. **Filaments should not be modified** by this
@@ -631,7 +634,7 @@ Forcing should be disabled to run in this mode.
 """
 function init(
         prob::VortexFilamentProblem{T}, scheme::TemporalScheme;
-        alias_u0 = false,   # same as in OrdinaryDiffEq.jl
+        alias_u0::Bool = false,  # deprecated and ignored (kept for backwards compatibility)
         dt::Real,
         dtmin::Real = 0.0,
         fast_term::FastBiotSavartTerm = LocalTerm(),
@@ -650,6 +653,7 @@ function init(
         dissipation::AbstractDissipation = NoDissipation(),
         mode::SimulationMode = DefaultMode(),
         timer = TimerOutput("VortexFilament"),
+        filament_nderivs = Val(2),
     ) where {
         Callback <: Function,
         Affect <: Function,
@@ -661,7 +665,20 @@ function init(
     }
     (; tspan, state,) = prob
     (; Ls,) = prob.p
-    fs = convert(VectorOfVectors, prob.fs)
+
+    if alias_u0
+        @warn "option `alias_u0 = true` is now ignored and will be removed in the future"
+    end
+
+    fs = let
+        gs = map(prob.fs) do f
+            g = Filaments.similar_filament(f; nderivs = filament_nderivs)
+            copyto!(g, f)
+            Filaments.update_coefficients!(g; knots = Filaments.knots(f))
+            g
+        end
+        convert(VectorOfVectors, gs)
+    end
 
     # Make sure the filaments are ready for interpolations and derivative estimations
     # for f in fs
@@ -698,10 +715,8 @@ function init(
         (; quantities_with_forcing..., vdiss = similar(vs),)  # include dissipation term vdiss
     end
 
-    fs_sol = alias_u0 ? fs : copy(fs)
-
-    cache_reconnect = Reconnections.init_cache(reconnect, fs_sol, Ls)
-    cache_bs = BiotSavart.init_cache(prob.p, fs_sol; timer)
+    cache_reconnect = Reconnections.init_cache(reconnect, fs, Ls)
+    cache_bs = BiotSavart.init_cache(prob.p, fs; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
 
     # Wrap functions with the timer, so that timings are estimated each time the function is called.
@@ -751,7 +766,7 @@ function init(
     dissipation_cache = Forcing.init_cache(dissipation, cache_bs)
 
     iter = VortexFilamentSolver(
-        prob, fs_sol, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
+        prob, fs, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, affect_t_, callback_, external_fields,
         stretching_velocity, forcing, forcing_cache, dissipation, dissipation_cache,
         timer, advect!, rhs!,

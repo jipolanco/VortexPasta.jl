@@ -5,9 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add new `filament_nderivs` option to `Timestepping.init`.
+
 ### Changed
 
 - Minor improvements to speed of implicit and IMEX timestepping schemes.
+
+- The old `alias_u0` option of `Timestepping.init` is now deprecated and ignored. Filaments
+  are now always copied, which was already the default previously.
 
 ## [0.29.16] - 2025-09-24
 

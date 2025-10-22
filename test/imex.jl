@@ -69,7 +69,6 @@ end
 
     @testset "fast_term = $fast_term" for fast_term ∈ (LocalTerm(), ShortRangeTerm())
         iter = @inferred init(prob, scheme; dt = 0.025, fast_term, external_velocity)
-        iter = @inferred init(prob, scheme; dt = 0.025, fast_term, alias_u0 = false, external_velocity)
 
         (; fs, vs, rhs!,) = iter
 

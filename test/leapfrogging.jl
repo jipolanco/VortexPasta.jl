@@ -147,7 +147,6 @@ function test_leapfrogging_rings(
         prob, scheme;
         dt = 0.025,  # will be changed by the adaptivity
         # dtmin = 0.005 * dt_factor(scheme),
-        alias_u0 = false,  # don't overwrite fs_init
         adaptivity,
         refinement,
         callback,
