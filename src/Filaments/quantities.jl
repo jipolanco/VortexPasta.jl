@@ -114,7 +114,7 @@ end
 Represents the scaled binormal vector associated to a filament.
 
 The scaled binormal vector is defined as
-``\bm{b} = \bm{T} × ρ⃗ = ρ \, (\bm{T} × \bm{N}) = ρ \bm{B}``,
+``\bm{b} = \bm{T} × \bm{ρ} = ρ \, (\bm{T} × \bm{N}) = ρ \bm{B}``,
 where ``\bm{B}`` is the (unit) binormal vector and ``ρ`` is the scalar curvature.
 
 It is explicitly given by

@@ -1,4 +1,5 @@
 using Documenter
+using DocumenterVitepress
 using Documenter: Remotes
 using DocumenterCitations
 using Literate: Literate
@@ -100,8 +101,7 @@ else
 end
 
 function make_all(; draft = false,)
-    repo = REPO
-    warnonly = Symbol[]
+    repo = Remotes.repourl(REPO)
 
     bib = CitationBibliography(
         joinpath(@__DIR__, "src", "biblio.bib");
@@ -114,12 +114,6 @@ function make_all(; draft = false,)
     ]
     if draft
         empty!(tutorials)
-        # Some cross-references will be broken if we don't generate the tutorials
-        push!(warnonly, :cross_references)
-    end
-
-    if with_liveserver
-        warnonly = true
     end
 
     for name ∈ tutorials
@@ -153,16 +147,17 @@ function make_all(; draft = false,)
 
     makedocs(;
         sitename = "VortexPasta",
-        format = Documenter.HTML(;
-            prettyurls = get(ENV, "CI", nothing) == "true",
-            repolink = Remotes.repourl(repo),
-            edit_link = "master",
-            collapselevel =  1,
+        authors = "Juan Ignacio Polanco",
+        format = DocumenterVitepress.MarkdownVitepress(;
+            repo,
+            devbranch = "master",
+            devurl = "dev",
+            # collapselevel =  1,
             assets,
-            size_threshold_ignore = [
-                "modules/Filaments.md",  # this page has too much content so it's relatively large
-            ],
-            mathengine = KaTeX(),
+            # size_threshold_ignore = [
+            #     "modules/Filaments.md",  # this page has too much content so it's relatively large
+            # ],
+            # mathengine = KaTeX(),
         ),
         modules = [VortexPasta],
         pages = [
@@ -176,7 +171,7 @@ function make_all(; draft = false,)
                 "tips/parallelisation.md",
                 "tips/gpu.md",
             ],
-            "Modules" => [
+            "Modules" => String[
                 "modules/PaddedArrays.md",
                 "modules/PredefinedCurves.md",
                 "modules/CellLists.md",
@@ -197,7 +192,7 @@ function make_all(; draft = false,)
         ],
         draft = draft || with_liveserver,
         pagesonly = true,
-        warnonly,
+        warnonly = true,
         plugins = [bib],
         repo,
         doctest = false,
@@ -210,8 +205,9 @@ make_all(; draft = false,)
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
 if haskey(ENV, "GITHUB_REPOSITORY")  # if we're on github
-    deploydocs(;
+    DocumenterVitepressdeploydocs(;
         repo = "github.com/jipolanco/VortexPasta.jl.git",
+        target = joinpath(@__DIR__, "build"),
         branch = "gh-pages",
         devbranch = "master",
         forcepush = true,

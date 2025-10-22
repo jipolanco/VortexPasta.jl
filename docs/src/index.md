@@ -26,6 +26,7 @@ This is precisely the idea of the [vortex filament model (VFM)](@ref methods-VFM
 In the VFM, each quantum vortex induces a velocity field around it given by the [Biot--Savart law](https://en.wikipedia.org/wiki/Biot%E2%80%93Savart_law):
 
 ```math
+\newcommand{\bm}[1]{\boldsymbol{#1}}  % needed for MathJax
 \bm{v}(\bm{x}) =
 \frac{κ}{4π} ∮_{\mathcal{C}} \frac{(\bm{s} - \bm{x}) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{x}|^3}
 ```

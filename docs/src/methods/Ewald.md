@@ -17,6 +17,7 @@ Depth = 2:3
 
 The basic idea of the method is to split the Biot--Savart integral into short- and long-range parts:
 ```math
+\newcommand{\bm}[1]{\boldsymbol{#1}}  % needed for MathJax
 \begin{align*}
     \bm{v}(\bm{x})
     &= \frac{Γ}{4π} ∮_{\mathcal{C}}
@@ -56,39 +57,41 @@ Note in particular that, for small ``r``, ``\operatorname{erf}(αr) = 2αr/\sqrt
 
 ![](splitting_functions.svg)
 
-!!! details "Code for this figure"
+::: details Code for this figure
 
-    ```@example
-    using SpecialFunctions: erf, erfc
-    using CairoMakie
-    CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
-    Makie.set_theme!()  # hide
-    rs = 2.0.^(-4:0.1:3)
-    gs(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)  # short-range
-    gl(αr) =  erf(αr) - 2αr / sqrt(π) * exp(-αr^2)  # long-range
-    xticks = LogTicks(-4:1:3)
-    yticks = LogTicks(-16:4:0)
-    fig = Figure(size = (600, 400), fontsize = 18)
-    ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
-    ylims!(ax, 1e-17, 4)
-    ls = lines!(ax, rs, gs.(rs); label = L"g^<(r)")
-    ll = lines!(ax, rs, gl.(rs); label = L"g^>(r)")
-    lines!(ax, rs, erfc.(rs); label = L"\mathrm{erfc}(αr)", linestyle = :dot, color = ls.color)
-    lines!(ax, rs, erf.(rs); label = L"\mathrm{erf}(αr)", linestyle = :dot, color = ll.color)
-    let rs = 2.0.^(range(-4, -1; length = 3)), color = :grey20  # plot ~r^3 slope
-        ys = @. 0.2 * rs^3
-        lines!(ax, rs, ys; linestyle = :dash, color)
-        text!(ax, rs[2], ys[2]; text = L"r^3", align = (:left, :top), color)
-    end
-    let rs = 2.0.^(range(-4, -2; length = 3)), color = :grey20  # plot ~r^1 slope
-        ys = @. 0.5 * (2 / sqrt(π)) * rs
-        lines!(ax, rs, ys; linestyle = :dash, color)
-        text!(ax, rs[2], ys[2]; text = L"r", align = (:left, :top), color)
-    end
-    axislegend(ax; position = (0, 0), labelsize = 20)
-    save("splitting_functions.svg", fig)
-    nothing  # hide
-    ```
+```@example
+using SpecialFunctions: erf, erfc
+using CairoMakie
+CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
+Makie.set_theme!()  # hide
+rs = 2.0.^(-4:0.1:3)
+gs(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)  # short-range
+gl(αr) =  erf(αr) - 2αr / sqrt(π) * exp(-αr^2)  # long-range
+xticks = LogTicks(-4:1:3)
+yticks = LogTicks(-16:4:0)
+fig = Figure(size = (600, 400), fontsize = 18)
+ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
+ylims!(ax, 1e-17, 4)
+ls = lines!(ax, rs, gs.(rs); label = L"g^<(r)")
+ll = lines!(ax, rs, gl.(rs); label = L"g^>(r)")
+lines!(ax, rs, erfc.(rs); label = L"\mathrm{erfc}(αr)", linestyle = :dot, color = ls.color)
+lines!(ax, rs, erf.(rs); label = L"\mathrm{erf}(αr)", linestyle = :dot, color = ll.color)
+let rs = 2.0.^(range(-4, -1; length = 3)), color = :grey20  # plot ~r^3 slope
+    ys = @. 0.2 * rs^3
+    lines!(ax, rs, ys; linestyle = :dash, color)
+    text!(ax, rs[2], ys[2]; text = L"r^3", align = (:left, :top), color)
+end
+let rs = 2.0.^(range(-4, -2; length = 3)), color = :grey20  # plot ~r^1 slope
+    ys = @. 0.5 * (2 / sqrt(π)) * rs
+    lines!(ax, rs, ys; linestyle = :dash, color)
+    text!(ax, rs[2], ys[2]; text = L"r", align = (:left, :top), color)
+end
+axislegend(ax; position = (0, 0), labelsize = 20)
+save("splitting_functions.svg", fig)
+nothing  # hide
+```
+
+:::
 
 For small ``αr``, the long-range splitting function goes to zero as ``r^3``, consistently with its Taylor expansion.
 This means that, as we wanted, ``g^>(r) / r^2`` is non-singular and smooth at ``r = 0``.
@@ -196,7 +199,7 @@ Similarly, the curl operator can be easily inverted in Fourier space to get the 
     This just requires some care in the computation of the streamfunction (and thus the induced kinetic energy)
     as detailed in [`BiotSavart.background_vorticity_correction!`](@ref).
 
-### [3. Notes on required resolution](@id Ewald-notes-kmax)
+### 3. Notes on required resolution
 
 Above we have assumed that we can evaluate Fourier coefficients for any wavenumber ``\bm{k}``.
 In fact, for practical reasons, we cannot evaluate all coefficients ``\hat{\bm{ω}}(\bm{k})`` for every possible ``\bm{k}``, and we need to set the number of wavenumbers ``N`` to compute in each direction (this is the parameter one tunes in NUFFT implementations).
@@ -209,24 +212,26 @@ Of course, one can vary the ``k_\text{max} / α`` ratio depending on the wanted 
 
 ![](gaussian_kalpha.svg)
 
-!!! details "Code for this figure"
+::: details Code for this figure
 
-    ```@example
-    using CairoMakie
-    CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
-    Makie.set_theme!()  # hide
-    ks_α = range(0, 12.2; step = 0.1)
-    xticks = 0:12
-    yticks = LogTicks(-16:2:0)
-    ys = @. exp(-ks_α^2 / 4)
-    lines(
-        ks_α, ys;
-        axis = (yscale = log10, xticks, yticks, xlabel = L"k/α", ylabel = L"\exp \, \left[ -k^2 / 4α^2 \right]",),
-        figure = (fontsize = 20, size = (600, 400),),
-    )
-    save("gaussian_kalpha.svg", current_figure())
-    nothing  # hide
-    ```
+```@example
+using CairoMakie
+CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
+Makie.set_theme!()  # hide
+ks_α = range(0, 12.2; step = 0.1)
+xticks = 0:12
+yticks = LogTicks(-16:2:0)
+ys = @. exp(-ks_α^2 / 4)
+lines(
+    ks_α, ys;
+    axis = (yscale = log10, xticks, yticks, xlabel = L"k/α", ylabel = L"\exp \, \left[ -k^2 / 4α^2 \right]",),
+    figure = (fontsize = 20, size = (600, 400),),
+)
+save("gaussian_kalpha.svg", current_figure())
+nothing  # hide
+```
+
+:::
 
 ### 4. Physical velocity at filament locations
 

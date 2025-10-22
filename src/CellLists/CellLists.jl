@@ -225,7 +225,7 @@ Add element to the cell list.
 
 Determines the cell associated to the element and then appends the element to that cell.
 
-Optionally, one may pass the coordinate location ``x⃗`` associated to the element.
+Optionally, one may pass the coordinate location ``\\vec{x}`` associated to the element.
 Otherwise, it will be obtained from the element according to
 
     x⃗ = to_coordinate(el)
