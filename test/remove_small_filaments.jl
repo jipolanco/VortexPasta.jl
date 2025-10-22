@@ -55,7 +55,10 @@ function test_filament_removal()
     end
 
     prob = @inferred VortexFilamentProblem(fs, (0, 1), params)
+    @test eltype(fs) === eltype(prob.fs)
+
     iter = @inferred init(prob, RK4(); dt = 0.1)
+    @test eltype(fs) === eltype(iter.fs)
 
     # Check that the "invalid" filament was removed from the filament list.
     @test length(iter.fs) == length(iter.vs) == length(iter.ψs) == 1

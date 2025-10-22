@@ -674,16 +674,16 @@ function init(
         gs = map(prob.fs) do f
             g = Filaments.similar_filament(f; nderivs = filament_nderivs)
             copyto!(g, f)
-            Filaments.update_coefficients!(g; knots = Filaments.knots(f))
+            # Make sure filament is ready for interpolations and derivative estimations.
+            # We skip this step if the filament doesn't have enough nodes, in which case it
+            # will be removed in finalise_step! (called at the end of this constructor).
+            if Filaments.check_nodes(Bool, g)
+                Filaments.update_coefficients!(g; knots = Filaments.knots(f))
+            end
             g
         end
         convert(VectorOfVectors, gs)
     end
-
-    # Make sure the filaments are ready for interpolations and derivative estimations
-    # for f in fs
-    #     Filaments.update_coefficients!(f)
-    # end
 
     vs = map(allocate_field_for_filament, fs)::VectorOfVectors
     ψs = similar(vs)
