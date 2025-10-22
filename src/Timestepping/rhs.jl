@@ -99,6 +99,8 @@ function _update_values_at_nodes!(
     else
         BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
     end
+    add_external_fields!(fields, iter, fs, t, iter.to)
+    apply_forcing!(fields, iter, fs, t, iter.to)
     nothing
 end
 
@@ -111,6 +113,8 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = false)
+    add_external_fields!(fields, iter, fs, t, iter.to)
+    apply_forcing!(fields, iter, fs, t, iter.to)
     nothing
 end
 
@@ -128,8 +132,6 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
-    add_external_fields!(fields, iter, fs, t, iter.to)
-    apply_forcing!(fields, iter, fs, t, iter.to)
     nothing
 end
 
@@ -142,7 +144,5 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
-    add_external_fields!(fields, iter, fs, t, iter.to)
-    apply_forcing!(fields, iter, fs, t, iter.to)
     nothing
 end

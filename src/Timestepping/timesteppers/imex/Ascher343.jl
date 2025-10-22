@@ -50,11 +50,12 @@ function _update_velocities!(
     # Stage 2
     let i = 2, fbase = fs, vtmp = vI[i]
         cdt = cs[i] * dt
-        advect!(ftmp, vs, cdt; fbase)  # initial guess for locations at stage i
         @. v_explicit = (  # known part of the velocity
             AE[i, 1] * vE[1]
           # + AI[i, 1] * vI[1]  # note: AI[:, 1] == 0
         )
+        @. vtmp = v_explicit + vI[i - 1] * AI[i, i]  # initial guess for effective velocity (use implicit value from previous stage)
+        advect!(ftmp, vtmp, dt; fbase)  # initial guess for locations at stage i
         solve_fixed_point!(
             ftmp, rhs_implicit!, advect!, iter, vtmp, v_explicit;
             cdt, fbase, aI_diag = AI[i, i],
@@ -67,13 +68,14 @@ function _update_velocities!(
     # Stage 3
     let i = 3, fbase = fs, vtmp = vI[i]
         cdt = cs[i] * dt
-        advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage i
         @. v_explicit = (  # known part of the velocity
             AE[i, 1] * vE[1]
           # + AI[i, 1] * vI[1]
           + AE[i, 2] * vE[2]
           + AI[i, 2] * vI[2]
         )
+        @. vtmp = v_explicit + vI[i - 1] * AI[i, i]  # initial guess for effective velocity (use implicit value from previous stage)
+        advect!(ftmp, vtmp, dt; fbase)  # initial guess for locations at stage i
         solve_fixed_point!(
             ftmp, rhs_implicit!, advect!, iter, vtmp, v_explicit;
             cdt, fbase, aI_diag = AI[i, i],
@@ -86,7 +88,6 @@ function _update_velocities!(
     # Stage 4
     let i = 4, fbase = fs, vtmp = vI[i]
         cdt = cs[i] * dt
-        advect!(ftmp, vs, cdt; fbase = fs)  # initial guess for locations at stage i
         @. v_explicit = (  # known part of the velocity
             AE[i, 1] * vE[1]
           # + AI[i, 1] * vI[1]
@@ -95,6 +96,8 @@ function _update_velocities!(
           + AE[i, 3] * vE[3]
           + AI[i, 3] * vI[3]
         )
+        @. vtmp = v_explicit + vI[i - 1] * AI[i, i]  # initial guess for effective velocity (use implicit value from previous stage)
+        advect!(ftmp, vtmp, dt; fbase)  # initial guess for locations at stage i
         solve_fixed_point!(
             ftmp, rhs_implicit!, advect!, iter, vtmp, v_explicit;
             cdt, fbase, aI_diag = AI[i, i],
