@@ -90,11 +90,11 @@ end
 
 Represents the scalar curvature associated to a filament.
 
-This is simply the norm of [`CurvatureVector`](@ref).
+This is simply the norm of [`CurvatureVector`](@ref) and of [`CurvatureBinormal`](@ref).
 It is explicitly given by
 
 ```math
-ρ = \frac{\bm{s}' × \bm{s}''}{|\bm{s}'|^3}
+ρ = \frac{|\bm{s}' × \bm{s}''|}{|\bm{s}'|^3}
 ```
 
 where derivatives are with respect to the arbitrary parametrisation ``\bm{s}(t)``.
@@ -102,11 +102,10 @@ where derivatives are with respect to the arbitrary parametrisation ``\bm{s}(t)`
 struct CurvatureScalar <: GeometricQuantity end
 
 @inline function _evaluate(::CurvatureScalar, f::AbstractFilament, args...; kws...)
-    s′ = f(args..., Derivative(1); kws...)
-    s″ = f(args..., Derivative(2); kws...)
-    s′² = sum(abs2, s′)
-    s′_norm = sqrt(s′²)
-    norm(s′ × s″) / (s′² * s′_norm)
+    # It's likely cheaper to compute this as the norm of CurvatureBinormal than as the norm
+    # of CurvatureVector.
+    b⃗ = _evaluate(CurvatureBinormal(), f, args...; kws...)
+    norm(b⃗)
 end
 
 @doc raw"""
@@ -117,6 +116,14 @@ Represents the scaled binormal vector associated to a filament.
 The scaled binormal vector is defined as
 ``\bm{b} = \bm{T} × ρ⃗ = ρ \, (\bm{T} × \bm{N}) = ρ \bm{B}``,
 where ``\bm{B}`` is the (unit) binormal vector and ``ρ`` is the scalar curvature.
+
+It is explicitly given by
+
+```math
+\bm{b} = \frac{\bm{s}' × \bm{s}''}{|\bm{s}'|^3}
+```
+
+where derivatives are with respect to the arbitrary parametrisation ``\bm{s}(t)``.
 """
 struct CurvatureBinormal <: GeometricQuantity end
 
