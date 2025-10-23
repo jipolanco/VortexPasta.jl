@@ -597,7 +597,9 @@ nothing  # hide
 # but these are not needed if one just wants to see things moving in real time as the
 # simulation runs.
 
-# ![](vortex_ring.mp4)
+# ```@raw html
+# <video autoplay loop muted playsinline controls src="./vortex_ring.mp4"/>
+# ```
 
 # ## Saving state to disk
 #
