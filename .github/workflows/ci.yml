@@ -43,6 +43,8 @@ jobs:
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+        with:
+          annotate: true  # not sure this actually does anything
 
       # Coverage using codecov
       - uses: julia-actions/julia-processcoverage@v1
