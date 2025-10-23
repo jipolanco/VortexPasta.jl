@@ -129,7 +129,7 @@ end
 ```
 ## Using MKL FFT routines
 
-The default [`NonuniformFFTsBackend`](@ref) in VortexPasta.jl computes threaded
+When running on CPUs, the default [`NonuniformFFTsBackend`](@ref) in VortexPasta.jl computes threaded
 FFTs using the [FFTW.jl](https://github.com/JuliaMath/FFTW.jl) package, which
 by default wraps the FFTW libraries written in C.
 However, FFTW.jl has an [unresolved

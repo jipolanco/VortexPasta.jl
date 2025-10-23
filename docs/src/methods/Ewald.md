@@ -8,11 +8,6 @@ described in [Polanco2025](@citet).
 That paper also explains the role of the different parameters entering
 the method on accuracy and performance.
 
-```@contents
-Pages = ["Ewald.md"]
-Depth = 2:3
-```
-
 ## Splitting the Biot--Savart integral
 
 The basic idea of the method is to split the Biot--Savart integral into short- and long-range parts:
@@ -395,17 +390,17 @@ In practice, one recommended way of setting the parameters is as follows:
    But in principle one can choose any positive value of ``L``.
 
 1. Set the **number of Fourier modes** ``N`` in each direction.
-   Choosing ``N`` also sets the **maximum resolved wavenumber** ``k_{\text{max}} = πN/L`` as well as the **physical grid spacing** ``δ = L/N`` associated to the long-range fields.
+   Choosing ``N`` also sets the **maximum resolved wavenumber** ``k_{\text{max}} = πN/L`` as well as the **physical grid spacing** ``Δx = L/N`` associated to the long-range fields.
    The value of ``N`` should be tuned to have a good balance between the time spent on short-range and long-range computations.
 
 1. Now set the non-dimensional parameter ``β`` to the desired accuracy.
-   For example, ``β = 3.5`` roughly gives ``10^{-6}`` relative accuracy.
+   A reasonable choice is ``β = 3.5``, which roughly gives ``10^{-6}`` relative accuracy.
 
 1. From ``β`` and ``k_{\text{max}}``, one obtains the remaining parameters
    ``α = k_{\text{max}} / 2β`` and ``r_\text{cut} = β / α``.
 
 For simplicity here we have assumed that the domain size ``L`` and the resolution ``N`` are the same in all directions, but things are easy to generalise to different ``L`` and ``N`` per direction.
-In all cases, one usually wants the physical grid spacing ``δ = L/N`` (or equivalently the maximum resolved wavenumber ``k_{\text{max}}``) to be the same in all directions.
+In all cases, one usually wants the physical grid spacing ``Δx_i = L_i/N_i`` (or equivalently the maximum resolved wavenumber ``k_{\text{max}}``) to be the same in all directions.
 
 !!! note "Size of FFTs"
 
@@ -420,7 +415,7 @@ Typically, using 3 nodes seems to be enough when using [quintic splines](@ref Qu
 
 ## Ewald method for the streamfunction
 
-As in the case of the velocity, the [Biot--Savart integral for the streamfunction](@ref Biot-Savart-streamfunction) decays slowly with the distance ``r = |\bm{x} - \bm{s}|``, and its computation can be accelerated using Ewald summation.
+As in the case of the velocity, the [streamfunction integral](@ref Biot-Savart-streamfunction) decays slowly with the distance ``r = |\bm{x} - \bm{s}|``, and its computation can be accelerated using Ewald summation.
 In fact, the Ewald summation method exposed above for the velocity is derived from that for the streamfunction, which is simpler and closer to the way the Ewald method is usually introduced in electrostatics (where the electrostatic potential is the analogue of the streamfunction).
 
 In the case of the streamfunction, the idea of Ewald summation is to split the singular and slowly-decaying Green's function ``G(\bm{r})`` onto a smooth long-range component ``G^>(\bm{r})`` and a short-range fast-decaying component ``G^<(\bm{r})``.
@@ -434,7 +429,7 @@ G(\bm{r}) = \frac{1}{4πr}
 
 where ``\operatorname{erf}`` and ``\operatorname{erfc}`` are respectively the error function and the complementary error function already introduced [above](@ref Splitting-the-Biot–Savart-integral), and ``α`` is the same **Ewald splitting parameter** introduced in that section.
 
-This leads to modified Biot--Savart integrals for the short-range and long-range streamfunction.
+This leads to modified integrals for the short-range and long-range streamfunction.
 For example, the short-range integral is given by:
 
 ```math

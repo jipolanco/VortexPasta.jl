@@ -4,11 +4,6 @@ The standard **vortex filament model** (VFM) describes the motion of thin vortex
 
 Vortex lines are assumed to be very thin with respect to the scales of interest, such that they can be effectively described as spatial curves.
 
-```@contents
-Pages = ["VFM.md"]
-Depth = 2:3
-```
-
 ## [The Biot--Savart law](@id BiotSavart)
 
 In the VFM, each vortex line induces a velocity field around it given by the [Biot--Savart law](https://en.wikipedia.org/wiki/Biot%E2%80%93Savart_law):
@@ -205,7 +200,7 @@ Everything that has been discussed until now applies to the velocity derived fro
 Sometimes we may also be interested in the **streamfunction vector** ``\bm{ψ}``.
 In particular, the streamfunction values on vortex lines can be used to estimate the total energy of the vortex filament system.
 
-### [The Biot--Savart law for the streamfunction](@id Biot-Savart-streamfunction)
+### [Streamfunction from vortex lines](@id Biot-Savart-streamfunction)
 
 In three dimensions, the streamfunction is a vector field which is directly related to the velocity and vorticity by
 
@@ -226,7 +221,7 @@ The solution can be written in terms of the Green's function ``G(\bm{r}) = 1/(4�
 = \frac{1}{4π} ∫ \frac{\vort(\yvec)}{|\xvec - \yvec|} \, \dd^3\yvec
 ```
 
-Using the fact that the vorticity has the form ``\bm{ω}(\bm{x}) = Γ ∮_{\mathcal{C}} δ(\bm{s} - \bm{x}) \, \mathrm{d}\bm{s}`` leads to the **Biot--Savart law for the streamfunction**:
+Using the fact that the vorticity has the form ``\bm{ω}(\bm{x}) = Γ ∮_{\mathcal{C}} δ(\bm{s} - \bm{x}) \, \mathrm{d}\bm{s}`` leads to an expression relating the streamfunction to the geometry of vortex lines:
 
 ```math
 \newcommand{\xvec}{\bm{x}}
@@ -432,3 +427,5 @@ first definition which does this via the local contribution to the streamfunctio
 ## References
 
 A classical reference for the VFM is [Schwarz1985](@citet), while a more modern review is given by [Hanninen2014](@citet).
+Details on the streamfunction vector, its desingularisation and the choice of cut-off
+to ensure energy conservation can be found in [Polanco2025](@citet).

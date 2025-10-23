@@ -129,18 +129,15 @@ function make_all(; draft = false,)
         joinpath("tutorials", replace(name, r"\.jl$" => ".md"))
     end
 
-    assets = [
-        asset("assets/fonts.css"; islocal = true),
-        # asset("assets/tomate.js"; islocal = true),
-    ]
+    # assets = Documenter.HTMLWriter.HTMLAsset[]
 
     # Try to download latest version of simpleanalytics script.
     try
-        script = "assets/sa.js"
+        script = "public/sa.js"  # see also config.mts where we include this file in <head>
         dst = joinpath(@__DIR__, "src", script)
         Downloads.download("https://scripts.simpleanalyticscdn.com/latest.js", dst)
-        attributes = Dict(:async => "", Symbol("data-collect-dnt") => "true")
-        push!(assets, asset(script; attributes, islocal = true))
+        # attributes = Dict(:async => "", Symbol("data-collect-dnt") => "true")
+        # push!(assets, asset(script; attributes, islocal = true))
     catch e
         @warn "Failed downloading asset" e
     end
@@ -153,7 +150,7 @@ function make_all(; draft = false,)
             devbranch = "master",
             devurl = "dev",
             # collapselevel =  1,
-            assets,
+            # assets,
             # size_threshold_ignore = [
             #     "modules/Filaments.md",  # this page has too much content so it's relatively large
             # ],
