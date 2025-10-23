@@ -8,15 +8,11 @@ described in [Polanco2025](@citet).
 That paper also explains the role of the different parameters entering
 the method on accuracy and performance.
 
-```@contents
-Pages = ["Ewald.md"]
-Depth = 2:3
-```
-
 ## Splitting the Biot--Savart integral
 
 The basic idea of the method is to split the Biot--Savart integral into short- and long-range parts:
 ```math
+\newcommand{\bm}[1]{\boldsymbol{#1}}  % needed for MathJax
 \begin{align*}
     \bm{v}(\bm{x})
     &= \frac{Γ}{4π} ∮_{\mathcal{C}}
@@ -56,39 +52,41 @@ Note in particular that, for small ``r``, ``\operatorname{erf}(αr) = 2αr/\sqrt
 
 ![](splitting_functions.svg)
 
-!!! details "Code for this figure"
+::: details Code for this figure
 
-    ```@example
-    using SpecialFunctions: erf, erfc
-    using CairoMakie
-    CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
-    Makie.set_theme!()  # hide
-    rs = 2.0.^(-4:0.1:3)
-    gs(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)  # short-range
-    gl(αr) =  erf(αr) - 2αr / sqrt(π) * exp(-αr^2)  # long-range
-    xticks = LogTicks(-4:1:3)
-    yticks = LogTicks(-16:4:0)
-    fig = Figure(size = (600, 400), fontsize = 18)
-    ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
-    ylims!(ax, 1e-17, 4)
-    ls = lines!(ax, rs, gs.(rs); label = L"g^<(r)")
-    ll = lines!(ax, rs, gl.(rs); label = L"g^>(r)")
-    lines!(ax, rs, erfc.(rs); label = L"\mathrm{erfc}(αr)", linestyle = :dot, color = ls.color)
-    lines!(ax, rs, erf.(rs); label = L"\mathrm{erf}(αr)", linestyle = :dot, color = ll.color)
-    let rs = 2.0.^(range(-4, -1; length = 3)), color = :grey20  # plot ~r^3 slope
-        ys = @. 0.2 * rs^3
-        lines!(ax, rs, ys; linestyle = :dash, color)
-        text!(ax, rs[2], ys[2]; text = L"r^3", align = (:left, :top), color)
-    end
-    let rs = 2.0.^(range(-4, -2; length = 3)), color = :grey20  # plot ~r^1 slope
-        ys = @. 0.5 * (2 / sqrt(π)) * rs
-        lines!(ax, rs, ys; linestyle = :dash, color)
-        text!(ax, rs[2], ys[2]; text = L"r", align = (:left, :top), color)
-    end
-    axislegend(ax; position = (0, 0), labelsize = 20)
-    save("splitting_functions.svg", fig)
-    nothing  # hide
-    ```
+```@example
+using SpecialFunctions: erf, erfc
+using CairoMakie
+CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
+Makie.set_theme!()  # hide
+rs = 2.0.^(-4:0.1:3)
+gs(αr) = erfc(αr) + 2αr / sqrt(π) * exp(-αr^2)  # short-range
+gl(αr) =  erf(αr) - 2αr / sqrt(π) * exp(-αr^2)  # long-range
+xticks = LogTicks(-4:1:3)
+yticks = LogTicks(-16:4:0)
+fig = Figure(size = (600, 400), fontsize = 18)
+ax = Axis(fig[1, 1]; xticks, yticks, xscale = log2, yscale = log10, xlabel = L"αr", ylabel = "Splitting function")
+ylims!(ax, 1e-17, 4)
+ls = lines!(ax, rs, gs.(rs); label = L"g^<(r)")
+ll = lines!(ax, rs, gl.(rs); label = L"g^>(r)")
+lines!(ax, rs, erfc.(rs); label = L"\mathrm{erfc}(αr)", linestyle = :dot, color = ls.color)
+lines!(ax, rs, erf.(rs); label = L"\mathrm{erf}(αr)", linestyle = :dot, color = ll.color)
+let rs = 2.0.^(range(-4, -1; length = 3)), color = :grey20  # plot ~r^3 slope
+    ys = @. 0.2 * rs^3
+    lines!(ax, rs, ys; linestyle = :dash, color)
+    text!(ax, rs[2], ys[2]; text = L"r^3", align = (:left, :top), color)
+end
+let rs = 2.0.^(range(-4, -2; length = 3)), color = :grey20  # plot ~r^1 slope
+    ys = @. 0.5 * (2 / sqrt(π)) * rs
+    lines!(ax, rs, ys; linestyle = :dash, color)
+    text!(ax, rs[2], ys[2]; text = L"r", align = (:left, :top), color)
+end
+axislegend(ax; position = (0, 0), labelsize = 20)
+save("splitting_functions.svg", fig)
+nothing  # hide
+```
+
+:::
 
 For small ``αr``, the long-range splitting function goes to zero as ``r^3``, consistently with its Taylor expansion.
 This means that, as we wanted, ``g^>(r) / r^2`` is non-singular and smooth at ``r = 0``.
@@ -196,7 +194,7 @@ Similarly, the curl operator can be easily inverted in Fourier space to get the 
     This just requires some care in the computation of the streamfunction (and thus the induced kinetic energy)
     as detailed in [`BiotSavart.background_vorticity_correction!`](@ref).
 
-### [3. Notes on required resolution](@id Ewald-notes-kmax)
+### 3. Notes on required resolution
 
 Above we have assumed that we can evaluate Fourier coefficients for any wavenumber ``\bm{k}``.
 In fact, for practical reasons, we cannot evaluate all coefficients ``\hat{\bm{ω}}(\bm{k})`` for every possible ``\bm{k}``, and we need to set the number of wavenumbers ``N`` to compute in each direction (this is the parameter one tunes in NUFFT implementations).
@@ -209,24 +207,26 @@ Of course, one can vary the ``k_\text{max} / α`` ratio depending on the wanted 
 
 ![](gaussian_kalpha.svg)
 
-!!! details "Code for this figure"
+::: details Code for this figure
 
-    ```@example
-    using CairoMakie
-    CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
-    Makie.set_theme!()  # hide
-    ks_α = range(0, 12.2; step = 0.1)
-    xticks = 0:12
-    yticks = LogTicks(-16:2:0)
-    ys = @. exp(-ks_α^2 / 4)
-    lines(
-        ks_α, ys;
-        axis = (yscale = log10, xticks, yticks, xlabel = L"k/α", ylabel = L"\exp \, \left[ -k^2 / 4α^2 \right]",),
-        figure = (fontsize = 20, size = (600, 400),),
-    )
-    save("gaussian_kalpha.svg", current_figure())
-    nothing  # hide
-    ```
+```@example
+using CairoMakie
+CairoMakie.activate!(type = "svg", pt_per_unit = 1.0)  # hide
+Makie.set_theme!()  # hide
+ks_α = range(0, 12.2; step = 0.1)
+xticks = 0:12
+yticks = LogTicks(-16:2:0)
+ys = @. exp(-ks_α^2 / 4)
+lines(
+    ks_α, ys;
+    axis = (yscale = log10, xticks, yticks, xlabel = L"k/α", ylabel = L"\exp \, \left[ -k^2 / 4α^2 \right]",),
+    figure = (fontsize = 20, size = (600, 400),),
+)
+save("gaussian_kalpha.svg", current_figure())
+nothing  # hide
+```
+
+:::
 
 ### 4. Physical velocity at filament locations
 
@@ -390,17 +390,17 @@ In practice, one recommended way of setting the parameters is as follows:
    But in principle one can choose any positive value of ``L``.
 
 1. Set the **number of Fourier modes** ``N`` in each direction.
-   Choosing ``N`` also sets the **maximum resolved wavenumber** ``k_{\text{max}} = πN/L`` as well as the **physical grid spacing** ``δ = L/N`` associated to the long-range fields.
+   Choosing ``N`` also sets the **maximum resolved wavenumber** ``k_{\text{max}} = πN/L`` as well as the **physical grid spacing** ``Δx = L/N`` associated to the long-range fields.
    The value of ``N`` should be tuned to have a good balance between the time spent on short-range and long-range computations.
 
 1. Now set the non-dimensional parameter ``β`` to the desired accuracy.
-   For example, ``β = 3.5`` roughly gives ``10^{-6}`` relative accuracy.
+   A reasonable choice is ``β = 3.5``, which roughly gives ``10^{-6}`` relative accuracy.
 
 1. From ``β`` and ``k_{\text{max}}``, one obtains the remaining parameters
    ``α = k_{\text{max}} / 2β`` and ``r_\text{cut} = β / α``.
 
 For simplicity here we have assumed that the domain size ``L`` and the resolution ``N`` are the same in all directions, but things are easy to generalise to different ``L`` and ``N`` per direction.
-In all cases, one usually wants the physical grid spacing ``δ = L/N`` (or equivalently the maximum resolved wavenumber ``k_{\text{max}}``) to be the same in all directions.
+In all cases, one usually wants the physical grid spacing ``Δx_i = L_i/N_i`` (or equivalently the maximum resolved wavenumber ``k_{\text{max}}``) to be the same in all directions.
 
 !!! note "Size of FFTs"
 
@@ -415,7 +415,7 @@ Typically, using 3 nodes seems to be enough when using [quintic splines](@ref Qu
 
 ## Ewald method for the streamfunction
 
-As in the case of the velocity, the [Biot--Savart integral for the streamfunction](@ref Biot-Savart-streamfunction) decays slowly with the distance ``r = |\bm{x} - \bm{s}|``, and its computation can be accelerated using Ewald summation.
+As in the case of the velocity, the [streamfunction integral](@ref Biot-Savart-streamfunction) decays slowly with the distance ``r = |\bm{x} - \bm{s}|``, and its computation can be accelerated using Ewald summation.
 In fact, the Ewald summation method exposed above for the velocity is derived from that for the streamfunction, which is simpler and closer to the way the Ewald method is usually introduced in electrostatics (where the electrostatic potential is the analogue of the streamfunction).
 
 In the case of the streamfunction, the idea of Ewald summation is to split the singular and slowly-decaying Green's function ``G(\bm{r})`` onto a smooth long-range component ``G^>(\bm{r})`` and a short-range fast-decaying component ``G^<(\bm{r})``.
@@ -429,7 +429,7 @@ G(\bm{r}) = \frac{1}{4πr}
 
 where ``\operatorname{erf}`` and ``\operatorname{erfc}`` are respectively the error function and the complementary error function already introduced [above](@ref Splitting-the-Biot–Savart-integral), and ``α`` is the same **Ewald splitting parameter** introduced in that section.
 
-This leads to modified Biot--Savart integrals for the short-range and long-range streamfunction.
+This leads to modified integrals for the short-range and long-range streamfunction.
 For example, the short-range integral is given by:
 
 ```math

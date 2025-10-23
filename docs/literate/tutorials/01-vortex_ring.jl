@@ -14,11 +14,6 @@
 # The code in this tutorial should be executed in the same local environment where those
 # packages were installed.
 #
-# ```@contents
-# Pages = ["01-vortex_ring.md"]
-# Depth = 2:3
-# ```
-#
 # ## Defining a vortex ring
 #
 # The first thing to do is to define a circular vortex ring.

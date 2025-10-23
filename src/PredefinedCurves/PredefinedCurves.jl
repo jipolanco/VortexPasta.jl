@@ -21,7 +21,7 @@ using StaticArrays: SVector, SDiagonal
 
 Return the definition of the parametric curve `p` as a function.
 
-The returned function `S(t)` returns a coordinate ``x⃗`` for any given value of the scalar
+The returned function `S(t)` returns a coordinate ``\bm{x}`` for any given value of the scalar
 parameter ``t ∈ [0, 1]``. In particular, closed curves satisfy `S(0) == S(1)`.
 
 # Optional arguments
@@ -54,7 +54,7 @@ operations. Note that transformations are applied in that order.
 
 ### Translated and scaled circular ring
 
-Define a circular ring of radius ``R = 2`` centred at ``x⃗₀ = (0, 0, 1)`` and evaluate
+Define a circular ring of radius ``R = 2`` centred at ``\bm{x}₀ = (0, 0, 1)`` and evaluate
 its coordinates over equispaced points.
 
 ```jldoctest parametric_definition; filter = r"(\d*)\.(\d{13})\d+" => s"\1.\2***"

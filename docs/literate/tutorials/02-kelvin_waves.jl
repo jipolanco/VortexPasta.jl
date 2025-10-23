@@ -13,11 +13,6 @@
 # It is recommended to first follow the [vortex ring tutorial](@ref tutorial-vortex-ring)
 # before following this tutorial.
 #
-# ```@contents
-# Pages = ["02-kelvin_waves.md"]
-# Depth = 2:3
-# ```
-#
 # ## Physical configuration
 #
 # The idea of this tutorial is to study the time evolution of an infinite straight line

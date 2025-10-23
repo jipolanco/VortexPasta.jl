@@ -4,16 +4,12 @@ The standard **vortex filament model** (VFM) describes the motion of thin vortex
 
 Vortex lines are assumed to be very thin with respect to the scales of interest, such that they can be effectively described as spatial curves.
 
-```@contents
-Pages = ["VFM.md"]
-Depth = 2:3
-```
-
 ## [The Biot--Savart law](@id BiotSavart)
 
 In the VFM, each vortex line induces a velocity field around it given by the [Biot--Savart law](https://en.wikipedia.org/wiki/Biot%E2%80%93Savart_law):
 
 ```math
+\newcommand{\bm}[1]{\boldsymbol{#1}}  % needed for MathJax
 \bm{v}(\bm{x}) =
 \frac{Γ}{4π} ∮_{\mathcal{C}} \frac{(\bm{s} - \bm{x}) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{x}|^3}
 ```
@@ -64,97 +60,99 @@ Note that here we represent a *discretised* version of the curve, where the numb
 
 ![](trefoil_local.png)
 
-!!! details "Code for this figure"
+::: details Code for this figure
 
-    ```@example
-    using CairoMakie
-    CairoMakie.activate!(pt_per_unit = 1.0)
-    Makie.set_theme!()
+```@example
+using CairoMakie
+CairoMakie.activate!(pt_per_unit = 1.0)
+Makie.set_theme!()
 
-    using VortexPasta.Filaments
-    using VortexPasta.Filaments: Vec3
-    using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
+using VortexPasta.Filaments
+using VortexPasta.Filaments: Vec3
+using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 
-    trefoil = define_curve(TrefoilKnot())
-    N = 32
-    i = (N ÷ 2) + 3
-    refinement = 8
-    colours = Makie.wong_colors()
-    f = Filaments.init(trefoil, ClosedFilament, N, CubicSplineMethod())
+trefoil = define_curve(TrefoilKnot())
+N = 32
+i = (N ÷ 2) + 3
+refinement = 8
+colours = Makie.wong_colors()
+f = Filaments.init(trefoil, ClosedFilament, N, CubicSplineMethod())
 
-    fig = Figure(; Text = (fontsize = 24,), size = (600, 500))
-    ax = Axis(fig[1, 1]; aspect = DataAspect(), xlabel = L"x", ylabel = L"y")
-    hidexdecorations!(ax; label = false, ticklabels = false, ticks = false)
-    hideydecorations!(ax; label = false, ticklabels = false, ticks = false)
+fig = Figure(; Text = (fontsize = 24,), size = (600, 500))
+ax = Axis(fig[1, 1]; aspect = DataAspect(), xlabel = L"x", ylabel = L"y")
+hidexdecorations!(ax; label = false, ticklabels = false, ticks = false)
+hideydecorations!(ax; label = false, ticklabels = false, ticks = false)
 
-    # Plot complete filament in grey
-    let color = (:grey, 0.6)
-        plot!(ax, f; refinement, color, linewidth = 1.5, arrows3d = (;))
+# Plot complete filament in grey
+let color = (:grey, 0.6)
+    plot!(ax, f; refinement, color, linewidth = 1.5, arrows3d = (;))
+    text!(
+        ax, f(i ÷ 2 + 1, 0.6);
+        text = L"\bar{\mathcal{C}}_{\!i}", align = (:right, :bottom), color,
+        fontsize = 28,
+    )
+end
+
+# Plot point of interest and local segment around it
+let color = colours[2], arrowcol = colours[3]
+    # Plot nodes (i - 1):(i + 1)
+    scatter!(ax, getindex.(Ref(f), (i - 1):(i + 1)); color)
+    text!(
+        ax, f[i - 1] + Vec3(0.08, 0.0, 0.0);
+        text = L"\mathbf{s}_{i - 1}", align = (:left, :center), color,
+    )
+    text!(
+        ax, f[i] + Vec3(0.08, 0.0, 0.0);
+        text = L"\mathbf{s}_i", align = (:left, :center), color,
+    )
+    text!(
+        ax, f[i + 1] + Vec3(-0.08, 0.08, 0.0);
+        text = L"\mathbf{s}_{i + 1}", align = (:right, :center), color,
+    )
+
+    # Plot local segments
+    let ζs = range(0, 1; length = refinement + 1)
+        lines!(ax, f.(i - 1, ζs); color, linewidth = 3)
+        lines!(ax, f.(i, ζs); color, linewidth = 3)
         text!(
-            ax, f(i ÷ 2 + 1, 0.6);
-            text = L"\bar{\mathcal{C}}_{\!i}", align = (:right, :bottom), color,
+            f(i - 1, 0.5);
+            text = L"ℓ^{-}", align = (:right, :bottom), color,
+        )
+        text!(
+            f(i, 0.6) + Vec3(-0.08, 0, 0);
+            text = L"ℓ^{+}", align = (:right, :center), color,
+        )
+        text!(
+            ax, f(i - 1, 0.7) + Vec3(0.2, 0.0, 0.0);
+            text = L"\mathcal{C}_{\!i}", align = (:left, :top), color,
             fontsize = 28,
         )
     end
 
-    # Plot point of interest and local segment around it
-    let color = colours[2], arrowcol = colours[3]
-        # Plot nodes (i - 1):(i + 1)
-        scatter!(ax, getindex.(Ref(f), (i - 1):(i + 1)); color)
-        text!(
-            ax, f[i - 1] + Vec3(0.08, 0.0, 0.0);
-            text = L"\mathbf{s}_{i - 1}", align = (:left, :center), color,
-        )
-        text!(
-            ax, f[i] + Vec3(0.08, 0.0, 0.0);
-            text = L"\mathbf{s}_i", align = (:left, :center), color,
-        )
-        text!(
-            ax, f[i + 1] + Vec3(-0.08, 0.08, 0.0);
-            text = L"\mathbf{s}_{i + 1}", align = (:right, :center), color,
-        )
+    # Plot tangent and curvature vectors (assuming this is a 2D plot...)
+    s⃗ = f[i]
+    t̂ = f[i, UnitTangent()]
+    ρ⃗ = f[i, CurvatureVector()]
+    lengthscale = 1.2
+    arrows2d!(ax, [s⃗[1]], [s⃗[2]], [t̂[1]], [t̂[2]]; color = arrowcol, shaftwidth = 1.5, tipwidth = 10, lengthscale)
+    arrows2d!(ax, [s⃗[1]], [s⃗[2]], [ρ⃗[1]], [ρ⃗[2]]; color = arrowcol, shaftwidth = 1.5, tipwidth = 10, lengthscale)
+    text!(
+        ax, s⃗ + lengthscale * t̂;
+        text = L"\mathbf{s}′", align = (:left, :center), color = arrowcol,
+        offset = (2, -4),
+    )
+    text!(
+        ax, s⃗ + lengthscale * ρ⃗;
+        text = L"\mathbf{s}″", align = (:right, :center), color = arrowcol,
+        offset = (4, 6),
+    )
+end
 
-        # Plot local segments
-        let ζs = range(0, 1; length = refinement + 1)
-            lines!(ax, f.(i - 1, ζs); color, linewidth = 3)
-            lines!(ax, f.(i, ζs); color, linewidth = 3)
-            text!(
-                f(i - 1, 0.5);
-                text = L"ℓ^{-}", align = (:right, :bottom), color,
-            )
-            text!(
-                f(i, 0.6) + Vec3(-0.08, 0, 0);
-                text = L"ℓ^{+}", align = (:right, :center), color,
-            )
-            text!(
-                ax, f(i - 1, 0.7) + Vec3(0.2, 0.0, 0.0);
-                text = L"\mathcal{C}_{\!i}", align = (:left, :top), color,
-                fontsize = 28,
-            )
-        end
+save("trefoil_local.png", fig)
+nothing  # hide
+```
 
-        # Plot tangent and curvature vectors (assuming this is a 2D plot...)
-        s⃗ = f[i]
-        t̂ = f[i, UnitTangent()]
-        ρ⃗ = f[i, CurvatureVector()]
-        lengthscale = 1.2
-        arrows2d!(ax, [s⃗[1]], [s⃗[2]], [t̂[1]], [t̂[2]]; color = arrowcol, shaftwidth = 1.5, tipwidth = 10, lengthscale)
-        arrows2d!(ax, [s⃗[1]], [s⃗[2]], [ρ⃗[1]], [ρ⃗[2]]; color = arrowcol, shaftwidth = 1.5, tipwidth = 10, lengthscale)
-        text!(
-            ax, s⃗ + lengthscale * t̂;
-            text = L"\mathbf{s}′", align = (:left, :center), color = arrowcol,
-            offset = (2, -4),
-        )
-        text!(
-            ax, s⃗ + lengthscale * ρ⃗;
-            text = L"\mathbf{s}″", align = (:right, :center), color = arrowcol,
-            offset = (4, 6),
-        )
-    end
-
-    save("trefoil_local.png", fig)
-    nothing  # hide
-    ```
+:::
 
 Here, to evaluate the velocity induced by the trefoil vortex on its point ``\bm{s}_i``, we split the curve into a local part ``\mathcal{C}_i`` (orange) and a non-local part ``\bar{\mathcal{C}}_i = \mathcal{C} ∖ \mathcal{C}_i`` (grey).
 The non-local part is far from the singularity, so there is no need to modify the Biot--Savart integral as written above.
@@ -202,7 +200,7 @@ Everything that has been discussed until now applies to the velocity derived fro
 Sometimes we may also be interested in the **streamfunction vector** ``\bm{ψ}``.
 In particular, the streamfunction values on vortex lines can be used to estimate the total energy of the vortex filament system.
 
-### [The Biot--Savart law for the streamfunction](@id Biot-Savart-streamfunction)
+### [Streamfunction from vortex lines](@id Biot-Savart-streamfunction)
 
 In three dimensions, the streamfunction is a vector field which is directly related to the velocity and vorticity by
 
@@ -223,7 +221,7 @@ The solution can be written in terms of the Green's function ``G(\bm{r}) = 1/(4�
 = \frac{1}{4π} ∫ \frac{\vort(\yvec)}{|\xvec - \yvec|} \, \dd^3\yvec
 ```
 
-Using the fact that the vorticity has the form ``\bm{ω}(\bm{x}) = Γ ∮_{\mathcal{C}} δ(\bm{s} - \bm{x}) \, \mathrm{d}\bm{s}`` leads to the **Biot--Savart law for the streamfunction**:
+Using the fact that the vorticity has the form ``\bm{ω}(\bm{x}) = Γ ∮_{\mathcal{C}} δ(\bm{s} - \bm{x}) \, \mathrm{d}\bm{s}`` leads to an expression relating the streamfunction to the geometry of vortex lines:
 
 ```math
 \newcommand{\xvec}{\bm{x}}
@@ -429,3 +427,5 @@ first definition which does this via the local contribution to the streamfunctio
 ## References
 
 A classical reference for the VFM is [Schwarz1985](@citet), while a more modern review is given by [Hanninen2014](@citet).
+Details on the streamfunction vector, its desingularisation and the choice of cut-off
+to ensure energy conservation can be found in [Polanco2025](@citet).

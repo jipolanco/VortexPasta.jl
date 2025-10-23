@@ -1,4 +1,5 @@
 using Documenter
+using DocumenterVitepress
 using Documenter: Remotes
 using DocumenterCitations
 using Literate: Literate
@@ -100,8 +101,7 @@ else
 end
 
 function make_all(; draft = false,)
-    repo = REPO
-    warnonly = Symbol[]
+    repo = Remotes.repourl(REPO)
 
     bib = CitationBibliography(
         joinpath(@__DIR__, "src", "biblio.bib");
@@ -114,12 +114,6 @@ function make_all(; draft = false,)
     ]
     if draft
         empty!(tutorials)
-        # Some cross-references will be broken if we don't generate the tutorials
-        push!(warnonly, :cross_references)
-    end
-
-    if with_liveserver
-        warnonly = true
     end
 
     for name ∈ tutorials
@@ -135,34 +129,32 @@ function make_all(; draft = false,)
         joinpath("tutorials", replace(name, r"\.jl$" => ".md"))
     end
 
-    assets = [
-        asset("assets/fonts.css"; islocal = true),
-        # asset("assets/tomate.js"; islocal = true),
-    ]
+    # assets = Documenter.HTMLWriter.HTMLAsset[]
 
     # Try to download latest version of simpleanalytics script.
     try
-        script = "assets/sa.js"
+        script = "public/sa.js"  # see also config.mts where we include this file in <head>
         dst = joinpath(@__DIR__, "src", script)
         Downloads.download("https://scripts.simpleanalyticscdn.com/latest.js", dst)
-        attributes = Dict(:async => "", Symbol("data-collect-dnt") => "true")
-        push!(assets, asset(script; attributes, islocal = true))
+        # attributes = Dict(:async => "", Symbol("data-collect-dnt") => "true")
+        # push!(assets, asset(script; attributes, islocal = true))
     catch e
         @warn "Failed downloading asset" e
     end
 
     makedocs(;
         sitename = "VortexPasta",
-        format = Documenter.HTML(;
-            prettyurls = get(ENV, "CI", nothing) == "true",
-            repolink = Remotes.repourl(repo),
-            edit_link = "master",
-            collapselevel =  1,
-            assets,
-            size_threshold_ignore = [
-                "modules/Filaments.md",  # this page has too much content so it's relatively large
-            ],
-            mathengine = KaTeX(),
+        authors = "Juan Ignacio Polanco",
+        format = DocumenterVitepress.MarkdownVitepress(;
+            repo,
+            devbranch = "master",
+            devurl = "dev",
+            # collapselevel =  1,
+            # assets,
+            # size_threshold_ignore = [
+            #     "modules/Filaments.md",  # this page has too much content so it's relatively large
+            # ],
+            # mathengine = KaTeX(),
         ),
         modules = [VortexPasta],
         pages = [
@@ -176,7 +168,7 @@ function make_all(; draft = false,)
                 "tips/parallelisation.md",
                 "tips/gpu.md",
             ],
-            "Modules" => [
+            "Modules" => String[
                 "modules/PaddedArrays.md",
                 "modules/PredefinedCurves.md",
                 "modules/CellLists.md",
@@ -197,7 +189,7 @@ function make_all(; draft = false,)
         ],
         draft = draft || with_liveserver,
         pagesonly = true,
-        warnonly,
+        warnonly = true,
         plugins = [bib],
         repo,
         doctest = false,
@@ -210,8 +202,8 @@ make_all(; draft = false,)
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
 if haskey(ENV, "GITHUB_REPOSITORY")  # if we're on github
-    deploydocs(;
-        repo = "github.com/jipolanco/VortexPasta.jl.git",
+    DocumenterVitepress.deploydocs(;
+        repo = "github.com/jipolanco/VortexPasta.jl",
         branch = "gh-pages",
         devbranch = "master",
         forcepush = true,

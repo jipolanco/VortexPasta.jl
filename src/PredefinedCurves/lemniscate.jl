@@ -8,7 +8,7 @@ in 3D space.
 
 The specific definition used here corresponds to the [lemniscate of
 Bernoulli](https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli) on the XY plane.
-Under the normalised parametrisation ``x⃗(t)`` with ``t ∈ [0, 1]``, the curve crosses
+Under the normalised parametrisation ``\bm{x}(t)`` with ``t ∈ [0, 1]``, the curve crosses
 the origin at ``t = 1/4`` and ``t = 3/4``, intersecting itself at that point.
 
 One can perturb the curve in the third direction by passing a non-zero value of `Az` so that
