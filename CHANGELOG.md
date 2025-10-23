@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.29.17] - 2025-10-23
+
 ### Added
 
 - Add new `filament_nderivs` option to `Timestepping.init`.
@@ -15,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The old `alias_u0` option of `Timestepping.init` is now deprecated and ignored. Filaments
   are now always copied, which was already the default previously.
+
+- Use DocumenterVitepress for documentation.
 
 ## [0.29.16] - 2025-09-24
 
