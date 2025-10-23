@@ -87,7 +87,7 @@ jobs:
             lcov_html
 
   docs:
-    needs: test  # for loading coverage data
+    # needs: test  # for loading coverage data
     # if: ${{ always() }}  # build docs even if tests fail
 
     permissions:
@@ -117,14 +117,14 @@ jobs:
           # See https://github.com/MakieOrg/Makie.jl/blob/master/.github/workflows/Docs.yml
           sudo apt-get install -qq xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev
 
-      - name: Download coverage data from tests
-        uses: actions/download-artifact@v5
-        with:
-          name: "code-coverage-${{ env.JULIA_VERSION }}"  # load coverage from the same Julia version used to build the docs
-
-      # Move coverage HTML to docs/src/. Documenter will copy files in src/ to build/.
-      - name: Add coverage HTML to docs
-        run: mv -v lcov_html docs/src/coverage
+      # - name: Download coverage data from tests
+      #   uses: actions/download-artifact@v5
+      #   with:
+      #     name: "code-coverage-${{ env.JULIA_VERSION }}"  # load coverage from the same Julia version used to build the docs
+      #
+      # # Move coverage HTML to docs/src/. Documenter will copy files in src/ to build/.
+      # - name: Add coverage HTML to docs
+      #   run: mv -v lcov_html docs/src/coverage
 
       - name: Precompile
         run: |
