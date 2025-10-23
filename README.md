@@ -2,7 +2,7 @@
 
 [![documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://jipolanco.github.io/VortexPasta.jl/dev/)
 [![build status](https://github.com/jipolanco/VortexPasta.jl/workflows/CI/badge.svg)](https://github.com/jipolanco/VortexPasta.jl/actions)
-[![coverage](https://jipolanco.github.io/VortexPasta.jl/dev/coverage/coverage.svg)](https://jipolanco.github.io/VortexPasta.jl/dev/coverage)
+[![coverage](https://codecov.io/gh/jipolanco/VortexPasta.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/jipolanco/VortexPasta.jl)
 [![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/jipolanco/VortexPasta.jl/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/jipolanco/VortexPasta.jl)
 
 An efficient vortex filament solver for the simulation of quantum vortex flows.
