@@ -1,1 +1,0 @@
-genhtml --no-function-coverage --legend -o lcov_html lcov.info
