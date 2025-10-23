@@ -198,6 +198,9 @@ end
 
 make_all(; draft = false,)
 
+@show readdir(joinpath(@__DIR__, "build"))
+@show readdir(joinpath(@__DIR__, "build", "1"))
+
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
