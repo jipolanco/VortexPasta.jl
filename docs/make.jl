@@ -205,9 +205,8 @@ make_all(; draft = false,)
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.
 if haskey(ENV, "GITHUB_REPOSITORY")  # if we're on github
-    DocumenterVitepressdeploydocs(;
-        repo = "github.com/jipolanco/VortexPasta.jl.git",
-        target = joinpath(@__DIR__, "build"),
+    DocumenterVitepress.deploydocs(;
+        repo = "github.com/jipolanco/VortexPasta.jl",
         branch = "gh-pages",
         devbranch = "master",
         forcepush = true,
