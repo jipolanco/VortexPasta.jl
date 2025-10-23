@@ -4,11 +4,6 @@ A vortex filament solver for the simulation of quantum vortex flows.
 
 This solver implements the methods described in [Polanco2025](@citet) for the fast evaluation of Biot--Savart integrals in periodic domains.
 
-```@contents
-Pages = ["index.md"]
-Depth = 2:3
-```
-
 ## Introduction
 
 ### Physical context
