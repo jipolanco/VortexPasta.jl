@@ -1,0 +1,53 @@
+{
+    "@context": "https://w3id.org/codemeta/3.0",
+    "type": "SoftwareSourceCode",
+    "applicationCategory": "Physics",
+    "author": [
+        {
+            "id": "https://orcid.org/0000-0001-7705-753X",
+            "type": "Person",
+            "affiliation": {
+                "type": "Organization",
+                "name": "CNRS, Laboratoire des Écoulements Géophysiques et Industriels (LEGI), Grenoble, France"
+            },
+            "email": "juan-ignacio.polanco@cnrs.fr",
+            "familyName": "Polanco",
+            "givenName": "Juan Ignacio"
+        }
+    ],
+    "codeRepository": "https://github.com/jipolanco/VortexPasta.jl",
+    "dateCreated": "2025-11-03",
+    "dateModified": "2025-10-23",
+    "datePublished": "2023-10-09",
+    "description": "An efficient vortex filament solver for the simulation of quantum vortex flows.",
+    "downloadUrl": "https://github.com/jipolanco/VortexPasta.jl/archive/refs/tags/v0.29.17.tar.gz",
+    "funder": {
+        "type": "Organization",
+        "name": "ANR"
+    },
+    "identifier": "3d0f1e53-df37-477e-a492-0d33e6039c24",
+    "keywords": [
+        "quantum turbulence",
+        "quantum vortices",
+        "vortex filament model",
+        "Biot-Savart law",
+        "vortex dynamics",
+        "superfluid helium",
+        "fast Ewald summation",
+        "nonuniform FFT"
+    ],
+    "license": "https://spdx.org/licenses/MPL-2.0",
+    "name": "VortexPasta.jl",
+    "programmingLanguage": "Julia",
+    "relatedLink": "https://jipolanco.github.io/VortexPasta.jl/dev",
+    "releaseNotes": "### Added\n\n- Add new `filament_nderivs` option to `Timestepping.init`.\n\n### Changed\n\n- Minor improvements to speed of implicit and IMEX timestepping schemes.\n\n- The old `alias_u0` option of `Timestepping.init` is now deprecated and ignored. Filaments\n  are now always copied, which was already the default previously.\n\n- Use DocumenterVitepress for documentation.",
+    "version": "0.29.17",
+    "codemeta:contIntegration": {
+        "id": "https://github.com/jipolanco/VortexPasta.jl/actions"
+    },
+    "continuousIntegration": "https://github.com/jipolanco/VortexPasta.jl/actions",
+    "developmentStatus": "active",
+    "funding": "ANR-23-CE30-0024",
+    "issueTracker": "https://github.com/jipolanco/VortexPasta.jl/issues",
+    "referencePublication": "https://doi.org/10.1137/24M1684682"
+}
