@@ -295,7 +295,7 @@ end
 
 # Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
 # (In theory it shouldn't depend at all...)
-function check_independence_on_ewald_parameter(f, αs; quad = GaussLegendre(2), params_kws...)
+function check_independence_on_ewald_parameter(f, αs; quad = GaussLegendre(3), params_kws...)
     fields_all = map(αs) do α
         compute_filament_velocity_and_streamfunction(
             f;
@@ -413,7 +413,9 @@ end
         quadratures = (GaussLegendre(3), NoQuadrature())
         @testset "$quad" for quad ∈ quadratures
             @testset "use_simd = $use_simd" for use_simd ∈ (true, false)
-                check_independence_on_ewald_parameter(f, αs; quad, use_simd, params_kws...)
+                @testset "avoid_explicit_erf = $avoid_explicit_erf" for avoid_explicit_erf ∈ (true, false)
+                    check_independence_on_ewald_parameter(f, αs; quad, use_simd, avoid_explicit_erf, params_kws...)
+                end
             end
         end
         @testset "FourierMethod()" begin

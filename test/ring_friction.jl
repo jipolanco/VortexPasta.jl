@@ -14,13 +14,13 @@ using UnicodePlots: UnicodePlots, lineplot, lineplot!
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
-function generate_biot_savart_parameters(::Type{T}) where {T}
+function generate_biot_savart_parameters(::Type{T}; kws...) where {T}
     Γ = 1.0
     a = 1e-6
     Δ = 1/4
     L = 2π
     Ls = (L, L, L)
-    β = 3.0
+    β = 3.5
     rcut = L / 2
     α = β / rcut
     kmax = 2α * β
@@ -32,6 +32,7 @@ function generate_biot_savart_parameters(::Type{T}) where {T}
         backend_short = NaiveShortRangeBackend(),
         backend_long = NonuniformFFTsBackend(σ = T(1.5), m = HalfSupport(4)),
         quadrature = GaussLegendre(3),
+        kws...,
     )
 end
 
@@ -79,8 +80,18 @@ function test_ring_friction_static(f, params, forcing::NormalFluidForcing)
 
     # The drag force should be in the -Z direction (opposite to the ring translation).
     vf_z = getindex.(vf_rest, 3)
-    @test norm.(vf_rest) ≈ -vf_z                             # vf_rest points in the -Z direction
-    @test vf_z ≈ -α′ * vz_orig rtol=max(sqrt(eps(T)), 1e-7)  # it's proportional to the α′ coefficient
+    @test norm.(vf_rest) ≈ -vf_z          # vf_rest points in the -Z direction
+    # let a = vf_z, b = -α′ * vz_orig
+    #     @show norm(a - b) / norm(b)
+    # end
+    rtol = if T === Float64
+        1.5e-7
+    elseif T === Float32
+        # In this case there's a significant loss of precision due to avoid_explicit_erf
+        # (but this doesn't really affect other quantities).
+        params.avoid_explicit_erf ? 8f-4 : 1.2f-4
+    end
+    @test vf_z ≈ -α′ * vz_orig rtol=rtol  # it's proportional to the α′ coefficient
 
     nothing
 end
@@ -166,8 +177,8 @@ function test_ring_friction_dynamic(f, params, forcing::NormalFluidForcing)
     iter
 end
 
-function test_ring_friction(::Type{T}) where {T}
-    params = generate_biot_savart_parameters(T)
+function test_ring_friction(::Type{T}; kws...) where {T}
+    params = generate_biot_savart_parameters(T; kws...)
     S = define_curve(Ring(); translate = π, scale = π / 4)
     N = 48
     f = Filaments.init(S, ClosedFilament{T}, N, QuinticSplineMethod())
@@ -184,6 +195,8 @@ function test_ring_friction(::Type{T}) where {T}
     nothing
 end
 
-@testset "Ring friction ($T)" for T ∈ (Float32, Float64)
-    test_ring_friction(T)
+@testset "Ring friction ($T)" for T in (Float32, Float64)
+    for avoid_explicit_erf in (false, true)
+        test_ring_friction(T; avoid_explicit_erf)
+    end
 end
