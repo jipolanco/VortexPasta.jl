@@ -51,6 +51,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         α = Zero(),
         backend_short = NaiveShortRangeBackend(),
         quadrature = quad,
+        quadrature_near_singularity = quad === NoQuadrature() ? GaussLegendre(1) : quad,  # avoid using NoQuadrature() here
         lia_segment_fraction = 0.4,
     )
     nquad = length(quad)  # number of quadrature points per segment
