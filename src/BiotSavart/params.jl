@@ -325,8 +325,6 @@ function ParamsBiotSavart(
         ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
         a::Real,
         quadrature::StaticSizeQuadrature = GaussLegendre(3),
-        quadrature_short = nothing,  # deprecated
-        quadrature_long = nothing,   # deprecated
         quadrature_near_singularity::AbstractQuadrature = AdaptiveTanhSinh(T; nlevels = 5),
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
         backend_long::LongRangeBackend = default_long_range_backend(Ls),
@@ -340,13 +338,9 @@ function ParamsBiotSavart(
     # - define ParamsPhysical instead of ParamsCommon
     # - include α in both ParamsShortRange and ParamsLongRange?
     (; Ns, rcut,) = _extra_params(α; kws...)
-    if !isnothing(quadrature_short) || !isnothing(quadrature_long)
-        @warn "`quadrature_short` and `quadrature_long` are deprecated and will be removed. Pass `quadrature` instead."
-    end
-    quad = _parse_quadrature_args(quadrature, quadrature_short, quadrature_long)
-    common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quadrature_near_singularity)
-    sr = ParamsShortRange(backend_short, quad, common, rcut, lia_segment_fraction, use_simd)
-    lr = ParamsLongRange(backend_long, quad, common, Ns, longrange_truncate_spherical)
+    common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quadrature, quadrature_near_singularity)
+    sr = ParamsShortRange(backend_short, quadrature, common, rcut, lia_segment_fraction, use_simd)
+    lr = ParamsLongRange(backend_long, quadrature, common, Ns, longrange_truncate_spherical)
     ParamsBiotSavart(common, sr, lr)
 end
 
@@ -355,15 +349,6 @@ function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T <: AbstractFloat}
     shortrange = change_float_type(p.shortrange, common)
     longrange = change_float_type(p.longrange, common)
     ParamsBiotSavart(common, shortrange, longrange)
-end
-
-# TODO remove? this was for compatibility with old versions
-_parse_quadrature_args(quad::StaticSizeQuadrature, ::Nothing, ::Nothing) = quad
-_parse_quadrature_args(::StaticSizeQuadrature, short::StaticSizeQuadrature, ::Nothing) = short
-_parse_quadrature_args(::StaticSizeQuadrature, ::Nothing, long::StaticSizeQuadrature) = long
-function _parse_quadrature_args(::StaticSizeQuadrature, short::StaticSizeQuadrature, long::StaticSizeQuadrature)
-    short === long || throw(ArgumentError("`quadrature_short` and `quadrature_long` must be equal. Use `quadrature` instead to set both."))
-    short
 end
 
 # Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.
