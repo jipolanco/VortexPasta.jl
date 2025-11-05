@@ -21,13 +21,14 @@ struct ParamsCommon{
     Ls :: Periods  # size of unit cell (= period in each direction)
     quad :: Quad   # quadrature rule used for short- and long-range computations
     quad_near_singularity :: QuadMaybeAdaptive  # quadrature rule to be used near singularities (adaptive by default)
-    function ParamsCommon{T}(Γ, a, Δ, α_in, Ls_in, quad, quad_near_singularity) where {T}
+    avoid_explicit_erf :: Bool
+    function ParamsCommon{T}(Γ, a, Δ, α_in, Ls_in, quad, quad_near_singularity, avoid_explicit_erf) where {T}
         α = maybe_convert(T, α_in)  # don't convert constants (e.g. if α = Zero())
         Ls = map(L -> maybe_convert(T, L), Ls_in)
         σ = 1 / (α * sqrt(T(2)))
         quad_ns = convert(T, quad_near_singularity)  # does nothing if the quadrature has the right type
         new{T, typeof(α), typeof(σ), typeof(Ls), typeof(quad), typeof(quad_ns)}(
-            Γ, a, Δ, α, σ, Ls, quad, quad_ns,
+            Γ, a, Δ, α, σ, Ls, quad, quad_ns, avoid_explicit_erf,
         )
     end
 end
@@ -47,6 +48,7 @@ function Base.show(io::IO, p::ParamsCommon)
     print(io, "\n   * Ewald splitting parameter:  α = ", α, " (σ = 1/α√2 = ", σ, ")")
     print(io, "\n   * Quadrature rule:            ", p.quad)
     print(io, "\n   * Quadrature rule (alt.):     ", p.quad_near_singularity, " (used near singularities)")
+    print(io, "\n   * Avoid explicit erf:         ", p.avoid_explicit_erf)
     nothing
 end
 
@@ -58,6 +60,7 @@ function to_hdf5(g, p::ParamsCommon{T}) where {T}
     g["alpha"] = convert(T, p.α)  # convert Zero() -> 0.0
     g["quad"] = string(p.quad)
     g["quad_near_singularity"] = string(p.quad_near_singularity)
+    g["avoid_explicit_erf"] = string(p.avoid_explicit_erf)
     nothing
 end
 
@@ -65,8 +68,8 @@ Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
 Base.eltype(p::ParamsCommon) = eltype(typeof(p))
 
 function Base.convert(::Type{T}, p::ParamsCommon) where {T <: AbstractFloat}
-    (; Γ, a, Δ, α, Ls, quad, quad_near_singularity,) = p
-    ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quad_near_singularity)  # converts all floats to type T
+    (; Γ, a, Δ, α, Ls, quad, quad_near_singularity, avoid_explicit_erf) = p
+    ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quad_near_singularity, avoid_explicit_erf)  # converts all floats to type T
 end
 
 ## ================================================================================ ##
@@ -255,14 +258,7 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
 - `backend_short::ShortRangeBackend`: backend used to compute
   short-range interactions. The default is `CellListsBackend(2)`, unless periodicity is
   disabled, in which case `NaiveShortRangeBackend()` is used.
-  See [`ShortRangeBackend`](@ref) for a list of possible backends;
-
-- `use_simd::Bool = true`: whether to use explicit SIMD during the computation of short-range
-  interactions. This applies to the CPU implementation of short-range interactions in
-  periodic domains only, where the SIMD implementation can accelerate the computation of
-  `erfc(x)` in particular.
-  Usually there is no reason to disable this, other than to verify the accuracy or
-  performance of the SIMD implementation.
+  See [`ShortRangeBackend`](@ref) for a list of possible backends.
 
 ### Long-range interactions
 
@@ -309,6 +305,23 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
   e.g. `quadrature_near_singularity = AdaptiveTanhSinh(T; nlevels = 5)`, but note that this
   is costly and might not lead to considerable accuracy gains.
 
+### Other performance parameters
+
+- `use_simd::Bool = true`: whether to use explicit SIMD during the computation of short-range
+  interactions. This applies to the CPU implementation of short-range interactions in
+  periodic domains only, where the SIMD implementation can accelerate the computation of
+  `erfc(αr)` in particular.
+  Usually there is no reason to disable this, other than to verify the accuracy or
+  performance of the SIMD implementation;
+
+- `avoid_explicit_erf::Bool = true`: whether to avoid explicit computation of `erf(αr)`,
+  which appears when one wants to subtract the local contribution of long-range interactions
+  (the "self"-interaction), and which may be a bit expensive. If this is `true`, this is
+  avoided by _including_ the local segments in short-range interactions, and then
+  subtracting the _full_ Biot-Savart integrals (instead of long-range ones) evaluated over
+  the local segments. Note that the local integrals (short-range and full) are mathematically singular,
+  and numerically might lead to some loss of accuracy due to [catastrophic cancellation](https://en.wikipedia.org/wiki/Catastrophic_cancellation),
+  especially when working in single precision (`T = Float32`).
 """
 struct ParamsBiotSavart{
         T,
@@ -332,6 +345,7 @@ function ParamsBiotSavart(
         Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,
         use_simd::Bool = default_use_simd(Ls),
+        avoid_explicit_erf::Bool = true,
         kws...,
     ) where {T}
     # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
@@ -344,7 +358,7 @@ function ParamsBiotSavart(
             quadrature, quadrature_near_singularity, lia_segment_fraction  # print these variables for extra information
         )
     end
-    common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quadrature, quadrature_near_singularity)
+    common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quadrature, quadrature_near_singularity, avoid_explicit_erf)
     sr = ParamsShortRange(backend_short, quadrature, common, rcut, lia_segment_fraction, use_simd)
     lr = ParamsLongRange(backend_long, quadrature, common, Ns, longrange_truncate_spherical)
     ParamsBiotSavart(common, sr, lr)

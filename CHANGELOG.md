@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `quadrature` (by default `GaussLegendre(3)`), which is much cheaper and doesn't seem to
   considerably change accuracy.
 
+- BiotSavart: change default computation of short-range integrals and the correction to the
+  "self-interaction", to avoid computation of `erf` (and also `exp`) when correcting long-range computations.
+  The new solution may lead to (slight) catastrophic cancellation, which seems
+  to be really negligible when working in double precision (`Float64`), and is only
+  slightly visible in single precision (`Float32`), as only one test needed to be updated.
+  One can pass `avoid_explicit_erf = false` to `ParamsBiotSavart` to fall back to the old behaviour.
+
 - `ParamsBiotSavart`: remove deprecated `quadrature_short` and `quadrature_long` parameters.
 
 ## [0.29.17] - 2025-10-23
