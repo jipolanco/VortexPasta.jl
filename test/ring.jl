@@ -211,7 +211,7 @@ function test_local_induced_approximation(ring)
     nothing
 end
 
-function biot_savart_parameters(; L, β = 4, α = 24/L, kws...)
+function biot_savart_parameters(::Type{T}; L, β = 4, α = 24/L, kws...) where {T}
     rcut = β / α
     if L === Infinity()
         M = Zero()
@@ -219,7 +219,8 @@ function biot_savart_parameters(; L, β = 4, α = 24/L, kws...)
         kmax_wanted = β * 2α
         M = nextprod((2, 3), (L / π) * kmax_wanted)
     end
-    ParamsBiotSavart(;
+    ParamsBiotSavart(
+        T;
         Γ = 1.0,
         α,
         Ls = (L, L, L),
@@ -237,7 +238,12 @@ function test_lia_segment_fraction()
     fs = [ring.f]
 
     L = Infinity()
-    params = biot_savart_parameters(; L, lia_segment_fraction = 0.2)
+    T = eltype(eltype(ring.f))
+    params = biot_savart_parameters(
+        T;
+        L, lia_segment_fraction = 0.2,
+        quadrature_near_singularity = AdaptiveTanhSinh(T; nlevels = 5)
+    )
     # println(params)
     cache = BiotSavart.init_cache(params, fs)
 

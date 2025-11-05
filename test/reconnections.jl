@@ -137,6 +137,7 @@ function test_trefoil_knot_reconnection(
             backend_short = CellListsBackend(2),
             backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(3)),
             quadrature = GaussLegendre(3),
+            quadrature_near_singularity = AdaptiveTanhSinh(nlevels = 5),
             lia_segment_fraction = 0.2,
         )
     end

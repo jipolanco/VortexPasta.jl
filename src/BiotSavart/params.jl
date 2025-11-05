@@ -298,16 +298,16 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
   means that the LIA term is evaluated over the full segments. If smaller than 1, the
   velocity induced by the excluded part of the segments will be evaluated using the regular
   Biot–Savart law (using quadratures within each subsegment). This may improve accuracy,
-  especially when the discretisation distance is relatively large. Since this means
-  integrating near the singularity of the BS integral, this integral is by default estimated
-  using adaptive quadratures (see `quadrature_near_singularity` below).
+  especially when the discretisation distance is relatively large. See also
+  `quadrature_near_singularity` for the choice of quadrature rule when this is enabled.
 
-- `quadrature_near_singularity = AdaptiveTanhSinh(T; nlevels = 5)`: quadrature rule to be used
-  when integrating near a singularity, in particular when `lia_segment_fraction` is enabled.
-  By default an adaptive quadrature rule [`AdaptiveTanhSinh`](@ref) is used, which is
-  generally accurate but can be costly.
-  One can also pass a [`StaticSizeQuadrature`](@ref) such as [`GaussLegendre`](@ref), but in
-  that case accuracy is not guaranteed.
+- `quadrature_near_singularity = quadrature`: quadrature rule to be used
+  when integrating near a singularity when `lia_segment_fraction` is enabled.
+  By default this is equal to the quadrature rule used for non-local interactions (the
+  `quadrature` parameter), which has static size and is not adaptive. For even higher
+  accuracy, one may choose an adaptive quadrature rule such as [`AdaptiveTanhSinh`](@ref),
+  e.g. `quadrature_near_singularity = AdaptiveTanhSinh(T; nlevels = 5)`, but note that this
+  is costly and might not lead to considerable accuracy gains.
 
 """
 struct ParamsBiotSavart{
@@ -325,7 +325,7 @@ function ParamsBiotSavart(
         ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
         a::Real,
         quadrature::StaticSizeQuadrature = GaussLegendre(3),
-        quadrature_near_singularity::AbstractQuadrature = AdaptiveTanhSinh(T; nlevels = 5),
+        quadrature_near_singularity::AbstractQuadrature = quadrature,
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
         backend_long::LongRangeBackend = default_long_range_backend(Ls),
         longrange_truncate_spherical::Bool = false,
@@ -338,6 +338,12 @@ function ParamsBiotSavart(
     # - define ParamsPhysical instead of ParamsCommon
     # - include α in both ParamsShortRange and ParamsLongRange?
     (; Ns, rcut,) = _extra_params(α; kws...)
+    if lia_segment_fraction !== nothing && quadrature_near_singularity === NoQuadrature()
+        @warn(
+            "quadrature_near_singularity has been set to NoQuadrature(); this will lead to wrong results!",
+            quadrature, quadrature_near_singularity, lia_segment_fraction  # print these variables for extra information
+        )
+    end
     common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quadrature, quadrature_near_singularity)
     sr = ParamsShortRange(backend_short, quadrature, common, rcut, lia_segment_fraction, use_simd)
     lr = ParamsLongRange(backend_long, quadrature, common, Ns, longrange_truncate_spherical)

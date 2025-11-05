@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `ParamsBiotSavart`: change default value of `quadrature_near_singularity`. Now it is equal
+  to `quadrature` (by default `GaussLegendre(3)`), which is much cheaper and doesn't seem to
+  considerably change accuracy.
+
+- `ParamsBiotSavart`: remove deprecated `quadrature_short` and `quadrature_long` parameters.
+
 ## [0.29.17] - 2025-10-23
 
 ### Added
