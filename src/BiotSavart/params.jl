@@ -290,7 +290,7 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
 
   * `Δ ≈ 0.615` for a Gross–Pitaevskii vortex with healing length `a`.
 
-  See Saffman (1992), sections 10.2--10.3 for the first three.
+  See [Saffman1993](@citet), sections 10.2--10.3 for the first three.
 
 - `lia_segment_fraction = nothing`: can be used to indicate that the LIA term should be
   evaluated over a *fraction* of the two segments surrounding a node. In this case, it
