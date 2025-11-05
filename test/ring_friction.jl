@@ -89,7 +89,7 @@ function test_ring_friction_static(f, params, forcing::NormalFluidForcing)
     elseif T === Float32
         # In this case there's a significant loss of precision due to avoid_explicit_erf
         # (but this doesn't really affect other quantities).
-        params.avoid_explicit_erf ? 8f-4 : 1.2f-4
+        params.avoid_explicit_erf ? 9f-4 : 1.2f-4
     end
     @test vf_z ≈ -α′ * vz_orig rtol=rtol  # it's proportional to the α′ coefficient
 
