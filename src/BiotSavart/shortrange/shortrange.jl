@@ -139,6 +139,36 @@ function integrate_biot_savart(
     end :: typeof(x⃗)
 end
 
+# This subtracts the local Biot-Savart interaction (the effect of the two adjacent segments
+# to each node) which we have included in short and long-range computations, but which
+# should be replaced with the local (LIA) term obtained from Taylor expansions to account
+# for the integral cut-off near the node.
+# This function should be called when the local integrals have _not_ been excluded from
+# short-range interactions.
+function remove_total_self_interaction!(
+        vs::VectorOfVec,
+        f::ClosedFilament,
+        quantity::OutputField,
+        params::ParamsCommon,
+    )
+    Xs = nodes(f)
+    segs = segments(f)
+    Lhs = map(L -> L / 2, params.Ls)
+    prefactor = params.Γ / (4π)
+    # Not sure if we gain much by parallelising here.
+    Threads.@threads :dynamic for i in eachindex(Xs, vs)
+        @inbounds begin
+            x⃗ = Xs[i]
+            sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
+            sb = Segment(f, i)  # segment i
+            u⃗a = integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, rcut² = nothing)
+            u⃗b = integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, rcut² = nothing)
+            vs[i] = vs[i] - prefactor * (u⃗a + u⃗b)
+        end
+    end
+    vs
+end
+
 # This subtracts the spurious self-interaction term which is implicitly included in
 # long-range computations. This corresponds to the integral over the two adjacent segments
 # to each node, which should not be included in the total result (since they are replaced by
@@ -229,17 +259,30 @@ end
 
 # ==================================================================================================== #
 
-function remove_long_range_self_interaction!(
+function remove_self_interaction!(
         vs::AbstractVector{<:VectorOfVec},
-        fs::VectorOfFilaments,
-        args...,
+        fs::VectorOfFilaments, quantity::OutputField, params::ParamsCommon,
     )
+    if params.avoid_explicit_erf
+        _remove_self_interaction!(Val(true), vs, fs, quantity, params)
+    else
+        _remove_self_interaction!(Val(false), vs, fs, quantity, params)
+    end
+end
+
+function _remove_self_interaction!(::Val{total}, vs, fs, quantity, params) where {total}
     chunks = FilamentChunkIterator(fs)
     @sync for chunk in chunks
         isempty(chunk) && continue  # don't spawn a task if it will do no work
         Threads.@spawn for i in chunk
             @inbounds v, f = vs[i], fs[i]
-            remove_long_range_self_interaction!(v, f, args...)
+            if total
+                # In this case, short-range interactions include the (singular) contribution
+                # of the local segments.
+                remove_total_self_interaction!(v, f, quantity, params)
+            else
+                remove_long_range_self_interaction!(v, f, quantity, params)
+            end
         end
     end
     vs
@@ -289,10 +332,20 @@ function add_short_range_fields!(
         LIA::Val{_LIA} = Val(true),   # can be used to disable LIA
     ) where {Names, N, V <: VectorOfVec, _LIA}
     (; params,) = cache
+    if params.common.avoid_explicit_erf
+        _add_short_range_fields!(Val(true), fields, cache, f, LIA)
+    else
+        _add_short_range_fields!(Val(false), fields, cache, f, LIA)
+    end
+end
+
+function _add_short_range_fields!(::Val{include_local_integration}, fields, cache, f, ::Val{_LIA}) where {include_local_integration, _LIA}
+    (; params,) = cache
     (; quad, lia_segment_fraction,) = params
-    (; Γ, a, Δ, Ls, quad_near_singularity,) = params.common
+    (; Γ, a, Δ, Ls, quad_near_singularity, avoid_explicit_erf) = params.common
     prefactor = Γ / (4π)
     Lhs = map(L -> L / 2, Ls)
+    @assert include_local_integration === avoid_explicit_erf  # we include integration over local segment
 
     Xs = nodes(f)
     for us ∈ values(fields)
@@ -348,10 +401,17 @@ function add_short_range_fields!(
             quantity => u⃗
         end
 
-        # Then include the short-range (but non-local) effect of all nearby charges
-        # (which are located on the quadrature points of all nearby segments,
-        # excluding the local segments `sa` and `sb`).
-        vecs_i = add_pair_interactions_shortrange(vecs_i, cache, x⃗, params, sa, sb, Lhs)
+        vecs_i = if include_local_integration
+            # Then include the short-range effect of all nearby charges, **including the local
+            # segments `sa` and `sb`** (which are actually singular, and should be then removed
+            # with remove_total_self_interaction).
+            add_pair_interactions_shortrange(vecs_i, cache, x⃗, params, nothing, nothing, Lhs)
+        else
+            # Then include the short-range (but non-local) effect of all nearby charges
+            # (which are located on the quadrature points of all nearby segments,
+            # excluding the local segments `sa` and `sb`).
+            add_pair_interactions_shortrange(vecs_i, cache, x⃗, params, sa, sb, Lhs)
+        end
 
         # Add computed vectors (velocity and/or streamfunction) to corresponding arrays.
         map(ps, vecs_i) do (quantity_p, us), (quantity_i, u⃗)
@@ -386,8 +446,10 @@ function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, 
     it = nearby_charges(cache, x⃗)
     for charge ∈ it
         s⃗, q⃗, seg = charge
-        is_local_segment = seg === sa || seg === sb
-        is_local_segment && continue
+        if sa !== nothing && sb !== nothing  # if we're excluding local segments from short-range integration
+            is_local_segment = seg === sa || seg === sb
+            is_local_segment && continue
+        end
         qs⃗′ = real(q⃗)  # just in case data is complex
         r⃗ = x⃗ - s⃗
         r² = sum(abs2, r⃗)
@@ -410,7 +472,11 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
     it = nearby_charges(cache, x⃗)
     for charge ∈ it
         s⃗, q⃗, seg = charge
-        is_local_segment = seg === sa || seg === sb
+        is_local_segment = if sa !== nothing && sb !== nothing  # if we're excluding local segments from short-range integration
+            seg === sa || seg === sb
+        else  # if we want to include local segments in the integration
+            false
+        end
         qs⃗′ = real(q⃗)  # just in case data is complex
         r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
         r² = sum(abs2, r⃗)
@@ -485,7 +551,11 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
             i += 1
             charge, state = y
             s⃗, q⃗, seg = charge
-            is_local_segment = seg === sa || seg === sb
+            is_local_segment = if sa !== nothing && sb !== nothing  # if we're excluding local segments from short-range integration
+                seg === sa || seg === sb
+            else  # if we want to include local segments in the integration
+                false
+            end
             r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
             r² = sum(abs2, r⃗)
             for j ∈ eachindex(r⃗, q⃗)

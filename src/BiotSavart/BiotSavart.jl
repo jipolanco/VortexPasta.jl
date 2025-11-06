@@ -408,12 +408,12 @@ function _compute_on_nodes!(
             @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
             @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
             if ψs !== nothing
-                @timeit to "Self-interaction" remove_long_range_self_interaction!(
+                @timeit to "Self-interaction" remove_self_interaction!(
                     ψs, fs, Streamfunction(), params.common,
                 )
             end
             if vs !== nothing
-                @timeit to "Self-interaction" remove_long_range_self_interaction!(
+                @timeit to "Self-interaction" remove_self_interaction!(
                     vs, fs, Velocity(), params.common,
                 )
             end
@@ -553,10 +553,10 @@ function _compute_on_nodes!(
             @timeit to "Remove self-interactions (CPU)" begin
                 # This is done fully on the CPU.
                 if ψs !== nothing
-                    remove_long_range_self_interaction!(ψs, fs, Streamfunction(), params.common)
+                    remove_self_interaction!(ψs, fs, Streamfunction(), params.common)
                 end
                 if vs !== nothing
-                    remove_long_range_self_interaction!(vs, fs, Velocity(), params.common)
+                    remove_self_interaction!(vs, fs, Velocity(), params.common)
                 end
             end
 
