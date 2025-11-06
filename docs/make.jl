@@ -101,8 +101,6 @@ else
 end
 
 function make_all(; draft = false,)
-    repo = Remotes.repourl(REPO)
-
     bib = CitationBibliography(
         joinpath(@__DIR__, "src", "biblio.bib");
         style = :authoryear,
@@ -145,8 +143,13 @@ function make_all(; draft = false,)
     makedocs(;
         sitename = "VortexPasta",
         authors = "Juan Ignacio Polanco",
+        repo = REPO,  # this needs to be a Documenter.Remotes.Remote to get proper "source" links in docstrings
+        # format = Documenter.HTML(;
+        #     prettyurls = true,
+        #     # assets,
+        # ),
         format = DocumenterVitepress.MarkdownVitepress(;
-            repo,
+            repo = Remotes.repourl(REPO),  # this needs to be an actual URL (a String)
             devbranch = "master",
             devurl = "dev",
             # collapselevel =  1,
@@ -191,7 +194,6 @@ function make_all(; draft = false,)
         pagesonly = true,
         warnonly = true,
         plugins = [bib],
-        repo,
         doctest = false,
     )
 end
