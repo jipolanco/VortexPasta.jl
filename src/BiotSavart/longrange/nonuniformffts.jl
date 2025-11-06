@@ -15,13 +15,13 @@ non-uniform data, meaning that we can use real-to-complex FFTs to accelerate com
 
 Transforms can be performed either on the CPU (parallelised with threads, default) or on a
 single GPU (in principle any kind of GPU should work, but only CUDA has been tested).
-This must be set via the `device` argument (see below).
+This must be set via the first positional argument (see below).
 
 # Optional arguments
 
 The signature of `NonuniformFFTsBackend` is:
 
-    NonuniformFFTsBackend([device = CPU()]; σ = 1.5, m = HalfSupport(4), kws...)
+    NonuniformFFTsBackend([CPU()]; σ = 1.5, m = HalfSupport(4), kws...)
 
 where all arguments are passed to NonuniformFFTs.jl.
 
@@ -88,32 +88,32 @@ and ``k_{\\text{max}} = 2βα``. In this formulation, ``β`` controls the method
 """
 struct NonuniformFFTsBackend{
         HS <: HalfSupport, OversamplingFactor <: Real,
-        Device <: KA.Backend,
+        BackendKA <: KA.Backend,
         KwArgs <: NamedTuple,
     } <: LongRangeBackend
     m :: HS
     σ :: OversamplingFactor
-    device :: Device
+    ka_backend :: BackendKA
     kws :: KwArgs
     function NonuniformFFTsBackend(
-            device::KA.Backend = ka_default_cpu_backend();
+            ka_backend::KA.Backend = ka_default_cpu_backend();
             σ = 1.5,
             m = HalfSupport(4),
             fftw_flags = FFTW.MEASURE,
             use_atomics = Threads.nthreads() > 4,
             other...,
         )
-        # Pass the chosen device to NonuniformFFTs, except if the device is a PseudoGPU
+        # Pass the chosen KA backend to NonuniformFFTs, except if the backend is a PseudoGPU
         # (used in testing only). Actually passing a PseudoGPU to NonuniformFFTs might work,
         # but would need to be tested...
-        backend = device isa PseudoGPU ? ka_default_cpu_backend() : device
+        backend = ka_backend isa PseudoGPU ? ka_default_cpu_backend() : ka_backend
         kws = (; backend, fftw_flags, use_atomics, other...,)
         hs = to_halfsupport(m)
-        new{typeof(hs), typeof(σ), typeof(device), typeof(kws)}(hs, σ, device, kws)
+        new{typeof(hs), typeof(σ), typeof(ka_backend), typeof(kws)}(hs, σ, ka_backend, kws)
     end
 end
 
-KA.get_backend(backend::NonuniformFFTsBackend) = backend.device
+KA.get_backend(backend::NonuniformFFTsBackend) = backend.ka_backend
 
 has_real_to_complex(::NonuniformFFTsBackend) = true
 
@@ -125,8 +125,8 @@ half_support(backend::NonuniformFFTsBackend) = half_support(backend.m)  # return
 half_support(::HalfSupport{M}) where {M} = M
 
 function Base.show(io::IO, backend::NonuniformFFTsBackend)
-    (; device, m, σ,) = backend
-    print(io, "NonuniformFFTsBackend($device; m = $m, σ = $σ)")
+    (; ka_backend, m, σ,) = backend
+    print(io, "NonuniformFFTsBackend($ka_backend; m = $m, σ = $σ)")
 end
 
 expected_period(::NonuniformFFTsBackend) = 2π

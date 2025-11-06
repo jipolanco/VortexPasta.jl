@@ -86,9 +86,9 @@ function LongRangeCacheCommon(
     Nks = map(length, wavenumbers)
     uhat_d = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
     vorticity_prefactor = Γ / prod(Ls)
-    device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
-    wavenumbers_d = adapt(device, wavenumbers)  # copy wavenumbers onto device if needed
-    pointdata_d = adapt(device, pointdata)      # create PointData replica on the device if needed
+    ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
+    wavenumbers_d = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed
+    pointdata_d = adapt(ka_backend, pointdata)      # create PointData replica on the device if needed
     ewald_gaussian_d = init_ewald_gaussian_operator(T, backend, wavenumbers_d, α)
     state = LongRangeCacheState()
     LongRangeCacheCommon(params, params_all, wavenumbers_d, pointdata_d, uhat_d, vorticity_prefactor, ewald_gaussian_d, state, timer)
@@ -101,11 +101,11 @@ has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
 # That's the case of the old FINUFFT backend (which has been removed), which needs a
 # specific memory layout to perform simultaneous NUFFTs of the 3 vector field components.
 function init_fourier_vector_field(backend::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
-    device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
+    ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     # Initialising arrays in parallel (using KA) may be good for performance;
     # see https://juliagpu.github.io/KernelAbstractions.jl/dev/examples/numa_aware/.
     components = ntuple(Val(3)) do _
-        KA.zeros(device, Complex{T}, Nks)
+        KA.zeros(ka_backend, Complex{T}, Nks)
     end
     StructArray{Vec3{Complex{T}}}(components)
 end

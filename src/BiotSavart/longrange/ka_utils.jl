@@ -9,7 +9,7 @@ Get KernelAbstractions (KA) backend associated to a given long-range backend.
 !!! note
 
     The word "backend" means two different things here!
-    For KA, it refers to the device where kernels are executed (e.g. `CPU`, `CUDABackend`, ...).
+    For KA, it refers to the type of device where kernels are executed (e.g. `CPU`, `CUDABackend`, ...).
 
 By default this returns `KA.CPU()`, meaning that things are run on the CPU using threads.
 """
