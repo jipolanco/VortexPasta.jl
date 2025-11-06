@@ -377,8 +377,8 @@ function compute_on_nodes!(
     if LIA === Val(:only)
         return _compute_LIA_on_nodes!(fields, cache, fs)
     end
-    device_lr = KA.get_backend(cache.longrange)  # device used for long-range part (CPU or GPU)
-    _compute_on_nodes!(device_lr, fields, cache, fs; LIA, kws...)
+    ka_backend = KA.get_backend(cache.longrange)  # KA backend used for long-range part (CPU or GPU)
+    _compute_on_nodes!(ka_backend, fields, cache, fs; LIA, kws...)
     fields
 end
 
@@ -463,7 +463,7 @@ end
 # We compute short-range (CPU) and long-range (GPU) asynchronously, so that both components
 # work at the same time.
 function _compute_on_nodes!(
-        device_lr::GPU, fields::NamedTuple, cache, fs;
+        ka_backend::GPU, fields::NamedTuple, cache, fs;
         LIA = Val(true),
         longrange = true,
         shortrange = true,
@@ -496,7 +496,7 @@ function _compute_on_nodes!(
             @timeit to_d "Long-range component (GPU)" begin
                 # Copy point data to the GPU (pointdata_d).
                 @assert pointdata !== pointdata_d  # they are different objects
-                @assert device_lr isa PseudoGPU || typeof(pointdata) !== typeof(pointdata_d)
+                @assert ka_backend isa PseudoGPU || typeof(pointdata) !== typeof(pointdata_d)
                 @timeit to_d "Copy point charges (host → device)" begin
                     copy!(pointdata_d, pointdata)  # H2D copy
                 end
@@ -532,7 +532,7 @@ function _compute_on_nodes!(
                         interpolate_to_physical!(callback_interp, outputs_lr[ifield += 1], cache.longrange)
                     end
                 end
-                @timeit to_d "Synchronise GPU" KA.synchronize(device_lr)  # wait for the GPU to finish its work
+                @timeit to_d "Synchronise GPU" KA.synchronize(ka_backend)  # wait for the GPU to finish its work
             end
             nothing
         end
@@ -542,7 +542,7 @@ function _compute_on_nodes!(
 
     # This avoids overlapping computations on pure CPU, which probably don't make much sense.
     # Note that PseudoGPU is only used in tests, and actually computes stuff on the CPU.
-    device_lr isa PseudoGPU && wait(task_lr)
+    ka_backend isa PseudoGPU && wait(task_lr)
 
     # While the first long-range task is running, compute short-range part.
     if with_shortrange
