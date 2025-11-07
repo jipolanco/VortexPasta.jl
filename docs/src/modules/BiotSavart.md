@@ -113,6 +113,7 @@ used to write generic code which works on CPUs and different kinds of GPUs.
 ```@docs
 ka_generate_kernel
 KernelAbstractions.get_backend
+KernelAbstractions.device
 ```
 
 ## Internals

@@ -26,10 +26,23 @@ The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
 - [`folding_limits`](@ref) (optional),
 
-- [`KernelAbstractions.get_backend`](@ref) (required for GPU-based backends).
+- [`KernelAbstractions.get_backend`](@ref) (required for GPU-based backends),
+
+- [`KernelAbstractions.device`](@ref) (required for GPU-based backends).
 
 """
 abstract type LongRangeBackend end
+
+"""
+    KernelAbstractions.device(backend::LongRangeBackend) -> Int
+    KernelAbstractions.device(cache::LongRangeCache) -> Int
+
+Return the device id (in `1:ndevices`) where long-range computations are run.
+
+This can make sense when running on GPUs, where one may want to take advantage of multiple
+available GPUs on the same machine. On CPUs the device id is generally `1`.
+"""
+KA.device(::LongRangeBackend) = 1
 
 """
     has_real_to_complex(::LongRangeBackend) -> Bool
@@ -129,6 +142,7 @@ backend(c::LongRangeCache) = backend(get_parameters(c).longrange)
 ewald_smoothing_scale(c::LongRangeCache) = get_parameters(c).σ
 has_real_to_complex(c::LongRangeCache) = has_real_to_complex(c.common)
 KA.get_backend(c::LongRangeCache) = KA.get_backend(backend(c))
+KA.device(c::LongRangeCache) = KA.device(backend(c))
 
 # TODO: this is not optimised for GPU backends
 function add_point_charges!(c::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
