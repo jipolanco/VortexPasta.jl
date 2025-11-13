@@ -19,6 +19,6 @@ PeriodicCellList
 
 ```@docs
 set_elements!
-empty!
+empty!(::PeriodicCellList)
 nearby_elements
 ```

@@ -11,6 +11,8 @@ module PaddedArrays
 
 export PaddedArray, PaddedVector, pad_periodic!
 
+using Adapt: Adapt, adapt
+
 """
     PaddedArray{M, T, N} <: AbstractArray{T, N}
 
@@ -50,6 +52,9 @@ struct PaddedArray{M, T, N, A <: AbstractArray{T, N}} <: AbstractArray{T, N}
     end
 end
 
+# This may be needed for using PaddedArrays on GPUs.
+Adapt.adapt_structure(to, v::PaddedArray{M}) where {M} = PaddedArray{M}(adapt(to, v.data))
+
 npad(::Type{<:AbstractArray}) = 0  # regular arrays have no padding
 npad(::Type{<:PaddedArray{M}}) where {M} = M
 npad(v::AbstractArray) = npad(typeof(v))
@@ -61,8 +66,8 @@ Base.IndexStyle(::Type{<:PaddedArray}) = IndexCartesian()
 # Case of 1D arrays (vectors). Returns IndexLinear() if `A <: Vector`.
 Base.IndexStyle(::Type{<:PaddedArray{M, T, 1, A}}) where {M, T, A} = IndexStyle(A)
 
-Base.parent(v::PaddedArray) = v.data
-Base.size(v::PaddedArray) = ntuple(i -> size(parent(v), i) - 2 * npad(v), Val(ndims(v)))
+@inline Base.parent(v::PaddedArray) = v.data
+@inline Base.size(v::PaddedArray) = ntuple(@inline(i -> size(parent(v), i) - 2 * npad(v)), Val(ndims(v)))
 
 # Return a view to the parent array.
 function Base.view(v::PaddedArray{M, T, N}, inds::Vararg{Any, N}) where {M, T, N}
@@ -282,11 +287,16 @@ end
     ibegin = firstindex(data, d)
     iend = lastindex(data, d)
     M = npad(v)
-    @inbounds for J ∈ inds_after, I ∈ inds_before
-        for δ ∈ 1:M  # copy each ghost cell layer
-            data[I, iend - M + δ, J] = data[I, ibegin - 1 + M + δ, J]
-            data[I, ibegin - 1 + δ, J] = data[I, iend - 2M + δ, J]
-        end
+    # This should work on CPUs and GPUs:
+    @inbounds let
+        src = @view data[inds_before, (ibegin + M):(ibegin - 1 + 2M), inds_after]
+        dst = @view data[inds_before, (iend - M + 1):iend, inds_after]
+        copyto!(dst, src)
+    end
+    @inbounds let
+        src = @view data[inds_before, (iend - 2M + 1):(iend - M), inds_after]
+        dst = @view data[inds_before, ibegin:(ibegin + M - 1), inds_after]
+        copyto!(dst, src)
     end
     _pad_periodic_dimension!(dir, Val(d - 1), v)
 end

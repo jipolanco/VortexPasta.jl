@@ -16,6 +16,7 @@ export PeriodicCellList, static, nearby_elements
 
 using ..PaddedArrays: PaddedArrays, PaddedArray, pad_periodic!
 using Atomix: Atomix
+using KernelAbstractions: KernelAbstractions as KA, CPU, GPU
 using Static: StaticInt, static, dynamic
 
 # This is used either to mean that a cell has no elements, or that an element is the last
@@ -26,12 +27,12 @@ const EMPTY = 0
 ## Cell list type definition
 
 """
-    PeriodicCellList{N}
     PeriodicCellList(
+        [backend = CPU()],
         rs_cut::NTuple{N, Real}, periods::NTuple{N, Real},
         [nsubdiv = Val(1)];
         [to_coordinate::Function = identity],
-    )
+    ) -> PeriodicCellList{N}
 
 Construct a cell list for dealing with pair interactions in `N` dimensions.
 
@@ -47,16 +48,36 @@ spurious pair interactions (i.e. beyond the chosen cutoff radius) as described
 For convenience, it can be passed as `nsubdiv = Val(M)` or as `nsubdiv = static(M)`.
 
 Infinite non-periodic domains (in the sense of `period = Infinity()`) are not supported.
+
+## GPU usage
+
+To run on GPUs, pass a KernelAbstractions backend such as `CUDABackend` or `ROCBackend` as
+the first argument.
+
+If multiple GPUs are available, make sure to activate the device where computations should
+be performed _before_ constructing a `PeriodicCellList`. For example:
+
+```julia
+using KernelAbstractions: KernelAbstractions as KA
+backend = ROCBackend()
+device_id = 2  # assuming there are two or more available GPUs
+KA.device!(backend, device_id)
+cl = PeriodicCellList(backend, ...)
+```
 """
 struct PeriodicCellList{
         N,  # spatial dimension
         M,  # number of cell subdivisions (≥ 1)
+        KABackend <: KA.Backend,
         HeadArray <: PaddedArray{M, Int, N},  # array of cells, each containing a list of elements
+        IndexVector <: AbstractVector{Int},
         CellDims <: NTuple{N, Real},
         Periods <: NTuple{N, Real},
     }
+    backend       :: KABackend    # CPU, CUDABackend, ROCBackend, ...
+    device        :: Int          # device id (in 1:ndevices) where arrays are stored
     head_indices  :: HeadArray    # array pointing to the index of the first element in each cell (or EMPTY if no elements in that cell)
-    next_index    :: Vector{Int}  # points from one element to the next element (or EMPTY if this is the last element) [length Np]
+    next_index    :: IndexVector  # points from one element to the next element (or EMPTY if this is the last element) [length Np]
     rs_cell       :: CellDims     # dimensions of a cell (can be different in each direction)
     nsubdiv       :: StaticInt{M}
     Ls            :: Periods
@@ -65,12 +86,14 @@ end
 Base.size(cl::PeriodicCellList) = size(cl.head_indices)
 subdivisions(::PeriodicCellList{N, M}) where {N, M} = M
 
-@inline PeriodicCellList(rs, Ls, nsubdiv::Val{M}; kws...) where {M} = PeriodicCellList(rs, Ls, static(M); kws...)
+@inline PeriodicCellList(rs_cut::NTuple{N, Real}, args...; kws...) where {N} = PeriodicCellList(CPU(), rs_cut, args...; kws...)
+@inline PeriodicCellList(backend, rs, Ls, nsubdiv::Val{M}; kws...) where {M} = PeriodicCellList(backend, rs, Ls, static(M); kws...)
 
 # Returns maximum possible cut-off distance r_cut for M subdivisions and a domain of period L.
 max_cutoff_distance(M::Integer, L::AbstractFloat) = oftype(L, M / (2M + 1)) * L
 
 function PeriodicCellList(
+        backend::KA.Backend,
         rs_cut::NTuple{N, Real},
         Ls::NTuple{N, Real},
         nsubdiv::StaticInt = static(1),
@@ -78,6 +101,8 @@ function PeriodicCellList(
     any(isinf, Ls) && throw(ArgumentError(
         "infinite non-periodic domains not currently supported by PeriodicCellList"
     ))
+
+    device = KA.device(backend)  # currently active device
 
     M = dynamic(nsubdiv)
 
@@ -107,15 +132,15 @@ function PeriodicCellList(
 
     IndexType = Int
     head_dims = ncells .+ 2M  # add 2M ghost cells in each direction
-    head_raw = Array{IndexType}(undef, head_dims)
+    head_raw = KA.allocate(backend, IndexType, head_dims)
     fill!(head_raw, EMPTY)
 
     head_indices = PaddedArray{M}(head_raw)
     @assert size(head_indices) == ncells
 
-    next_index = Vector{IndexType}(undef, 0)
+    next_index = KA.allocate(backend, IndexType, 0)
 
-    PeriodicCellList(head_indices, next_index, rs_cell, nsubdiv, Ls)
+    PeriodicCellList(backend, device, head_indices, next_index, rs_cell, nsubdiv, Ls)
 end
 
 """
@@ -162,6 +187,19 @@ Here `xp` is a vector of spatial locations.
 This function resets the cell list, removing all previously existent points.
 """
 function set_elements!(get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector) where {F}
+    (; backend, device) = cl
+    # In fact this fails with PseudoGPU, which uses standard CPU arrays.
+    # typeof(KA.get_backend(xp)) === typeof(backend) ||
+    #     throw(ArgumentError(lazy"coordinate vector `xp` should be on the computing device ($backend)"))
+    device_current = KA.device(backend)
+    device == device_current ||
+        error(lazy"the currently selected device (id = $device_current) is not the same that was used to create the PeriodicCellList (id = $device)")
+    _set_elements!(backend, get_coordinate, cl, xp)
+end
+
+set_elements!(cl::PeriodicCellList, xp::AbstractVector) = set_elements!(identity, cl, xp)
+
+function _set_elements!(::CPU, get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector) where {F}
     (; next_index, head_indices, Ls, rs_cell,) = cl
     head_indices_data = parent(head_indices)   # full data associated to padded array
     nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
@@ -181,11 +219,9 @@ function set_elements!(get_coordinate::F, cl::PeriodicCellList, xp::AbstractVect
         # head_indices[I] = n       # the new element is the new head
         next_index[n] = head_old  # the old head now comes after the new element
     end
-    pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity (can be slow?)
+    pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity
     cl
 end
-
-set_elements!(cl::PeriodicCellList, xp::AbstractVector) = set_elements!(identity, cl, xp)
 
 ## ================================================================================ ##
 ## Iteration over a single cell
@@ -269,5 +305,7 @@ function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}
     it = MultiCellIterator(cl.head_indices, cl.next_index, cell_indices)  # might be slightly slower than Iterators.flatten (but with known eltype)
     it
 end
+
+include("gpu.jl")
 
 end
