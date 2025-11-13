@@ -165,7 +165,9 @@ function set_elements!(get_coordinate::F, cl::PeriodicCellList, xp::AbstractVect
     (; next_index, head_indices, Ls, rs_cell,) = cl
     head_indices_data = parent(head_indices)   # full data associated to padded array
     nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
-    fill!(head_indices_data, EMPTY)  # this can be slow with too many cells?
+    Threads.@threads for i in eachindex(head_indices_data)
+        @inbounds head_indices_data[i] = EMPTY
+    end
     Np = length(xp)
     resize!(next_index, Np)
     Base.require_one_based_indexing(xp)
