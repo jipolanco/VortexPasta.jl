@@ -63,10 +63,11 @@ const VectorOfPositions = VectorOfVec
 const VectorOfVelocities = VectorOfVec
 const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
 
+include("ka_utils.jl")
+include("pointdata.jl")
 include("types_shortrange.jl")
 include("types_longrange.jl")
 include("params.jl")
-include("pointdata.jl")
 include("cache.jl")
 include("autotune.jl")
 
