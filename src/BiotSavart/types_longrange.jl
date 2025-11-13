@@ -18,7 +18,7 @@ Abstract type denoting the backend to use for computing long-range interactions.
 
 The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
-- `init_cache_long_ewald(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`.
+- `init_cache_long_ewald(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`,
 
 - [`has_real_to_complex`](@ref),
 
@@ -31,18 +31,7 @@ The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 - [`KernelAbstractions.device`](@ref) (required for GPU-based backends).
 
 """
-abstract type LongRangeBackend end
-
-"""
-    KernelAbstractions.device(backend::LongRangeBackend) -> Int
-    KernelAbstractions.device(cache::LongRangeCache) -> Int
-
-Return the device id (in `1:ndevices`) where long-range computations are run.
-
-This can make sense when running on GPUs, where one may want to take advantage of multiple
-available GPUs on the same machine. On CPUs the device id is generally `1`.
-"""
-KA.device(::LongRangeBackend) = 1
+abstract type LongRangeBackend <: AbstractBackend end
 
 """
     has_real_to_complex(::LongRangeBackend) -> Bool

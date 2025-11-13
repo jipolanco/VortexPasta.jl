@@ -15,15 +15,17 @@ Abstract type denoting the backend used for computing short-range interactions.
 
 ## Implementation details
 
-A `BACKEND <: ShortRangeBackend` must implement the function:
+The following functions must be implemented by a `BACKEND <: ShortRangeBackend`:
 
-    init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput)
+- `init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput) -> ShortRangeCache`,
 
-which should return a [`ShortRangeCache`](@ref).
+- [`max_cutoff_distance`](@ref) (optional),
 
-It may also implement the function [`max_cutoff_distance`](@ref).
+- [`KernelAbstractions.get_backend`](@ref) (required for GPU-based backends),
+
+- [`KernelAbstractions.device`](@ref) (required for GPU-based backends).
 """
-abstract type ShortRangeBackend end
+abstract type ShortRangeBackend <: AbstractBackend end
 
 """
     max_cutoff_distance(::ShortRangeBackend, L::Real) -> r
