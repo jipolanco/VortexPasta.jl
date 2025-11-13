@@ -103,7 +103,7 @@ struct PeriodicCellList{
         HeadArray <: PaddedArray{M, Int, N},  # array of cells, each containing a list of elements
         RefBool <: Ref{Bool},
         ToCoordFunc <: Function,
-        CutoffRadii <: NTuple{N, Real},
+        CellDims <: NTuple{N, Real},
         Periods <: NTuple{N, Real},
     }
     elements      :: ElementList  # contains all "elements" (unsorted) [length Np]
@@ -111,7 +111,7 @@ struct PeriodicCellList{
     next_index    :: Vector{Int}  # points from one element to the next element (or EMPTY if this is the last element) [length Np]
     isready       :: RefBool
     to_coordinate :: ToCoordFunc  # convert "element" to N-D coordinate
-    rs_cut        :: CutoffRadii  # cutoff radii (can be different in each direction)
+    rs_cell       :: CellDims     # dimensions of a cell (can be different in each direction)
     nsubdiv       :: StaticInt{M}
     Ls            :: Periods
 end
@@ -238,11 +238,11 @@ function add_element!(cl::PeriodicCellList{N, T}, el::T) where {N, T}
 end
 
 function add_element!(cl::PeriodicCellList{N, T}, el::T, x⃗) where {N, T}
-    (; rs_cut, Ls, elements, next_index, head_indices,) = cl
+    (; rs_cell, Ls, elements, next_index, head_indices,) = cl
     cl.isready[] = false      # we're not ready for iterating
     @assert length(elements) == length(next_index)
     push!(elements, el)       # add this element to element vector
-    inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
+    inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
     I = CartesianIndex(inds)
     n = lastindex(elements)                        # index of the new element
     push!(next_index, @inbounds(head_indices[I]))  # the old head now comes after the new element
@@ -281,7 +281,7 @@ It can be used as a replacement for [`empty!`](@ref) + [`add_element!`](@ref) + 
 Currently, this can be particularly interesting because `set_elements!` is parallelised.
 """
 function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) where {F <: Function, N, T}
-    (; elements, next_index, head_indices, Ls, rs_cut,) = cl
+    (; elements, next_index, head_indices, Ls, rs_cell,) = cl
     head_indices_data = parent(head_indices)   # full data associated to padded array
     nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
     fill!(head_indices_data, EMPTY)  # this can be slow with too many cells?
@@ -293,7 +293,7 @@ function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) 
         el = @inline get_element(n)
         elements[n] = el
         x⃗ = @inline cl.to_coordinate(el)
-        inds = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
+        inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
         I = CartesianIndex(inds .+ nghosts)  # shift by number of ghost cells, since we access raw data associated to padded array
         head_old = Atomix.@atomicswap :monotonic head_indices_data[I] = n  # returns the old value
         # head_old = head_indices[I]
@@ -360,9 +360,9 @@ Here `x⃗` should be a coordinate, usually represented by an `SVector{N}` or an
 """
 function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}
     length(x⃗) == N || throw(DimensionMismatch(lazy"wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)"))
-    (; rs_cut, Ls,) = cl
+    (; rs_cell, Ls,) = cl
     cl.isready[] || error("one must call `finalise_cells!` on the `PeriodicCellList` before iterating using `nearby_elements`")
-    inds_central = map(determine_cell_index, Tuple(x⃗), rs_cut, Ls, size(cl))
+    inds_central = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
     M = subdivisions(cl)
     cell_indices = CartesianIndices(
