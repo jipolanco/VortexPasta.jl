@@ -459,6 +459,72 @@ function _compute_on_nodes!(
     nothing
 end
 
+function do_longrange_gpu!(
+        cache::LongRangeCache, outputs::NamedTuple, fs, pointdata_cpu;
+        callback_vorticity::Fvort,
+    ) where {Fvort}
+    (; pointdata_d, to_d,) = cache.common  # pointdata on the device (GPU)
+
+    # Make sure we execute this task in the GPU device chosen for long-range computations.
+    # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
+    ka_backend = KA.get_backend(cache)  # KA backend used for long-range computations (e.g. CUDABackend)
+    device_id = KA.device(cache)        # in 1:ndevices
+    KA.device!(ka_backend, device_id)   # set the device
+
+    @timeit to_d "Long-range component (GPU)" begin
+        # Copy point data to the GPU (pointdata_d).
+        @assert pointdata_cpu !== pointdata_d  # they are different objects
+        @assert ka_backend isa PseudoGPU || typeof(pointdata_cpu) !== typeof(pointdata_d)
+        @timeit to_d "Copy point charges (host → device)" begin
+            copy!(pointdata_d, pointdata_cpu)  # H2D copy
+        end
+
+        # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
+        @timeit to_d "Vorticity to Fourier" begin
+            compute_vorticity_fourier!(cache)  # reads pointdata_d (points and charges)
+        end
+        if callback_vorticity !== identity
+            @timeit to_d "Vorticity callback" begin
+                callback_vorticity(cache)
+            end
+        end
+
+        # Set points for interpolation from Fourier to physical space (type 2 NUFFT)
+        @timeit to_d "Set interpolation points" begin
+            set_interpolation_points!(cache, fs)  # overwrites pointdata_d (points)
+        end
+
+        # Interpolate streamfunction and/or velocity.
+        callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
+
+        if haskey(outputs, :streamfunction)
+            @timeit to_d "Streamfunction field (Fourier)" begin
+                # Compute streamfunction from vorticity in Fourier space.
+                compute_field_fourier!(Streamfunction(), cache)
+            end
+            @timeit to_d "Interpolate to physical" begin
+                # Write interpolation output to outputs.streamfunction
+                interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
+            end
+        end
+
+        if haskey(outputs, :velocity)
+            @timeit to_d "Velocity field (Fourier)" begin
+                # Compute velocity from vorticity or streamfunction in Fourier space.
+                compute_field_fourier!(Velocity(), cache)
+            end
+            @timeit to_d "Interpolate to physical" begin
+                # Write interpolation output to outputs.velocity
+                interpolate_to_physical!(callback_interp, outputs.velocity, cache)
+            end
+        end
+
+        @timeit to_d "Synchronise GPU" KA.synchronize(ka_backend)  # wait for the GPU to finish its work
+    end
+
+    nothing
+end
+
 # CPU/GPU version
 # We compute short-range (CPU) and long-range (GPU) asynchronously, so that both components
 # work at the same time.
@@ -470,7 +536,7 @@ function _compute_on_nodes!(
         callback_vorticity::Fvort = identity,
     ) where {Fvort}
     (; to, params, pointdata,) = cache
-    (; pointdata_d, to_d,) = cache.longrange.common  # pointdata on the device (GPU)
+    (; pointdata_d,) = cache.longrange.common  # pointdata on the device (GPU)
     (; quad,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
 
@@ -487,60 +553,13 @@ function _compute_on_nodes!(
     # Allocate temporary arrays on the GPU for interpolation outputs (manually deallocated later).
     if with_longrange
         noutputs = sum(length, fs)  # total number of interpolation points
-        outputs_lr = map(_ -> similar(pointdata_d.charges, noutputs), values(fields))
+        outputs_lr = map(_ -> similar(pointdata_d.charges, noutputs), fields)::NamedTuple  # possible keys are :velocity, :streamfunction
     end
 
     # Compute long-range part asynchronously on the GPU.
     task_lr = if with_longrange
         StableTasks.@spawn begin
-            # Make sure we execute this task in the GPU device chosen for long-range computations.
-            # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
-            ka_backend_longrange = KA.get_backend(cache.longrange)  # e.g. CUDABackend
-            @assert ka_backend_longrange === ka_backend
-            device_longrange = KA.device(cache.longrange)       # a device id (in 1:ndevices)
-            KA.device!(ka_backend_longrange, device_longrange)  # set the device
-            @timeit to_d "Long-range component (GPU)" begin
-                # Copy point data to the GPU (pointdata_d).
-                @assert pointdata !== pointdata_d  # they are different objects
-                @assert ka_backend isa PseudoGPU || typeof(pointdata) !== typeof(pointdata_d)
-                @timeit to_d "Copy point charges (host → device)" begin
-                    copy!(pointdata_d, pointdata)  # H2D copy
-                end
-                @timeit to_d "Vorticity to Fourier" begin
-                    compute_vorticity_fourier!(cache.longrange)  # reads pointdata_d (points and charges)
-                end
-                if callback_vorticity !== identity
-                    @timeit to_d "Vorticity callback" begin
-                        callback_vorticity(cache.longrange)
-                    end
-                end
-                @timeit to_d "Set interpolation points" begin
-                    set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata_d (points)
-                end
-                # Interpolate streamfunction and/or velocity.
-                callback_interp = get_ewald_interpolation_callback(cache.longrange)
-                local ifield = 0
-                if ψs !== nothing
-                    @timeit to_d "Streamfunction field (Fourier)" begin
-                        compute_field_fourier!(Streamfunction(), cache.longrange)
-                    end
-                    @timeit to_d "Interpolate to physical" begin
-                        # Write interpolation output to outputs_lr[ifield + 1]
-                        interpolate_to_physical!(callback_interp, outputs_lr[ifield += 1], cache.longrange)
-                    end
-                end
-                if vs !== nothing
-                    @timeit to_d "Velocity field (Fourier)" begin
-                        compute_field_fourier!(Velocity(), cache.longrange)
-                    end
-                    @timeit to_d "Interpolate to physical" begin
-                        # Write interpolation output to outputs_lr[ifield + 1]
-                        interpolate_to_physical!(callback_interp, outputs_lr[ifield += 1], cache.longrange)
-                    end
-                end
-                @timeit to_d "Synchronise GPU" KA.synchronize(ka_backend)  # wait for the GPU to finish its work
-            end
-            nothing
+            do_longrange_gpu!(cache.longrange, outputs_lr, fs, pointdata; callback_vorticity)::Nothing  # should return nothing for type stability
         end
     else
         StableTasks.@spawn nothing  # empty task (returns `nothing`)
@@ -577,12 +596,11 @@ function _compute_on_nodes!(
 
         # Add results from long-range part.
         @timeit to "Copy output (device → host)" let
-            local ifield = 0
             if ψs !== nothing
-                copy_long_range_output!(+, ψs, cache.longrange, outputs_lr[ifield += 1])
+                copy_long_range_output!(+, ψs, cache.longrange, outputs_lr.streamfunction)
             end
             if vs !== nothing
-                copy_long_range_output!(+, vs, cache.longrange, outputs_lr[ifield += 1])
+                copy_long_range_output!(+, vs, cache.longrange, outputs_lr.velocity)
             end
         end
 
