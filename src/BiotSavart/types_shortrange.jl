@@ -71,3 +71,31 @@ The following fields must be included in a cache:
 
 """
 abstract type ShortRangeCache end
+
+"""
+    init_cache_short(
+        pc::ParamsCommon, p::ParamsShortRange,
+        fs::AbstractVector{<:AbstractFilament},
+        to::TimerOutput,
+    ) -> ShortRangeCache
+
+Initialise the cache for the short-range backend defined in `p`.
+"""
+function init_cache_short end
+
+"""
+    process_point_charges!(c::ShortRangeCache, data::PointData)
+
+Process list of point charges.
+
+This is useful for short-range backends like [`CellListsBackend`](@ref), which needs to
+assign a cell to each point charge before finding nearby pairs.
+
+Must be called after [`add_point_charges!`](@ref) and before computing any short-range quantities
+(using [`add_short_range_fields!`](@ref)).
+"""
+process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend
+
+backend(c::ShortRangeCache) = backend(c.params::ParamsShortRange)
+KA.get_backend(c::ShortRangeCache) = KA.get_backend(backend(c))
+KA.device(c::ShortRangeCache) = KA.device(backend(c))

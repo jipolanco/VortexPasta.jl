@@ -12,29 +12,6 @@ include("SIMDFunctions.jl")
 using .SIMDFunctions: verf
 
 """
-    init_cache_short(
-        pc::ParamsCommon, p::ParamsShortRange,
-        fs::AbstractVector{<:AbstractFilament},
-        to::TimerOutput,
-    ) -> ShortRangeCache
-
-Initialise the cache for the short-range backend defined in `p`.
-"""
-function init_cache_short end
-
-"""
-    process_point_charges!(c::ShortRangeCache, data::PointData)
-
-Process list of point charges.
-
-This is useful for short-range backends like [`CellListsBackend`](@ref), which needs to
-
-Must be called after [`add_point_charges!`](@ref) and before computing any short-range quantities
-(using [`add_short_range_fields!`](@ref)).
-"""
-process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend
-
-"""
     nearby_charges(c::ShortRangeCache, x⃗::Vec3)
 
 Return an iterator over the indices of points that are "close" to the location `x⃗`.
