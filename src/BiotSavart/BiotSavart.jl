@@ -493,6 +493,12 @@ function _compute_on_nodes!(
     # Compute long-range part asynchronously on the GPU.
     task_lr = if with_longrange
         StableTasks.@spawn begin
+            # Make sure we execute this task in the GPU device chosen for long-range computations.
+            # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
+            ka_backend_longrange = KA.get_backend(cache.longrange)  # e.g. CUDABackend
+            @assert ka_backend_longrange === ka_backend
+            device_longrange = KA.device(cache.longrange)       # a device id (in 1:ndevices)
+            KA.device!(ka_backend_longrange, device_longrange)  # set the device
             @timeit to_d "Long-range component (GPU)" begin
                 # Copy point data to the GPU (pointdata_d).
                 @assert pointdata !== pointdata_d  # they are different objects
