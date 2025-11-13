@@ -653,5 +653,5 @@ end
 end
 
 include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)
-include("naive.jl")
-include("cell_lists.jl")
+include("backends/naive.jl")
+include("backends/cell_lists.jl")
