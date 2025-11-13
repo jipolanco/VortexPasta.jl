@@ -61,9 +61,11 @@ The [`init_cache_short`](@ref) function returns a concrete instance of a `ShortR
 
 The following fields must be included in a cache:
 
-- `params :: ParamsShortRange` parameters for short-range computations;
+- `params::ParamsShortRange`: parameters for short-range computations;
 
-- `to :: TimerOutput` for measuring time spent on different functions.
+- `data::PointData`: updated charge locations and values;
+
+- `to::TimerOutput`: for measuring time spent on different functions.
 
 """
 abstract type ShortRangeCache end

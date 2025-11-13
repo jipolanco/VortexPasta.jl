@@ -42,30 +42,26 @@ max_cutoff_distance(::CellListsBackend{M}, L::AbstractFloat) where {M} = CellLis
 
 struct CellListsCache{
         Params <: ParamsShortRange{<:Real, <:CellListsBackend},
+        Charges <: PointData,
         CellList <: PeriodicCellList,
         Timer <: TimerOutput,
     } <: ShortRangeCache
     params :: Params
+    data   :: Charges
     cl     :: CellList
     to     :: Timer
 end
 
 function init_cache_short(
         pc::ParamsCommon, params::ParamsShortRange{T, <:CellListsBackend},
-        pdata::PointData{T}, to::TimerOutput,
+        data::PointData, to::TimerOutput,
     ) where {T}
     (; backend, rcut,) = params
     (; Ls,) = pc
     nsubdiv = Val(subdivisions(backend))
-    @assert T <: AbstractFloat
     rs_cut = map(_ -> rcut, Ls)  # same cut-off distance in each direction
-    Seg = eltype(pdata.segments)
-    @assert Seg <: Segment
-    Charge = Tuple{Vec3{T}, Vec3{T}, Seg}  # a "charge" is a tuple (s⃗, qs⃗′, segment)
-    @assert isconcretetype(Charge)
-    to_coordinate(charge) = first(charge)  # retrieves the coordinate s⃗ associated to a charge
-    cl = PeriodicCellList(Charge, rs_cut, Ls, nsubdiv; to_coordinate)
-    CellListsCache(params, cl, to)
+    cl = PeriodicCellList(rs_cut, Ls, nsubdiv)
+    CellListsCache(params, data, cl, to)
 end
 
 function process_point_charges!(c::CellListsCache, data::PointData)
@@ -73,16 +69,8 @@ function process_point_charges!(c::CellListsCache, data::PointData)
     (; points, charges, segments,) = data
     @assert eachindex(points) == eachindex(charges) == eachindex(segments)
     Base.require_one_based_indexing(points)
-    CellLists.set_elements!(cl, length(points)) do i  # here i is one-based (it's in 1:length(points))
-        @inline
-        @inbounds begin
-            s⃗ = points[i]
-            qs⃗′ = charges[i]
-            seg = segments[i]
-        end
-        (s⃗, qs⃗′, seg)  # this is a single element
-    end
+    CellLists.set_elements!(cl, points)
     nothing
 end
 
-nearby_charges(c::CellListsCache, x⃗::Vec3) = CellLists.nearby_elements(c.cl, x⃗)
+nearby_charges(c::CellListsCache, x⃗::Vec3) = CellLists.nearby_elements(c.cl, x⃗)  # iterator which returns integer indices (in 1:Np)

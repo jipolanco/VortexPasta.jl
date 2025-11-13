@@ -35,9 +35,9 @@ Must be called after [`add_point_charges!`](@ref) and before computing any short
 process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend
 
 """
-    nearby_charges(c::ShortRangeCache, x⃗::Vec3)
+    nearby_charges(c::ShortRangeCache, x⃗::Vec3) -> Int
 
-Return an iterator over the charges that are "close" to the location `x⃗`.
+Return an iterator over the indices of points that are "close" to the location `x⃗`.
 """
 function nearby_charges end
 
@@ -439,18 +439,19 @@ end
 # Non-periodic case (no Ewald summation, no cutoff distance, no SIMD, naive computation)
 function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, sa, sb, Lhs)
     (; Ls,) = params.common
+    (; points, charges, segments,) = cache.data
     rcut² = params.rcut_sq
     @assert all(L -> L === Infinity(), Ls)  # infinite non-periodic domain
     @assert all(L -> L === Infinity(), Lhs)
     @assert rcut² === Infinity()
-    it = nearby_charges(cache, x⃗)
-    for charge ∈ it
-        s⃗, q⃗, seg = charge
+    @inbounds for j in nearby_charges(cache, x⃗)
+        s⃗ = points[j]
+        qs⃗′ = charges[j]
+        seg = segments[j]
         if sa !== nothing && sb !== nothing  # if we're excluding local segments from short-range integration
             is_local_segment = seg === sa || seg === sb
             is_local_segment && continue
         end
-        qs⃗′ = real(q⃗)  # just in case data is complex
         r⃗ = x⃗ - s⃗
         r² = sum(abs2, r⃗)
         r = sqrt(r²)
@@ -468,16 +469,17 @@ end
 # Ewald summation without explicit SIMD.
 function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T <: AbstractFloat}
     (; Ls,) = params.common
+    (; points, charges, segments,) = cache.data
     rcut² = params.rcut_sq
-    it = nearby_charges(cache, x⃗)
-    for charge ∈ it
-        s⃗, q⃗, seg = charge
+    @inbounds for j in nearby_charges(cache, x⃗)
+        s⃗ = points[j]
+        qs⃗′ = charges[j]
+        seg = segments[j]
         is_local_segment = if sa !== nothing && sb !== nothing  # if we're excluding local segments from short-range integration
             seg === sa || seg === sb
         else  # if we want to include local segments in the integration
             false
         end
-        qs⃗′ = real(q⃗)  # just in case data is complex
         r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
         r² = sum(abs2, r⃗)
         if is_local_segment || r² > rcut²
@@ -520,6 +522,7 @@ end
 # Periodic case (with Ewald summation)
 function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, sb, Lhs)
     (; Ls, α,) = params.common
+    (; points, charges, segments,) = cache.data
     @assert !is_open_domain(Ls)
     N = length(x⃗)  # number of dimensions (= 3)
     rcut² = params.rcut_sq
@@ -549,8 +552,10 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
         # Collect (up to) W charges, to perform operation over W charges at once.
         @inbounds while i < W && y !== nothing
             i += 1
-            charge, state = y
-            s⃗, q⃗, seg = charge
+            charge_idx, state = y
+            s⃗ = points[charge_idx]
+            q⃗ = charges[charge_idx]
+            seg = segments[charge_idx]
             is_local_segment = if sa !== nothing && sb !== nothing  # if we're excluding local segments from short-range integration
                 seg === sa || seg === sb
             else  # if we want to include local segments in the integration
