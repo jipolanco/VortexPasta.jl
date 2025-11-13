@@ -5,7 +5,7 @@
     KernelAbstractions.get_backend(cache::ShortRangeCache) -> KernelAbstractions.Backend
     KernelAbstractions.get_backend(cache::LongRangeCache) -> KernelAbstractions.Backend
 
-Get KernelAbstractions (KA) backend associated to a given long-range backend.
+Get KernelAbstractions (KA) backend associated to a given short-range or long-range backend.
 
 !!! note
 
@@ -21,7 +21,7 @@ KA.get_backend(::AbstractBackend) = ka_default_cpu_backend()
     KernelAbstractions.device(cache::ShortRangeCache) -> Int
     KernelAbstractions.device(cache::LongRangeCache) -> Int
 
-Return the device id (in `1:ndevices`) where long-range computations are run.
+Return the device id (in `1:ndevices`) where short-range or long-range computations are run.
 
 This can make sense when running on GPUs, where one may want to take advantage of multiple
 available GPUs on the same machine. On CPUs the device id is generally `1`.

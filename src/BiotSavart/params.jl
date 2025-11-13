@@ -147,6 +147,11 @@ function change_float_type(p::ParamsShortRange, common::ParamsCommon{T}) where {
     ParamsShortRange(p.backend, p.quad, common, p.rcut, p.lia_segment_fraction, p.use_simd)
 end
 
+backend(p::ParamsShortRange) = p.backend
+quadrature_rule(p::ParamsShortRange) = p.quad
+
+## ================================================================================ ##
+
 struct ParamsLongRange{
         T <: AbstractFloat,
         Backend <: LongRangeBackend,
