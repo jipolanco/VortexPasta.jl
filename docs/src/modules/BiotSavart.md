@@ -119,6 +119,7 @@ KernelAbstractions.device
 ## Internals
 
 ```@docs
+AbstractBackend
 BiotSavartCache
 background_vorticity_correction!
 ```

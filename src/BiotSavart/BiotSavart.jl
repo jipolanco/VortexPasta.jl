@@ -48,6 +48,15 @@ abstract type OutputField end
 struct Streamfunction <: OutputField end
 struct Velocity <: OutputField end
 
+"""
+    AbstractBackend
+
+Denotes a "backend" for short-range or long-range Ewald computations.
+
+See [`ShortRangeBackend`](@ref) and [`LongRangeBackend`](@ref) for more details.
+"""
+abstract type AbstractBackend end
+
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
 const VectorOfVec = AbstractVector{<:Vec3}
 const VectorOfPositions = VectorOfVec
