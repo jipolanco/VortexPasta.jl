@@ -161,7 +161,7 @@ Here `xp` is a vector of spatial locations.
 
 This function resets the cell list, removing all previously existent points.
 """
-function set_elements!(cl::PeriodicCellList, xp::AbstractVector)
+function set_elements!(get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector) where {F}
     (; next_index, head_indices, Ls, rs_cell,) = cl
     head_indices_data = parent(head_indices)   # full data associated to padded array
     nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
@@ -171,7 +171,7 @@ function set_elements!(cl::PeriodicCellList, xp::AbstractVector)
     Base.require_one_based_indexing(xp)
     Base.require_one_based_indexing(next_index)
     @inbounds Threads.@threads for n in 1:Np
-        x⃗ = xp[n]
+        x⃗ = @inline get_coordinate(xp[n])  # usually get_coordinate === identity
         inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
         I = CartesianIndex(inds .+ nghosts)  # shift by number of ghost cells, since we access raw data associated to padded array
         head_old = Atomix.@atomicswap :monotonic head_indices_data[I] = n  # returns the old value
@@ -182,6 +182,8 @@ function set_elements!(cl::PeriodicCellList, xp::AbstractVector)
     pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity (can be slow?)
     cl
 end
+
+set_elements!(cl::PeriodicCellList, xp::AbstractVector) = set_elements!(identity, cl, xp)
 
 ## ================================================================================ ##
 ## Iteration over a single cell
