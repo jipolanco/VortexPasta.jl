@@ -19,8 +19,6 @@ PeriodicCellList
 
 ```@docs
 set_elements!
-add_element!
-finalise_cells!
 empty!
 nearby_elements
 ```

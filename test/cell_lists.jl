@@ -39,20 +39,17 @@ function compute_interaction_naive(f::F, xp, vp, r_cut, Ls) where {F}
     (; interaction, n_interactions)
 end
 
-function construct_cell_list(r_cut, xp, Ls; nsubdiv = Val(1))
-    ElementType = Int  # a cell list item corresponds to an index in 1:Np
+function construct_cell_list(r_cut, Ls; nsubdiv = Val(1))
     rs_cut = map(_ -> r_cut, Ls)
-    @inline to_coordinate(n) = @inbounds xp[n]
-    @inferred PeriodicCellList(ElementType, rs_cut, Ls, nsubdiv; to_coordinate)
+    @inferred PeriodicCellList(rs_cut, Ls, nsubdiv)
 end
 
 function compute_interaction_cell_lists(f::F, cl, xp, vp, r_cut) where {F}
     (; Ls,) = cl
-    @assert xp === cl.to_coordinate.xp  # note that to_coordinate has a reference to xp vector
+    Ls_half = Ls ./ 2
     r²_cut = r_cut^2
-    Np = length(xp)
     @assert length(xp) == length(vp)
-    CellLists.set_elements!(identity, cl, Np)  # once again, an element is an index in 1:Np
+    CellLists.set_elements!(cl, xp)
     interaction = zero(eltype(vp))
     n_interactions = 0
     @inbounds for i in eachindex(xp, vp)
@@ -94,8 +91,12 @@ function test_cell_lists()
     run_naive = compute_interaction_naive(f_interaction, xp, vp, r_cut, Ls)
 
     for nsubdiv in (Val(1), Val(2))
-        cl = construct_cell_list(r_cut, xp, Ls; nsubdiv)
+        cl = construct_cell_list(r_cut, Ls; nsubdiv)
+        @test isempty(cl.next_index)
         run_cl = compute_interaction_cell_lists(f_interaction, cl, xp, vp, r_cut)
+        @test length(cl.next_index) == length(xp)
+        empty!(cl)
+        @test isempty(cl.next_index)
         @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
         @test run_naive.interaction ≈ run_cl.interaction rtol=1e-15  # basically the same result
     end

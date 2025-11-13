@@ -23,47 +23,17 @@ using Static: StaticInt, static, dynamic
 const EMPTY = 0
 
 ## ================================================================================ ##
-## Iteration over a single cell
-
-struct CellIterator{
-        T,
-        ElementList <: AbstractVector{T},
-        IndexType <: Integer
-    }
-    elements   :: ElementList        # contains all elements in all cells
-    head_index :: IndexType          # index of first element in cell
-    next_index :: Vector{IndexType}  # allows to get the rest of the elements in cell
-end
-
-Base.IteratorSize(::Type{<:CellIterator}) = Base.SizeUnknown()
-Base.IteratorEltype(::Type{<:CellIterator}) = Base.HasEltype()
-Base.eltype(::Type{<:CellIterator{T}}) where {T} = T
-
-function Base.iterate(it::CellIterator, n = it.head_index)
-    (; elements, next_index,) = it
-    n == EMPTY && return nothing  # no more elements in this cell
-    el = @inbounds elements[n]
-    @inbounds el, next_index[n]
-end
-
-## ================================================================================ ##
 ## Cell list type definition
 
 """
-    PeriodicCellList{N, T}
+    PeriodicCellList{N}
     PeriodicCellList(
-        ::Type{T}, rs_cut::NTuple{N, Real}, periods::NTuple{N, Real},
-        [nsubdiv = static(1)];
+        rs_cut::NTuple{N, Real}, periods::NTuple{N, Real},
+        [nsubdiv = Val(1)];
         [to_coordinate::Function = identity],
     )
 
-Construct a cell list for dealing with pair interactions.
-
-Above, `N` is the number of spatial dimensions, and `T` is the type of each element.
-In the simplest cases, `T` can simply describe a coordinate in ``N``-dimensional space
-(e.g. `T = SVector{N, Float64}`). One can also deal with more complicated elements which
-include more information. As an example, see further below for how to deal with filament
-segments in 3D space.
+Construct a cell list for dealing with pair interactions in `N` dimensions.
 
 The cutoff radii `rs_cut` (which can be different in each direction) don't need to exactly
 divide the domain period `L` into equal pieces, but it's recommended that it does so for
@@ -77,61 +47,34 @@ spurious pair interactions (i.e. beyond the chosen cutoff radius) as described
 For convenience, it can be passed as `nsubdiv = Val(M)` or as `nsubdiv = static(M)`.
 
 Infinite non-periodic domains (in the sense of `period = Infinity()`) are not supported.
-
-# Dealing with filament segments
-
-One of the possible uses of `PeriodicCellList` is to classify filament segments (which are
-typically shorter than the cutoff radius) according to their spatial location. In that case,
-`T` is not a simple coordinate, but may contain more information including things like (1)
-the filament the segment belongs to, and (2) the location of the segment within the filament.
-As there is no unique way of associating a coordinate to a segment, one should pass the
-`to_coordinate` argument which "converts" the segment to a coordinate in space. For instance,
-the passed `to_coordinate` function may return the midpoint of the segment, which will be
-used to determine the cell associated to the segment.
-
-The applied cutoff radius ``r_{\\text{cut}}`` should be much larger than the maximum segment
-length ``ℓ``, or should at least account for ``ℓ``.
-Basically, if one wants an actual cut-off radius ``r₀``, then the applied cutoff radius passed
-to the constructor should be ``r_{\\text{cut}} = r₀ + ℓ``.
-Otherwise, a small amount of interactions within ``[r₀ - ℓ, r₀]`` may be missed.
 """
 struct PeriodicCellList{
         N,  # spatial dimension
-        T,  # type of "element": can be a coordinate in 3D space, or some other element which includes some coordinate information (e.g. a filament segment)
-        ElementList <: AbstractVector{T},
         M,  # number of cell subdivisions (≥ 1)
         HeadArray <: PaddedArray{M, Int, N},  # array of cells, each containing a list of elements
-        RefBool <: Ref{Bool},
-        ToCoordFunc <: Function,
         CellDims <: NTuple{N, Real},
         Periods <: NTuple{N, Real},
     }
-    elements      :: ElementList  # contains all "elements" (unsorted) [length Np]
     head_indices  :: HeadArray    # array pointing to the index of the first element in each cell (or EMPTY if no elements in that cell)
     next_index    :: Vector{Int}  # points from one element to the next element (or EMPTY if this is the last element) [length Np]
-    isready       :: RefBool
-    to_coordinate :: ToCoordFunc  # convert "element" to N-D coordinate
     rs_cell       :: CellDims     # dimensions of a cell (can be different in each direction)
     nsubdiv       :: StaticInt{M}
     Ls            :: Periods
 end
 
 Base.size(cl::PeriodicCellList) = size(cl.head_indices)
-subdivisions(::PeriodicCellList{A, B, C, M}) where {A, B, C, M} = M
+subdivisions(::PeriodicCellList{N, M}) where {N, M} = M
 
-@inline PeriodicCellList(::Type{T}, rs, Ls, nsubdiv::Val{M}; kws...) where {T, M} =
-    PeriodicCellList(T, rs, Ls, static(M); kws...)
+@inline PeriodicCellList(rs, Ls, nsubdiv::Val{M}; kws...) where {M} = PeriodicCellList(rs, Ls, static(M); kws...)
 
 # Returns maximum possible cut-off distance r_cut for M subdivisions and a domain of period L.
 max_cutoff_distance(M::Integer, L::AbstractFloat) = oftype(L, M / (2M + 1)) * L
 
 function PeriodicCellList(
-        ::Type{T},
         rs_cut::NTuple{N, Real},
         Ls::NTuple{N, Real},
-        nsubdiv::StaticInt = static(1);
-        to_coordinate::F = identity,
-    ) where {N, T, F <: Function}
+        nsubdiv::StaticInt = static(1),
+    ) where {N}
     any(isinf, Ls) && throw(ArgumentError(
         "infinite non-periodic domains not currently supported by PeriodicCellList"
     ))
@@ -162,9 +105,6 @@ function PeriodicCellList(
                got rs_cut/Ls = $(rs_cut ./ Ls)."""
     )
 
-    elements = Vector{T}(undef, 0)
-    # elements = StructVector{T}(undef, 0)  # not necessarily faster than a regular Vector in this case
-
     IndexType = Int
     head_dims = ncells .+ 2M  # add 2M ghost cells in each direction
     head_raw = Array{IndexType}(undef, head_dims)
@@ -173,14 +113,9 @@ function PeriodicCellList(
     head_indices = PaddedArray{M}(head_raw)
     @assert size(head_indices) == ncells
 
-    next_index = Vector{Int}(undef, 0)
-    isready = Ref(true)  # technically we're ready for iterating (with zero elements)
+    next_index = Vector{IndexType}(undef, 0)
 
-    Base.require_one_based_indexing(elements)  # assumed since EMPTY = 0
-
-    PeriodicCellList(
-        elements, head_indices, next_index, isready, to_coordinate, rs_cell, nsubdiv, Ls,
-    )
+    PeriodicCellList(head_indices, next_index, rs_cell, nsubdiv, Ls)
 end
 
 """
@@ -189,18 +124,17 @@ end
 Remove all elements from the cell list.
 """
 function Base.empty!(cl::PeriodicCellList)
-    empty!(cl.elements)
     empty!(cl.next_index)
     fill!(parent(cl.head_indices), EMPTY)  # this can be slow with too many cells!
     cl
 end
 
 function Base.sizehint!(cl::PeriodicCellList, Np)
-    sizehint!(cl.elements, Np)
     sizehint!(cl.next_index, Np)
     cl
 end
 
+# TODO: not sure this is fast on GPUs...
 @inline function determine_cell_index(x, rcut, L, N)
     while x < 0
         x += L
@@ -219,80 +153,25 @@ end
 end
 
 """
-    add_element!(cl::PeriodicCellList{N, T}, el::T, [x⃗])
-
-Add element to the cell list.
-
-Determines the cell associated to the element and then appends the element to that cell.
-
-Optionally, one may pass the coordinate location ``\\vec{x}`` associated to the element.
-Otherwise, it will be obtained from the element according to
-
-    x⃗ = to_coordinate(el)
-
-where `to_coordinate` corresponds to the keyword argument of [`PeriodicCellList`](@ref).
-"""
-function add_element!(cl::PeriodicCellList{N, T}, el::T) where {N, T}
-    x⃗ = cl.to_coordinate(el)
-    add_element!(cl, el, x⃗)
-end
-
-function add_element!(cl::PeriodicCellList{N, T}, el::T, x⃗) where {N, T}
-    (; rs_cell, Ls, elements, next_index, head_indices,) = cl
-    cl.isready[] = false      # we're not ready for iterating
-    @assert length(elements) == length(next_index)
-    push!(elements, el)       # add this element to element vector
-    inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
-    I = CartesianIndex(inds)
-    n = lastindex(elements)                        # index of the new element
-    push!(next_index, @inbounds(head_indices[I]))  # the old head now comes after the new element
-    @inbounds head_indices[I] = n                  # the new element is the new head
-    cl
-end
-
-"""
-    CellLists.finalise_cells!(cl::PeriodicCellList)
-
-"Finalise" cells before iterating over its elements.
-
-This function performs operations needed to iterate over elements of the cell lists, such as
-filling ghost cells.
-It must be called once after all elements have been added to the cell list using
-[`add_element!`](@ref) and before one starts iterating using [`nearby_elements`](@ref).
-"""
-function finalise_cells!(cl::PeriodicCellList)
-    cl.isready[] && return cl
-    pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity (can be slow...)
-    cl.isready[] = true
-    cl
-end
-
-"""
-    CellLists.set_elements!(get_element::Function, cl::PeriodicCellList, Np::Integer)
+    CellLists.set_elements!(cl::PeriodicCellList, xp::AbstractVector)
 
 Set all elements of the cell list.
 
-Here `get_element(n::Integer)` is a function that returns a single element given its index `n`.
-It must take and index `n` in `1:Np` (this assumes one-based indexing!).
-`Np` is the total number of elements.
+Here `xp` is a vector of spatial locations.
 
 This function resets the cell list, removing all previously existent points.
-It can be used as a replacement for [`empty!`](@ref) + [`add_element!`](@ref) + [`finalise_cells!`](@ref).
-Currently, this can be particularly interesting because `set_elements!` is parallelised.
 """
-function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) where {F <: Function, N, T}
-    (; elements, next_index, head_indices, Ls, rs_cell,) = cl
+function set_elements!(cl::PeriodicCellList, xp::AbstractVector)
+    (; next_index, head_indices, Ls, rs_cell,) = cl
     head_indices_data = parent(head_indices)   # full data associated to padded array
     nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
     fill!(head_indices_data, EMPTY)  # this can be slow with too many cells?
-    resize!(elements, Np)
+    Np = length(xp)
     resize!(next_index, Np)
-    Base.require_one_based_indexing(elements)
+    Base.require_one_based_indexing(xp)
     Base.require_one_based_indexing(next_index)
     @inbounds Threads.@threads for n in 1:Np
-        el = @inline get_element(n)
-        elements[n] = el
-        x⃗ = @inline cl.to_coordinate(el)
+        x⃗ = xp[n]
         inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
         I = CartesianIndex(inds .+ nghosts)  # shift by number of ghost cells, since we access raw data associated to padded array
         head_old = Atomix.@atomicswap :monotonic head_indices_data[I] = n  # returns the old value
@@ -301,21 +180,36 @@ function set_elements!(get_element::F, cl::PeriodicCellList{N, T}, Np::Integer) 
         next_index[n] = head_old  # the old head now comes after the new element
     end
     pad_periodic!(cl.head_indices)  # fill ghost cells for periodicity (can be slow?)
-    cl.isready[] = true
     cl
+end
+
+## ================================================================================ ##
+## Iteration over a single cell
+
+struct CellIterator{IndexType <: Integer}
+    head_index :: IndexType          # index of first element in cell
+    next_index :: Vector{IndexType}  # allows to get the rest of the elements in cell
+end
+
+Base.IteratorSize(::Type{<:CellIterator}) = Base.SizeUnknown()
+Base.IteratorEltype(::Type{<:CellIterator}) = Base.HasEltype()
+Base.eltype(::Type{<:CellIterator{T}}) where {T} = T
+
+function Base.iterate(it::CellIterator{IndexType}, n = it.head_index) where {IndexType}
+    (; next_index,) = it
+    n == IndexType(EMPTY) && return nothing  # no more elements in this cell
+    @inbounds n, next_index[n]
 end
 
 ## ================================================================================ ##
 ## Iteration over elements in cell lists
 
 struct MultiCellIterator{
-        T, N,
-        ElementList <: AbstractVector{T},
-        IndexType,
+        IndexType <: Integer,
+        N,
         HeadArray <: AbstractArray{IndexType, N},
         CellIndices <: CartesianIndices{N},
     }
-    elements     :: ElementList        # contains all elements in all cells
     head_indices :: HeadArray          # array pointing to the index of the first element in each cell
     next_index   :: Vector{IndexType}  # allows to get the rest of the elements in cell
     cell_indices :: CellIndices        # indices of cells that will be visited
@@ -323,7 +217,7 @@ end
 
 Base.IteratorSize(::Type{<:MultiCellIterator}) = Base.SizeUnknown()
 Base.IteratorEltype(::Type{<:MultiCellIterator}) = Base.HasEltype()
-Base.eltype(::Type{<:MultiCellIterator{T}}) where {T} = T
+Base.eltype(::Type{<:MultiCellIterator{IndexType}}) where {IndexType} = IndexType
 
 @inline function Base.iterate(it::MultiCellIterator)
     icell = firstindex(it.cell_indices)
@@ -332,10 +226,10 @@ Base.eltype(::Type{<:MultiCellIterator{T}}) where {T} = T
     iterate(it, (icell, n))
 end
 
-@inline function Base.iterate(it::MultiCellIterator, state)
-    (; elements, head_indices, next_index, cell_indices,) = it
+@inline function Base.iterate(it::MultiCellIterator{IndexType}, state) where {IndexType}
+    (; head_indices, next_index, cell_indices,) = it
     icell, n = state
-    while n == EMPTY
+    while n == IndexType(EMPTY)
         if icell == lastindex(cell_indices)
             return nothing  # if this was the last cell, stop iterating
         end
@@ -343,8 +237,7 @@ end
         I = @inbounds cell_indices[icell]
         n = @inbounds head_indices[I]
     end
-    el = @inbounds elements[n]
-    @inbounds el, (icell, next_index[n])
+    @inbounds n, (icell, next_index[n])
 end
 
 """
@@ -361,17 +254,15 @@ Here `x⃗` should be a coordinate, usually represented by an `SVector{N}` or an
 function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}
     length(x⃗) == N || throw(DimensionMismatch(lazy"wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)"))
     (; rs_cell, Ls,) = cl
-    cl.isready[] || error("one must call `finalise_cells!` on the `PeriodicCellList` before iterating using `nearby_elements`")
     inds_central = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
     M = subdivisions(cl)
     cell_indices = CartesianIndices(
         map(i -> (i - M):(i + M), Tuple(I₀))
     )
-    # iters = (CellIterator(cl.elements, cl.head_indices[I], cl.next_index) for I ∈ cell_indices)
+    # iters = (CellIterator(cl.head_indices[I], cl.next_index) for I ∈ cell_indices)
     # it = Iterators.flatten(iters)  # this gives eltype(it) == Any (but that doesn't seem to affect performance...)
-    it = MultiCellIterator(cl.elements, cl.head_indices, cl.next_index, cell_indices)  # slightly slower than Iterators.flatten (but with known eltype)
-    # eltype(it)
+    it = MultiCellIterator(cl.head_indices, cl.next_index, cell_indices)  # might be slightly slower than Iterators.flatten (but with known eltype)
     it
 end
 
