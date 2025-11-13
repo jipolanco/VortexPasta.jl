@@ -42,6 +42,7 @@ println()
     @includetest "constants.jl"
     @includetest "vector_of_vector.jl"
     @includetest "padded_arrays.jl"
+    @includetest "cell_lists.jl"
     @includetest "splines.jl"
     @includetest "filaments.jl"
     @includetest "min_distance.jl"
