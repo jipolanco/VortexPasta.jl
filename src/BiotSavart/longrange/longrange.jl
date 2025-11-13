@@ -783,6 +783,5 @@ end
 
 _ensure_hermitian_symmetry!(wavenumbers, ::Val{0}, us) = us  # we're done, do nothing
 
-include("ka_utils.jl")
 include("exact_sum.jl")
 include("nonuniformffts.jl")
