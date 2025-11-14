@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.30.2] - 2025-11-14
+
 ### Added
 
 - Add `CellLists.foreach_pair` and `CellLists.foreach_source` as alternative
