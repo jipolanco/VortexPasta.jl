@@ -17,7 +17,7 @@ using KernelAbstractions: @kernel, @index, @Const
     clamp(1 + unsafe_trunc(Int, r / rcut), 1, N)  # make sure the index is in 1:N
 end
 
-@kernel function set_elements_kernel1!(
+@kernel function set_elements_kernel!(
         get_coordinate::F, head_indices::PaddedArray, next_index, @Const(xp), rs_cell, Ls,
     ) where {F}
     n = @index(Global, Linear)
@@ -40,7 +40,7 @@ function _set_elements!(backend::GPU, get_coordinate::F, cl::PeriodicCellList, x
     Base.require_one_based_indexing(xp)
     Base.require_one_based_indexing(next_index)
     groupsize = 256
-    kernel! = set_elements_kernel1!(backend, groupsize)
+    kernel! = set_elements_kernel!(backend, groupsize)
     kernel!(get_coordinate, head_indices, next_index, xp, rs_cell, Ls; ndrange = size(xp))
     pad_periodic!(cl.head_indices)
     cl

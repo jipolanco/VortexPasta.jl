@@ -13,6 +13,7 @@ module CellLists
 # - they describe the case with nsubdiv = 1, while we allow nsubdiv ≥ 1
 
 export PeriodicCellList, static, nearby_elements
+public set_elements!, foreach_pair, foreach_source
 
 using ..PaddedArrays: PaddedArrays, PaddedArray, pad_periodic!
 using Atomix: Atomix
@@ -36,9 +37,14 @@ const EMPTY = 0
 
 Construct a cell list for dealing with pair interactions in `N` dimensions.
 
-The cutoff radii `rs_cut` (which can be different in each direction) don't need to exactly
-divide the domain period `L` into equal pieces, but it's recommended that it does so for
-performance reasons.
+The cutoff distances `rs_cut` (which can be different in each direction) don't need to exactly
+divide the domain period `L` into equal pieces. In that case the cutoff distances will be
+adjusted (slightly increased) to fit the domain period.
+
+Note that this cell-lists implementation can identify pairs which are slightly beyond the
+given cut-off distance. For performance reasons, such pairs are still returned, and it's up
+to the user to see whether such pairs should still be computed or not depending on whether a
+strict cut-off distance is wanted.
 
 Optionally, one can choose to subdivide each cell (of size `≈ rcut`) onto `nsubdiv`
 subcells. This can significantly improve performance, since it allows to discard some
@@ -81,6 +87,18 @@ struct PeriodicCellList{
     rs_cell       :: CellDims     # dimensions of a cell (can be different in each direction)
     nsubdiv       :: StaticInt{M}
     Ls            :: Periods
+end
+
+function Base.show(io::IO, cl::PeriodicCellList{N}) where {N}
+    (; backend, rs_cell, Ls, nsubdiv) = cl
+    print(io, "PeriodicCellList{$N} with:")
+    print(io, "\n - backend:         ", backend)
+    print(io, "\n - number of cells: ", size(cl))
+    print(io, "\n - period:          ", Ls)
+    print(io, "\n - cell size:       ", rs_cell)
+    print(io, "\n - effective r_cut: ", rs_cell .* dynamic(nsubdiv))
+    print(io, "\n - number of subdivisions: ", dynamic(nsubdiv))
+    nothing
 end
 
 Base.size(cl::PeriodicCellList) = size(cl.head_indices)
@@ -177,6 +195,14 @@ end
     clamp(1 + unsafe_trunc(Int, x / rcut), 1, N)  # make sure the index is in 1:N
 end
 
+@inline function get_neighbouring_cell_indices(cl::PeriodicCellList, x⃗)
+    (; rs_cell, Ls) = cl
+    inds_central = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
+    I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
+    M = subdivisions(cl)
+    CartesianIndices(map(i -> (i - M):(i + M), Tuple(I₀)))
+end
+
 """
     CellLists.set_elements!(cl::PeriodicCellList, xp::AbstractVector)
 
@@ -188,7 +214,7 @@ This function resets the cell list, removing all previously existent points.
 """
 function set_elements!(get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector) where {F}
     (; backend, device) = cl
-    # In fact this fails with PseudoGPU, which uses standard CPU arrays.
+    # In fact this fails with PseudoGPU, which uses standard CPU arrays:
     # typeof(KA.get_backend(xp)) === typeof(backend) ||
     #     throw(ArgumentError(lazy"coordinate vector `xp` should be on the computing device ($backend)"))
     device_current = KA.device(backend)
@@ -223,26 +249,124 @@ function _set_elements!(::CPU, get_coordinate::F, cl::PeriodicCellList, xp::Abst
     cl
 end
 
-## ================================================================================ ##
-## Iteration over a single cell
+"""
+    CellLists.foreach_pair(f::Function, cl::PeriodicCellList, xp_dest::AbstractVector)
 
-struct CellIterator{IndexType <: Integer}
-    head_index :: IndexType          # index of first element in cell
-    next_index :: Vector{IndexType}  # allows to get the rest of the elements in cell
+Iterate over all point pairs within the chosen cut-off distance.
+
+A pair is given by a **destination point** `xp_dest[i]` and a **source point** `xp[j]`,
+where `xp` is the vector of coordinates that was previously passed to [`CellLists.set_elements!`](@ref).
+Note that the vector of destination points `xp_dest` can be different than that of source points.
+
+The first argument should be a user-defined function `f(x⃗, i::Integer, j::Integer)` taking a
+destination point `x⃗ = xp_dest[i]` and a pair of destination/source indices `(i, j)`.
+Typically, one wants to modify one or more destination vectors at index `vp[i]`, which can
+be done within this function.
+
+On CPUs this function is parallelised using threads. Parallelisation is done at the level of
+all destination points `xp_dest`, ensuring that only a single thread can write to a location
+`vp[i]` (in other words, atomics are not needed).
+
+This function should be called after [`CellLists.set_elements!`](@ref).
+
+See also [`CellLists.foreach_source`](@ref).
+
+# Example usage
+
+```jldoctest
+julia> using StaticArrays: SVector
+
+julia> using LinearAlgebra: ⋅  # dot product
+
+julia> r_cut = 0.4; rs_cut = (r_cut, r_cut, r_cut);
+
+julia> Ls = (2π, 2π, 2π);
+
+julia> nsubdiv = Val(2);
+
+julia> cl = PeriodicCellList(CPU(), rs_cut, Ls, nsubdiv)
+PeriodicCellList{3} with:
+ - backend:         CPU(false)
+ - number of cells: (31, 31, 31)
+ - period:          (6.283185307179586, 6.283185307179586, 6.283185307179586)
+ - cell size:       (0.2026833970057931, 0.2026833970057931, 0.2026833970057931)
+ - effective r_cut: (0.4053667940115862, 0.4053667940115862, 0.4053667940115862)
+ - number of subdivisions: 2
+
+julia> xp = [rand(SVector{3, Float64}) .* Ls for _ in 1:1000];  # create source points in [0, L]³
+
+julia> CellLists.set_elements!(cl, xp);  # process source points
+
+julia> xp_dest = [rand(SVector{3, Float64}) .* Ls for _ in 1:200];  # create destination points in [0, L]³
+
+julia> vp_dest = zeros(length(xp_dest));  # vector where "interactions" will be written to
+
+julia> CellLists.foreach_pair(cl, xp_dest) do x⃗, i, j
+           # Compute some "influence" of xp[j] on x⃗ == xp_dest[i]
+           # Note that it is safe to write to vp_dest[i] without atomics, even when running in parallel.
+           @inbounds vp_dest[i] += x⃗ ⋅ xp[j]
+       end
+```
+"""
+function foreach_pair(f::F, cl::PeriodicCellList, xp_dest::AbstractVector) where {F <: Function}
+    (; backend) = cl
+    _foreach_pair(backend, f, cl, xp_dest)
+    nothing
 end
 
-Base.IteratorSize(::Type{<:CellIterator}) = Base.SizeUnknown()
-Base.IteratorEltype(::Type{<:CellIterator}) = Base.HasEltype()
-Base.eltype(::Type{<:CellIterator{T}}) where {T} = T
+function _foreach_pair(::CPU, f::F, cl, xp_dest) where {F}
+    (; head_indices, next_index) = cl
+    Threads.@threads :dynamic for i in eachindex(xp_dest)
+        @inbounds x⃗ = xp_dest[i]
+        # Iterate over "active" cells around the destination point.
+        # TODO: exclude "corner" cells which are for sure beyond the cut-off distance?
+        cell_indices = get_neighbouring_cell_indices(cl, x⃗)
+        @inbounds for I in cell_indices
+            j = head_indices[I]
+            while j != EMPTY
+                @inline f(x⃗, i, j)
+                j = next_index[j]
+            end
+        end
+    end
+    nothing
+end
 
-function Base.iterate(it::CellIterator{IndexType}, n = it.head_index) where {IndexType}
-    (; next_index,) = it
-    n == IndexType(EMPTY) && return nothing  # no more elements in this cell
-    @inbounds n, next_index[n]
+"""
+    CellLists.foreach_source(f::Function, cl::PeriodicCellList, x⃗_dest)
+
+Iterate over source point which are close to a given destination point `x⃗_dest`.
+
+This is similar to [`CellLists.foreach_pair`](@ref) but only works on a single destination
+point. On the CPU, `foreach_source` is not parallelised. One may want to parallelise at the
+level of multiple destination points to match the behaviour of `foreach_pair`.
+
+Performance-wise, this function seems to give similar performance to `foreach_pair` on CPUs.
+On GPUs one may prefer to use `foreach_pair` which is more adapted for GPU computing.
+"""
+@inline function foreach_source(f::F, cl::PeriodicCellList, x⃑_dest) where {F <: Function}
+    (; backend) = cl
+    _foreach_source(backend, f, cl, x⃑_dest)
+    nothing
+end
+
+@inline function _foreach_source(::CPU, f::F, cl, x⃗) where {F}
+    (; head_indices, next_index) = cl
+    cell_indices = get_neighbouring_cell_indices(cl, x⃗)
+    # Iterate over "active" cells around the destination point.
+    # TODO: exclude "corner" cells which are for sure beyond the cut-off distance?
+    @inbounds for I in cell_indices
+        j = head_indices[I]
+        while j != EMPTY
+            @inline f(j)
+            j = next_index[j]
+        end
+    end
+    nothing
 end
 
 ## ================================================================================ ##
-## Iteration over elements in cell lists
+## Iterator interface: iteration over elements in cell lists
 
 struct MultiCellIterator{
         IndexType <: Integer,
@@ -293,13 +417,7 @@ Here `x⃗` should be a coordinate, usually represented by an `SVector{N}` or an
 """
 function nearby_elements(cl::PeriodicCellList{N}, x⃗) where {N}
     length(x⃗) == N || throw(DimensionMismatch(lazy"wrong length of coordinate: x⃗ = $x⃗ (expected length is $N)"))
-    (; rs_cell, Ls,) = cl
-    inds_central = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
-    I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
-    M = subdivisions(cl)
-    cell_indices = CartesianIndices(
-        map(i -> (i - M):(i + M), Tuple(I₀))
-    )
+    cell_indices = get_neighbouring_cell_indices(cl, x⃗)
     # iters = (CellIterator(cl.head_indices[I], cl.next_index) for I ∈ cell_indices)
     # it = Iterators.flatten(iters)  # this gives eltype(it) == Any (but that doesn't seem to affect performance...)
     it = MultiCellIterator(cl.head_indices, cl.next_index, cell_indices)  # might be slightly slower than Iterators.flatten (but with known eltype)
