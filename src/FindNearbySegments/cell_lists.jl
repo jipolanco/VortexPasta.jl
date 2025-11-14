@@ -34,9 +34,11 @@ See the [`CellLists`](@ref) module for more details.
 struct CellListSegmentFinder{
         CellList <: PeriodicCellList,
         CutoffDistance <: Real,
+        Elements <: AbstractVector,
         Periods <: Tuple{Vararg{Real}},
     } <: NearbySegmentFinder
     cl     :: CellList
+    elements :: Elements
     r_cut  :: CutoffDistance
     Ls     :: Periods
 end
@@ -58,24 +60,30 @@ function CellListSegmentFinder(
     S = Segment{Filament}
     @assert isconcretetype(S)
     T = Tuple{Int, S}  # the iterator must return a tuple: (filament index, segment)
+    elements = T[]
     # Construct cell list of filament segments.
     # We use the `midpoint` function to associate a coordinate to each segment.
     M = to_static(nsubdiv)
-    cl = PeriodicCellList(T, rs_cut, Ls, M; to_coordinate = cl_to_coordinate)
-    CellListSegmentFinder(cl, r_cut, Ls)
+    cl = PeriodicCellList(rs_cut, Ls, M)
+    CellListSegmentFinder(cl, elements, r_cut, Ls)
 end
 
 to_static(::Val{M}) where {M} = static(M)
 to_static(M::StaticInt) = M
 
 function set_filaments!(c::CellListSegmentFinder, fs)
-    empty!(c.cl)
+    (; cl, elements,) = c
+    empty!(elements)
     for (i, f) ∈ pairs(fs), s ∈ segments(f)
         # One element is a pair (filament index, segment)
-        CellLists.add_element!(c.cl, (i, s))
+        push!(elements, (i, s))
     end
-    CellLists.finalise_cells!(c.cl)
+    CellLists.set_elements!(cl_to_coordinate, cl, elements)
     c
 end
 
-nearby_segments(c::CellListSegmentFinder, x⃗::Vec3) = CellLists.nearby_elements(c.cl, x⃗)
+function nearby_segments(c::CellListSegmentFinder, x⃗::Vec3)
+    (; cl, elements,) = c
+    it = CellLists.nearby_elements(cl, x⃗)  # this iterator returns integer values (indices)
+    Iterators.map(n -> @inbounds(elements[n]), it)
+end

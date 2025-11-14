@@ -90,9 +90,7 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     )
     rs = map(_ -> r_cut, Ls)
     nsubdiv = Val(M)
-    I = eltype(node_next)  # integer type
-    @inline to_coordinate(n) = @inbounds nodes[n]  # get coordinate from element in cell list
-    cl = PeriodicCellList(I, rs, Ls, nsubdiv; to_coordinate)  # a single element is a node index (in 1:Np)
+    cl = PeriodicCellList(rs, Ls, nsubdiv)  # a single element is a node index (in 1:Np)
     ReconnectFastCache(crit, cl, Ls, nodes, velocities, node_next, node_prev, reconnected)
 end
 
@@ -127,8 +125,7 @@ function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFi
     end
     @assert n == Np
     Base.require_one_based_indexing(nodes)
-    get_element = identity  # an element is an index n ∈ 1:Np
-    CellLists.set_elements!(get_element, cl, Np)
+    CellLists.set_elements!(cl, nodes)
     cache
 end
 
