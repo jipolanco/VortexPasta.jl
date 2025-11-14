@@ -32,7 +32,6 @@ const EMPTY = 0
         [backend = CPU()],
         rs_cut::NTuple{N, Real}, periods::NTuple{N, Real},
         [nsubdiv = Val(1)];
-        [to_coordinate::Function = identity],
     ) -> PeriodicCellList{N}
 
 Construct a cell list for dealing with pair interactions in `N` dimensions.
