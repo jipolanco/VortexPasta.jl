@@ -85,6 +85,11 @@ end
 ## Create benchmark suite for AirspeedVelocity.jl (benchmarks on github CI)
 const SUITE = BenchmarkGroup()
 
+## Cell lists benchmarks
+include(joinpath(@__DIR__, "cell_lists.jl"))
+SUITE["CellLists"] = CellListsBenchmarks.main()
+# results = run(SUITE["CellLists"])
+
 ## Prepare vortex configuration
 
 Ls = (2π, 2π, 2π)
