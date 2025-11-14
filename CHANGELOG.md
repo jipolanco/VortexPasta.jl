@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `CellLists.foreach_pair` and `CellLists.foreach_source` as alternative
+  iteration methods over pairs. These are faster than the iterator-based approach
+  and more amenable to GPU computing (especially `foreach_pair`). These are now
+  used in reconnections and some Biot–Savart computations (excluding the SIMD-accelerated
+  version of short-range interactions, where things are more complicated).
+
 ### Changed
 
 - Simplify `CellLists` implementation. Now cell lists use less memory and are possibly faster
