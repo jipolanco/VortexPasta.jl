@@ -6,6 +6,7 @@ using VortexPasta.PredefinedCurves
 using VortexPasta.Containers: VectorOfVectors
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
+using VortexPasta.Reconnections
 using Rotations: Rotations
 using StableRNGs: StableRNG
 using BenchmarkTools
@@ -18,6 +19,7 @@ function generate_biot_savart_parameters(;
         Ls::NTuple{3, T}, β = 3.5,
         Ns::Union{Nothing, Dims{3}} = nothing,
         rcut::Union{Nothing, Real} = Ns === nothing ? min(Ls...) / 3 : nothing,
+        kws...,
     ) where {T}
     Γ = 1.0
     a = 1e-7
@@ -43,6 +45,7 @@ function generate_biot_savart_parameters(;
         quadrature = GaussLegendre(3),
         quadrature_near_singularity = GaussLegendre(3),
         lia_segment_fraction = 0.2,
+        kws...,
     )
 end
 
@@ -79,35 +82,46 @@ function generate_filaments(rings::RandomRings; Ls, l_res, method)
     end
 end
 
-##
+## Create benchmark suite for AirspeedVelocity.jl (benchmarks on github CI)
+const SUITE = BenchmarkGroup()
 
 ## Prepare vortex configuration
 
 Ls = (2π, 2π, 2π)
 l_res = Ls[1] / 128  # typical line resolution
 method = QuinticSplineMethod()
-initial_condition = RandomRings(nrings = 100, R = π / 3)
+initial_condition = RandomRings(nrings = 500, R = π / 3)
 fs = VectorOfVectors(generate_filaments(initial_condition; Ls, l_res, method))
 
-## Prepare Biot–Savart calculations
+## Define Biot–Savart benchmarks
 
-Ns = (64, 64, 64)
+Ns = (128, 128, 128)
 params = generate_biot_savart_parameters(; Ls, Ns)
 cache = BiotSavart.init_cache(params, fs)
 vs = similar(fs)
 ψs = similar(fs)
 fields = (velocity = vs, streamfunction = ψs)
-# @time BiotSavart.velocity_on_nodes!(vs, cache, fs);
-
-## Define benchmarks
-
-# Create benchmark suite for AirspeedVelocity.jl (benchmarks on github CI)
-const SUITE = BenchmarkGroup()
+BiotSavart.velocity_on_nodes!(vs, cache, fs)
+BiotSavart.compute_on_nodes!(fields, cache, fs)
+reset_timer!(cache.to)
 
 SUITE["BiotSavart"]["velocity"] = @benchmarkable BiotSavart.velocity_on_nodes!($vs, $cache, $fs)
 SUITE["BiotSavart"]["velocity + streamfunction"] = @benchmarkable BiotSavart.compute_on_nodes!($fields, $cache, $fs)
 
-# Example interactive usage:
-# @time tune!(SUITE)
-# results = run(SUITE["BiotSavart"]["velocity"]; verbose = true, seconds = 2)                   # 65 ms (4 threads)
-# results = run(SUITE["BiotSavart"]["velocity + streamfunction"]; verbose = true, seconds = 2)  # 78 ms (4 threads)
+## Define reconnection benchmarks
+
+let reconnect = ReconnectFast(l_res; max_passes = 10)
+    cache_rec = Reconnections.init_cache(reconnect, fs, Ls)
+    SUITE["Reconnections"]["ReconnectFast"] = @benchmarkable Reconnections.reconnect!($cache_rec, fs_rec) setup=(fs_rec = copy(fs))
+end
+let reconnect = ReconnectBasedOnDistance(l_res; max_passes = 10)
+    cache_rec = Reconnections.init_cache(reconnect, fs, Ls)
+    SUITE["Reconnections"]["ReconnectBasedOnDistance"] = @benchmarkable Reconnections.reconnect!($cache_rec, fs_rec) setup=(fs_rec = copy(fs))
+end
+
+## Example interactive usage:
+
+# @time tune!(SUITE)  # not sure this is really needed (and takes a lot of time)
+# results = run(SUITE)  # run full suite
+# results_bs = run(SUITE["BiotSavart"])  # run BiotSavart benchmarks
+# results_rec = run(SUITE["Reconnections"])
