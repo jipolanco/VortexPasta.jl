@@ -265,7 +265,7 @@ be done within this function.
 
 On CPUs this function is parallelised using threads. Parallelisation is done at the level of
 all destination points `xp_dest`, ensuring that only a single thread can write to a location
-`vp[i]` (in other words, atomics are not needed).
+`vp[i]` (in other words, atomics are not needed). This function also works on GPUs.
 
 This function should be called after [`CellLists.set_elements!`](@ref).
 
