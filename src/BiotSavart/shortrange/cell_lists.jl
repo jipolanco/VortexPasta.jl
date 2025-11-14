@@ -74,3 +74,7 @@ function process_point_charges!(c::CellListsCache, data::PointData)
 end
 
 nearby_charges(c::CellListsCache, x⃗::Vec3) = CellLists.nearby_elements(c.cl, x⃗)  # iterator which returns integer indices (in 1:Np)
+
+function foreach_charge(f::F, c::CellListsCache, x⃗::Vec3) where {F <: Function}
+    CellLists.foreach_source(f, c.cl, x⃗)
+end

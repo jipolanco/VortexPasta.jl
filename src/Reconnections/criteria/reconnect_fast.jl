@@ -273,17 +273,16 @@ function _reconnect_from_cache_serial!(cache::ReconnectFastCache)
     @assert crit.nthreads == 1
     reconnection_count = 0
     reconnection_length_loss = zero(number_type(nodes))
-    for i in eachindex(nodes)
-        @inbounds x⃗ = nodes[i]
-        @inbounds for j in CellLists.nearby_elements(cl, x⃗)
-            info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
-            info === nothing && continue
-            (; is, js, length_before, length_after,) = info
-            i⁻, i⁺ = is
-            j⁻, j⁺ = js
-            reconnection_count += 1
-            reconnection_length_loss += length_before - length_after
-            # Reconnect i⁻ -> j⁺ and j⁻ -> i⁺
+    CellLists.foreach_pair(cl, nodes) do x⃗, i, j
+        info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
+        info === nothing && return
+        (; is, js, length_before, length_after) = info
+        i⁻, i⁺ = is
+        j⁻, j⁺ = js
+        reconnection_count += 1
+        reconnection_length_loss += length_before - length_after
+        # Reconnect i⁻ -> j⁺ and j⁻ -> i⁺
+        @inbounds begin
             node_next[i⁻] = j⁺
             node_prev[j⁺] = i⁻
             node_next[j⁻] = i⁺
@@ -312,30 +311,29 @@ function _reconnect_from_cache!(cache::ReconnectFastCache)
     end
 
     # Perform reconnections by exchanging node connectivities.
-    tforeach(eachindex(nodes); scheduler) do i
-        @inbounds x⃗ = nodes[i]
-        @inbounds for j in CellLists.nearby_elements(cl, x⃗)
-            info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
-            info === nothing && continue
-            (; is, js, length_before, length_after,) = info
-            i⁻, i⁺ = is
-            j⁻, j⁺ = js
-            inds = (is..., js...)
-            skip = Ref(false)
-            lock(lck) do
-                # Ensure a node can only be reconnected once to avoid possible race conditions.
-                if any(n -> reconnected[n], inds)
-                    skip[] = true
-                    return
-                end
-                for n in inds
-                    reconnected[n] = true
-                end
+    CellLists.foreach_pair(cl, nodes) do x⃗, i, j
+        info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
+        info === nothing && return
+        (; is, js, length_before, length_after) = info
+        i⁻, i⁺ = is
+        j⁻, j⁺ = js
+        inds = (is..., js...)
+        skip = Ref(false)
+        lock(lck) do
+            # Ensure a node can only be reconnected once to avoid possible race conditions.
+            @inbounds if any(n -> reconnected[n], inds)
+                skip[] = true
+                return
             end
-            skip[] && continue
-            reconnection_count[] += 1
-            reconnection_length_loss[] += length_before - length_after
-            # Reconnect i⁻ -> j⁺ and j⁻ -> i⁺
+            for n in inds
+                @inbounds reconnected[n] = true
+            end
+        end
+        skip[] && return
+        reconnection_count[] += 1
+        reconnection_length_loss[] += length_before - length_after
+        # Reconnect i⁻ -> j⁺ and j⁻ -> i⁺
+        @inbounds begin
             node_next[i⁻] = j⁺
             node_prev[j⁺] = i⁻
             node_next[j⁻] = i⁺

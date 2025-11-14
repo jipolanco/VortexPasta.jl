@@ -1,10 +1,9 @@
 using VortexPasta.CellLists
+using VortexPasta.BiotSavart: Vec3, CPU, PseudoGPU
 using StaticArrays: SVector
 using StableRNGs: StableRNG
 using Random
 using Test
-
-const Vec3{T} = SVector{3, T}
 
 @inline function deperiodise_separation(r⃗::Vec3, Ls, Ls_half)
     map(deperiodise_separation, r⃗, Vec3(Ls), Vec3(Ls_half))::typeof(r⃗)
@@ -39,12 +38,12 @@ function compute_interaction_naive(f::F, xp, vp, r_cut, Ls) where {F}
     (; interaction, n_interactions)
 end
 
-function construct_cell_list(r_cut, Ls; nsubdiv = Val(1))
+function construct_cell_list(r_cut, Ls; backend = CPU(), nsubdiv = Val(1))
     rs_cut = map(_ -> r_cut, Ls)
-    @inferred PeriodicCellList(rs_cut, Ls, nsubdiv)
+    @inferred PeriodicCellList(backend, rs_cut, Ls, nsubdiv)
 end
 
-function compute_interaction_cell_lists(f::F, cl, xp, vp, r_cut) where {F}
+function compute_interaction_nearby_elements(f::F, cl::PeriodicCellList, xp, vp, r_cut) where {F}
     (; Ls,) = cl
     Ls_half = Ls ./ 2
     r²_cut = r_cut^2
@@ -66,12 +65,76 @@ function compute_interaction_cell_lists(f::F, cl, xp, vp, r_cut) where {F}
     (; interaction, n_interactions)
 end
 
+# This is similar to above but with a closure.
+function compute_interaction_foreach_source(f::F, cl::PeriodicCellList, xp, vp, r_cut) where {F}
+    (; Ls,) = cl
+    Ls_half = Ls ./ 2
+    r²_cut = r_cut^2
+    @assert length(xp) == length(vp)
+
+    wp = similar(vp)  # this is the "influence" on a point of all neighbouring points
+    n_interactions_p = similar(vp, Int)  # this is the number of points that affect a given point
+    fill!(wp, 0)
+    fill!(n_interactions_p, 0)
+
+    CellLists.set_elements!(cl, xp)
+
+    @inbounds Threads.@threads for i in eachindex(xp, vp)
+        x⃗ = xp[i]
+        CellLists.foreach_source(cl, x⃗) do j
+            @inbounds y⃗ = xp[j]
+            r⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Ls_half)
+            r² = sum(abs2, r⃗)
+            @inbounds if r² <= r²_cut
+                wp[i] += f(vp[i], vp[j], r⃗, r²)
+                n_interactions_p[i] += 1
+            end
+        end
+    end
+
+    interaction = sum(wp)
+    n_interactions = sum(n_interactions_p)
+
+    (; interaction, n_interactions)
+end
+
+# This variant is more adapted for GPUs.
+function compute_interaction_foreach_pair(f::F, cl::PeriodicCellList, xp, vp, r_cut) where {F}
+    (; Ls,) = cl
+    Ls_half = Ls ./ 2
+    r²_cut = r_cut^2
+    @assert length(xp) == length(vp)
+
+    wp = similar(vp)  # this is the "influence" on a point of all neighbouring points
+    n_interactions_p = similar(vp, Int)  # this is the number of points that affect a given point
+    fill!(wp, 0)
+    fill!(n_interactions_p, 0)
+
+    CellLists.set_elements!(cl, xp)
+
+    CellLists.foreach_pair(cl, xp) do x⃗, i, j
+        # @inbounds x⃗ = xp[i]
+        @inbounds y⃗ = xp[j]
+        r⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Ls_half)
+        r² = sum(abs2, r⃗)
+        @inbounds if r² <= r²_cut
+            wp[i] += f(vp[i], vp[j], r⃗, r²)
+            n_interactions_p[i] += 1
+        end
+    end
+
+    interaction = sum(wp)
+    n_interactions = sum(n_interactions_p)
+
+    (; interaction, n_interactions)
+end
+
 function test_cell_lists()
     T = Float64
     Ls = (2π, 3π, 4π)
     r_cut = π/4
 
-    Np = 1000
+    Np = 3000
     rng = StableRNG(42)
 
     # Random locations and values within the domain
@@ -90,16 +153,41 @@ function test_cell_lists()
 
     run_naive = compute_interaction_naive(f_interaction, xp, vp, r_cut, Ls)
 
-    for nsubdiv in (Val(1), Val(2))
-        cl = construct_cell_list(r_cut, Ls; nsubdiv)
-        @test isempty(cl.next_index)
-        run_cl = compute_interaction_cell_lists(f_interaction, cl, xp, vp, r_cut)
-        @test length(cl.next_index) == length(xp)
-        empty!(cl)
-        @test isempty(cl.next_index)
-        @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
-        @test run_naive.interaction ≈ run_cl.interaction rtol=1e-15  # basically the same result
+    @testset "Number of subdivisions = $nsubdiv" for nsubdiv in 1:2
+        cl = construct_cell_list(r_cut, Ls; nsubdiv = Val(nsubdiv))
+
+        @testset "Using nearby_elements" begin
+            @test isempty(cl.next_index)
+            @test startswith("PeriodicCellList{3} with:")(repr(cl))
+            run_cl = compute_interaction_nearby_elements(f_interaction, cl, xp, vp, r_cut)
+            @test length(cl.next_index) == length(xp)
+            empty!(cl)
+            @test isempty(cl.next_index)
+            @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
+            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-14  # basically the same result
+        end
+
+        @testset "Using foreach_pair" begin
+            run_cl = compute_interaction_foreach_pair(f_interaction, cl, xp, vp, r_cut)
+            @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
+            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-12  # basically the same result
+        end
+
+        @testset "Using foreach_source" begin
+            run_cl = compute_interaction_foreach_source(f_interaction, cl, xp, vp, r_cut)
+            @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
+            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-12  # basically the same result
+        end
     end
+
+    # Benchmarks
+    # cl = construct_cell_list(r_cut, Ls; nsubdiv = Val(2))
+    # print("nearby_elements (serial):\t")
+    # @btime compute_interaction_nearby_elements($f_interaction, $cl, $xp, $vp, $r_cut)  # 2.7 ms (serial)
+    # print("foreach_pair:\t")
+    # @btime compute_interaction_foreach_pair($f_interaction, $cl, $xp, $vp, $r_cut)  # 450μs (4 threads)
+    # print("foreach_source:\t")
+    # @btime compute_interaction_foreach_source($f_interaction, $cl, $xp, $vp, $r_cut)  # 450μs (4 threads)
 
     nothing
 end

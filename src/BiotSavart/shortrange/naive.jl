@@ -40,3 +40,10 @@ function nearby_charges(c::NaiveShortRangeCache, x⃗::Vec3)
     # So we simply return all charges one by one, regardless of x⃗.
     eachindex(data.points, data.charges, data.segments)
 end
+
+function foreach_charge(f::F, c::NaiveShortRangeCache, x⃗::Vec3) where {F <: Function}
+    for j in nearby_charges(c, x⃗)
+        @inline f(j)
+    end
+    nothing
+end

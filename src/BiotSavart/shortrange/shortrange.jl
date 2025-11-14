@@ -35,11 +35,23 @@ Must be called after [`add_point_charges!`](@ref) and before computing any short
 process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend
 
 """
-    nearby_charges(c::ShortRangeCache, x⃗::Vec3) -> Int
+    nearby_charges(c::ShortRangeCache, x⃗::Vec3)
 
 Return an iterator over the indices of points that are "close" to the location `x⃗`.
 """
 function nearby_charges end
+
+"""
+    foreach_charge(f::Function, c::ShortRangeCache, x⃗::Vec3)
+
+Apply function `f` to all charges which are close to point `x⃗`.
+
+The function should be of the form `f(j)` where `j` is the index of a point which is "close"
+to `x⃗`.
+
+See also [`CellLists.foreach_source`](@ref), which is used when [`CellListsBackend`](@ref) has been chosen.
+"""
+function foreach_charge end
 
 function short_range_velocity end
 
@@ -444,26 +456,29 @@ function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, 
     @assert all(L -> L === Infinity(), Ls)  # infinite non-periodic domain
     @assert all(L -> L === Infinity(), Lhs)
     @assert rcut² === Infinity()
-    @inbounds for j in nearby_charges(cache, x⃗)
-        s⃗ = points[j]
-        qs⃗′ = charges[j]
-        seg = segments[j]
+    vecs_ref = Ref(vecs)
+    foreach_charge(cache, x⃗) do j
+        @inbounds begin
+            s⃗ = points[j]
+            qs⃗′ = charges[j]
+            seg = segments[j]
+        end
         if sa !== nothing && sb !== nothing  # if we're excluding local segments from short-range integration
             is_local_segment = seg === sa || seg === sb
-            is_local_segment && continue
+            is_local_segment && return
         end
         r⃗ = x⃗ - s⃗
         r² = sum(abs2, r⃗)
         r = sqrt(r²)
         r_inv = 1 / r
         r³_inv = 1 / (r² * r)
-        vecs = map(vecs) do (quantity, u⃗)
+        vecs_ref[] = map(vecs_ref[]) do (quantity, u⃗)
             δu⃗ = full_integrand(quantity, r_inv, r³_inv, qs⃗′, r⃗)
             u⃗ = u⃗ + δu⃗
             quantity => u⃗
         end
     end
-    vecs
+    vecs_ref[]
 end
 
 # Ewald summation without explicit SIMD.
@@ -471,10 +486,13 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
     (; Ls,) = params.common
     (; points, charges, segments,) = cache.data
     rcut² = params.rcut_sq
-    @inbounds for j in nearby_charges(cache, x⃗)
-        s⃗ = points[j]
-        qs⃗′ = charges[j]
-        seg = segments[j]
+    vecs_ref = Ref(vecs)
+    foreach_charge(cache, x⃗) do j
+        @inbounds begin
+            s⃗ = points[j]
+            qs⃗′ = charges[j]
+            seg = segments[j]
+        end
         is_local_segment = if sa !== nothing && sb !== nothing  # if we're excluding local segments from short-range integration
             seg === sa || seg === sb
         else  # if we want to include local segments in the integration
@@ -483,7 +501,7 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
         r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
         r² = sum(abs2, r⃗)
         if is_local_segment || r² > rcut²
-            continue
+            return
         end
         r = sqrt(r²)
         r_inv = 1 / r
@@ -492,14 +510,14 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
         erfc_αr = erfc(αr)
         αr_sq = αr * αr
         exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
-        vecs = map(vecs) do (quantity, u⃗)
+        vecs_ref[] = map(vecs_ref[]) do (quantity, u⃗)
             @inline
             δu⃗ = short_range_integrand(quantity, erfc_αr, exp_term, r_inv, r³_inv, Tuple(qs⃗′), Tuple(r⃗))
             u⃗ = u⃗ + oftype(u⃗, δu⃗)
             quantity => u⃗
         end
     end
-    vecs
+    vecs_ref[]
 end
 
 # Non-Ewald (non-periodic) case
