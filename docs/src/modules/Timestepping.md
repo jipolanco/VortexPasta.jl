@@ -172,7 +172,7 @@ MaximumTimestep
 inject_filament!
 ```
 
-## Diagnostics
+## Computing diagnostics
 
 All diagnostics documented in the [Diagnostics](@ref) page can be conveniently
 computed using an instantaneous simulation state `iter` (of type [`VortexFilamentSolver`](@ref)).
