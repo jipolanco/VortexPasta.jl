@@ -50,7 +50,7 @@ end
 
 ## ========================================================================================== ##
 
-@kernel function foreach_pair_kernel!(
+@kernel function foreach_pair_kernel(
         f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
         rs_cell, Ls,
         ::Val{M},  # = number of subdivisions (equal to number of ghost cells)
@@ -74,8 +74,8 @@ function _foreach_pair(backend::GPU, f::F, cl, xp_dest) where {F}
     (; head_indices, next_index, Ls, rs_cell,) = cl
     M = subdivisions(cl)
     groupsize = 256
-    kernel! = foreach_pair_kernel!(backend, groupsize)
-    kernel!(f, head_indices, next_index, xp_dest, rs_cell, Ls, Val(M); ndrange = size(xp_dest))
+    kernel = foreach_pair_kernel(backend, groupsize)
+    kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, Val(M); ndrange = size(xp_dest))
     nothing
 end
 
