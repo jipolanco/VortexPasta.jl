@@ -17,6 +17,8 @@ using KernelAbstractions: @kernel, @index, @Const
     clamp(1 + unsafe_trunc(Int, r / rcut), 1, N)  # make sure the index is in 1:N
 end
 
+## ========================================================================================== ##
+
 @kernel function set_elements_kernel!(
         get_coordinate::F, head_indices::PaddedArray, next_index, @Const(xp), rs_cell, Ls,
     ) where {F}
@@ -44,5 +46,36 @@ function _set_elements!(backend::GPU, get_coordinate::F, cl::PeriodicCellList, x
     kernel!(get_coordinate, head_indices, next_index, xp, rs_cell, Ls; ndrange = size(xp))
     pad_periodic!(cl.head_indices)
     cl
+end
+
+## ========================================================================================== ##
+
+@kernel function foreach_pair_kernel!(
+        f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
+        rs_cell, Ls,
+        ::Val{M},  # = number of subdivisions (equal to number of ghost cells)
+    ) where {F <: Function, M}
+    i = @index(Global, Linear)
+    x⃗ = @inbounds xp_dest[i]
+    inds_central = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, size(head_indices))
+    I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
+    cell_indices = CartesianIndices(map(i -> (i - M):(i + M), Tuple(I₀)))
+    @inbounds for I in cell_indices
+        j = head_indices[I]
+        while j != EMPTY
+            @inline f(x⃗, i, j)
+            j = next_index[j]
+        end
+    end
+    nothing
+end
+
+function _foreach_pair(backend::GPU, f::F, cl, xp_dest) where {F}
+    (; head_indices, next_index, Ls, rs_cell,) = cl
+    M = subdivisions(cl)
+    groupsize = 256
+    kernel! = foreach_pair_kernel!(backend, groupsize)
+    kernel!(f, head_indices, next_index, xp_dest, rs_cell, Ls, Val(M); ndrange = size(xp_dest))
+    nothing
 end
 

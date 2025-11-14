@@ -170,13 +170,20 @@ function test_cell_lists()
         @testset "Using foreach_pair" begin
             run_cl = compute_interaction_foreach_pair(f_interaction, cl, xp, vp, r_cut)
             @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
-            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-12  # basically the same result
+            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result
+        end
+
+        @testset "Using foreach_pair (PseudoGPU)" begin
+            cl_gpu = construct_cell_list(r_cut, Ls; backend = PseudoGPU(), nsubdiv = Val(nsubdiv))
+            run_cl = compute_interaction_foreach_pair(f_interaction, cl_gpu, xp, vp, r_cut)
+            @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
+            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result
         end
 
         @testset "Using foreach_source" begin
             run_cl = compute_interaction_foreach_source(f_interaction, cl, xp, vp, r_cut)
             @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
-            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-12  # basically the same result
+            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result
         end
     end
 
