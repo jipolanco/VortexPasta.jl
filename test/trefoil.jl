@@ -296,13 +296,13 @@ end
 
 # Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
 # (In theory it shouldn't depend at all...)
-function check_independence_on_ewald_parameter(f, αs; β = 3.5, quad = GaussLegendre(3), params_kws...)
+function check_independence_on_ewald_parameter(f, αs; β = 3.5, quad = GaussLegendre(3), Ls, params_kws...)
     fields_all = map(αs) do α
         kmax = 2 * α * β
         Ns = ceil.(Int, (kmax / π) .* Ls) .+ 2
         compute_filament_velocity_and_streamfunction(
             f;
-            α, Ns, rcut = β / α,
+            α, Ns, rcut = β / α, Ls,
             backend_short = CellListsBackend(2),
             backend_long = NonuniformFFTsBackend(fftw_flags = FFTW.ESTIMATE),  # use FFTW.ESTIMATE to save some time
             quadrature = quad,
