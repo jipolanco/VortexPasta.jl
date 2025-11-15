@@ -271,16 +271,16 @@ end
 function _reconnect_from_cache_serial!(cache::ReconnectFastCache)
     (; crit, cl, nodes, velocities, node_prev, node_next, Ls,) = cache
     @assert crit.nthreads == 1
-    reconnection_count = 0
-    reconnection_length_loss = zero(number_type(nodes))
+    reconnection_count = Ref(0)
+    reconnection_length_loss = Ref(zero(number_type(nodes)))
     CellLists.foreach_pair(cl, nodes) do x⃗, i, j
         info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
         info === nothing && return
         (; is, js, length_before, length_after) = info
         i⁻, i⁺ = is
         j⁻, j⁺ = js
-        reconnection_count += 1
-        reconnection_length_loss += length_before - length_after
+        reconnection_count[] += 1
+        reconnection_length_loss[] += length_before - length_after
         # Reconnect i⁻ -> j⁺ and j⁻ -> i⁺
         @inbounds begin
             node_next[i⁻] = j⁺
@@ -289,7 +289,7 @@ function _reconnect_from_cache_serial!(cache::ReconnectFastCache)
             node_prev[i⁺] = j⁻
         end
     end
-    (; reconnection_count, reconnection_length_loss,)
+    (; reconnection_count = reconnection_count[], reconnection_length_loss = reconnection_length_loss[],)
 end
 
 function _reconnect_from_cache!(cache::ReconnectFastCache)

@@ -135,7 +135,7 @@ function test_trefoil_knot_reconnection(
         ParamsBiotSavart(;
             Γ = 2.0, α, a = 1e-6, Δ = 1/4, rcut, Ls, Ns,
             backend_short = CellListsBackend(2),
-            backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(3)),
+            backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4)),
             quadrature = GaussLegendre(3),
             quadrature_near_singularity = AdaptiveTanhSinh(nlevels = 5),
             lia_segment_fraction = 0.2,
@@ -149,6 +149,7 @@ function test_trefoil_knot_reconnection(
     torsion_integral = similar(times)
     n_reconnect = Ref(0)
     t_reconnect = Ref(0.0)
+    n_reconnections = Ref(0)
 
     function callback(iter)
         local (; fs, t, dt, nstep,) = iter
@@ -177,11 +178,20 @@ function test_trefoil_knot_reconnection(
         tor /= 2π
         push!(torsion_integral, tor)
 
+        if iter.stats.reconnection_count > n_reconnections[]
+            rec_before = n_reconnections[]
+            rec_after = iter.stats.reconnection_count
+            n_reconnections[] = rec_after
+            if VERBOSE
+                @info "Performed $(rec_after - rec_before) reconnections" rec_before rec_after
+            end
+        end
+
         # save_checkpoint("trefoil_$nstep.vtkhdf", iter; refinement = 4, periods = nothing) do io
         #     io["velocity"] = iter.vs
         #     io["streamfunction"] = iter.ψs
         # end
-        # save_checkpoint("trefoil_points_$nstep.vtkhdf", iter; refinement = 1) do io
+        # save_checkpoint("trefoil_points_$nstep.vtkhdf", iter; periods = nothing, refinement = 1) do io
         #     io["velocity"] = iter.vs
         #     io["streamfunction"] = iter.ψs
         # end
