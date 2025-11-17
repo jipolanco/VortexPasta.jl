@@ -57,7 +57,6 @@ function interactions_foreach_source!(f::F, cl::PeriodicCellList, wp, xp, vp, r_
     Ls_half = Ls ./ 2
     r²_cut = r_cut^2
     fill!(wp, 0)
-    backend = KA.get_backend(xp)
     @inbounds Threads.@threads for i in eachindex(xp, vp)
         x⃗ = xp[i]
         CellLists.foreach_source(cl, x⃗) do j
