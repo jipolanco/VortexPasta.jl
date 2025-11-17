@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add initial GPU implementation of cell lists.
+
 ### Fixed
 
 - Fix possible issue with `ReconnectFast` when running in serial mode (`nthreads = 1`).
