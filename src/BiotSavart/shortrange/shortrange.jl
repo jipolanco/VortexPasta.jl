@@ -67,9 +67,9 @@ erf(x::AbstractFloat) = SpecialFunctions.erf(x)
 erf(::Zero) = Zero()
 erfc(::Zero) = true  # in the sense of true == 1
 
-two_over_sqrt_pi(::SIMD.Vec{W,T}) where {W,T} = 2 / sqrt(T(π))
-two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
-two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway
+@inline two_over_sqrt_pi(::SIMD.Vec{W,T}) where {W,T} = 2 / sqrt(T(π))
+@inline two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
+@inline two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway
 
 ewald_screening_function(::Velocity,       ::ShortRange, αr::Real) = erfc(αr) + two_over_sqrt_pi(αr) * αr * exp(-αr^2)
 ewald_screening_function(::Streamfunction, ::ShortRange, αr::Real) = erfc(αr)
@@ -524,98 +524,100 @@ end
 full_integrand(::Velocity, r_inv, r³_inv, qs⃗′, r⃗) = r³_inv * (qs⃗′ × r⃗)
 full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗′
 
-function mask_to_simd_vec(::Type{SIMD.Vec{W, T}}, mask::Unsigned) where {W, T}
-    tup = ntuple(Val(W)) do i
-        T((mask >> (i - 1)) & one(mask))
-    end
-    SIMD.Vec{W, T}(tup)
-end
+@inline function _simd_load_batch(data, x⃗, js::NTuple{W}, m::Integer, sa, sb, Ls, Lhs, rcut²) where {W}
+    (; points, charges) = data
+    points::StructVector
+    charges::StructVector
+    # @assert m <= W
 
-function smatrix_to_simd_vecs(A::SMatrix{W, N, T}) where {W, N, T}
-    ntuple(Val(N)) do j
-        SIMD.Vec{W, T}(Tuple(A[:, j]))
+    N = length(eltype(points))  # typically 3 (number of dimensions)
+    # @assert T <: AbstractFloat
+
+    # Note: all indices in `js` are all expected to be valid (even when m < W), so they can
+    # be used to index `points`, `charges` and `segments`.
+
+    # Fold destination point into periodic lattice.
+    x⃗ = _fold_coordinates_periodic(x⃗, Ls)
+
+    Vec = SIMD.Vec
+    js_vec = Vec(js)
+
+    # Load W points. Note that, even when m < W, all W indices in `js` are expected to be valid.
+    # This is guaranteed by the CellLists.foreach_source implementation in particular.
+    s⃗_vec = map(StructArrays.components(points)) do xs
+        @inline
+        @inbounds SIMD.vgather(xs, js_vec)  # load non-contiguous values
+    end::NTuple{N, Vec{W}}
+
+    # Check that all points have already been folded in [0, L]
+    # (This is assumed further below.)
+    # foreach(s⃗_vec, Ls) do xs, L
+    #     @assert all(0 ≤ xs) && all(xs < L)
+    # end
+
+    # Determine distances between x⃗ and source points s⃗_vec.
+    # Note that we want the _minimal_ distance in the periodic lattice.
+    r⃗s_simd = map(s⃗_vec, Tuple(x⃗), Ls, Lhs) do svec, x, L, Lh
+        @inline
+        # Assuming both source and destination points are in [0, L], we need max two
+        # operations to obtain their minimal distance in the periodic lattice.
+        local rs = svec - x
+        rs = SIMD.vifelse(rs ≥ +Lh, rs - L, rs)
+        rs = SIMD.vifelse(rs < -Lh, rs + L, rs)
+        # @assert all(-Lh ≤ rs) && all(rs < Lh)
+        rs
+    end::NTuple{N, Vec{W}}
+
+    q⃗s_simd = map(StructArrays.components(charges)) do qs
+        @inline
+        @inbounds SIMD.vgather(qs, js_vec)
+    end::NTuple{N, Vec}
+
+    r²s_simd = sum(abs2, r⃗s_simd)::Vec{W}
+
+    # Mask out elements satisfying at least one of the criteria:
+    # - their distance is beyond rcut
+    # - their index in 1:W is in (m + 1):W
+    # - if excluding local segments, if they are located on one of the local segments (sa or sb)
+
+    one_to_W = Vec(ntuple(identity, Val(W)))
+    mask_simd = (r²s_simd ≤ rcut²) & (one_to_W ≤ m)
+
+    if sa !== nothing && sb !== nothing
+        @inbounds for i in 1:m
+            seg = data.segments[js[i]]
+            if seg === sa || seg === sb
+                mask_simd = Base.setindex(mask_simd, false, i)
+            end
+        end
     end
+
+    (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd)
 end
 
 # Periodic case (with Ewald summation)
 function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, sb, Lhs)
     (; Ls, α,) = params.common
-    (; points, charges, segments,) = cache.data
     @assert !is_open_domain(Ls)
-    N = length(x⃗)  # number of dimensions (= 3)
-    rcut² = params.rcut_sq
     # with_velocity = any(x -> first(x) === Velocity(), vecs)
 
-    # We use SIMD.jl and MVector/MMatrix to enforce the use of SIMD.
+    # We use SIMD.jl to enforce the use of SIMD.
     # This enables important gains in modern CPUs, especially in the computation of erf/erfc.
     T = typeof(α)
     @assert T <: AbstractFloat
     W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
-    Vec = SIMD.Vec{W, T}
 
-    r²s = MVector{W, T}(undef)
+    vecs_ref = Ref(vecs)
 
-    NW = N * W
-    r⃗s = MMatrix{W, N, T, NW}(undef)
-    q⃗s = similar(r⃗s)
-
-    it = nearby_charges(cache, x⃗)
-    y = iterate(it)
-
-    while y !== nothing
-        i = 0
-        mask = zero(UInt)  # set to 1 the values that should be computed (0 means ignored)
-        @assert 8 * sizeof(mask) ≥ W  # this is basically always the case, but just to be sure...
-
-        # Collect (up to) W charges, to perform operation over W charges at once.
-        @inbounds while i < W && y !== nothing
-            i += 1
-            charge_idx, state = y
-            s⃗ = points[charge_idx]
-            q⃗ = charges[charge_idx]
-            seg = segments[charge_idx]
-            is_local_segment = if sa !== nothing && sb !== nothing  # if we're excluding local segments from short-range integration
-                seg === sa || seg === sb
-            else  # if we want to include local segments in the integration
-                false
-            end
-            r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
-            r² = sum(abs2, r⃗)
-            for j ∈ eachindex(r⃗, q⃗)
-                qj = real(q⃗[j])  # just in case data is complex
-                q⃗s[i, j] = qj
-                rj = r⃗[j]
-                r⃗s[i, j] = rj
-            end
-            r²s[i] = r²
-            # Ignore this element if this is a local segment or if we're beyond the cut-off distance.
-            include_element = !is_local_segment && r² ≤ rcut²
-            if include_element
-                mask = mask | (one(mask) << (i - 1))  # set mask to 1 for this element
-            end
-            y = iterate(it, state)
-        end
-
-        while i < W
-            # If we're here, it's because the iterator finished before being able to read W
-            # elements. We simply set the missing elements of q⃗s and r⃗s to zero.
-            # @assert y === nothing
-            i += 1
-            @inbounds for j ∈ axes(q⃗s, 2)
-                q⃗s[i, j] = 0
-                r⃗s[i, j] = 0
-            end
-        end
+    foreach_charge(cache, x⃗; batch_size = Val(W)) do js, m
+        @inline
+        rcut² = params.rcut_sq
+        (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd) = _simd_load_batch(cache.data, x⃗, js, m, sa, sb, Ls, Lhs, rcut²)
 
         # There's nothing interesting to compute if mask is fully zero.
-        iszero(mask) && continue
+        iszero(SIMD.bitmask(mask_simd)) && return
 
-        # Convert mask to SIMD vector.
-        mask_simd = mask_to_simd_vec(SIMD.Vec{W, Bool}, mask)
-
-        # Convert MVector to SIMD vector.
         # The next operations should all take advantage of SIMD.
-        r²s_simd = Vec(Tuple(r²s))
         rs = sqrt(r²s_simd)
         rs_inv = inv(rs)
         r³s_inv = inv(r²s_simd * rs)
@@ -624,14 +626,7 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
         αr_sq = αr * αr
         exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
 
-        # Convert SMatrix data onto a tuple of Vec for more explicit SIMD.
-        # A single tuple represents a single vector component (e.g. rx, ry and rz).
-        # It makes sense to use this to describe vector values (e.g. separation vector,
-        # tangent vector, velocity).
-        q⃗s_simd = smatrix_to_simd_vecs(SMatrix(q⃗s))
-        r⃗s_simd = smatrix_to_simd_vecs(SMatrix(r⃗s))
-
-        vecs = map(vecs) do (quantity, u⃗)
+        vecs_ref[] = map(vecs_ref[]) do (quantity, u⃗)
             @inline
             δu⃗_simd = short_range_integrand(quantity, erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)::NTuple{3, SIMD.Vec}
             δu⃗_data = map(δu⃗_simd) do component
@@ -644,7 +639,7 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
         end
     end
 
-    vecs
+    vecs_ref[]
 end
 
 # Note: all input values may be SIMD types (Vec or tuple of Vec).
