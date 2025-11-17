@@ -14,24 +14,30 @@ using KernelAbstractions: @kernel, @index, @Const
     # throws errors. It can silently give a wrong result if the values are not representable
     # by an Int, but that will never be the case in practice here (since 0 ≤ x/rcut < L/rcut
     # and L/rcut is very small compared to typemax(Int) = 2^63 - 1).
-    clamp(1 + unsafe_trunc(Int, r / rcut), 1, N)  # make sure the index is in 1:N
+    determine_cell_index_folded(x, rcut, N)
 end
 
+## ========================================================================================== ##
+
 @kernel function set_elements_kernel!(
-        get_coordinate::F, head_indices::PaddedArray, next_index, @Const(xp), rs_cell, Ls,
+        get_coordinate::F, head_indices::PaddedArray, next_index, @Const(xp), rs_cell, Ls, folded::Val,
     ) where {F}
     n = @index(Global, Linear)
     x⃗ = @inline get_coordinate(@inbounds xp[n])  # usually get_coordinate === identity
     head_indices_data = parent(head_indices)   # full data associated to padded array
     nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
-    inds = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, size(head_indices))
+    if folded === Val(true)
+        inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(head_indices))
+    else
+        inds = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, size(head_indices))
+    end
     I = CartesianIndex(inds .+ nghosts)  # shift by number of ghost cells, since we access raw data associated to padded array
     @inbounds head_old = Atomix.@atomicswap :monotonic head_indices_data[I] = n  # returns the old value
     @inbounds next_index[n] = head_old  # the old head now comes after the new element
     nothing
 end
 
-function _set_elements!(backend::GPU, get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector) where {F}
+function _set_elements!(backend::GPU, get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector, folded::Val) where {F}
     (; next_index, head_indices, Ls, rs_cell,) = cl
     head_indices_data = parent(head_indices)   # full data associated to padded array
     fill!(head_indices_data, EMPTY)
@@ -41,8 +47,43 @@ function _set_elements!(backend::GPU, get_coordinate::F, cl::PeriodicCellList, x
     Base.require_one_based_indexing(next_index)
     groupsize = 256
     kernel! = set_elements_kernel!(backend, groupsize)
-    kernel!(get_coordinate, head_indices, next_index, xp, rs_cell, Ls; ndrange = size(xp))
+    kernel!(get_coordinate, head_indices, next_index, xp, rs_cell, Ls, folded; ndrange = size(xp))
     pad_periodic!(cl.head_indices)
     cl
+end
+
+## ========================================================================================== ##
+
+@kernel function foreach_pair_kernel(
+        f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
+        rs_cell, Ls,
+        ::Val{M}, folded::Val,  # = number of subdivisions (equal to number of ghost cells)
+    ) where {F <: Function, M}
+    i = @index(Global, Linear)
+    x⃗ = @inbounds xp_dest[i]
+    if folded === Val(true)
+        inds_central = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(head_indices))
+    else
+        inds_central = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, size(head_indices))
+    end
+    I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
+    cell_indices = CartesianIndices(map(i -> (i - M):(i + M), Tuple(I₀)))
+    @inbounds for I in cell_indices
+        j = head_indices[I]
+        while j != EMPTY
+            @inline f(x⃗, i, j)
+            j = next_index[j]
+        end
+    end
+    nothing
+end
+
+function _foreach_pair(backend::GPU, f::F, cl, xp_dest, folded::Val) where {F}
+    (; head_indices, next_index, Ls, rs_cell,) = cl
+    M = subdivisions(cl)
+    groupsize = 256
+    kernel = foreach_pair_kernel(backend, groupsize)
+    kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, Val(M), folded; ndrange = size(xp_dest))
+    nothing
 end
 
