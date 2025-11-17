@@ -561,7 +561,7 @@ full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗
         @inline
         # Assuming both source and destination points are in [0, L], we need max two
         # operations to obtain their minimal distance in the periodic lattice.
-        local rs = svec - x
+        local rs = x - svec
         rs = SIMD.vifelse(rs ≥ +Lh, rs - L, rs)
         rs = SIMD.vifelse(rs < -Lh, rs + L, rs)
         # @assert all(-Lh ≤ rs) && all(rs < Lh)
