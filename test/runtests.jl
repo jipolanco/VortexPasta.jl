@@ -12,13 +12,15 @@ using InteractiveUtils: versioninfo
 
 # Wraps each test file in a separate module, to avoid definition clashes and to make sure
 # that each file can also be run as a standalone script.
-macro includetest(path::String)
+macro includetest(testname::String, path::String)
     modname = Symbol("Mod_" * replace(path, '.' => '_'))
     escname = esc(modname)
     ex = quote
-        module $escname
-            elapsedtime = time_ns()
-            $escname.include($path)
+        module $escname; end  # create empty module where test will be evaluated (to avoid polluting main module)
+        let elapsedtime = time_ns()
+            @testset $testname begin
+                $escname.include($path)  # evaluate test in empty module
+            end
             elapsedtime = (time_ns() - elapsedtime) / 1e9
             printstyled(" * Completed $(rpad($path, 20))"; bold = true, color = :light_green)
             printstyled(" $elapsedtime s\n"; color = :light_green)
@@ -36,38 +38,38 @@ println()
 
 @info "Running tests with $(Threads.nthreads()) threads"
 
-@testset "VortexPasta.jl" begin
-    @includetest "plots.jl"
-    @includetest "synthetic_fields.jl"
-    @includetest "constants.jl"
-    @includetest "vector_of_vector.jl"
-    @includetest "padded_arrays.jl"
-    @includetest "cell_lists.jl"
-    @includetest "splines.jl"
-    @includetest "filaments.jl"
-    @includetest "min_distance.jl"
-    @includetest "refinement.jl"
-    @includetest "hdf5.jl"
-    @includetest "ring.jl"
-    @includetest "background_vorticity.jl"
+@testset "VortexPasta.jl" verbose=true begin
+    @includetest("Plots", "plots.jl")
+    @includetest("Synthetic fields", "synthetic_fields.jl")
+    @includetest("Constants", "constants.jl")
+    @includetest("VectorOfVector", "vector_of_vector.jl")
+    @includetest("Padded arrays", "padded_arrays.jl")
+    @includetest("Cell lists", "cell_lists.jl")
+    @includetest("Splines", "splines.jl")
+    @includetest("Filaments", "filaments.jl")
+    @includetest("Minimum distance", "min_distance.jl")
+    @includetest("Refinement", "refinement.jl")
+    @includetest("FilamentIO", "hdf5.jl")
+    @includetest("Vortex ring", "ring.jl")
+    @includetest("Background vorticity", "background_vorticity.jl")
     # -- Tests with timestepping start here -- #
-    @includetest "inject_filaments.jl"
-    @includetest "ring_lia.jl"
-    @includetest "ring_energy.jl"
-    @includetest "ring_perturbed.jl"
-    @includetest "ring_collision.jl"
-    @includetest "ring_stretching.jl"
-    @includetest "ring_friction.jl"
-    @includetest "forcing.jl"
-    @includetest "checkpoint.jl"
-    @includetest "remove_small_filaments.jl"
-    @includetest "minimal_energy.jl"
-    @includetest "trefoil.jl"
-    @includetest "links.jl"
-    @includetest "infinite_lines.jl"
-    @includetest "imex.jl"
-    @includetest "leapfrogging.jl"
-    @includetest "kelvin_waves.jl"
-    @includetest "forced_lines.jl"
-    @includetest "reconnections.jl"
+    @includetest("Inject filaments", "inject_filaments.jl")
+    @includetest("LIA ring", "ring_lia.jl")
+    @includetest("Ring energy", "ring_energy.jl")
+    @includetest("Perturbed ring", "ring_perturbed.jl")
+    @includetest("Ring collision", "ring_collision.jl")
+    @includetest("Ring stretching", "ring_stretching.jl")
+    @includetest("Ring friction", "ring_friction.jl")
+    @includetest("Forcing", "forcing.jl")
+    @includetest("Checkpoints", "checkpoint.jl")
+    @includetest("Remove small filaments", "remove_small_filaments.jl")
+    @includetest("Minimal energy", "minimal_energy.jl")
+    @includetest("Trefoil knot", "trefoil.jl")
+    @includetest("Links", "links.jl")
+    @includetest("Infinite lines", "infinite_lines.jl")
+    @includetest("IMEX", "imex.jl")
+    @includetest("Leapfrogging rings", "leapfrogging.jl")
+    @includetest("Kelvin waves", "kelvin_waves.jl")
+    @includetest("Forced lines", "forced_lines.jl")
+    @includetest("Reconnections", "reconnections.jl")
 end
