@@ -60,14 +60,14 @@ end
 end
 
 @inline function _foreach_charge(
-        f::F, batch_size::Val{W}, c::NaiveShortRangeCache, x⃗::Vec3
-    ) where {F, W}
-    inds = MVector{W, Int}(undef)
+        f::F, ::Val{batch_size}, c::NaiveShortRangeCache, x⃗::Vec3
+    ) where {F, batch_size}
+    inds = MVector{batch_size, Int}(undef)
     m = 0
     for j in nearby_charges(c, x⃗)
         @inbounds inds[m += 1] = j
-        if m == W
-            @inline f(Tuple(inds), W)
+        if m == batch_size
+            @inline f(Tuple(inds), batch_size)
             m = 0
         end
     end
