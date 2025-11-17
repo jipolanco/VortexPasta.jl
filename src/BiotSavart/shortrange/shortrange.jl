@@ -490,7 +490,7 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
     vecs_ref = Ref(vecs)
     # Fold destination point into periodic lattice.
     x⃗ = Filaments.fold_coordinates_periodic(x⃗, Ls)
-    foreach_charge(cache, x⃗) do j
+    foreach_charge(cache, x⃗; folded = Val(true)) do j
         @inbounds begin
             s⃗ = points[j]
             # @assert all(0 .≤ s⃗ .< Ls)  # check that points have already been folded
@@ -625,7 +625,7 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
 
     vecs_ref = Ref(vecs)
 
-    foreach_charge(cache, x⃗; batch_size = Val(W)) do js, m
+    foreach_charge(cache, x⃗; batch_size = Val(W), folded = Val(true)) do js, m
         @inline
         rcut² = params.rcut_sq
         (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd) = _simd_load_batch(cache.data, x⃗, js, m, sa, sb, Ls, Lhs, rcut²)

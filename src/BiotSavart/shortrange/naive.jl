@@ -44,7 +44,8 @@ end
 
 @inline function foreach_charge(
         f::F, c::NaiveShortRangeCache, x⃗::Vec3;
-        batch_size::Union{Nothing, Val} = nothing  # see CellLists.foreach_source for details on this argument
+        batch_size::Union{Nothing, Val} = nothing,  # see CellLists.foreach_source for details on this argument
+        folded = Val(false),  # ignored (used in CellLists)
     ) where {F <: Function}
     _foreach_charge(f, batch_size, c, x⃗)
     nothing
