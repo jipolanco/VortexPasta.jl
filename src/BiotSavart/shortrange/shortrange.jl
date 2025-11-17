@@ -552,9 +552,6 @@ full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗
     # Note: all indices in `js` are all expected to be valid (even when m < W), so they can
     # be used to index `points`, `charges` and `segments`.
 
-    # Fold destination point into periodic lattice.
-    x⃗ = Filaments.fold_coordinates_periodic(x⃗, Ls)
-
     Vec = SIMD.Vec
     js_vec = Vec(js)
 
@@ -624,6 +621,9 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
     W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
 
     vecs_ref = Ref(vecs)
+
+    # Fold destination point into periodic lattice.
+    x⃗ = Filaments.fold_coordinates_periodic(x⃗, Ls)
 
     foreach_charge(cache, x⃗; batch_size = Val(W), folded = Val(true)) do js, m
         @inline
