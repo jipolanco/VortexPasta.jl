@@ -485,11 +485,15 @@ end
 function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T <: AbstractFloat}
     (; Ls,) = params.common
     (; points, charges, segments,) = cache.data
+    N = length(Ls)
     rcut² = params.rcut_sq
     vecs_ref = Ref(vecs)
+    # Fold destination point into periodic lattice.
+    x⃗ = _fold_coordinates_periodic(x⃗, Ls)
     foreach_charge(cache, x⃗) do j
         @inbounds begin
             s⃗ = points[j]
+            # @assert all(0 .≤ s⃗ .< Ls)  # check that points have already been folded
             qs⃗′ = charges[j]
             seg = segments[j]
         end
@@ -498,7 +502,19 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
         else  # if we want to include local segments in the integration
             false
         end
-        r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
+        # r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
+        # The following is cheaper than deperiodise_separation, but assumes that both points
+        # are already in the main periodic cell.
+        r⃗ = ntuple(Val(N)) do d
+            local r = @inbounds x⃗[d] - s⃗[d]
+            local L, Lh = @inbounds Ls[d], Lhs[d]
+            # Assuming both source and destination points are in [0, L], we need max two
+            # operations to obtain their minimal distance in the periodic lattice.
+            r = ifelse(r ≥ +Lh, r - L, r)
+            r = ifelse(r < -Lh, r + L, r)
+            # @assert -Lh ≤ r < Lh
+            r
+        end
         r² = sum(abs2, r⃗)
         if is_local_segment || r² > rcut²
             return
@@ -571,7 +587,7 @@ full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗
     q⃗s_simd = map(StructArrays.components(charges)) do qs
         @inline
         @inbounds SIMD.vgather(qs, js_vec)
-    end::NTuple{N, Vec}
+    end::NTuple{N, Vec{W}}
 
     r²s_simd = sum(abs2, r⃗s_simd)::Vec{W}
 
