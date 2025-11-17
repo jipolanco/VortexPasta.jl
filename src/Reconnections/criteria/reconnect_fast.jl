@@ -125,7 +125,7 @@ function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFi
     end
     @assert n == Np
     Base.require_one_based_indexing(nodes)
-    CellLists.set_elements!(cl, nodes)
+    CellLists.set_elements!(cl, nodes; folded = Val(true))
     cache
 end
 
@@ -275,7 +275,7 @@ function _reconnect_from_cache_serial!(cache::ReconnectFastCache)
     @assert crit.nthreads == 1
     reconnection_count = Ref(0)
     reconnection_length_loss = Ref(zero(number_type(nodes)))
-    CellLists.foreach_pair(cl, nodes) do x⃗, i, j
+    CellLists.foreach_pair(cl, nodes; folded = Val(true)) do x⃗, i, j
         info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
         info === nothing && return
         (; is, js, length_before, length_after) = info
@@ -313,7 +313,7 @@ function _reconnect_from_cache!(cache::ReconnectFastCache)
     end
 
     # Perform reconnections by exchanging node connectivities.
-    CellLists.foreach_pair(cl, nodes) do x⃗, i, j
+    CellLists.foreach_pair(cl, nodes; folded = Val(true)) do x⃗, i, j
         info = should_reconnect(crit, nodes, velocities, i, j; Ls, node_prev, node_next)
         info === nothing && return
         (; is, js, length_before, length_after) = info

@@ -185,8 +185,12 @@ end
     while x ≥ L
         x -= L
     end
-    # Here unsafe_trunc(Int, ⋅) is used instead of floor(Int, ⋅) because it should be
-    # faster.
+    determine_cell_index_folded(x, rcut, N)
+end
+
+# Like determine_cell_index, but assumes that `x` is already in [0, L).
+@inline function determine_cell_index_folded(x, rcut, N)
+    # Here unsafe_trunc(Int, ⋅) is used instead of floor(Int, ⋅) because it should be faster.
     # For non-negative values, both should give the same result.
     # The unsafe_trunc function generally uses a single intrinsic CPU instruction and never
     # throws errors. It can silently give a wrong result if the values are not representable
@@ -195,24 +199,39 @@ end
     clamp(1 + unsafe_trunc(Int, x / rcut), 1, N)  # make sure the index is in 1:N
 end
 
-@inline function get_neighbouring_cell_indices(cl::PeriodicCellList, x⃗)
+@inline function get_neighbouring_cell_indices(cl::PeriodicCellList, x⃗, folded::Val = Val(false))
     (; rs_cell, Ls) = cl
-    inds_central = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
+    if folded === Val(true)
+        inds_central = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(cl))
+    else
+        inds_central = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
+    end
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
     M = subdivisions(cl)
     CartesianIndices(map(i -> (i - M):(i + M), Tuple(I₀)))
 end
 
 """
-    CellLists.set_elements!(cl::PeriodicCellList, xp::AbstractVector)
+    CellLists.set_elements!([get_coordinate::Function], cl::PeriodicCellList, xp::AbstractVector; folded = Val(false))
 
 Set all elements of the cell list.
 
-Here `xp` is a vector of spatial locations.
+In general `xp` is a vector of spatial locations.
+
+Optionally, a `get_coordinate` function can be passed, which will be applied to each `xp[j]` in order to obtain a coordinate.
+By default this is `identity`.
+
+Moreover, one may pass `folded = Val(true)` in case all points in `xp` have been folded into
+the main periodic cell (i.e. `x⃗ ∈ [0, L]ᵈ`), which can speed-up computations. **This is a
+dangerous option**: if points haven't been really folded, this lead to wrong results or crashes.
 
 This function resets the cell list, removing all previously existent points.
 """
-function set_elements!(get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector) where {F}
+function set_elements!(
+        get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector;
+        folded::Val{Folded} = Val(false),
+    ) where {F, Folded}
+    Folded::Bool
     (; backend, device) = cl
     # In fact this fails with PseudoGPU, which uses standard CPU arrays:
     # typeof(KA.get_backend(xp)) === typeof(backend) ||
@@ -220,12 +239,12 @@ function set_elements!(get_coordinate::F, cl::PeriodicCellList, xp::AbstractVect
     device_current = KA.device(backend)
     device == device_current ||
         error(lazy"the currently selected device (id = $device_current) is not the same that was used to create the PeriodicCellList (id = $device)")
-    _set_elements!(backend, get_coordinate, cl, xp)
+    _set_elements!(backend, get_coordinate, cl, xp, folded)
 end
 
-set_elements!(cl::PeriodicCellList, xp::AbstractVector) = set_elements!(identity, cl, xp)
+set_elements!(cl::PeriodicCellList, xp::AbstractVector; kws...) = set_elements!(identity, cl, xp; kws...)
 
-function _set_elements!(::CPU, get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector) where {F}
+function _set_elements!(::CPU, get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector, folded::Val) where {F}
     (; next_index, head_indices, Ls, rs_cell,) = cl
     head_indices_data = parent(head_indices)   # full data associated to padded array
     nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
@@ -238,7 +257,11 @@ function _set_elements!(::CPU, get_coordinate::F, cl::PeriodicCellList, xp::Abst
     Base.require_one_based_indexing(next_index)
     @inbounds Threads.@threads for n in 1:Np
         x⃗ = @inline get_coordinate(xp[n])  # usually get_coordinate === identity
-        inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
+        if folded === Val(true)
+            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(cl))
+        else
+            inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
+        end
         I = CartesianIndex(inds .+ nghosts)  # shift by number of ghost cells, since we access raw data associated to padded array
         head_old = Atomix.@atomicswap :monotonic head_indices_data[I] = n  # returns the old value
         # head_old = head_indices[I]
@@ -250,7 +273,7 @@ function _set_elements!(::CPU, get_coordinate::F, cl::PeriodicCellList, xp::Abst
 end
 
 """
-    CellLists.foreach_pair(f::Function, cl::PeriodicCellList, xp_dest::AbstractVector)
+    CellLists.foreach_pair(f::Function, cl::PeriodicCellList, xp_dest::AbstractVector; folded = Val(false))
 
 Iterate over all point pairs within the chosen cut-off distance.
 
@@ -265,7 +288,10 @@ be done within this function.
 
 On CPUs this function is parallelised using threads. Parallelisation is done at the level of
 all destination points `xp_dest`, ensuring that only a single thread can write to a location
-`vp[i]` (in other words, atomics are not needed).
+`vp[i]` (in other words, atomics are not needed). This function also works on GPUs.
+
+One may set `folded = Val(true)` if points in `xp_dest` have been previously folded.
+See [`set_elements!`](@ref) for more details.
 
 This function should be called after [`CellLists.set_elements!`](@ref).
 
@@ -308,19 +334,20 @@ julia> CellLists.foreach_pair(cl, xp_dest) do x⃗, i, j
        end
 ```
 """
-function foreach_pair(f::F, cl::PeriodicCellList, xp_dest::AbstractVector) where {F <: Function}
+function foreach_pair(f::F, cl::PeriodicCellList, xp_dest::AbstractVector; folded::Val{Folded} = Val(false)) where {F <: Function, Folded}
+    Folded::Bool
     (; backend) = cl
-    _foreach_pair(backend, f, cl, xp_dest)
+    _foreach_pair(backend, f, cl, xp_dest, folded)
     nothing
 end
 
-function _foreach_pair(::CPU, f::F, cl, xp_dest) where {F}
+function _foreach_pair(::CPU, f::F, cl, xp_dest, folded::Val) where {F}
     (; head_indices, next_index) = cl
     Threads.@threads :dynamic for i in eachindex(xp_dest)
         @inbounds x⃗ = xp_dest[i]
         # Iterate over "active" cells around the destination point.
         # TODO: exclude "corner" cells which are for sure beyond the cut-off distance?
-        cell_indices = get_neighbouring_cell_indices(cl, x⃗)
+        cell_indices = get_neighbouring_cell_indices(cl, x⃗, folded)
         @inbounds for I in cell_indices
             j = head_indices[I]
             while j != EMPTY
@@ -333,7 +360,7 @@ function _foreach_pair(::CPU, f::F, cl, xp_dest) where {F}
 end
 
 """
-    CellLists.foreach_source(f::Function, cl::PeriodicCellList, x⃗_dest; batch_size = nothing)
+    CellLists.foreach_source(f::Function, cl::PeriodicCellList, x⃗_dest; batch_size = nothing, folded = Val(false))
 
 Iterate over source points which are close to a given destination point `x⃗_dest`.
 
@@ -346,6 +373,9 @@ a source point.
 
 Performance-wise, this function seems to give similar performance to `foreach_pair` on CPUs.
 On GPUs one may prefer to use `foreach_pair` which is more adapted for GPU computing.
+
+One may set `folded = Val(true)` if `x⃗_dest` has been previously folded.
+See [`set_elements!`](@ref) for more details.
 
 # Iterating over batches
 
@@ -364,19 +394,21 @@ coordinates (which is convenient in the context of SIMD).
 @inline function foreach_source(
         f::F, cl::PeriodicCellList, x⃑_dest;
         batch_size::Union{Nothing, Val} = nothing,
-    ) where {F <: Function}
+        folded::Val{Folded} = Val(false),
+    ) where {F <: Function, Folded}
+    Folded::Bool
     (; backend) = cl
     if batch_size === nothing
-        _foreach_source(backend, f, cl, x⃑_dest)
+        _foreach_source(backend, f, cl, x⃑_dest, folded)
     else
-        _foreach_source_batched(backend, f, cl, x⃑_dest, batch_size)
+        _foreach_source_batched(backend, f, cl, x⃑_dest, batch_size, folded)
     end
     nothing
 end
 
-@inline function _foreach_source(::CPU, f::F, cl, x⃗) where {F}
+@inline function _foreach_source(::CPU, f::F, cl, x⃗, folded::Val) where {F}
     (; head_indices, next_index) = cl
-    cell_indices = get_neighbouring_cell_indices(cl, x⃗)
+    cell_indices = get_neighbouring_cell_indices(cl, x⃗, folded)
     # Iterate over "active" cells around the destination point.
     # TODO: exclude "corner" cells which are for sure beyond the cut-off distance?
     @inbounds for I in cell_indices
@@ -389,10 +421,10 @@ end
     nothing
 end
 
-@inline function _foreach_source_batched(::CPU, f::F, cl, x⃗, ::Val{batch_size}) where {F, batch_size}
+@inline function _foreach_source_batched(::CPU, f::F, cl, x⃗, ::Val{batch_size}, folded::Val) where {F, batch_size}
     (; head_indices, next_index) = cl
     IndexType = eltype(head_indices)
-    cell_indices = get_neighbouring_cell_indices(cl, x⃗)
+    cell_indices = get_neighbouring_cell_indices(cl, x⃗, folded)
     inds = MVector{batch_size, IndexType}(undef)
     m = 0
     @inbounds for I in cell_indices
