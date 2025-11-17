@@ -26,7 +26,6 @@ using ..Filaments:
     update_coefficients!,
     find_min_distance,
     filament_length,
-    deperiodise_separation,
     number_type,
     check_nodes
 

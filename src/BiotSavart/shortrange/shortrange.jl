@@ -489,7 +489,7 @@ function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa,
     rcut² = params.rcut_sq
     vecs_ref = Ref(vecs)
     # Fold destination point into periodic lattice.
-    x⃗ = _fold_coordinates_periodic(x⃗, Ls)
+    x⃗ = Filaments.fold_coordinates_periodic(x⃗, Ls)
     foreach_charge(cache, x⃗) do j
         @inbounds begin
             s⃗ = points[j]
@@ -553,7 +553,7 @@ full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗
     # be used to index `points`, `charges` and `segments`.
 
     # Fold destination point into periodic lattice.
-    x⃗ = _fold_coordinates_periodic(x⃗, Ls)
+    x⃗ = Filaments.fold_coordinates_periodic(x⃗, Ls)
 
     Vec = SIMD.Vec
     js_vec = Vec(js)

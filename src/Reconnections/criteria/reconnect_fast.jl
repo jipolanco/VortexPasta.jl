@@ -95,7 +95,7 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
 end
 
 function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFilament}, vs)
-    (; cl, nodes, velocities, node_next, node_prev, reconnected,) = cache
+    (; cl, Ls, nodes, velocities, node_next, node_prev, reconnected,) = cache
     # If `use_velocity` is disabled, then we expect the `vs` input to be `nothing`.
     @assert (vs === nothing) == (cache.crit.use_velocity == false)
     Np = sum(length, fs)  # total number of filament nodes
@@ -112,7 +112,7 @@ function _update_cache!(cache::ReconnectFastCache, fs::AbstractVector{<:ClosedFi
         xs = Filaments.nodes(f)
         for (j, x) in pairs(xs)
             n += 1
-            nodes[n] = x
+            nodes[n] = Filaments.fold_coordinates_periodic(x, Ls)  # make sure points are in [0, L]³
             if vs !== nothing
                 velocities[n] = vs[i][j]
             end
@@ -146,7 +146,7 @@ function should_reconnect(crit::ReconnectFast, nodes, velocities, i, j; Ls, node
     Lhs = map(L -> L / 2, Ls)
     x⃗ = @inbounds nodes[i]
     y⃗ = @inbounds nodes[j]
-    d⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Lhs)
+    d⃗ = Filaments.deperiodise_separation_folded(x⃗ - y⃗, Ls, Lhs)
     d² = sum(abs2, d⃗)
 
     if d² > dist_sq
@@ -167,16 +167,16 @@ function should_reconnect(crit::ReconnectFast, nodes, velocities, i, j; Ls, node
     # For this, we want to find the nearest pair of segments containing points (i, j).
     # There are 2×2 = 4 possible combinations.
     #
-    # We use deperiodise_separation just in case we're at the start or the end of an
+    # We use deperiodise_separation_folded just in case we're at the start or the end of an
     # infinite filament with non-zero end-to-end offset (i.e. an unclosed filament).
     # We could avoid this if we included points `begin - 1` and `end + 1` in the `nodes` vector
     # (but this might introduce other complications).
     i_prev, i_next = node_prev[i], node_next[i]
     j_prev, j_next = node_prev[j], node_next[j]
-    x⃗_prev = x⃗ + deperiodise_separation(nodes[i_prev] - x⃗, Ls, Lhs)  # this is usually just nodes[i_prev]
-    x⃗_next = x⃗ + deperiodise_separation(nodes[i_next] - x⃗, Ls, Lhs)
-    y⃗_prev = y⃗ + deperiodise_separation(nodes[j_prev] - y⃗, Ls, Lhs)
-    y⃗_next = y⃗ + deperiodise_separation(nodes[j_next] - y⃗, Ls, Lhs)
+    x⃗_prev = x⃗ + Filaments.deperiodise_separation_folded(nodes[i_prev] - x⃗, Ls, Lhs)  # this is usually just nodes[i_prev]
+    x⃗_next = x⃗ + Filaments.deperiodise_separation_folded(nodes[i_next] - x⃗, Ls, Lhs)
+    y⃗_prev = y⃗ + Filaments.deperiodise_separation_folded(nodes[j_prev] - y⃗, Ls, Lhs)
+    y⃗_next = y⃗ + Filaments.deperiodise_separation_folded(nodes[j_next] - y⃗, Ls, Lhs)
 
     # Segment midpoints
     x⃗_mid_prev = (x⃗_prev + x⃗) ./ 2
@@ -211,7 +211,9 @@ function should_reconnect(crit::ReconnectFast, nodes, velocities, i, j; Ls, node
         px, py = case
         x⃗_mid = px[5]
         y⃗_mid = py[5]
-        d⃗_seg = deperiodise_separation(x⃗_mid - y⃗_mid, Ls, Lhs)
+        # Note: points x⃗_prev, x⃗_next, x⃗_mid, etc... are not necessarily in the main
+        # periodic box, so we can't use deperiodise_separation_folded.
+        d⃗_seg = Filaments.deperiodise_separation(x⃗_mid - y⃗_mid, Ls, Lhs)
         d²_seg = sum(abs2, d⃗_seg)
         if d²_seg < d²_seg_min
             ncase_best = ncase
@@ -225,8 +227,8 @@ function should_reconnect(crit::ReconnectFast, nodes, velocities, i, j; Ls, node
 
     # Separation of segments after reconnection.
     # Often, of these two is exactly equal to the d² computed above.
-    δa² = sum(abs2, deperiodise_separation(y⃗⁺ - x⃗⁻, Ls, Lhs))
-    δb² = sum(abs2, deperiodise_separation(x⃗⁺ - y⃗⁻, Ls, Lhs))
+    δa² = sum(abs2, Filaments.deperiodise_separation(y⃗⁺ - x⃗⁻, Ls, Lhs))
+    δb² = sum(abs2, Filaments.deperiodise_separation(x⃗⁺ - y⃗⁻, Ls, Lhs))
     if min(δa², δb²) < d²
         # If one of the distances is smaller than d, it means that the original (i, j)
         # pair is not the minimum distance between nodes, and there might be a better

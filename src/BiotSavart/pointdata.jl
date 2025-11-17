@@ -172,23 +172,8 @@ function _add_point_charges!(data::PointData, f, Ls, n::Int, ::NoQuadrature)
     n
 end
 
-@inline function _fold_coordinates_periodic(x::Real, L::Real)
-    L = oftype(x, L)
-    while x ≥ L
-        x -= L
-    end
-    while x < zero(x)
-        x += L
-    end
-    x
-end
-
-@inline _fold_coordinates_periodic(x::Real, L::Infinity) = x
-
-@inline _fold_coordinates_periodic(x::Vec3, Ls) = map(_fold_coordinates_periodic, x, Vec3(Ls))::typeof(x)
-
 function add_pointcharge!(data::PointData, X::Vec3, Q::Vec3, s::Segment, Ls::NTuple{3}, i::Int)
-    @inbounds data.points[i] = _fold_coordinates_periodic(X, Ls)
+    @inbounds data.points[i] = Filaments.fold_coordinates_periodic(X, Ls)
     @inbounds data.charges[i] = Q
     @inbounds data.segments[i] = s
     data
