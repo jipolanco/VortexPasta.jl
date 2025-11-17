@@ -9,6 +9,8 @@ permissions:
 jobs:
   bench:
     runs-on: ubuntu-latest
+    env:
+      JULIA_NUM_THREADS: 4
     steps:
       - uses: MilesCranmer/AirspeedVelocity.jl@action-v1
         with:
