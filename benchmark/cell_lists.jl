@@ -6,6 +6,18 @@ using StableRNGs: StableRNG
 using KernelAbstractions: CPU
 using BenchmarkTools
 
+@inline function deperiodise_separation_folded(r⃗::Vec, Ls, Ls_half) where {Vec}
+    map(deperiodise_separation_folded, r⃗, Vec(Ls), Vec(Ls_half))::typeof(r⃗)
+end
+
+@inline function deperiodise_separation_folded(r::Real, L::Real, Lh::Real)
+    # @assert -L < r < L  # this is true if both points x and y are in [0, L) (r = x - y)
+    r = ifelse(r ≥ +Lh, r - L, r)
+    r = ifelse(r < -Lh, r + L, r)
+    # @assert abs(r) ≤ Lhalf
+    r
+end
+
 @inline function deperiodise_separation(r⃗::Vec, Ls, Ls_half) where {Vec}
     map(deperiodise_separation, r⃗, Vec(Ls), Vec(Ls_half))::typeof(r⃗)
 end
@@ -29,7 +41,8 @@ function interactions_iterator_interface!(f::F, cl::PeriodicCellList, wp, xp, vp
         x⃗ = xp[i]
         for j in CellLists.nearby_elements(cl, x⃗)
             @inbounds y⃗ = xp[j]
-            r⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Ls_half)
+            # Assume both points are already in the main periodic cell.
+            r⃗ = deperiodise_separation_folded(x⃗ - y⃗, Ls, Ls_half)
             r² = sum(abs2, r⃗)
             @inbounds if r² <= r²_cut
                 wp[i] += f(vp[i], vp[j], r⃗, r²)
@@ -44,11 +57,13 @@ function interactions_foreach_source!(f::F, cl::PeriodicCellList, wp, xp, vp, r_
     Ls_half = Ls ./ 2
     r²_cut = r_cut^2
     fill!(wp, 0)
+    backend = KA.get_backend(xp)
     @inbounds Threads.@threads for i in eachindex(xp, vp)
         x⃗ = xp[i]
         CellLists.foreach_source(cl, x⃗) do j
             @inbounds y⃗ = xp[j]
-            r⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Ls_half)
+            # Assume both points are already in the main periodic cell.
+            r⃗ = deperiodise_separation_folded(x⃗ - y⃗, Ls, Ls_half)
             r² = sum(abs2, r⃗)
             @inbounds if r² <= r²_cut
                 wp[i] += f(vp[i], vp[j], r⃗, r²)
@@ -65,7 +80,8 @@ function interactions_foreach_pair!(f::F, cl::PeriodicCellList, wp, xp, vp, r_cu
     fill!(wp, 0)
     CellLists.foreach_pair(cl, xp) do x⃗, i, j
         @inbounds y⃗ = xp[j]
-        r⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Ls_half)
+        # Assume both points are already in the main periodic cell.
+        r⃗ = deperiodise_separation_folded(x⃗ - y⃗, Ls, Ls_half)
         r² = sum(abs2, r⃗)
         @inbounds if r² <= r²_cut
             wp[i] += f(vp[i], vp[j], r⃗, r²)
