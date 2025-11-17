@@ -401,7 +401,7 @@ function _compute_on_nodes!(
         callback_vorticity::Fvort = identity,
     ) where {Fvort}
     (; to, params, pointdata,) = cache
-    (; quad,) = params
+    (; quad, Ls,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
 
     with_shortrange = shortrange
@@ -410,7 +410,7 @@ function _compute_on_nodes!(
     # This is used by both short-range and long-range computations.
     # Note that we need to compute the short-range first, because the long-range
     # computations then modify `pointdata`.
-    @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)  # on the CPU
+    @timeit to "Add point charges" add_point_charges!(pointdata, fs, Ls, quad)  # on the CPU
 
     if with_shortrange
         @timeit to "Short-range component" begin
@@ -547,7 +547,7 @@ function _compute_on_nodes!(
     ) where {Fvort}
     (; to, params, pointdata,) = cache
     (; pointdata_d,) = cache.longrange.common  # pointdata on the device (GPU)
-    (; quad,) = params
+    (; quad, Ls,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
 
     nfields = length(fields)
@@ -558,7 +558,7 @@ function _compute_on_nodes!(
     with_longrange = longrange && cache.longrange !== NullLongRangeCache()
 
     # This is used by short and long-range computations.
-    @timeit to "Add point charges" add_point_charges!(pointdata, fs, quad)  # done on the CPU
+    @timeit to "Add point charges" add_point_charges!(pointdata, fs, Ls, quad)  # done on the CPU
 
     # Allocate temporary arrays on the GPU for interpolation outputs (manually deallocated later).
     if with_longrange

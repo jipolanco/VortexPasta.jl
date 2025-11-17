@@ -135,6 +135,7 @@ KA.device(c::LongRangeCache) = KA.device(backend(c))
 
 # TODO: this is not optimised for GPU backends
 function add_point_charges!(c::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
+    (; Ls,) = c.common.params_all
     (; quad,) = c.common.params
-    add_point_charges!(c.common.pointdata_d, fs, quad)
+    add_point_charges!(c.common.pointdata_d, fs, Ls, quad)
 end

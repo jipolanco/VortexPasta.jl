@@ -73,8 +73,9 @@ function process_point_charges!(c::CellListsCache, data::PointData)
     nothing
 end
 
-nearby_charges(c::CellListsCache, x⃗::Vec3) = CellLists.nearby_elements(c.cl, x⃗)  # iterator which returns integer indices (in 1:Np)
+@inline nearby_charges(c::CellListsCache, x⃗::Vec3) = CellLists.nearby_elements(c.cl, x⃗)  # iterator which returns integer indices (in 1:Np)
 
-function foreach_charge(f::F, c::CellListsCache, x⃗::Vec3) where {F <: Function}
-    CellLists.foreach_source(f, c.cl, x⃗)
+# Note: the @inline makes a huge difference here (on Julia 1.12.1)
+@inline function foreach_charge(f::F, c::CellListsCache, x⃗::Vec3; kws...) where {F <: Function}
+    CellLists.foreach_source(f, c.cl, x⃗; kws...)
 end

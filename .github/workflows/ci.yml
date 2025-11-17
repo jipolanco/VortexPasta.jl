@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
     env:
-      JULIA_NUM_THREADS: 2
+      JULIA_NUM_THREADS: 4
       JULIA_ENABLE_JET_KA_TESTS: false  # disable JET.jl tests involving KernelAbstractions kernels (they generally fail...)
     strategy:
       fail-fast: true
@@ -110,7 +110,7 @@ jobs:
 
     env:
       JULIA_VERSION: '1.12'  # julia version used to build docs
-      JULIA_NUM_THREADS: 2
+      JULIA_NUM_THREADS: 4
 
     steps:
       - uses: actions/checkout@v5

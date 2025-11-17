@@ -142,6 +142,7 @@ function compare_long_range(
         params_kws...,
         backend_long = backend,
     )
+    Ls = params_exact.Ls
     quad = params_exact.quad
     T = eltype(params_exact)
 
@@ -160,7 +161,7 @@ function compare_long_range(
 
     # Compute induced velocity field in Fourier space
     foreach((cache_exact, cache_default)) do c
-        BiotSavart.add_point_charges!(c.common.pointdata_d, fs, quad)
+        BiotSavart.add_point_charges!(c.common.pointdata_d, fs, Ls, quad)
         BiotSavart.compute_vorticity_fourier!(c)
         BiotSavart.compute_velocity_fourier!(c)
     end

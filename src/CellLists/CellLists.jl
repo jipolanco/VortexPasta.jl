@@ -19,6 +19,7 @@ using ..PaddedArrays: PaddedArrays, PaddedArray, pad_periodic!
 using Atomix: Atomix
 using KernelAbstractions: KernelAbstractions as KA, CPU, GPU
 using Static: StaticInt, static, dynamic
+using StaticArrays: MVector
 
 # This is used either to mean that a cell has no elements, or that an element is the last
 # element within a given cell. This assumes one-based indexing, so that 0 is an invalid index!
@@ -332,20 +333,44 @@ function _foreach_pair(::CPU, f::F, cl, xp_dest) where {F}
 end
 
 """
-    CellLists.foreach_source(f::Function, cl::PeriodicCellList, x⃗_dest)
+    CellLists.foreach_source(f::Function, cl::PeriodicCellList, x⃗_dest; batch_size = nothing)
 
-Iterate over source point which are close to a given destination point `x⃗_dest`.
+Iterate over source points which are close to a given destination point `x⃗_dest`.
 
 This is similar to [`CellLists.foreach_pair`](@ref) but only works on a single destination
 point. On the CPU, `foreach_source` is not parallelised. One may want to parallelise at the
 level of multiple destination points to match the behaviour of `foreach_pair`.
 
+The first argument should be a user-defined function `f(j::Integer)` taking the index `j` of
+a source point.
+
 Performance-wise, this function seems to give similar performance to `foreach_pair` on CPUs.
 On GPUs one may prefer to use `foreach_pair` which is more adapted for GPU computing.
+
+# Iterating over batches
+
+For performance reasons (e.g. to enable SIMD), one may want to iterate over batches of
+source points in `cl`. For this, one should pass the keyword argument `batch_size = Val(W)`
+where `W` is the wanted batch size. 
+
+When batching is enabled, the user-defined function `f` is expected to have the signature
+`f(js::NTuple{W}, m::Integer)`, where `js` are the indices of `W` nearby source points, and
+`m ∈ 1:W` is the number of "valid" points. In other words, indices `js[(m + 1):W]` should be
+discarded (or masked out) in the `f` function. Note that, even though these indices should
+be ignored to get correct results, these are guaranteed to be valid indices in `1:Np` (where
+`Np` is the number of source points), and thus can be safely used to access source
+coordinates (which is convenient in the context of SIMD).
 """
-@inline function foreach_source(f::F, cl::PeriodicCellList, x⃑_dest) where {F <: Function}
+@inline function foreach_source(
+        f::F, cl::PeriodicCellList, x⃑_dest;
+        batch_size::Union{Nothing, Val} = nothing,
+    ) where {F <: Function}
     (; backend) = cl
-    _foreach_source(backend, f, cl, x⃑_dest)
+    if batch_size === nothing
+        _foreach_source(backend, f, cl, x⃑_dest)
+    else
+        _foreach_source_batched(backend, f, cl, x⃑_dest, batch_size)
+    end
     nothing
 end
 
@@ -360,6 +385,34 @@ end
             @inline f(j)
             j = next_index[j]
         end
+    end
+    nothing
+end
+
+@inline function _foreach_source_batched(::CPU, f::F, cl, x⃗, ::Val{batch_size}) where {F, batch_size}
+    (; head_indices, next_index) = cl
+    IndexType = eltype(head_indices)
+    cell_indices = get_neighbouring_cell_indices(cl, x⃗)
+    inds = MVector{batch_size, IndexType}(undef)
+    m = 0
+    @inbounds for I in cell_indices
+        j = head_indices[I]
+        while j != EMPTY
+            # @inline f(j)
+            inds[m += 1] = j
+            if m == batch_size
+                @inline f(Tuple(inds), batch_size)
+                m = 0
+            end
+            j = next_index[j]
+        end
+    end
+    if m > 0
+        for l in (m + 1):batch_size
+            # copy latest index, just to make sure that all returned indices are valid
+            @inbounds inds[l] = inds[m]
+        end
+        @inline f(Tuple(inds), m)
     end
     nothing
 end
