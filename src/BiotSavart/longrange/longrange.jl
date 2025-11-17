@@ -541,7 +541,7 @@ _fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
 @kernel function fold_coordinates_kernel!(points::NTuple, @Const(lims), @Const(L))
     i = @index(Global, Linear)
     for x ∈ points
-        @inbounds x[i] = _fold_coordinate(x[i], lims, L)
+        @inbounds x[i] = _fold_coordinate_between_lims(x[i], lims, L)
     end
     nothing
 end
@@ -565,7 +565,7 @@ function _fold_coordinates!(c::LongRangeCache, lims_in::NTuple{2, Real}, L_in::R
 end
 
 # We assume that L = b - a.
-@inline function _fold_coordinate(x::T, (a, b)::NTuple{2, T}, L::T) where {T <: AbstractFloat}
+@inline function _fold_coordinate_between_lims(x::T, (a, b)::NTuple{2, T}, L::T) where {T <: AbstractFloat}
     while x ≥ b
         x -= L
     end
