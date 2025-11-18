@@ -581,11 +581,6 @@ end
     x
 end
 
-# Determines whether the backend requires non-uniform values to be complex.
-# By default this is not the case, but backends needing that (such as the FINUFFT backend,
-# which has been removed) return Complex{T} instead of T.
-non_uniform_type(::Type{T}, ::LongRangeBackend) where {T <: AbstractFloat} = T
-
 """
     compute_vorticity_fourier!(cache::LongRangeCache)
 
