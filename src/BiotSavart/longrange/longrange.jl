@@ -50,7 +50,7 @@ struct LongRangeCacheCommon{
     vorticity_prefactor :: T             # prefactor Γ/V appearing in the Fourier transform of the vorticity
     ewald_gaussian_d    :: RealScalarField   # real-valued Ewald Gaussian smoothing in Fourier space ([Nx, Ny, Nz])
     state           :: LongRangeCacheState
-    to_d            :: Timer             # timer for operations run on the device
+    to              :: Timer             # timer for operations run on the device
 end
 
 get_wavenumbers(c::LongRangeCacheCommon) = c.wavenumbers_d
@@ -143,15 +143,13 @@ Initialise the cache for the long-range backend defined in `p.longrange`.
 Note that, if `p.α === Zero()`, then long-range computations are disabled and
 this returns a [`NullLongRangeCache`](@ref).
 """
-function init_cache_long(params::ParamsBiotSavart, pointdata::PointData, to = TimerOutput())
-    (; backend,) = params.longrange
+function init_cache_long(params::ParamsBiotSavart, pointdata::PointData, to::TimerOutput = TimerOutput())
     # If long-range stuff is run on a GPU, we create a separate TimerOutput.
     # This is to avoid short- and long-range parts writing asynchronously to the same timer.
-    to_d = KA.get_backend(backend) isa KA.CPU ? to : TimerOutput("Long range (GPU)")
     if params.α === Zero()
         NullLongRangeCache()  # disables Ewald method / long-range computations
     else
-        init_cache_long_ewald(params, params.longrange, pointdata, to_d)
+        init_cache_long_ewald(params, params.longrange, pointdata, to)
     end
 end
 
