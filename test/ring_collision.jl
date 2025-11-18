@@ -119,13 +119,19 @@ end
     gpu = test_ring_collision(backend_long = NonuniformFFTsBackend(PseudoGPU()))
     # Note: due to autotuning (which is quite random), the two sets of results can be a bit
     # different, thus we use a relative large `rtol`.
-    @test cpu.velocity ≈ gpu.velocity rtol=1e-6
-    @test cpu.streamfunction ≈ gpu.streamfunction rtol=1e-6
-    # Compare energy spectra (first 8 modes only, since kmax may differ between both cases
-    # due to autotuning). We make sure we have computed enough modes, but this is basically
-    # almost the case.
-    if length(cpu.spectrum.ks) ≥ 9 && length(gpu.spectrum.ks) ≥ 9
-        @test cpu.spectrum.ks[1:8] ≈ gpu.spectrum.ks[1:8]
-        @test cpu.spectrum.Ek[1:8] ≈ gpu.spectrum.Ek[1:8] rtol=1e-5
+    @testset "Compare CPU / PseudoGPU" begin
+        @testset "Velocity and streamfunction" begin
+            @test cpu.velocity ≈ gpu.velocity rtol=1e-6
+            @test cpu.streamfunction ≈ gpu.streamfunction rtol=1e-6
+        end
+        @testset "Energy spectra" begin
+            # Compare energy spectra (first 8 modes only, since kmax may differ between both cases
+            # due to autotuning). We make sure we have computed enough modes, but this is basically
+            # almost the case.
+            if length(cpu.spectrum.ks) ≥ 9 && length(gpu.spectrum.ks) ≥ 9
+                @test cpu.spectrum.ks[1:8] ≈ gpu.spectrum.ks[1:8]
+                @test cpu.spectrum.Ek[1:8] ≈ gpu.spectrum.Ek[1:8] rtol=1e-5
+            end
+        end
     end
 end
