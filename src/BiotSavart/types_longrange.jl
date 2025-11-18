@@ -126,6 +126,20 @@ The following functions must be implemented by a cache:
 """
 abstract type LongRangeCache end
 
+# This is for convenience: doing c.α is equivalent to c.common.α (we do the same for ParamsBiotSavart).
+@inline function Base.getproperty(c::LongRangeCache, name::Symbol)
+    common = getfield(c, :common)
+    if hasproperty(common, name)
+        getfield(common, name)
+    else
+        getfield(c, name)
+    end
+end
+
+function Base.propertynames(c::LongRangeCache, private::Bool = false)
+    (fieldnames(typeof(c))..., propertynames(c.common, private)...)
+end
+
 get_parameters(c::LongRangeCache) = c.common.params_all::ParamsBiotSavart
 backend(c::LongRangeCache) = backend(get_parameters(c).longrange)
 ewald_smoothing_scale(c::LongRangeCache) = get_parameters(c).σ

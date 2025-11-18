@@ -546,7 +546,6 @@ function _compute_on_nodes!(
         callback_vorticity::Fvort = identity,
     ) where {Fvort}
     (; to, params, pointdata,) = cache
-    (; pointdata_d,) = cache.longrange.common  # pointdata on the device (GPU)
     (; quad, Ls,) = params
     (; vs, ψs,) = _setup_fields!(fields, fs)
 
@@ -563,7 +562,9 @@ function _compute_on_nodes!(
     # Allocate temporary arrays on the GPU for interpolation outputs (manually deallocated later).
     if with_longrange
         noutputs = sum(length, fs)  # total number of interpolation points
-        outputs_lr = map(_ -> similar(pointdata_d.charges, noutputs), fields)::NamedTuple  # possible keys are :velocity, :streamfunction
+        # Select elements of outputs_d with the same names as in `fields` (in this case :velocity and/or :streamfunction).
+        outputs_lr = NamedTuple{keys(fields)}(cache.longrange.outputs_d)
+        foreach(v -> resize_no_copy!(v, noutputs), outputs_lr)
     end
 
     # Compute long-range part asynchronously on the GPU.
@@ -613,8 +614,6 @@ function _compute_on_nodes!(
                 copy_long_range_output!(+, vs, cache.longrange, outputs_lr.velocity)
             end
         end
-
-        foreach(KA.unsafe_free!, outputs_lr)  # manually deallocate temporary arrays
     end
 
     nothing

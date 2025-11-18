@@ -35,6 +35,7 @@ struct LongRangeCacheCommon{
         ParamsAll <: ParamsBiotSavart{T},
         WaveNumbers <: NTuple{3, AbstractVector{T}},
         PointCharges <: PointData{T},
+        OutputVectors <: NamedTuple,
         FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
         RealScalarField <: AbstractArray{T, 3},
         Timer <: TimerOutput,
@@ -44,6 +45,7 @@ struct LongRangeCacheCommon{
     params_all    :: ParamsAll  # note: params === params_all.longrange
     wavenumbers_d :: WaveNumbers
     pointdata_d   :: PointCharges        # non-uniform data in physical space
+    outputs_d     :: OutputVectors       # output velocity and streamfunction fields (as linear vectors)
     uhat_d        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
     vorticity_prefactor :: T             # prefactor Γ/V appearing in the Fourier transform of the vorticity
     ewald_gaussian_d    :: RealScalarField   # real-valued Ewald Gaussian smoothing in Fourier space ([Nx, Ny, Nz])
@@ -89,9 +91,13 @@ function LongRangeCacheCommon(
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers_d = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed
     pointdata_d = adapt(ka_backend, pointdata)      # create PointData replica on the device if needed
+    outputs_d = (;
+        velocity = similar(pointdata_d.charges),
+        streamfunction = similar(pointdata_d.charges),
+    )
     ewald_gaussian_d = init_ewald_gaussian_operator(T, backend, wavenumbers_d, α)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, params_all, wavenumbers_d, pointdata_d, uhat_d, vorticity_prefactor, ewald_gaussian_d, state, timer)
+    LongRangeCacheCommon(params, params_all, wavenumbers_d, pointdata_d, outputs_d, uhat_d, vorticity_prefactor, ewald_gaussian_d, state, timer)
 end
 
 has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
