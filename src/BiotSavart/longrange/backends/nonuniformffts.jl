@@ -199,7 +199,7 @@ end
 function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c::NonuniformFFTsCache) where {F <: Function}
     (; backend, plan,) = c
     (; pointdata_d, uhat_d,) = c.common
-    (; points,) = pointdata_d
+    (; nodes,) = pointdata_d
     (; ka_backend, ka_device,) = backend
     # Make sure we're already running on the wanted device (e.g. GPU 2).
     # Usually we call this function right after having defined data (uhat_d) on this device,
@@ -209,7 +209,7 @@ function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c:
     charges = StructArrays.components(output)
     uhat_data = StructArrays.components(uhat_d)
     callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = callback_uniform)
-    NonuniformFFTs.set_points!(plan, points)
+    NonuniformFFTs.set_points!(plan, nodes)
     NonuniformFFTs.exec_type2!(charges, plan, uhat_data; callbacks)
     nothing
 end

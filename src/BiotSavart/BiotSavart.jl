@@ -402,66 +402,79 @@ function _compute_on_nodes!(
     ) where {Fvort}
     (; to, params, pointdata,) = cache
     (; quad, Ls,) = params
-    (; vs, ψs,) = _setup_fields!(fields, fs)
+    _setup_fields!(fields, fs)
 
     with_shortrange = shortrange
     with_longrange = longrange && cache.longrange !== NullLongRangeCache()
 
     # This is used by both short-range and long-range computations.
-    # Note that we need to compute the short-range first, because the long-range
-    # computations then modify `pointdata`.
     @timeit to "Add point charges" add_point_charges!(pointdata, fs, Ls, quad)  # on the CPU
+
+    noutputs = length(pointdata.nodes)  # total number of interpolation points (= filament discretisation nodes)
+
+    if with_longrange
+        @timeit to "Long-range component" let cache = cache.longrange
+            # Select elements of outputs_d with the same names as in `fields` (in this case :velocity and/or :streamfunction).
+            local outputs = NamedTuple{keys(fields)}(cache.outputs_d)
+            foreach(v -> resize_no_copy!(v, noutputs), outputs)
+            @timeit to "Copy point charges" begin
+                @assert pointdata !== cache.pointdata_d  # these are supposed to be different
+                copy!(cache.pointdata_d, pointdata)  # H2D copy
+            end
+            @timeit to "Process point charges" begin
+                process_point_charges!(cache)  # modifies pointdata_d (points and nodes)
+            end
+            @timeit to "Vorticity to Fourier" begin
+                compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
+            end
+            if callback_vorticity !== identity
+                @timeit to "Vorticity callback" begin
+                    callback_vorticity(cache)
+                end
+            end
+            callback_interp = get_ewald_interpolation_callback(cache)
+            if hasproperty(outputs, :streamfunction)
+                @timeit to "Streamfunction field (Fourier)" begin
+                    compute_field_fourier!(Streamfunction(), cache)
+                end
+                @timeit to "Interpolate to physical" begin
+                    interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
+                end
+            end
+            if hasproperty(outputs, :velocity)
+                # Velocity must be computed after streamfunction if both are enabled.
+                @timeit to "Velocity field (Fourier)" begin
+                    # Compute velocity from vorticity or streamfunction in Fourier space.
+                    compute_field_fourier!(Velocity(), cache)
+                end
+                @timeit to "Interpolate to physical" begin
+                    # Write interpolation output to outputs.velocity
+                    interpolate_to_physical!(callback_interp, outputs.velocity, cache)
+                end
+            end
+            if hasproperty(fields, :streamfunction)
+                copy_long_range_output!(+, fields.streamfunction, cache, outputs.streamfunction)
+            end
+            if hasproperty(fields, :velocity)
+                copy_long_range_output!(+, fields.velocity, cache, outputs.velocity)
+            end
+        end
+    end
 
     if with_shortrange
         @timeit to "Short-range component" begin
             @timeit to "Process point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
             @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
             @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
-            if ψs !== nothing
+            if hasproperty(fields, :streamfunction)
                 @timeit to "Self-interaction" remove_self_interaction!(
-                    ψs, fs, Streamfunction(), params.common,
+                    fields.streamfunction, fs, Streamfunction(), params.common,
                 )
             end
-            if vs !== nothing
+            if hasproperty(fields, :velocity)
                 @timeit to "Self-interaction" remove_self_interaction!(
-                    vs, fs, Velocity(), params.common,
+                    fields.velocity, fs, Velocity(), params.common,
                 )
-            end
-        end
-    end
-
-    if with_longrange
-        @timeit to "Long-range component" begin
-            @timeit to "Vorticity to Fourier" begin
-                compute_vorticity_fourier!(cache.longrange)  # reads pointdata (points and charges)
-            end
-            if callback_vorticity !== identity
-                @timeit to "Vorticity callback" begin
-                    callback_vorticity(cache.longrange)
-                end
-            end
-            @timeit to "Set interpolation points" begin
-                set_interpolation_points!(cache.longrange, fs)  # overwrites pointdata (points)
-            end
-            callback_interp = get_ewald_interpolation_callback(cache.longrange)
-            if ψs !== nothing
-                @timeit to "Streamfunction" begin
-                    @timeit to "Convert to physical" begin
-                        compute_field_fourier!(Streamfunction(), cache.longrange)
-                        interpolate_to_physical!(callback_interp, cache.longrange)  # overwrites pointdata (charges)
-                        copy_long_range_output!(+, ψs, cache.longrange)
-                    end
-                end
-            end
-            if vs !== nothing
-                # Velocity must be computed after streamfunction if both are enabled.
-                @timeit to "Velocity" begin
-                    @timeit to "Convert to physical" begin
-                        compute_field_fourier!(Velocity(), cache.longrange)
-                        interpolate_to_physical!(callback_interp, cache.longrange)  # overwrites pointdata (charges)
-                        copy_long_range_output!(+, vs, cache.longrange)
-                    end
-                end
             end
         end
     end
@@ -488,6 +501,9 @@ function do_longrange_gpu!(
         @timeit to_d "Copy point charges (host → device)" begin
             copy!(pointdata_d, pointdata_cpu)  # H2D copy
         end
+        @timeit to_d "Process point charges" begin
+            process_point_charges!(cache)  # modifies pointdata_d (points and nodes)
+        end
 
         # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
         @timeit to_d "Vorticity to Fourier" begin
@@ -497,11 +513,6 @@ function do_longrange_gpu!(
             @timeit to_d "Vorticity callback" begin
                 callback_vorticity(cache)
             end
-        end
-
-        # Set points for interpolation from Fourier to physical space (type 2 NUFFT)
-        @timeit to_d "Set interpolation points" begin
-            set_interpolation_points!(cache, fs)  # overwrites pointdata_d (points)
         end
 
         # Interpolate streamfunction and/or velocity.

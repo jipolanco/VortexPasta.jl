@@ -37,7 +37,6 @@ struct PointData{
     nodes     :: Vecs      # filament nodes (where velocity will be computed)
     points    :: Vecs      # interpolated locations s⃗ on segments
     charges   :: Vecs      # rescaled tangent vector q * s⃗′ on segments (where `q` is the quadrature weight)
-    points_h  :: VecsHost  # CPU buffer which may be used for intermediate host-device transfers
     charges_h :: VecsHost  # CPU buffer which may be used for intermediate host-device transfers
     segments  :: Segments  # filament segment on which each location s⃗ is located
 end
@@ -50,7 +49,6 @@ end
         adapt(to, p.nodes),
         adapt(to, p.points),
         adapt(to, p.charges),
-        p.points_h,   # this is always on the CPU
         p.charges_h,  # this is always on the CPU
         p.segments,   # for now, keep segments on the CPU (we don't use them on the GPU)
     )
@@ -63,14 +61,13 @@ function PointData(::Type{T}, ::Type{F}) where {T <: AbstractFloat, F <: Abstrac
     Seg = Segment{F}
     @assert isconcretetype(Seg)
     segments = Seg[]
-    PointData(nodes, points, charges, copy(points), copy(charges), segments)
+    PointData(nodes, points, charges, copy(charges), segments)
 end
 
 function Base.copy(data::PointData)
     (; nodes, points, charges, segments,) = data
-    points_h = similar(data.points_h, 0)   # empty arrays (we don't need them to be identical to the original ones)
     charges_h = similar(data.charges_h, 0)
-    PointData(copy(nodes), copy(points), copy(charges), points_h, charges_h, copy(segments))
+    PointData(copy(nodes), copy(points), copy(charges), charges_h, copy(segments))
 end
 
 # This is useful in particular for host -> device copies.

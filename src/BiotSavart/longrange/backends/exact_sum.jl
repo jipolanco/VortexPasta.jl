@@ -90,13 +90,13 @@ end
 
 function _interpolate_to_physical!(callback::F, output::StructVector, c::ExactSumCache) where {F}
     (; uhat_d, wavenumbers_d, pointdata_d,) = c.common
-    (; points,) = pointdata_d
-    @assert length(points) == length(output)
+    (; nodes,) = pointdata_d
+    @assert length(nodes) == length(output)
     kxs = first(wavenumbers_d)
     kx_lims = first(kxs), last(kxs)
     @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
-    @inbounds Threads.@threads for i ∈ eachindex(points, output)
-        X = points[i]
+    @inbounds Threads.@threads for i ∈ eachindex(nodes, output)
+        X = nodes[i]
         q⃗ = zero(real(eltype(uhat_d)))
         for I ∈ CartesianIndices(uhat_d)
             k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))

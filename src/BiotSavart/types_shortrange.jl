@@ -83,8 +83,12 @@ Initialise the cache for the short-range backend defined in `p`.
 """
 function init_cache_short end
 
+backend(c::ShortRangeCache) = backend(c.params::ParamsShortRange)
+KA.get_backend(c::ShortRangeCache) = KA.get_backend(backend(c))
+KA.device(c::ShortRangeCache) = KA.device(backend(c))
+
 """
-    process_point_charges!(c::ShortRangeCache, data::PointData)
+    process_point_charges!(cache::ShortRangeCache, data::PointData)
 
 Process list of point charges.
 
@@ -95,7 +99,3 @@ Must be called after [`add_point_charges!`](@ref) and before computing any short
 (using [`add_short_range_fields!`](@ref)).
 """
 process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend
-
-backend(c::ShortRangeCache) = backend(c.params::ParamsShortRange)
-KA.get_backend(c::ShortRangeCache) = KA.get_backend(backend(c))
-KA.device(c::ShortRangeCache) = KA.device(backend(c))

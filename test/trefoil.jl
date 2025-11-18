@@ -161,7 +161,8 @@ function compare_long_range(
 
     # Compute induced velocity field in Fourier space
     foreach((cache_exact, cache_default)) do c
-        BiotSavart.add_point_charges!(c.common.pointdata_d, fs, Ls, quad)
+        BiotSavart.add_point_charges!(c, fs)
+        BiotSavart.process_point_charges!(c)
         BiotSavart.compute_vorticity_fourier!(c)
         BiotSavart.compute_velocity_fourier!(c)
     end
@@ -184,12 +185,12 @@ function compare_long_range(
 
     # Interpolate long-range velocity back to filament positions
     foreach((cache_exact, cache_default)) do c
-        BiotSavart.set_interpolation_points!(c, fs)
+        @test_logs (:warn, r"deprecated") BiotSavart.set_interpolation_points!(c, fs)  # this function now shows a warning and does nothing
         local callback = BiotSavart.get_ewald_interpolation_callback(c)  # this is to make sure we get the *long-range* (smoothed) velocity
         BiotSavart.interpolate_to_physical!(callback, c)
     end
 
-    charges(cache) = cache.common.pointdata_d.charges  # get charges from cache
+    charges(cache) = BiotSavart.default_interpolation_output(cache)  # get interpolation output from cache
     max_rel_error_physical = maximum(zip(charges(cache_exact), charges(cache_default))) do (qexact, qdefault)
         norm(qexact - qdefault) / norm(qexact)
     end

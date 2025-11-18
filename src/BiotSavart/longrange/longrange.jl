@@ -56,6 +56,9 @@ end
 get_wavenumbers(c::LongRangeCacheCommon) = c.wavenumbers_d
 get_wavenumbers(c::LongRangeCache) = get_wavenumbers(c.common)
 
+default_interpolation_output(c::LongRangeCacheCommon) = c.outputs_d.default
+default_interpolation_output(c::LongRangeCache) = default_interpolation_output(c.common)
+
 # Callback to be used right before interpolation into physical space, which applies the
 # Gaussian filter in Ewald's method.
 # We wrap it in a struct to make sure it works correctly on GPUs.
@@ -91,9 +94,13 @@ function LongRangeCacheCommon(
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers_d = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed
     pointdata_d = adapt(ka_backend, pointdata)      # create PointData replica on the device if needed
+    if pointdata_d === pointdata       # basically if ka_backend isa CPU
+        pointdata_d = copy(pointdata)  # make sure pointdata_d and pointdata are not aliased!
+    end
     outputs_d = (;
         velocity = similar(pointdata_d.charges),
         streamfunction = similar(pointdata_d.charges),
+        default = similar(pointdata_d.charges),  # this is the "default" output when no output has been selected
     )
     ewald_gaussian_d = init_ewald_gaussian_operator(T, backend, wavenumbers_d, α)
     state = LongRangeCacheState()
@@ -410,7 +417,7 @@ compute_field_fourier!(::Streamfunction, c::LongRangeCache) = compute_streamfunc
 Perform type-2 NUFFT to interpolate values in `cache.common.uhat_d` to non-uniform
 points in physical space.
 
-Results are written to the `output` vector, which defaults to `cache.pointdata_d.charges`.
+Results are written to the `output` vector, which defaults to `cache.outputs_d[1]`.
 This vector is returned by this function.
 
 ## Using callbacks
@@ -473,7 +480,8 @@ interpolate_to_physical!(cache::LongRangeCache) = interpolate_to_physical!(defau
 interpolate_to_physical!(output::StructVector, cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, output, cache)
 
 function interpolate_to_physical!(callback::F, cache::LongRangeCache) where {F}
-    output = cache.common.pointdata_d.charges
+    output = default_interpolation_output(cache)
+    resize_no_copy!(output, length(cache.pointdata_d.nodes))
     interpolate_to_physical!(callback, output, cache)
 end
 
@@ -520,8 +528,11 @@ _rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing
 
 function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
     (; Ls,) = c.common.params.common
-    (; points,) = c.common.pointdata_d
+    (; points, nodes) = c.common.pointdata_d
     for (xs, L) ∈ zip(StructArrays.components(points), Ls)
+        _rescale_coordinates!(xs, L, L_expected)
+    end
+    for (xs, L) ∈ zip(StructArrays.components(nodes), Ls)
         _rescale_coordinates!(xs, L, L_expected)
     end
     nothing
@@ -553,8 +564,9 @@ _fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
 end
 
 function _fold_coordinates!(c::LongRangeCache, lims_in::NTuple{2, Real}, L_in::Real)
-    (; points,) = c.common.pointdata_d
+    (; points, nodes) = c.common.pointdata_d
     points_comp = StructArrays.components(points) :: NTuple
+    nodes_comp = StructArrays.components(nodes) :: NTuple
     T = eltype(points_comp[1])
     @assert T <: AbstractFloat
     lims = convert.(T, lims_in)
@@ -567,6 +579,7 @@ function _fold_coordinates!(c::LongRangeCache, lims_in::NTuple{2, Real}, L_in::R
     workgroupsize = 1024
     kernel = fold_coordinates_kernel!(ka_backend, workgroupsize)
     kernel(points_comp, lims, L; ndrange = size(points))
+    kernel(nodes_comp, lims, L; ndrange = size(nodes))
     nothing
 end
 
@@ -579,6 +592,27 @@ end
         x += L
     end
     x
+end
+
+"""
+    process_point_charges!(cache::LongRangeCache)
+
+Process list of point charges in long-range cache.
+
+For long-range computations, this should be called after quadrature points and interpolation
+nodes have been set, either via `add_point_charges!(cache, fs)` or by directly modifying
+`cache.pointdata_d`. It must be called before any calls to
+[`compute_vorticity_fourier`](@ref) or [`interpolate_to_physical!`](@ref).
+
+This function will process (and possibly modify) data in `cache.pointdata_d`. Therefore,
+**it should only be called once** after points have been set. For example, the
+[`NonuniformFFTsBackend`](@ref) assumes a domain of size `[0, 2π]ᵈ`, and thus a point
+transformation is needed if the domain has a different size.
+"""
+function process_point_charges!(cache::LongRangeCache)
+    rescale_coordinates!(cache)  # may be needed by the backend (e.g. NonuniformFFTs.jl requires period L = 2π)
+    fold_coordinates!(cache)     # may be needed by the backend (e.g. NonuniformFFTs.jl prefers x ∈ [0, 2π])
+    cache
 end
 
 """
@@ -598,8 +632,6 @@ After calling this function, one may want to use [`compute_streamfunction_fourie
 """
 function compute_vorticity_fourier!(cache::LongRangeCache)
     (; uhat_d, state, vorticity_prefactor,) = cache.common
-    rescale_coordinates!(cache)  # may be needed by the backend (e.g. NonuniformFFTs.jl requires period L = 2π)
-    fold_coordinates!(cache)     # may be needed by the backend (e.g. NonuniformFFTs.jl prefers x ∈ [0, 2π])
     transform_to_fourier!(cache, vorticity_prefactor)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
     state.quantity = :vorticity
@@ -634,67 +666,13 @@ function truncate_spherical!(cache)
     nothing
 end
 
-# Here pointdata_h is the point data on the CPU.
-# It is used as an intermediate buffer in the GPU implementation.
-# To avoid allocations, it should be passed by the caller. Its default value is mostly for
-# backwards compatibility, when this function only accepted 2 arguments.
-function set_interpolation_points!(
-        cache::LongRangeCache,
-        fs::VectorOfFilaments,
+function set_interpolation_points!(cache::LongRangeCache, fs::VectorOfFilaments)
+    @warn(
+        """
+        The BiotSavart.set_interpolation_points!(cache, fs) function is no longer needed and is deprecated.
+        In general, if you used to call this function, you can now remove that call and still get correct results.
+        """
     )
-    # Note that we only modify the `points` field of PointData. The other ones are not
-    # needed for interpolation.
-    (; pointdata_d,) = cache.common
-    (; points, charges, points_h,) = pointdata_d
-    Npoints = sum(length, fs)
-    resize_no_copy!(points, Npoints)
-    resize_no_copy!(charges, Npoints)  # this is the interpolation output
-    ka_backend = KA.get_backend(cache)
-    set_interpolation_points_impl!(ka_backend, fs, points, points_h)
-    rescale_coordinates!(cache)
-    fold_coordinates!(cache)
-    nothing
-end
-
-# CPU implementation
-function set_interpolation_points_impl!(
-        ::KA.CPU, fs, points_d, points_h,
-    )
-    @assert isempty(points_h)  # never used in the CPU implementation (so it should stay empty)
-    xs_d = StructArrays.components(points_d)  # (xs, ys, zs)
-    _set_interpolation_points!(xs_d, fs)
-    nothing
-end
-
-# GPU implementation: first write to pointdata_h (on the CPU), then copy to pointdata_d (on the GPU).
-function set_interpolation_points_impl!(
-        ka_backend::KA.GPU, fs, points_d, points_h,
-    )
-    Npoints = length(points_d)  # for now, only points_d has the right size
-    resize_no_copy!(points_h, Npoints)  # resize temporary array (on the CPU)
-    xs_d = StructArrays.components(points_d)  # (xs, ys, zs)
-    xs_h = StructArrays.components(points_h)  # (xs, ys, zs)
-    _set_interpolation_points!(xs_h, fs)  # gather points on the CPU
-    # Copy to GPU
-    for i ∈ eachindex(xs_d, xs_h)
-        # KA.copyto!(ka_backend, xs_d[i], xs_h[i])  # may fail on CUDA due to pinning of CPU memory (https://github.com/JuliaGPU/CUDA.jl/issues/2594)
-        copyto!(xs_d[i], xs_h[i])  # this doesn't fail (avoids pinning; probably slower but always works)
-    end
-    nothing
-end
-
-function _set_interpolation_points!(points::NTuple, fs)
-    @assert KA.get_backend(points[1]) isa KA.CPU  # output is on the CPU
-    Npoints = length(points[1])
-    n = 0
-    for f ∈ fs, X ∈ f
-        n += 1
-        for i ∈ eachindex(X)
-            @inbounds points[i][n] = X[i]
-        end
-    end
-    @assert n == Npoints
-    points
 end
 
 # Here pointdata_h is used as a buffer in the GPU implementation.
@@ -704,7 +682,7 @@ end
 function copy_long_range_output!(
         op::F,
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
-        charges = cache.common.pointdata_d.charges,
+        charges = default_interpolation_output(cache),
     ) where {F}
     (; charges_h,) = cache.common.pointdata_d
     nout = sum(length, vs)
@@ -714,13 +692,10 @@ function copy_long_range_output!(
     vs
 end
 
-function copy_long_range_output!(
-        vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
-        charges = cache.common.pointdata_d.charges,
-    )
+function copy_long_range_output!(vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache, args...)
     # By default, only keep the new value, discarding old values in vs.
     op(new, old) = new
-    copy_long_range_output!(op, vs, cache, charges)
+    copy_long_range_output!(op, vs, cache, args...)
 end
 
 function copy_long_range_output_impl!(::KA.CPU, op::F, vs, charges_d, charges_h) where {F}

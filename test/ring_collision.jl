@@ -39,7 +39,7 @@ function test_ring_collision(;
     Γ = 2.0
     a = 1e-6
     Δ = 1/4
-    Lbox = 2π
+    Lbox = 3π
     β = 3.5  # accuracy parameter
 
     params = BiotSavart.autotune(

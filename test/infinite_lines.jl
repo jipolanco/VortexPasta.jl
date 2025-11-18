@@ -70,6 +70,7 @@ function extended_energy_spectrum(cache_bs::BiotSavart.BiotSavartCache, fs, Ns::
     cache_in = cache_bs.longrange
     cache = similar(cache_in, Ns)
     BiotSavart.add_point_charges!(cache, fs)
+    BiotSavart.process_point_charges!(cache)
     BiotSavart.compute_vorticity_fourier!(cache)
     Diagnostics.energy_spectrum(cache)  # computes energy spectrum from vorticity in Fourier space
 end
