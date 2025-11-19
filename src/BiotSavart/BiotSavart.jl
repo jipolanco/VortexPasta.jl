@@ -456,9 +456,6 @@ function do_longrange!(
     nothing
 end
 
-# CPU/GPU version
-# We compute short-range (CPU) and long-range (GPU) asynchronously, so that both components
-# work at the same time.
 function _compute_on_nodes!(
         fields::NamedTuple, cache, fs;
         LIA = Val(true),

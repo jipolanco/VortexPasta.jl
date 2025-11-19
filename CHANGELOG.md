@@ -5,6 +5,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- **[Breaking]**: one must now call `BiotSavart.process_point_charges!(cache::LongRangeCache)`
+  previous to performing any long-range operations (computing vorticity in Fourier space,
+  evaluating long-range velocity on vortices, ...).
+
+- The `BiotSavart.set_interpolation_points!` function is now deprecated and should no longer
+  be used.
+
+- BiotSavart: `PointData` now also includes a `nodes` field containing filament
+  discretisation points.
+
+- BiotSavart: `compute_on_nodes!` has been simplified. The original fully synchronous
+  variant (previously used in full CPU computations) has been removed, and a single
+  implementation is now used for pure CPU and CPU+GPU computations. Moreover, TimerOutput
+  timers have been modified and now include information on asynchronous operations.
+
+- BiotSavart: `LongRangeCache` now has its own copy of `PointData`, even when running on
+  CPU.
+
 ### Added
 
 - Add initial GPU implementation of cell lists.
