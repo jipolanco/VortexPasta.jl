@@ -41,22 +41,22 @@ struct LongRangeCacheCommon{
         Timer <: TimerOutput,
     }
     # NOTE: the _d suffix means that data is on the device (i.e. GPU for GPU-based backends)
-    params        :: Params
-    params_all    :: ParamsAll  # note: params === params_all.longrange
-    wavenumbers_d :: WaveNumbers
-    pointdata_d   :: PointCharges        # non-uniform data in physical space
-    outputs_d     :: OutputVectors       # output velocity and streamfunction fields (as linear vectors)
-    uhat_d        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
+    params      :: Params
+    params_all  :: ParamsAll  # note: params === params_all.longrange
+    wavenumbers :: WaveNumbers
+    pointdata   :: PointCharges        # non-uniform data in physical space
+    outputs     :: OutputVectors       # output velocity and streamfunction fields (as linear vectors)
+    uhat        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
     vorticity_prefactor :: T             # prefactor Γ/V appearing in the Fourier transform of the vorticity
-    ewald_gaussian_d    :: RealScalarField   # real-valued Ewald Gaussian smoothing in Fourier space ([Nx, Ny, Nz])
+    ewald_gaussian    :: RealScalarField   # real-valued Ewald Gaussian smoothing in Fourier space ([Nx, Ny, Nz])
     state           :: LongRangeCacheState
     to              :: Timer             # timer for operations run on the device
 end
 
-get_wavenumbers(c::LongRangeCacheCommon) = c.wavenumbers_d
+get_wavenumbers(c::LongRangeCacheCommon) = c.wavenumbers
 get_wavenumbers(c::LongRangeCache) = get_wavenumbers(c.common)
 
-default_interpolation_output(c::LongRangeCacheCommon) = c.outputs_d.default
+default_interpolation_output(c::LongRangeCacheCommon) = c.outputs.default
 default_interpolation_output(c::LongRangeCache) = default_interpolation_output(c.common)
 
 # Callback to be used right before interpolation into physical space, which applies the
@@ -73,13 +73,13 @@ end
     map(v -> T(v * op), û)
 end
 
-@inline get_ewald_interpolation_callback(c::LongRangeCacheCommon) = EwaldInterpolationCallback(c.ewald_gaussian_d)
+@inline get_ewald_interpolation_callback(c::LongRangeCacheCommon) = EwaldInterpolationCallback(c.ewald_gaussian)
 @inline get_ewald_interpolation_callback(c::LongRangeCache) = get_ewald_interpolation_callback(c.common)
 
 function LongRangeCacheCommon(
         params_all::ParamsBiotSavart{T},
         wavenumbers::NTuple{3, AbstractVector},
-        pointdata::PointData{T},
+        pointdata_in::PointData{T},
         timer::TimerOutput,
     ) where {T}
     pcommon = params_all.common
@@ -89,22 +89,22 @@ function LongRangeCacheCommon(
     @assert T === eltype(pcommon)
     @assert α !== Zero()
     Nks = map(length, wavenumbers)
-    uhat_d = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
+    uhat = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
     vorticity_prefactor = Γ / prod(Ls)
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
-    wavenumbers_d = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed
-    pointdata_d = adapt(ka_backend, pointdata)      # create PointData replica on the device if needed
-    if pointdata_d === pointdata       # basically if ka_backend isa CPU
-        pointdata_d = copy(pointdata)  # make sure pointdata_d and pointdata are not aliased!
+    wavenumbers = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed
+    pointdata = adapt(ka_backend, pointdata_in)      # create PointData replica on the device if needed
+    if pointdata === pointdata_in       # basically if ka_backend isa CPU
+        pointdata = copy(pointdata_in)  # make sure pointdata and pointdata_in are not aliased!
     end
-    outputs_d = (;
-        velocity = similar(pointdata_d.charges),
-        streamfunction = similar(pointdata_d.charges),
-        default = similar(pointdata_d.charges),  # this is the "default" output when no output has been selected
+    outputs = (;
+        velocity = similar(pointdata.charges),
+        streamfunction = similar(pointdata.charges),
+        default = similar(pointdata.charges),  # this is the "default" output when no output has been selected
     )
-    ewald_gaussian_d = init_ewald_gaussian_operator(T, backend, wavenumbers_d, α)
+    ewald_gaussian = init_ewald_gaussian_operator(T, backend, wavenumbers, α)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, params_all, wavenumbers_d, pointdata_d, outputs_d, uhat_d, vorticity_prefactor, ewald_gaussian_d, state, timer)
+    LongRangeCacheCommon(params, params_all, wavenumbers, pointdata, outputs, uhat, vorticity_prefactor, ewald_gaussian, state, timer)
 end
 
 has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
@@ -164,7 +164,7 @@ In principle, the grid resolution `Ns` can be different from the original one
 This can be useful for computing high-resolution fields in Fourier space (e.g. for extending
 the data to higher wavenumbers than allowed by the original cache).
 
-For convenience, point data already in `cache.common.pointdata_d` is copied to the new cache.
+For convenience, point data already in `cache.common.pointdata` is copied to the new cache.
 This means that, if one already filled the original cache using
 [`add_point_charges!`](@ref), then one can directly call [`transform_to_fourier!`](@ref)
 with the new cache to get the vorticity field in Fourier space at the wanted resolution `Ns`.
@@ -176,7 +176,7 @@ function Base.similar(cache::LongRangeCache, Ns::Dims{3})
     params_bs = let p = get_parameters(cache)::ParamsBiotSavart
         ParamsBiotSavart(p.common, p.shortrange, params_new)
     end
-    pointdata = copy(cache.common.pointdata_d)
+    pointdata = copy(cache.common.pointdata)
     BiotSavart.init_cache_long(params_bs, pointdata)
 end
 
@@ -211,16 +211,16 @@ If one only needs the velocity and not the streamfunction, one can also directly
 [`compute_velocity_fourier!`](@ref).
 """
 function compute_streamfunction_fourier!(c::LongRangeCache)
-    (; uhat_d, state,) = c.common
-    wavenumbers_d = get_wavenumbers(c)
+    (; uhat, state,) = c.common
+    wavenumbers = get_wavenumbers(c)
     from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
     @assert from_vorticity
     ka_backend = KA.get_backend(c)
-    kernel = ka_generate_kernel(fourier_inverse_laplacian_kernel!, ka_backend, uhat_d)
-    uhat_comps = StructArrays.components(uhat_d)
-    kernel(uhat_comps, wavenumbers_d)
+    kernel = ka_generate_kernel(fourier_inverse_laplacian_kernel!, ka_backend, uhat)
+    uhat_comps = StructArrays.components(uhat)
+    kernel(uhat_comps, wavenumbers)
     state.quantity = :streamfunction
-    uhat_d
+    uhat
 end
 
 # This inverts -∇²ψ = ω  <-->  k² ψ̂ = ω̂
@@ -314,20 +314,20 @@ In that case, the cache already contains the streamfunction, and only the curl
 operator (``i \bm{k} ×``) is applied by this function.
 """
 function compute_velocity_fourier!(c::LongRangeCache)
-    (; uhat_d, state,) = c.common
-    wavenumbers_d = get_wavenumbers(c)
+    (; uhat, state,) = c.common
+    wavenumbers = get_wavenumbers(c)
     from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
     from_streamfunction = state.quantity === :streamfunction && state.smoothing_scale == 0
     @assert from_vorticity || from_streamfunction
     ka_backend = KA.get_backend(c)
-    uhat_comps = StructArrays.components(uhat_d)
+    uhat_comps = StructArrays.components(uhat)
     if from_vorticity
-        let kernel = ka_generate_kernel(fourier_biot_savart_kernel!, ka_backend, uhat_d)
-            kernel(uhat_comps, wavenumbers_d)
+        let kernel = ka_generate_kernel(fourier_biot_savart_kernel!, ka_backend, uhat)
+            kernel(uhat_comps, wavenumbers)
         end
     elseif from_streamfunction
-        let kernel = ka_generate_kernel(fourier_curl_kernel!, ka_backend, uhat_d)
-            kernel(uhat_comps, wavenumbers_d)
+        let kernel = ka_generate_kernel(fourier_curl_kernel!, ka_backend, uhat)
+            kernel(uhat_comps, wavenumbers)
         end
     end
     state.quantity = :velocity
@@ -380,22 +380,22 @@ BiotSavart.copy_long_range_output!(ωs_ℓ, cache.longrange)  # copy results fro
 ```
 """
 function to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real; warn = true)
-    (; uhat_d, state,) = c.common
-    wavenumbers_d = get_wavenumbers(c)
+    (; uhat, state,) = c.common
+    wavenumbers = get_wavenumbers(c)
     σ_ewald = ewald_smoothing_scale(c)
     if warn && ℓ < σ_ewald
         @warn lazy"for accuracy reasons, the smoothing scale (ℓ = $ℓ) should be larger than the Ewald splitting scale (σ = $σ_ewald)"
     end
     ℓ_old = state.smoothing_scale  # current smoothing scale (usually 0, but can be different)
     ka_backend = KA.get_backend(c)
-    uhat_comps = StructArrays.components(uhat_d)
+    uhat_comps = StructArrays.components(uhat)
     if state.quantity === :velocity
-        let kernel = ka_generate_kernel(coarse_grained_curl_kernel!, ka_backend, uhat_d)
-            kernel(uhat_comps, wavenumbers_d, ℓ, ℓ_old)
+        let kernel = ka_generate_kernel(coarse_grained_curl_kernel!, ka_backend, uhat)
+            kernel(uhat_comps, wavenumbers, ℓ, ℓ_old)
         end
     elseif state.quantity === :vorticity
-        let kernel = ka_generate_kernel(coarse_graining_kernel!, ka_backend, uhat_d)
-            kernel(uhat_comps, wavenumbers_d, ℓ, ℓ_old)
+        let kernel = ka_generate_kernel(coarse_graining_kernel!, ka_backend, uhat)
+            kernel(uhat_comps, wavenumbers, ℓ, ℓ_old)
         end
     else
         error(lazy"expected either the velocity or vorticity to be in the cache (got state.quantity = $(state.quantity))")
@@ -412,10 +412,10 @@ compute_field_fourier!(::Streamfunction, c::LongRangeCache) = compute_streamfunc
 """
     interpolate_to_physical!([callback::Function], [output::StructVector{<:Vec3}], cache::LongRangeCache) -> output
 
-Perform type-2 NUFFT to interpolate values in `cache.common.uhat_d` to non-uniform
+Perform type-2 NUFFT to interpolate values in `cache.common.uhat` to non-uniform
 points in physical space.
 
-Results are written to the `output` vector, which defaults to `cache.outputs_d[1]`.
+Results are written to the `output` vector, which defaults to `cache.outputs[1]`.
 This vector is returned by this function.
 
 ## Using callbacks
@@ -428,7 +428,7 @@ The optional `callback` function should be a function `f(û, idx)` which takes:
 The function should return a tuple with the same type as `û`.
 
 This can be used to modify the Fourier-space fields to be interpolated, but without really
-modifying the values in `uhat_d` (and thus the state of the cache). For example, to
+modifying the values in `uhat` (and thus the state of the cache). For example, to
 apply a Gaussian filter before interpolating:
 
 ```julia
@@ -479,13 +479,13 @@ interpolate_to_physical!(output::StructVector, cache::LongRangeCache) = interpol
 
 function interpolate_to_physical!(callback::F, cache::LongRangeCache) where {F}
     output = default_interpolation_output(cache)
-    resize_no_copy!(output, length(cache.pointdata_d.nodes))
+    resize_no_copy!(output, length(cache.pointdata.nodes))
     interpolate_to_physical!(callback, output, cache)
 end
 
 function interpolate_to_physical!(callback::F, output::StructVector, cache::LongRangeCache) where {F}
     # TODO: what if the output is in a different device? (CPU/GPU)?
-    @assert typeof(output) === typeof(cache.common.pointdata_d.charges)
+    @assert typeof(output) === typeof(cache.common.pointdata.charges)
     _interpolate_to_physical!(callback, output, cache)
     output
 end
@@ -526,7 +526,7 @@ _rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing
 
 function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
     (; Ls,) = c.common.params.common
-    (; points, nodes) = c.common.pointdata_d
+    (; points, nodes) = c.common.pointdata
     for (xs, L) ∈ zip(StructArrays.components(points), Ls)
         _rescale_coordinates!(xs, L, L_expected)
     end
@@ -562,7 +562,7 @@ _fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
 end
 
 function _fold_coordinates!(c::LongRangeCache, lims_in::NTuple{2, Real}, L_in::Real)
-    (; points, nodes) = c.common.pointdata_d
+    (; points, nodes) = c.common.pointdata
     points_comp = StructArrays.components(points) :: NTuple
     nodes_comp = StructArrays.components(nodes) :: NTuple
     T = eltype(points_comp[1])
@@ -599,10 +599,10 @@ Process list of point charges in long-range cache.
 
 For long-range computations, this should be called after quadrature points and interpolation
 nodes have been set, either via `add_point_charges!(cache, fs)` or by directly modifying
-`cache.pointdata_d`. It must be called before any calls to
+`cache.pointdata`. It must be called before any calls to
 [`compute_vorticity_fourier!`](@ref) or [`interpolate_to_physical!`](@ref).
 
-This function will process (and possibly modify) data in `cache.pointdata_d`. Therefore,
+This function will process (and possibly modify) data in `cache.pointdata`. Therefore,
 **it should only be called once** after points have been set. For example, the
 [`NonuniformFFTsBackend`](@ref) assumes a domain of size `[0, 2π]ᵈ`, and thus a point
 transformation is needed if the domain has a different size.
@@ -618,7 +618,7 @@ end
 
 Estimate vorticity in Fourier space.
 
-The vorticity, written to `cache.common.uhat_d`, is estimated using some kind of
+The vorticity, written to `cache.common.uhat`, is estimated using some kind of
 non-uniform Fourier transforms (depending on the chosen backend).
 
 Note that this function doesn't perform smoothing over the vorticity using the Ewald operator.
@@ -629,12 +629,12 @@ After calling this function, one may want to use [`compute_streamfunction_fourie
 [`compute_velocity_fourier!`](@ref) to obtain the respective fields.
 """
 function compute_vorticity_fourier!(cache::LongRangeCache)
-    (; uhat_d, state, vorticity_prefactor,) = cache.common
+    (; uhat, state, vorticity_prefactor,) = cache.common
     transform_to_fourier!(cache, vorticity_prefactor)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
     state.quantity = :vorticity
     state.smoothing_scale = 0
-    uhat_d
+    uhat
 end
 
 @kernel function truncate_spherical_kernel!(uhat::NTuple, @Const(ks), @Const(kmax²))
@@ -650,17 +650,17 @@ end
 end
 
 function truncate_spherical!(cache)
-    (; uhat_d, params,) = cache.common
-    wavenumbers_d = get_wavenumbers(cache)
+    (; uhat, params,) = cache.common
+    wavenumbers = get_wavenumbers(cache)
     if !params.truncate_spherical
         return  # don't apply spherical truncation
     end
     kmax = maximum_wavenumber(params)
     kmax² = kmax^2
     ka_backend = KA.get_backend(cache)
-    uhat_comps = StructArrays.components(uhat_d)
-    kernel = ka_generate_kernel(truncate_spherical_kernel!, ka_backend, uhat_d)
-    kernel(uhat_comps, wavenumbers_d, kmax²)
+    uhat_comps = StructArrays.components(uhat)
+    kernel = ka_generate_kernel(truncate_spherical_kernel!, ka_backend, uhat)
+    kernel(uhat_comps, wavenumbers, kmax²)
     nothing
 end
 
@@ -682,7 +682,7 @@ function copy_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
         charges = default_interpolation_output(cache),
     ) where {F}
-    (; charges_h,) = cache.common.pointdata_d
+    (; charges_h,) = cache.common.pointdata
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     ka_backend = KA.get_backend(cache)

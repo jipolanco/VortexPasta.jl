@@ -395,7 +395,7 @@ function do_longrange!(
         cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu;
         callback_vorticity::Fvort,
     ) where {Fvort}
-    (; pointdata_d, to,) = cache  # pointdata on the device (possibly a GPU)
+    (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
 
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -407,17 +407,17 @@ function do_longrange!(
 
     @timeit to "Long-range component (async)" begin
         # Copy point data to the cache (possibly on a GPU).
-        @assert pointdata_cpu !== pointdata_d  # they are different objects
+        @assert pointdata_cpu !== pointdata  # they are different objects
         @timeit to "Copy point charges (host → device)" begin
-            copy!(pointdata_d, pointdata_cpu)  # H2D copy
+            copy!(pointdata, pointdata_cpu)  # H2D copy
         end
         @timeit to "Process point charges" begin
-            process_point_charges!(cache)  # modifies pointdata_d (points and nodes)
+            process_point_charges!(cache)  # modifies pointdata (points and nodes)
         end
 
         # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
         @timeit to "Vorticity to Fourier" begin
-            compute_vorticity_fourier!(cache)  # reads pointdata_d (points and charges)
+            compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
         end
         if callback_vorticity !== identity
             @timeit to "Vorticity callback" begin
@@ -478,8 +478,8 @@ function _compute_on_nodes!(
     # Allocate temporary arrays on the GPU for interpolation outputs (manually deallocated later).
     if with_longrange
         noutputs = sum(length, fs)  # total number of interpolation points
-        # Select elements of outputs_d with the same names as in `fields` (in this case :velocity and/or :streamfunction).
-        outputs_lr = NamedTuple{keys(fields)}(cache.longrange.outputs_d)
+        # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
+        outputs_lr = NamedTuple{keys(fields)}(cache.longrange.outputs)
         foreach(v -> resize_no_copy!(v, noutputs), outputs_lr)
     end
 

@@ -176,8 +176,8 @@ end
 
 function transform_to_fourier!(c::NonuniformFFTsCache, prefactor::Real)
     (; backend, plan,) = c
-    (; pointdata_d, uhat_d,) = c.common
-    (; points, charges,) = pointdata_d
+    (; pointdata, uhat,) = c.common
+    (; points, charges,) = pointdata
     (; ka_backend, ka_device,) = backend
     # Make sure we're already running on the wanted device (e.g. GPU 2).
     # Usually we call this function right after having defined data (points + charges) on
@@ -185,29 +185,29 @@ function transform_to_fourier!(c::NonuniformFFTsCache, prefactor::Real)
     @assert KA.device(ka_backend) == ka_device
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     charges_data = StructArrays.components(charges)
-    uhat_data = StructArrays.components(uhat_d)
+    uhat_data = StructArrays.components(uhat)
     # Note: we could apply prefactor either in non-uniform (physical) or in uniform (Fourier) space.
     # For now we choose to do it in uniform space, not sure if it's better though.
     callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = @inline((ω̂, idx) -> ω̂ .* prefactor))  # use a callback to apply prefactor
     NonuniformFFTs.set_points!(plan, points)
     NonuniformFFTs.exec_type1!(uhat_data, plan, charges_data; callbacks)  # execute NUFFT on all components at once
-    _ensure_hermitian_symmetry!(c.common.wavenumbers_d, uhat_d)
+    _ensure_hermitian_symmetry!(c.common.wavenumbers, uhat)
     c
 end
 
 # Note: the callback must have the signature (û::NTuple{3}, idx::NTuple{3,Int}).
 function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c::NonuniformFFTsCache) where {F <: Function}
     (; backend, plan,) = c
-    (; pointdata_d, uhat_d,) = c.common
-    (; nodes,) = pointdata_d
+    (; pointdata, uhat,) = c.common
+    (; nodes,) = pointdata
     (; ka_backend, ka_device,) = backend
     # Make sure we're already running on the wanted device (e.g. GPU 2).
-    # Usually we call this function right after having defined data (uhat_d) on this device,
+    # Usually we call this function right after having defined data (uhat) on this device,
     # and thus we can expect that we have already selected the right device.
     @assert KA.device(ka_backend) == ka_device
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     charges = StructArrays.components(output)
-    uhat_data = StructArrays.components(uhat_d)
+    uhat_data = StructArrays.components(uhat)
     callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = callback_uniform)
     NonuniformFFTs.set_points!(plan, nodes)
     NonuniformFFTs.exec_type2!(charges, plan, uhat_data; callbacks)

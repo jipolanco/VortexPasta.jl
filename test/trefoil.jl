@@ -168,8 +168,8 @@ function compare_long_range(
     end
 
     # Compare velocities in Fourier space.
-    ks_default = cache_default.common.wavenumbers_d
-    ks_exact = cache_exact.common.wavenumbers_d
+    ks_default = cache_default.common.wavenumbers
+    ks_exact = cache_exact.common.wavenumbers
     inds_to_compare = ntuple(Val(3)) do i
         inds = eachindex(ks_exact[i])
         js = i == 1 ? inds[begin:end - 1] : inds
@@ -177,7 +177,7 @@ function compare_long_range(
         js
     end |> CartesianIndices
     diffnorm_L2 = sum(inds_to_compare) do I
-        uhat, vhat = cache_exact.common.uhat_d, cache_default.common.uhat_d
+        uhat, vhat = cache_exact.common.uhat, cache_default.common.uhat
         du = uhat[I] - vhat[I]
         sum(abs2, du)  # = |u - v|^2
     end

@@ -47,7 +47,7 @@ end
 # Ensure Hermitian symmetry one dimension at a time.
 @inline function _ensure_hermitian_symmetry!(c::ExactSumCache, ::Val{d}, us) where {d}
     N = size(us, d)
-    kd = c.common.wavenumbers_d[d]
+    kd = c.common.wavenumbers[d]
     Δk = kd[2]
     imin = if kd[end] > 0  # real-to-complex dimension (rfftfreq)
         @assert d == 1
@@ -70,37 +70,37 @@ end
 _ensure_hermitian_symmetry!(::ExactSumCache, ::Val{0}, us) = us  # we're done, do nothing
 
 function transform_to_fourier!(c::ExactSumCache, prefactor::Real)
-    (; uhat_d, wavenumbers_d, pointdata_d,) = c.common
-    (; points, charges,) = pointdata_d
-    @assert size(uhat_d) == map(length, wavenumbers_d)
-    fill!(uhat_d, zero(eltype(uhat_d)))
-    inds = CartesianIndices(uhat_d)
+    (; uhat, wavenumbers, pointdata,) = c.common
+    (; points, charges,) = pointdata
+    @assert size(uhat) == map(length, wavenumbers)
+    fill!(uhat, zero(eltype(uhat)))
+    inds = CartesianIndices(uhat)
     @inbounds for i ∈ eachindex(points, charges)
         X = points[i]
         Q = prefactor * charges[i]
         @inbounds Threads.@threads for I ∈ inds
-            k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))
-            uhat_d[I] += Q * cis(-k⃗ ⋅ X)
+            k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
+            uhat[I] += Q * cis(-k⃗ ⋅ X)
         end
     end
     # We zero out some "asymmetric" modes to ease the comparison with other implementations.
-    _ensure_hermitian_symmetry!(c, c.common.uhat_d)
+    _ensure_hermitian_symmetry!(c, c.common.uhat)
     c
 end
 
 function _interpolate_to_physical!(callback::F, output::StructVector, c::ExactSumCache) where {F}
-    (; uhat_d, wavenumbers_d, pointdata_d,) = c.common
-    (; nodes,) = pointdata_d
+    (; uhat, wavenumbers, pointdata,) = c.common
+    (; nodes,) = pointdata
     @assert length(nodes) == length(output)
-    kxs = first(wavenumbers_d)
+    kxs = first(wavenumbers)
     kx_lims = first(kxs), last(kxs)
     @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
     @inbounds Threads.@threads for i ∈ eachindex(nodes, output)
         X = nodes[i]
-        q⃗ = zero(real(eltype(uhat_d)))
-        for I ∈ CartesianIndices(uhat_d)
-            k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))
-            v_orig = uhat_d[I]::Vec3
+        q⃗ = zero(real(eltype(uhat)))
+        for I ∈ CartesianIndices(uhat)
+            k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
+            v_orig = uhat[I]::Vec3
             v = Vec3(@inline callback(Tuple(v_orig), Tuple(I)))  # the callback takes tuples and returns tuples
             z = cis(k⃗ ⋅ X)
             δq⃗ = if k⃗[1] ∈ kx_lims
