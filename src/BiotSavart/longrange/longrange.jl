@@ -600,7 +600,7 @@ Process list of point charges in long-range cache.
 For long-range computations, this should be called after quadrature points and interpolation
 nodes have been set, either via `add_point_charges!(cache, fs)` or by directly modifying
 `cache.pointdata_d`. It must be called before any calls to
-[`compute_vorticity_fourier`](@ref) or [`interpolate_to_physical!`](@ref).
+[`compute_vorticity_fourier!`](@ref) or [`interpolate_to_physical!`](@ref).
 
 This function will process (and possibly modify) data in `cache.pointdata_d`. Therefore,
 **it should only be called once** after points have been set. For example, the
