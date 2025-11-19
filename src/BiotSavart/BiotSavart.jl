@@ -511,8 +511,6 @@ function _compute_on_nodes!(
         end
     end
 
-    with_longrange || return nothing
-
     if with_longrange
         @timeit to "Long-range component" begin
             # Wait for long-range task to finish (GPU).
