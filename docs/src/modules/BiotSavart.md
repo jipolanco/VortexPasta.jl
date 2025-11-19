@@ -61,6 +61,7 @@ process_point_charges!
 add_short_range_fields!
 local_self_induced_velocity
 local_self_induced
+foreach_charge
 nearby_charges
 ```
 
@@ -113,11 +114,13 @@ used to write generic code which works on CPUs and different kinds of GPUs.
 ```@docs
 ka_generate_kernel
 KernelAbstractions.get_backend
+KernelAbstractions.device
 ```
 
 ## Internals
 
 ```@docs
+AbstractBackend
 BiotSavartCache
 background_vorticity_correction!
 ```

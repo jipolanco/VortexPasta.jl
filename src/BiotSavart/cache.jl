@@ -45,10 +45,9 @@ function init_cache(
         timer = TimerOutput("BiotSavart"),
     )
     T = eltype(p)
-    S = non_uniform_type(T, backend(p.longrange))  # type required for non-uniform data by long-range backend
-    pointdata = PointData(T, S, eltype(fs))
+    pointdata = PointData(T, eltype(fs))
     shortrange = init_cache_short(p.common, p.shortrange, pointdata, timer)
-    longrange = init_cache_long(p, pointdata, timer)
+    longrange = init_cache_long(p, pointdata)
     BiotSavartCache(p, pointdata, shortrange, longrange, timer)
 end
 
@@ -75,7 +74,7 @@ function get_longrange_field_fourier end
 get_longrange_field_fourier(cache::BiotSavartCache) = get_longrange_field_fourier(cache.longrange)
 
 function get_longrange_field_fourier(longrange::LongRangeCache)
-    (; uhat_d, wavenumbers_d, state,) = longrange.common
-    uhat_tup = StructArrays.components(uhat_d)::NTuple
-    (; field = uhat_tup, wavenumbers = wavenumbers_d, state = copy(state),)
+    (; uhat, wavenumbers, state,) = longrange.common
+    uhat_tup = StructArrays.components(uhat)::NTuple
+    (; field = uhat_tup, wavenumbers = wavenumbers, state = copy(state),)
 end

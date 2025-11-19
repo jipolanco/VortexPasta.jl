@@ -18,7 +18,7 @@ Abstract type denoting the backend to use for computing long-range interactions.
 
 The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
-- `init_cache_long_ewald(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`.
+- `init_cache_long_ewald(c::ParamsCommon, p::ParamsLongRange{<:BACKEND}, to::TimerOutput) -> LongRangeCache`,
 
 - [`has_real_to_complex`](@ref),
 
@@ -26,10 +26,12 @@ The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
 - [`folding_limits`](@ref) (optional),
 
-- [`KernelAbstractions.get_backend`](@ref) (required for GPU-based backends).
+- [`KernelAbstractions.get_backend`](@ref) (required for GPU-based backends),
+
+- [`KernelAbstractions.device`](@ref) (required for GPU-based backends).
 
 """
-abstract type LongRangeBackend end
+abstract type LongRangeBackend <: AbstractBackend end
 
 """
     has_real_to_complex(::LongRangeBackend) -> Bool
@@ -94,15 +96,15 @@ The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRan
 Most useful fields of a `cache::LongRangeCache` are in the `cache.common` field.
 In particular, `cache.common` contains the fields:
 
-- `wavenumbers_d::NTuple{3, AbstractVector}`: Fourier wavenumbers in each direction;
+- `wavenumbers::NTuple{3, AbstractVector}`: Fourier wavenumbers in each direction;
 
-- `uhat_d::StructArray{Vec3{Complex{T}}, 3}`: a full vector field in Fourier space;
+- `uhat::StructArray{Vec3{Complex{T}}, 3}`: a full vector field in Fourier space;
 
-- `pointdata_d::PointData`: data associated to vector charges applied on non-uniform points.
-  These are available in `pointdata_d.charges` and `pointdata_d.points`;
+- `pointdata::PointData`: data associated to vector charges applied on non-uniform points.
+  These are available in `pointdata.charges` and `pointdata.points`;
 
-The `_d` suffixes means that data is on the computing device associated to the long-range
-backend (i.e. on the GPU for GPU-based backends).
+Note that, for GPU-based backends, practically all arrays (`uhat` in particular) are GPU arrays,
+which don't support all operations of CPU arrays (such as `for` loops).
 
 # Extended help
 
@@ -124,15 +126,29 @@ The following functions must be implemented by a cache:
 """
 abstract type LongRangeCache end
 
+# This is for convenience: doing c.α is equivalent to c.common.α (we do the same for ParamsBiotSavart).
+@inline function Base.getproperty(c::LongRangeCache, name::Symbol)
+    common = getfield(c, :common)
+    if hasproperty(common, name)
+        getfield(common, name)
+    else
+        getfield(c, name)
+    end
+end
+
+function Base.propertynames(c::LongRangeCache, private::Bool = false)
+    (fieldnames(typeof(c))..., propertynames(c.common, private)...)
+end
+
 get_parameters(c::LongRangeCache) = c.common.params_all::ParamsBiotSavart
 backend(c::LongRangeCache) = backend(get_parameters(c).longrange)
 ewald_smoothing_scale(c::LongRangeCache) = get_parameters(c).σ
 has_real_to_complex(c::LongRangeCache) = has_real_to_complex(c.common)
 KA.get_backend(c::LongRangeCache) = KA.get_backend(backend(c))
+KA.device(c::LongRangeCache) = KA.device(backend(c))
 
-# TODO: this is not optimised for GPU backends
 function add_point_charges!(c::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
     (; Ls,) = c.common.params_all
     (; quad,) = c.common.params
-    add_point_charges!(c.common.pointdata_d, fs, Ls, quad)
+    add_point_charges!(c.common.pointdata, fs, Ls, quad)
 end

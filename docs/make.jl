@@ -203,6 +203,8 @@ make_all(; draft = false,)
 @show readdir(joinpath(@__DIR__, "build"))
 @show readdir(joinpath(@__DIR__, "build", "1"))
 
+# DocumenterVitepress.dev_docs("build")  # use this to see the docs locally
+
 # Documenter can also automatically deploy documentation to gh-pages.
 # See "Hosting Documentation" and deploydocs() in the Documenter manual
 # for more information.

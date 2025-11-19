@@ -15,15 +15,17 @@ Abstract type denoting the backend used for computing short-range interactions.
 
 ## Implementation details
 
-A `BACKEND <: ShortRangeBackend` must implement the function:
+The following functions must be implemented by a `BACKEND <: ShortRangeBackend`:
 
-    init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput)
+- `init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput) -> ShortRangeCache`,
 
-which should return a [`ShortRangeCache`](@ref).
+- [`max_cutoff_distance`](@ref) (optional),
 
-It may also implement the function [`max_cutoff_distance`](@ref).
+- [`KernelAbstractions.get_backend`](@ref) (required for GPU-based backends),
+
+- [`KernelAbstractions.device`](@ref) (required for GPU-based backends).
 """
-abstract type ShortRangeBackend end
+abstract type ShortRangeBackend <: AbstractBackend end
 
 """
     max_cutoff_distance(::ShortRangeBackend, L::Real) -> r
@@ -69,3 +71,31 @@ The following fields must be included in a cache:
 
 """
 abstract type ShortRangeCache end
+
+"""
+    init_cache_short(
+        pc::ParamsCommon, p::ParamsShortRange,
+        fs::AbstractVector{<:AbstractFilament},
+        to::TimerOutput,
+    ) -> ShortRangeCache
+
+Initialise the cache for the short-range backend defined in `p`.
+"""
+function init_cache_short end
+
+backend(c::ShortRangeCache) = backend(c.params::ParamsShortRange)
+KA.get_backend(c::ShortRangeCache) = KA.get_backend(backend(c))
+KA.device(c::ShortRangeCache) = KA.device(backend(c))
+
+"""
+    process_point_charges!(cache::ShortRangeCache, data::PointData)
+
+Process list of point charges.
+
+This is useful for short-range backends like [`CellListsBackend`](@ref), which needs to
+assign a cell to each point charge before finding nearby pairs.
+
+Must be called after [`add_point_charges!`](@ref) and before computing any short-range quantities
+(using [`add_short_range_fields!`](@ref)).
+"""
+process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend

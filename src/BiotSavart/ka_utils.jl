@@ -1,19 +1,32 @@
 # KernelAbstractions utils (CPU/GPU kernels)
 
 """
-    KernelAbstractions.get_backend(backend::LongRangeBackend) -> KernelAbstractions.Backend
+    KernelAbstractions.get_backend(backend::AbstractBackend) -> KernelAbstractions.Backend
+    KernelAbstractions.get_backend(cache::ShortRangeCache) -> KernelAbstractions.Backend
     KernelAbstractions.get_backend(cache::LongRangeCache) -> KernelAbstractions.Backend
 
-Get KernelAbstractions (KA) backend associated to a given long-range backend.
+Get KernelAbstractions (KA) backend associated to a given short-range or long-range backend.
 
 !!! note
 
     The word "backend" means two different things here!
-    For KA, it refers to the device where kernels are executed (e.g. `CPU`, `CUDABackend`, ...).
+    For KA, it refers to the type of device where kernels are executed (e.g. `CPU`, `CUDABackend`, ...).
 
 By default this returns `KA.CPU()`, meaning that things are run on the CPU using threads.
 """
-KA.get_backend(::LongRangeBackend) = ka_default_cpu_backend()
+KA.get_backend(::AbstractBackend) = ka_default_cpu_backend()
+
+"""
+    KernelAbstractions.device(backend::AbstractBackend) -> Int
+    KernelAbstractions.device(cache::ShortRangeCache) -> Int
+    KernelAbstractions.device(cache::LongRangeCache) -> Int
+
+Return the device id (in `1:ndevices`) where short-range or long-range computations are run.
+
+This can make sense when running on GPUs, where one may want to take advantage of multiple
+available GPUs on the same machine. On CPUs the device id is generally `1`.
+"""
+KA.device(::AbstractBackend) = 1
 
 ka_default_cpu_backend() = KA.CPU()
 
@@ -79,6 +92,9 @@ struct PseudoGPU <: KA.GPU end
 KA.isgpu(::PseudoGPU) = false  # needed to be considered as a CPU backend by KA
 KA.allocate(::PseudoGPU, ::Type{T}, dims::Dims) where {T} = KA.allocate(KA.CPU(), T, dims)
 KA.synchronize(::PseudoGPU) = nothing
+KA.ndevices(::PseudoGPU) = 1
+KA.device(::PseudoGPU) = 1
+KA.device!(::PseudoGPU, device::Int) = device == 1 ? nothing : throw(ArgumentError("device must be 1"))
 KA.copyto!(::PseudoGPU, u, v) = copyto!(u, v)
 Adapt.adapt(::PseudoGPU, u::Array) = copy(u)  # simulate host → device copy (making sure arrays are not aliased)
 
