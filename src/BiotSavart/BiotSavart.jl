@@ -513,20 +513,23 @@ function _compute_on_nodes!(
 
     with_longrange || return nothing
 
-    @timeit to "Long-range component" begin
-        # Wait for long-range task to finish (GPU).
-        @timeit to "Wait for async operations" wait(task_lr)
+    if with_longrange
+        @timeit to "Long-range component" begin
+            # Wait for long-range task to finish (GPU).
+            @timeit to "Wait for async operations" wait(task_lr)
 
-        # Add results from long-range part.
-        @timeit to "Copy output (device → host)" let
-            if hasproperty(fields, :streamfunction)
-                copy_long_range_output!(+, fields.streamfunction, cache.longrange, outputs_lr.streamfunction)
-            end
-            if hasproperty(fields, :velocity)
-                copy_long_range_output!(+, fields.velocity, cache.longrange, outputs_lr.velocity)
+            # Add results from long-range part.
+            @timeit to "Copy output (device → host)" let
+                if hasproperty(fields, :streamfunction)
+                    copy_long_range_output!(+, fields.streamfunction, cache.longrange, outputs_lr.streamfunction)
+                end
+                if hasproperty(fields, :velocity)
+                    copy_long_range_output!(+, fields.velocity, cache.longrange, outputs_lr.velocity)
+                end
             end
         end
 
+        # Add timings from asynchronous computations.
         TimerOutputs.merge!(to, cache.longrange.to; tree_point = ["Long-range component"])
     end
 
