@@ -61,6 +61,7 @@ process_point_charges!
 add_short_range_fields!
 local_self_induced_velocity
 local_self_induced
+foreach_charge
 nearby_charges
 ```
 
