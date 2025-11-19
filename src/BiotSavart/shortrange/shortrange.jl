@@ -32,6 +32,18 @@ See also [`CellLists.foreach_source`](@ref), which is used when [`CellListsBacke
 """
 function foreach_charge end
 
+"""
+    foreach_pair(f::Function, c::ShortRangeCache)
+
+Apply function `f` to all point pairs within the chosen cut-off distance.
+
+The function should be of the form `f(x⃗, i, j)` where `x⃗ = c.pointdata.nodes[i]` is a
+destination point, and `(i, j)` are a pair of destination/source indices.
+
+See [`CellLists.foreach_pair`](@ref) for more details (which is called when using the [`CellListsBackend`](@ref)).
+"""
+function foreach_pair end
+
 function short_range_velocity end
 
 abstract type EwaldComponent end

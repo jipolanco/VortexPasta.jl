@@ -76,3 +76,13 @@ end
     end
     nothing
 end
+
+@inline function foreach_pair(f::F, c::NaiveShortRangeCache; kws...) where {F <: Function}
+    (; nodes,) = c.pointdata.nodes
+    Threads.@threads for (i, x⃗) in pairs(nodes)
+        for j in nearby_charges(c, x⃗)
+            @inline f(x⃗, i, j)
+        end
+    end
+    nothing
+end
