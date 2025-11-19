@@ -17,7 +17,7 @@ Abstract type denoting the backend used for computing short-range interactions.
 
 The following functions must be implemented by a `BACKEND <: ShortRangeBackend`:
 
-- `init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput) -> ShortRangeCache`,
+- [`init_cache_short`](@ref),
 
 - [`max_cutoff_distance`](@ref) (optional),
 
@@ -72,14 +72,28 @@ The following fields must be included in a cache:
 """
 abstract type ShortRangeCache end
 
+# This is for convenience: doing c.α is equivalent to c.common.α (we do the same for ParamsBiotSavart).
+@inline function Base.getproperty(c::ShortRangeCache, name::Symbol)
+    common = getfield(c, :common)
+    if hasproperty(common, name)
+        getfield(common, name)
+    else
+        getfield(c, name)
+    end
+end
+
+function Base.propertynames(c::ShortRangeCache, private::Bool = false)
+    (fieldnames(typeof(c))..., propertynames(c.common, private)...)
+end
+
 """
-    init_cache_short(
-        pc::ParamsCommon, p::ParamsShortRange,
-        fs::AbstractVector{<:AbstractFilament},
-        to::TimerOutput,
-    ) -> ShortRangeCache
+    init_cache_short(pc::ParamsCommon, p::ParamsShortRange{<:ShortRangeBackend}, pointdata::PointData, to::TimerOutput) -> ShortRangeCache
 
 Initialise the cache for the short-range backend defined in `p`.
+
+This should be defined for each [`ShortRangeBackend`](@ref). In general, implementations
+should _create a copy_ of `pointdata` to avoid possible aliasing issues, since the
+`pointdata` in the signature is usually the one owned by the full [`BiotSavartCache`](@ref).
 """
 function init_cache_short end
 

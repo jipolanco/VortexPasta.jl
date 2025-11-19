@@ -41,15 +41,11 @@ subdivisions(::CellListsBackend{M}) where {M} = M
 max_cutoff_distance(::CellListsBackend{M}, L::AbstractFloat) where {M} = CellLists.max_cutoff_distance(M, L)
 
 struct CellListsCache{
-        Params <: ParamsShortRange{<:Real, <:CellListsBackend},
-        PointCharges <: PointData,
+        Common <: ShortRangeCacheCommon,
         CellList <: PeriodicCellList,
-        Timer <: TimerOutput,
     } <: ShortRangeCache
-    params :: Params
-    pointdata :: PointCharges
+    common :: Common
     cl     :: CellList
-    to     :: Timer
 end
 
 function init_cache_short(
@@ -61,7 +57,8 @@ function init_cache_short(
     nsubdiv = Val(subdivisions(backend))
     rs_cut = map(_ -> rcut, Ls)  # same cut-off distance in each direction
     cl = PeriodicCellList(rs_cut, Ls, nsubdiv)
-    CellListsCache(params, pointdata, cl, to)
+    common = ShortRangeCacheCommon(params, pointdata, to)
+    CellListsCache(common, cl)
 end
 
 function process_point_charges!(c::CellListsCache, pointdata::PointData)

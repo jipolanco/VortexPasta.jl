@@ -17,21 +17,16 @@ r_{\text{cut}} ≤ \frac{L}{2}
 """
 struct NaiveShortRangeBackend <: ShortRangeBackend end
 
-struct NaiveShortRangeCache{
-        Params <: ParamsShortRange{<:Real, <:NaiveShortRangeBackend},
-        PointCharges <: PointData,
-        Timer <: TimerOutput,
-    } <: ShortRangeCache
-    params :: Params
-    pointdata :: PointCharges
-    to     :: Timer
+struct NaiveShortRangeCache{Common <: ShortRangeCacheCommon} <: ShortRangeCache
+    common :: Common
 end
 
 function init_cache_short(
         ::ParamsCommon, params::ParamsShortRange{T, <:NaiveShortRangeBackend},
         pointdata::PointData, to::TimerOutput,
     ) where {T}
-    NaiveShortRangeCache(params, pointdata, to)
+    common = ShortRangeCacheCommon(params, pointdata, to)
+    NaiveShortRangeCache(common)
 end
 
 @inline function nearby_charges(c::NaiveShortRangeCache, x⃗::Vec3)

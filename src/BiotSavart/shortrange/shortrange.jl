@@ -8,6 +8,8 @@ using Static: dynamic
 using SpecialFunctions: SpecialFunctions
 using SIMD: SIMD
 
+include("cache_common.jl")
+
 include("SIMDFunctions.jl")
 using .SIMDFunctions: verf
 
