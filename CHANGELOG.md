@@ -5,7 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.31.0] - 2025-11-19
+
 ### Changed
+
+- Many changes in preparation for GPU port of short-range interactions.
 
 - **[Breaking]**: one must now call `BiotSavart.process_point_charges!(cache::LongRangeCache)`
   previous to performing any long-range operations (computing vorticity in Fourier space,
