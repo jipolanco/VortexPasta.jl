@@ -428,7 +428,7 @@ function do_longrange!(
         # Interpolate streamfunction and/or velocity.
         callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
 
-        if haskey(outputs, :streamfunction)
+        if hasproperty(outputs, :streamfunction)
             @timeit to "Streamfunction field (Fourier)" begin
                 # Compute streamfunction from vorticity in Fourier space.
                 compute_field_fourier!(Streamfunction(), cache)
@@ -439,7 +439,7 @@ function do_longrange!(
             end
         end
 
-        if haskey(outputs, :velocity)
+        if hasproperty(outputs, :velocity)
             @timeit to "Velocity field (Fourier)" begin
                 # Compute velocity from vorticity or streamfunction in Fourier space.
                 compute_field_fourier!(Velocity(), cache)
@@ -527,10 +527,10 @@ function _compute_on_nodes!(
                     copy_long_range_output!(+, fields.velocity, cache.longrange, outputs_lr.velocity)
                 end
             end
-        end
 
-        # Add timings from asynchronous computations.
-        TimerOutputs.merge!(to, cache.longrange.to; tree_point = ["Long-range component"])
+            # Add timings from asynchronous computations.
+            TimerOutputs.merge!(to, cache.longrange.to; tree_point = [t.name for t in to.timer_stack])  # https://github.com/KristofferC/TimerOutputs.jl/issues/143
+        end
     end
 
     nothing
