@@ -397,6 +397,8 @@ function do_longrange!(
     ) where {Fvort}
     (; pointdata_d, to,) = cache  # pointdata on the device (possibly a GPU)
 
+    TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
+
     # Make sure we execute this task in the GPU device chosen for long-range computations.
     # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
     ka_backend = KA.get_backend(cache)  # KA backend used for long-range computations (e.g. CUDABackend)
@@ -528,7 +530,7 @@ function _compute_on_nodes!(
             end
         end
 
-        TimerOutputs.merge!(to, cache.longrange.to)
+        TimerOutputs.merge!(to, cache.longrange.to; tree_point = ["Long-range component"])
     end
 
     nothing
