@@ -61,9 +61,8 @@ function init_cache_short(
     CellListsCache(common, cl)
 end
 
-function process_point_charges!(c::CellListsCache, pointdata::PointData)
-    (; cl,) = c
-    @assert pointdata === c.pointdata
+function process_point_charges!(c::CellListsCache)
+    (; cl, pointdata) = c
     (; points, charges, segments,) = pointdata
     @assert eachindex(points) == eachindex(charges) == eachindex(segments)
     Base.require_one_based_indexing(points)

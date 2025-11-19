@@ -102,7 +102,7 @@ KA.get_backend(c::ShortRangeCache) = KA.get_backend(backend(c))
 KA.device(c::ShortRangeCache) = KA.device(backend(c))
 
 """
-    process_point_charges!(cache::ShortRangeCache, data::PointData)
+    process_point_charges!(cache::ShortRangeCache)
 
 Process list of point charges.
 
@@ -112,4 +112,4 @@ assign a cell to each point charge before finding nearby pairs.
 Must be called after [`add_point_charges!`](@ref) and before computing any short-range quantities
 (using [`add_short_range_fields!`](@ref)).
 """
-process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend
+process_point_charges!(::ShortRangeCache) = nothing  # can be overridden by the backend

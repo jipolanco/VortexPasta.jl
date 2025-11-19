@@ -494,9 +494,10 @@ function _compute_on_nodes!(
 
     # While the first long-range task is running, compute short-range part.
     if with_shortrange
-        @timeit to "Short-range component" begin
-            @timeit to "Process point charges" process_point_charges!(cache.shortrange, pointdata)  # useful in particular for cell lists
-            @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache.shortrange, fs; LIA)
+        @timeit to "Short-range component" let cache = cache.shortrange
+            @timeit to "Copy point charges" copy!(cache.pointdata, pointdata)  # possibly host -> device copy
+            @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
+            @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache, fs; LIA)
             @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
             @timeit to "Remove self-interactions (CPU)" begin
                 # This is done fully on the CPU.
