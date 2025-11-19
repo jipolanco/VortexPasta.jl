@@ -428,7 +428,7 @@ end
 # Non-periodic case (no Ewald summation, no cutoff distance, no SIMD, naive computation)
 function _add_pair_interactions_shortrange(α::Zero, vecs, cache, x⃗, params, sa, sb, Lhs)
     (; Ls,) = params.common
-    (; points, charges, segments,) = cache.data
+    (; points, charges, segments,) = cache.pointdata
     rcut² = params.rcut_sq
     @assert all(L -> L === Infinity(), Ls)  # infinite non-periodic domain
     @assert all(L -> L === Infinity(), Lhs)
@@ -461,7 +461,7 @@ end
 # Ewald summation without explicit SIMD.
 function _add_pair_interactions_shortrange(α::T, vecs, cache, x⃗, params, sa, sb, Lhs) where {T <: AbstractFloat}
     (; Ls,) = params.common
-    (; points, charges, segments,) = cache.data
+    (; points, charges, segments,) = cache.pointdata
     N = length(Ls)
     rcut² = params.rcut_sq
     vecs_ref = Ref(vecs)
@@ -517,8 +517,8 @@ end
 full_integrand(::Velocity, r_inv, r³_inv, qs⃗′, r⃗) = r³_inv * (qs⃗′ × r⃗)
 full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗′
 
-@inline function _simd_load_batch(data, x⃗, js::NTuple{W}, m::Integer, sa, sb, Ls, Lhs, rcut²) where {W}
-    (; points, charges) = data
+@inline function _simd_load_batch(pointdata, x⃗, js::NTuple{W}, m::Integer, sa, sb, Ls, Lhs, rcut²) where {W}
+    (; points, charges) = pointdata
     points::StructVector
     charges::StructVector
     # @assert m <= W
@@ -575,7 +575,7 @@ full_integrand(::Streamfunction, r_inv, r³_inv, qs⃗′, r⃗) = r_inv * qs⃗
 
     if sa !== nothing && sb !== nothing
         @inbounds for i in 1:m
-            seg = data.segments[js[i]]
+            seg = pointdata.segments[js[i]]
             if seg === sa || seg === sb
                 mask_simd = Base.setindex(mask_simd, false, i)
             end
@@ -605,7 +605,7 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
     foreach_charge(cache, x⃗; batch_size = Val(W), folded = Val(true)) do js, m
         @inline
         rcut² = params.rcut_sq
-        (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd) = _simd_load_batch(cache.data, x⃗, js, m, sa, sb, Ls, Lhs, rcut²)
+        (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd) = _simd_load_batch(cache.pointdata, x⃗, js, m, sa, sb, Ls, Lhs, rcut²)
 
         # There's nothing interesting to compute if mask is fully zero.
         iszero(SIMD.bitmask(mask_simd)) && return

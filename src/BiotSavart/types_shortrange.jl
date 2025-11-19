@@ -65,7 +65,7 @@ The following fields must be included in a cache:
 
 - `params::ParamsShortRange`: parameters for short-range computations;
 
-- `data::PointData`: updated charge locations and values;
+- `pointdata::PointData`: updated quadrature locations, charge values and output points (filament nodes);
 
 - `to::TimerOutput`: for measuring time spent on different functions.
 

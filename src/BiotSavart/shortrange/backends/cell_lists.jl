@@ -42,31 +42,32 @@ max_cutoff_distance(::CellListsBackend{M}, L::AbstractFloat) where {M} = CellLis
 
 struct CellListsCache{
         Params <: ParamsShortRange{<:Real, <:CellListsBackend},
-        Charges <: PointData,
+        PointCharges <: PointData,
         CellList <: PeriodicCellList,
         Timer <: TimerOutput,
     } <: ShortRangeCache
     params :: Params
-    data   :: Charges
+    pointdata :: PointCharges
     cl     :: CellList
     to     :: Timer
 end
 
 function init_cache_short(
         pc::ParamsCommon, params::ParamsShortRange{T, <:CellListsBackend},
-        data::PointData, to::TimerOutput,
+        pointdata::PointData, to::TimerOutput,
     ) where {T}
     (; backend, rcut,) = params
     (; Ls,) = pc
     nsubdiv = Val(subdivisions(backend))
     rs_cut = map(_ -> rcut, Ls)  # same cut-off distance in each direction
     cl = PeriodicCellList(rs_cut, Ls, nsubdiv)
-    CellListsCache(params, data, cl, to)
+    CellListsCache(params, pointdata, cl, to)
 end
 
-function process_point_charges!(c::CellListsCache, data::PointData)
+function process_point_charges!(c::CellListsCache, pointdata::PointData)
     (; cl,) = c
-    (; points, charges, segments,) = data
+    @assert pointdata === c.pointdata
+    (; points, charges, segments,) = pointdata
     @assert eachindex(points) == eachindex(charges) == eachindex(segments)
     Base.require_one_based_indexing(points)
     CellLists.set_elements!(cl, points)
