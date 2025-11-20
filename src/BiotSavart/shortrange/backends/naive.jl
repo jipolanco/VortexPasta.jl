@@ -76,13 +76,16 @@ end
     nothing
 end
 
-@inline function foreach_pair(f::F, c::NaiveShortRangeCache; kws...) where {F <: Function}
+@inline function foreach_pair(
+        f::F, c::NaiveShortRangeCache;
+        batch_size::Union{Nothing, Val} = nothing,  # see CellLists.foreach_source for details on this argument
+        folded = Val(false),  # ignored (used in CellLists)
+    ) where {F <: Function}
     (; nodes,) = c.pointdata
     Threads.@threads for i in eachindex(nodes)
         x⃗ = @inbounds nodes[i]
-        for j in nearby_charges(c, x⃗)
-            @inline f(x⃗, i, j)
-        end
+        g = CellLists.Fix12(f, x⃗, i)
+        _foreach_charge(g, batch_size, c, x⃗)
     end
     nothing
 end
