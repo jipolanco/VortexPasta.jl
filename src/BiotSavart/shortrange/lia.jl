@@ -76,7 +76,7 @@ to_quadrature(::Nothing) = NoQuadrature()
 
 function _local_self_induced(
         ::Velocity, ::NoQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real, fit_circle = false, segment_fraction = nothing, kws...,
+        a::Real, Δ::Real, fit_circle = false, segment_fraction = nothing,
     )
     ℓ₋ = norm(f[i] - f[i - 1])
     ℓ₊ = norm(f[i + 1] - f[i])
@@ -116,7 +116,6 @@ nonlia_integration_limits(γ::Real) = ((zero(γ), one(γ) - γ), (γ, one(γ)))
 @inline function _local_self_induced(
         ::Velocity, quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real, segment_fraction::Union{Nothing, Real} = nothing,
-        kws...,
     )
     lims = lia_integration_limits(segment_fraction)
     ℓ₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
@@ -134,7 +133,7 @@ end
 function _local_self_induced(
         ::Streamfunction, ::NoQuadrature,
         f::AbstractFilament, i::Int, prefactor::Real;
-        a::Real, Δ::Real, segment_fraction = nothing, kws...,
+        a::Real, Δ::Real, segment_fraction = nothing,
     )
     ℓ₋ = norm(f[i] - f[i - 1])
     ℓ₊ = norm(f[i + 1] - f[i])
@@ -149,7 +148,6 @@ end
         f::AbstractFilament, i::Int, prefactor::Real;
         a::Real, Δ::Real,
         segment_fraction::Union{Nothing, Real} = nothing,
-        kws...,
     )
     lims = lia_integration_limits(segment_fraction)
     ℓ₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ

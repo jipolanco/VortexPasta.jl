@@ -134,9 +134,12 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         ℓ₋ = integrate(integrand, f, i - 1, GaussLegendre(8))
         ℓ₊ = integrate(integrand, f, i - 0, GaussLegendre(8))
         ℓ = sqrt(ℓ₋ * ℓ₊) / 4 * ps.lia_segment_fraction
-        BiotSavart.velocity_on_nodes!([vs], cache, [f]; LIA = Val(false))
+        vs_total = vs
+        vs_lia = BiotSavart.velocity_on_nodes(cache, [f], LIA = Val(:only))[1]
+        vs_nonlia = BiotSavart.velocity_on_nodes(cache, [f]; LIA = Val(false))[1]
+        @test vs_total ≈ vs_lia .+ vs_nonlia
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
-        U_nonlocal = norm(vs[i])
+        U_nonlocal = norm(vs_nonlia[i])
         rtol = if quad === NoQuadrature()
             0.3  # the error can be huge!!
         elseif quad === GaussLegendre(1)

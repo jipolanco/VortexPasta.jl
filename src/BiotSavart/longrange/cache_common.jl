@@ -79,7 +79,6 @@ function LongRangeCacheCommon(
         params_all::ParamsBiotSavart{T},
         wavenumbers::NTuple{3, AbstractVector},
         pointdata_in::PointData{T},
-        timer::TimerOutput,
     ) where {T}
     pcommon = params_all.common
     params = params_all.longrange
@@ -103,9 +102,8 @@ function LongRangeCacheCommon(
     )
     ewald_gaussian = init_ewald_gaussian_operator(T, backend, wavenumbers, α)
     state = LongRangeCacheState()
-    LongRangeCacheCommon(params, params_all, wavenumbers, pointdata, outputs, uhat, vorticity_prefactor, ewald_gaussian, state, timer)
+    to = TimerOutput()
+    LongRangeCacheCommon(params, params_all, wavenumbers, pointdata, outputs, uhat, vorticity_prefactor, ewald_gaussian, state, to)
 end
 
 has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)
-
-

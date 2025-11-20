@@ -38,9 +38,6 @@ using KernelAbstractions:
     KernelAbstractions as KA, @kernel, @index, @Const,
     CPU, GPU
 
-using StableTasks: StableTasks
-
-using Bumper: Bumper, @no_escape, @alloc
 using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
 
@@ -128,12 +125,18 @@ See [`compute_on_nodes!`](@ref) for a list of accepted keyword arguments.
 """
 function velocity_on_nodes! end
 
-function _reset_vectors!(vs)
-    for v ∈ vs
-        fill!(v, zero(eltype(v)))
+# Parallelise resetting for CPU arrays.
+function _reset_array!(u::Array{T}) where {T}
+    Threads.@threads for i in eachindex(u)
+        @inbounds u[i] = zero(T)
     end
-    vs
+    u
 end
+
+# This is typically the case of GPU arrays.
+_reset_array!(u::AbstractArray{T}) where {T} = fill!(u, zero(T))
+
+_reset_vectors!(vs) = foreach(_reset_array!, vs)
 
 function velocity_on_nodes!(
         vs::AbstractVector{<:VectorOfVec},
@@ -384,10 +387,12 @@ function compute_on_nodes!(
         LIA = Val(true),
         kws...,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+    (; to,) = cache
     if LIA === Val(:only)
-        return _compute_LIA_on_nodes!(fields, cache, fs)
+        @timeit to "LIA term (only)" _compute_LIA_on_nodes!(fields, cache, fs)
+    else
+        _compute_on_nodes!(fields, cache, fs; LIA, kws...)
     end
-    _compute_on_nodes!(fields, cache, fs; LIA, kws...)
     fields
 end
 
@@ -396,7 +401,6 @@ function do_longrange!(
         callback_vorticity::Fvort,
     ) where {Fvort}
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
-
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
     # Make sure we execute this task in the GPU device chosen for long-range computations.
@@ -408,49 +412,57 @@ function do_longrange!(
     @timeit to "Long-range component (async)" begin
         # Copy point data to the cache (possibly on a GPU).
         @assert pointdata_cpu !== pointdata  # they are different objects
-        @timeit to "Copy point charges (host → device)" begin
-            copy!(pointdata, pointdata_cpu)  # H2D copy
-        end
-        @timeit to "Process point charges" begin
-            process_point_charges!(cache)  # modifies pointdata (points and nodes)
-        end
+        @timeit to "Copy point charges (host -> device)" copy!(pointdata, pointdata_cpu)  # this possibly copies from CPU to GPU
+        @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
 
         # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
-        @timeit to "Vorticity to Fourier" begin
-            compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
-        end
+        @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
+
         if callback_vorticity !== identity
-            @timeit to "Vorticity callback" begin
-                callback_vorticity(cache)
-            end
+            @timeit to "Vorticity callback" callback_vorticity(cache)
         end
 
         # Interpolate streamfunction and/or velocity.
         callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
 
         if hasproperty(outputs, :streamfunction)
-            @timeit to "Streamfunction field (Fourier)" begin
-                # Compute streamfunction from vorticity in Fourier space.
-                compute_field_fourier!(Streamfunction(), cache)
-            end
-            @timeit to "Interpolate to physical" begin
-                # Write interpolation output to outputs.streamfunction
-                interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
-            end
+            # Compute streamfunction from vorticity in Fourier space.
+            @timeit to "Streamfunction field (Fourier)" compute_field_fourier!(Streamfunction(), cache)
+            # Write interpolation output to outputs.streamfunction
+            @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
         end
 
         if hasproperty(outputs, :velocity)
-            @timeit to "Velocity field (Fourier)" begin
-                # Compute velocity from vorticity or streamfunction in Fourier space.
-                compute_field_fourier!(Velocity(), cache)
-            end
-            @timeit to "Interpolate to physical" begin
-                # Write interpolation output to outputs.velocity
-                interpolate_to_physical!(callback_interp, outputs.velocity, cache)
-            end
+            # Compute velocity from vorticity or streamfunction in Fourier space.
+            @timeit to "Velocity field (Fourier)" compute_field_fourier!(Velocity(), cache)
+            # Write interpolation output to outputs.velocity
+            @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.velocity, cache)
         end
 
-        @timeit to "Synchronise GPU" KA.synchronize(ka_backend)  # wait for the GPU to finish its work
+        # Wait for the GPU to finish its work before finishing this task.
+        @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
+    end
+
+    nothing
+end
+
+function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu)
+    (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
+    TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
+
+    # Make sure we execute this task in the GPU device chosen for long-range computations.
+    # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
+    ka_backend = KA.get_backend(cache)  # KA backend used for long-range computations (e.g. CUDABackend)
+    device_id = KA.device(cache)        # in 1:ndevices
+    KA.device!(ka_backend, device_id)   # set the device
+
+    @timeit to "Short-range component (async)" begin
+        @timeit to "Copy point charges (host -> device)" copy!(cache.pointdata, pointdata_cpu)  # possibly host -> device copy
+        @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
+        @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
+
+        # Wait for the GPU to finish its work before finishing this task.
+        @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
     end
 
     nothing
@@ -475,32 +487,42 @@ function _compute_on_nodes!(
     # This is used by short and long-range computations.
     @timeit to "Add point charges" add_point_charges!(pointdata, fs, Ls, quad)  # done on the CPU
 
-    # Allocate temporary arrays on the GPU for interpolation outputs (manually deallocated later).
+    noutputs = sum(length, fs)  # total number of interpolation points
+    tasks = Pair{Symbol, Task}[]  # e.g. :longrange => Task()
+
     if with_longrange
-        noutputs = sum(length, fs)  # total number of interpolation points
         # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
-        outputs_lr = NamedTuple{keys(fields)}(cache.longrange.outputs)
-        foreach(v -> resize_no_copy!(v, noutputs), outputs_lr)
-    end
-
-    # Compute long-range part asynchronously on the GPU.
-    task_lr = if with_longrange
-        StableTasks.@spawn begin
-            do_longrange!(cache.longrange, outputs_lr, pointdata; callback_vorticity)::Nothing  # should return nothing for type stability
+        let outputs = NamedTuple{keys(fields)}(cache.longrange.outputs)
+            foreach(v -> resize_no_copy!(v, noutputs), outputs)  # resize output arrays
+            # Compute long-range part asynchronously (e.g. on a GPU).
+            task_lr = Threads.@spawn do_longrange!(cache.longrange, outputs, pointdata; callback_vorticity)
+            push!(tasks, :longrange => task_lr)
         end
-    else
-        StableTasks.@spawn nothing  # empty task (returns `nothing`)
     end
 
-    # While the first long-range task is running, compute short-range part.
     if with_shortrange
-        @timeit to "Short-range component" let cache = cache.shortrange
-            @timeit to "Copy point charges" copy!(cache.pointdata, pointdata)  # possibly host -> device copy
-            @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
-            @timeit to "Compute Biot–Savart" add_short_range_fields!(fields, cache, fs; LIA)
-            @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
-            @timeit to "Remove self-interactions (CPU)" begin
-                # This is done fully on the CPU.
+        # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
+        let outputs = NamedTuple{keys(fields)}(cache.shortrange.outputs)
+            # Resize output arrays and set them to zero (as expected by add_pair_interactions!)
+            foreach(outputs) do v
+                resize_no_copy!(v, noutputs)
+                _reset_array!(v)
+            end
+            # Compute short-range part asynchronously (e.g. on a GPU).
+            task_sr = Threads.@spawn do_shortrange!(cache.shortrange, outputs, pointdata)
+            push!(tasks, :shortrange => task_sr)
+        end
+    end
+
+    # Perform CPU-only operations associated to the short-range part (this differentiation is kind of arbitrary).
+    if with_shortrange
+        @timeit to "Short-range component" begin
+            if LIA === Val(true)
+                @timeit to "LIA term" _compute_LIA_on_nodes!(fields, cache, fs)  # this currently replaces existent data, so it must be first
+            end
+            @timeit to "Add local integrals" add_local_integrals!(fields, cache.params, fs)
+            # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
+            @timeit to "Remove self-interactions" begin
                 if hasproperty(fields, :streamfunction)
                     remove_self_interaction!(fields.streamfunction, fs, Streamfunction(), params.common)
                 end
@@ -508,31 +530,112 @@ function _compute_on_nodes!(
                     remove_self_interaction!(fields.velocity, fs, Velocity(), params.common)
                 end
             end
-
+            @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
         end
     end
 
-    if with_longrange
-        @timeit to "Long-range component" begin
-            # Wait for long-range task to finish (GPU).
-            @timeit to "Wait for async operations" wait(task_lr)
-
-            # Add results from long-range part.
-            @timeit to "Copy output (device → host)" let
-                if hasproperty(fields, :streamfunction)
-                    copy_long_range_output!(+, fields.streamfunction, cache.longrange, outputs_lr.streamfunction)
+    # Now wait for asynchronous long-range and short-range operations to finish.
+    # task_data = Dict(
+    #     task_lr => (; outputs = outputs_lr, cache = cache.longrange, title = "Long-range component", timer = cache.longrange.to),
+    #     task_sr => (; outputs = outputs_sr, cache = cache.shortrange, title = "Short-range component", timer = cache.shortrange.to),
+    # )
+    tree_point_base = [t.name for t in to.timer_stack]  # to merge timers (https://github.com/KristofferC/TimerOutputs.jl/issues/143)
+    while !isempty(tasks)
+        local remaining_tasks = map(last, tasks)::Vector{Task}
+        local done, _ = waitany(remaining_tasks)
+        for completed_task in done
+            local itask = findfirst(pair -> last(pair) === completed_task, tasks)::Int
+            local task_name, task = popat!(tasks, itask)
+            @assert task === completed_task
+            # local (; outputs, timer, cache, title) = task_data[task]
+            # outputs === nothing && continue  # if task was "disabled"
+            #
+            # Add results from asynchronous task.
+            if task_name == :shortrange
+                @timeit to "Short-range component" begin
+                    @timeit to "Copy output (device → host)" let
+                        local outputs = cache.shortrange.outputs
+                        local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
+                        if hasproperty(fields, :streamfunction)
+                            copy_output_values_on_nodes!(+, fields.streamfunction, outputs.streamfunction, buf_cpu)
+                        end
+                        if hasproperty(fields, :velocity)
+                            copy_output_values_on_nodes!(+, fields.velocity, outputs.velocity, buf_cpu)
+                        end
+                    end
                 end
-                if hasproperty(fields, :velocity)
-                    copy_long_range_output!(+, fields.velocity, cache.longrange, outputs_lr.velocity)
+            elseif task_name == :longrange
+                @timeit to "Long-range component" let
+                    @timeit to "Copy output (device → host)" let
+                        local outputs = cache.longrange.outputs
+                        local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
+                        if hasproperty(fields, :streamfunction)
+                            copy_output_values_on_nodes!(+, fields.streamfunction, outputs.streamfunction, buf_cpu)
+                        end
+                        if hasproperty(fields, :velocity)
+                            copy_output_values_on_nodes!(+, fields.velocity, outputs.velocity, buf_cpu)
+                        end
+                    end
                 end
             end
 
             # Add timings from asynchronous computations.
-            TimerOutputs.merge!(to, cache.longrange.to; tree_point = [t.name for t in to.timer_stack])  # https://github.com/KristofferC/TimerOutputs.jl/issues/143
+            # TimerOutputs.merge!(to, timer; tree_point = [tree_point_base; title])  # https://github.com/KristofferC/TimerOutputs.jl/issues/143
         end
     end
 
     nothing
+end
+
+"""
+    copy_output_values_on_nodes!([op::Function], vs::AbstractVector, vs_d::AbstractVector, [vs_h::AbstractVector])
+
+Copy computed values onto a vector of vectors.
+
+## Parameters
+
+- `op`: an optional binary operation `op(old, new)` to be applied when writing
+  each value into `vs`. An usual choice is `+`, which means that copied values will be added
+  to previously existing values. By default this is `op(old, new) = new`, meaning that old
+  values are replaced with new values.
+
+- `vs`: output vector, usually a vector of vectors used to store velocity or streamfunction on filament nodes.
+
+- `vs_d`: vector where quantities (e.g. velocity) where computed. Unlike `vs`, this is a
+  "linear" vector, meaning that there is a single vector of quantities (`Vec3`) for all filament nodes across all filaments.
+   Note that this vector may also be on a GPU device (`_d` = device).
+
+- `vs_h`: this is an optional CPU vector (`_h` = host), which may be passed if `vs_d` is _not_ a CPU
+  array. In that case, it will be used as an intermediate buffer array, and thus passing it may help reduce CPU allocations.
+"""
+function copy_output_values_on_nodes!(
+        op::F, vs::AbstractVector, vs_d::AbstractVector, vs_h = nothing,
+    ) where {F}
+    ka_backend = KA.get_backend(vs_d)
+    _copy_output_values_on_nodes(ka_backend, op, vs, vs_d, vs_h)
+end
+
+function _copy_output_values_on_nodes!(backend::GPU, op::F, vs, vs_d, ::Nothing) where {F}
+    _copy_output_values_on_nodes!(backend, op, vs, vs_d, adapt(CPU(), vs))  # this allocates a new CPU array!
+end
+
+function _copy_output_values_on_nodes!(backend::GPU, op::F, vs, vs_d, vs_h::AbstractVector) where {F}
+    # Perform GPU -> CPU copy (device-to-host)
+    resize_no_copy!(vs_h, length(vs_d))
+    # KA.copyto!(backend, vs_h[i], vs_d[i])  # may fail on CUDA due to pinning of CPU memory (https://github.com/JuliaGPU/CUDA.jl/issues/2594)
+    copyto!(vs_h, vs_d)
+    KA.synchronize(ka_backend)  # make sure we're done copying data to CPU (may be needed on CUDA, where KA.copyto! is asynchronous)
+    _copy_long_range_output!(CPU(), op, vs, vs_h)  # finally, perform CPU -> CPU copy
+end
+
+# CPU -> CPU copy (change of vector "format")
+function _copy_output_values_on_nodes(::CPU, op::F, vs::AbstractVector, vs_h::AbstractVector, ignored) where {F}
+    n = 0
+    @inbounds for vf in vs, j in eachindex(vf)
+        q = vs_h[n += 1]
+        vf[j] = op(real(q), vf[j])  # typically op == +, meaning that we add to the previous value
+    end
+    vs
 end
 
 # Case of a list of filaments
@@ -541,16 +644,13 @@ function _compute_LIA_on_nodes!(
         cache::BiotSavartCache,
         fs::VectorOfFilaments;
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    (; to,) = cache
     (; Γ,) = cache.shortrange.params.common
     T = typeof(Γ)
     prefactor = Γ / T(4π)
-    @timeit to "LIA term (only)" begin
-        Threads.@threads :dynamic for n ∈ eachindex(fs)
-            f = fs[n]
-            ps = @inbounds _fields_to_pairs(fields, n)
-            _compute_LIA_on_nodes!(ps, cache, f; prefactor)
-        end
+    Threads.@threads :dynamic for n ∈ eachindex(fs)
+        f = fs[n]
+        ps = @inbounds _fields_to_pairs(fields, n)
+        _compute_LIA_on_nodes!(ps, cache, f; prefactor)
     end
     fields
 end
@@ -573,7 +673,7 @@ function _compute_LIA_on_nodes!(
             # Here `quantity` is either Velocity() or Streamfunction()
             @inbounds values[i] = local_self_induced(
                 quantity, f, i, prefactor_;
-                a, Δ, quad, lia_segment_fraction,
+                a, Δ, quad, segment_fraction = lia_segment_fraction,
             )
         end
     end

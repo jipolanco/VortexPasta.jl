@@ -87,7 +87,7 @@ function Base.propertynames(c::ShortRangeCache, private::Bool = false)
 end
 
 """
-    init_cache_short(pc::ParamsCommon, p::ParamsShortRange{<:ShortRangeBackend}, pointdata::PointData, to::TimerOutput) -> ShortRangeCache
+    init_cache_short(pc::ParamsCommon, p::ParamsShortRange{<:ShortRangeBackend}, pointdata::PointData) -> ShortRangeCache
 
 Initialise the cache for the short-range backend defined in `p`.
 

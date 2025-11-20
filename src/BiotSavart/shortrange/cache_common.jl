@@ -10,7 +10,7 @@ struct ShortRangeCacheCommon{
     to        :: Timer
 end
 
-function ShortRangeCacheCommon(params::ParamsShortRange, pointdata_in::PointData, to)
+function ShortRangeCacheCommon(params::ParamsShortRange, pointdata_in::PointData)
     (; backend,) = params
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     pointdata = adapt(ka_backend, pointdata_in)      # create PointData replica on the device if needed
@@ -21,5 +21,6 @@ function ShortRangeCacheCommon(params::ParamsShortRange, pointdata_in::PointData
         velocity = similar(pointdata.charges),
         streamfunction = similar(pointdata.charges),
     )
+    to = TimerOutput()
     ShortRangeCacheCommon(params, pointdata, outputs, to)
 end

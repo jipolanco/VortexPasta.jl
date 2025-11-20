@@ -132,7 +132,7 @@ function integrate_biot_savart(
         quad = params.quad,
         Lhs = map(L -> L / 2, params.Ls),  # this allows to precompute Ls / 2
         rcut² = nothing,
-        limits = nothing,
+        limits::Union{Nothing, NTuple{2, Real}} = nothing,
     )
     integrate(seg, quad; limits) do seg, ζ
         @inline
@@ -140,73 +140,6 @@ function integrate_biot_savart(
         s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
         biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs, rcut²)
     end :: typeof(x⃗)
-end
-
-# This subtracts the local Biot-Savart interaction (the effect of the two adjacent segments
-# to each node) which we have included in short and long-range computations, but which
-# should be replaced with the local (LIA) term obtained from Taylor expansions to account
-# for the integral cut-off near the node.
-# This function should be called when the local integrals have _not_ been excluded from
-# short-range interactions.
-function remove_total_self_interaction!(
-        vs::VectorOfVec,
-        f::ClosedFilament,
-        quantity::OutputField,
-        params::ParamsCommon,
-    )
-    Xs = nodes(f)
-    segs = segments(f)
-    Lhs = map(L -> L / 2, params.Ls)
-    prefactor = params.Γ / (4π)
-    # Not sure if we gain much by parallelising here.
-    Threads.@threads :dynamic for i in eachindex(Xs, vs)
-        @inbounds begin
-            x⃗ = Xs[i]
-            sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
-            sb = Segment(f, i)  # segment i
-            u⃗a = integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, rcut² = nothing)
-            u⃗b = integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, rcut² = nothing)
-            vs[i] = vs[i] - prefactor * (u⃗a + u⃗b)
-        end
-    end
-    vs
-end
-
-# This subtracts the spurious self-interaction term which is implicitly included in
-# long-range computations. This corresponds to the integral over the two adjacent segments
-# to each node, which should not be included in the total result (since they are replaced by
-# the LIA term). This function explicitly computes that integral and subtracts it from the
-# result.
-#
-# This is required because the local term already includes the full (short-range +
-# long-range) contribution of these segments. Moreover, long-range
-# computations also add the long-range contribution to the
-# velocity/streamfunction. Since we don't want to include this contribution
-# twice, we subtract it here. Note that without this correction, results will
-# depend on the (unphysical) Ewald parameter α. Finally, note that the integral
-# with the long-range kernel is *not* singular (since it's a smoothing kernel),
-# so there's no problem with evaluating this integral close to x⃗.
-function remove_long_range_self_interaction!(
-        vs::VectorOfVec,
-        f::ClosedFilament,
-        quantity::OutputField,
-        params::ParamsCommon,
-    )
-    Xs = nodes(f)
-    segs = segments(f)
-    Lhs = map(L -> L / 2, params.Ls)
-    prefactor = params.Γ / (4π)
-    # Note: parallelising here usually leads to worse performance, likely because the work
-    # per iteration is small (we might also have false sharing issues due to memory locality).
-    @inbounds for i in eachindex(Xs, vs)
-        x⃗ = Xs[i]
-        sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
-        sb = Segment(f, i)  # segment i
-        u⃗a = integrate_biot_savart(quantity, LongRange(), sa, x⃗, params; Lhs, rcut² = nothing)
-        u⃗b = integrate_biot_savart(quantity, LongRange(), sb, x⃗, params; Lhs, rcut² = nothing)
-        vs[i] = vs[i] - prefactor * (u⃗a + u⃗b)
-    end
-    vs
 end
 
 # ==================================================================================================== #
@@ -262,35 +195,6 @@ end
 
 # ==================================================================================================== #
 
-function remove_self_interaction!(
-        vs::AbstractVector{<:VectorOfVec},
-        fs::VectorOfFilaments, quantity::OutputField, params::ParamsCommon,
-    )
-    if params.avoid_explicit_erf
-        _remove_self_interaction!(Val(true), vs, fs, quantity, params)
-    else
-        _remove_self_interaction!(Val(false), vs, fs, quantity, params)
-    end
-end
-
-function _remove_self_interaction!(::Val{total}, vs, fs, quantity, params) where {total}
-    chunks = FilamentChunkIterator(fs)
-    @sync for chunk in chunks
-        isempty(chunk) && continue  # don't spawn a task if it will do no work
-        Threads.@spawn for i in chunk
-            @inbounds v, f = vs[i], fs[i]
-            if total
-                # In this case, short-range interactions include the (singular) contribution
-                # of the local segments.
-                remove_total_self_interaction!(v, f, quantity, params)
-            else
-                remove_long_range_self_interaction!(v, f, quantity, params)
-            end
-        end
-    end
-    vs
-end
-
 function add_short_range_fields!(
         fields::NamedTuple{Names, NTuple{N, V}},
         cache::ShortRangeCache,
@@ -307,6 +211,106 @@ function add_short_range_fields!(
     end
     fields
 end
+
+"""
+    add_pair_interactions!(outputs::NamedTuple, cache::ShortRangeCache)
+
+Compute short-range Biot-Savart interactions between pairs of points.
+
+This function evaluates the influence of nearby quadrature points on filament discretisation
+points. Results are _added_ to the original values in `outputs`, which means that one should
+set to zero all values _before_ calling this function (unless one wants to keep previous
+data, e.g. the velocity associated from other terms not computed here).
+
+The `outputs` argument is expected to have `:velocity` and/or `:streamfunction` fields,
+containing linear vectors of the same length as the number of output points nodes
+(`cache.pointdata.nodes`).
+
+This function does _not_ compute local interactions, i.e. the term associated to local
+curvature effects in the case of velocity.
+"""
+function add_pair_interactions!(outputs::NamedTuple, cache::ShortRangeCache)
+    if cache.params.common.avoid_explicit_erf
+        _add_pair_interactions!(Val(true), outputs, cache)
+    else
+        _add_pair_interactions!(Val(false), outputs, cache)
+    end
+end
+
+function _add_pair_interactions!(::Val{include_local_integration}, outputs, cache) where {include_local_integration}
+    (; pointdata, params) = cache
+    (; nodes, points, charges) = pointdata
+    (; quad,) = params
+    (; Γ, α, Ls, avoid_explicit_erf) = params.common
+    T = typeof(Γ)
+    rcut² = params.rcut_sq
+    prefactor = Γ / T(4π)
+    Lhs = map(L -> L / 2, Ls)
+    N = length(Ls)
+    @assert include_local_integration === avoid_explicit_erf  # we include integration over local segment
+
+    @assert 1 ≤ length(outputs) ≤ 2  # velocity and/or streamfunction
+    foreach(outputs) do vs
+        eachindex(vs) == eachindex(nodes) || throw(ArgumentError("wrong length of output vector"))
+    end
+
+    if !include_local_integration
+        error("`avoid_explicit_erf = false` not yet implemented")
+    end
+
+    # We assume both source and destination points have already been folded into the main periodic cell.
+    # (This is done in add_point_charges!)
+    foreach_pair(cache; folded = Val(true)) do x⃗, i, j
+        if !include_local_integration
+            # Check whether quadrature point `j` is in one of the two adjacent segments to node `i`.
+            # TODO: account for periodic wrapping on each filament!
+            # TODO: implement!
+            # i′ = length(quad) * i
+        end
+        @inbounds begin
+            s⃗ = points[j]
+            qs⃗′ = charges[j]
+        end
+        # TODO: optionally use explicit SIMD
+        r⃗ = ntuple(Val(N)) do d
+            local r = @inbounds x⃗[d] - s⃗[d]
+            local L, Lh = @inbounds Ls[d], Lhs[d]
+            # @assert 0 ≤ x⃗[d] < L
+            # @assert 0 ≤ s⃗[d] < L
+            # Assuming both source and destination points are in [0, L], we need max two
+            # operations to obtain their minimal distance in the periodic lattice.
+            r = Filaments.deperiodise_separation_folded(r, L, Lh)
+            # @assert -Lh ≤ r < Lh
+            r
+        end
+        r² = sum(abs2, r⃗)
+        if r² ≤ rcut²
+            r = sqrt(r²)
+            r_inv = 1 / r
+            r³_inv = 1 / (r² * r)
+            αr = α * r
+            erfc_αr = erfc(αr)
+            αr_sq = αr * αr
+            exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
+            # Note: we can safely sum at index `i` without atomics, since the implementation
+            # ensures that only one thread has that index.
+            if hasproperty(outputs, :streamfunction)
+                @inbounds outputs.streamfunction[i] +=
+                    prefactor * Vec3(short_range_integrand(Streamfunction(), erfc_αr, exp_term, r_inv, r³_inv, Tuple(qs⃗′), Tuple(r⃗)))
+            end
+            if hasproperty(outputs, :velocity)
+                @inbounds outputs.velocity[i] +=
+                    prefactor * Vec3(short_range_integrand(Velocity(), erfc_αr, exp_term, r_inv, r³_inv, Tuple(qs⃗′), Tuple(r⃗)))
+            end
+        end
+    end
+
+    outputs
+end
+
+
+## ========================================================================================== ##
+## Old CPU-only interface below
 
 """
     add_short_range_fields!(
@@ -346,7 +350,8 @@ function _add_short_range_fields!(::Val{include_local_integration}, fields, cach
     (; params,) = cache
     (; quad, lia_segment_fraction,) = params
     (; Γ, a, Δ, Ls, quad_near_singularity, avoid_explicit_erf) = params.common
-    prefactor = Γ / (4π)
+    T = typeof(Γ)
+    prefactor = Γ / T(4π)
     Lhs = map(L -> L / 2, Ls)
     @assert include_local_integration === avoid_explicit_erf  # we include integration over local segment
 
@@ -408,12 +413,12 @@ function _add_short_range_fields!(::Val{include_local_integration}, fields, cach
             # Then include the short-range effect of all nearby charges, **including the local
             # segments `sa` and `sb`** (which are actually singular, and should be then removed
             # with remove_total_self_interaction).
-            add_pair_interactions_shortrange(vecs_i, cache, x⃗, params, nothing, nothing, Lhs)
+            add_pair_interactions_shortrange_onto_x(vecs_i, cache, x⃗, params, nothing, nothing, Lhs)
         else
             # Then include the short-range (but non-local) effect of all nearby charges
             # (which are located on the quadrature points of all nearby segments,
             # excluding the local segments `sa` and `sb`).
-            add_pair_interactions_shortrange(vecs_i, cache, x⃗, params, sa, sb, Lhs)
+            add_pair_interactions_shortrange_onto_x(vecs_i, cache, x⃗, params, sa, sb, Lhs)
         end
 
         # Add computed vectors (velocity and/or streamfunction) to corresponding arrays.
@@ -428,7 +433,7 @@ function _add_short_range_fields!(::Val{include_local_integration}, fields, cach
 end
 
 # Optimised computation of short-range pair interactions.
-function add_pair_interactions_shortrange(vecs, cache, x⃗, params::ParamsShortRange, sa, sb, Lhs)
+function add_pair_interactions_shortrange_onto_x(vecs, cache, x⃗, params::ParamsShortRange, sa, sb, Lhs)
     (; use_simd,) = params
     (; α,) = params.common
     use_simd_actual = use_simd && (α isa AbstractFloat)  # explicit SIMD not used if α == Zero() [non-periodic domains]
@@ -650,7 +655,7 @@ function _add_pair_interactions_shortrange_simd(vecs, cache, x⃗, params, sa, s
 end
 
 # Note: all input values may be SIMD types (Vec or tuple of Vec).
-@inline function short_range_integrand(::Velocity, erfc_αr::V, exp_term::V, r_inv::V, r³_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V}
+@inline function short_range_integrand(::Velocity, erfc_αr, exp_term, r_inv::V, r³_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V}
     factor = (erfc_αr + exp_term) * r³_inv
     vec = crossprod(qs⃗′, r⃗)
     map(vec) do component
@@ -678,5 +683,6 @@ end
 end
 
 include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)
+include("self_interaction.jl")
 include("backends/naive.jl")
 include("backends/cell_lists.jl")

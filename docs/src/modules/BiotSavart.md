@@ -57,7 +57,7 @@ CellListsBackend
 ShortRangeCache
 max_cutoff_distance
 init_cache_short
-process_point_charges!
+add_pair_interactions!
 add_short_range_fields!
 local_self_induced_velocity
 local_self_induced
@@ -123,4 +123,6 @@ KernelAbstractions.device
 AbstractBackend
 BiotSavartCache
 background_vorticity_correction!
+process_point_charges!
+copy_output_values_on_nodes!
 ```

@@ -27,20 +27,20 @@ struct NullLongRangeCache <: LongRangeCache end
 backend(::NullLongRangeCache) = NullLongRangeBackend()
 
 """
-    init_cache_long(p::ParamsBiotSavart, pointdata::PointData, [to::TimerOutput]) -> LongRangeCache
+    init_cache_long(p::ParamsBiotSavart, pointdata::PointData) -> LongRangeCache
 
 Initialise the cache for the long-range backend defined in `p.longrange`.
 
 Note that, if `p.α === Zero()`, then long-range computations are disabled and
 this returns a [`NullLongRangeCache`](@ref).
 """
-function init_cache_long(params::ParamsBiotSavart, pointdata::PointData, to::TimerOutput = TimerOutput())
+function init_cache_long(params::ParamsBiotSavart, pointdata::PointData)
     # If long-range stuff is run on a GPU, we create a separate TimerOutput.
     # This is to avoid short- and long-range parts writing asynchronously to the same timer.
     if params.α === Zero()
         NullLongRangeCache()  # disables Ewald method / long-range computations
     else
-        init_cache_long_ewald(params, params.longrange, pointdata, to)
+        init_cache_long_ewald(params, params.longrange, pointdata)
     end
 end
 
@@ -576,47 +576,15 @@ function copy_long_range_output!(
     (; charges_h,) = cache.common.pointdata
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
-    ka_backend = KA.get_backend(cache)
-    copy_long_range_output_impl!(ka_backend, op, vs, charges, charges_h)
+    copy_output_values_on_nodes!(op, vs, charges, charges_h)
     vs
 end
 
+# These are kept for backwards compatibility for now, but copy_output_values_on_nodes! should be used instead.
 function copy_long_range_output!(vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache, args...)
     # By default, only keep the new value, discarding old values in vs.
     op(new, old) = new
     copy_long_range_output!(op, vs, cache, args...)
-end
-
-function copy_long_range_output_impl!(::KA.CPU, op::F, vs, charges_d, charges_h) where {F}
-    @assert isempty(charges_h)  # never used in the CPU implementation (so it should stay empty)
-    _copy_long_range_output!(op, vs, charges_d)
-    nothing
-end
-
-# GPU implementation: first copy from charges_d (GPU) to charges_h (CPU), then add results
-# to `vs`.
-function copy_long_range_output_impl!(ka_backend::KA.GPU, op::F, vs, charges_d, charges_h) where {F}
-    # Device-to-host copy
-    qs_d = StructArrays.components(charges_d)
-    qs_h = StructArrays.components(charges_h)
-    for i ∈ eachindex(qs_d, qs_h)
-        resize_no_copy!(qs_h[i], length(qs_d[i]))
-        # KA.copyto!(ka_backend, qs_h[i], qs_d[i])  # may fail on CUDA due to pinning of CPU memory (https://github.com/JuliaGPU/CUDA.jl/issues/2594)
-        copyto!(qs_h[i], qs_d[i])  # this doesn't fail (avoids pinning; probably slower but always works)
-    end
-    KA.synchronize(ka_backend)  # make sure we're done copying data to CPU (needed on CUDA, where KA.copyto! is asynchronous)
-    # Now add long-range values to `vs` output.
-    _copy_long_range_output!(op, vs, charges_h)
-    nothing
-end
-
-function _copy_long_range_output!(op::F, vs, charges::StructVector) where {F}
-    n = 0
-    @inbounds for v ∈ vs, j ∈ eachindex(v)
-        q = charges[n += 1]
-        v[j] = op(real(q), v[j])  # typically op == +, meaning that we add to the previous value
-    end
-    vs
 end
 
 function _ensure_hermitian_symmetry!(

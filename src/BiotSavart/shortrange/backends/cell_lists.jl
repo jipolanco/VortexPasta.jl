@@ -101,17 +101,16 @@ struct CellListsCache{
 end
 
 function init_cache_short(
-        pc::ParamsCommon, params::ParamsShortRange{T, <:CellListsBackend},
-        pointdata::PointData, to::TimerOutput,
+        pc::ParamsCommon, params::ParamsShortRange{T, <:CellListsBackend}, pointdata::PointData,
     ) where {T}
     (; backend, rcut,) = params
     (; Ls,) = pc
     nsubdiv = Val(subdivisions(backend))
     ka_backend = KA.get_backend(backend)
     rs_cut = map(_ -> rcut, Ls)     # same cut-off distance in each direction
-    KA.device!(KA.device(backend))  # make sure we activate the targeted device
+    KA.device!(ka_backend, KA.device(backend))  # make sure we activate the targeted device
     cl = PeriodicCellList(ka_backend, rs_cut, Ls, nsubdiv)
-    common = ShortRangeCacheCommon(params, pointdata, to)
+    common = ShortRangeCacheCommon(params, pointdata)
     CellListsCache(common, cl)
 end
 

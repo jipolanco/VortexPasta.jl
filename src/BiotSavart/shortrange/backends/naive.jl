@@ -22,10 +22,9 @@ struct NaiveShortRangeCache{Common <: ShortRangeCacheCommon} <: ShortRangeCache
 end
 
 function init_cache_short(
-        ::ParamsCommon, params::ParamsShortRange{T, <:NaiveShortRangeBackend},
-        pointdata::PointData, to::TimerOutput,
+        ::ParamsCommon, params::ParamsShortRange{T, <:NaiveShortRangeBackend}, pointdata::PointData,
     ) where {T}
-    common = ShortRangeCacheCommon(params, pointdata, to)
+    common = ShortRangeCacheCommon(params, pointdata)
     NaiveShortRangeCache(common)
 end
 
@@ -78,8 +77,9 @@ end
 end
 
 @inline function foreach_pair(f::F, c::NaiveShortRangeCache; kws...) where {F <: Function}
-    (; nodes,) = c.pointdata.nodes
-    Threads.@threads for (i, x⃗) in pairs(nodes)
+    (; nodes,) = c.pointdata
+    Threads.@threads for i in eachindex(nodes)
+        x⃗ = @inbounds nodes[i]
         for j in nearby_charges(c, x⃗)
             @inline f(x⃗, i, j)
         end
