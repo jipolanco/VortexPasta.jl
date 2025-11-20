@@ -58,7 +58,6 @@ ShortRangeCache
 max_cutoff_distance
 init_cache_short
 add_pair_interactions!
-add_short_range_fields!
 local_self_induced_velocity
 local_self_induced
 foreach_charge

@@ -110,6 +110,6 @@ This is useful for short-range backends like [`CellListsBackend`](@ref), which n
 assign a cell to each point charge before finding nearby pairs.
 
 Must be called after [`add_point_charges!`](@ref) and before computing any short-range quantities
-(using [`add_short_range_fields!`](@ref)).
+(using [`add_pair_interactions!`](@ref)).
 """
 process_point_charges!(::ShortRangeCache) = nothing  # can be overridden by the backend
