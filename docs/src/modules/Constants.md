@@ -15,6 +15,7 @@ These are useful for preparing non-periodic problems (``α = 0``, ``L = ∞``).
 
 ```@docs
 Zero
+One
 Infinity
 ∞
 ```

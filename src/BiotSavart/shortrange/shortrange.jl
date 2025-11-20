@@ -326,8 +326,9 @@ end
 function _add_pair_interactions_simd!(
         ::Val{include_local_integration}, outputs, cache
     ) where {include_local_integration}
-    (; params) = cache
-    # (; quad,) = params
+    (; pointdata, params) = cache
+    (; node_idx_prev,) = pointdata
+    (; quad,) = params
     (; Γ, α, Ls) = params.common
     T = typeof(Γ)
     rcut² = params.rcut_sq
@@ -336,22 +337,20 @@ function _add_pair_interactions_simd!(
 
     W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
 
-    if !include_local_integration
-        error("`avoid_explicit_erf = false` not yet implemented")
-    end
-
     # We assume both source and destination points have already been folded into the main periodic cell.
     # (This is done in add_point_charges!)
     foreach_pair(cache; batch_size = Val(W), folded = Val(true)) do x⃗, i, js, m
         @inline
         (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd) =
-            _simd_load_batch_nosegments(cache.pointdata, x⃗, js, m, Ls, Lhs, rcut²)
+            _simd_load_batch_nosegments(pointdata, x⃗, js, m, Ls, Lhs, rcut²)
 
         if !include_local_integration
             # Check whether quadrature point `j` is in one of the two adjacent segments to node `i`.
-            # TODO: account for periodic wrapping on each filament!
-            # TODO: implement!
-            # i′ = length(quad) * i
+            Nq = length(quad)
+            js_node = (SIMD.Vec(js) + Nq - 1) ÷ Nq  # index of filament nodes right before quadrature points js
+            iprev = @inbounds node_idx_prev[i]
+            mask_simd = mask_simd & (js_node != i)      # exclude quadrature points on the segment to the right of node `i`
+            mask_simd = mask_simd & (js_node != iprev)  # exclude quadrature points on the segment to the left of node `i`
         end
 
         # There's nothing interesting to compute if mask is fully zero.
