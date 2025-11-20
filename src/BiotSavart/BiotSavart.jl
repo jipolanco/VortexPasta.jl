@@ -496,6 +496,8 @@ function _compute_on_nodes!(
             foreach(v -> resize_no_copy!(v, noutputs), outputs)  # resize output arrays
             # Compute long-range part asynchronously (e.g. on a GPU).
             task_lr = Threads.@spawn do_longrange!(cache.longrange, outputs, pointdata; callback_vorticity)
+            # We could make things synchronous, but this seems to decrease performance even in pure-CPU computations.
+            # @timeit to "Wait long-range" wait(task_lr)
             push!(tasks, :longrange => task_lr)
         end
     end
@@ -510,6 +512,8 @@ function _compute_on_nodes!(
             end
             # Compute short-range part asynchronously (e.g. on a GPU).
             task_sr = Threads.@spawn do_shortrange!(cache.shortrange, outputs, pointdata)
+            # We could make things synchronous, but this seems to decrease performance even in pure-CPU computations.
+            # @timeit to "Wait short-range" wait(task_sr)
             push!(tasks, :shortrange => task_sr)
         end
     end

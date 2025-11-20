@@ -240,13 +240,12 @@ end
 function _add_pair_interactions!(::Val{include_local_integration}, outputs, cache) where {include_local_integration}
     (; pointdata, params) = cache
     (; nodes, points, charges) = pointdata
-    (; quad,) = params
+    # (; quad,) = params
     (; Γ, α, Ls, avoid_explicit_erf) = params.common
     T = typeof(Γ)
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
     Lhs = map(L -> L / 2, Ls)
-    N = length(Ls)
     @assert include_local_integration === avoid_explicit_erf  # we include integration over local segment
 
     @assert 1 ≤ length(outputs) ≤ 2  # velocity and/or streamfunction
@@ -261,6 +260,7 @@ function _add_pair_interactions!(::Val{include_local_integration}, outputs, cach
     # We assume both source and destination points have already been folded into the main periodic cell.
     # (This is done in add_point_charges!)
     foreach_pair(cache; folded = Val(true)) do x⃗, i, j
+        @inline
         if !include_local_integration
             # Check whether quadrature point `j` is in one of the two adjacent segments to node `i`.
             # TODO: account for periodic wrapping on each filament!
@@ -271,8 +271,10 @@ function _add_pair_interactions!(::Val{include_local_integration}, outputs, cach
             s⃗ = points[j]
             qs⃗′ = charges[j]
         end
-        # TODO: optionally use explicit SIMD
+        # # TODO: optionally use explicit SIMD
+        N = length(Ls)
         r⃗ = ntuple(Val(N)) do d
+            @inline
             local r = @inbounds x⃗[d] - s⃗[d]
             local L, Lh = @inbounds Ls[d], Lhs[d]
             # @assert 0 ≤ x⃗[d] < L
@@ -292,15 +294,14 @@ function _add_pair_interactions!(::Val{include_local_integration}, outputs, cach
             erfc_αr = erfc(αr)
             αr_sq = αr * αr
             exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
+            args = (erfc_αr, exp_term, r_inv, r³_inv, Tuple(qs⃗′), Tuple(r⃗))
             # Note: we can safely sum at index `i` without atomics, since the implementation
             # ensures that only one thread has that index.
             if hasproperty(outputs, :streamfunction)
-                @inbounds outputs.streamfunction[i] +=
-                    prefactor * Vec3(short_range_integrand(Streamfunction(), erfc_αr, exp_term, r_inv, r³_inv, Tuple(qs⃗′), Tuple(r⃗)))
+                @inbounds outputs.streamfunction[i] += prefactor * Vec3(short_range_integrand(Streamfunction(), args...))
             end
             if hasproperty(outputs, :velocity)
-                @inbounds outputs.velocity[i] +=
-                    prefactor * Vec3(short_range_integrand(Velocity(), erfc_αr, exp_term, r_inv, r³_inv, Tuple(qs⃗′), Tuple(r⃗)))
+                @inbounds outputs.velocity[i] += prefactor * Vec3(short_range_integrand(Velocity(), args...))
             end
         end
     end
