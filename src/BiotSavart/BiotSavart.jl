@@ -516,11 +516,13 @@ function _compute_on_nodes!(
 
     # Perform CPU-only operations associated to the short-range part (this differentiation is kind of arbitrary).
     if with_shortrange
-        @timeit to "Short-range component" begin
+        @timeit to "CPU-only operations (synchronous)" begin
             if LIA === Val(true)
                 @timeit to "LIA term" _compute_LIA_on_nodes!(fields, cache, fs)  # this currently replaces existent data, so it must be first
             end
-            @timeit to "Add local integrals" add_local_integrals!(fields, cache.params, fs)
+            if params.shortrange.lia_segment_fraction !== nothing
+                @timeit to "Add local integrals" add_local_integrals!(fields, cache.params, fs)
+            end
             # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
             @timeit to "Remove self-interactions" begin
                 if hasproperty(fields, :streamfunction)
@@ -535,55 +537,44 @@ function _compute_on_nodes!(
     end
 
     # Now wait for asynchronous long-range and short-range operations to finish.
-    # task_data = Dict(
-    #     task_lr => (; outputs = outputs_lr, cache = cache.longrange, title = "Long-range component", timer = cache.longrange.to),
-    #     task_sr => (; outputs = outputs_sr, cache = cache.shortrange, title = "Short-range component", timer = cache.shortrange.to),
-    # )
     tree_point_base = [t.name for t in to.timer_stack]  # to merge timers (https://github.com/KristofferC/TimerOutputs.jl/issues/143)
     while !isempty(tasks)
         local remaining_tasks = map(last, tasks)::Vector{Task}
-        local done, _ = waitany(remaining_tasks)
+        @timeit to "Wait for asynchronous tasks" begin
+            local done, _ = waitany(remaining_tasks)
+        end
         for completed_task in done
             local itask = findfirst(pair -> last(pair) === completed_task, tasks)::Int
-            local task_name, task = popat!(tasks, itask)
+            local taskname, task = popat!(tasks, itask)
             @assert task === completed_task
-            # local (; outputs, timer, cache, title) = task_data[task]
-            # outputs === nothing && continue  # if task was "disabled"
-            #
-            # Add results from asynchronous task.
-            if task_name == :shortrange
-                @timeit to "Short-range component" begin
-                    @timeit to "Copy output (device → host)" let
-                        local outputs = cache.shortrange.outputs
-                        local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
-                        if hasproperty(fields, :streamfunction)
-                            copy_output_values_on_nodes!(+, fields.streamfunction, outputs.streamfunction, buf_cpu)
-                        end
-                        if hasproperty(fields, :velocity)
-                            copy_output_values_on_nodes!(+, fields.velocity, outputs.velocity, buf_cpu)
-                        end
-                    end
-                end
-            elseif task_name == :longrange
-                @timeit to "Long-range component" let
-                    @timeit to "Copy output (device → host)" let
-                        local outputs = cache.longrange.outputs
-                        local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
-                        if hasproperty(fields, :streamfunction)
-                            copy_output_values_on_nodes!(+, fields.streamfunction, outputs.streamfunction, buf_cpu)
-                        end
-                        if hasproperty(fields, :velocity)
-                            copy_output_values_on_nodes!(+, fields.velocity, outputs.velocity, buf_cpu)
-                        end
-                    end
-                end
-            end
 
-            # Add timings from asynchronous computations.
-            # TimerOutputs.merge!(to, timer; tree_point = [tree_point_base; title])  # https://github.com/KristofferC/TimerOutputs.jl/issues/143
+            # Add results from asynchronous task.
+            @timeit to "Copy output (device -> host)" let
+                local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
+                if taskname == :shortrange
+                    timer = cache.shortrange.to
+                    _add_output_from_async_task!(fields, cache.shortrange.outputs, buf_cpu)
+                elseif taskname == :longrange
+                    timer = cache.longrange.to
+                    _add_output_from_async_task!(fields, cache.longrange.outputs, buf_cpu)
+                end
+
+                # Add timings from asynchronous computations.
+                TimerOutputs.merge!(to, timer; tree_point = tree_point_base)  # https://github.com/KristofferC/TimerOutputs.jl/issues/143
+            end
         end
     end
 
+    nothing
+end
+
+function _add_output_from_async_task!(fields, outputs, buf_cpu)
+    if hasproperty(fields, :streamfunction)
+        copy_output_values_on_nodes!(+, fields.streamfunction, outputs.streamfunction, buf_cpu)
+    end
+    if hasproperty(fields, :velocity)
+        copy_output_values_on_nodes!(+, fields.velocity, outputs.velocity, buf_cpu)
+    end
     nothing
 end
 
