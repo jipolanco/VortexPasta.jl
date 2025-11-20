@@ -78,12 +78,56 @@ end
     nothing
 end
 
-function _foreach_pair(backend::GPU, f::F, cl, xp_dest, folded::Val) where {F}
+@kernel function foreach_pair_batched_kernel(
+        f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
+        rs_cell, Ls,
+        ::Val{batch_size},
+        ::Val{M}, folded::Val,  # = number of subdivisions (equal to number of ghost cells)
+    ) where {F <: Function, batch_size, M}
+    i = @index(Global, Linear)
+    x⃗ = @inbounds xp_dest[i]
+    IndexType = eltype(head_indices)
+    inds = MVector{batch_size, IndexType}(undef)
+    if folded === Val(true)
+        inds_central = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(head_indices))
+    else
+        inds_central = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, size(head_indices))
+    end
+    I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
+    cell_indices = CartesianIndices(map(i -> (i - M):(i + M), Tuple(I₀)))
+    m = 0
+    @inbounds for I in cell_indices
+        j = head_indices[I]
+        while j != EMPTY
+            inds[m += 1] = j
+            if m == batch_size
+                @inline f(x⃗, i, Tuple(inds), batch_size)
+                m = 0
+            end
+            j = next_index[j]
+        end
+    end
+    if m > 0
+        for l in (m + 1):batch_size
+            # copy latest index, just to make sure that all returned indices are valid
+            @inbounds inds[l] = inds[m]
+        end
+        @inline f(x⃗, i, Tuple(inds), m)
+    end
+    nothing
+end
+
+function _foreach_pair(backend::GPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
     (; head_indices, next_index, Ls, rs_cell,) = cl
     M = subdivisions(cl)
     groupsize = 256
-    kernel = foreach_pair_kernel(backend, groupsize)
-    kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, Val(M), folded; ndrange = size(xp_dest))
+    if batch_size === nothing
+        kernel = foreach_pair_kernel(backend, groupsize)
+        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, Val(M), folded; ndrange = size(xp_dest))
+    else
+        kernel = foreach_pair_batched_kernel(backend, groupsize)
+        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, batch_size, Val(M), folded; ndrange = size(xp_dest))
+    end
     nothing
 end
 

@@ -443,7 +443,6 @@ end
     @inbounds for I in cell_indices
         j = head_indices[I]
         while j != EMPTY
-            # @inline f(j)
             inds[m += 1] = j
             if m == batch_size
                 @inline f(Tuple(inds), batch_size)
