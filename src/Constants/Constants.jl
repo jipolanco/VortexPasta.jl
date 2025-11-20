@@ -42,6 +42,8 @@ Singleton type representing the number one.
 """
 struct One <: RealConst end
 
+Base.:(*)(::One, x::Number) = x
+
 """
     Infinity <: RealConst <: Real
 

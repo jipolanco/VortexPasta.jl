@@ -136,15 +136,14 @@ function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilame
             prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
             n = _count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
             for i in chunk
-                filament_id = i
-                n = _add_point_charges!(data, fs[i], filament_id, Ls, n, quad)
+                n = _add_point_charges!(data, fs[i], Ls, n, quad)
             end
         end
     end
     nothing
 end
 
-function _add_point_charges!(data::PointData, f::ClosedFilament, filament_id, Ls, n::Int, quad::StaticSizeQuadrature)
+function _add_point_charges!(data::PointData, f::ClosedFilament, Ls, n::Int, quad::StaticSizeQuadrature)
     @assert eachindex(data.nodes) == eachindex(data.node_idx_prev)
     @assert eachindex(data.points) == eachindex(data.charges) == eachindex(data.segments)
     m = length(quad) * n  # current index in points/charges/segments vectors
@@ -175,9 +174,8 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, filament_id, Ls
     n
 end
 
-function _add_point_charges!(data::PointData, f::ClosedFilament, filament_id, Ls, n::Int, ::NoQuadrature)
-    @assert eachindex(data.nodes) == eachindex(data.filament_ids) ==
-        eachindex(data.points) == eachindex(data.charges) == eachindex(data.segments)
+function _add_point_charges!(data::PointData, f::ClosedFilament, Ls, n::Int, ::NoQuadrature)
+    @assert eachindex(data.nodes) == eachindex(data.points) == eachindex(data.charges) == eachindex(data.segments)
     nfirst = n + 1
     nlast = n + length(segments(f))
     checkbounds(data.nodes, nlast)
@@ -186,7 +184,6 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, filament_id, Ls
         n += 1
         data.nodes[n] = Filaments.fold_coordinates_periodic(f[i], Ls)
         data.node_idx_prev[n] = n - 1
-        data.filament_ids[n] = filament_id
         s⃗ = (f[i] + f[i + 1]) ./ 2   # segment midpoint as quadrature node
         s⃗′_dt = f[i + 1] - f[i]
         _add_pointcharge!(data, s⃗, s⃗′_dt, seg, Ls, n)
