@@ -389,17 +389,13 @@ function _add_pair_interactions_nosimd!(
         ::Val{include_local_integration}, outputs, cache
     ) where {include_local_integration}
     (; pointdata, params) = cache
-    (; points, charges) = pointdata
-    # (; quad,) = params
+    (; points, charges, node_idx_prev) = pointdata
+    (; quad,) = params
     (; Γ, α, Ls) = params.common
     T = typeof(Γ)
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
     Lhs = map(L -> L / 2, Ls)
-
-    if !include_local_integration
-        error("`avoid_explicit_erf = false` not yet implemented")
-    end
 
     # We assume both source and destination points have already been folded into the main periodic cell.
     # (This is done in add_point_charges!)
@@ -407,13 +403,17 @@ function _add_pair_interactions_nosimd!(
         @inline
         if !include_local_integration
             # Check whether quadrature point `j` is in one of the two adjacent segments to node `i`.
-            # TODO: account for periodic wrapping on each filament!
-            # TODO: implement!
-            # i′ = length(quad) * i
+            Nq = length(quad)
+            j_node = (j + Nq - 1) ÷ Nq  # index of filament node right before quadrature point j
+            if j_node == i
+                return  # quadrature point is on the segment to the right of node `i`
+            end
+            if j_node == @inbounds node_idx_prev[i]
+                return  # quadrature point is on the segment to the left of node `i`
+            end
         end
         s⃗ = @inbounds points[j]
         qs⃗′ = @inbounds charges[j]
-        # # TODO: optionally use explicit SIMD
         N = length(Ls)
         r⃗ = ntuple(Val(N)) do d
             @inline
