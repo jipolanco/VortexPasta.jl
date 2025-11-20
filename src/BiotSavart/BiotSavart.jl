@@ -397,7 +397,7 @@ function compute_on_nodes!(
 end
 
 function do_longrange!(
-        cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu;
+        cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu, channel::Channel;
         callback_vorticity::Fvort,
     ) where {Fvort}
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
@@ -443,10 +443,12 @@ function do_longrange!(
         @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
     end
 
+    put!(channel, :longrange)  # this notifies that the task has completed
+
     nothing
 end
 
-function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu)
+function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu, channel::Channel)
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -457,13 +459,15 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
     KA.device!(ka_backend, device_id)   # set the device
 
     @timeit to "Short-range component (async)" begin
-        @timeit to "Copy point charges (host -> device)" copy!(cache.pointdata, pointdata_cpu)  # possibly host -> device copy
+        @timeit to "Copy point charges (host -> device)" copy!(pointdata, pointdata_cpu)  # possibly host -> device copy
         @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
         @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
 
         # Wait for the GPU to finish its work before finishing this task.
         @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
     end
+
+    put!(channel, :shortrange)  # this notifies that the task has completed
 
     nothing
 end
@@ -488,17 +492,17 @@ function _compute_on_nodes!(
     @timeit to "Add point charges" add_point_charges!(pointdata, fs, Ls, quad)  # done on the CPU
 
     noutputs = sum(length, fs)  # total number of interpolation points
-    tasks = Pair{Symbol, Task}[]  # e.g. :longrange => Task()
+    ntasks = 0
+    channel = Channel{Symbol}(2)  # 2 is the length of the channel (for :shortrange + :longrange)
 
     if with_longrange
         # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
         let outputs = NamedTuple{keys(fields)}(cache.longrange.outputs)
             foreach(v -> resize_no_copy!(v, noutputs), outputs)  # resize output arrays
             # Compute long-range part asynchronously (e.g. on a GPU).
-            task_lr = Threads.@spawn do_longrange!(cache.longrange, outputs, pointdata; callback_vorticity)
+            Threads.@spawn do_longrange!(cache.longrange, outputs, pointdata, channel; callback_vorticity)
+            ntasks += 1
             # We could make things synchronous, but this seems to decrease performance even in pure-CPU computations.
-            # @timeit to "Wait long-range" wait(task_lr)
-            push!(tasks, :longrange => task_lr)
         end
     end
 
@@ -511,10 +515,9 @@ function _compute_on_nodes!(
                 _reset_array!(v)
             end
             # Compute short-range part asynchronously (e.g. on a GPU).
-            task_sr = Threads.@spawn do_shortrange!(cache.shortrange, outputs, pointdata)
+            Threads.@spawn do_shortrange!(cache.shortrange, outputs, pointdata, channel)
+            ntasks += 1
             # We could make things synchronous, but this seems to decrease performance even in pure-CPU computations.
-            # @timeit to "Wait short-range" wait(task_sr)
-            push!(tasks, :shortrange => task_sr)
         end
     end
 
@@ -542,30 +545,21 @@ function _compute_on_nodes!(
 
     # Now wait for asynchronous long-range and short-range operations to finish.
     tree_point_base = [t.name for t in to.timer_stack]  # to merge timers (https://github.com/KristofferC/TimerOutputs.jl/issues/143)
-    while !isempty(tasks)
-        local remaining_tasks = map(last, tasks)::Vector{Task}
-        @timeit to "Wait for asynchronous tasks" begin
-            local done, _ = waitany(remaining_tasks)
-        end
-        for completed_task in done
-            local itask = findfirst(pair -> last(pair) === completed_task, tasks)::Int
-            local taskname, task = popat!(tasks, itask)
-            @assert task === completed_task
-
-            # Add results from asynchronous task.
-            @timeit to "Copy output (device -> host)" let
-                local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
-                if taskname == :shortrange
-                    timer = cache.shortrange.to
-                    _add_output_from_async_task!(fields, cache.shortrange.outputs, buf_cpu)
-                elseif taskname == :longrange
-                    timer = cache.longrange.to
-                    _add_output_from_async_task!(fields, cache.longrange.outputs, buf_cpu)
-                end
-
-                # Add timings from asynchronous computations.
-                TimerOutputs.merge!(to, timer; tree_point = tree_point_base)  # https://github.com/KristofferC/TimerOutputs.jl/issues/143
+    while ntasks > 0
+        taskname = take!(channel)::Symbol  # wait for first async task to finish
+        ntasks -= 1
+        # Add results from asynchronous task.
+        @timeit to "Copy output (device -> host)" let
+            local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
+            if taskname == :shortrange
+                timer = cache.shortrange.to
+                _add_output_from_async_task!(fields, cache.shortrange.outputs, buf_cpu)
+            elseif taskname == :longrange
+                timer = cache.longrange.to
+                _add_output_from_async_task!(fields, cache.longrange.outputs, buf_cpu)
             end
+            # Add timings from asynchronous computations.
+            TimerOutputs.merge!(to, timer; tree_point = tree_point_base)  # https://github.com/KristofferC/TimerOutputs.jl/issues/143
         end
     end
 
