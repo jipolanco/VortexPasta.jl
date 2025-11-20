@@ -20,6 +20,7 @@ end
 
 function test_ring_collision(;
         backend_long = NonuniformFFTsBackend(),
+        backend_short = CellListsBackend(),
     )
     R = π / 3  # ring radius
     L = π / 8  # ring distance
@@ -46,6 +47,7 @@ function test_ring_collision(;
         filaments, β;
         Γ, a, Δ, Ls = Lbox,
         backend_long,
+        backend_short,
         verbose = VERBOSE,
         Cstart = 1.5,
     )
@@ -113,10 +115,16 @@ function test_ring_collision(;
 end
 
 @testset "Ring collision" begin
-    cpu = test_ring_collision(backend_long = NonuniformFFTsBackend(CPU()))
+    cpu = test_ring_collision(
+        backend_long = NonuniformFFTsBackend(CPU()),
+        backend_short = CellListsBackend(CPU()),
+    )
     # The PseudoGPU type is internal. It is only used to test GPU-specific code when we
     # don't have an actual GPU.
-    gpu = test_ring_collision(backend_long = NonuniformFFTsBackend(PseudoGPU()))
+    gpu = test_ring_collision(
+        backend_long = NonuniformFFTsBackend(PseudoGPU()),
+        backend_short = CellListsBackend(PseudoGPU()),
+    )
     # Note: due to autotuning (which is quite random), the two sets of results can be a bit
     # different, thus we use a relative large `rtol`.
     @testset "Compare CPU / PseudoGPU" begin

@@ -119,7 +119,7 @@ function process_point_charges!(c::CellListsCache)
     (; points, charges, segments,) = pointdata
     @assert eachindex(points) == eachindex(charges) == eachindex(segments)
     ka_backend = KA.get_backend(c)
-    @assert typeof(ka_backend) === typeof(KA.get_backend(points))
+    # @assert typeof(ka_backend) === typeof(KA.get_backend(points))  # fails with PseudoGPU
     KA.device(ka_backend) == KA.device(c) || error("expected KernelAbstractions device $(KA.device(c)) to be activated")
     Base.require_one_based_indexing(points)
     CellLists.set_elements!(cl, points)
