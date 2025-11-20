@@ -601,8 +601,8 @@ Copy computed values onto a vector of vectors.
 function copy_output_values_on_nodes!(
         op::F, vs::AbstractVector, vs_d::AbstractVector, vs_h = nothing,
     ) where {F}
-    ka_backend = KA.get_backend(vs_d)
-    _copy_output_values_on_nodes(ka_backend, op, vs, vs_d, vs_h)
+    backend = KA.get_backend(vs_d)
+    _copy_output_values_on_nodes!(backend, op, vs, vs_d, vs_h)
 end
 
 function _copy_output_values_on_nodes!(backend::GPU, op::F, vs, vs_d, ::Nothing) where {F}
@@ -614,12 +614,12 @@ function _copy_output_values_on_nodes!(backend::GPU, op::F, vs, vs_d, vs_h::Abst
     resize_no_copy!(vs_h, length(vs_d))
     # KA.copyto!(backend, vs_h[i], vs_d[i])  # may fail on CUDA due to pinning of CPU memory (https://github.com/JuliaGPU/CUDA.jl/issues/2594)
     copyto!(vs_h, vs_d)
-    KA.synchronize(ka_backend)  # make sure we're done copying data to CPU (may be needed on CUDA, where KA.copyto! is asynchronous)
-    _copy_long_range_output!(CPU(), op, vs, vs_h)  # finally, perform CPU -> CPU copy
+    KA.synchronize(backend)  # make sure we're done copying data to CPU (may be needed on CUDA, where KA.copyto! is asynchronous)
+    _copy_output_values_on_nodes!(CPU(), op, vs, vs_h)  # finally, perform CPU -> CPU copy
 end
 
 # CPU -> CPU copy (change of vector "format")
-function _copy_output_values_on_nodes(::CPU, op::F, vs::AbstractVector, vs_h::AbstractVector, ignored) where {F}
+function _copy_output_values_on_nodes!(::CPU, op::F, vs::AbstractVector, vs_h::AbstractVector, ignored = nothing) where {F}
     n = 0
     @inbounds for vf in vs, j in eachindex(vf)
         q = vs_h[n += 1]
