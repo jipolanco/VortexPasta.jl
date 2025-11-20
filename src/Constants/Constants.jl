@@ -7,7 +7,9 @@ For now, these are mainly useful for preparing non-periodic simulations.
 """
 module Constants
 
-export Zero, Infinity, ∞
+using SIMD: SIMD, Vec  # for operations mixing constants and SIMD vectors
+
+export Zero, One, Infinity, ∞
 
 abstract type RealConst <: Real end
 
@@ -32,6 +34,13 @@ Base.:(÷)(::Zero, ::Number) = Zero()
 Base.:(-)(::Zero) = Zero()
 
 Base.exp(::Zero) = true  # in the sense of the multiplicative identity (= 1)
+
+"""
+    One <: RealConst <: Real
+
+Singleton type representing the number one.
+"""
+struct One <: RealConst end
 
 """
     Infinity <: RealConst <: Real
@@ -72,5 +81,9 @@ Base.:(<)(::Infinity, ::Infinity) = false
 Base.:(>)(::Infinity, ::Infinity) = false
 
 Base.:(/)(::Number, ::Zero) = Infinity()
+
+Base.:(≤)(::Vec{N, <:AbstractFloat}, ::Infinity) where {N} = one(Vec{N, Bool})  # true
+Base.:(*)(::Zero, ::Vec) = Zero()
+Base.:(*)(::One, x::Vec) = x
 
 end

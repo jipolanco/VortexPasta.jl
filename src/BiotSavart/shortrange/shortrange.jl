@@ -56,7 +56,7 @@ erfc(x::AbstractFloat) = SpecialFunctions.erfc(x)
 
 erf(x::AbstractFloat) = SpecialFunctions.erf(x)
 erf(::Zero) = Zero()
-erfc(::Zero) = true  # in the sense of true == 1
+erfc(::Zero) = One()
 
 @inline two_over_sqrt_pi(::SIMD.Vec{W,T}) where {W,T} = 2 / sqrt(T(π))
 @inline two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
@@ -257,6 +257,17 @@ function _add_pair_interactions!(inc::Val{include_local_integration}, outputs, c
     outputs
 end
 
+@inline function _simd_deperiodise_separation_folded(r::SIMD.Vec, L::Real, Lh::Real)
+    # @assert -L < r < L  # this is true if both points x and y are in [0, L) (r = x - y)
+    r = SIMD.vifelse(r ≥ +Lh, r - L, r)
+    r = SIMD.vifelse(r < -Lh, r + L, r)
+    # @assert abs(r) ≤ Lhalf
+    r
+end
+
+# Case of non-periodic domains.
+@inline _simd_deperiodise_separation_folded(r::SIMD.Vec, L::Infinity, Lh::Infinity) = r
+
 @inline function _simd_load_batch_nosegments(pointdata, x⃗, js::NTuple{W}, m::Integer, Ls, Lhs, rcut²) where {W}
     (; points, charges) = pointdata
     points::StructVector
@@ -291,9 +302,7 @@ end
         @inline
         # Assuming both source and destination points are in [0, L], we need max two
         # operations to obtain their minimal distance in the periodic lattice.
-        local rs = x - svec
-        rs = SIMD.vifelse(rs ≥ +Lh, rs - L, rs)
-        rs = SIMD.vifelse(rs < -Lh, rs + L, rs)
+        local rs = _simd_deperiodise_separation_folded(x - svec, L, Lh)
         # @assert all(-Lh ≤ rs) && all(rs < Lh)
         rs
     end::NTuple{N, Vec{W}}
