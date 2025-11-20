@@ -33,7 +33,7 @@ end
     # Note: it's not worth it to filter out charges that are too far from x⃗, since that job
     # is done again in `biot_savart_contribution`.
     # So we simply return all charges one by one, regardless of x⃗.
-    eachindex(pointdata.points, pointdata.charges, pointdata.segments)
+    eachindex(pointdata.points, pointdata.charges)
 end
 
 @inline function foreach_charge(

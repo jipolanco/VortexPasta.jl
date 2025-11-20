@@ -44,7 +44,7 @@ function test_ring_friction_static(f, params, forcing::NormalFluidForcing)
     @test eltype(vs) === Vec3{T}
     fs = [f]
     vs_all = [vs]
-    cache = @inferred BiotSavart.init_cache(params, fs)
+    cache = @inferred BiotSavart.init_cache(params)
 
     # Compute self-induced velocity
     BiotSavart.velocity_on_nodes!(vs_all, cache, fs)

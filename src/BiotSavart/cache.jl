@@ -33,19 +33,16 @@ end
 Base.summary(io::IO, c::BiotSavartCache) = print(io, "BiotSavartCache")
 
 """
-    init_cache(
-        p::ParamsBiotSavart, fs::AbstractVector{<:AbstractFilament};
-        timer = TimerOutput("BiotSavart"),
-    ) -> BiotSavartCache
+    init_cache(p::ParamsBiotSavart; timer = TimerOutput("BiotSavart")) -> BiotSavartCache
 
 Initialise caches for computing Biot–Savart integrals.
 """
 function init_cache(
-        p::ParamsBiotSavart, fs::AbstractVector{<:AbstractFilament};
+        p::ParamsBiotSavart, fs = nothing;  # argument 2 is for backwards compatibility (no longer needed)
         timer = TimerOutput("BiotSavart"),
     )
     T = eltype(p)
-    pointdata = PointData(T, eltype(fs))
+    pointdata = PointData(T)
     shortrange = init_cache_short(p.common, p.shortrange, pointdata)
     longrange = init_cache_long(p, pointdata)
     BiotSavartCache(p, pointdata, shortrange, longrange, timer)

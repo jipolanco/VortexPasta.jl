@@ -58,7 +58,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
 
     fs = [f]
     params = @inferred ParamsBiotSavart(; ps...)
-    cache = @inferred BiotSavart.init_cache(params, fs)
+    cache = @inferred BiotSavart.init_cache(params)
     vs_all = map(similar ∘ nodes, fs)
     ψs_all = map(similar ∘ nodes, fs)
     fields = (velocity = vs_all, streamfunction = ψs_all)
@@ -249,7 +249,7 @@ function test_lia_segment_fraction()
         quadrature_near_singularity = AdaptiveTanhSinh(T; nlevels = 5)
     )
     # println(params)
-    cache = BiotSavart.init_cache(params, fs)
+    cache = BiotSavart.init_cache(params)
 
     vs_all = map(similar ∘ nodes, fs)
     ψs_all = map(similar ∘ nodes, fs)

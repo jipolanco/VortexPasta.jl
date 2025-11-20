@@ -258,12 +258,12 @@ params = ParamsBiotSavart(;
 # Biot--Savart integrals, which would be quite bad for performance.
 # Luckily, creating a cache is very simple:
 
-fs = [f]  # note: we need to pass a *vector* of filaments
-cache = BiotSavart.init_cache(params, fs)
+cache = BiotSavart.init_cache(params)
 nothing  # hide
 
 # We can now compute the velocity of all filament nodes using [`velocity_on_nodes`](@ref):
 
+fs = [f]  # note: we need to pass a *vector* of filaments
 vs = velocity_on_nodes(cache, fs)
 @show summary(vs) summary(vs[1])
 nothing  # hide

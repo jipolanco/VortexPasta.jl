@@ -257,7 +257,7 @@ locations:
 # As an intermediate result, the velocity in Fourier space is stored in the cache.
 vs = map(similar ∘ nodes, fs)  # one velocity vector per filament node
 fields = (; velocity = vs,)
-cache = BiotSavart.init_cache(...)
+cache = BiotSavart.init_cache(params)
 compute_on_nodes!(fields, cache, fs)
 
 # Now compute the coarse-grained vorticity (result is stored in the cache)
@@ -564,7 +564,7 @@ function set_interpolation_points!(cache::LongRangeCache, fs::VectorOfFilaments)
     )
 end
 
-# Here pointdata_h is used as a buffer in the GPU implementation.
+# Here charges_h is used as a buffer in the GPU implementation.
 # See set_interpolation_points! for details.
 # Here `op` is a binary operator `op(new, old)`. For example, to add the new value to a
 # previously existent value, pass op = +.

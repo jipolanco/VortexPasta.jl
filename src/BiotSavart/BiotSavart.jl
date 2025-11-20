@@ -12,13 +12,14 @@ export
     Zero, Infinity, ∞,
     Velocity, Streamfunction,
     LongRangeCache, ShortRangeCache,
-    init_cache,
     has_real_to_complex,
     periods,
     velocity_on_nodes, velocity_on_nodes!,
     compute_on_nodes!,
     CPU,  # from KernelAbstractions
     reset_timer!  # from TimerOutputs
+
+public init_cache, autotune
 
 using ..Constants: Zero, One, Infinity, ∞
 
@@ -303,7 +304,7 @@ fields = (;
     streamfunction = ψs,
 )
 
-cache = BiotSavart.init_cache(...)
+cache = BiotSavart.init_cache(params)
 compute_on_nodes!(fields, cache, fs)
 ```
 

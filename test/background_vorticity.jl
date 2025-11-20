@@ -29,7 +29,7 @@ function init_params_biot_savart(; L, Ngrid, β)
 end
 
 function evaluate_bs_on_nodes!(fields, fs, params)
-    cache = BiotSavart.init_cache(params, fs)
+    cache = BiotSavart.init_cache(params)
     BiotSavart.compute_on_nodes!(fields, cache, fs)
     cache
 end
