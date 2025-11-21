@@ -1,5 +1,6 @@
 using VortexPasta.CellLists
 using VortexPasta.BiotSavart: Vec3, CPU, PseudoGPU
+using Adapt: adapt
 using StaticArrays: SVector
 using StableRNGs: StableRNG
 using Random
@@ -181,8 +182,11 @@ function test_cell_lists()
         end
 
         @testset "Using foreach_pair (PseudoGPU)" begin
-            cl_gpu = construct_cell_list(r_cut, Ls; backend = PseudoGPU(), nsubdiv = Val(nsubdiv))
-            run_cl = compute_interaction_foreach_pair(f_interaction, cl_gpu, xp, vp, r_cut)
+            backend = PseudoGPU()
+            cl_gpu = construct_cell_list(r_cut, Ls; backend, nsubdiv = Val(nsubdiv))
+            xp_gpu = adapt(backend, xp)
+            vp_gpu = adapt(backend, vp)
+            run_cl = compute_interaction_foreach_pair(f_interaction, cl_gpu, xp_gpu, vp_gpu, r_cut)
             @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
             @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result
         end
