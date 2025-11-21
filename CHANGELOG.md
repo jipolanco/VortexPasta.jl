@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- **GPU implementation of short-range interactions**: `CellListsBackend` can
+  now be used on GPUs by passing a KernelAbstractions backend (very similar to
+  `NonuniformFFTsBackend`). Moreover, if 2 GPUs are available, then one will be
+  dedicated by default to long-range computations and the other to short-range ones.
+
 ### Fixed
 
 - Timestepping: fix splitting and multirate schemes (e.g. `Strang`, `SanduMRI33a`) when
@@ -12,11 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `lia_segment_fraction` was not properly passed to the computation of the local term in the
   `BiotSavart` module. This issue does not exist with standard timestepping schemes such as
   `RK4`.
-
-### Added
-
-- `CellListsBackend` can now be used on GPUs by passing a KernelAbstractions backend
-  (very similar to `NonuniformFFTsBackend`).
 
 ## [0.31.0] - 2025-11-19
 
