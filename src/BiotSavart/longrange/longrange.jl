@@ -384,13 +384,13 @@ end
 @kernel function init_ewald_gaussian_operator_kernel!(
         u::AbstractArray{T, 3} where {T},
         @Const(ks),
-        @Const(β::Real),  # = -1/(4α²)
+        @Const(beta::Real),  # = -1/(4α²) // CUDA doesn't like Unicode characters?? ("ptxas fatal : Unexpected non-ASCII character encountered...")
     )
     I = @index(Global, Cartesian)
     k⃗ = map(getindex, ks, Tuple(I))
     k² = sum(abs2, k⃗)
     # This is simply a Gaussian smoothing operator in Fourier space (note: β = -1/4α²).
-    @inbounds u[I] = exp(β * k²)
+    @inbounds u[I] = exp(beta * k²)
     nothing
 end
 

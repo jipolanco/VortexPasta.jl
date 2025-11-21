@@ -312,12 +312,12 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
 
 ### Other performance parameters
 
-- `use_simd::Bool = true`: whether to use explicit SIMD during the computation of short-range
-  interactions. This applies to the CPU implementation of short-range interactions in
-  periodic domains only, where the SIMD implementation can accelerate the computation of
-  `erfc(αr)` in particular.
-  Usually there is no reason to disable this, other than to verify the accuracy or
-  performance of the SIMD implementation;
+- `use_simd::Bool`: whether to use explicit SIMD during the computation of short-range
+  interactions. This can accelerate, in particular, the computation of `erfc(αr)` appearing
+  in Ewald summation. By default, this is enabled (`true`) for CPU short-range backends, and
+  there is usually no reason to disable it. On GPU backends (e.g. `CellListsBackend(CUDABackend(), …)`)
+  this is disabled by default (`false`). It is not sure whether this could lead to any gains
+  on GPUs, and in fact setting it to `true` seems to fail on CUDA (but might work on AMD).
 
 - `avoid_explicit_erf::Bool = true`: whether to avoid explicit computation of `erf(αr)`,
   which appears when one wants to subtract the local contribution of long-range interactions

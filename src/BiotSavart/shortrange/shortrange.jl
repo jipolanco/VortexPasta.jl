@@ -268,15 +268,8 @@ end
 # Case of non-periodic domains.
 @inline _simd_deperiodise_separation_folded(r::SIMD.Vec, L::Infinity, Lh::Infinity) = r
 
-@inline function _simd_load_batch(pointdata, x⃗, js::NTuple{W}, m::Integer, Ls, Lhs, rcut²) where {W}
-    (; points, charges) = pointdata
-    points::StructVector
-    charges::StructVector
+@inline function _simd_load_batch(points_t::NTuple{N}, charges_t::NTuple{N}, x⃗, js::NTuple{W}, m::Integer, Ls, Lhs, rcut²) where {N, W}
     # @assert m <= W
-
-    N = length(eltype(points))  # typically 3 (number of dimensions)
-    # @assert T <: AbstractFloat
-
     # Note: all indices in `js` are all expected to be valid (even when m < W), so they can
     # be used to index `points` and `charges`.
 
@@ -285,7 +278,7 @@ end
 
     # Load W points. Note that, even when m < W, all W indices in `js` are expected to be valid.
     # This is guaranteed by the CellLists.foreach_source implementation in particular.
-    s⃗_vec = map(StructArrays.components(points)) do xs
+    s⃗_vec = map(points_t) do xs
         @inline
         @inbounds SIMD.vgather(xs, js_vec)  # load non-contiguous values
     end::NTuple{N, Vec{W}}
@@ -307,7 +300,7 @@ end
         rs
     end::NTuple{N, Vec{W}}
 
-    q⃗s_simd = map(StructArrays.components(charges)) do qs
+    q⃗s_simd = map(charges_t) do qs
         @inline
         @inbounds SIMD.vgather(qs, js_vec)
     end::NTuple{N, Vec{W}}
@@ -327,7 +320,7 @@ function _add_pair_interactions_simd!(
         ::Val{include_local_integration}, outputs, cache
     ) where {include_local_integration}
     (; pointdata, params) = cache
-    (; node_idx_prev,) = pointdata
+    (; points, charges, node_idx_prev,) = pointdata
     (; quad,) = params
     (; Γ, α, Ls) = params.common
     T = typeof(Γ)
@@ -337,55 +330,61 @@ function _add_pair_interactions_simd!(
 
     W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
 
+    points_t = StructArrays.components(points)::NTuple
+    charges_t = StructArrays.components(charges)::NTuple
+
     # We assume both source and destination points have already been folded into the main periodic cell.
     # (This is done in add_point_charges!)
     foreach_pair(cache; batch_size = Val(W), folded = Val(true)) do x⃗, i, js, m
         @inline
-        (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd) = _simd_load_batch(pointdata, x⃗, js, m, Ls, Lhs, rcut²)
+        (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd) = _simd_load_batch(points_t, charges_t, x⃗, js, m, Ls, Lhs, rcut²)
 
-        if !include_local_integration
+        mask_final = if include_local_integration
+            mask_simd
+        else
             # Check whether quadrature point `j` is in one of the two adjacent segments to node `i`.
             Nq = length(quad)
             js_node = (SIMD.Vec(js) + Nq - 1) ÷ Nq  # index of filament nodes right before quadrature points js
             iprev = @inbounds node_idx_prev[i]
-            mask_simd = mask_simd & (js_node != i)      # exclude quadrature points on the segment to the right of node `i`
-            mask_simd = mask_simd & (js_node != iprev)  # exclude quadrature points on the segment to the left of node `i`
+            mask1 = mask_simd & (js_node != i)  # exclude quadrature points on the segment to the right of node `i`
+            mask2 = mask1 & (js_node != iprev)  # exclude quadrature points on the segment to the left of node `i`
+            mask2
         end
 
         # There's nothing interesting to compute if mask is fully zero.
-        iszero(SIMD.bitmask(mask_simd)) && return
+        if !iszero(SIMD.bitmask(mask_final))
+            # The next operations should all take advantage of SIMD.
+            rs = sqrt(r²s_simd)
+            rs_inv = inv(rs)
+            r³s_inv = inv(r²s_simd * rs)
+            αr = α * rs
+            erfc_αr = erfc(αr)
+            αr_sq = αr * αr
+            exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)  # SIMD exp currently doesn't work with CUDA!
 
-        # The next operations should all take advantage of SIMD.
-        rs = sqrt(r²s_simd)
-        rs_inv = inv(rs)
-        r³s_inv = inv(r²s_simd * rs)
-        αr = α * rs
-        erfc_αr = erfc(αr)
-        αr_sq = αr * αr
-        exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
+            args = (erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)
 
-        args = (erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)
-
-        # Note: we can safely sum at index `i` without atomics, since the implementation
-        # ensures that only one thread has that index.
-        if hasproperty(outputs, :streamfunction)
-            δu⃗_simd = short_range_integrand(Streamfunction(), args...)::NTuple{3, SIMD.Vec}
-            δu⃗_data = map(δu⃗_simd) do component
-                @inline
-                component = SIMD.vifelse(mask_simd, component, zero(component))  # remove contributions of masked elements
-                sum(component)  # reduction operation: sum the W elements
+            # Note: we can safely sum at index `i` without atomics, since the implementation
+            # ensures that only one thread has that index.
+            if hasproperty(outputs, :streamfunction)
+                δu⃗_simd = short_range_integrand(Streamfunction(), args...)::NTuple{3, SIMD.Vec}
+                δu⃗_data = map(δu⃗_simd) do component
+                    @inline
+                    component = SIMD.vifelse(mask_final, component, zero(component))  # remove contributions of masked elements
+                    sum(component)  # reduction operation: sum the W elements
+                end
+                @inbounds outputs.streamfunction[i] += prefactor * Vec3(δu⃗_data)
             end
-            @inbounds outputs.streamfunction[i] += prefactor * Vec3(δu⃗_data)
-        end
 
-        if hasproperty(outputs, :velocity)
-            δu⃗_simd = short_range_integrand(Velocity(), args...)::NTuple{3, SIMD.Vec}
-            δu⃗_data = map(δu⃗_simd) do component
-                @inline
-                component = SIMD.vifelse(mask_simd, component, zero(component))  # remove contributions of masked elements
-                sum(component)  # reduction operation: sum the W elements
+            if hasproperty(outputs, :velocity)
+                δu⃗_simd = short_range_integrand(Velocity(), args...)::NTuple{3, SIMD.Vec}
+                δu⃗_data = map(δu⃗_simd) do component
+                    @inline
+                    component = SIMD.vifelse(mask_final, component, zero(component))  # remove contributions of masked elements
+                    sum(component)  # reduction operation: sum the W elements
+                end
+                @inbounds outputs.velocity[i] += prefactor * Vec3(δu⃗_data)
             end
-            @inbounds outputs.velocity[i] += prefactor * Vec3(δu⃗_data)
         end
     end
 

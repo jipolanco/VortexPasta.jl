@@ -2,7 +2,9 @@ using VortexPasta.CellLists
 using VortexPasta.BiotSavart: Vec3, CPU, PseudoGPU
 using Adapt: adapt
 using StaticArrays: SVector
+using StructArrays
 using StableRNGs: StableRNG
+using SIMD: SIMD
 using Random
 using Test
 
@@ -16,6 +18,21 @@ end
     end
     while r < -Lhalf
         r += L
+    end
+    r
+end
+
+# This is probably not optimal...
+@inline function deperiodise_separation(r::SIMD.Vec, L::Real, Lhalf::Real)
+    cond = r > Lhalf
+    while any(cond)
+        r = SIMD.vifelse(cond, r - L, r)
+        cond = r > Lhalf
+    end
+    cond = r < -Lhalf
+    while any(cond)
+        r = SIMD.vifelse(cond, r + L, r)
+        cond = r < -Lhalf
     end
     r
 end
@@ -129,18 +146,25 @@ function compute_interaction_foreach_pair(
             end
         end
     else
+        # Use batching + SIMD
         CellLists.foreach_pair(cl, xp; folded, batch_size) do x⃗, i, js, m
             # @inbounds x⃗ = xp[i]
-            for n in 1:m
-                j = js[n]
-                @inbounds y⃗ = xp[j]
-                r⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Ls_half)
-                r² = sum(abs2, r⃗)
-                @inbounds if r² <= r²_cut
-                    wp[i] += f(vp[i], vp[j], r⃗, r²)
-                    n_interactions_p[i] += 1
-                end
+            W = length(js)
+            j = SIMD.Vec(js)
+            N = length(x⃗)  # number of dimensions (= 3)
+            xp_tup = StructArrays.components(xp)::NTuple{N}
+            ys = map(x -> @inbounds(x[j]), xp_tup)::NTuple{N, SIMD.Vec}
+            rs = ntuple(Val(N)) do d
+                @inbounds deperiodise_separation(x⃗[d] - ys[d], Ls[d], Ls_half[d])
             end
+            r² = sum(abs2, rs)::SIMD.Vec
+            mask = SIMD.Vec(ntuple(identity, Val(W))) ≤ m
+            mask = mask & (r² ≤ r²_cut)
+            vi = @inbounds vp[i]
+            vj = @inbounds vp[j]
+            ws = f(vi, vj, rs, r²)
+            @inbounds wp[i] += sum(SIMD.vifelse(mask, ws, zero(ws)))
+            @inbounds n_interactions_p[i] += sum(mask)
         end
     end
 
@@ -159,7 +183,7 @@ function test_cell_lists()
     rng = StableRNG(42)
 
     # Random locations and values within the domain
-    xp = rand(rng, Vec3{T}, Np)
+    xp = StructVector{Vec3{T}}(ntuple(_ -> rand(rng, T, Np), 3))
     vp = randn(rng, T, Np)
     for i in eachindex(xp)
         xp[i] = xp[i] .* Ls
@@ -167,7 +191,7 @@ function test_cell_lists()
 
     # Arbitrary interaction function
     function f_interaction(u, v, r⃗, r²)
-        r_c = oftype(r², 2π / 100)  # to avoid singularity
+        r_c = oftype(u, 2π / 100)  # to avoid singularity
         r = sqrt(r²)
         u * v / (r + r_c)
     end
@@ -213,6 +237,16 @@ function test_cell_lists()
             xp_gpu = adapt(backend, xp)
             vp_gpu = adapt(backend, vp)
             run_cl = compute_interaction_foreach_pair(f_interaction, cl_gpu, xp_gpu, vp_gpu, r_cut)
+            @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
+            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result
+        end
+
+        @testset "Using foreach_pair (PseudoGPU, batched)" begin
+            backend = PseudoGPU()
+            cl_gpu = construct_cell_list(r_cut, Ls; backend, nsubdiv = Val(nsubdiv))
+            xp_gpu = adapt(backend, xp)
+            vp_gpu = adapt(backend, vp)
+            run_cl = compute_interaction_foreach_pair(f_interaction, cl_gpu, xp_gpu, vp_gpu, r_cut; batch_size = Val(4))
             @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
             @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result
         end
