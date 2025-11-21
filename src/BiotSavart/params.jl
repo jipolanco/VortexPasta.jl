@@ -349,7 +349,7 @@ function ParamsBiotSavart(
         longrange_truncate_spherical::Bool = false,
         Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,
-        use_simd::Bool = default_use_simd(Ls),
+        use_simd::Bool = default_use_simd(backend_short),
         avoid_explicit_erf::Bool = true,
         kws...,
     ) where {T}
@@ -398,9 +398,11 @@ function default_long_range_backend(Ls::Tuple)
     end
 end
 
-# By default, use explicit SIMD in periodic domains (this option is simply ignored in
-# non-periodic domains, as explicit SIMD is not implemented).
-default_use_simd(Ls::Tuple) = is_open_domain(Ls) ? false : true
+# By default, use explicit SIMD on CPU, and disable it on GPU (still needs to be tested, and
+# currently seems to fail on CUDA with `LLVM error: Undefined external symbol "exp"`)
+default_use_simd(backend::ShortRangeBackend) = default_use_simd(KA.get_backend(backend))
+default_use_simd(::CPU) = true
+default_use_simd(::GPU) = false
 
 # Returns the float type used (e.g. Float64)
 Base.eltype(::Type{<:ParamsBiotSavart{T}}) where {T} = T

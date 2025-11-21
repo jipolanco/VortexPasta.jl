@@ -360,7 +360,7 @@ function _add_pair_interactions_simd!(
             αr = α * rs
             erfc_αr = erfc(αr)
             αr_sq = αr * αr
-            exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)  # SIMD exp currently doesn't work with CUDA!
+            exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)  # SIMD exp currently doesn't work with CUDA -- `LLVM error: Undefined external symbol "exp"`
 
             args = (erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)
 
