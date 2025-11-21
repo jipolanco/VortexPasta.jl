@@ -31,20 +31,22 @@ Transforms are run on all available CPUs by default.
 To use a GPU, pass the corresponding [KernelAbstractions.jl
 backend](https://juliagpu.github.io/KernelAbstractions.jl/stable/#Supported-backends) as the
 only positional argument.
+
 For example, to use a CUDA device:
 
     using CUDA
-    backend_long = NonuniformFFTsBackend(CUDABackend(); device = 1, kwargs...)
+    backend_long = NonuniformFFTsBackend(CUDABackend(); kwargs...)
 
 On AMD GPUs the following should work:
 
     using AMDGPU
-    backend_long = NonuniformFFTsBackend(ROCBackend(); device = 1, kwargs...)
+    backend_long = NonuniformFFTsBackend(ROCBackend(); kwargs...)
 
 If running on a machine with multiple GPU devices, one may use the `device` keyword argument
 to choose the device where long-range computations will be performed. This should be a value
 in `1:ndevices`. When using KernelAbstractions.jl, the number of available devices can be
-obtained using `KA.ndevices(ka_backend)`. By default the first device (`device = 1`) is used.
+obtained using `KA.ndevices(ka_backend)`. By default the first device (`device = 1`) is used
+for long-range computations.
 
 ## Keyword arguments
 

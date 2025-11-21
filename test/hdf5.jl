@@ -156,7 +156,7 @@ function test_hdf5()
         Γ, α, a, Δ, rcut, Ls, Ns,
     )
 
-    cache = @inferred BiotSavart.init_cache(params, fs)
+    cache = @inferred BiotSavart.init_cache(params)
 
     # Use VectorOfVectors to make things more interesting (this is not necessary, but can be
     # convenient)

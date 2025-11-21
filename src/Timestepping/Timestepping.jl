@@ -716,7 +716,7 @@ function init(
     end
 
     cache_reconnect = Reconnections.init_cache(reconnect, fs, Ls)
-    cache_bs = BiotSavart.init_cache(prob.p, fs; timer)
+    cache_bs = BiotSavart.init_cache(prob.p; timer)
     cache_timestepper = init_cache(scheme, fs, vs)
 
     # Wrap functions with the timer, so that timings are estimated each time the function is called.

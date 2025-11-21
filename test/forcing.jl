@@ -201,7 +201,7 @@ end
     aspect = (1, 1, 2)
     params = generate_biot_savart_parameters(Float64; aspect)
     fs = generate_filaments(N; Ls = params.Ls)
-    cache_bs = BiotSavart.init_cache(params, fs)
+    cache_bs = BiotSavart.init_cache(params)
     vs = map(similar ∘ nodes, fs)
     velocity_on_nodes!(vs, cache_bs, fs)
     vs_self = map(copy, vs)

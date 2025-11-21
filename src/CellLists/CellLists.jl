@@ -273,7 +273,11 @@ function _set_elements!(::CPU, get_coordinate::F, cl::PeriodicCellList, xp::Abst
 end
 
 """
-    CellLists.foreach_pair(f::Function, cl::PeriodicCellList, xp_dest::AbstractVector; folded = Val(false))
+    CellLists.foreach_pair(
+        f::Function, cl::PeriodicCellList, xp_dest::AbstractVector;
+        batch_size = nothing,
+        folded = Val(false),
+    )
 
 Iterate over all point pairs within the chosen cut-off distance.
 
@@ -296,6 +300,14 @@ See [`set_elements!`](@ref) for more details.
 This function should be called after [`CellLists.set_elements!`](@ref).
 
 See also [`CellLists.foreach_source`](@ref).
+
+# Iterating over batches
+
+Similarly to [`foreach_source`](@ref), one can iterate over batches of (up to) `W` source
+points at a time (for each single destination point `x⃗ = xp_dest[i]`). For this one should
+pass `batch_size = Val(W)` as a keyword argument. Note that in this case, the user-defined
+function `f` is expected to have the signature `f(x⃗, i::Integer, js::NTuple{W}, m::Integer)`.
+See [`foreach_source`](@ref) for details on the last two arguments.
 
 # Example usage
 
@@ -334,27 +346,32 @@ julia> CellLists.foreach_pair(cl, xp_dest) do x⃗, i, j
        end
 ```
 """
-function foreach_pair(f::F, cl::PeriodicCellList, xp_dest::AbstractVector; folded::Val{Folded} = Val(false)) where {F <: Function, Folded}
+function foreach_pair(
+        f::F, cl::PeriodicCellList, xp_dest::AbstractVector;
+        batch_size::Union{Nothing, Val} = nothing,
+        folded::Val{Folded} = Val(false),
+    ) where {F <: Function, Folded}
     Folded::Bool
     (; backend) = cl
-    _foreach_pair(backend, f, cl, xp_dest, folded)
+    _foreach_pair(backend, f, cl, xp_dest, batch_size, folded)
     nothing
 end
 
-function _foreach_pair(::CPU, f::F, cl, xp_dest, folded::Val) where {F}
-    (; head_indices, next_index) = cl
+# This is similar to Base.Fix / Fix1 / Fix2.
+struct Fix12{F <: Function, A, B} <: Function
+    f::F
+    a::A
+    b::B
+end
+
+@inline (g::Fix12)(args::Vararg{Any, N}) where {N} = @inline g.f(g.a, g.b, args...)
+
+# On the CPU, this simply calls foreach_source in parallel for each destination point.
+function _foreach_pair(backend::CPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
     Threads.@threads :dynamic for i in eachindex(xp_dest)
         @inbounds x⃗ = xp_dest[i]
-        # Iterate over "active" cells around the destination point.
-        # TODO: exclude "corner" cells which are for sure beyond the cut-off distance?
-        cell_indices = get_neighbouring_cell_indices(cl, x⃗, folded)
-        @inbounds for I in cell_indices
-            j = head_indices[I]
-            while j != EMPTY
-                @inline f(x⃗, i, j)
-                j = next_index[j]
-            end
-        end
+        g = Fix12(f, x⃗, i)
+        _foreach_source(backend, g, cl, x⃗, batch_size, folded)
     end
     nothing
 end
@@ -398,15 +415,11 @@ coordinates (which is convenient in the context of SIMD).
     ) where {F <: Function, Folded}
     Folded::Bool
     (; backend) = cl
-    if batch_size === nothing
-        _foreach_source(backend, f, cl, x⃑_dest, folded)
-    else
-        _foreach_source_batched(backend, f, cl, x⃑_dest, batch_size, folded)
-    end
+    _foreach_source(backend, f, cl, x⃑_dest, batch_size, folded)
     nothing
 end
 
-@inline function _foreach_source(::CPU, f::F, cl, x⃗, folded::Val) where {F}
+@inline function _foreach_source(::CPU, f::F, cl, x⃗, batch_size::Nothing, folded::Val) where {F}
     (; head_indices, next_index) = cl
     cell_indices = get_neighbouring_cell_indices(cl, x⃗, folded)
     # Iterate over "active" cells around the destination point.
@@ -421,7 +434,7 @@ end
     nothing
 end
 
-@inline function _foreach_source_batched(::CPU, f::F, cl, x⃗, ::Val{batch_size}, folded::Val) where {F, batch_size}
+@inline function _foreach_source(::CPU, f::F, cl, x⃗, ::Val{batch_size}, folded::Val) where {F, batch_size}
     (; head_indices, next_index) = cl
     IndexType = eltype(head_indices)
     cell_indices = get_neighbouring_cell_indices(cl, x⃗, folded)
@@ -430,7 +443,6 @@ end
     @inbounds for I in cell_indices
         j = head_indices[I]
         while j != EMPTY
-            # @inline f(j)
             inds[m += 1] = j
             if m == batch_size
                 @inline f(Tuple(inds), batch_size)

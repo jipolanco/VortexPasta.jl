@@ -150,8 +150,8 @@ function compare_long_range(
     @test startswith(repr(params_exact), "ParamsBiotSavart{$T} with:\n")
     @test startswith(repr(params_default), "ParamsBiotSavart{$T} with:\n")
 
-    cache_exact_base = @inferred(BiotSavart.init_cache(params_exact, fs))
-    cache_default_base = @inferred(BiotSavart.init_cache(params_default, fs))
+    cache_exact_base = @inferred(BiotSavart.init_cache(params_exact))
+    cache_default_base = @inferred(BiotSavart.init_cache(params_default))
 
     cache_exact = cache_exact_base.longrange
     cache_default = cache_default_base.longrange
@@ -265,8 +265,8 @@ function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws.
         @test Lmin / 3 < rc_max < Lmin / 2  # the actual value depends on the nsubdiv parameter (here nsubdiv = 2)
     end
 
-    cache_naive = @inferred BiotSavart.init_cache(params_naive, fs)
-    cache_cl = @inferred BiotSavart.init_cache(params_cl, fs)
+    cache_naive = @inferred BiotSavart.init_cache(params_naive)
+    cache_cl = @inferred BiotSavart.init_cache(params_cl)
 
     vs_naive = @inferred BiotSavart.velocity_on_nodes(cache_naive, fs; longrange = false)
     vs_cl = @inferred BiotSavart.velocity_on_nodes(cache_cl, fs; longrange = false)
@@ -286,7 +286,7 @@ function compute_filament_velocity_and_streamfunction(f::AbstractFilament; α, L
     @assert rcut < minimum(Ls) * 2 / 5  # cell lists requirement (with nsubdiv = 2)
     params = ParamsBiotSavart(; params_kws..., α, Ns, Ls, rcut)
     fs = [f]
-    cache = init_cache(params, fs)
+    cache = BiotSavart.init_cache(params)
     vs = map(similar ∘ nodes, fs)
     fields = (
         velocity = vs,
@@ -336,7 +336,7 @@ function test_helicity(f; quadrature = GaussLegendre(3), Ns, Ls, params_kws...)
     backend_short = CellListsBackend(2)
     params = ParamsBiotSavart(; α, Ns, Ls, rcut, quadrature, backend_short, params_kws...)
     fs = [f]
-    cache = init_cache(params, fs)
+    cache = BiotSavart.init_cache(params)
     vs = map(similar ∘ nodes, fs)
     fields = (
         velocity = vs,

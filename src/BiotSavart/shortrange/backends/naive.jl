@@ -17,29 +17,23 @@ r_{\text{cut}} ≤ \frac{L}{2}
 """
 struct NaiveShortRangeBackend <: ShortRangeBackend end
 
-struct NaiveShortRangeCache{
-        Params <: ParamsShortRange{<:Real, <:NaiveShortRangeBackend},
-        Charges <: PointData,
-        Timer <: TimerOutput,
-    } <: ShortRangeCache
-    params :: Params
-    data   :: Charges
-    to     :: Timer
+struct NaiveShortRangeCache{Common <: ShortRangeCacheCommon} <: ShortRangeCache
+    common :: Common
 end
 
 function init_cache_short(
-        ::ParamsCommon, params::ParamsShortRange{T, <:NaiveShortRangeBackend},
-        data::PointData, to::TimerOutput,
+        ::ParamsCommon, params::ParamsShortRange{T, <:NaiveShortRangeBackend}, pointdata::PointData,
     ) where {T}
-    NaiveShortRangeCache(params, data, to)
+    common = ShortRangeCacheCommon(params, pointdata)
+    NaiveShortRangeCache(common)
 end
 
 @inline function nearby_charges(c::NaiveShortRangeCache, x⃗::Vec3)
-    (; data,) = c
+    (; pointdata,) = c
     # Note: it's not worth it to filter out charges that are too far from x⃗, since that job
     # is done again in `biot_savart_contribution`.
     # So we simply return all charges one by one, regardless of x⃗.
-    eachindex(data.points, data.charges, data.segments)
+    eachindex(pointdata.points, pointdata.charges)
 end
 
 @inline function foreach_charge(
@@ -78,6 +72,20 @@ end
             @inbounds inds[l] = inds[m]
         end
         @inline f(Tuple(inds), m)
+    end
+    nothing
+end
+
+@inline function foreach_pair(
+        f::F, c::NaiveShortRangeCache;
+        batch_size::Union{Nothing, Val} = nothing,  # see CellLists.foreach_source for details on this argument
+        folded = Val(false),  # ignored (used in CellLists)
+    ) where {F <: Function}
+    (; nodes,) = c.pointdata
+    Threads.@threads for i in eachindex(nodes)
+        x⃗ = @inbounds nodes[i]
+        g = CellLists.Fix12(f, x⃗, i)
+        _foreach_charge(g, batch_size, c, x⃗)
     end
     nothing
 end

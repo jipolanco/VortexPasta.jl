@@ -5,6 +5,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Timestepping: fix splitting and multirate schemes (e.g. `Strang`, `SanduMRI33a`) when
+  `fast_term = LocalTerm()` (the default) and when `lia_segment_fraction` is used. In fact,
+  `lia_segment_fraction` was not properly passed to the computation of the local term in the
+  `BiotSavart` module. This issue does not exist with standard timestepping schemes such as
+  `RK4`.
+
+### Added
+
+- `CellListsBackend` can now be used on GPUs by passing a KernelAbstractions backend
+  (very similar to `NonuniformFFTsBackend`).
+
 ## [0.31.0] - 2025-11-19
 
 ### Changed

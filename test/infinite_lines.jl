@@ -182,7 +182,7 @@ function test_infinite_lines(method)
         Ls, Ns, rcut, α,
         longrange_truncate_spherical = true,  # just for testing this option, shouldn't change much...
     )
-    cache = @inferred BiotSavart.init_cache(params, filaments)
+    cache = @inferred BiotSavart.init_cache(params)
     vs = map(f -> similar(nodes(f)), filaments)
     ψs = map(f -> similar(nodes(f)), filaments)
 

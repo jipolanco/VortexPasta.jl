@@ -17,7 +17,7 @@ Abstract type denoting the backend used for computing short-range interactions.
 
 The following functions must be implemented by a `BACKEND <: ShortRangeBackend`:
 
-- `init_cache_short(c::ParamsCommon, p::ParamsShortRange{<:BACKEND}, fs::AbstractVector{<:AbstractFilament}, to::TimerOutput) -> ShortRangeCache`,
+- [`init_cache_short`](@ref),
 
 - [`max_cutoff_distance`](@ref) (optional),
 
@@ -65,21 +65,35 @@ The following fields must be included in a cache:
 
 - `params::ParamsShortRange`: parameters for short-range computations;
 
-- `data::PointData`: updated charge locations and values;
+- `pointdata::PointData`: updated quadrature locations, charge values and output points (filament nodes);
 
 - `to::TimerOutput`: for measuring time spent on different functions.
 
 """
 abstract type ShortRangeCache end
 
+# This is for convenience: doing c.α is equivalent to c.common.α (we do the same for ParamsBiotSavart).
+@inline function Base.getproperty(c::ShortRangeCache, name::Symbol)
+    common = getfield(c, :common)
+    if hasproperty(common, name)
+        getfield(common, name)
+    else
+        getfield(c, name)
+    end
+end
+
+function Base.propertynames(c::ShortRangeCache, private::Bool = false)
+    (fieldnames(typeof(c))..., propertynames(c.common, private)...)
+end
+
 """
-    init_cache_short(
-        pc::ParamsCommon, p::ParamsShortRange,
-        fs::AbstractVector{<:AbstractFilament},
-        to::TimerOutput,
-    ) -> ShortRangeCache
+    init_cache_short(pc::ParamsCommon, p::ParamsShortRange{<:ShortRangeBackend}, pointdata::PointData) -> ShortRangeCache
 
 Initialise the cache for the short-range backend defined in `p`.
+
+This should be defined for each [`ShortRangeBackend`](@ref). In general, implementations
+should _create a copy_ of `pointdata` to avoid possible aliasing issues, since the
+`pointdata` in the signature is usually the one owned by the full [`BiotSavartCache`](@ref).
 """
 function init_cache_short end
 
@@ -88,7 +102,7 @@ KA.get_backend(c::ShortRangeCache) = KA.get_backend(backend(c))
 KA.device(c::ShortRangeCache) = KA.device(backend(c))
 
 """
-    process_point_charges!(cache::ShortRangeCache, data::PointData)
+    process_point_charges!(cache::ShortRangeCache)
 
 Process list of point charges.
 
@@ -96,6 +110,6 @@ This is useful for short-range backends like [`CellListsBackend`](@ref), which n
 assign a cell to each point charge before finding nearby pairs.
 
 Must be called after [`add_point_charges!`](@ref) and before computing any short-range quantities
-(using [`add_short_range_fields!`](@ref)).
+(using [`add_pair_interactions!`](@ref)).
 """
-process_point_charges!(::ShortRangeCache, ::PointData) = nothing  # can be overridden by the backend
+process_point_charges!(::ShortRangeCache) = nothing  # can be overridden by the backend

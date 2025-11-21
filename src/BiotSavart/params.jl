@@ -312,12 +312,12 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
 
 ### Other performance parameters
 
-- `use_simd::Bool = true`: whether to use explicit SIMD during the computation of short-range
-  interactions. This applies to the CPU implementation of short-range interactions in
-  periodic domains only, where the SIMD implementation can accelerate the computation of
-  `erfc(αr)` in particular.
-  Usually there is no reason to disable this, other than to verify the accuracy or
-  performance of the SIMD implementation;
+- `use_simd::Bool`: whether to use explicit SIMD during the computation of short-range
+  interactions. This can accelerate, in particular, the computation of `erfc(αr)` appearing
+  in Ewald summation. By default, this is enabled (`true`) for CPU short-range backends, and
+  there is usually no reason to disable it. On GPU backends (e.g. `CellListsBackend(CUDABackend(), …)`)
+  this is disabled by default (`false`). It is not sure whether this could lead to any gains
+  on GPUs, and in fact setting it to `true` seems to fail on CUDA (but might work on AMD).
 
 - `avoid_explicit_erf::Bool = true`: whether to avoid explicit computation of `erf(αr)`,
   which appears when one wants to subtract the local contribution of long-range interactions
@@ -349,7 +349,7 @@ function ParamsBiotSavart(
         longrange_truncate_spherical::Bool = false,
         Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,
-        use_simd::Bool = default_use_simd(Ls),
+        use_simd::Bool = default_use_simd(backend_short),
         avoid_explicit_erf::Bool = true,
         kws...,
     ) where {T}
@@ -398,9 +398,11 @@ function default_long_range_backend(Ls::Tuple)
     end
 end
 
-# By default, use explicit SIMD in periodic domains (this option is simply ignored in
-# non-periodic domains, as explicit SIMD is not implemented).
-default_use_simd(Ls::Tuple) = is_open_domain(Ls) ? false : true
+# By default, use explicit SIMD on CPU, and disable it on GPU (still needs to be tested, and
+# currently seems to fail on CUDA with `LLVM error: Undefined external symbol "exp"`)
+default_use_simd(backend::ShortRangeBackend) = default_use_simd(KA.get_backend(backend))
+default_use_simd(::CPU) = true
+default_use_simd(::GPU) = false
 
 # Returns the float type used (e.g. Float64)
 Base.eltype(::Type{<:ParamsBiotSavart{T}}) where {T} = T

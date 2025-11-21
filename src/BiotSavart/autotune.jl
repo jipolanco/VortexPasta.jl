@@ -1,15 +1,3 @@
-# https://discourse.julialang.org/t/is-compat-jl-worth-it-for-the-public-keyword/119041/22
-macro public(ex)
-    if VERSION >= v"1.11.0-DEV.469"
-        args = ex isa Symbol ? (ex,) : Base.isexpr(ex, :tuple) ? ex.args : error("unsupported expression: $ex")
-        esc(Expr(:public, args...))
-    else
-        nothing
-    end
-end
-
-@public autotune
-
 @doc raw"""
     BiotSavart.autotune(fs::AbstractVector{<:AbstractFilament{T}}, [β::Real = 3.5]; kwargs...) -> ParamsBiotSavart{T}
 
@@ -260,7 +248,7 @@ function _benchmark_params!(
         ceil(Int, kmax * L / T(π) + 1)
     end
     params = ParamsBiotSavart(T; Ls, α, rcut, backend_short, Ns, kws...)
-    cache = init_cache(params, fs; timer)
+    cache = init_cache(params; timer)
 
     t_best = Inf
 

@@ -1,5 +1,6 @@
 """
-    PointData
+    PointData{T <: AbstractFloat}
+    PointData(::Type{T}) -> PointData{T}
 
 Stores point data (values on filaments) used to compute short-range and long-range interactions.
 
@@ -16,29 +17,19 @@ Among the stored fields are:
   tangent vector.
 
 Quadrature points and charges are obtained via interpolation in-between filament nodes.
-
-# Construction
-
-    PointData(::Type{T}, ::Type{F}) -> PointData
-
-where:
-
-- `T <: AbstractFloat` is a float type (usually `Float32` or `Float64`).
-
-- `F <: AbstractFilament` is the filament type (e.g. `ClosedFilament{…}`).
 """
 struct PointData{
         T <: AbstractFloat,
         Vecs <: StructVector{Vec3{T}},
+        Indices <: AbstractVector{<:Integer},
         VecsHost <: StructVector{Vec3{T}},
-        Filament <: AbstractFilament,
-        Segments <: AbstractVector{Segment{Filament}},
     }
-    nodes     :: Vecs      # filament nodes (where velocity will be computed)
-    points    :: Vecs      # interpolated locations s⃗ on segments
-    charges   :: Vecs      # rescaled tangent vector q * s⃗′ on segments (where `q` is the quadrature weight)
+    nodes         :: Vecs     # [Np] filament nodes (where velocity will be computed)
+    node_idx_prev :: Indices  # [Np] index in 1:Np of node located to the "left" of a given node (accounts for periodic wrapping of closed filaments) -> only used in short-range when avoid_explicit_erf == false
+    points    :: Vecs      # [Nq] quadrature points, i.e. interpolated locations s⃗ on segments
+    charges   :: Vecs      # [Nq] rescaled tangent vector q * s⃗′ on segments (where `q` is the quadrature weight)
+    # TODO: do we need this?:
     charges_h :: VecsHost  # CPU buffer which may be used for intermediate host-device transfers
-    segments  :: Segments  # filament segment on which each location s⃗ is located
 end
 
 # If `to` corresponds to a GPU backend, create PointData object on the GPU (useful for long-range computations
@@ -47,27 +38,25 @@ end
 @inline function Adapt.adapt_structure(to, p::PointData)
     PointData(
         adapt(to, p.nodes),
+        adapt(to, p.node_idx_prev),
         adapt(to, p.points),
         adapt(to, p.charges),
         p.charges_h,  # this is always on the CPU
-        p.segments,   # for now, keep segments on the CPU (we don't use them on the GPU)
     )
 end
 
-function PointData(::Type{T}, ::Type{F}) where {T <: AbstractFloat, F <: AbstractFilament}
+function PointData(::Type{T}) where {T <: AbstractFloat}
     nodes = StructVector{Vec3{T}}(undef, 0)
+    node_idx_prev = similar(nodes, Int32)  # Int32 should be enough for all practical purposes
     points = similar(nodes)
     charges = similar(nodes)
-    Seg = Segment{F}
-    @assert isconcretetype(Seg)
-    segments = Seg[]
-    PointData(nodes, points, charges, copy(charges), segments)
+    PointData(nodes, node_idx_prev, points, charges, copy(charges))
 end
 
 function Base.copy(data::PointData)
-    (; nodes, points, charges, segments,) = data
+    (; nodes, node_idx_prev, points, charges,) = data
     charges_h = similar(data.charges_h, 0)
-    PointData(copy(nodes), copy(points), copy(charges), charges_h, copy(segments))
+    PointData(copy(nodes), copy(node_idx_prev), copy(points), copy(charges), charges_h)
 end
 
 # This is useful in particular for host -> device copies.
@@ -76,8 +65,7 @@ function Base.copy!(dst::PointData, src::PointData)
     copy!(dst.nodes, src.nodes)
     copy!(dst.points, src.points)
     copy!(dst.charges, src.charges)
-    # Note that both `segments` fields may point to the same object; see `adapt_structure` above.
-    dst.segments === src.segments || copy!(dst.segments, src.segments)  # not useful on the GPU...
+    copy!(dst.node_idx_prev, src.node_idx_prev)
     dst
 end
 
@@ -90,11 +78,12 @@ This will reallocate space to make all points fit in the cache. It will also res
 contributions of previously-added charges.
 """
 function set_num_points!(data::PointData, Np, quad::StaticSizeQuadrature)
+    @assert Np < typemax(eltype(data.node_idx_prev))  # check that index type (e.g. Int32) is large enough
     Nq = Np * length(quad)  # number of quadrature nodes
     resize!(data.nodes, Np)
+    resize!(data.node_idx_prev, Np)
     resize!(data.points, Nq)
     resize!(data.charges, Nq)
-    resize!(data.segments, Nq)
     data
 end
 
@@ -135,17 +124,21 @@ function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilame
     nothing
 end
 
-function _add_point_charges!(data::PointData, f, Ls, n::Int, quad::StaticSizeQuadrature)
-    @assert eachindex(data.points) == eachindex(data.charges) == eachindex(data.segments)
-    m = length(quad) * n  # current index in points/charges/segments vectors
+function _add_point_charges!(data::PointData, f::ClosedFilament, Ls, n::Int, quad::StaticSizeQuadrature)
+    @assert eachindex(data.nodes) == eachindex(data.node_idx_prev)
+    @assert eachindex(data.points) == eachindex(data.charges)
+    m = length(quad) * n  # current index in points/charges vectors
+    nfirst = n + 1
     nlast = n + length(segments(f))
     mlast = length(quad) * nlast
     checkbounds(data.nodes, nlast)
     checkbounds(data.points, mlast)
     ζs, ws = quadrature(quad)
     ts = knots(f)
-    @inbounds for (i, seg) ∈ pairs(segments(f))
-        data.nodes[n += 1] = Filaments.fold_coordinates_periodic(f[i], Ls)
+    @inbounds for i in eachindex(nodes(f))
+        n += 1
+        data.nodes[n] = Filaments.fold_coordinates_periodic(f[i], Ls)
+        data.node_idx_prev[n] = n - 1
         Δt = ts[i + 1] - ts[i]
         for (ζ, w) ∈ zip(ζs, ws)
             s⃗ = f(i, ζ)
@@ -153,33 +146,36 @@ function _add_point_charges!(data::PointData, f, Ls, n::Int, quad::StaticSizeQua
             # Note: the vortex circulation Γ is included in the Ewald operator and
             # doesn't need to be included here.
             q = w * Δt
-            _add_pointcharge!(data, s⃗, q * s⃗′, seg, Ls, m += 1)
+            _add_pointcharge!(data, s⃗, q * s⃗′, Ls, m += 1)
         end
     end
+    @inbounds data.node_idx_prev[nfirst] = nlast  # account for periodic wrapping (closed filaments)
     @assert n == nlast
     @assert m == mlast
     n
 end
 
-function _add_point_charges!(data::PointData, f, Ls, n::Int, ::NoQuadrature)
-    @assert eachindex(data.nodes) == eachindex(data.points) == eachindex(data.charges) == eachindex(data.segments)
+function _add_point_charges!(data::PointData, f::ClosedFilament, Ls, n::Int, ::NoQuadrature)
+    @assert eachindex(data.nodes) == eachindex(data.points) == eachindex(data.charges)
+    nfirst = n + 1
     nlast = n + length(segments(f))
     checkbounds(data.nodes, nlast)
     checkbounds(data.points, nlast)
-    @inbounds for (i, seg) ∈ pairs(segments(f))
+    @inbounds for i in eachindex(nodes(f))
         n += 1
         data.nodes[n] = Filaments.fold_coordinates_periodic(f[i], Ls)
+        data.node_idx_prev[n] = n - 1
         s⃗ = (f[i] + f[i + 1]) ./ 2   # segment midpoint as quadrature node
         s⃗′_dt = f[i + 1] - f[i]
-        _add_pointcharge!(data, s⃗, s⃗′_dt, seg, Ls, n)
+        _add_pointcharge!(data, s⃗, s⃗′_dt, Ls, n)
     end
+    @inbounds data.node_idx_prev[nfirst] = nlast  # account for periodic wrapping (closed filaments)
     @assert n == nlast
     n
 end
 
-function _add_pointcharge!(data::PointData, X::Vec3, Q::Vec3, s::Segment, Ls::NTuple{3}, i::Int)
+function _add_pointcharge!(data::PointData, X::Vec3, Q::Vec3, Ls::NTuple{3}, i::Int)
     @inbounds data.points[i] = Filaments.fold_coordinates_periodic(X, Ls)
     @inbounds data.charges[i] = Q
-    @inbounds data.segments[i] = s
     data
 end

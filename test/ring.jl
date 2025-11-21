@@ -58,7 +58,7 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
 
     fs = [f]
     params = @inferred ParamsBiotSavart(; ps...)
-    cache = @inferred BiotSavart.init_cache(params, fs)
+    cache = @inferred BiotSavart.init_cache(params)
     vs_all = map(similar ∘ nodes, fs)
     ψs_all = map(similar ∘ nodes, fs)
     fields = (velocity = vs_all, streamfunction = ψs_all)
@@ -134,9 +134,12 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
         ℓ₋ = integrate(integrand, f, i - 1, GaussLegendre(8))
         ℓ₊ = integrate(integrand, f, i - 0, GaussLegendre(8))
         ℓ = sqrt(ℓ₋ * ℓ₊) / 4 * ps.lia_segment_fraction
-        BiotSavart.velocity_on_nodes!([vs], cache, [f]; LIA = Val(false))
+        vs_total = vs
+        vs_lia = BiotSavart.velocity_on_nodes(cache, [f], LIA = Val(:only))[1]
+        vs_nonlia = BiotSavart.velocity_on_nodes(cache, [f]; LIA = Val(false))[1]
+        @test vs_total ≈ vs_lia .+ vs_nonlia
         U_nonlocal_expected = vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
-        U_nonlocal = norm(vs[i])
+        U_nonlocal = norm(vs_nonlia[i])
         rtol = if quad === NoQuadrature()
             0.3  # the error can be huge!!
         elseif quad === GaussLegendre(1)
@@ -246,7 +249,7 @@ function test_lia_segment_fraction()
         quadrature_near_singularity = AdaptiveTanhSinh(T; nlevels = 5)
     )
     # println(params)
-    cache = BiotSavart.init_cache(params, fs)
+    cache = BiotSavart.init_cache(params)
 
     vs_all = map(similar ∘ nodes, fs)
     ψs_all = map(similar ∘ nodes, fs)

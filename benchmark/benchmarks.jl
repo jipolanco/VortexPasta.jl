@@ -102,7 +102,7 @@ fs = VectorOfVectors(generate_filaments(initial_condition; Ls, l_res, method))
 
 Ns = (128, 128, 128)
 params = generate_biot_savart_parameters(; Ls, Ns)
-cache = BiotSavart.init_cache(params, fs)
+cache = BiotSavart.init_cache(params)
 vs = similar(fs)
 ψs = similar(fs)
 fields = (velocity = vs, streamfunction = ψs)

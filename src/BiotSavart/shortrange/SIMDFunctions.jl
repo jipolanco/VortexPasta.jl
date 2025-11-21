@@ -58,7 +58,18 @@ using SIMD: Vec, vifelse
 end
 
 # vscalef(b::Bool, x, y, z) = b ? (x * (2^y)) : z
-vscalef(b::Vec, x, y, z) = vifelse(b, x * (2^y), z)
+# vscalef(b::Vec, x, y, z) = vifelse(b, x * (2^y), z)
+# vscalef(b::Vec, x, y, z) = vifelse(b, x * exp2(y), z)  # SIMD + exp2 fails on CUDA
+
+# This should work on CPU and GPU (tested with CUDA)
+# Note: `y` is expected to contain negative integer values (in float format)
+@inline function vscalef(b::Vec{N, Bool}, x::Vec{N, T}, y::Vec{N, T}, z::Vec{N, T}) where {N, T <: AbstractFloat}
+    yu_pos = convert(Vec{N, UInt}, -y)
+    pu = 1 << yu_pos  # = 2^(-y)
+    pf = convert(Vec{N, T}, pu)
+    w = x / pf  # = x * 2^(y)
+    vifelse(b, w, z)
+end
 
 @inline function erf_v56f_kernel(v3f, v4f)
     v29f = v4f * -1.4426950408889634
