@@ -555,8 +555,10 @@ function _compute_on_nodes!(
     tree_point_base = [t.name for t in to.timer_stack]  # to merge timers (https://github.com/KristofferC/TimerOutputs.jl/issues/143)
     ntasks = length(tasks)
     while ntasks > 0
-        taskname = take!(channel)::Symbol  # wait for first async task to finish
-        ntasks -= 1
+        @timeit to "Wait for async task to finish" begin
+            taskname = take!(channel)::Symbol  # wait for first async task to finish
+            ntasks -= 1
+        end
         # Add results from asynchronous task.
         @timeit to "Copy output (device -> host)" let
             local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
