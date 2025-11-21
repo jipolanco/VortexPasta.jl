@@ -440,7 +440,7 @@ function do_longrange!(
             @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.velocity, cache)
         end
 
-        yield()  # let other tasks run
+        yield()  # let other tasks run (not sure if this really helps)
 
         # Wait for the GPU to finish its work before finishing this task.
         @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
@@ -464,7 +464,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
         @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
         @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
 
-        yield()  # let other tasks run
+        yield()  # let other tasks run (not sure if this really helps)
 
         # Wait for the GPU to finish its work before finishing this task.
         @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
