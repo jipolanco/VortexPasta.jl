@@ -100,7 +100,11 @@ function compute_interaction_foreach_source(f::F, cl::PeriodicCellList, xp, vp, 
 end
 
 # This variant is more adapted for GPUs.
-function compute_interaction_foreach_pair(f::F, cl::PeriodicCellList, xp, vp, r_cut; folded = Val(false)) where {F}
+function compute_interaction_foreach_pair(
+        f::F, cl::PeriodicCellList, xp, vp, r_cut;
+        folded = Val(false),
+        batch_size = nothing,
+    ) where {F}
     (; Ls,) = cl
     Ls_half = Ls ./ 2
     r²_cut = r_cut^2
@@ -113,14 +117,30 @@ function compute_interaction_foreach_pair(f::F, cl::PeriodicCellList, xp, vp, r_
 
     CellLists.set_elements!(cl, xp; folded)
 
-    CellLists.foreach_pair(cl, xp; folded) do x⃗, i, j
-        # @inbounds x⃗ = xp[i]
-        @inbounds y⃗ = xp[j]
-        r⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Ls_half)
-        r² = sum(abs2, r⃗)
-        @inbounds if r² <= r²_cut
-            wp[i] += f(vp[i], vp[j], r⃗, r²)
-            n_interactions_p[i] += 1
+    if batch_size === nothing
+        CellLists.foreach_pair(cl, xp; folded) do x⃗, i, j
+            # @inbounds x⃗ = xp[i]
+            @inbounds y⃗ = xp[j]
+            r⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Ls_half)
+            r² = sum(abs2, r⃗)
+            @inbounds if r² <= r²_cut
+                wp[i] += f(vp[i], vp[j], r⃗, r²)
+                n_interactions_p[i] += 1
+            end
+        end
+    else
+        CellLists.foreach_pair(cl, xp; folded, batch_size) do x⃗, i, js, m
+            # @inbounds x⃗ = xp[i]
+            for n in 1:m
+                j = js[n]
+                @inbounds y⃗ = xp[j]
+                r⃗ = deperiodise_separation(x⃗ - y⃗, Ls, Ls_half)
+                r² = sum(abs2, r⃗)
+                @inbounds if r² <= r²_cut
+                    wp[i] += f(vp[i], vp[j], r⃗, r²)
+                    n_interactions_p[i] += 1
+                end
+            end
         end
     end
 
@@ -170,6 +190,12 @@ function test_cell_lists()
 
         @testset "Using foreach_pair" begin
             run_cl = compute_interaction_foreach_pair(f_interaction, cl, xp, vp, r_cut)
+            @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
+            @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result
+        end
+
+        @testset "Using foreach_pair (batched)" begin
+            run_cl = compute_interaction_foreach_pair(f_interaction, cl, xp, vp, r_cut; batch_size = Val(4))
             @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
             @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result
         end
