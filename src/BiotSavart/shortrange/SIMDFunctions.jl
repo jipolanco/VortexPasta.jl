@@ -59,13 +59,15 @@ end
 
 # vscalef(b::Bool, x, y, z) = b ? (x * (2^y)) : z
 # vscalef(b::Vec, x, y, z) = vifelse(b, x * (2^y), z)
-# vscalef(b::Vec, x, y, z) = vifelse(b, x * exp2(y), z)  # exp2 not defined in CUDA
+# vscalef(b::Vec, x, y, z) = vifelse(b, x * exp2(y), z)  # SIMD + exp2 fails on CUDA
 
 # This should work on CPU and GPU (tested with CUDA)
+# Note: `y` is expected to contain negative integer values (in float format)
 @inline function vscalef(b::Vec{N, Bool}, x::Vec{N, T}, y::Vec{N, T}, z::Vec{N, T}) where {N, T <: AbstractFloat}
-    yi = convert(Vec{N, UInt8}, y)  # note: y is expected to contain integers in float format (obtained from `round`)
-    p = 1 << yi  # = 2^y
-    w = x * convert(Vec{N, T}, p)
+    yu_pos = convert(Vec{N, UInt}, -y)
+    pu = 1 << yu_pos  # = 2^(-y)
+    pf = convert(Vec{N, T}, pu)
+    w = x / pf  # = x * 2^(y)
     vifelse(b, w, z)
 end
 
