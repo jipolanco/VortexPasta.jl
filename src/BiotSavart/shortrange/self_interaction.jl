@@ -8,8 +8,7 @@ function remove_self_interaction!(outputs::NamedTuple, cache::ShortRangeCache)
     outputs
 end
 
-# CPU implementation
-function _remove_self_interaction!(::CPU, avoid_explicit_erf::Val, outputs::NamedTuple{Names}, cache) where {Names}
+function _remove_self_interaction!(::KA.Backend, avoid_explicit_erf::Val, outputs::NamedTuple{Names}, cache) where {Names}
     (; pointdata, params) = cache
     (; nodes, node_idx_prev, points, charges,) = pointdata
     (; Ls, Γ, α, quad) = params.common
@@ -24,7 +23,9 @@ function _remove_self_interaction!(::CPU, avoid_explicit_erf::Val, outputs::Name
     Lhs = map(L -> L / 2, Ls)
     quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
 
-    Threads.@threads :dynamic for i in eachindex(nodes)
+    # This works on CPU (threaded) and GPU.
+    AK.foreachindex(nodes; max_tasks = Threads.nthreads(), block_size = 256) do i
+        @inline
         @inbounds begin
             x⃗ = nodes[i]
             i_prev = node_idx_prev[i]

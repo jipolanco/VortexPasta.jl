@@ -38,6 +38,7 @@ using KernelAbstractions:
     KernelAbstractions,  # importing this avoids docs failure
     KernelAbstractions as KA, @kernel, @index, @Const,
     CPU, GPU
+using AcceleratedKernels: AcceleratedKernels as AK
 
 using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
@@ -428,6 +429,7 @@ function do_longrange!(
         # Interpolate streamfunction and/or velocity.
         callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
 
+        # Note: streamfunction (if enabled) must be computed before velocity.
         if hasproperty(outputs, :streamfunction)
             # Compute streamfunction from vorticity in Fourier space.
             @timeit to "Streamfunction field (Fourier)" compute_field_fourier!(Streamfunction(), cache)
