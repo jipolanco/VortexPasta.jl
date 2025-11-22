@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Reimplement self-interaction Biot–Savart term on GPU. It is also much faster than before
+  on CPU.
+
 ## [0.32.0] - 2025-11-21
 
 ### Added
