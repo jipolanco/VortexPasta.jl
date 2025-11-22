@@ -38,6 +38,7 @@ using KernelAbstractions:
     KernelAbstractions,  # importing this avoids docs failure
     KernelAbstractions as KA, @kernel, @index, @Const,
     CPU, GPU
+using AcceleratedKernels: AcceleratedKernels as AK
 
 using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
@@ -45,6 +46,8 @@ using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
 abstract type OutputField end
 struct Streamfunction <: OutputField end
 struct Velocity <: OutputField end
+
+possible_output_fields() = (velocity = Velocity(), streamfunction = Streamfunction())
 
 """
     AbstractBackend
@@ -426,6 +429,7 @@ function do_longrange!(
         # Interpolate streamfunction and/or velocity.
         callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
 
+        # Note: streamfunction (if enabled) must be computed before velocity.
         if hasproperty(outputs, :streamfunction)
             # Compute streamfunction from vorticity in Fourier space.
             @timeit to "Streamfunction field (Fourier)" compute_field_fourier!(Streamfunction(), cache)
@@ -463,6 +467,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
         @timeit to "Copy point charges (host -> device)" copy!(pointdata, pointdata_cpu)  # possibly host -> device copy
         @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
         @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
+        @timeit to "Remove self-interactions" remove_self_interaction!(outputs, cache)
 
         yield()  # let other tasks run (not sure if this really helps)
 
@@ -539,14 +544,6 @@ function _compute_on_nodes!(
                 @timeit to "Add local integrals" add_local_integrals!(fields, cache.params, fs)
             end
             # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
-            @timeit to "Remove self-interactions" begin
-                if hasproperty(fields, :streamfunction)
-                    remove_self_interaction!(fields.streamfunction, fs, Streamfunction(), params.common)
-                end
-                if hasproperty(fields, :velocity)
-                    remove_self_interaction!(fields.velocity, fs, Velocity(), params.common)
-                end
-            end
             @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
         end
     end
@@ -555,8 +552,10 @@ function _compute_on_nodes!(
     tree_point_base = [t.name for t in to.timer_stack]  # to merge timers (https://github.com/KristofferC/TimerOutputs.jl/issues/143)
     ntasks = length(tasks)
     while ntasks > 0
-        taskname = take!(channel)::Symbol  # wait for first async task to finish
-        ntasks -= 1
+        @timeit to "Wait for async task to finish" begin
+            taskname = take!(channel)::Symbol  # wait for first async task to finish
+            ntasks -= 1
+        end
         # Add results from asynchronous task.
         @timeit to "Copy output (device -> host)" let
             local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
