@@ -46,6 +46,8 @@ abstract type OutputField end
 struct Streamfunction <: OutputField end
 struct Velocity <: OutputField end
 
+possible_output_fields() = (velocity = Velocity(), streamfunction = Streamfunction())
+
 """
     AbstractBackend
 
@@ -463,6 +465,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
         @timeit to "Copy point charges (host -> device)" copy!(pointdata, pointdata_cpu)  # possibly host -> device copy
         @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
         @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
+        @timeit to "Remove self-interactions" remove_self_interaction!(outputs, cache)
 
         yield()  # let other tasks run (not sure if this really helps)
 
@@ -539,14 +542,6 @@ function _compute_on_nodes!(
                 @timeit to "Add local integrals" add_local_integrals!(fields, cache.params, fs)
             end
             # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
-            @timeit to "Remove self-interactions" begin
-                if hasproperty(fields, :streamfunction)
-                    remove_self_interaction!(fields.streamfunction, fs, Streamfunction(), params.common)
-                end
-                if hasproperty(fields, :velocity)
-                    remove_self_interaction!(fields.velocity, fs, Velocity(), params.common)
-                end
-            end
             @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
         end
     end
