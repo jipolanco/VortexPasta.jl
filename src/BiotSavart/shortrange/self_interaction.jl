@@ -1,100 +1,91 @@
-# TODO: these integrals could be directly computed from PointData (e.g. on GPU), as we don't
-# need curvatures or anything complicated.
-
-function remove_self_interaction!(
-        vs::AbstractVector{<:VectorOfVec},
-        fs::VectorOfFilaments, quantity::OutputField, params::ParamsCommon,
-    )
-    if params.avoid_explicit_erf
-        _remove_self_interaction!(Val(true), vs, fs, quantity, params)
+function remove_self_interaction!(outputs::NamedTuple, cache::ShortRangeCache)
+    ka_backend = KA.get_backend(cache)
+    if cache.params.common.avoid_explicit_erf
+        _remove_self_interaction!(ka_backend, Val(true), outputs, cache)
     else
-        _remove_self_interaction!(Val(false), vs, fs, quantity, params)
+        _remove_self_interaction!(ka_backend, Val(false), outputs, cache)
     end
+    outputs
 end
 
-function _remove_self_interaction!(::Val{total}, vs, fs, quantity, params) where {total}
-    chunks = FilamentChunkIterator(fs)
-    @sync for chunk in chunks
-        isempty(chunk) && continue  # don't spawn a task if it will do no work
-        Threads.@spawn for i in chunk
-            @inbounds v, f = vs[i], fs[i]
-            if total
-                # In this case, short-range interactions include the (singular) contribution
-                # of the local segments.
-                remove_total_self_interaction!(v, f, quantity, params)
-            else
-                remove_long_range_self_interaction!(v, f, quantity, params)
+function _remove_self_interaction!(::KA.Backend, avoid_explicit_erf::Val, outputs::NamedTuple{Names}, cache) where {Names}
+    (; pointdata, params) = cache
+    (; nodes, node_idx_prev, points, charges,) = pointdata
+    (; Ls, Γ, α, quad) = params.common
+
+    @assert eachindex(nodes) === eachindex(node_idx_prev)
+    foreach(outputs) do vs
+        @assert eachindex(vs) === eachindex(nodes)
+    end
+
+    T = typeof(Γ)
+    prefactor = Γ / T(4π)
+    Lhs = map(L -> L / 2, Ls)
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
+
+    # This works on CPU (threaded) and GPU.
+    AK.foreachindex(nodes; max_tasks = Threads.nthreads(), block_size = 256) do i
+        @inline
+        x⃗ = @inbounds nodes[i]
+        i_prev = @inbounds node_idx_prev[i]
+        Nq = length(quad)
+        js_right = ntuple(k -> Nq * (i - 1) + k, Val(Nq))      # quadrature points to the right of `i`
+        js_left = ntuple(k -> Nq * (i_prev - 1) + k, Val(Nq))  # quadrature points to the left of `i`
+        js = (js_left..., js_right...)  # TODO: SIMD over these quadrature points? (optionally?)
+        for j in js
+            s⃗ = @inbounds Tuple(points[j])
+            qs⃗′ = @inbounds Tuple(charges[j])
+            N = length(s⃗)
+            r⃗ = ntuple(Val(N)) do d
+                @inline
+                local r = @inbounds x⃗[d] - s⃗[d]
+                local L, Lh = @inbounds Ls[d], Lhs[d]
+                # @assert 0 ≤ x⃗[d] < L
+                # @assert 0 ≤ s⃗[d] < L
+                # Assuming both source and destination points are in [0, L], we need max two
+                # operations to obtain their minimal distance in the periodic lattice.
+                r = Filaments.deperiodise_separation_folded(r, L, Lh)
+                # @assert -Lh ≤ r < Lh
+                r
+            end
+            vals = _remove_self_interaction_integral(avoid_explicit_erf, values(quantities), α, r⃗, qs⃗′)::Tuple
+            foreach(values(outputs), vals) do vs, v
+                @inline
+                @inbounds vs[i] -= prefactor * Vec3(v)
             end
         end
     end
-    vs
+
+    outputs
 end
 
-# This subtracts the local Biot-Savart interaction (the effect of the two adjacent segments
-# to each node) which we have included in short and long-range computations, but which
-# should be replaced with the local (LIA) term obtained from Taylor expansions to account
-# for the integral cut-off near the node.
-# This function should be called when the local integrals have _not_ been excluded from
-# short-range interactions.
-function remove_total_self_interaction!(
-        vs::VectorOfVec,
-        f::ClosedFilament,
-        quantity::OutputField,
-        params::ParamsCommon,
+# Compute total BS integral (without Γ/4π prefactor) over local segments.
+@inline function _remove_self_interaction_integral(
+        avoid_explicit_erf::Val{true}, quantities::Tuple, α, r⃗, qs⃗′,
     )
-    Xs = nodes(f)
-    segs = segments(f)
-    Lhs = map(L -> L / 2, params.Ls)
-    prefactor = params.Γ / (4π)
-    # Not sure if we gain much by parallelising here.
-    Threads.@threads :dynamic for i in eachindex(Xs, vs)
-        @inbounds begin
-            x⃗ = Xs[i]
-            sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
-            sb = Segment(f, i)  # segment i
-            u⃗a = integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, rcut² = nothing)
-            u⃗b = integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, rcut² = nothing)
-            vs[i] = vs[i] - prefactor * (u⃗a + u⃗b)
-        end
+    r² = sum(abs2, r⃗)
+    r = sqrt(r²)
+    r_inv = 1 / r
+    map(quantities) do quantity
+        @inline
+        full_integrand(quantity, r_inv, qs⃗′, r⃗)
     end
-    vs
 end
 
-# This subtracts the spurious self-interaction term which is implicitly included in
-# long-range computations. This corresponds to the integral over the two adjacent segments
-# to each node, which should not be included in the total result (since they are replaced by
-# the LIA term). This function explicitly computes that integral and subtracts it from the
-# result.
-#
-# This is required because the local term already includes the full (short-range +
-# long-range) contribution of these segments. Moreover, long-range
-# computations also add the long-range contribution to the
-# velocity/streamfunction. Since we don't want to include this contribution
-# twice, we subtract it here. Note that without this correction, results will
-# depend on the (unphysical) Ewald parameter α. Finally, note that the integral
-# with the long-range kernel is *not* singular (since it's a smoothing kernel),
-# so there's no problem with evaluating this integral close to x⃗.
-function remove_long_range_self_interaction!(
-        vs::VectorOfVec,
-        f::ClosedFilament,
-        quantity::OutputField,
-        params::ParamsCommon,
+# Compute long-range BS integral (without Γ/4π prefactor) over local segments (needs erf).
+@inline function _remove_self_interaction_integral(
+        avoid_explicit_erf::Val{false}, quantities::Tuple, α, r⃗, qs⃗′,
     )
-    Xs = nodes(f)
-    segs = segments(f)
-    Lhs = map(L -> L / 2, params.Ls)
-    prefactor = params.Γ / (4π)
-    # Note: parallelising here usually leads to worse performance, likely because the work
-    # per iteration is small (we might also have false sharing issues due to memory locality).
-    @inbounds for i in eachindex(Xs, vs)
-        x⃗ = Xs[i]
-        sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
-        sb = Segment(f, i)  # segment i
-        u⃗a = integrate_biot_savart(quantity, LongRange(), sa, x⃗, params; Lhs, rcut² = nothing)
-        u⃗b = integrate_biot_savart(quantity, LongRange(), sb, x⃗, params; Lhs, rcut² = nothing)
-        vs[i] = vs[i] - prefactor * (u⃗a + u⃗b)
+    r² = sum(abs2, r⃗)
+    r = sqrt(r²)
+    r_inv = 1 / r
+    αr = α * r
+    erf_αr = erf(αr)
+    exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))
+    map(quantities) do quantity
+        @inline
+        long_range_integrand(quantity, erf_αr, exp_term, r_inv, qs⃗′, r⃗)
     end
-    vs
 end
 
 ## ========================================================================================== ##

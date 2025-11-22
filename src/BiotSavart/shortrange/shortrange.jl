@@ -51,10 +51,12 @@ struct ShortRange <: EwaldComponent end
 struct LongRange <: EwaldComponent end
 struct FullIntegrand <: EwaldComponent end  # ShortRange + LongRange
 
-erfc(x::SIMD.Vec) = one(x) - verf(x)
-erfc(x::AbstractFloat) = SpecialFunctions.erfc(x)
+erf(x::SIMD.Vec) = verf(x)
+erfc(x::SIMD.Vec) = one(x) - erf(x)
 
 erf(x::AbstractFloat) = SpecialFunctions.erf(x)
+erfc(x::AbstractFloat) = SpecialFunctions.erfc(x)
+
 erf(::Zero) = Zero()
 erfc(::Zero) = One()
 
@@ -239,7 +241,7 @@ end
 
 function _add_pair_interactions!(inc::Val{include_local_integration}, outputs, cache) where {include_local_integration}
     (; pointdata, params) = cache
-    (; nodes,) = pointdata
+    (; nodes) = pointdata
     (; avoid_explicit_erf) = params.common
     @assert include_local_integration === avoid_explicit_erf  # we include integration over local segment
 
@@ -268,7 +270,7 @@ end
 # Case of non-periodic domains.
 @inline _simd_deperiodise_separation_folded(r::SIMD.Vec, L::Infinity, Lh::Infinity) = r
 
-@inline function _simd_load_batch(points_t::NTuple{N}, charges_t::NTuple{N}, x⃗, js::NTuple{W}, m::Integer, Ls, Lhs, rcut²) where {N, W}
+@inline function _simd_load_batch(points_t::NTuple{N}, charges_t::NTuple{N}, x⃗::NTuple{N}, js::NTuple{W}, m::Integer, Ls, Lhs, rcut²) where {N, W}
     # @assert m <= W
     # Note: all indices in `js` are all expected to be valid (even when m < W), so they can
     # be used to index `points` and `charges`.
@@ -291,7 +293,7 @@ end
 
     # Determine distances between x⃗ and source points s⃗_vec.
     # Note that we want the _minimal_ distance in the periodic lattice.
-    r⃗s_simd = map(s⃗_vec, Tuple(x⃗), Ls, Lhs) do svec, x, L, Lh
+    r⃗s_simd = map(s⃗_vec, x⃗, Ls, Lhs) do svec, x, L, Lh
         @inline
         # Assuming both source and destination points are in [0, L], we need max two
         # operations to obtain their minimal distance in the periodic lattice.
@@ -317,8 +319,8 @@ end
 end
 
 function _add_pair_interactions_simd!(
-        ::Val{include_local_integration}, outputs, cache
-    ) where {include_local_integration}
+        ::Val{include_local_integration}, outputs::NamedTuple{Names}, cache
+    ) where {include_local_integration, Names}
     (; pointdata, params) = cache
     (; points, charges, node_idx_prev,) = pointdata
     (; quad,) = params
@@ -327,6 +329,7 @@ function _add_pair_interactions_simd!(
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
     Lhs = map(L -> L / 2, Ls)
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
 
     W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
 
@@ -337,7 +340,7 @@ function _add_pair_interactions_simd!(
     # (This is done in add_point_charges!)
     foreach_pair(cache; batch_size = Val(W), folded = Val(true)) do x⃗, i, js, m
         @inline
-        (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd) = _simd_load_batch(points_t, charges_t, x⃗, js, m, Ls, Lhs, rcut²)
+        (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd) = _simd_load_batch(points_t, charges_t, Tuple(x⃗), js, m, Ls, Lhs, rcut²)
 
         mask_final = if include_local_integration
             mask_simd
@@ -356,34 +359,22 @@ function _add_pair_interactions_simd!(
             # The next operations should all take advantage of SIMD.
             rs = sqrt(r²s_simd)
             rs_inv = inv(rs)
-            r³s_inv = inv(r²s_simd * rs)
             αr = α * rs
             erfc_αr = erfc(αr)
-            αr_sq = αr * αr
-            exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)  # SIMD exp currently doesn't work with CUDA -- `LLVM error: Undefined external symbol "exp"`
+            exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))  # SIMD exp currently doesn't work with CUDA -- `LLVM error: Undefined external symbol "exp"`
+            args = (erfc_αr, exp_term, rs_inv, q⃗s_simd, r⃗s_simd)
 
-            args = (erfc_αr, exp_term, rs_inv, r³s_inv, q⃗s_simd, r⃗s_simd)
-
-            # Note: we can safely sum at index `i` without atomics, since the implementation
-            # ensures that only one thread has that index.
-            if hasproperty(outputs, :streamfunction)
-                δu⃗_simd = short_range_integrand(Streamfunction(), args...)::NTuple{3, SIMD.Vec}
+            foreach(values(outputs), values(quantities)) do vs, quantity
+                @inline
+                δu⃗_simd = short_range_integrand(quantity, args...)::NTuple{3, SIMD.Vec}
                 δu⃗_data = map(δu⃗_simd) do component
                     @inline
                     component = SIMD.vifelse(mask_final, component, zero(component))  # remove contributions of masked elements
                     sum(component)  # reduction operation: sum the W elements
                 end
-                @inbounds outputs.streamfunction[i] += prefactor * Vec3(δu⃗_data)
-            end
-
-            if hasproperty(outputs, :velocity)
-                δu⃗_simd = short_range_integrand(Velocity(), args...)::NTuple{3, SIMD.Vec}
-                δu⃗_data = map(δu⃗_simd) do component
-                    @inline
-                    component = SIMD.vifelse(mask_final, component, zero(component))  # remove contributions of masked elements
-                    sum(component)  # reduction operation: sum the W elements
-                end
-                @inbounds outputs.velocity[i] += prefactor * Vec3(δu⃗_data)
+                # Note: we can safely sum at index `i` without atomics, since the implementation
+                # ensures that only one thread has that index.
+                @inbounds vs[i] += prefactor * Vec3(δu⃗_data)
             end
         end
     end
@@ -392,8 +383,8 @@ function _add_pair_interactions_simd!(
 end
 
 function _add_pair_interactions_nosimd!(
-        ::Val{include_local_integration}, outputs, cache
-    ) where {include_local_integration}
+        ::Val{include_local_integration}, outputs::NamedTuple{Names}, cache
+    ) where {include_local_integration, Names}
     (; pointdata, params) = cache
     (; points, charges, node_idx_prev) = pointdata
     (; quad,) = params
@@ -402,6 +393,7 @@ function _add_pair_interactions_nosimd!(
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
     Lhs = map(L -> L / 2, Ls)
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
 
     # We assume both source and destination points have already been folded into the main periodic cell.
     # (This is done in add_point_charges!)
@@ -418,8 +410,8 @@ function _add_pair_interactions_nosimd!(
                 return  # quadrature point is on the segment to the left of node `i`
             end
         end
-        s⃗ = @inbounds points[j]
-        qs⃗′ = @inbounds charges[j]
+        s⃗ = @inbounds Tuple(points[j])
+        qs⃗′ = @inbounds Tuple(charges[j])
         N = length(Ls)
         r⃗ = ntuple(Val(N)) do d
             @inline
@@ -437,19 +429,15 @@ function _add_pair_interactions_nosimd!(
         if r² ≤ rcut²
             r = sqrt(r²)
             r_inv = 1 / r
-            r³_inv = 1 / (r² * r)
             αr = α * r
             erfc_αr = erfc(αr)
-            αr_sq = αr * αr
-            exp_term = two_over_sqrt_pi(αr) * αr * exp(-αr_sq)
-            args = (erfc_αr, exp_term, r_inv, r³_inv, Tuple(qs⃗′), Tuple(r⃗))
-            # Note: we can safely sum at index `i` without atomics, since the implementation
-            # ensures that only one thread has that index.
-            if hasproperty(outputs, :streamfunction)
-                @inbounds outputs.streamfunction[i] += prefactor * Vec3(short_range_integrand(Streamfunction(), args...))
-            end
-            if hasproperty(outputs, :velocity)
-                @inbounds outputs.velocity[i] += prefactor * Vec3(short_range_integrand(Velocity(), args...))
+            exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))
+            args = (erfc_αr, exp_term, r_inv, qs⃗′, r⃗)
+            foreach(values(outputs), values(quantities)) do vs, quantity
+                @inline
+                # Note: we can safely sum at index `i` without atomics, since the implementation
+                # ensures that only one thread has that index.
+                @inbounds vs[i] += prefactor * Vec3(short_range_integrand(quantity, args...))
             end
         end
     end
@@ -457,34 +445,7 @@ function _add_pair_interactions_nosimd!(
     outputs
 end
 
-# Note: all input values may be SIMD types (Vec or tuple of Vec).
-@inline function short_range_integrand(::Velocity, erfc_αr, exp_term, r_inv::V, r³_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V}
-    factor = (erfc_αr + exp_term) * r³_inv
-    vec = crossprod(qs⃗′, r⃗)
-    map(vec) do component
-        @inline
-        factor * component
-    end
-end
-
-# Note: V may be a real or a SIMD vector.
-@inline function crossprod(u::T, v::T) where {T <: NTuple{3}}
-    @inbounds (
-        u[2] * v[3] - u[3] * v[2],
-        u[3] * v[1] - u[1] * v[3],
-        u[1] * v[2] - u[2] * v[1],
-    ) :: T
-end
-
-@inline function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, r³_inv, qs⃗′, r⃗)
-    factor = erfc_αr * r_inv
-    vec = qs⃗′
-    map(vec) do component
-        @inline
-        factor * component
-    end
-end
-
+include("integrands.jl")
 include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)
 include("self_interaction.jl")
 include("backends/naive.jl")
