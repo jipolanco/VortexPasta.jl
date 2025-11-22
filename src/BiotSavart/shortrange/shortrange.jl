@@ -319,8 +319,8 @@ end
 end
 
 function _add_pair_interactions_simd!(
-        ::Val{include_local_integration}, outputs, cache
-    ) where {include_local_integration}
+        ::Val{include_local_integration}, outputs::NamedTuple{Names}, cache
+    ) where {include_local_integration, Names}
     (; pointdata, params) = cache
     (; points, charges, node_idx_prev,) = pointdata
     (; quad,) = params
@@ -329,6 +329,7 @@ function _add_pair_interactions_simd!(
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
     Lhs = map(L -> L / 2, Ls)
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
 
     W = dynamic(pick_vector_width(T))  # how many simultaneous elements to compute (optimal depends on current CPU)
 
@@ -363,26 +364,17 @@ function _add_pair_interactions_simd!(
             exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))  # SIMD exp currently doesn't work with CUDA -- `LLVM error: Undefined external symbol "exp"`
             args = (erfc_αr, exp_term, rs_inv, q⃗s_simd, r⃗s_simd)
 
-            # Note: we can safely sum at index `i` without atomics, since the implementation
-            # ensures that only one thread has that index.
-            if hasproperty(outputs, :streamfunction)
-                δu⃗_simd = short_range_integrand(Streamfunction(), args...)::NTuple{3, SIMD.Vec}
+            foreach(outputs, quantities) do vs, quantity
+                @inline
+                δu⃗_simd = short_range_integrand(quantity, args...)::NTuple{3, SIMD.Vec}
                 δu⃗_data = map(δu⃗_simd) do component
                     @inline
                     component = SIMD.vifelse(mask_final, component, zero(component))  # remove contributions of masked elements
                     sum(component)  # reduction operation: sum the W elements
                 end
-                @inbounds outputs.streamfunction[i] += prefactor * Vec3(δu⃗_data)
-            end
-
-            if hasproperty(outputs, :velocity)
-                δu⃗_simd = short_range_integrand(Velocity(), args...)::NTuple{3, SIMD.Vec}
-                δu⃗_data = map(δu⃗_simd) do component
-                    @inline
-                    component = SIMD.vifelse(mask_final, component, zero(component))  # remove contributions of masked elements
-                    sum(component)  # reduction operation: sum the W elements
-                end
-                @inbounds outputs.velocity[i] += prefactor * Vec3(δu⃗_data)
+                # Note: we can safely sum at index `i` without atomics, since the implementation
+                # ensures that only one thread has that index.
+                @inbounds vs[i] += prefactor * Vec3(δu⃗_data)
             end
         end
     end
@@ -391,8 +383,8 @@ function _add_pair_interactions_simd!(
 end
 
 function _add_pair_interactions_nosimd!(
-        ::Val{include_local_integration}, outputs, cache
-    ) where {include_local_integration}
+        ::Val{include_local_integration}, outputs::NamedTuple{Names}, cache
+    ) where {include_local_integration, Names}
     (; pointdata, params) = cache
     (; points, charges, node_idx_prev) = pointdata
     (; quad,) = params
@@ -401,6 +393,7 @@ function _add_pair_interactions_nosimd!(
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
     Lhs = map(L -> L / 2, Ls)
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
 
     # We assume both source and destination points have already been folded into the main periodic cell.
     # (This is done in add_point_charges!)
@@ -440,13 +433,11 @@ function _add_pair_interactions_nosimd!(
             erfc_αr = erfc(αr)
             exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))
             args = (erfc_αr, exp_term, r_inv, qs⃗′, r⃗)
-            # Note: we can safely sum at index `i` without atomics, since the implementation
-            # ensures that only one thread has that index.
-            if hasproperty(outputs, :streamfunction)
-                @inbounds outputs.streamfunction[i] += prefactor * Vec3(short_range_integrand(Streamfunction(), args...))
-            end
-            if hasproperty(outputs, :velocity)
-                @inbounds outputs.velocity[i] += prefactor * Vec3(short_range_integrand(Velocity(), args...))
+            foreach(outputs, quantities) do vs, quantity
+                @inline
+                # Note: we can safely sum at index `i` without atomics, since the implementation
+                # ensures that only one thread has that index.
+                @inbounds vs[i] += prefactor * Vec3(short_range_integrand(quantity, args...))
             end
         end
     end
