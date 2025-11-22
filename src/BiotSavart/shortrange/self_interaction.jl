@@ -26,34 +26,32 @@ function _remove_self_interaction!(::KA.Backend, avoid_explicit_erf::Val, output
     # This works on CPU (threaded) and GPU.
     AK.foreachindex(nodes; max_tasks = Threads.nthreads(), block_size = 256) do i
         @inline
-        @inbounds begin
-            x⃗ = nodes[i]
-            i_prev = node_idx_prev[i]
-            Nq = length(quad)
-            js_right = ntuple(k -> Nq * (i - 1) + k, Val(Nq))      # quadrature points to the right of `i`
-            js_left = ntuple(k -> Nq * (i_prev - 1) + k, Val(Nq))  # quadrature points to the left of `i`
-            js = (js_left..., js_right...)  # TODO: SIMD over these quadrature points? (optionally?)
-            for j in js
-                s⃗ = Tuple(points[j])
-                qs⃗′ = Tuple(charges[j])
-                N = length(s⃗)
-                r⃗ = ntuple(Val(N)) do d
-                    @inline
-                    local r = @inbounds x⃗[d] - s⃗[d]
-                    local L, Lh = @inbounds Ls[d], Lhs[d]
-                    # @assert 0 ≤ x⃗[d] < L
-                    # @assert 0 ≤ s⃗[d] < L
-                    # Assuming both source and destination points are in [0, L], we need max two
-                    # operations to obtain their minimal distance in the periodic lattice.
-                    r = Filaments.deperiodise_separation_folded(r, L, Lh)
-                    # @assert -Lh ≤ r < Lh
-                    r
-                end
-                vals = _remove_self_interaction_integral(avoid_explicit_erf, quantities, α, r⃗, qs⃗′)::NamedTuple{Names}
-                foreach(outputs, vals) do vs, v
-                    @inline
-                    @inbounds vs[i] -= prefactor * Vec3(v)
-                end
+        x⃗ = @inbounds nodes[i]
+        i_prev = @inbounds node_idx_prev[i]
+        Nq = length(quad)
+        js_right = ntuple(k -> Nq * (i - 1) + k, Val(Nq))      # quadrature points to the right of `i`
+        js_left = ntuple(k -> Nq * (i_prev - 1) + k, Val(Nq))  # quadrature points to the left of `i`
+        js = (js_left..., js_right...)  # TODO: SIMD over these quadrature points? (optionally?)
+        for j in js
+            s⃗ = @inbounds Tuple(points[j])
+            qs⃗′ = @inbounds Tuple(charges[j])
+            N = length(s⃗)
+            r⃗ = ntuple(Val(N)) do d
+                @inline
+                local r = @inbounds x⃗[d] - s⃗[d]
+                local L, Lh = @inbounds Ls[d], Lhs[d]
+                # @assert 0 ≤ x⃗[d] < L
+                # @assert 0 ≤ s⃗[d] < L
+                # Assuming both source and destination points are in [0, L], we need max two
+                # operations to obtain their minimal distance in the periodic lattice.
+                r = Filaments.deperiodise_separation_folded(r, L, Lh)
+                # @assert -Lh ≤ r < Lh
+                r
+            end
+            vals = _remove_self_interaction_integral(avoid_explicit_erf, values(quantities), α, r⃗, qs⃗′)::Tuple
+            foreach(values(outputs), vals) do vs, v
+                @inline
+                @inbounds vs[i] -= prefactor * Vec3(v)
             end
         end
     end
@@ -63,7 +61,7 @@ end
 
 # Compute total BS integral (without Γ/4π prefactor) over local segments.
 @inline function _remove_self_interaction_integral(
-        avoid_explicit_erf::Val{true}, quantities::NamedTuple, α, r⃗, qs⃗′,
+        avoid_explicit_erf::Val{true}, quantities::Tuple, α, r⃗, qs⃗′,
     )
     r² = sum(abs2, r⃗)
     r = sqrt(r²)
@@ -76,7 +74,7 @@ end
 
 # Compute long-range BS integral (without Γ/4π prefactor) over local segments (needs erf).
 @inline function _remove_self_interaction_integral(
-        avoid_explicit_erf::Val{false}, quantities::NamedTuple, α, r⃗, qs⃗′,
+        avoid_explicit_erf::Val{false}, quantities::Tuple, α, r⃗, qs⃗′,
     )
     r² = sum(abs2, r⃗)
     r = sqrt(r²)

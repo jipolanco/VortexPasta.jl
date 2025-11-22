@@ -364,7 +364,7 @@ function _add_pair_interactions_simd!(
             exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))  # SIMD exp currently doesn't work with CUDA -- `LLVM error: Undefined external symbol "exp"`
             args = (erfc_αr, exp_term, rs_inv, q⃗s_simd, r⃗s_simd)
 
-            foreach(outputs, quantities) do vs, quantity
+            foreach(values(outputs), values(quantities)) do vs, quantity
                 @inline
                 δu⃗_simd = short_range_integrand(quantity, args...)::NTuple{3, SIMD.Vec}
                 δu⃗_data = map(δu⃗_simd) do component
@@ -433,7 +433,7 @@ function _add_pair_interactions_nosimd!(
             erfc_αr = erfc(αr)
             exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))
             args = (erfc_αr, exp_term, r_inv, qs⃗′, r⃗)
-            foreach(outputs, quantities) do vs, quantity
+            foreach(values(outputs), values(quantities)) do vs, quantity
                 @inline
                 # Note: we can safely sum at index `i` without atomics, since the implementation
                 # ensures that only one thread has that index.
