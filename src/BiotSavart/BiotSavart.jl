@@ -416,7 +416,12 @@ function do_longrange!(
     @timeit to "Long-range component (async)" begin
         # Copy point data to the cache (possibly on a GPU).
         @assert pointdata_cpu !== pointdata  # they are different objects
-        @timeit to "Copy point charges (host -> device)" copy!(pointdata, pointdata_cpu)  # this possibly copies from CPU to GPU
+        @timeit to "Copy point charges (host -> device)" begin
+            # Only copy fields needed for long-range computations (this will also resize fields in `pointdata`)
+            copy!(pointdata.nodes, pointdata_cpu.nodes)
+            copy!(pointdata.points, pointdata_cpu.points)
+            copy!(pointdata.charges, pointdata_cpu.charges)
+        end
         @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
 
         # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT

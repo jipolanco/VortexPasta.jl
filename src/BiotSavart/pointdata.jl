@@ -80,10 +80,10 @@ contributions of previously-added charges.
 function set_num_points!(data::PointData, Np, quad::StaticSizeQuadrature)
     @assert Np < typemax(eltype(data.node_idx_prev))  # check that index type (e.g. Int32) is large enough
     Nq = Np * length(quad)  # number of quadrature nodes
-    resize!(data.nodes, Np)
-    resize!(data.node_idx_prev, Np)
-    resize!(data.points, Nq)
-    resize!(data.charges, Nq)
+    resize_no_copy!(data.nodes, Np)
+    resize_no_copy!(data.node_idx_prev, Np)
+    resize_no_copy!(data.points, Nq)
+    resize_no_copy!(data.charges, Nq)
     data
 end
 
