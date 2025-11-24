@@ -318,6 +318,13 @@ end
     (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd)
 end
 
+# Check if quadrature point j_quad is on the segment to the _right_ of discretisation node `i`.
+# Note that j_quad can be a SIMD.Vec.
+@inline function _is_on_right_segment(i_node, j_quad, quad::StaticSizeQuadrature)
+    Nq = length(quad)
+    (Nq * (i_node - 1) < j_quad) & (j_quad ≤ Nq * i_node)
+end
+
 function _add_pair_interactions_simd!(
         ::Val{include_local_integration}, outputs::NamedTuple{Names}, cache
     ) where {include_local_integration, Names}
@@ -346,12 +353,11 @@ function _add_pair_interactions_simd!(
             mask_simd
         else
             # Check whether quadrature point `j` is in one of the two adjacent segments to node `i`.
-            Nq = length(quad)
-            js_node = (SIMD.Vec(js) + Nq - 1) ÷ Nq  # index of filament nodes right before quadrature points js
+            js_vec = SIMD.Vec(js)
             iprev = @inbounds node_idx_prev[i]
-            mask1 = mask_simd & (js_node != i)  # exclude quadrature points on the segment to the right of node `i`
-            mask2 = mask1 & (js_node != iprev)  # exclude quadrature points on the segment to the left of node `i`
-            mask2
+            islocal_r = _is_on_right_segment(i, js_vec, quad)      # quadrature point is on the segment to the right of node `i`
+            islocal_l = _is_on_right_segment(iprev, js_vec, quad)  # quadrature point is on the segment to the left of node `i`
+            mask_simd & !(islocal_r | islocal_l)
         end
 
         # There's nothing interesting to compute if mask is fully zero.
@@ -401,14 +407,9 @@ function _add_pair_interactions_nosimd!(
         @inline
         if !include_local_integration
             # Check whether quadrature point `j` is in one of the two adjacent segments to node `i`.
-            Nq = length(quad)
-            j_node = (j + Nq - 1) ÷ Nq  # index of filament node right before quadrature point j
-            if j_node == i
-                return  # quadrature point is on the segment to the right of node `i`
-            end
-            if j_node == @inbounds node_idx_prev[i]
-                return  # quadrature point is on the segment to the left of node `i`
-            end
+            iprev = @inbounds node_idx_prev[i]
+            _is_on_right_segment(i, j, quad) && return      # quadrature point is on the segment to the right of node `i`
+            _is_on_right_segment(iprev, j, quad) && return  # quadrature point is on the segment to the left of node `i`
         end
         s⃗ = @inbounds Tuple(points[j])
         qs⃗′ = @inbounds Tuple(charges[j])
