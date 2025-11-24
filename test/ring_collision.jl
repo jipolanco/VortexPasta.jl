@@ -123,7 +123,7 @@ end
     # don't have an actual GPU.
     gpu = test_ring_collision(
         backend_long = NonuniformFFTsBackend(PseudoGPU()),
-        backend_short = CellListsBackend(PseudoGPU()),
+        backend_short = CellListsBackend(PseudoGPU(); device = 2),
     )
     # Note: due to autotuning (which is quite random), the two sets of results can be a bit
     # different, thus we use a relative large `rtol`.
