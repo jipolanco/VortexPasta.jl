@@ -400,6 +400,21 @@ function compute_on_nodes!(
     fields
 end
 
+function _copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = length(src))
+    resize_no_copy!(dst, N)
+    backend = KA.get_backend(dst)
+    KA.pagelock!(backend, src)
+    KA.copyto!(backend, dst, src)
+    nothing
+end
+
+function _copy_host_to_device!(dst::StructVector, src::StructVector, N = length(src))
+    foreach(StructArrays.components(dst), StructArrays.components(src)) do a, b
+        _copy_host_to_device!(a, b, N)
+    end
+    nothing
+end
+
 function do_longrange!(
         cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu;
         callback_vorticity::Fvort,
@@ -416,43 +431,45 @@ function do_longrange!(
     @timeit to "Long-range component (async)" begin
         # Copy point data to the cache (possibly on a GPU).
         @assert pointdata_cpu !== pointdata  # they are different objects
-        @timeit to "Copy point charges (host -> device)" begin
-            # Only copy fields needed for long-range computations (this will also resize fields in `pointdata`)
-            copy!(pointdata.nodes, pointdata_cpu.nodes)
-            copy!(pointdata.points, pointdata_cpu.points)
-            copy!(pointdata.charges, pointdata_cpu.charges)
+        GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
+            @timeit to "Copy point charges (host -> device)" begin
+                # Only copy fields needed for long-range computations
+                _copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
+                _copy_host_to_device!(pointdata.points, pointdata_cpu.points)
+                _copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
+            end
+            @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
+
+            # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
+            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
+
+            if callback_vorticity !== identity
+                @timeit to "Vorticity callback" callback_vorticity(cache)
+            end
+
+            # Interpolate streamfunction and/or velocity.
+            callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
+
+            # Note: streamfunction (if enabled) must be computed before velocity.
+            if hasproperty(outputs, :streamfunction)
+                # Compute streamfunction from vorticity in Fourier space.
+                @timeit to "Streamfunction field (Fourier)" compute_field_fourier!(Streamfunction(), cache)
+                # Write interpolation output to outputs.streamfunction
+                @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
+            end
+
+            if hasproperty(outputs, :velocity)
+                # Compute velocity from vorticity or streamfunction in Fourier space.
+                @timeit to "Velocity field (Fourier)" compute_field_fourier!(Velocity(), cache)
+                # Write interpolation output to outputs.velocity
+                @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.velocity, cache)
+            end
+
+            yield()  # let other tasks run (not sure if this really helps)
+
+            # Wait for the GPU to finish its work before finishing this task.
+            @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
         end
-        @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
-
-        # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
-        @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
-
-        if callback_vorticity !== identity
-            @timeit to "Vorticity callback" callback_vorticity(cache)
-        end
-
-        # Interpolate streamfunction and/or velocity.
-        callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
-
-        # Note: streamfunction (if enabled) must be computed before velocity.
-        if hasproperty(outputs, :streamfunction)
-            # Compute streamfunction from vorticity in Fourier space.
-            @timeit to "Streamfunction field (Fourier)" compute_field_fourier!(Streamfunction(), cache)
-            # Write interpolation output to outputs.streamfunction
-            @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
-        end
-
-        if hasproperty(outputs, :velocity)
-            # Compute velocity from vorticity or streamfunction in Fourier space.
-            @timeit to "Velocity field (Fourier)" compute_field_fourier!(Velocity(), cache)
-            # Write interpolation output to outputs.velocity
-            @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.velocity, cache)
-        end
-
-        yield()  # let other tasks run (not sure if this really helps)
-
-        # Wait for the GPU to finish its work before finishing this task.
-        @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
     end
 
     nothing
@@ -469,15 +486,17 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
     KA.device!(ka_backend, device_id)   # set the device
 
     @timeit to "Short-range component (async)" begin
-        @timeit to "Copy point charges (host -> device)" copy!(pointdata, pointdata_cpu)  # possibly host -> device copy
-        @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
-        @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
-        @timeit to "Remove self-interactions" remove_self_interaction!(outputs, cache)
+        GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
+            @timeit to "Copy point charges (host -> device)" copy!(pointdata, pointdata_cpu)  # possibly host -> device copy
+            @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
+            @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
+            @timeit to "Remove self-interactions" remove_self_interaction!(outputs, cache)
 
-        yield()  # let other tasks run (not sure if this really helps)
+            yield()  # let other tasks run (not sure if this really helps)
 
-        # Wait for the GPU to finish its work before finishing this task.
-        @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
+            # Wait for the GPU to finish its work before finishing this task.
+            @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
+        end
     end
 
     nothing

@@ -62,10 +62,10 @@ end
 # This is useful in particular for host -> device copies.
 # Note that arrays are resized to match those in `src`.
 function Base.copy!(dst::PointData, src::PointData)
-    copy!(dst.nodes, src.nodes)
-    copy!(dst.points, src.points)
-    copy!(dst.charges, src.charges)
-    copy!(dst.node_idx_prev, src.node_idx_prev)
+    _copy_host_to_device!(dst.nodes, src.nodes)
+    _copy_host_to_device!(dst.points, src.points)
+    _copy_host_to_device!(dst.charges, src.charges)
+    _copy_host_to_device!(dst.node_idx_prev, src.node_idx_prev)
     dst
 end
 
