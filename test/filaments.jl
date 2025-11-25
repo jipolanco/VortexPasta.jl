@@ -5,7 +5,7 @@ using LinearAlgebra
 using StaticArrays
 using StructArrays: StructArray, StructVector
 using ForwardDiff: ForwardDiff
-using VortexPasta.Quadratures: NoQuadrature, GaussLegendre
+using VortexPasta.Quadratures: NoQuadrature, GaussLegendre, AdaptiveTanhSinh
 using VortexPasta.Filaments
 using VortexPasta.Filaments: discretisation_method
 using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot
@@ -49,7 +49,9 @@ function test_filament_ring(N, method)
 
     continuity = Filaments.continuity(Filaments.interpolation_method(f))
 
-    quads = (NoQuadrature(), GaussLegendre(1), GaussLegendre(2), GaussLegendre(3), GaussLegendre(4))
+    # Note: AdaptiveTanhSinh is no longer used in the code, but we can still use it to
+    # evalaute integrals along lines.
+    quads = (NoQuadrature(), GaussLegendre(1), GaussLegendre(2), GaussLegendre(3), GaussLegendre(4), AdaptiveTanhSinh(Float64))
     @testset "Integrate: $quad" for quad ∈ quads
         @testset "Filament length" begin
             L_expected = 2π * R  # ring perimeter

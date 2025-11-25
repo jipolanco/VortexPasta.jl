@@ -11,7 +11,7 @@ struct ParamsCommon{
         Sigma <: Real,  #  <: MaybeConst{T} (fails!!)
         Periods <: NTuple{3, MaybeConst{T}},
         Quad <: StaticSizeQuadrature,
-        QuadMaybeAdaptive <: Union{StaticSizeQuadrature, PreallocatedQuadrature{T}},
+        QuadNearSingularity <: StaticSizeQuadrature,
     }
     Γ  :: T        # vortex circulation
     a  :: T        # vortex core size
@@ -20,15 +20,14 @@ struct ParamsCommon{
     σ  :: Sigma    # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
     Ls :: Periods  # size of unit cell (= period in each direction)
     quad :: Quad   # quadrature rule used for short- and long-range computations
-    quad_near_singularity :: QuadMaybeAdaptive  # quadrature rule to be used near singularities (adaptive by default)
+    quad_near_singularity :: QuadNearSingularity  # quadrature rule to be used near singularities (usually the same as quad)
     avoid_explicit_erf :: Bool
     function ParamsCommon{T}(Γ, a, Δ, α_in, Ls_in, quad, quad_near_singularity, avoid_explicit_erf) where {T}
         α = maybe_convert(T, α_in)  # don't convert constants (e.g. if α = Zero())
         Ls = map(L -> maybe_convert(T, L), Ls_in)
         σ = 1 / (α * sqrt(T(2)))
-        quad_ns = convert(T, quad_near_singularity)  # does nothing if the quadrature has the right type
-        new{T, typeof(α), typeof(σ), typeof(Ls), typeof(quad), typeof(quad_ns)}(
-            Γ, a, Δ, α, σ, Ls, quad, quad_ns, avoid_explicit_erf,
+        new{T, typeof(α), typeof(σ), typeof(Ls), typeof(quad), typeof(quad_near_singularity)}(
+            Γ, a, Δ, α, σ, Ls, quad, quad_near_singularity, avoid_explicit_erf,
         )
     end
 end
@@ -305,10 +304,7 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
 - `quadrature_near_singularity = quadrature`: quadrature rule to be used
   when integrating near a singularity when `lia_segment_fraction` is enabled.
   By default this is equal to the quadrature rule used for non-local interactions (the
-  `quadrature` parameter), which has static size and is not adaptive. For even higher
-  accuracy, one may choose an adaptive quadrature rule such as [`AdaptiveTanhSinh`](@ref),
-  e.g. `quadrature_near_singularity = AdaptiveTanhSinh(T; nlevels = 5)`, but note that this
-  is costly and might not lead to considerable accuracy gains.
+  `quadrature` parameter).
 
 ### Other performance parameters
 
@@ -343,7 +339,7 @@ function ParamsBiotSavart(
         ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
         a::Real,
         quadrature::StaticSizeQuadrature = GaussLegendre(3),
-        quadrature_near_singularity::AbstractQuadrature = quadrature,
+        quadrature_near_singularity::StaticSizeQuadrature = quadrature,
         backend_short::ShortRangeBackend = default_short_range_backend(Ls),
         backend_long::LongRangeBackend = default_long_range_backend(Ls),
         longrange_truncate_spherical::Bool = false,

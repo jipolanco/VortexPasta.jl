@@ -164,21 +164,30 @@ function test_local_induced_approximation(ring)
         a = 1e-6,
         Δ = 1/4,
         Γ = 4.2,
-        segment_fraction = 0.2,
+        lia_segment_fraction = 0.2,
     )
     quad = GaussLegendre(8)  # for accurate estimation of arc length
-    lims = @inferred BiotSavart.lia_integration_limits(ps.segment_fraction)
+    lims = @inferred BiotSavart.lia_integration_limits(ps.lia_segment_fraction)
     arclength(j, limits) = integrate((f, j, ζ) -> norm(f(j, ζ, Derivative(1))), f, j, quad; limits)
     ℓ₋ = arclength(i - 1, lims[1])
     ℓ₊ = arclength(i, lims[2])
     ℓ = sqrt(ℓ₋ * ℓ₊) / 4
     v_expected = vortex_ring_velocity(ps.Γ, R, ps.a; ps.Δ) - vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
-    v_base = norm(
-        BiotSavart.local_self_induced_velocity(f, i; quad = nothing, ps...),
-    )  # without quadrature
+
+    v_base = let
+        params = biot_savart_parameters(
+            Float64;
+            L = Infinity(), α = Zero(), quadrature = NoQuadrature(), quadrature_near_singularity = GaussLegendre(1), ps...,
+        )
+        cache = BiotSavart.init_cache(params)
+        norm(BiotSavart.velocity_on_nodes(cache, [f]; LIA = Val(:only))[1][i])
+    end
+
     v_quad = map(1:8) do n
         quad = GaussLegendre(n)
-        norm(BiotSavart.local_self_induced_velocity(f, i; quad, ps...))
+        params = biot_savart_parameters(Float64; L = Infinity(), α = Zero(), quadrature = quad, ps...)
+        cache = BiotSavart.init_cache(params)
+        norm(BiotSavart.velocity_on_nodes(cache, [f]; LIA = Val(:only))[1][i])
     end
 
     # Things converge quite quickly; in this case GaussLegendre(1) seems to be enough.
@@ -200,17 +209,6 @@ function test_local_induced_approximation(ring)
     @test isapprox(v_expected, v_quad[1]; rtol)
     @test isapprox(v_expected, v_quad[2]; rtol)
     @test isapprox(v_expected, v_quad[3]; rtol)
-
-    @testset "Fit circle" begin
-        # Alternative estimation by fitting a circle (as in Schwarz PRB 1985).
-        # In the specific case of a vortex ring, this should give a perfect
-        # estimation of the curvature and binormal vectors.
-        v⃗_base_circle = BiotSavart.local_self_induced_velocity(
-            f, i; quad = nothing, fit_circle = true, ps...,
-        )
-        @test normalize(v⃗_base_circle) ≈ Base.setindex(zero(v⃗_base_circle), 1, 3)  # has the right direction
-        @test isapprox(norm(v⃗_base_circle), v_expected; rtol = 1e-3)
-    end
 
     nothing
 end
@@ -246,7 +244,7 @@ function test_lia_segment_fraction()
     params = biot_savart_parameters(
         T;
         L, lia_segment_fraction = 0.2,
-        quadrature_near_singularity = AdaptiveTanhSinh(T; nlevels = 5)
+        quadrature_near_singularity = GaussLegendre(8),
     )
     # println(params)
     cache = BiotSavart.init_cache(params)

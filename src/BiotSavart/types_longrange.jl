@@ -147,8 +147,5 @@ has_real_to_complex(c::LongRangeCache) = has_real_to_complex(c.common)
 KA.get_backend(c::LongRangeCache) = KA.get_backend(backend(c))
 KA.device(c::LongRangeCache) = KA.device(backend(c))
 
-function add_point_charges!(c::LongRangeCache, fs::AbstractVector{<:AbstractFilament})
-    (; Ls,) = c.common.params_all
-    (; quad,) = c.common.params
-    add_point_charges!(c.common.pointdata, fs, Ls, quad)
-end
+add_point_charges!(c::LongRangeCache, fs::AbstractVector{<:AbstractFilament}) =
+    add_point_charges!(c.common.pointdata, fs, c.common.params_all)

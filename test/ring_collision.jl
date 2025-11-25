@@ -64,12 +64,18 @@ function test_ring_collision(;
         (; ks, Ek,)
     end
 
+    n = 0
     for (f, v) ∈ zip(filaments, vs)
         velocity_perpendicular_to_tangent = true
         velocity_towards_outside = true
         for i ∈ eachindex(f)
+            n += 1
             Ẋ = f[i, Derivative(1)]
             Ẍ = f[i, Derivative(2)]
+            if i in (firstindex(f), 4, lastindex(f))  # arbitrary
+                @test Ẋ == cache.shortrange.pointdata.derivatives_on_nodes[1][n]
+                @test Ẍ == cache.shortrange.pointdata.derivatives_on_nodes[2][n]
+            end
             t̂, ρ⃗ = normalise_derivatives(Ẋ, Ẍ)  # tangent and curvature vectors
             v⃗ = v[i]
             v⃗_perp = setindex(v⃗, 0.0, 3)  # set vz = 0
