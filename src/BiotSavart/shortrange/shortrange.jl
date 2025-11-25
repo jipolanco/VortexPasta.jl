@@ -428,7 +428,9 @@ function _add_pair_interactions_nosimd!(
         end
         r² = sum(abs2, r⃗)
         if r² ≤ rcut²
+            assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
             r = sqrt(r²)
+            assume(r > 0)   # tell the compiler that we're not dividing by zero
             r_inv = 1 / r
             αr = α * r
             erfc_αr = erfc(αr)

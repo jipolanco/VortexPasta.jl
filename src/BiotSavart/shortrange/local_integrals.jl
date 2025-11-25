@@ -67,7 +67,9 @@ end
         avoid_explicit_erf::Val{true}, quantities::Tuple, α, r⃗, qs⃗′,
     )
     r² = sum(abs2, r⃗)
+    assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
     r = sqrt(r²)
+    assume(r > 0)   # tell the compiler that we're not dividing by zero
     r_inv = 1 / r
     map(quantities) do quantity
         @inline
@@ -80,7 +82,9 @@ end
         avoid_explicit_erf::Val{false}, quantities::Tuple, α, r⃗, qs⃗′,
     )
     r² = sum(abs2, r⃗)
+    assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
     r = sqrt(r²)
+    assume(r > 0)  # tell the compiler that we're not dividing by zero
     r_inv = 1 / r
     αr = α * r
     erf_αr = erf(αr)
@@ -115,6 +119,7 @@ function compute_local_term!(outputs::NamedTuple{Names}, cache::ShortRangeCache)
         s⃗′ = @inbounds derivatives_on_nodes[1][i]  # = Derivative(1)
         s⃗″ = @inbounds derivatives_on_nodes[2][i]  # = Derivative(2)
         s′² = sum(abs2, s⃗′)
+        assume(s′² > 0)  # tell the compiler that we're not dividing by zero
         s′_inv = 1 / sqrt(s′²)
         foreach(values(outputs), values(quantities)) do vs, quantity
             @inline

@@ -33,6 +33,7 @@ using ..Filaments:
     knots, nodes, segments, integrate
 
 using Adapt: Adapt, adapt
+using LLVM.Interop: assume  # can enable compiler optimisations
 
 using KernelAbstractions:
     KernelAbstractions,  # importing this avoids docs failure
