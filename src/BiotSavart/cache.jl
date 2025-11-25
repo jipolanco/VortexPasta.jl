@@ -65,6 +65,10 @@ This function returns a `NamedTuple` with the fields:
 
 - `state`: allows to know what the returned field actually represents (vorticity, velocity, ...).
   See [`LongRangeCacheState`](@ref) for details.
+
+For convenience, if long-range fields were computed on a GPU, this function will also activate the device
+where these fields are stored (using [`activate_device!`](@ref)). This is useful when
+multiple GPUs are being used (e.g. GPU 1 for long-range computations and GPU 2 for short-range ones).
 """
 function get_longrange_field_fourier end
 
