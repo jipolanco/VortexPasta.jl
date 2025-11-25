@@ -447,7 +447,6 @@ function _add_pair_interactions_nosimd!(
 end
 
 include("integrands.jl")
-include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)
-include("self_interaction.jl")
+include("local_integrals.jl")
 include("backends/naive.jl")
 include("backends/cell_lists.jl")
