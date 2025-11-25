@@ -137,7 +137,7 @@ function test_trefoil_knot_reconnection(
             backend_short = CellListsBackend(2),
             backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4)),
             quadrature = GaussLegendre(3),
-            quadrature_near_singularity = AdaptiveTanhSinh(nlevels = 5),
+            quadrature_near_singularity = GaussLegendre(3),
             lia_segment_fraction = 0.2,
         )
     end
@@ -296,7 +296,7 @@ function test_trefoil_knot_reconnection(
         @test 0.98 < last(energy_rel) < 0.99
     elseif Criterion <: ReconnectFast
         @test 1.60 < t_reconnect[] < 1.70
-        @test 0.965 < last(energy_rel) < 0.975
+        @test 0.970 < last(energy_rel) < 0.980
     end
 
     if test_jet

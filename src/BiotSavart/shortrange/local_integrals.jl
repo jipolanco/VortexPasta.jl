@@ -1,3 +1,6 @@
+## ========================================================================================== ##
+## Remove spurious self-interaction included in other terms
+
 function remove_self_interaction!(outputs::NamedTuple, cache::ShortRangeCache)
     ka_backend = KA.get_backend(cache)
     if cache.params.common.avoid_explicit_erf
@@ -31,7 +34,7 @@ function _remove_self_interaction!(::KA.Backend, avoid_explicit_erf::Val, output
         Nq = length(quad)
         js_right = ntuple(k -> Nq * (i - 1) + k, Val(Nq))      # quadrature points to the right of `i`
         js_left = ntuple(k -> Nq * (i_prev - 1) + k, Val(Nq))  # quadrature points to the left of `i`
-        js = (js_left..., js_right...)  # TODO: SIMD over these quadrature points? (optionally?)
+        js = (js_left..., js_right...)
         for j in js
             s⃗ = @inbounds Tuple(points[j])
             qs⃗′ = @inbounds Tuple(charges[j])
@@ -64,7 +67,9 @@ end
         avoid_explicit_erf::Val{true}, quantities::Tuple, α, r⃗, qs⃗′,
     )
     r² = sum(abs2, r⃗)
+    assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
     r = sqrt(r²)
+    assume(r > 0)   # tell the compiler that we're not dividing by zero
     r_inv = 1 / r
     map(quantities) do quantity
         @inline
@@ -77,7 +82,9 @@ end
         avoid_explicit_erf::Val{false}, quantities::Tuple, α, r⃗, qs⃗′,
     )
     r² = sum(abs2, r⃗)
+    assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
     r = sqrt(r²)
+    assume(r > 0)  # tell the compiler that we're not dividing by zero
     r_inv = 1 / r
     αr = α * r
     erf_αr = erf(αr)
@@ -86,6 +93,61 @@ end
         @inline
         long_range_integrand(quantity, erf_αr, exp_term, r_inv, qs⃗′, r⃗)
     end
+end
+
+## ========================================================================================== ##
+## Computation of local term (LIA)
+
+lia_integration_limits(::Nothing) = (nothing, nothing)
+lia_integration_limits(γ::Real) = ((one(γ) - γ, one(γ)), (zero(γ), γ))
+
+nonlia_integration_limits(::Nothing) = (nothing, nothing)
+nonlia_integration_limits(γ::Real) = ((zero(γ), one(γ) - γ), (γ, one(γ)))
+
+function compute_local_term!(outputs::NamedTuple{Names}, cache::ShortRangeCache) where {Names}
+    (; pointdata, params) = cache
+    (; derivatives_on_nodes, subsegment_lengths) = pointdata
+    (; Γ, a, Δ) = params.common
+    @assert eachindex(derivatives_on_nodes[1]) == eachindex(subsegment_lengths[1])
+
+    T = typeof(Γ)
+    prefactor = Γ / T(4π)
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
+
+    # This works on CPU (threaded) and GPU.
+    AK.foreachindex(derivatives_on_nodes[1]; max_tasks = Threads.nthreads(), block_size = 256) do i
+        @inline
+        # TODO: is it better to precompute sqrt(δ⁻ * δ⁺) on the CPU? (not sure...)
+        δ⁻ = @inbounds subsegment_lengths[1][i]
+        δ⁺ = @inbounds subsegment_lengths[2][i]
+        δ = sqrt(δ⁻ * δ⁺)
+        # Derivatives wrt arbitrary parametrisation (=> |s⃗′| ≠ 1)
+        s⃗′ = @inbounds derivatives_on_nodes[1][i]  # = Derivative(1)
+        s⃗″ = @inbounds derivatives_on_nodes[2][i]  # = Derivative(2)
+        s′² = sum(abs2, s⃗′)
+        assume(s′² > 0)  # tell the compiler that we're not dividing by zero
+        s′_inv = 1 / sqrt(s′²)
+        foreach(values(outputs), values(quantities)) do vs, quantity
+            @inline
+            @inbounds vs[i] = prefactor * _eval_local_term(quantity, δ, s⃗′, s⃗″, s′_inv, a, Δ)::Vec3  # NOTE: we replace old values!
+        end
+    end
+
+    outputs
+end
+
+@inline function _eval_local_term(::Velocity, δ, s⃗′, s⃗″, s′_inv, a, Δ)
+    b⃗ = (s⃗′ × s⃗″) * s′_inv^3  # binormal vector (properly normalised) -- see also CurvatureBinormal
+    (log(2 * δ / a) - Δ) * b⃗
+end
+
+@inline function _eval_local_term(::Streamfunction, δ, s⃗′, s⃗″, s′_inv, a, Δ)
+    t̂ = s⃗′ * s′_inv  # unit tangent vector (properly normalised) -- see also UnitTangent
+    # Note: the +1 coefficient is required for energy conservation.
+    # It is required so that the resulting energy follows Hamilton's equation (at least for
+    # the case of a vortex ring), and it has been verified in many cases that it improves
+    # the effective energy conservation.
+    2 * (log(2 * δ / a) + 1 - Δ) * t̂  # note: prefactor = Γ/4π (hence the 2 in front)
 end
 
 ## ========================================================================================== ##

@@ -428,7 +428,9 @@ function _add_pair_interactions_nosimd!(
         end
         r² = sum(abs2, r⃗)
         if r² ≤ rcut²
+            assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
             r = sqrt(r²)
+            assume(r > 0)   # tell the compiler that we're not dividing by zero
             r_inv = 1 / r
             αr = α * r
             erfc_αr = erfc(αr)
@@ -447,7 +449,6 @@ function _add_pair_interactions_nosimd!(
 end
 
 include("integrands.jl")
-include("lia.jl")  # defines local_self_induced_velocity (computation of LIA term)
-include("self_interaction.jl")
+include("local_integrals.jl")
 include("backends/naive.jl")
 include("backends/cell_lists.jl")

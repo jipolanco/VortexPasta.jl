@@ -14,17 +14,15 @@ using Random
 using StableRNGs
 using Test
 
-function generate_biot_savart_parameters(::Type{T}; aspect, kws...) where {T}
+function generate_biot_savart_parameters(::Type{T}; aspect, L = 2π, rcut = L / 2, kws...) where {T}
     Γ = 1.0
     a = 1e-6
     Δ = 1/4
-    L = 2π
     Ls = aspect .* L
     β = 3.0
-    rcut = L / 2
     α = β / rcut
     kmax = 2α * β
-    M = ceil(Int, kmax * L / π)
+    M = ceil(Int, kmax * L / π) + 2
     Ns = aspect .* M
     ParamsBiotSavart(
         T;
@@ -512,7 +510,8 @@ end
 
         @testset "Forcing + dissipation (PseudoGPU, SmallScaleDissipationBS)" begin
             backend_long = NonuniformFFTsBackend(PseudoGPU(); σ = 1.5, m = HalfSupport(4))
-            params_gpu = generate_biot_savart_parameters(Float64; aspect, backend_long)
+            backend_short = CellListsBackend(PseudoGPU())
+            params_gpu = generate_biot_savart_parameters(Float64; L = 2π, rcut = 2π / 3, aspect, backend_long, backend_short)
             prob_gpu = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params_gpu)
             dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
             forcing = @inferred FourierBandForcingBS(; ε_target = 2e-4, kmin = 0.1, kmax = 2.5)

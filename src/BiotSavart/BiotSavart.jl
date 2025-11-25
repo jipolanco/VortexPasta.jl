@@ -8,7 +8,7 @@ module BiotSavart
 
 export
     ParamsBiotSavart,
-    GaussLegendre, NoQuadrature, AdaptiveTanhSinh,
+    GaussLegendre, NoQuadrature,
     Zero, Infinity, ∞,
     Velocity, Streamfunction,
     LongRangeCache, ShortRangeCache,
@@ -24,8 +24,8 @@ public init_cache, autotune
 using ..Constants: Zero, One, Infinity, ∞
 
 using ..Quadratures:
-    Quadratures, quadrature, NoQuadrature, GaussLegendre, AdaptiveTanhSinh,
-    AbstractQuadrature, StaticSizeQuadrature, PreallocatedQuadrature
+    Quadratures, quadrature, NoQuadrature, GaussLegendre,
+    AbstractQuadrature, StaticSizeQuadrature
 
 using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, Segment, CurvatureBinormal,
@@ -33,6 +33,7 @@ using ..Filaments:
     knots, nodes, segments, integrate
 
 using Adapt: Adapt, adapt
+using LLVM.Interop: assume  # can enable compiler optimisations
 
 using KernelAbstractions:
     KernelAbstractions,  # importing this avoids docs failure
@@ -69,6 +70,7 @@ include("pointdata.jl")
 include("types_shortrange.jl")
 include("types_longrange.jl")
 include("params.jl")
+include("pointdata_impl.jl")  # requires ParamsBiotSavart (params.jl)
 include("cache.jl")
 include("autotune.jl")
 
@@ -391,13 +393,30 @@ function compute_on_nodes!(
         LIA = Val(true),
         kws...,
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    (; to,) = cache
-    if LIA === Val(:only)
-        @timeit to "LIA term (only)" _compute_LIA_on_nodes!(fields, cache, fs)
-    else
-        _compute_on_nodes!(fields, cache, fs; LIA, kws...)
-    end
+    _compute_on_nodes!(fields, cache, fs; LIA, kws...)
     fields
+end
+
+function _copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = length(src))
+    resize_no_copy!(dst, N)
+    backend = KA.get_backend(dst)
+    KA.pagelock!(backend, src)
+    KA.copyto!(backend, dst, src)
+    nothing
+end
+
+function _copy_host_to_device!(dst::StructVector, src::StructVector, N = length(src))
+    foreach(StructArrays.components(dst), StructArrays.components(src)) do a, b
+        _copy_host_to_device!(a, b, N)
+    end
+    nothing
+end
+
+function _copy_host_to_device!(dst::Tuple, src::Tuple, N = length(first(src)))
+    foreach(dst, src) do a, b
+        _copy_host_to_device!(a, b, N)
+    end
+    nothing
 end
 
 function do_longrange!(
@@ -416,49 +435,51 @@ function do_longrange!(
     @timeit to "Long-range component (async)" begin
         # Copy point data to the cache (possibly on a GPU).
         @assert pointdata_cpu !== pointdata  # they are different objects
-        @timeit to "Copy point charges (host -> device)" begin
-            # Only copy fields needed for long-range computations (this will also resize fields in `pointdata`)
-            copy!(pointdata.nodes, pointdata_cpu.nodes)
-            copy!(pointdata.points, pointdata_cpu.points)
-            copy!(pointdata.charges, pointdata_cpu.charges)
+        GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
+            @timeit to "Copy point charges (host -> device)" begin
+                # Only copy fields needed for long-range computations
+                _copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
+                _copy_host_to_device!(pointdata.points, pointdata_cpu.points)
+                _copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
+            end
+            @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
+
+            # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
+            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
+
+            if callback_vorticity !== identity
+                @timeit to "Vorticity callback" callback_vorticity(cache)
+            end
+
+            # Interpolate streamfunction and/or velocity.
+            callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
+
+            # Note: streamfunction (if enabled) must be computed before velocity.
+            if hasproperty(outputs, :streamfunction)
+                # Compute streamfunction from vorticity in Fourier space.
+                @timeit to "Streamfunction field (Fourier)" compute_field_fourier!(Streamfunction(), cache)
+                # Write interpolation output to outputs.streamfunction
+                @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
+            end
+
+            if hasproperty(outputs, :velocity)
+                # Compute velocity from vorticity or streamfunction in Fourier space.
+                @timeit to "Velocity field (Fourier)" compute_field_fourier!(Velocity(), cache)
+                # Write interpolation output to outputs.velocity
+                @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.velocity, cache)
+            end
+
+            yield()  # let other tasks run (not sure if this really helps)
+
+            # Wait for the GPU to finish its work before finishing this task.
+            @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
         end
-        @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
-
-        # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
-        @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
-
-        if callback_vorticity !== identity
-            @timeit to "Vorticity callback" callback_vorticity(cache)
-        end
-
-        # Interpolate streamfunction and/or velocity.
-        callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
-
-        # Note: streamfunction (if enabled) must be computed before velocity.
-        if hasproperty(outputs, :streamfunction)
-            # Compute streamfunction from vorticity in Fourier space.
-            @timeit to "Streamfunction field (Fourier)" compute_field_fourier!(Streamfunction(), cache)
-            # Write interpolation output to outputs.streamfunction
-            @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
-        end
-
-        if hasproperty(outputs, :velocity)
-            # Compute velocity from vorticity or streamfunction in Fourier space.
-            @timeit to "Velocity field (Fourier)" compute_field_fourier!(Velocity(), cache)
-            # Write interpolation output to outputs.velocity
-            @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.velocity, cache)
-        end
-
-        yield()  # let other tasks run (not sure if this really helps)
-
-        # Wait for the GPU to finish its work before finishing this task.
-        @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
     end
 
     nothing
 end
 
-function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu)
+function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu; LIA = Val(true))
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -469,15 +490,35 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
     KA.device!(ka_backend, device_id)   # set the device
 
     @timeit to "Short-range component (async)" begin
-        @timeit to "Copy point charges (host -> device)" copy!(pointdata, pointdata_cpu)  # possibly host -> device copy
-        @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
-        @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
-        @timeit to "Remove self-interactions" remove_self_interaction!(outputs, cache)
+        GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
+            if LIA === Val(true) || LIA === Val(:only)
+                @timeit to "Copy point charges (host -> device)" begin
+                    # For now, only copy what we need for local term
+                    _copy_host_to_device!(pointdata.derivatives_on_nodes, pointdata_cpu.derivatives_on_nodes)  # needed for local term (LIA)
+                    _copy_host_to_device!(pointdata.subsegment_lengths, pointdata_cpu.subsegment_lengths)      # needed for local term (LIA)
+                end
+                @timeit to "Local term (LIA)" compute_local_term!(outputs, cache)  # NOTE: this function _replaces_ old values, so it must be called first
+            else
+                _reset_vectors!(outputs)  # we need to set everything to 0, since the functions below _add_ to existing values
+            end
 
-        yield()  # let other tasks run (not sure if this really helps)
+            if LIA !== Val(:only)
+                @timeit to "Copy point charges (host -> device)" begin
+                    _copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
+                    _copy_host_to_device!(pointdata.node_idx_prev, pointdata_cpu.node_idx_prev)  # needed in remove_self_interaction! (and in add_pair_interactions! if avoid_explicit_erf = false)
+                    _copy_host_to_device!(pointdata.points, pointdata_cpu.points)
+                    _copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
+                end
+                @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
+                @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
+                @timeit to "Remove self-interactions" remove_self_interaction!(outputs, cache)
+            end
 
-        # Wait for the GPU to finish its work before finishing this task.
-        @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
+            yield()  # let other tasks run (not sure if this really helps)
+
+            # Wait for the GPU to finish its work before finishing this task.
+            @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
+        end
     end
 
     nothing
@@ -491,16 +532,16 @@ function _compute_on_nodes!(
         callback_vorticity::Fvort = identity,
     ) where {Fvort}
     (; to, params, pointdata,) = cache
-    (; quad, Ls,) = params
     _setup_fields!(fields, fs)
 
     @assert length(fields) ∈ (1, 2)  # maximum 2 fields: streamfunction + velocity
 
     with_shortrange = shortrange
-    with_longrange = longrange && cache.longrange !== NullLongRangeCache()
+    with_longrange = longrange && LIA !== Val(:only) && cache.longrange !== NullLongRangeCache()
 
     # This is used by short and long-range computations.
-    @timeit to "Add point charges" add_point_charges!(pointdata, fs, Ls, quad)  # done on the CPU
+    # TODO: skip unneeded quantities if LIA === Val(:only) or LIA === Val(false)
+    @timeit to "Add point charges" add_point_charges!(pointdata, fs, params)  # done on the CPU
 
     noutputs = sum(length, fs)  # total number of interpolation points
     channel = Channel{Symbol}(2)  # 2 is the length of the channel (for :shortrange + :longrange)
@@ -526,11 +567,10 @@ function _compute_on_nodes!(
         let cache = cache.shortrange
         # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
-            # Resize output arrays and set them to zero (as expected by add_pair_interactions!)
-            foreach(v -> _reset_array!(resize_no_copy!(v, noutputs)), outputs)
+            foreach(v -> resize_no_copy!(v, noutputs), outputs)  # resize output arrays
             # Compute short-range part asynchronously (e.g. on a GPU).
             local task = Threads.@spawn :interactive try
-                do_shortrange!(cache, outputs, pointdata)
+                do_shortrange!(cache, outputs, pointdata; LIA)
             finally
                 put!(channel, :shortrange)  # this notifies that the task has completed (or failed)
             end
@@ -540,11 +580,8 @@ function _compute_on_nodes!(
     end
 
     # Perform CPU-only operations associated to the short-range part (this differentiation is kind of arbitrary).
-    if with_shortrange
+    if with_shortrange && LIA !== Val(:only)
         @timeit to "CPU-only operations (synchronous)" begin
-            if LIA === Val(true)
-                @timeit to "LIA term" _compute_LIA_on_nodes!(fields, cache, fs)  # this currently replaces existent data, so it must be first
-            end
             if params.shortrange.lia_segment_fraction !== nothing
                 @timeit to "Add local integrals" add_local_integrals!(fields, cache.params, fs)
             end
@@ -640,48 +677,6 @@ function _copy_output_values_on_nodes!(::CPU, op::F, vs::AbstractVector, vs_h::A
         vf[j] = op(real(q), vf[j])  # typically op == +, meaning that we add to the previous value
     end
     vs
-end
-
-# Case of a list of filaments
-function _compute_LIA_on_nodes!(
-        fields::NamedTuple{Names, NTuple{N, V}},
-        cache::BiotSavartCache,
-        fs::VectorOfFilaments;
-    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    (; Γ,) = cache.shortrange.params.common
-    T = typeof(Γ)
-    prefactor = Γ / T(4π)
-    Threads.@threads :dynamic for n ∈ eachindex(fs)
-        f = fs[n]
-        ps = @inbounds _fields_to_pairs(fields, n)
-        _compute_LIA_on_nodes!(ps, cache, f; prefactor)
-    end
-    fields
-end
-
-# Case of a single filament
-function _compute_LIA_on_nodes!(
-        ps::Tuple{Vararg{Pair{<:OutputField, V}}},
-        cache::BiotSavartCache,
-        f::AbstractFilament;
-        prefactor = nothing,
-    ) where {V <: VectorOfVec}
-    (; params,) = cache.shortrange
-    # Note: we must use the same quadrature as used when computing the globally induced terms
-    (; quad, lia_segment_fraction,) = params
-    (; Γ, a, Δ,) = params.common
-    T = typeof(Γ)
-    prefactor_ = prefactor === nothing ? (Γ / T(4π)) : prefactor
-    Threads.@threads :dynamic for i ∈ eachindex(f)
-        for (quantity, values) ∈ ps
-            # Here `quantity` is either Velocity() or Streamfunction()
-            @inbounds values[i] = local_self_induced(
-                quantity, f, i, prefactor_;
-                a, Δ, quad, segment_fraction = lia_segment_fraction,
-            )
-        end
-    end
-    ps
 end
 
 end
