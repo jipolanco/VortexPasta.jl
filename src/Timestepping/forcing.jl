@@ -130,43 +130,12 @@ end
 function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs, t, to)
     @assert eachindex(vL_all) === eachindex(fs)
     (; quantities,) = iter
-    vs_all = quantities.vs  # self-induced velocities (same as in vL_all)
     vf_all = quantities.vf  # forcing velocities will be copied here
     tangents_all = quantities.tangents  # local tangents (already computed)
     Forcing.update_cache!(cache, forcing, iter.cache_bs)
-    scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
-        ε_total = zero(number_type(vs_all))
-        @inbounds for n in eachindex(fs)
-            f = fs[n]
-            vL = vL_all[n]  # currently contains self-induced velocity vs
-            # copyto!(vs_all[n], vL)  # not needed, they're already equal
-            # Compute vL according to the given forcing (vL = vs at input).
-            ε_total += Forcing.apply!(forcing, cache, vL, f; scheduler)
-        end
-        if forcing.ε_target != 0 && ε_total != 0
-            # In this case, vL only contains the forcing velocities, which need to be
-            # rescaled to get the wanted energy injection rate (estimated).
-            @assert forcing.α == 0
-            α = forcing.ε_target / ε_total
-            @inbounds for n in eachindex(fs, vs_all, vL_all)
-                f = fs[n]
-                vL = vL_all[n]
-                vs = vs_all[n]
-                tangents = tangents_all[n]
-                if forcing.α′ == 0
-                    for i in eachindex(f, vs, vL)
-                        vL[i] = vs[i] + α * vL[i]
-                    end
-                else
-                    for i in eachindex(f, vs, vL, tangents)
-                        s⃗′ = tangents[i]
-                        vL[i] = vs[i] + α * vL[i] - forcing.α′ * (s⃗′ × vL[i])
-                    end
-                end
-            end
-        end
-        @. vf_all = vL_all - vs_all
+        Forcing.evaluate!(forcing, cache, vf_all, fs, tangents_all)
+        @. vL_all = vL_all + vf_all
     end
     nothing
 end

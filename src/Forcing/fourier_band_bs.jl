@@ -222,52 +222,86 @@ function update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache
     nothing
 end
 
-# Returns the estimated energy injection rate.
-function apply!(
-        forcing::FourierBandForcingBS, cache, vs::AbstractVector, f::AbstractFilament;
-        scheduler = SerialScheduler(),
+function evaluate!(
+        forcing::FourierBandForcingBS, cache, vf_all::AbstractVector, fs::AbstractVector{<:AbstractFilament},
+        tangents_all,
     )
     (; v_h,) = cache
-    V = eltype(vs)  # usually Vec3{T} = SVector{3, T}
-    ts = Filaments.knots(f)
-    ε_total = tmapreduce(+, eachindex(vs); scheduler) do i
-        @inline
-        @inbounds begin
+    T = typeof(cache.prefactor)
+
+    # (1) Estimate forcing velocities and associated energy injection rate ε_total
+    ε_total = zero(T)
+    for n in eachindex(fs)
+        f = fs[n]
+        ts = Filaments.knots(f)
+        vf = vf_all[n]
+        @inbounds for i in eachindex(f, vf)
             s⃗ = f[i]
-            s⃗ₜ = f[i, Derivative(1)]
+            s⃗ₜ = f[i, Derivative(1)]  # TODO: use tangents_all
             sₜ² = sum(abs2, s⃗ₜ)
             sₜ = sqrt(sₜ²)  # vector norm
             s⃗′ = s⃗ₜ ./ sₜ   # unit tangent
             (; qs, cs, Δks,) = v_h
-            vf = zero(V)  # forcing velocity (excluding α prefactor)
+            V = eltype(vf)
+            vf_i = zero(V)  # forcing velocity (excluding α prefactor)
             for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
                 k⃗ = SVector(qs[n]) .* Δks
                 v̂ = cs[n]
                 vf_k = real(v̂ * cis(k⃗ ⋅ s⃗))  # forcing velocity for this wavevector k⃗
-                vf = vf + vf_k
+                vf_i = vf_i + vf_k
             end
-            vf = s⃗′ × vf
-            vs_filtered = vf  # velocity filtered at target wavevectors
+            vf_i = s⃗′ × vf_i
+            vs_filtered = vf_i  # velocity filtered at target wavevectors
             if !forcing.modify_length
                 # See also definition of CurvatureVector in Filaments/quantities.jl
                 s⃗ₜₜ = f[i, Derivative(2)]
                 s⃗″ = s⃗ₜ × (s⃗ₜₜ × s⃗ₜ)  # curvature vector (up to a scalar constant)
                 # @assert s⃗″ ≈ f[i, CurvatureVector()] * (sₜ² * sₜ²)
                 s″_norm2 = sum(abs2, s⃗″)
-                vf = vf - ((vf ⋅ s⃗″) / s″_norm2) * s⃗″
-                # @assert norm(vf ⋅ f[i, CurvatureVector()]) < 1e-12
+                vf_i = vf_i - ((vf_i ⋅ s⃗″) / s″_norm2) * s⃗″
+                # @assert norm(vf_i ⋅ f[i, CurvatureVector()]) < 1e-12
             end
-            if forcing.α != 0
-                vs[i] = vs[i] + forcing.α * vf - forcing.α′ * (s⃗′ × vf)  # apply forcing
-            elseif forcing.ε_target != 0
-                vs[i] = vf  # just overwrite the input
+            # if forcing.α != 0
+            #     vs[i] = vs[i] + forcing.α * vf_i - forcing.α′ * (s⃗′ × vf_i)  # apply forcing
+            # elseif forcing.ε_target != 0
+            #     vs[i] = vf_i  # just overwrite the input
+            # end
+            if forcing.α == 0
+                vf[i] = vf_i
+            else
+                vf[i] = forcing.α * vf_i
             end
             dt = (ts[i + 1] - ts[i - 1]) / 2
             dξ = dt * sₜ  # estimated local segment length
-            (vs_filtered ⋅ vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor) -- only valid in ε_target mode!
+            ε_total += (vs_filtered ⋅ vf_i) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor) -- only valid in ε_target mode!
         end
     end
     # The factor 2 accounts for Hermitian symmetry: if we inject energy into the velocity at
     # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
-    2 * ε_total * cache.prefactor  # include Γ/V prefactor
+    ε_total = 2 * ε_total * cache.prefactor  # include Γ/V prefactor
+
+    # (2) If targeting a value of ε, adjust forcing amplitude.
+    if forcing.ε_target != 0 && ε_total != 0
+        # In this case, vf_all only contains the forcing velocities, which need to be
+        # rescaled to get the wanted energy injection rate (estimated).
+        @assert forcing.α == 0
+        α = forcing.ε_target / ε_total
+        @inbounds for n in eachindex(fs, vf_all)
+            f = fs[n]
+            vf = vf_all[n]
+            tangents = tangents_all[n]
+            if forcing.α′ == 0
+                for i in eachindex(f, vf)
+                    vf[i] = α * vf[i]
+                end
+            else
+                for i in eachindex(f, vf, tangents)
+                    s⃗′ = tangents[i]
+                    vf[i] = α * vf[i] - forcing.α′ * (s⃗′ × vf[i])
+                end
+            end
+        end
+    end
+
+    vf_all
 end
