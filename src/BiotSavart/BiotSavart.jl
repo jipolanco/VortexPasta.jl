@@ -647,9 +647,14 @@ Copy computed values onto a vector of vectors.
 """
 function copy_output_values_on_nodes!(
         op::F, vs::AbstractVector, vs_d::AbstractVector, vs_h = nothing,
-    ) where {F}
+    ) where {F <: Function}
     backend = KA.get_backend(vs_d)
     _copy_output_values_on_nodes!(backend, op, vs, vs_d, vs_h)
+end
+
+function copy_output_values_on_nodes!(vs::AbstractVector, vs_d::AbstractVector, args...)
+    op(old, new) = new
+    copy_output_values_on_nodes!(op, vs, vs_d, args...)
 end
 
 function _copy_output_values_on_nodes!(backend::GPU, op::F, vs, vs_d, ::Nothing) where {F}
@@ -670,7 +675,7 @@ function _copy_output_values_on_nodes!(::CPU, op::F, vs::AbstractVector, vs_h::A
     n = 0
     @inbounds for vf in vs, j in eachindex(vf)
         q = vs_h[n += 1]
-        vf[j] = op(real(q), vf[j])  # typically op == +, meaning that we add to the previous value
+        vf[j] = op(vf[j], q)  # typically op == +, meaning that we add to the previous value
     end
     vs
 end
