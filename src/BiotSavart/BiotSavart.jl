@@ -470,7 +470,7 @@ function do_longrange!(
             yield()  # let other tasks run (not sure if this really helps)
 
             # Wait for the GPU to finish its work before finishing this task.
-            @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
+            @timeit to "Synchronise GPU" KA.synchronize(KA.get_backend(cache))
         end
     end
 
@@ -513,7 +513,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
             yield()  # let other tasks run (not sure if this really helps)
 
             # Wait for the GPU to finish its work before finishing this task.
-            @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
+            @timeit to "Synchronise GPU" KA.synchronize(KA.get_backend(cache))
         end
     end
 
