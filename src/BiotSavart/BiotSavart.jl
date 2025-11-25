@@ -428,9 +428,7 @@ function do_longrange!(
 
     # Make sure we execute this task in the GPU device chosen for long-range computations.
     # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
-    ka_backend = KA.get_backend(cache)  # KA backend used for long-range computations (e.g. CUDABackend)
-    device_id = KA.device(cache)        # in 1:ndevices
-    KA.device!(ka_backend, device_id)   # set the device
+    activate_device!(cache)
 
     @timeit to "Long-range component (async)" begin
         # Copy point data to the cache (possibly on a GPU).
@@ -485,9 +483,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
 
     # Make sure we execute this task in the GPU device chosen for long-range computations.
     # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
-    ka_backend = KA.get_backend(cache)  # KA backend used for long-range computations (e.g. CUDABackend)
-    device_id = KA.device(cache)        # in 1:ndevices
-    KA.device!(ka_backend, device_id)   # set the device
+    activate_device!(cache)
 
     @timeit to "Short-range component (async)" begin
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)

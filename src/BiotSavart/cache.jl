@@ -72,6 +72,8 @@ get_longrange_field_fourier(cache::BiotSavartCache) = get_longrange_field_fourie
 
 function get_longrange_field_fourier(longrange::LongRangeCache)
     (; uhat, wavenumbers, state,) = longrange.common
+    # Activate long-range device just in case, to avoid errors if we try to access the field.
+    activate_device!(longrange)
     uhat_tup = StructArrays.components(uhat)::NTuple
     (; field = uhat_tup, wavenumbers = wavenumbers, state = copy(state),)
 end

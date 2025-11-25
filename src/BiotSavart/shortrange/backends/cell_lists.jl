@@ -107,8 +107,8 @@ function init_cache_short(
     (; Ls,) = pc
     nsubdiv = Val(subdivisions(backend))
     ka_backend = KA.get_backend(backend)
-    rs_cut = map(_ -> rcut, Ls)     # same cut-off distance in each direction
-    KA.device!(ka_backend, KA.device(backend))  # make sure we activate the targeted device
+    rs_cut = map(_ -> rcut, Ls)  # same cut-off distance in each direction
+    activate_device!(backend)    # change the device if needed
     cl = PeriodicCellList(ka_backend, rs_cut, Ls, nsubdiv)
     common = ShortRangeCacheCommon(params, pointdata)
     CellListsCache(common, cl)

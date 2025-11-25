@@ -28,6 +28,19 @@ available GPUs on the same machine. On CPUs the device id is generally `1`.
 """
 KA.device(::AbstractBackend) = 1
 
+"""
+    BiotSavart.activate_device!(backend::AbstractBackend)
+    BiotSavart.activate_device!(cache::ShortRangeCache)
+    BiotSavart.activate_device!(cache::LongRangeCache)
+
+Activate KernelAbstractions device associated to backend or cache.
+"""
+function activate_device!(cache)
+    backend = KA.get_backend(cache)
+    device = KA.device(cache)
+    KA.device!(backend, device)
+end
+
 ka_default_cpu_backend() = KA.CPU()
 
 # Default workgroup size used for running KA kernels.

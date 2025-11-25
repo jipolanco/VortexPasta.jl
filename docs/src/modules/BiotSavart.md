@@ -112,6 +112,7 @@ used to write generic code which works on CPUs and different kinds of GPUs.
 ka_generate_kernel
 KernelAbstractions.get_backend
 KernelAbstractions.device
+activate_device!
 ```
 
 ## Internals

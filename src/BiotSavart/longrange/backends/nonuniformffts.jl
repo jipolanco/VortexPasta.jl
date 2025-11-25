@@ -164,8 +164,8 @@ function init_cache_long_ewald(
     @assert params === params_all.longrange
     (; Ls,) = pc
     (; backend, Ns,) = params
-    (; m, σ, kws, ka_backend, ka_device,) = backend
-    KA.device!(ka_backend, ka_device)  # change the device if needed
+    (; m, σ, kws,) = backend
+    activate_device!(backend)  # change the device if needed
     d = length(Ns)  # dimensionality (usually 3)
     plan = NonuniformFFTs.PlanNUFFT(T, Ns; ntransforms = Val(d), m, σ, kws...)  # plan for real-to-complex transform
     wavenumbers = ntuple(Val(d)) do i
