@@ -98,6 +98,12 @@ end
 ## ========================================================================================== ##
 ## Computation of local term (LIA)
 
+lia_integration_limits(::Nothing) = (nothing, nothing)
+lia_integration_limits(γ::Real) = ((one(γ) - γ, one(γ)), (zero(γ), γ))
+
+nonlia_integration_limits(::Nothing) = (nothing, nothing)
+nonlia_integration_limits(γ::Real) = ((zero(γ), one(γ) - γ), (γ, one(γ)))
+
 function compute_local_term!(outputs::NamedTuple{Names}, cache::ShortRangeCache) where {Names}
     (; pointdata, params) = cache
     (; derivatives_on_nodes, subsegment_lengths) = pointdata
