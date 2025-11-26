@@ -1,6 +1,7 @@
 using ..BiotSavart: BiotSavart, BiotSavartCache, PointData, FilamentChunkIterator, count_nodes, resize_no_copy!, copy_host_to_device!
 using StaticArrays: SVector, SMatrix
 using LLVM.Interop: assume
+using AcceleratedKernels: AcceleratedKernels as AK
 using LinearAlgebra: LinearAlgebra, ⋅, ×
 
 @doc raw"""
@@ -245,9 +246,9 @@ function _compute_geometry!(::FourierBandForcingBS, pointdata_cpu::PointData, fs
                     nodes[n] = f[j]
                     derivatives_on_nodes[1][n] = f[j, Derivative(1)]
                     derivatives_on_nodes[2][n] = f[j, Derivative(2)]
-                    # len = sqrt(sum(abs2, f[j + 1] - f[j]))    # length of segment to the right (rough estimate) // TODO: better estimate?
+                    # len = sqrt(sum(abs2, f[j + 1] - f[j]))    # length of segment to the right (rough estimate)
                     seg = Filaments.Segment(f, j)
-                    len = Filaments.segment_length(seg; quad)
+                    len = Filaments.segment_length(seg; quad)  # TODO: do we need such an "accurate" estimate?
                     integration_weights[n] = len_prev + len   # length of the two local segments
                     len_prev = len
                 end
@@ -272,15 +273,12 @@ end
 function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::AbstractVector, geom::NamedTuple, cache)
     (; v_d, prefactor) = cache
     (; nodes, derivatives_on_nodes, integration_weights) = geom
-    (; modify_length, α, α′) = forcing
+    (; modify_length, ε_target, α, α′) = forcing
 
     resize_no_copy!(vf_lin, length(nodes))
-    V = eltype(vf_lin)  # usually SVector{3, T} == Vec3{T}
-    T = typeof(prefactor)
-    ε_total = zero(T)
 
-    # TODO: adapt for GPU
-    for i in eachindex(nodes)
+    AK.foreachindex(nodes; block_size = 256) do i
+        @inline
         s⃗ = @inbounds nodes[i]
         s⃗_t = @inbounds derivatives_on_nodes[1][i]
         s_t² = sum(abs2, s⃗_t)
@@ -290,6 +288,7 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
         assume(s_t_inv > 0)
         s⃗′ = s⃗_t * s_t_inv  # unit tangent
         (; qs, cs, Δks,) = v_d
+        V = eltype(vf_lin)  # usually SVector{3, T} == Vec3{T}
         vf = zero(V)  # forcing velocity (excluding α prefactor)
         for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
             k⃗ = @inbounds SVector(qs[n]) .* Δks
@@ -306,36 +305,59 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
             s⃗″ = s⃗_t × (s⃗_tt × s⃗_t)  # curvature vector (up to a scalar constant)
             # @assert s⃗″ ≈ f[j, CurvatureVector()] * (s_t² * s_t²)
             s″_norm2 = sum(abs2, s⃗″)
+            assume(s″_norm2 > 0)
             vf = vf - ((vf ⋅ s⃗″) / s″_norm2) * s⃗″
             # @assert norm(vf ⋅ s⃗″) < 1e-12
         end
         if α != 0  # α was prescribed (and possibly α′ as well)
-            vf = α * vf - α′ * (s⃗′ × vf)
+            vf = α * vf - α′ * (s⃗′ × vf)  # this will be the actual forcing velocity
+        else
+            # Estimate local contribution to energy injection rate.
+            # In principle, we should divide dξ by two to get an estimate of the local segment
+            # length (taking half the length of each local segment). However, this is
+            # compensated by a factor 2 accounting for Hermitian symmetry: if we inject energy into the velocity at
+            # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
+            dξ = @inbounds integration_weights[i]
+            ε_local = (vs_filtered ⋅ vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
+            # We no longer need integration_weights, so we reuse it to store energy injection rates.
+            @inbounds integration_weights[i] = ε_local
         end
         @inbounds vf_lin[i] = vf
-        # Finally, estimate energy injection rate associated to the local forcing.
-        # In principle, we should divide dξ by two to get an estimate of the local segment
-        # length (taking half the length of each local segment). However, this is
-        # compensated by a factor 2 accounting for Hermitian symmetry: if we inject energy into the velocity at
-        # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
-        dξ = @inbounds integration_weights[i]
-        ε_total += (vs_filtered ⋅ vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
     end
 
-    ε_total = ε_total * prefactor  # include Γ/V prefactor
+    if α != 0
+        return vf_lin  # nothing else to do, we already have our forcing 
+    end
+
+    # If we're here, it's that we prescribed a target ε_inj and we need to adjust the
+    # forcing accordingly.
+    @assert ε_target != 0
+
+    # Estimate ε_total.
+    # Note: integration_weights now contains local contributions to energy injection rate.
+    # TODO: pass temporary GPU array to avoid allocations? (see docs for AK.reduce)
+    T = eltype(integration_weights)
+    ε_total = prefactor * AK.reduce(+, integration_weights; block_size = 256, init = zero(T))
 
     # If targeting a value of ε, adjust forcing amplitude.
-    if forcing.ε_target != 0 && ε_total != 0
-        # In this case, vf_all only contains the forcing velocities, which need to be
-        # rescaled to get the wanted energy injection rate (estimated).
-        @assert forcing.α == 0
-        α_actual = forcing.ε_target / ε_total
+    if ε_total == 0  # just in case; this should never happen in practice
+        AK.foreachindex(vf_lin) do i
+            @inbounds vf_lin[i] = zero(eltype(vf_lin))
+        end
+    else
+        # In this case, vf_lin only contains the forcing velocities, which need to be
+        # rescaled to get the wanted energy injection rate (estimated). We also may need to
+        # include the α′ factor if it's nonzero.
+        @assert α == 0
+        α_actual = ε_target / ε_total
         if α′ == 0
-            Threads.@threads :dynamic for i in eachindex(vf_lin)
+            AK.foreachindex(vf_lin) do i
+                @inline
                 @inbounds vf_lin[i] = α_actual * vf_lin[i]
             end
         else
-            Threads.@threads :dynamic for i in eachindex(vf_lin)
+            AK.foreachindex(vf_lin) do i
+                @inline
                 s⃗_t = @inbounds derivatives_on_nodes[1][i]
                 s_t² = sum(abs2, s⃗_t)
                 assume(s_t² > 0)
