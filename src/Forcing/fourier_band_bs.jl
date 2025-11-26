@@ -293,7 +293,9 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
         for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
             k⃗ = @inbounds SVector(qs[n]) .* Δks
             v̂ = @inbounds cs[n]
-            vf_k = real(v̂ * cis(k⃗ ⋅ s⃗))  # forcing velocity for this wavevector k⃗
+            k_dot_s = k⃗ ⋅ s⃗
+            local s, c = sincos(k_dot_s)  # note: CUDA defines sincos as well, so it should be fast
+            vf_k = real(v̂ * Complex(s, c))
             vf = vf + vf_k
         end
         vf = s⃗′ × vf
