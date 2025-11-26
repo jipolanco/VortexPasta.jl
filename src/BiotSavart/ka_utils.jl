@@ -92,8 +92,10 @@ end
 # original behaviour of resize!. This can save us some device-to-device copies.
 # Function copied from NonuniformFFTs.jl.
 function resize_no_copy!(x, N)
-    resize!(x, 0)
-    resize!(x, N)
+    if length(x) ≠ N
+        resize!(x, 0)
+        resize!(x, N)
+    end
     x
 end
 
