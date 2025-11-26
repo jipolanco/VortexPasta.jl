@@ -24,8 +24,6 @@ The following functions must be implemented by a `BACKEND <: LongRangeBackend`:
 
 - [`expected_period`](@ref) (optional),
 
-- [`folding_limits`](@ref) (optional),
-
 - [`KernelAbstractions.get_backend`](@ref) (required for GPU-based backends),
 
 - [`KernelAbstractions.device`](@ref) (required for GPU-based backends).
@@ -69,19 +67,6 @@ For instance, NonuniformFFTs.jl assumes a period ``2π``, and therefore coordina
 rescaled if the input data has a period different from ``2π``.
 """
 expected_period(::LongRangeBackend) = nothing
-
-"""
-    folding_limits(::LongRangeBackend) -> Union{Nothing, NTuple{2, Real}}
-
-Domain limits required by the backend.
-
-This is used for folding input coordinates so that they are within the limits
-expected by the backend.
-
-Note that, if a backend defines `folding_limits`, then it must also define
-[`expected_period`](@ref).
-"""
-folding_limits(::LongRangeBackend) = nothing
 
 """
     LongRangeCache

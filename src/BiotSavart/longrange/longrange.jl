@@ -417,71 +417,29 @@ _rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing
 
 function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
     (; Ls,) = c.common.params.common
-    (; points, nodes) = c.common.pointdata
+    (; points, nodes, nodes_mod) = c.common.pointdata
     for (xs, L) ∈ zip(StructArrays.components(points), Ls)
         _rescale_coordinates!(xs, L, L_expected)
     end
-    for (xs, L) ∈ zip(StructArrays.components(nodes), Ls)
-        _rescale_coordinates!(xs, L, L_expected)
+    for (xs, xs_out, L) ∈ zip(StructArrays.components(nodes), StructArrays.components(nodes_mod), Ls)
+        # We always keep a copy of the original nodes.
+        resize_no_copy!(xs_out, length(xs))
+        _rescale_coordinates!(xs_out, xs, L, L_expected)
     end
     nothing
 end
 
-function _rescale_coordinates!(xs::AbstractVector, L::Real, L_expected)
+function _rescale_coordinates!(xs_out::AbstractVector, xs::AbstractVector, L::Real, L_expected)
     if L != L_expected
-        xs .*= L_expected / L
+        factor = L_expected / L
+        @. xs_out = factor * xs
+    elseif xs_out !== xs
+        copyto!(xs_out, xs)
     end
     nothing
 end
 
-# Note: This function must be called **after** `rescale_coordinates!`.
-function fold_coordinates!(c::LongRangeCache)
-    lims = folding_limits(backend(c))
-    L = expected_period(backend(c))
-    _fold_coordinates!(c, lims, L)
-end
-
-# Backend doesn't define `folding_limits`, so no rescaling is needed.
-_fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing
-
-@kernel function fold_coordinates_kernel!(points::NTuple, @Const(lims), @Const(L))
-    i = @index(Global, Linear)
-    for x ∈ points
-        @inbounds x[i] = _fold_coordinate_between_lims(x[i], lims, L)
-    end
-    nothing
-end
-
-function _fold_coordinates!(c::LongRangeCache, lims_in::NTuple{2, Real}, L_in::Real)
-    (; points, nodes) = c.common.pointdata
-    points_comp = StructArrays.components(points) :: NTuple
-    nodes_comp = StructArrays.components(nodes) :: NTuple
-    T = eltype(points_comp[1])
-    @assert T <: AbstractFloat
-    lims = convert.(T, lims_in)
-    L = convert(T, L_in)
-    ka_backend = KA.get_backend(c)
-    @assert length(points) > 0
-    # Instead of using ka_generate_kernel, we create a kernel with dynamically sized
-    # ndrange, which means (I think) that the kernel won't be recompiled when length(points)
-    # changes (which happens all the time during a simulation).
-    workgroupsize = 1024
-    kernel = fold_coordinates_kernel!(ka_backend, workgroupsize)
-    kernel(points_comp, lims, L; ndrange = size(points))
-    kernel(nodes_comp, lims, L; ndrange = size(nodes))
-    nothing
-end
-
-# We assume that L = b - a.
-@inline function _fold_coordinate_between_lims(x::T, (a, b)::NTuple{2, T}, L::T) where {T <: AbstractFloat}
-    while x ≥ b
-        x -= L
-    end
-    while x < a
-        x += L
-    end
-    x
-end
+_rescale_coordinates!(xs::AbstractVector, L::Real, L_expected) = _rescale_coordinates!(xs, xs, L, L_expected)
 
 """
     process_point_charges!(cache::LongRangeCache)
@@ -499,8 +457,10 @@ This function will process (and possibly modify) data in `cache.pointdata`. Ther
 transformation is needed if the domain has a different size.
 """
 function process_point_charges!(cache::LongRangeCache)
+    # We can assume that points have already been folded into the [0, L]³ domain (in
+    # add_point_charges!), so we only need to rescale them if L is different from the period
+    # required by the backend.
     rescale_coordinates!(cache)  # may be needed by the backend (e.g. NonuniformFFTs.jl requires period L = 2π)
-    fold_coordinates!(cache)     # may be needed by the backend (e.g. NonuniformFFTs.jl prefers x ∈ [0, 2π])
     cache
 end
 
