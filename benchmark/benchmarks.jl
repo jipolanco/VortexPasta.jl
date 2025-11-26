@@ -139,7 +139,13 @@ iter = init(prob, RK4(); dt = 0.01, adaptivity, refinement, reconnect, forcing)
 step!(iter)
 reset_timer!(iter.to)
 
-SUITE["Timestepping"] = @benchmarkable step!($iter) seconds=1000 evals=1 samples=10   # perform 10 timesteps
+SUITE["Timestepping"]["step!"] = @benchmarkable step!($iter) seconds=1000 evals=1 samples=10   # perform 10 timesteps
+SUITE["Timestepping"]["forcing"] = @benchmarkable Timestepping.apply_forcing!(fields, $iter, fs, t, to) setup = begin
+    fields = (; velocity = $iter.vL)
+    fs = $iter.fs
+    to = $iter.to
+    t = $iter.t;
+end
 
 # results_timestepping = run(SUITE["Timestepping"])
 
