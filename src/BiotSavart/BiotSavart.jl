@@ -400,7 +400,11 @@ end
 function copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = length(src))
     resize_no_copy!(dst, N)
     backend = KA.get_backend(dst)
-    KA.pagelock!(backend, src)
+    if KA.device(backend) == 1
+        # CUDA: apparently we can't pagelock the same CPU array from multiple CUDA devices,
+        # so we just do it if we're on device 1.
+        KA.pagelock!(backend, src)
+    end
     KA.copyto!(backend, dst, src)
     nothing
 end
