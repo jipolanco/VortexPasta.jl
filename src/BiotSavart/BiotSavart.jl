@@ -397,7 +397,7 @@ function compute_on_nodes!(
     fields
 end
 
-function _copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = length(src))
+function copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = length(src))
     resize_no_copy!(dst, N)
     backend = KA.get_backend(dst)
     KA.pagelock!(backend, src)
@@ -405,16 +405,16 @@ function _copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = len
     nothing
 end
 
-function _copy_host_to_device!(dst::StructVector, src::StructVector, N = length(src))
+function copy_host_to_device!(dst::StructVector, src::StructVector, N = length(src))
     foreach(StructArrays.components(dst), StructArrays.components(src)) do a, b
-        _copy_host_to_device!(a, b, N)
+        copy_host_to_device!(a, b, N)
     end
     nothing
 end
 
-function _copy_host_to_device!(dst::Tuple, src::Tuple, N = length(first(src)))
+function copy_host_to_device!(dst::Tuple, src::Tuple, N = length(first(src)))
     foreach(dst, src) do a, b
-        _copy_host_to_device!(a, b, N)
+        copy_host_to_device!(a, b, N)
     end
     nothing
 end
@@ -436,9 +436,9 @@ function do_longrange!(
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             @timeit to "Copy point charges (host -> device)" begin
                 # Only copy fields needed for long-range computations
-                _copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
-                _copy_host_to_device!(pointdata.points, pointdata_cpu.points)
-                _copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
+                copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
+                copy_host_to_device!(pointdata.points, pointdata_cpu.points)
+                copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
             end
             @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
 
@@ -490,8 +490,8 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
             if LIA === Val(true) || LIA === Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
                     # For now, only copy what we need for local term
-                    _copy_host_to_device!(pointdata.derivatives_on_nodes, pointdata_cpu.derivatives_on_nodes)  # needed for local term (LIA)
-                    _copy_host_to_device!(pointdata.subsegment_lengths, pointdata_cpu.subsegment_lengths)      # needed for local term (LIA)
+                    copy_host_to_device!(pointdata.derivatives_on_nodes, pointdata_cpu.derivatives_on_nodes)  # needed for local term (LIA)
+                    copy_host_to_device!(pointdata.subsegment_lengths, pointdata_cpu.subsegment_lengths)      # needed for local term (LIA)
                 end
                 @timeit to "Local term (LIA)" compute_local_term!(outputs, cache)  # NOTE: this function _replaces_ old values, so it must be called first
             else
@@ -500,10 +500,10 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
 
             if LIA !== Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
-                    _copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
-                    _copy_host_to_device!(pointdata.node_idx_prev, pointdata_cpu.node_idx_prev)  # needed in remove_self_interaction! (and in add_pair_interactions! if avoid_explicit_erf = false)
-                    _copy_host_to_device!(pointdata.points, pointdata_cpu.points)
-                    _copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
+                    copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
+                    copy_host_to_device!(pointdata.node_idx_prev, pointdata_cpu.node_idx_prev)  # needed in remove_self_interaction! (and in add_pair_interactions! if avoid_explicit_erf = false)
+                    copy_host_to_device!(pointdata.points, pointdata_cpu.points)
+                    copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
                 end
                 @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
                 @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
