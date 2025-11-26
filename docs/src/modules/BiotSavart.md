@@ -90,7 +90,6 @@ NullLongRangeCache
 LongRangeCacheState
 init_cache_long
 expected_period
-folding_limits
 set_num_points!
 add_point_charges!
 has_real_to_complex
