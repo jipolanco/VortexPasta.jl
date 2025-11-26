@@ -7,6 +7,7 @@ using VortexPasta.Containers: VectorOfVectors
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Reconnections
+using VortexPasta.Timestepping
 using Rotations: Rotations
 using StableRNGs: StableRNG
 using BenchmarkTools
@@ -123,6 +124,22 @@ let reconnect = ReconnectBasedOnDistance(l_res; max_passes = 10)
     cache_rec = Reconnections.init_cache(reconnect, fs, Ls)
     SUITE["Reconnections"]["ReconnectBasedOnDistance"] = @benchmarkable Reconnections.reconnect!($cache_rec, fs_rec) setup=(fs_rec = copy(fs))
 end
+
+## Define timestepping benchmarks
+
+prob = VortexFilamentProblem(fs, 0.1, params)
+
+l_min = 0.75 * l_res
+adaptivity = AdaptBasedOnSegmentLength(0.5) | AdaptBasedOnVelocity(0.5 * l_min)
+refinement = RefineBasedOnSegmentLength(l_min)
+reconnect = ReconnectFast(l_min; max_passes = 10)
+iter = init(prob, RK4(); dt = 0.01, adaptivity, refinement, reconnect)
+step!(iter)
+reset_timer!(iter.to)
+
+SUITE["Timestepping"] = @benchmarkable step!($iter) seconds=1000 evals=1 samples=10   # perform 10 timesteps
+
+# results_timestepping = run(SUITE["Timestepping"])
 
 ## Example interactive usage:
 
