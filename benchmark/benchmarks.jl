@@ -8,6 +8,7 @@ using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Reconnections
 using VortexPasta.Timestepping
+using VortexPasta.Forcing
 using Rotations: Rotations
 using StableRNGs: StableRNG
 using BenchmarkTools
@@ -133,7 +134,8 @@ l_min = 0.75 * l_res
 adaptivity = AdaptBasedOnSegmentLength(0.5) | AdaptBasedOnVelocity(0.5 * l_min)
 refinement = RefineBasedOnSegmentLength(l_min)
 reconnect = ReconnectFast(l_min; max_passes = 10)
-iter = init(prob, RK4(); dt = 0.01, adaptivity, refinement, reconnect)
+forcing = FourierBandForcingBS(; kmin = 0.1, kmax = 2.5, ε_target = 100.0, modify_length = false)
+iter = init(prob, RK4(); dt = 0.01, adaptivity, refinement, reconnect, forcing)
 step!(iter)
 reset_timer!(iter.to)
 
