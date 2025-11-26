@@ -131,10 +131,8 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs,
     @assert eachindex(vL_all) === eachindex(fs)
     (; quantities,) = iter
     vf_all = quantities.vf  # forcing velocities will be copied here
-    tangents_all = quantities.tangents  # local tangents (already computed)
-    Forcing.update_cache!(cache, forcing, iter.cache_bs)
     @timeit to "Add forcing" begin
-        Forcing.evaluate!(forcing, cache, vf_all, fs, tangents_all)
+        Forcing.evaluate!(forcing, cache, vf_all, fs, iter.cache_bs; to)
         @. vL_all = vL_all + vf_all
     end
     nothing

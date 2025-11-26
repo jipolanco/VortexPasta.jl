@@ -1,5 +1,6 @@
-using ..BiotSavart: BiotSavart, BiotSavartCache
+using ..BiotSavart: BiotSavart, BiotSavartCache, PointData, FilamentChunkIterator, count_nodes, resize_no_copy!, copy_host_to_device!
 using StaticArrays: SVector, SMatrix
+using LLVM.Interop: assume
 using LinearAlgebra: LinearAlgebra, ⋅, ×
 
 @doc raw"""
@@ -197,12 +198,12 @@ function init_cache(f::FourierBandForcingBS, cache_bs::BiotSavartCache)
     end
     v_d = adapt(backend, v_h)  # on the "device" (GPU or CPU)
     prefactor = params.Γ / prod(params.Ls)
-    (; v_d, v_h, qs = v_h.qs, prefactor,)
+    (; v_d, qs = v_d.qs, prefactor,)
 end
 
-# After calling this function, cache.v_h contains the Biot-Savart velocity in Fourier space v̂(k⃗).
-function update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache)
-    (; v_d, v_h,) = cache
+# After calling this function, cache.v_d contains the Biot-Savart velocity in Fourier space v̂(k⃗).
+function _update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache)
+    (; v_d,) = cache
 
     vs_grid, ks_grid, σ_gaussian = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
         local (; state, field, wavenumbers,) = data
@@ -211,96 +212,177 @@ function update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache
     end
     @assert σ_gaussian == 0  # fields are unfiltered
 
-    # (1) Copy velocity coefficients within Fourier band
+    # Copy velocity coefficients within Fourier band
     SyntheticFields.from_fourier_grid!(v_d, vs_grid, ks_grid)
-
-    # (2) Copy results to CPU if needed (avoided if the "device" is the CPU).
-    if v_d !== v_h
-        copyto!(v_h, v_d)
-    end
 
     nothing
 end
 
-function evaluate!(
-        forcing::FourierBandForcingBS, cache, vf_all::AbstractVector, fs::AbstractVector{<:AbstractFilament},
-        tangents_all,
-    )
-    (; v_h,) = cache
-    T = typeof(cache.prefactor)
-
-    # (1) Estimate forcing velocities and associated energy injection rate ε_total
-    ε_total = zero(T)
-    for n in eachindex(fs)
-        f = fs[n]
-        ts = Filaments.knots(f)
-        vf = vf_all[n]
-        @inbounds for i in eachindex(f, vf)
-            s⃗ = f[i]
-            s⃗ₜ = f[i, Derivative(1)]  # TODO: use tangents_all
-            sₜ² = sum(abs2, s⃗ₜ)
-            sₜ = sqrt(sₜ²)  # vector norm
-            s⃗′ = s⃗ₜ ./ sₜ   # unit tangent
-            (; qs, cs, Δks,) = v_h
-            V = eltype(vf)
-            vf_i = zero(V)  # forcing velocity (excluding α prefactor)
-            for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
-                k⃗ = SVector(qs[n]) .* Δks
-                v̂ = cs[n]
-                vf_k = real(v̂ * cis(k⃗ ⋅ s⃗))  # forcing velocity for this wavevector k⃗
-                vf_i = vf_i + vf_k
+# This always runs on the CPU.
+# This function is adapted from BiotSavart.add_point_charges.
+function _compute_geometry!(::FourierBandForcingBS, pointdata_cpu::PointData, fs::AbstractVector{<:ClosedFilament}; quad)
+    (; nodes, derivatives_on_nodes, subsegment_lengths) = pointdata_cpu
+    Np = count_nodes(fs)
+    subsegment_lengths::NTuple{2}
+    integration_weights = subsegment_lengths[1]::AbstractVector  # reuse as a buffer
+    # Usually all vectors should already have length Np, but it doesn't harm to try to
+    # resize them if that's not the case.
+    resize_no_copy!(nodes, Np)
+    resize_no_copy!(integration_weights, Np)
+    foreach(vs -> resize_no_copy!(vs, Np), derivatives_on_nodes)
+    chunks = FilamentChunkIterator(fs)
+    @sync for chunk in chunks
+        isempty(chunk) && continue  # don't spawn a task if it will do no work
+        Threads.@spawn let
+            prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
+            n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
+            @inbounds for i in chunk
+                f = fs[i]
+                nfirst = n + 1
+                len_prev = zero(eltype(integration_weights))
+                for j in eachindex(f)
+                    n += 1
+                    nodes[n] = f[j]
+                    derivatives_on_nodes[1][n] = f[j, Derivative(1)]
+                    derivatives_on_nodes[2][n] = f[j, Derivative(2)]
+                    # len = sqrt(sum(abs2, f[j + 1] - f[j]))    # length of segment to the right (rough estimate) // TODO: better estimate?
+                    seg = Filaments.Segment(f, j)
+                    len = Filaments.segment_length(seg; quad)
+                    integration_weights[n] = len_prev + len   # length of the two local segments
+                    len_prev = len
+                end
+                integration_weights[nfirst] += len_prev  # closed filament: add length of last segment to first node
             end
-            vf_i = s⃗′ × vf_i
-            vs_filtered = vf_i  # velocity filtered at target wavevectors
-            if !forcing.modify_length
-                # See also definition of CurvatureVector in Filaments/quantities.jl
-                s⃗ₜₜ = f[i, Derivative(2)]
-                s⃗″ = s⃗ₜ × (s⃗ₜₜ × s⃗ₜ)  # curvature vector (up to a scalar constant)
-                # @assert s⃗″ ≈ f[i, CurvatureVector()] * (sₜ² * sₜ²)
-                s″_norm2 = sum(abs2, s⃗″)
-                vf_i = vf_i - ((vf_i ⋅ s⃗″) / s″_norm2) * s⃗″
-                # @assert norm(vf_i ⋅ f[i, CurvatureVector()]) < 1e-12
-            end
-            # if forcing.α != 0
-            #     vs[i] = vs[i] + forcing.α * vf_i - forcing.α′ * (s⃗′ × vf_i)  # apply forcing
-            # elseif forcing.ε_target != 0
-            #     vs[i] = vf_i  # just overwrite the input
-            # end
-            if forcing.α == 0
-                vf[i] = vf_i
-            else
-                vf[i] = forcing.α * vf_i
-            end
-            dt = (ts[i + 1] - ts[i - 1]) / 2
-            dξ = dt * sₜ  # estimated local segment length
-            ε_total += (vs_filtered ⋅ vf_i) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor) -- only valid in ε_target mode!
         end
     end
-    # The factor 2 accounts for Hermitian symmetry: if we inject energy into the velocity at
-    # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
-    ε_total = 2 * ε_total * cache.prefactor  # include Γ/V prefactor
+    (; nodes, derivatives_on_nodes, integration_weights)
+end
 
-    # (2) If targeting a value of ε, adjust forcing amplitude.
+function _to_gpu!(::FourierBandForcingBS, pointdata_gpu::PointData, geom_cpu::NamedTuple)
+    (; nodes, derivatives_on_nodes, subsegment_lengths) = pointdata_gpu
+    subsegment_lengths::NTuple{2}
+    integration_weights = subsegment_lengths[1]::AbstractVector  # reuse as a buffer
+    geom_gpu = (; nodes, derivatives_on_nodes, integration_weights)
+    foreach(geom_cpu, geom_gpu) do src, dst
+        copy_host_to_device!(dst, src)
+    end
+    geom_gpu
+end
+
+function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::AbstractVector, geom::NamedTuple, cache)
+    (; v_d, prefactor) = cache
+    (; nodes, derivatives_on_nodes, integration_weights) = geom
+    (; modify_length, α, α′) = forcing
+
+    resize_no_copy!(vf_lin, length(nodes))
+    V = eltype(vf_lin)  # usually SVector{3, T} == Vec3{T}
+    T = typeof(prefactor)
+    ε_total = zero(T)
+
+    # TODO: adapt for GPU
+    for i in eachindex(nodes)
+        s⃗ = @inbounds nodes[i]
+        s⃗_t = @inbounds derivatives_on_nodes[1][i]
+        s_t² = sum(abs2, s⃗_t)
+        assume(s_t² > 0)
+        s_t = sqrt(s_t²)
+        s_t_inv = 1 / s_t
+        assume(s_t_inv > 0)
+        s⃗′ = s⃗_t * s_t_inv  # unit tangent
+        (; qs, cs, Δks,) = v_d
+        vf = zero(V)  # forcing velocity (excluding α prefactor)
+        for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
+            k⃗ = @inbounds SVector(qs[n]) .* Δks
+            v̂ = @inbounds cs[n]
+            vf_k = real(v̂ * cis(k⃗ ⋅ s⃗))  # forcing velocity for this wavevector k⃗
+            vf = vf + vf_k
+        end
+        vf = s⃗′ × vf
+        vs_filtered = vf  # velocity filtered at target wavevectors
+        if !modify_length
+            # If the forcing is not to modify vortex length, we make sure that vf is
+            # orthogonal to the local curvature.
+            s⃗_tt = @inbounds derivatives_on_nodes[2][i]
+            s⃗″ = s⃗_t × (s⃗_tt × s⃗_t)  # curvature vector (up to a scalar constant)
+            # @assert s⃗″ ≈ f[j, CurvatureVector()] * (s_t² * s_t²)
+            s″_norm2 = sum(abs2, s⃗″)
+            vf = vf - ((vf ⋅ s⃗″) / s″_norm2) * s⃗″
+            # @assert norm(vf ⋅ s⃗″) < 1e-12
+        end
+        if α != 0  # α was prescribed (and possibly α′ as well)
+            vf = α * vf - α′ * (s⃗′ × vf)
+        end
+        @inbounds vf_lin[i] = vf
+        # Finally, estimate energy injection rate associated to the local forcing.
+        # In principle, we should divide dξ by two to get an estimate of the local segment
+        # length (taking half the length of each local segment). However, this is
+        # compensated by a factor 2 accounting for Hermitian symmetry: if we inject energy into the velocity at
+        # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
+        dξ = @inbounds integration_weights[i]
+        ε_total += (vs_filtered ⋅ vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
+    end
+
+    ε_total = ε_total * prefactor  # include Γ/V prefactor
+
+    # If targeting a value of ε, adjust forcing amplitude.
     if forcing.ε_target != 0 && ε_total != 0
         # In this case, vf_all only contains the forcing velocities, which need to be
         # rescaled to get the wanted energy injection rate (estimated).
         @assert forcing.α == 0
-        α = forcing.ε_target / ε_total
-        @inbounds for n in eachindex(fs, vf_all)
-            f = fs[n]
-            vf = vf_all[n]
-            tangents = tangents_all[n]
-            if forcing.α′ == 0
-                for i in eachindex(f, vf)
-                    vf[i] = α * vf[i]
-                end
-            else
-                for i in eachindex(f, vf, tangents)
-                    s⃗′ = tangents[i]
-                    vf[i] = α * vf[i] - forcing.α′ * (s⃗′ × vf[i])
-                end
+        α_actual = forcing.ε_target / ε_total
+        if α′ == 0
+            Threads.@threads :dynamic for i in eachindex(vf_lin)
+                @inbounds vf_lin[i] = α_actual * vf_lin[i]
+            end
+        else
+            Threads.@threads :dynamic for i in eachindex(vf_lin)
+                s⃗_t = @inbounds derivatives_on_nodes[1][i]
+                s_t² = sum(abs2, s⃗_t)
+                assume(s_t² > 0)
+                s_t = sqrt(s_t²)
+                s_t_inv = 1 / s_t
+                assume(s_t_inv > 0)
+                s⃗′ = s⃗_t * s_t_inv  # unit tangent
+                @inbounds vf_lin[i] = α_actual * vf_lin[i] - α′ * (s⃗′ × vf_lin[i])
             end
         end
+    end
+
+    vf_lin
+end
+
+function evaluate!(
+        forcing::FourierBandForcingBS, cache, vf_all::AbstractVector,
+        fs::AbstractVector{<:AbstractFilament}, cache_bs::BiotSavartCache;
+        to = TimerOutput(),
+    )
+    @timeit to "(1) Copy active Fourier coefficients (GPU)" _update_cache!(cache, forcing, cache_bs)
+
+    # To evaluate this forcing, we need:
+    #
+    # - filament node locations
+    # - local tangent vectors
+    # - curvature vectors (only when we're targeting an energy injection rate ε_target)
+    # - local segment lengths (only when we're targeting an energy injection rate ε_target)
+    #
+    # We compute them first on the CPU based on filament data, and then we transfer the
+    # results to the device where long-range interactions were computed (possibly a GPU),
+    # before evaluating the forcing on the GPU. To reduce memory allocations, we reuse
+    # temporary arrays (pointdata) defined in the BiotSavart module.
+    #
+    # TODO: this data may already be in cache_bs.pointdata or cache_bs.longrange.pointdata,
+    # so we might be able to skip geometry computation and CPU -> GPU transfers.
+    (; quad) = cache_bs.params
+    @timeit to "(2) Compute geometry (CPU)" geom_cpu = _compute_geometry!(forcing, cache_bs.pointdata, fs; quad)::NamedTuple
+    @timeit to "(3) Copy geometry CPU -> GPU" geom_gpu = _to_gpu!(forcing, cache_bs.longrange.pointdata, geom_cpu)::NamedTuple
+
+    # Forcing velocities in "linear" format.
+    vf_lin = BiotSavart.default_interpolation_output(cache_bs.longrange)  # reused as temporary array to hold forcing velocity
+    @timeit to "(4) Compute forcing (GPU)" _evaluate_from_geometry!(forcing, vf_lin, geom_gpu, cache)
+
+    @timeit to "(5) Copy forcing GPU -> CPU" begin
+        vs_buf = cache_bs.pointdata.nodes  # CPU array used as intermediate buffer
+        BiotSavart.copy_output_values_on_nodes!(vf_all, vf_lin, vs_buf)
     end
 
     vf_all
