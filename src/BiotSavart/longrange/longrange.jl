@@ -543,7 +543,7 @@ end
 # These are kept for backwards compatibility for now, but copy_output_values_on_nodes! should be used instead.
 function copy_long_range_output!(vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache, args...)
     # By default, only keep the new value, discarding old values in vs.
-    op(new, old) = new
+    op(old, new) = new
     copy_long_range_output!(op, vs, cache, args...)
 end
 
