@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.2] - 2025-11-26
+
 ### Changed
 
 - **[Slightly breaking]**: In `ParamsBiotSavart`, `quadrature_near_singularity` can no
