@@ -5,8 +5,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.32.1] - 2025-11-22
-
 ### Changed
 
 - **[Slightly breaking]**: In `ParamsBiotSavart`, `quadrature_near_singularity` can no
@@ -15,13 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Reimplement self-interaction Biot–Savart term on GPU. It is also much faster than before
-  on CPU.
-
 - Reimplement local Biot–Savart term (LIA) on GPU.
 
-- `PointData` now includes curve derivatives on nodes. This is useful for the local term,
-  but can also be useful for diagnostics or forcing.
+- Reimplement `FourierBandForcingBS` on GPU.
+
+## [0.32.1] - 2025-11-22
+
+### Added
+
+- Reimplement self-interaction Biot–Savart term on GPU. It is also much faster than before
+  on CPU.
 
 ## [0.32.0] - 2025-11-21
 
