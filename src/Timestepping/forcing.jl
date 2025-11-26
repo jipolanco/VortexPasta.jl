@@ -52,7 +52,7 @@ function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time
     if haskey(fields, :velocity)
         # At this point, fields.velocity is expected to have the self-induced velocity vs.
         # We copy that velocity into iter.vs before adding the forcing velocity to fields.velocity.
-        if iter.vs !== fields.velocity
+        if iter.vs !== iter.vL  # this basically means that there is a forcing or dissipation term
             copyto!(iter.vs, fields.velocity)
         else
             @assert iter.forcing === NoForcing()  # `vs` and `velocity` _must_ be different objects if we're forcing
