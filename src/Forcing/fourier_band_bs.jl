@@ -274,6 +274,9 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
     (; v_d, prefactor) = cache
     (; nodes, derivatives_on_nodes, integration_weights) = geom
     (; modify_length, ε_target, α, α′) = forcing
+    (; qs, cs, Δks,) = v_d
+
+    @assert eachindex(qs) == eachindex(cs)
 
     resize_no_copy!(vf_lin, length(nodes))
 
@@ -287,10 +290,9 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
         s_t_inv = 1 / s_t
         assume(s_t_inv > 0)
         s⃗′ = s⃗_t * s_t_inv  # unit tangent
-        (; qs, cs, Δks,) = v_d
         V = eltype(vf_lin)  # usually SVector{3, T} == Vec3{T}
         vf = zero(V)  # forcing velocity (excluding α prefactor)
-        for n in eachindex(qs, cs)  # iterate over active wavevectors k⃗
+        for n in eachindex(qs)  # iterate over active wavevectors k⃗
             k⃗ = @inbounds SVector(qs[n]) .* Δks
             v̂ = @inbounds cs[n]
             k_dot_s = k⃗ ⋅ s⃗
