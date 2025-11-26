@@ -142,9 +142,6 @@ end
 
 expected_period(::NonuniformFFTsBackend) = 2π
 
-# This is not needed since folding is done by NonuniformFFTs anyway:
-# folding_limits(::NonuniformFFTsBackend) = (0, 2π)
-
 struct NonuniformFFTsCache{
         T,
         Backend <: NonuniformFFTsBackend,
@@ -164,8 +161,8 @@ function init_cache_long_ewald(
     @assert params === params_all.longrange
     (; Ls,) = pc
     (; backend, Ns,) = params
-    (; m, σ, kws, ka_backend, ka_device,) = backend
-    KA.device!(ka_backend, ka_device)  # change the device if needed
+    (; m, σ, kws,) = backend
+    activate_device!(backend)  # change the device if needed
     d = length(Ns)  # dimensionality (usually 3)
     plan = NonuniformFFTs.PlanNUFFT(T, Ns; ntransforms = Val(d), m, σ, kws...)  # plan for real-to-complex transform
     wavenumbers = ntuple(Val(d)) do i
@@ -201,8 +198,9 @@ end
 function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c::NonuniformFFTsCache) where {F <: Function}
     (; backend, plan,) = c
     (; pointdata, uhat,) = c.common
-    (; nodes,) = pointdata
+    (; nodes_mod,) = pointdata
     (; ka_backend, ka_device,) = backend
+    @assert eachindex(nodes_mod) == eachindex(output)
     # Make sure we're already running on the wanted device (e.g. GPU 2).
     # Usually we call this function right after having defined data (uhat) on this device,
     # and thus we can expect that we have already selected the right device.
@@ -211,7 +209,7 @@ function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c:
     charges = StructArrays.components(output)
     uhat_data = StructArrays.components(uhat)
     callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = callback_uniform)
-    NonuniformFFTs.set_points!(plan, nodes)
+    NonuniformFFTs.set_points!(plan, nodes_mod)
     NonuniformFFTs.exec_type2!(charges, plan, uhat_data; callbacks)
     nothing
 end

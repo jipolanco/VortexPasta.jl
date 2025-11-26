@@ -397,24 +397,28 @@ function compute_on_nodes!(
     fields
 end
 
-function _copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = length(src))
+function copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = length(src))
     resize_no_copy!(dst, N)
     backend = KA.get_backend(dst)
-    KA.pagelock!(backend, src)
+    if KA.device(backend) == 1
+        # CUDA: apparently we can't pagelock the same CPU array from multiple CUDA devices,
+        # so we just do it if we're on device 1.
+        KA.pagelock!(backend, src)
+    end
     KA.copyto!(backend, dst, src)
     nothing
 end
 
-function _copy_host_to_device!(dst::StructVector, src::StructVector, N = length(src))
+function copy_host_to_device!(dst::StructVector, src::StructVector, N = length(src))
     foreach(StructArrays.components(dst), StructArrays.components(src)) do a, b
-        _copy_host_to_device!(a, b, N)
+        copy_host_to_device!(a, b, N)
     end
     nothing
 end
 
-function _copy_host_to_device!(dst::Tuple, src::Tuple, N = length(first(src)))
+function copy_host_to_device!(dst::Tuple, src::Tuple, N = length(first(src)))
     foreach(dst, src) do a, b
-        _copy_host_to_device!(a, b, N)
+        copy_host_to_device!(a, b, N)
     end
     nothing
 end
@@ -428,9 +432,7 @@ function do_longrange!(
 
     # Make sure we execute this task in the GPU device chosen for long-range computations.
     # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
-    ka_backend = KA.get_backend(cache)  # KA backend used for long-range computations (e.g. CUDABackend)
-    device_id = KA.device(cache)        # in 1:ndevices
-    KA.device!(ka_backend, device_id)   # set the device
+    activate_device!(cache)
 
     @timeit to "Long-range component (async)" begin
         # Copy point data to the cache (possibly on a GPU).
@@ -438,9 +440,9 @@ function do_longrange!(
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             @timeit to "Copy point charges (host -> device)" begin
                 # Only copy fields needed for long-range computations
-                _copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
-                _copy_host_to_device!(pointdata.points, pointdata_cpu.points)
-                _copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
+                copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
+                copy_host_to_device!(pointdata.points, pointdata_cpu.points)
+                copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
             end
             @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
 
@@ -472,7 +474,7 @@ function do_longrange!(
             yield()  # let other tasks run (not sure if this really helps)
 
             # Wait for the GPU to finish its work before finishing this task.
-            @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
+            @timeit to "Synchronise GPU" KA.synchronize(KA.get_backend(cache))
         end
     end
 
@@ -485,17 +487,15 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
 
     # Make sure we execute this task in the GPU device chosen for long-range computations.
     # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
-    ka_backend = KA.get_backend(cache)  # KA backend used for long-range computations (e.g. CUDABackend)
-    device_id = KA.device(cache)        # in 1:ndevices
-    KA.device!(ka_backend, device_id)   # set the device
+    activate_device!(cache)
 
     @timeit to "Short-range component (async)" begin
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             if LIA === Val(true) || LIA === Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
                     # For now, only copy what we need for local term
-                    _copy_host_to_device!(pointdata.derivatives_on_nodes, pointdata_cpu.derivatives_on_nodes)  # needed for local term (LIA)
-                    _copy_host_to_device!(pointdata.subsegment_lengths, pointdata_cpu.subsegment_lengths)      # needed for local term (LIA)
+                    copy_host_to_device!(pointdata.derivatives_on_nodes, pointdata_cpu.derivatives_on_nodes)  # needed for local term (LIA)
+                    copy_host_to_device!(pointdata.subsegment_lengths, pointdata_cpu.subsegment_lengths)      # needed for local term (LIA)
                 end
                 @timeit to "Local term (LIA)" compute_local_term!(outputs, cache)  # NOTE: this function _replaces_ old values, so it must be called first
             else
@@ -504,10 +504,10 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
 
             if LIA !== Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
-                    _copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
-                    _copy_host_to_device!(pointdata.node_idx_prev, pointdata_cpu.node_idx_prev)  # needed in remove_self_interaction! (and in add_pair_interactions! if avoid_explicit_erf = false)
-                    _copy_host_to_device!(pointdata.points, pointdata_cpu.points)
-                    _copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
+                    copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
+                    copy_host_to_device!(pointdata.node_idx_prev, pointdata_cpu.node_idx_prev)  # needed in remove_self_interaction! (and in add_pair_interactions! if avoid_explicit_erf = false)
+                    copy_host_to_device!(pointdata.points, pointdata_cpu.points)
+                    copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
                 end
                 @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
                 @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
@@ -517,7 +517,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
             yield()  # let other tasks run (not sure if this really helps)
 
             # Wait for the GPU to finish its work before finishing this task.
-            @timeit to "Synchronise GPU" KA.synchronize(ka_backend)
+            @timeit to "Synchronise GPU" KA.synchronize(KA.get_backend(cache))
         end
     end
 
@@ -651,9 +651,14 @@ Copy computed values onto a vector of vectors.
 """
 function copy_output_values_on_nodes!(
         op::F, vs::AbstractVector, vs_d::AbstractVector, vs_h = nothing,
-    ) where {F}
+    ) where {F <: Function}
     backend = KA.get_backend(vs_d)
     _copy_output_values_on_nodes!(backend, op, vs, vs_d, vs_h)
+end
+
+function copy_output_values_on_nodes!(vs::AbstractVector, vs_d::AbstractVector, args...)
+    op(old, new) = new
+    copy_output_values_on_nodes!(op, vs, vs_d, args...)
 end
 
 function _copy_output_values_on_nodes!(backend::GPU, op::F, vs, vs_d, ::Nothing) where {F}
@@ -674,7 +679,7 @@ function _copy_output_values_on_nodes!(::CPU, op::F, vs::AbstractVector, vs_h::A
     n = 0
     @inbounds for vf in vs, j in eachindex(vf)
         q = vs_h[n += 1]
-        vf[j] = op(real(q), vf[j])  # typically op == +, meaning that we add to the previous value
+        vf[j] = op(vf[j], q)  # typically op == +, meaning that we add to the previous value
     end
     vs
 end

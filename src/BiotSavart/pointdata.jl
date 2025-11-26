@@ -26,6 +26,7 @@ struct PointData{
         VecsHost <: StructVector{Vec3{T}},
     }
     nodes         :: Vecs     # [Np] filament nodes (where velocity will be computed)
+    nodes_mod     :: Vecs     # this may optionally store a modified version of the nodes (e.g. rescaled nodes for NonuniformFFTsBackend)
     node_idx_prev :: Indices  # [Np] index in 1:Np of node located to the "left" of a given node (accounts for periodic wrapping of closed filaments) -> only used in short-range when avoid_explicit_erf == false
     points    :: Vecs      # [Nq] quadrature points, i.e. interpolated locations s⃗ on segments
     charges   :: Vecs      # [Nq] rescaled tangent vector q * s⃗′ on segments (where `q` is the quadrature weight)
@@ -41,6 +42,7 @@ end
 @inline function Adapt.adapt_structure(to, p::PointData)
     PointData(
         adapt(to, p.nodes),
+        adapt(to, p.nodes_mod),
         adapt(to, p.node_idx_prev),
         adapt(to, p.points),
         adapt(to, p.charges),
@@ -52,19 +54,20 @@ end
 
 function PointData(::Type{T}) where {T <: AbstractFloat}
     nodes = StructVector{Vec3{T}}(undef, 0)
+    nodes_mod = similar(nodes)
     node_idx_prev = similar(nodes, Int32)  # Int32 should be enough for all practical purposes
     points = similar(nodes)
     charges = similar(nodes)
     derivatives_on_nodes = ntuple(_ -> similar(nodes), Val(2))
     subsegment_lengths = ntuple(_ -> similar(nodes, T), Val(2))
-    PointData(nodes, node_idx_prev, points, charges, derivatives_on_nodes, subsegment_lengths, copy(charges))
+    PointData(nodes, nodes_mod, node_idx_prev, points, charges, derivatives_on_nodes, subsegment_lengths, copy(charges))
 end
 
 function Base.copy(data::PointData)
-    (; nodes, node_idx_prev, points, derivatives_on_nodes, subsegment_lengths, charges,) = data
+    (; nodes, nodes_mod, node_idx_prev, points, derivatives_on_nodes, subsegment_lengths, charges,) = data
     charges_h = similar(data.charges_h, 0)
     PointData(
-        copy(nodes), copy(node_idx_prev), copy(points), copy(charges),
+        copy(nodes), copy(nodes_mod), copy(node_idx_prev), copy(points), copy(charges),
         map(copy, derivatives_on_nodes), map(copy, subsegment_lengths), charges_h
     )
 end

@@ -90,7 +90,6 @@ NullLongRangeCache
 LongRangeCacheState
 init_cache_long
 expected_period
-folding_limits
 set_num_points!
 add_point_charges!
 has_real_to_complex
@@ -112,6 +111,7 @@ used to write generic code which works on CPUs and different kinds of GPUs.
 ka_generate_kernel
 KernelAbstractions.get_backend
 KernelAbstractions.device
+activate_device!
 ```
 
 ## Internals

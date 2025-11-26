@@ -51,6 +51,12 @@ end
 function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time, to)
     if haskey(fields, :velocity)
         # At this point, fields.velocity is expected to have the self-induced velocity vs.
+        # We copy that velocity into iter.vs before adding the forcing velocity to fields.velocity.
+        if iter.vs !== iter.vL  # this basically means that there is a forcing or dissipation term
+            copyto!(iter.vs, fields.velocity)
+        else
+            @assert iter.forcing === NoForcing()  # `vs` and `velocity` _must_ be different objects if we're forcing
+        end
         # After applying a normal fluid forcing, fields.velocity will contain the actual
         # vortex velocity vL. The self-induced velocity will be copied to iter.quantities.vs.
         _apply_forcing!(fields.velocity, iter.forcing, iter.forcing_cache, iter, fs, time, to)
@@ -61,17 +67,7 @@ function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time
     fields
 end
 
-# For consistency with other forcing methods, we must copy vL -> iter.vs (the self-induced BS velocity).
-# This is needed in particular if we're including a dissipation term.
-function _apply_forcing!(vL, forcing::NoForcing, cache, iter, args...)
-    # The condition below basically means that there is a dissipation term.
-    # Note: iter.vL is not necessarily the same as vL, especially if we're inside of a RK substep.
-    if iter.vs !== iter.vL
-        copyto!(iter.vs, vL)
-    end
-    nothing
-end
-
+_apply_forcing!(vL, forcing::NoForcing, cache, iter, args...) = nothing  # do nothing
 _apply_dissipation!(vL, dissipation::NoDissipation, cache, args...) = nothing  # do nothing
 
 # Note: the cache is currently not used by NormalFluidForcing (it's empty anyway)
@@ -79,7 +75,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t
     # Note: inside a RK substep, quantities.{vs,vn,tangents} are used as temporary buffers
     # (and in fact we don't really need vs).
     (; quantities,) = iter
-    vs_all = quantities.vs  # self-induced velocities will be copied here
+    vs_all = quantities.vs  # self-induced velocities
     vn_all = quantities.vn  # normal fluid velocities will be computed here
     vf_all = quantities.vf  # actual forcing velocity
     tangents_all = quantities.tangents  # local tangents (already computed)
@@ -97,7 +93,7 @@ function _apply_forcing!(vL_all, forcing::NormalFluidForcing, cache, iter, fs, t
             # At input, vL contains the self-induced velocity vs.
             # We copy vL -> vs before modifying vL with the actual vortex velocities.
             tforeach(eachindex(f, tangents); scheduler) do i
-                vs[i] = vL[i]  # usually this is the Biot-Savart velocity
+                # vs[i] = vL[i]  # usually these are already equal
                 vn[i] = forcing.vn(f[i])  # evaluate normal fluid velocity
             end
             Forcing.apply!(forcing, vL, vn, tangents; scheduler)  # compute vL according to the given forcing (vL = vs at input)
@@ -110,7 +106,7 @@ end
 function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t, to)
     @assert eachindex(vL_all) === eachindex(fs)
     (; quantities,) = iter
-    vs_all = quantities.vs  # self-induced velocities will be copied here
+    vs_all = quantities.vs  # self-induced velocities (same as in vL_all)
     v_ns_all = quantities.v_ns  # slip velocity used in forcing
     vf_all = quantities.vf  # actual forcing velocity
     Forcing.update_cache!(cache, forcing, iter.cache_bs)
@@ -119,9 +115,9 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcing, cache, iter, fs, t
         @inbounds for n in eachindex(fs)
             f = fs[n]
             vL = vL_all[n]  # currently contains self-induced velocity vs
-            vs = vs_all[n]  # will contain self-induced velocity vs
+            vs = vs_all[n]  # currently contains self-induced velocity vs (same as vL)
             vf = vf_all[n]  # will contain forcing velocity
-            copyto!(vs, vL)
+            # copyto!(vs, vL)  # not needed, they're already equal
             # Compute vL according to the given forcing (vL = vs at input).
             # This will also store filtered slip velocities in v_ns.
             Forcing.apply!(forcing, cache, vL, f; vdiff = v_ns_all[n], scheduler)
@@ -134,43 +130,10 @@ end
 function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs, t, to)
     @assert eachindex(vL_all) === eachindex(fs)
     (; quantities,) = iter
-    vs_all = quantities.vs  # self-induced velocities will be copied here
     vf_all = quantities.vf  # forcing velocities will be copied here
-    tangents_all = quantities.tangents  # local tangents (already computed)
-    Forcing.update_cache!(cache, forcing, iter.cache_bs)
-    scheduler = DynamicScheduler()  # for threading
     @timeit to "Add forcing" begin
-        ε_total = zero(number_type(vs_all))
-        @inbounds for n in eachindex(fs)
-            f = fs[n]
-            vL = vL_all[n]  # currently contains self-induced velocity vs
-            copyto!(vs_all[n], vL)
-            # Compute vL according to the given forcing (vL = vs at input).
-            ε_total += Forcing.apply!(forcing, cache, vL, f; scheduler)
-        end
-        if forcing.ε_target != 0 && ε_total != 0
-            # In this case, vL only contains the forcing velocities, which need to be
-            # rescaled to get the wanted energy injection rate (estimated).
-            @assert forcing.α == 0
-            α = forcing.ε_target / ε_total
-            @inbounds for n in eachindex(fs, vs_all, vL_all)
-                f = fs[n]
-                vL = vL_all[n]
-                vs = vs_all[n]
-                tangents = tangents_all[n]
-                if forcing.α′ == 0
-                    for i in eachindex(f, vs, vL)
-                        vL[i] = vs[i] + α * vL[i]
-                    end
-                else
-                    for i in eachindex(f, vs, vL, tangents)
-                        s⃗′ = tangents[i]
-                        vL[i] = vs[i] + α * vL[i] - forcing.α′ * (s⃗′ × vL[i])
-                    end
-                end
-            end
-        end
-        @. vf_all = vL_all - vs_all
+        Forcing.evaluate!(forcing, cache, vf_all, fs, iter.cache_bs; to)
+        @. vL_all = vL_all + vf_all
     end
     nothing
 end

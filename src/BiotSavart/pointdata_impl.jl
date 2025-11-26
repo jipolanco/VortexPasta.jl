@@ -19,7 +19,7 @@ function set_num_points!(data::PointData, Np, quad::StaticSizeQuadrature)
 end
 
 # Total number of independent nodes among all filaments
-_count_nodes(fs::AbstractVector{<:AbstractFilament}) = sum(f -> length(nodes(f)), fs; init = 0)
+count_nodes(fs::AbstractVector{<:AbstractFilament}) = sum(f -> length(nodes(f)), fs; init = 0)
 
 """
     add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, params::ParamsBiotSavart)
@@ -39,14 +39,14 @@ from non-uniform data in physical space to uniform data in Fourier space. It mus
 before [`compute_vorticity_fourier!`](@ref).
 """
 function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, params::ParamsBiotSavart)
-    Np = _count_nodes(fs)
+    Np = count_nodes(fs)
     set_num_points!(data, Np, params.quad)
     chunks = FilamentChunkIterator(fs)  # defined in shortrange/shortrange.jl
     @sync for chunk in chunks
         isempty(chunk) && continue  # don't spawn a task if it will do no work
         Threads.@spawn let
             prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
-            n = _count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
+            n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
             for i in chunk
                 n = _add_point_charges!(data, fs[i], n, params, params.quad)
             end
