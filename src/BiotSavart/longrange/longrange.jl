@@ -413,7 +413,14 @@ function rescale_coordinates!(c::LongRangeCache)
 end
 
 # Backend doesn't define `expected_period`, so no rescaling is needed.
-_rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing
+# We only copy nodes -> nodes_mod.
+# This is typically the case of ExactSumBackend.
+function _rescale_coordinates!(c::LongRangeCache, ::Nothing)
+    (; nodes, nodes_mod) = c.common.pointdata
+    resize_no_copy!(nodes_mod, length(nodes))
+    copyto!(nodes_mod, nodes)
+    nothing
+end
 
 function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
     (; Ls,) = c.common.params.common
