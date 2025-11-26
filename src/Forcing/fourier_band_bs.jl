@@ -246,9 +246,9 @@ function _compute_geometry!(::FourierBandForcingBS, pointdata_cpu::PointData, fs
                     nodes[n] = f[j]
                     derivatives_on_nodes[1][n] = f[j, Derivative(1)]
                     derivatives_on_nodes[2][n] = f[j, Derivative(2)]
-                    # len = sqrt(sum(abs2, f[j + 1] - f[j]))    # length of segment to the right (rough estimate)
-                    seg = Filaments.Segment(f, j)
-                    len = Filaments.segment_length(seg; quad)  # TODO: do we need such an "accurate" estimate?
+                    len = sqrt(sum(abs2, f[j + 1] - f[j]))    # length of segment to the right (rough estimate)
+                    # seg = Filaments.Segment(f, j)
+                    # len = Filaments.segment_length(seg; quad)  # more accurate estimate (but more expensive)
                     integration_weights[n] = len_prev + len   # length of the two local segments
                     len_prev = len
                 end

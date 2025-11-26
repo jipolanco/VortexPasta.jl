@@ -401,7 +401,7 @@ end
             let a = eachindex(times)[begin + 1], b = eachindex(times)[end ÷ 3]
                 local ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # energy injection rate at wavenumber k⃗
                 # @show ε_inj
-                @test ε_inj ≈ forcing.ε_target rtol=2e-3  # the ε_target really represents the energy injection rate at this wavevector!
+                @test ε_inj ≈ forcing.ε_target rtol=3e-3  # the ε_target really represents the energy injection rate at this wavevector!
             end
         end
     end
