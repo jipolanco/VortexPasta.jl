@@ -297,7 +297,7 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
             v̂ = @inbounds cs[n]
             k_dot_s = k⃗ ⋅ s⃗
             local s, c = sincos(k_dot_s)  # note: CUDA defines sincos as well, so it should be fast
-            vf_k = real(v̂ * Complex(s, c))
+            vf_k = real(v̂ * Complex(c, s))
             vf = vf + vf_k
         end
         vf = s⃗′ × vf
