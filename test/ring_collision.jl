@@ -4,10 +4,10 @@ using Test
 using LinearAlgebra: norm, normalize, ⋅
 using StaticArrays
 using Statistics: mean, std
+using OpenCL, pocl_jll
 using JET: JET
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
-using VortexPasta.BiotSavart: PseudoGPU  # for testing only
 using VortexPasta.Diagnostics: Diagnostics
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
@@ -125,15 +125,14 @@ end
         backend_long = NonuniformFFTsBackend(CPU()),
         backend_short = CellListsBackend(CPU()),
     )
-    # The PseudoGPU type is internal. It is only used to test GPU-specific code when we
-    # don't have an actual GPU.
+    backend = OpenCLBackend()
     gpu = test_ring_collision(
-        backend_long = NonuniformFFTsBackend(PseudoGPU()),
-        backend_short = CellListsBackend(PseudoGPU(); device = 2),
+        backend_long = NonuniformFFTsBackend(backend),
+        backend_short = CellListsBackend(backend),
     )
     # Note: due to autotuning (which is quite random), the two sets of results can be a bit
     # different, thus we use a relative large `rtol`.
-    @testset "Compare CPU / PseudoGPU" begin
+    @testset "Compare CPU / $backend" begin
         @testset "Velocity and streamfunction" begin
             @test cpu.velocity ≈ gpu.velocity rtol=1e-6
             @test cpu.streamfunction ≈ gpu.streamfunction rtol=1e-6

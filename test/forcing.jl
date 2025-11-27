@@ -1,13 +1,14 @@
 using VortexPasta
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
-using VortexPasta.BiotSavart: PseudoGPU  # for testing only
 using VortexPasta.PredefinedCurves
 using VortexPasta.Forcing
 using VortexPasta.FilamentIO
 using VortexPasta.SyntheticFields
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
+using OpenCL, pocl_jll
+using KernelAbstractions: KernelAbstractions as KA
 using LinearAlgebra: ×, norm
 using UnicodePlots
 using Random
@@ -69,11 +70,20 @@ function simulate(
     reconnect = ReconnectBasedOnDistance(δ / 2)
     refinement = RefineBasedOnSegmentLength(0.8 * δ)
     adaptivity = AdaptBasedOnSegmentLength(dt_factor) | AdaptBasedOnVelocity(δ / 2)
-    iter = @inferred init(
-        prob, RK4();
-        forcing, dissipation, affect_t!, callback,
-        dt, reconnect, refinement, adaptivity,
-    )
+    iter = if KA.get_backend(prob.p.longrange.backend) isa OpenCLBackend || KA.get_backend(prob.p.shortrange.backend) isa OpenCLBackend
+        # Things are not fully inferred when using OpenCLBackend
+        init(
+            prob, RK4();
+            forcing, dissipation, affect_t!, callback,
+            dt, reconnect, refinement, adaptivity,
+        )
+    else
+        @inferred init(
+            prob, RK4();
+            forcing, dissipation, affect_t!, callback,
+            dt, reconnect, refinement, adaptivity,
+        )
+    end
     if affect_t! !== Returns(nothing)
         @test match(r"affect_t\!: Function", repr(iter)) !== nothing  # check that affect_t! appears in println(iter)
     end
@@ -508,9 +518,10 @@ end
             plots && plot_spectra(spectra; title = "Forcing + dissipation")
         end
 
-        @testset "Forcing + dissipation (PseudoGPU, SmallScaleDissipationBS)" begin
-            backend_long = NonuniformFFTsBackend(PseudoGPU(); σ = 1.5, m = HalfSupport(4))
-            backend_short = CellListsBackend(PseudoGPU())
+        @testset "Forcing + dissipation (OpenCL, SmallScaleDissipationBS)" begin
+            backend = OpenCLBackend()
+            backend_long = NonuniformFFTsBackend(backend; σ = 1.5, m = HalfSupport(4))
+            backend_short = CellListsBackend(backend)
             params_gpu = generate_biot_savart_parameters(Float64; L = 2π, rcut = 2π / 3, aspect, backend_long, backend_short)
             prob_gpu = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params_gpu)
             dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
@@ -518,7 +529,7 @@ end
             (; iter, E_ratio, spectra) = simulate(prob_gpu, forcing, dissipation; callback)
             @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
             @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.05), ε_diss_time)
-            plots && plot_spectra(spectra; title = "Forcing + dissipation (PseudoGPU)")
+            plots && plot_spectra(spectra; title = "Forcing + dissipation (OpenCL)")
         end
 
         @testset "SmallScaleDissipationBS: Error if kdiss is too large" begin
