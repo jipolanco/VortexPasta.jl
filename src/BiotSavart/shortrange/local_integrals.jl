@@ -161,11 +161,13 @@ function _add_local_integrals!(
     chunks = FilamentChunkIterator(fs)
     @sync for chunk in chunks
         isempty(chunk) && continue  # don't spawn a task if it will do no work
-        Threads.@spawn for i in chunk
+        Threads.@spawn let
             prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
             n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
-            fields_i = map(vs -> vs[i], fields)
-            n = _add_local_integrals!(fields_i, fs[i], n, cache; lia_segment_fraction)::Int
+            for i in chunk
+                fields_i = map(vs -> vs[i], fields)
+                n = _add_local_integrals!(fields_i, fs[i], n, cache; lia_segment_fraction)::Int
+            end
         end
     end
     fields
@@ -214,8 +216,9 @@ function _add_local_integrals!(
     quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
     @inbounds for i in eachindex(Xs)
         n += 1
-        # x⃗ = Xs[i]
-        x⃗ = nodes[n]  # this should be equal to Xs[i] up to a multiple of the domain period (`nodes` is always in [0, L], unlike `Xs`)
+        x⃗ = nodes[n]  # should be the same as below (avoids a few operations)
+        # x⃗_alt = Filaments.fold_coordinates_periodic(Xs[i], Ls)
+        # @assert x⃗ == x⃗_alt
         # Compute quadrature nodes and weights
         qdata_left = _compute_quadrature_data(f, i - 1, quad_near_singularity, lims[1])
         qdata_right = _compute_quadrature_data(f, i, quad_near_singularity, lims[2])

@@ -40,6 +40,7 @@ using KernelAbstractions:
     KernelAbstractions as KA, @kernel, @index, @Const,
     CPU, GPU
 using AcceleratedKernels: AcceleratedKernels as AK
+using StableTasks: StableTasks
 
 using StructArrays: StructArrays, StructVector, StructArray
 using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
