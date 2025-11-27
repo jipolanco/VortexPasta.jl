@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Optimise computation of `BiotSavart.add_local_integrals!` (computed on CPU when
+  `lia_segment_fraction` is set).
+
 ## [0.32.2] - 2025-11-26
 
 ### Changed
