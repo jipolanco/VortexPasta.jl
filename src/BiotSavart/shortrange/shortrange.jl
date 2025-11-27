@@ -46,11 +46,6 @@ function foreach_pair end
 
 function short_range_velocity end
 
-abstract type EwaldComponent end
-struct ShortRange <: EwaldComponent end
-struct LongRange <: EwaldComponent end
-struct FullIntegrand <: EwaldComponent end  # ShortRange + LongRange
-
 erf(x::SIMD.Vec) = verf(x)
 erfc(x::SIMD.Vec) = one(x) - erf(x)
 
