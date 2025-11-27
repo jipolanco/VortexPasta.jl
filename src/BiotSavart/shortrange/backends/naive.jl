@@ -31,7 +31,7 @@ end
 @inline function nearby_charges(c::NaiveShortRangeCache, x⃗::Vec3)
     (; pointdata,) = c
     # Note: it's not worth it to filter out charges that are too far from x⃗, since that job
-    # is done again in `biot_savart_contribution`.
+    # is done again when computing pair interactions.
     # So we simply return all charges one by one, regardless of x⃗.
     eachindex(pointdata.points, pointdata.charges)
 end
