@@ -1,5 +1,6 @@
 using VortexPasta.CellLists
 using VortexPasta.BiotSavart: Vec3, CPU, PseudoGPU
+using OpenCL, pocl_jll
 using Adapt: adapt
 using StaticArrays: SVector
 using StructArrays
@@ -58,7 +59,11 @@ end
 
 function construct_cell_list(r_cut, Ls; backend = CPU(), nsubdiv = Val(1))
     rs_cut = map(_ -> r_cut, Ls)
-    @inferred PeriodicCellList(backend, rs_cut, Ls, nsubdiv)
+    if backend isa OpenCLBackend
+        PeriodicCellList(backend, rs_cut, Ls, nsubdiv)  # not completely inferred
+    else
+        @inferred PeriodicCellList(backend, rs_cut, Ls, nsubdiv)
+    end
 end
 
 function compute_interaction_nearby_elements(f::F, cl::PeriodicCellList, xp, vp, r_cut) where {F}
@@ -232,7 +237,7 @@ function test_cell_lists()
         end
 
         @testset "Using foreach_pair (PseudoGPU)" begin
-            backend = PseudoGPU()
+            backend = VERSION < v"1.12" ? PseudoGPU() : OpenCLBackend()
             cl_gpu = construct_cell_list(r_cut, Ls; backend, nsubdiv = Val(nsubdiv))
             xp_gpu = adapt(backend, xp)
             vp_gpu = adapt(backend, vp)

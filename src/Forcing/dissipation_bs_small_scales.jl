@@ -111,7 +111,8 @@ end
     k⃗ = ntuple(d -> @inbounds(wavenumbers[d][idx[d]]), Val(length(idx)))
     k² = sum(abs2, k⃗)
     û_zero = map(v -> zero(v), û)
-    ifelse(k² > k²_max, û_zero, û)
+    # ifelse(k² > k²_max, û_zero, û)  # fails on OpenCL
+    k² > k²_max ? û_zero : û
 end
 
 function _update_cache!(cache, dissipation::SmallScaleDissipationBS)
