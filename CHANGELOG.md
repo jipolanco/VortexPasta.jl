@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.3] - 2025-11-27
+
 ### Changed
 
 - Optimise computation of `BiotSavart.add_local_integrals!` (computed on CPU when
