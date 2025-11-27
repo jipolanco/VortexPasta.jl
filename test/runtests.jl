@@ -9,9 +9,6 @@
 
 using Test
 using InteractiveUtils: versioninfo
-using ThreadPinning: ThreadPinning
-
-ThreadPinning.pinthreads(:cores)
 
 # Wraps each test file in a separate module, to avoid definition clashes and to make sure
 # that each file can also be run as a standalone script.

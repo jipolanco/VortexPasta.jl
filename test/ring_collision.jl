@@ -8,6 +8,7 @@ using OpenCL, pocl_jll
 using JET: JET
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
+using VortexPasta.BiotSavart: PseudoGPU  # for testing only
 using VortexPasta.Diagnostics: Diagnostics
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
@@ -125,7 +126,9 @@ end
         backend_long = NonuniformFFTsBackend(CPU()),
         backend_short = CellListsBackend(CPU()),
     )
-    backend = OpenCLBackend()
+    # The PseudoGPU type is internal. It is only used to test GPU-specific code when we
+    # don't have an actual GPU.
+    backend = VERSION < v"1.12" ? PseudoGPU() : OpenCLBackend()
     gpu = test_ring_collision(
         backend_long = NonuniformFFTsBackend(backend),
         backend_short = CellListsBackend(backend),

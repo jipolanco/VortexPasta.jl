@@ -237,7 +237,7 @@ function test_cell_lists()
         end
 
         @testset "Using foreach_pair (PseudoGPU)" begin
-            backend = OpenCLBackend()
+            backend = VERSION < v"1.12" ? PseudoGPU() : OpenCLBackend()
             cl_gpu = construct_cell_list(r_cut, Ls; backend, nsubdiv = Val(nsubdiv))
             xp_gpu = adapt(backend, xp)
             vp_gpu = adapt(backend, vp)
