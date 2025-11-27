@@ -44,7 +44,7 @@ function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilame
     chunks = FilamentChunkIterator(fs)  # defined in shortrange/shortrange.jl
     @sync for chunk in chunks
         isempty(chunk) && continue  # don't spawn a task if it will do no work
-        StableTasks.@spawn let
+        Threads.@spawn let
             prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
             n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
             for i in chunk
@@ -91,16 +91,15 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, n::Int, params:
         data.subsegment_lengths[1][n] = subsegs[1]
         data.subsegment_lengths[2][n] = subsegs[2]
         Δt = ts[i + 1] - ts[i]
-        qs = ws .* Δt  # rescaled quadrature weights
-        for j in eachindex(ζs, qs)
-            ζ = ζs[j]
+        for (ζ, w) ∈ zip(ζs, ws)
             s⃗ = f(i, ζ)
             s⃗′ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
             # Note: the vortex circulation Γ is included in the Ewald operator and
             # doesn't need to be included here.
             m += 1
+            q = w * Δt
             data.points[m] = Filaments.fold_coordinates_periodic(s⃗, Ls)
-            data.charges[m] = qs[j] * s⃗′
+            data.charges[m] = q * s⃗′
         end
     end
     @inbounds data.node_idx_prev[nfirst] = nlast  # account for periodic wrapping (closed filaments)
