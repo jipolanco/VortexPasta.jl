@@ -154,7 +154,7 @@ end
 ## Computation of local integral when lia_segment_fraction < 1
 
 function _add_local_integrals!(
-        fields::NamedTuple, fs::VectorOfFilaments, params::ParamsCommon;
+        fields::NamedTuple, fs::VectorOfFilaments, cache::BiotSavartCache;
         lia_segment_fraction
     )
     lia_segment_fraction === nothing && return fields
@@ -162,45 +162,79 @@ function _add_local_integrals!(
     @sync for chunk in chunks
         isempty(chunk) && continue  # don't spawn a task if it will do no work
         Threads.@spawn for i in chunk
+            prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
+            n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
             fields_i = map(vs -> vs[i], fields)
-            _add_local_integrals!(fields_i, fs[i], params; lia_segment_fraction)
+            n = _add_local_integrals!(fields_i, fs[i], n, cache; lia_segment_fraction)::Int
         end
     end
     fields
 end
 
+@inline function _compute_quadrature_data(f::ClosedFilament, i::Int, quad::StaticSizeQuadrature, lims::NTuple{2, Real})
+    Nq = length(quad)
+    ts = Filaments.knots(f)
+    ζs, ws = quadrature(quad)
+    a, b = lims
+    δ = b - a
+    Δt = @inbounds (ts[i + 1] - ts[i]) * δ
+    ys = ntuple(q -> a + δ * ζs[q], Val(Nq))  # rescale and translate quadrature points to integrate within wanted limits
+    s⃗_quad = ntuple(Val(Nq)) do q
+        @inline
+        @inbounds f(i, ys[q])
+    end
+    qs⃗′_quad = ntuple(Val(Nq)) do q
+        @inline
+        @inbounds ws[q] * Δt * f(i, ys[q], Derivative(1))
+    end
+    s⃗_quad, qs⃗′_quad
+end
+
 function _add_local_integrals!(
-        fields::NamedTuple{Names}, f::ClosedFilament, params::ParamsCommon;
+        fields::NamedTuple{Names}, f::ClosedFilament, n::Int, cache::BiotSavartCache;
         lia_segment_fraction
     ) where {Names}
     lia_segment_fraction === nothing && return fields
-    (; quad_near_singularity) = params
+    (; nodes) = cache.pointdata
+    params = cache.params.common
+    (; Γ, Ls, quad_near_singularity) = params
+    T = typeof(Γ)
     lims = nonlia_integration_limits(lia_segment_fraction)
-    Xs = nodes(f)
-    segs = segments(f)
-    Lhs = map(L -> L / 2, params.Ls)
-    prefactor = params.Γ / (4π)
+    Xs = Filaments.nodes(f)
+    Lhs = map(L -> L / 2, Ls)
+    prefactor = Γ / T(4π)
     quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
     @inbounds for i in eachindex(Xs)
-        x⃗ = Xs[i]
-        sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
-        sb = Segment(f, i)  # segment i
-        foreach(values(fields), values(quantities)) do vs, quantity
-            @inline
-            u⃗a = integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, limits = lims[1], quad = quad_near_singularity)
-            u⃗b = integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, limits = lims[2], quad = quad_near_singularity)
-            @inbounds vs[i] = vs[i] + prefactor * (u⃗a + u⃗b)
+        n += 1
+        # x⃗ = Xs[i]
+        x⃗ = nodes[n]  # this should be equal to Xs[i] up to a multiple of the domain period (`nodes` is always in [0, L], unlike `Xs`)
+        # Compute quadrature nodes and weights
+        qdata_left = _compute_quadrature_data(f, i - 1, quad_near_singularity, lims[1])
+        qdata_right = _compute_quadrature_data(f, i, quad_near_singularity, lims[2])
+        s⃗_quad_unfolded = (qdata_left[1]..., qdata_right[1]...)
+        s⃗_quad = map(s⃗ -> Filaments.fold_coordinates_periodic(s⃗, Ls), s⃗_quad_unfolded)
+        qs⃗′_quad = (qdata_left[2]..., qdata_right[2]...)
+        for j in eachindex(s⃗_quad)
+            s⃗ = s⃗_quad[j]
+            qs⃗′ = qs⃗′_quad[j]
+            r⃗ = Filaments.deperiodise_separation_folded(x⃗ - s⃗, Ls, Lhs)
+            r² = sum(abs2, r⃗)
+            r_norm = sqrt(r²)
+            r_inv = 1 / r_norm
+            foreach(values(fields), values(quantities)) do vs, quantity
+                @inline
+                @inbounds vs[i] = vs[i] + prefactor * Vec3(full_integrand(quantity, r_inv, Tuple(qs⃗′), Tuple(r⃗)))
+            end
         end
     end
-    fields
+    n
 end
 
 function add_local_integrals!(
         fields::NamedTuple, cache::BiotSavartCache, fs::VectorOfFilaments,
     )
-    (; params,) = cache
-    (; lia_segment_fraction,) = params.shortrange
+    (; lia_segment_fraction,) = cache.params.shortrange
     lia_segment_fraction === nothing && return fields  # nothing to do
-    _add_local_integrals!(fields, fs, params.common; lia_segment_fraction)
+    _add_local_integrals!(fields, fs, cache; lia_segment_fraction)
     fields
 end
