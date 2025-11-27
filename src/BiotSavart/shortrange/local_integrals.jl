@@ -228,7 +228,7 @@ function _add_local_integrals!(
             s_d = SIMD.Vec(map(x -> Filaments.fold_coordinates_periodic(x, Ls[d]), s⃗_quad_unfolded[d]))
             _simd_deperiodise_separation_folded(x⃗[d] - s_d, Ls[d], Lhs[d])
         end
-        qs⃗′_simd = map(Vec, qs⃗′_quad)
+        qs⃗′_simd = map(SIMD.Vec, qs⃗′_quad)
         r²s_simd = sum(abs2, r⃗s_simd)
         rs = sqrt(r²s_simd)
         rs_inv = inv(rs)
