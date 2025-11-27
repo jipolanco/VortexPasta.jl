@@ -153,42 +153,46 @@ end
 ## ========================================================================================== ##
 ## Computation of local integral when lia_segment_fraction < 1
 
-function add_local_integrals!(
-        vs::AbstractVector{<:VectorOfVec}, fs::VectorOfFilaments, quantity::OutputField, params::ParamsCommon;
+function _add_local_integrals!(
+        fields::NamedTuple, fs::VectorOfFilaments, params::ParamsCommon;
         lia_segment_fraction
     )
-    lia_segment_fraction === nothing && return vs
+    lia_segment_fraction === nothing && return fields
     chunks = FilamentChunkIterator(fs)
     @sync for chunk in chunks
         isempty(chunk) && continue  # don't spawn a task if it will do no work
         Threads.@spawn for i in chunk
-            @inbounds v, f = vs[i], fs[i]
-            add_local_integrals!(v, f, quantity, params; lia_segment_fraction)
+            fields_i = map(vs -> vs[i], fields)
+            _add_local_integrals!(fields_i, fs[i], params; lia_segment_fraction)
         end
     end
-    vs
+    fields
 end
 
-function add_local_integrals!(
-        vs::VectorOfVec, f::ClosedFilament, quantity::OutputField, params::ParamsCommon;
+function _add_local_integrals!(
+        fields::NamedTuple{Names}, f::ClosedFilament, params::ParamsCommon;
         lia_segment_fraction
-    )
-    lia_segment_fraction === nothing && return vs
+    ) where {Names}
+    lia_segment_fraction === nothing && return fields
     (; quad_near_singularity) = params
     lims = nonlia_integration_limits(lia_segment_fraction)
     Xs = nodes(f)
     segs = segments(f)
     Lhs = map(L -> L / 2, params.Ls)
     prefactor = params.Γ / (4π)
-    @inbounds for i in eachindex(Xs, vs)
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
+    @inbounds for i in eachindex(Xs)
         x⃗ = Xs[i]
         sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
         sb = Segment(f, i)  # segment i
-        u⃗a = integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, limits = lims[1], quad = quad_near_singularity)
-        u⃗b = integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, limits = lims[2], quad = quad_near_singularity)
-        vs[i] = vs[i] + prefactor * (u⃗a + u⃗b)
+        foreach(values(fields), values(quantities)) do vs, quantity
+            @inline
+            u⃗a = integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, limits = lims[1], quad = quad_near_singularity)
+            u⃗b = integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, limits = lims[2], quad = quad_near_singularity)
+            @inbounds vs[i] = vs[i] + prefactor * (u⃗a + u⃗b)
+        end
     end
-    vs
+    fields
 end
 
 function add_local_integrals!(
@@ -197,9 +201,6 @@ function add_local_integrals!(
     (; params,) = cache
     (; lia_segment_fraction,) = params.shortrange
     lia_segment_fraction === nothing && return fields  # nothing to do
-    ps = _fields_to_pairs(fields)
-    foreach(ps) do (quantity, vs)
-        add_local_integrals!(vs, fs, quantity, params.common; lia_segment_fraction)
-    end
+    _add_local_integrals!(fields, fs, params.common; lia_segment_fraction)
     fields
 end
