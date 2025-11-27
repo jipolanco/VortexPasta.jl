@@ -181,13 +181,20 @@ end
     ys = ntuple(q -> a + δ * ζs[q], Val(Nq))  # rescale and translate quadrature points to integrate within wanted limits
     s⃗_quad = ntuple(Val(Nq)) do q
         @inline
-        @inbounds f(i, ys[q])
+        @inbounds Tuple(f(i, ys[q]))
     end
     qs⃗′_quad = ntuple(Val(Nq)) do q
         @inline
-        @inbounds ws[q] * Δt * f(i, ys[q], Derivative(1))
+        @inbounds Tuple(ws[q] * Δt * f(i, ys[q], Derivative(1)))
     end
     s⃗_quad, qs⃗′_quad
+end
+
+@inline function _transpose_tuples(xs::NTuple{N, NTuple{M, T}}) where {N, M, T}
+    ntuple(Val(M)) do m
+        @inline
+        ntuple(n -> @inbounds(xs[n][m]), Val(N))::NTuple{N, T}
+    end
 end
 
 function _add_local_integrals!(
@@ -201,6 +208,7 @@ function _add_local_integrals!(
     T = typeof(Γ)
     lims = nonlia_integration_limits(lia_segment_fraction)
     Xs = Filaments.nodes(f)
+    N = length(Ls)
     Lhs = map(L -> L / 2, Ls)
     prefactor = Γ / T(4π)
     quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
@@ -211,20 +219,27 @@ function _add_local_integrals!(
         # Compute quadrature nodes and weights
         qdata_left = _compute_quadrature_data(f, i - 1, quad_near_singularity, lims[1])
         qdata_right = _compute_quadrature_data(f, i, quad_near_singularity, lims[2])
-        s⃗_quad_unfolded = (qdata_left[1]..., qdata_right[1]...)
-        s⃗_quad = map(s⃗ -> Filaments.fold_coordinates_periodic(s⃗, Ls), s⃗_quad_unfolded)
-        qs⃗′_quad = (qdata_left[2]..., qdata_right[2]...)
-        for j in eachindex(s⃗_quad)
-            s⃗ = s⃗_quad[j]
-            qs⃗′ = qs⃗′_quad[j]
-            r⃗ = Filaments.deperiodise_separation_folded(x⃗ - s⃗, Ls, Lhs)
-            r² = sum(abs2, r⃗)
-            r_norm = sqrt(r²)
-            r_inv = 1 / r_norm
-            foreach(values(fields), values(quantities)) do vs, quantity
+        s⃗_quad_unfolded = _transpose_tuples((qdata_left[1]..., qdata_right[1]...))::NTuple{N}  # one tuple per dimension
+        qs⃗′_quad = _transpose_tuples((qdata_left[2]..., qdata_right[2]...))::NTuple{N}
+        # Use explicit SIMD. Not sure this improves performance a lot, but it shouldn't hurt. Note
+        # that the SIMD width is the total number of quadrature nodes (= 2 * length(quad_near_singularity)).
+        r⃗s_simd = ntuple(Val(N)) do d
+            @inline
+            s_d = SIMD.Vec(map(x -> Filaments.fold_coordinates_periodic(x, Ls[d]), s⃗_quad_unfolded[d]))
+            _simd_deperiodise_separation_folded(x⃗[d] - s_d, Ls[d], Lhs[d])
+        end
+        qs⃗′_simd = map(Vec, qs⃗′_quad)
+        r²s_simd = sum(abs2, r⃗s_simd)
+        rs = sqrt(r²s_simd)
+        rs_inv = inv(rs)
+        foreach(values(fields), values(quantities)) do vs, quantity
+            @inline
+            δu⃗_simd = full_integrand(quantity, rs_inv, qs⃗′_simd, r⃗s_simd)
+            δu⃗_data = map(δu⃗_simd) do component
                 @inline
-                @inbounds vs[i] = vs[i] + prefactor * Vec3(full_integrand(quantity, r_inv, Tuple(qs⃗′), Tuple(r⃗)))
+                sum(component)  # reduction operation: sum the W elements
             end
+            @inbounds vs[i] = vs[i] + prefactor * Vec3(δu⃗_data)
         end
     end
     n
