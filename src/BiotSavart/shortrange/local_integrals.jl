@@ -222,8 +222,8 @@ function _add_local_integrals!(
         # Compute quadrature nodes and weights
         qdata_left = _compute_quadrature_data(f, i - 1, quad_near_singularity, lims[1])
         qdata_right = _compute_quadrature_data(f, i, quad_near_singularity, lims[2])
-        s⃗_quad_unfolded = _transpose_tuples((qdata_left[1]..., qdata_right[1]...))::NTuple{N}  # one tuple per dimension
-        qs⃗′_quad = _transpose_tuples((qdata_left[2]..., qdata_right[2]...))::NTuple{N}
+        s⃗_quad_unfolded = _transpose_tuples((qdata_left[1]..., qdata_right[1]...))
+        qs⃗′_quad = _transpose_tuples((qdata_left[2]..., qdata_right[2]...))
         # Use explicit SIMD. Not sure this improves performance a lot, but it shouldn't hurt. Note
         # that the SIMD width is the total number of quadrature nodes (= 2 * length(quad_near_singularity)).
         r⃗s_simd = ntuple(Val(N)) do d
