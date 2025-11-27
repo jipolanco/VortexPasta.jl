@@ -115,7 +115,7 @@ reset_timer!(cache.to)
 SUITE["BiotSavart"]["velocity"] = @benchmarkable BiotSavart.velocity_on_nodes!($vs, $cache, $fs)
 SUITE["BiotSavart"]["velocity + streamfunction"] = @benchmarkable BiotSavart.compute_on_nodes!($fields, $cache, $fs)
 
-SUITE["BiotSavart"]["add_local_integrals!"] = @benchmarkable BiotSavart.add_local_integrals!($fields, $params, $fs)
+SUITE["BiotSavart"]["add_local_integrals!"] = @benchmarkable BiotSavart.add_local_integrals!($fields, $cache, $fs)
 
 ## Define reconnection benchmarks
 

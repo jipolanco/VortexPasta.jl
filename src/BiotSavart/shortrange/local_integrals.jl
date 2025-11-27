@@ -192,8 +192,9 @@ function add_local_integrals!(
 end
 
 function add_local_integrals!(
-        fields::NamedTuple, params::ParamsBiotSavart, fs::VectorOfFilaments,
+        fields::NamedTuple, cache::BiotSavartCache, fs::VectorOfFilaments,
     )
+    (; params,) = cache
     (; lia_segment_fraction,) = params.shortrange
     lia_segment_fraction === nothing && return fields  # nothing to do
     ps = _fields_to_pairs(fields)

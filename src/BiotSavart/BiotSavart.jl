@@ -583,7 +583,7 @@ function _compute_on_nodes!(
     if with_shortrange && LIA !== Val(:only)
         @timeit to "CPU-only operations (synchronous)" begin
             if params.shortrange.lia_segment_fraction !== nothing
-                @timeit to "Add local integrals" add_local_integrals!(fields, cache.params, fs)
+                @timeit to "Add local integrals" add_local_integrals!(fields, cache, fs)
             end
             # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
             @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
