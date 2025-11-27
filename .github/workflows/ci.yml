@@ -18,6 +18,13 @@ jobs:
     env:
       JULIA_NUM_THREADS: 4
       JULIA_ENABLE_JET_KA_TESTS: false  # disable JET.jl tests involving KernelAbstractions kernels (they generally fail...)
+      # https://portablecl.org/docs/html/using.html#tuning-pocl-behavior-with-env-variables
+      POCL_CPU_MAX_CU_COUNT: 4  # limit number of CPU threads used by OpenCLBackend (based on POCL)
+      # POCL_DEBUG: error,warning,general
+      # POCL_DEVICES: cpu-minimal
+      POCL_AFFINITY: 1  # not sure if this is useful
+      POCL_WORK_GROUP_METHOD: cbs  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
+
     strategy:
       fail-fast: true
       matrix:
