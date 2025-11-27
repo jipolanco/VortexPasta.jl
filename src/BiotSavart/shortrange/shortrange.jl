@@ -46,11 +46,6 @@ function foreach_pair end
 
 function short_range_velocity end
 
-abstract type EwaldComponent end
-struct ShortRange <: EwaldComponent end
-struct LongRange <: EwaldComponent end
-struct FullIntegrand <: EwaldComponent end  # ShortRange + LongRange
-
 erf(x::SIMD.Vec) = verf(x)
 erfc(x::SIMD.Vec) = one(x) - erf(x)
 
@@ -60,89 +55,9 @@ erfc(x::AbstractFloat) = SpecialFunctions.erfc(x)
 erf(::Zero) = Zero()
 erfc(::Zero) = One()
 
-@inline two_over_sqrt_pi(::SIMD.Vec{W,T}) where {W,T} = 2 / sqrt(T(π))
+@inline two_over_sqrt_pi(::SIMD.Vec{W, T}) where {W, T} = 2 / sqrt(T(π))
 @inline two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
 @inline two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway
-
-ewald_screening_function(::Velocity,       ::ShortRange, αr::Real) = erfc(αr) + two_over_sqrt_pi(αr) * αr * exp(-αr^2)
-ewald_screening_function(::Streamfunction, ::ShortRange, αr::Real) = erfc(αr)
-
-ewald_screening_function(::Velocity,       ::LongRange, αr::Real) = erf(αr) - two_over_sqrt_pi(αr) * αr * exp(-αr^2)
-ewald_screening_function(::Streamfunction, ::LongRange, αr::Real) = erf(αr)
-
-# This simply corresponds to the unmodified BS integrals.
-ewald_screening_function(::Velocity,       ::FullIntegrand, αr) = true
-ewald_screening_function(::Streamfunction, ::FullIntegrand, αr) = true
-
-biot_savart_integrand(::Velocity, s⃗′, r⃗, r) = (s⃗′ × r⃗) / r^3
-biot_savart_integrand(::Streamfunction, s⃗′, r⃗, r) = s⃗′ / r
-
-# Evaluation of long-range integrands at r = 0.
-# These are non-singular and can be obtained from Taylor expansions close to r = 0.
-# Currently we don't use them but we keep them here just in case.
-long_range_bs_integrand_at_zero(::Velocity, α, s⃗′) = zero(s⃗′)
-long_range_bs_integrand_at_zero(::Streamfunction, α, s⃗′) = 2 * α / sqrt(π) * s⃗′
-
-@inline function modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
-    # This is generally not reached as we don't evaluate exactly on nodes.
-    # But it could be useful in the future.
-    if component === LongRange() && iszero(r²)
-        # In this case the result of `biot_savart_integrand` is `NaN`, but the actual
-        # integrand when multiplied by the splitting function is well defined.
-        return oftype(s⃗′, long_range_bs_integrand_at_zero(quantity, α, s⃗′))
-    end
-    r = sqrt(r²)
-    g = ewald_screening_function(quantity, component, α * r)
-    w⃗ = biot_savart_integrand(quantity, s⃗′, r⃗, r)
-    oftype(s⃗′, g * w⃗)  # we assume w⃗ is a vector...
-end
-
-# Compute the contribution of a single filament point to the Biot-Savart integral on a given
-# point x⃗. Note: this doesn't include the prefactor Γ/4π.
-@inline function biot_savart_contribution(
-        quantity::OutputField,      # Velocity() or Streamfunction()
-        component::EwaldComponent,  # ShortRange() or LongRange()
-        params::ParamsCommon,
-        x⃗::V,    # point where quantity is computed
-        s⃗::V,    # curve location s⃗(t)
-        qs⃗′::V;  # curve derivative s⃗′(t) (optionally multiplied by a quadrature weight)
-        Lhs = map(L -> L / 2, params.Ls),  # this allows to precompute Ls / 2
-        rcut² = nothing,
-    ) where {V <: Vec3{<:Real}}
-    # Cut-off distance should be given if and only if we're computing the short-range
-    # component.
-    @assert (rcut² !== nothing) === (component === ShortRange())
-    (; Ls, α,) = params
-    r⃗ = deperiodise_separation(x⃗ - s⃗, Ls, Lhs)
-    r² = sum(abs2, r⃗)
-    if rcut² !== nothing && r² > rcut²
-        # The short-range backend may allow some pair interactions beyond the cutoff.
-        return zero(r⃗)
-    end
-    @assert typeof(r⃗) === typeof(qs⃗′)  # should be true for type stability reasons...
-    modified_bs_integrand(quantity, component, qs⃗′, r⃗, r², α) :: V
-end
-
-# Compute Biot-Savart integral over a single filament segment.
-# Note: this doesn't include the prefactor Γ/4π.
-function integrate_biot_savart(
-        quantity::OutputField,
-        component::EwaldComponent,
-        seg::Segment,
-        x⃗::Vec3,
-        params::ParamsCommon;
-        quad = params.quad,
-        Lhs = map(L -> L / 2, params.Ls),  # this allows to precompute Ls / 2
-        rcut² = nothing,
-        limits::Union{Nothing, NTuple{2, Real}} = nothing,
-    )
-    integrate(seg, quad; limits) do seg, ζ
-        @inline
-        s⃗ = seg(ζ)
-        s⃗′ = seg(ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
-        biot_savart_contribution(quantity, component, params, x⃗, s⃗, s⃗′; Lhs, rcut²)
-    end :: typeof(x⃗)
-end
 
 # ==================================================================================================== #
 

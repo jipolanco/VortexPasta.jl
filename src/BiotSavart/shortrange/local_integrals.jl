@@ -153,53 +153,106 @@ end
 ## ========================================================================================== ##
 ## Computation of local integral when lia_segment_fraction < 1
 
-function add_local_integrals!(
-        vs::AbstractVector{<:VectorOfVec}, fs::VectorOfFilaments, quantity::OutputField, params::ParamsCommon;
+function _add_local_integrals!(
+        fields::NamedTuple, fs::VectorOfFilaments, cache::BiotSavartCache;
         lia_segment_fraction
     )
-    lia_segment_fraction === nothing && return vs
+    lia_segment_fraction === nothing && return fields
     chunks = FilamentChunkIterator(fs)
     @sync for chunk in chunks
         isempty(chunk) && continue  # don't spawn a task if it will do no work
-        Threads.@spawn for i in chunk
-            @inbounds v, f = vs[i], fs[i]
-            add_local_integrals!(v, f, quantity, params; lia_segment_fraction)
+        Threads.@spawn let
+            prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
+            n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
+            for i in chunk
+                fields_i = map(vs -> vs[i], fields)
+                n = _add_local_integrals!(fields_i, fs[i], n, cache; lia_segment_fraction)::Int
+            end
         end
     end
-    vs
+    fields
 end
 
-function add_local_integrals!(
-        vs::VectorOfVec, f::ClosedFilament, quantity::OutputField, params::ParamsCommon;
-        lia_segment_fraction
-    )
-    lia_segment_fraction === nothing && return vs
-    (; quad_near_singularity) = params
-    lims = nonlia_integration_limits(lia_segment_fraction)
-    Xs = nodes(f)
-    segs = segments(f)
-    Lhs = map(L -> L / 2, params.Ls)
-    prefactor = params.Γ / (4π)
-    @inbounds for i in eachindex(Xs, vs)
-        x⃗ = Xs[i]
-        sa = Segment(f, ifelse(i == firstindex(segs), lastindex(segs), i - 1))  # segment i - 1 (with periodic wrapping)
-        sb = Segment(f, i)  # segment i
-        u⃗a = integrate_biot_savart(quantity, FullIntegrand(), sa, x⃗, params; Lhs, limits = lims[1], quad = quad_near_singularity)
-        u⃗b = integrate_biot_savart(quantity, FullIntegrand(), sb, x⃗, params; Lhs, limits = lims[2], quad = quad_near_singularity)
-        vs[i] = vs[i] + prefactor * (u⃗a + u⃗b)
+@inline function _compute_quadrature_data(f::ClosedFilament, i::Int, quad::StaticSizeQuadrature, lims::NTuple{2, Real})
+    Nq = length(quad)
+    ts = Filaments.knots(f)
+    ζs, ws = quadrature(quad)
+    a, b = lims
+    δ = b - a
+    Δt = @inbounds (ts[i + 1] - ts[i]) * δ
+    ys = ntuple(q -> a + δ * ζs[q], Val(Nq))  # rescale and translate quadrature points to integrate within wanted limits
+    s⃗_quad = ntuple(Val(Nq)) do q
+        @inline
+        @inbounds Tuple(f(i, ys[q]))
     end
-    vs
+    qs⃗′_quad = ntuple(Val(Nq)) do q
+        @inline
+        @inbounds Tuple(ws[q] * Δt * f(i, ys[q], Derivative(1)))
+    end
+    s⃗_quad, qs⃗′_quad
+end
+
+@inline function _transpose_tuples(xs::NTuple{N, NTuple{M, T}}) where {N, M, T}
+    ntuple(Val(M)) do m
+        @inline
+        ntuple(n -> @inbounds(xs[n][m]), Val(N))::NTuple{N, T}
+    end
+end
+
+function _add_local_integrals!(
+        fields::NamedTuple{Names}, f::ClosedFilament, n::Int, cache::BiotSavartCache;
+        lia_segment_fraction
+    ) where {Names}
+    lia_segment_fraction === nothing && return fields
+    (; nodes) = cache.pointdata
+    params = cache.params.common
+    (; Γ, Ls, quad_near_singularity) = params
+    T = typeof(Γ)
+    lims = nonlia_integration_limits(lia_segment_fraction)
+    Xs = Filaments.nodes(f)
+    N = length(Ls)
+    Lhs = map(L -> L / 2, Ls)
+    prefactor = Γ / T(4π)
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
+    @inbounds for i in eachindex(Xs)
+        n += 1
+        x⃗ = nodes[n]  # should be the same as below (avoids a few operations)
+        # x⃗_alt = Filaments.fold_coordinates_periodic(Xs[i], Ls)
+        # @assert x⃗ == x⃗_alt
+        # Compute quadrature nodes and weights
+        qdata_left = _compute_quadrature_data(f, i - 1, quad_near_singularity, lims[1])
+        qdata_right = _compute_quadrature_data(f, i, quad_near_singularity, lims[2])
+        s⃗_quad_unfolded = _transpose_tuples((qdata_left[1]..., qdata_right[1]...))
+        qs⃗′_quad = _transpose_tuples((qdata_left[2]..., qdata_right[2]...))
+        # Use explicit SIMD. Not sure this improves performance a lot, but it shouldn't hurt. Note
+        # that the SIMD width is the total number of quadrature nodes (= 2 * length(quad_near_singularity)).
+        r⃗s_simd = ntuple(Val(N)) do d
+            @inline
+            s_d = SIMD.Vec(map(x -> Filaments.fold_coordinates_periodic(x, Ls[d]), s⃗_quad_unfolded[d]))
+            _simd_deperiodise_separation_folded(x⃗[d] - s_d, Ls[d], Lhs[d])
+        end
+        qs⃗′_simd = map(SIMD.Vec, qs⃗′_quad)
+        r²s_simd = sum(abs2, r⃗s_simd)
+        rs = sqrt(r²s_simd)
+        rs_inv = inv(rs)
+        foreach(values(fields), values(quantities)) do vs, quantity
+            @inline
+            δu⃗_simd = full_integrand(quantity, rs_inv, qs⃗′_simd, r⃗s_simd)
+            δu⃗_data = map(δu⃗_simd) do component
+                @inline
+                sum(component)  # reduction operation: sum the W elements
+            end
+            @inbounds vs[i] = vs[i] + prefactor * Vec3(δu⃗_data)
+        end
+    end
+    n
 end
 
 function add_local_integrals!(
         fields::NamedTuple, cache::BiotSavartCache, fs::VectorOfFilaments,
     )
-    (; params,) = cache
-    (; lia_segment_fraction,) = params.shortrange
+    (; lia_segment_fraction,) = cache.params.shortrange
     lia_segment_fraction === nothing && return fields  # nothing to do
-    ps = _fields_to_pairs(fields)
-    foreach(ps) do (quantity, vs)
-        add_local_integrals!(vs, fs, quantity, params.common; lia_segment_fraction)
-    end
+    _add_local_integrals!(fields, fs, cache; lia_segment_fraction)
     fields
 end

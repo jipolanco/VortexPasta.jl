@@ -96,8 +96,10 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, n::Int, params:
             s⃗′ = f(i, ζ, Derivative(1))  # = ∂f/∂t (w.r.t. filament parametrisation / knots)
             # Note: the vortex circulation Γ is included in the Ewald operator and
             # doesn't need to be included here.
+            m += 1
             q = w * Δt
-            _add_pointcharge!(data, s⃗, q * s⃗′, Ls, m += 1)
+            data.points[m] = Filaments.fold_coordinates_periodic(s⃗, Ls)
+            data.charges[m] = q * s⃗′
         end
     end
     @inbounds data.node_idx_prev[nfirst] = nlast  # account for periodic wrapping (closed filaments)
@@ -126,16 +128,10 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, n::Int, params:
         data.subsegment_lengths[2][n] = γ * norm(f[i + 1] - f[i])
         s⃗ = (f[i] + f[i + 1]) ./ 2   # segment midpoint as quadrature node
         s⃗′_dt = f[i + 1] - f[i]
-        _add_pointcharge!(data, s⃗, s⃗′_dt, Ls, n)
+        @inbounds data.points[n] = Filaments.fold_coordinates_periodic(s⃗, Ls)
+        @inbounds data.charges[n] = s⃗′_dt
     end
     @inbounds data.node_idx_prev[nfirst] = nlast  # account for periodic wrapping (closed filaments)
     @assert n == nlast
     n
 end
-
-@inline function _add_pointcharge!(data::PointData, X::Vec3, Q::Vec3, Ls::NTuple{3}, i::Int)
-    @inbounds data.points[i] = Filaments.fold_coordinates_periodic(X, Ls)
-    @inbounds data.charges[i] = Q
-    data
-end
-

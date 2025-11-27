@@ -5,6 +5,7 @@ using VortexPasta.Filaments
 using VortexPasta.Filaments: GeometricQuantity, Vec3
 using VortexPasta.BiotSavart
 using VortexPasta.Diagnostics
+using SpecialFunctions: erf
 using ForwardDiff: ForwardDiff
 using FFTW: FFTW
 using LaTeXStrings  # used for plots only (L"...")
@@ -371,23 +372,20 @@ longrange_modified_bs_integrand_taylor(::Streamfunction, s⃗′, r⃗, α) =
     s⃗′ * (2 * α / sqrt(π))
 
 function test_long_range_accuracy_near_zero(::Type{T}, quantity) where {T}
-    component = BiotSavart.LongRange()
     s⃗′ = Vec3{T}(0.3, 0.4, -0.5)  # not important
     α = T(2.3)
     @testset "Near zero" begin
         r⃗ = Vec3{T}(0.0, 0.0, 0.0) .+ T(8) * sqrt(eps(1.0))
         r² = sum(abs2, r⃗)
-        integrand = BiotSavart.modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
+        r = sqrt(r²)
+        r_inv = 1 / r
+        αr = α * r
+        erf_αr = erf(αr)
+        exp_term = BiotSavart.two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))
+        qs⃗′ = s⃗′
+        integrand = Vec3(BiotSavart.long_range_integrand(quantity, erf_αr, exp_term, r_inv, Tuple(qs⃗′), Tuple(r⃗)))
         integrand_taylor = longrange_modified_bs_integrand_taylor(quantity, s⃗′, r⃗, α)
         @test isapprox(integrand, integrand_taylor; rtol = 1e-4)
-    end
-    @testset "At zero" begin
-        r⃗ = Vec3{T}(0.0, 0.0, 0.0)
-        r² = sum(abs2, r⃗)
-        # This should call the internal BiotSavart.long_range_bs_integrand_at_zero function.
-        integrand = BiotSavart.modified_bs_integrand(quantity, component, s⃗′, r⃗, r², α)
-        integrand_taylor = longrange_modified_bs_integrand_taylor(quantity, s⃗′, r⃗, α)
-        @test integrand == integrand_taylor
     end
     nothing
 end

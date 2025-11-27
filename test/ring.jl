@@ -254,21 +254,6 @@ function test_lia_segment_fraction()
     fields = (velocity = vs_all, streamfunction = ψs_all)
     compute_on_nodes!(fields, cache, fs)
 
-    # seg = Filaments.Segment(fs[1], 3)
-    # x⃗ = fs[1](3, 0.3)
-    # @time y⃗ = BiotSavart.integrate_biot_savart(
-    #     BiotSavart.Velocity(),
-    #     BiotSavart.FullIntegrand(),
-    #     seg, x⃗,
-    #     params.common,
-    # )
-    # @time y⃗ = BiotSavart.integrate_biot_savart(
-    #     BiotSavart.Velocity(),
-    #     BiotSavart.FullIntegrand(),
-    #     seg, x⃗,
-    #     params.common,
-    # )
-
     vz = map(v -> v.z, vs_all[1])
     vz_avg = mean(vz)
     vz_std = std(vz; corrected = false)
