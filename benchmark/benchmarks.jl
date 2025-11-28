@@ -68,15 +68,17 @@ end
 
 @kwdef struct RandomRings{T} <: VFMInitialCondition
     nrings::Int
-    R::T
+    R_min::T
+    R_max::T
 end
 
 function generate_filaments(rings::RandomRings; Ls, l_res, method)
-    (; nrings, R,) = rings
+    (; nrings, R_min, R_max) = rings
     rng = StableRNG(42)
-    N = ceil(Int, 2π * R / l_res)
     map(1:nrings) do _
         T = eltype(Ls)
+        R = R_min + rand(rng) * (R_max - R_min)
+        N = ceil(Int, 2π * R / l_res)
         translate = Ls .* rand(rng, Vec3{T})
         rotate = rand(rng, Rotations.QuatRotation)
         S = define_curve(Ring(); scale = R, translate, rotate)
@@ -97,8 +99,11 @@ SUITE["CellLists"] = CellListsBenchmarks.main()
 Ls = (2π, 2π, 2π)
 l_res = Ls[1] / 128  # typical line resolution
 method = QuinticSplineMethod()
-initial_condition = RandomRings(nrings = 500, R = π / 3)
+initial_condition = RandomRings(nrings = 1000, R_min = l_res, R_max = π / 3)
+# initial_condition = RandomRings(nrings = 500, R_min = π / 3, R_max = π / 3)
 fs = VectorOfVectors(generate_filaments(initial_condition; Ls, l_res, method))
+npoints = sum(length, fs)  # ~ 70000 points
+@show npoints
 
 ## Define Biot–Savart benchmarks
 
