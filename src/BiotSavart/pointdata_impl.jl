@@ -134,7 +134,12 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, inds::UnitRange
     @inbounds for i in inds
         n += 1
         data.nodes[n] = Filaments.fold_coordinates_periodic(f[i], Ls)
-        data.node_idx_prev[n] = n == firstindex(f) ? lastindex(f) : n - 1  # account for periodic wrapping (closed filaments)
+        data.node_idx_prev[n] = if i == firstindex(f)
+            # Account for periodic wrapping (closed flaments)
+            n + length(f) - 1  # linear index of last node
+        else
+            n - 1
+        end
         data.derivatives_on_nodes[1][n] = f[i, Derivative(1)]
         data.derivatives_on_nodes[2][n] = f[i, Derivative(2)]
         data.subsegment_lengths[1][n] = γ * norm(f[i] - f[i - 1])
