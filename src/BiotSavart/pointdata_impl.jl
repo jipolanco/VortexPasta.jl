@@ -42,13 +42,23 @@ function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilame
     Np = count_nodes(fs)
     set_num_points!(data, Np, params.quad)
     chunks = FilamentChunkIterator(fs)  # defined in shortrange/shortrange.jl
-    @sync for chunk in chunks
-        isempty(chunk) && continue  # don't spawn a task if it will do no work
+    @sync for (chunk, inds) in chunks
         Threads.@spawn let
-            prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
+            a, b = inds  # first and last node in first and last filaments of the chunk
+            i = first(chunk)
+            prev_indices = firstindex(fs):(i - 1)    # filament indices given to all previous chunks
             n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
-            for i in chunk
-                n = _add_point_charges!(data, fs[i], n, params, params.quad)
+            n += a - firstindex(fs[i])  # add nodes of current filament considered by previous threads
+            if length(chunk) == 1  # this chunk concerns a single filament
+                _add_point_charges!(data, fs[i], a:b, n, params, params.quad)
+            else
+                n = _add_point_charges!(data, fs[i], a:lastindex(fs[i]), n, params, params.quad)  # first filament of chunk
+                for i in chunk[2:(end - 1)]
+                    n = _add_point_charges!(data, fs[i], eachindex(fs[i]), n, params, params.quad)
+                end
+                let i = last(chunk)
+                    _add_point_charges!(data, fs[i], firstindex(fs[i]):b, n, params, params.quad)  # last filament of chunk
+                end
             end
         end
     end
@@ -67,24 +77,29 @@ end
     δ⁻, δ⁺
 end
 
-function _add_point_charges!(data::PointData, f::ClosedFilament, n::Int, params::ParamsBiotSavart, quad::StaticSizeQuadrature)
+function _add_point_charges!(data::PointData, f::ClosedFilament, inds::AbstractUnitRange, n::Int, params::ParamsBiotSavart, quad::StaticSizeQuadrature)
     (; Ls) = params
     (; lia_segment_fraction) = params.shortrange
     @assert eachindex(data.nodes) == eachindex(data.node_idx_prev) == eachindex(data.derivatives_on_nodes[1]) == eachindex(data.subsegment_lengths[1])
     @assert eachindex(data.points) == eachindex(data.charges)
     m = length(quad) * n  # current index in points/charges vectors
-    nfirst = n + 1
-    nlast = n + length(segments(f))
+    nlast = n + length(inds)
     mlast = length(quad) * nlast
-    checkbounds(data.nodes, nlast)
-    checkbounds(data.points, mlast)
+    checkbounds(f, inds)
+    checkbounds(data.nodes, (n + 1):nlast)
+    checkbounds(data.points, (m + 1):mlast)
     ζs, ws = quadrature(quad)
     ts = knots(f)
     subsegment_lims = lia_integration_limits(lia_segment_fraction)
-    @inbounds for i in eachindex(nodes(f))
+    @inbounds for i in inds
         n += 1
         data.nodes[n] = Filaments.fold_coordinates_periodic(f[i], Ls)
-        data.node_idx_prev[n] = n - 1
+        data.node_idx_prev[n] = if i == firstindex(f)
+            # Account for periodic wrapping (closed flaments)
+            n + length(f) - 1  # linear index of last node
+        else
+            n - 1
+        end
         data.derivatives_on_nodes[1][n] = f[i, Derivative(1)]
         data.derivatives_on_nodes[2][n] = f[i, Derivative(2)]
         subsegs = _compute_subsegment_lengths(f, i, quad, subsegment_lims)
@@ -102,26 +117,29 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, n::Int, params:
             data.charges[m] = q * s⃗′
         end
     end
-    @inbounds data.node_idx_prev[nfirst] = nlast  # account for periodic wrapping (closed filaments)
     @assert n == nlast
     @assert m == mlast
     n
 end
 
-function _add_point_charges!(data::PointData, f::ClosedFilament, n::Int, params::ParamsBiotSavart, ::NoQuadrature)
+function _add_point_charges!(data::PointData, f::ClosedFilament, inds::UnitRange, n::Int, params::ParamsBiotSavart, ::NoQuadrature)
     (; Ls) = params
     (; lia_segment_fraction) = params.shortrange
     @assert eachindex(data.nodes) == eachindex(data.points) == eachindex(data.charges) ==
         eachindex(data.derivatives_on_nodes[1]) == eachindex(data.subsegment_lengths[1])
-    nfirst = n + 1
-    nlast = n + length(segments(f))
+    nlast = n + length(inds)
     checkbounds(data.nodes, nlast)
     checkbounds(data.points, nlast)
     γ = something(lia_segment_fraction, true)  # true in the sense of 1 (if segment_fraction == nothing)
-    @inbounds for i in eachindex(nodes(f))
+    @inbounds for i in inds
         n += 1
         data.nodes[n] = Filaments.fold_coordinates_periodic(f[i], Ls)
-        data.node_idx_prev[n] = n - 1
+        data.node_idx_prev[n] = if i == firstindex(f)
+            # Account for periodic wrapping (closed flaments)
+            n + length(f) - 1  # linear index of last node
+        else
+            n - 1
+        end
         data.derivatives_on_nodes[1][n] = f[i, Derivative(1)]
         data.derivatives_on_nodes[2][n] = f[i, Derivative(2)]
         data.subsegment_lengths[1][n] = γ * norm(f[i] - f[i - 1])
@@ -131,7 +149,6 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, n::Int, params:
         @inbounds data.points[n] = Filaments.fold_coordinates_periodic(s⃗, Ls)
         @inbounds data.charges[n] = s⃗′_dt
     end
-    @inbounds data.node_idx_prev[nfirst] = nlast  # account for periodic wrapping (closed filaments)
     @assert n == nlast
     n
 end

@@ -83,8 +83,8 @@ function test_ring_collision(;
             velocity_perpendicular_to_tangent &= abs(v⃗ ⋅ t̂) / norm(v⃗) < 1e-4
             velocity_towards_outside &= isapprox(v⃗_perp ⋅ ρ⃗, -norm(v⃗_perp) * norm(ρ⃗))
         end
-        @test velocity_perpendicular_to_tangent
-        @test velocity_towards_outside
+        @test velocity_perpendicular_to_tangent == true
+        @test velocity_towards_outside == true
     end
 
     # Expected radial velocity of a vortex ring (induced only by the other ring).

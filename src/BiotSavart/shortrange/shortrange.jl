@@ -61,11 +61,10 @@ erfc(::Zero) = One()
 
 # ==================================================================================================== #
 
-# Try to distribute filaments over different threads so that each thread has approximately
-# the same number of filament nodes (discrete points).
-# Actually, the number of nodes per filament may be very unequal in practical situations, with
-# e.g. a single filament having a lot of points and many other small filaments.
-# In this case, we may end up with empty chunks (and thus "inactive" threads).
+# Try to distribute filaments nodes over different threads so that each thread has approximately
+# the same number of filament nodes (discrete points). In fact, the number of nodes per
+# filament may be very unequal in practical situations, with e.g. a single filament having a
+# lot of points and many other small filaments, so this can help with load balancing.
 struct FilamentChunkIterator{Filaments <: AbstractVector{<:AbstractVector}}
     fs::Filaments
     nchunks::Int
@@ -74,38 +73,84 @@ end
 FilamentChunkIterator(fs::VectorOfFilaments; nchunks = Threads.nthreads()) =
     FilamentChunkIterator(fs, nchunks)
 
-Base.IteratorSize(::Type{<:FilamentChunkIterator}) = Base.HasLength()
+Base.IteratorSize(::Type{<:FilamentChunkIterator}) = Base.SizeUnknown()  # the iterator may generate less than `nchunks` elements
 Base.IteratorEltype(::Type{<:FilamentChunkIterator}) = Base.HasEltype()
-Base.length(it::FilamentChunkIterator) = it.nchunks
-Base.eltype(::FilamentChunkIterator) = typeof(1:10)  # = UnitRange{Int}
+Base.eltype(::FilamentChunkIterator) = typeof((1:10, (2, 4)))  # = Tuple{UnitRange{Int}, Tuple{Int, Int}} = (i:j, (i_node_idx, j_node_idx))
 
 function Base.iterate(it::FilamentChunkIterator)
     (; fs,) = it
+    isempty(fs) && return nothing
     Np_total = sum(length, fs)  # total number of filament nodes
     Np_accumulated = zero(Np_total)
     nchunk = 0  # index of current chunk
-    j_prev = firstindex(fs) - 1  # last filament of previous chunk
-    state = (; nchunk, j_prev, Np_total, Np_accumulated)
+    Base.require_one_based_indexing(fs)
+    Base.require_one_based_indexing(first(fs))
+    i_next = firstindex(fs)                  # first filament of next chunk (i)
+    i_node_idx_next = firstindex(first(fs))  # first node of filament i_next to be considered (i_node_idx)
+    state = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)
     iterate(it, state)
 end
 
 function Base.iterate(it::FilamentChunkIterator, state)
     (; fs, nchunks,) = it
-    (; nchunk, j_prev, Np_total, Np_accumulated,) = state
-    if nchunk == it.nchunks
+    (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated,) = state
+    if nchunk == nchunks || i_next == lastindex(fs) + 1
         return nothing  # we're done iterating
     end
+    checkbounds(fs[i_next], i_node_idx_next)  # i_node_idx_next is a node index of the next filament
     nchunk += 1
-    Np_accumulated_wanted = (nchunk * Np_total) ÷ nchunks  # how many nodes do we want up to this chunk included
-    j = j_prev  # where this chunk ends
-    i = j + 1   # where this chunk starts
-    @inbounds while Np_accumulated < Np_accumulated_wanted && j < lastindex(fs)
-        j += 1
-        Np_accumulated += length(fs[j])
+    # Make sure Np_accumulated_wanted is a multiple of a small power of 2. This might help
+    # with false sharing issues (not sure).
+    p = 16
+    Np_accumulated_wanted = ((Np_total * nchunk) ÷ (nchunks * p)) * p
+    if nchunk == nchunks
+        Np_accumulated_wanted = Np_total  # make sure we iterate over all points by the last iteration
     end
-    j_prev = j
-    state_new = (; nchunk, j_prev, Np_total, Np_accumulated)::typeof(state)
-    i:j, state_new
+    if Np_accumulated_wanted == Np_accumulated
+        # Nothing to do, iterate recursively with new value of nchunk
+        state_new = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)::typeof(state)
+        return iterate(it, state_new)
+    end
+    i = i_next
+    i_node_idx = i_node_idx_next
+    j = i  # filament where this chunk ends (to be adjusted below)
+    j_node_idx = i_node_idx - 1  # node index where this chunk ends (to be adjusted below)
+    while Np_accumulated < Np_accumulated_wanted && j ≤ lastindex(fs)
+        Np_wanted = Np_accumulated_wanted - Np_accumulated
+        # Available nodes in current filament
+        Np_available = lastindex(fs[j]) - j_node_idx
+        if Np_available > Np_wanted
+            # Stop in the middle of the filament
+            j_node_idx = j_node_idx + Np_wanted
+            Np_accumulated += Np_wanted
+            @assert Np_accumulated == Np_accumulated_wanted
+            i_next = j  # continue on the same filament
+            i_node_idx_next = j_node_idx + 1
+            state_new = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)::typeof(state)
+            return (i:j, (i_node_idx, j_node_idx)), state_new
+        elseif Np_available == Np_wanted
+            # Stop at the end of this filament
+            j_node_idx = j_node_idx + Np_wanted
+            Np_accumulated += Np_wanted
+            @assert Np_accumulated == Np_accumulated_wanted
+            i_next = j + 1
+            i_node_idx_next = firstindex(fs[j])
+            state_new = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)::typeof(state)
+            return (i:j, (i_node_idx, j_node_idx)), state_new
+        else
+            # Continue iterating over filaments
+            Np_accumulated += Np_available
+            j += 1  # jump to next filament
+            j_node_idx = 0
+        end
+    end
+    @assert Np_accumulated == Np_accumulated_wanted
+    @assert j == lastindex(fs)
+    j_node_idx = lastindex(fs[j])  # last node of last filament
+    i_next = j + 1
+    i_node_idx_next = firstindex(fs[j])
+    state_new = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)::typeof(state)
+    return (i:j, (i_node_idx, j_node_idx)), state_new
 end
 
 # ==================================================================================================== #
