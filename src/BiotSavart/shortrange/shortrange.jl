@@ -65,9 +65,7 @@ erfc(::Zero) = One()
 # the same number of filament nodes (discrete points).
 # Actually, the number of nodes per filament may be very unequal in practical situations, with
 # e.g. a single filament having a lot of points and many other small filaments.
-# In this case, we may end up with empty chunks (and thus "inactive" threads), which is ok.
-# In fact, since we also use threading across filament nodes (in add_short_range_fields!),
-# these threads will also perform work.
+# In this case, we may end up with empty chunks (and thus "inactive" threads).
 struct FilamentChunkIterator{Filaments <: AbstractVector{<:AbstractVector}}
     fs::Filaments
     nchunks::Int
@@ -111,23 +109,6 @@ function Base.iterate(it::FilamentChunkIterator, state)
 end
 
 # ==================================================================================================== #
-
-function add_short_range_fields!(
-        fields::NamedTuple{Names, NTuple{N, V}},
-        cache::ShortRangeCache,
-        fs::VectorOfFilaments;
-        kws...,
-    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
-    chunks = FilamentChunkIterator(fs)
-    @sync for chunk in chunks
-        isempty(chunk) && continue  # don't spawn a task if it will do no work
-        Threads.@spawn for i in chunk
-            fields_i = map(us -> us[i], fields)  # velocity/streamfunction of i-th filament
-            add_short_range_fields!(fields_i, cache, fs[i]; kws...)
-        end
-    end
-    fields
-end
 
 """
     add_pair_interactions!(outputs::NamedTuple, cache::ShortRangeCache)
