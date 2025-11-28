@@ -159,14 +159,27 @@ function _add_local_integrals!(
     )
     lia_segment_fraction === nothing && return fields
     chunks = FilamentChunkIterator(fs)
-    @sync for chunk in chunks
-        isempty(chunk) && continue  # don't spawn a task if it will do no work
+    @sync for (chunk, inds) in chunks
         Threads.@spawn let
-            prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
+            a, b = inds  # first and last node in first and last filaments of the chunk
+            i = first(chunk)
+            prev_indices = firstindex(fs):(i - 1)    # filament indices given to all previous chunks
             n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
-            for i in chunk
+            n += a - firstindex(fs[i])  # add nodes of current filament considered by previous threads
+            @inbounds if length(chunk) == 1  # this chunk concerns a single filament
                 fields_i = map(vs -> vs[i], fields)
-                n = _add_local_integrals!(fields_i, fs[i], n, cache; lia_segment_fraction)::Int
+                _add_local_integrals!(fields_i, fs[i], a:b, n, cache; lia_segment_fraction)
+            else
+                fields_i = map(vs -> vs[i], fields)
+                n = _add_local_integrals!(fields_i, fs[i], a:lastindex(fs[i]), n, cache; lia_segment_fraction)
+                for i in chunk[2:(end - 1)]
+                    fields_i = map(vs -> vs[i], fields)
+                    n = _add_local_integrals!(fields_i, fs[i], eachindex(fs[i]), n, cache; lia_segment_fraction)
+                end
+                let i = last(chunk)
+                    fields_i = map(vs -> vs[i], fields)
+                    _add_local_integrals!(fields_i, fs[i], firstindex(fs[i]):b, n, cache; lia_segment_fraction)  # last filament of chunk
+                end
             end
         end
     end
@@ -200,7 +213,7 @@ end
 end
 
 function _add_local_integrals!(
-        fields::NamedTuple{Names}, f::ClosedFilament, n::Int, cache::BiotSavartCache;
+        fields::NamedTuple{Names}, f::ClosedFilament, inds::AbstractUnitRange, n::Int, cache::BiotSavartCache;
         lia_segment_fraction
     ) where {Names}
     lia_segment_fraction === nothing && return fields
@@ -209,12 +222,11 @@ function _add_local_integrals!(
     (; Γ, Ls, quad_near_singularity) = params
     T = typeof(Γ)
     lims = nonlia_integration_limits(lia_segment_fraction)
-    Xs = Filaments.nodes(f)
     N = length(Ls)
     Lhs = map(L -> L / 2, Ls)
     prefactor = Γ / T(4π)
     quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
-    @inbounds for i in eachindex(Xs)
+    @inbounds for i in inds
         n += 1
         x⃗ = nodes[n]  # should be the same as below (avoids a few operations)
         # x⃗_alt = Filaments.fold_coordinates_periodic(Xs[i], Ls)

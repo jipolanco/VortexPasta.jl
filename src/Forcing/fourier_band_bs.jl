@@ -221,42 +221,61 @@ end
 
 # This always runs on the CPU.
 # This function is adapted from BiotSavart.add_point_charges.
-function _compute_geometry!(::FourierBandForcingBS, pointdata_cpu::PointData, fs::AbstractVector{<:ClosedFilament}; quad)
+function _compute_geometry!(forcing::FourierBandForcingBS, pointdata_cpu::PointData, fs::AbstractVector{<:ClosedFilament}; quad)
     (; nodes, derivatives_on_nodes, subsegment_lengths) = pointdata_cpu
     Np = count_nodes(fs)
     subsegment_lengths::NTuple{2}
     integration_weights = subsegment_lengths[1]::AbstractVector  # reuse as a buffer
+    geom = (; nodes, derivatives_on_nodes, integration_weights)
     # Usually all vectors should already have length Np, but it doesn't harm to try to
     # resize them if that's not the case.
     resize_no_copy!(nodes, Np)
     resize_no_copy!(integration_weights, Np)
     foreach(vs -> resize_no_copy!(vs, Np), derivatives_on_nodes)
     chunks = FilamentChunkIterator(fs)
-    @sync for chunk in chunks
-        isempty(chunk) && continue  # don't spawn a task if it will do no work
+    @sync for (chunk, inds) in chunks
         Threads.@spawn let
-            prev_indices = firstindex(fs):(first(chunk) - 1)  # filament indices given to all previous chunks
+            a, b = inds  # first and last node in first and last filaments of the chunk
+            i = first(chunk)
+            prev_indices = firstindex(fs):(i - 1)    # filament indices given to all previous chunks
             n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
-            @inbounds for i in chunk
-                f = fs[i]
-                nfirst = n + 1
-                len_prev = zero(eltype(integration_weights))
-                for j in eachindex(f)
-                    n += 1
-                    nodes[n] = f[j]
-                    derivatives_on_nodes[1][n] = f[j, Derivative(1)]
-                    derivatives_on_nodes[2][n] = f[j, Derivative(2)]
-                    len = sqrt(sum(abs2, f[j + 1] - f[j]))    # length of segment to the right (rough estimate)
-                    # seg = Filaments.Segment(f, j)
-                    # len = Filaments.segment_length(seg; quad)  # more accurate estimate (but more expensive)
-                    integration_weights[n] = len_prev + len   # length of the two local segments
-                    len_prev = len
+            n += a - firstindex(fs[i])  # add nodes of current filament considered by previous threads
+            nfirst = n
+            @inbounds if length(chunk) == 1  # this chunk concerns a single filament
+                n = _compute_geometry_filament!(forcing, geom, fs[i], a:b, n; quad)::Int
+            else
+                n = _compute_geometry_filament!(forcing, geom, fs[i], a:lastindex(fs[i]), n; quad)::Int
+                for i in chunk[2:(end - 1)]
+                    n = _compute_geometry_filament!(forcing, geom, fs[i], eachindex(fs[i]), n; quad)::Int
                 end
-                integration_weights[nfirst] += len_prev  # closed filament: add length of last segment to first node
+                let i = last(chunk)
+                    n = _compute_geometry_filament!(forcing, geom, fs[i], firstindex(fs[i]):b, n; quad)::Int
+                end
             end
+            # @show nfirst:n
         end
     end
-    (; nodes, derivatives_on_nodes, integration_weights)
+    geom
+end
+
+function _compute_geometry_filament!(::FourierBandForcingBS, geom, f::ClosedFilament, inds::AbstractUnitRange, n::Int; quad)
+    (; nodes, derivatives_on_nodes, integration_weights) = geom
+    # Obtain length of previous segment assuming closed filament.
+    len_prev = let j = first(inds) - 1  # note: we can safely index a filament at i = 0 (same as index i = N)
+        sqrt(sum(abs2, f[j + 1] - f[j]))   # length of segment to the right (rough estimate)
+    end
+    for j in inds
+        n += 1
+        nodes[n] = f[j]
+        derivatives_on_nodes[1][n] = f[j, Derivative(1)]
+        derivatives_on_nodes[2][n] = f[j, Derivative(2)]
+        len = sqrt(sum(abs2, f[j + 1] - f[j]))    # length of segment to the right (rough estimate)
+        # seg = Filaments.Segment(f, j)
+        # len = Filaments.segment_length(seg; quad)  # more accurate estimate (but more expensive)
+        integration_weights[n] = len_prev + len   # length of the two local segments
+        len_prev = len
+    end
+    n
 end
 
 function _to_gpu!(::FourierBandForcingBS, pointdata_gpu::PointData, geom_cpu::NamedTuple)
