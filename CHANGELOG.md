@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Possibly improved load balancing of some threaded CPU operations iterating
+  over multiple filament nodes, especially when the number of nodes per filament is very unequal across
+  filaments (which is actually quite common).
+
 ## [0.32.3] - 2025-11-27
 
 ### Changed
