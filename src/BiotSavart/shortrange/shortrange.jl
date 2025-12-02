@@ -74,8 +74,8 @@ end
 
 Base.IteratorSize(::Type{<:SingleChunkIterator}) = Base.HasLength()
 Base.length(it::SingleChunkIterator) = length(it.inds)  # = number of filaments included in this chunk
-Base.IteratorEltype(::Type{<:FilamentChunkIterator}) = Base.HasEltype()
-Base.eltype(::FilamentChunkIterator) = Tuple{Int, UnitRange{Int}, Int}  # = (filament_idx, node_indices, num_nodes_visited)
+Base.IteratorEltype(::Type{<:SingleChunkIterator}) = Base.HasEltype()
+Base.eltype(::SingleChunkIterator) = Tuple{Int, UnitRange{Int}, Int}  # = (filament_idx, node_indices, num_nodes_visited)
 
 function Base.iterate(it::SingleChunkIterator)
     (; fs, inds, a, b) = it
@@ -92,7 +92,7 @@ function Base.iterate(it::SingleChunkIterator)
     num_nodes_visited = sum(j -> length(fs[j]), firstindex(fs):(i - 1); init = 0)
     # Include previously visited nodes in this filament (if a > firstindex(f)).
     num_nodes_visited += a - firstindex(f)
-    ret = (i, node_indices, num_nodes_visited)
+    ret = (i, node_indices, num_nodes_visited)::eltype(it)
     num_nodes_visited += length(node_indices)  # include nodes visited in this iteration
     state = (firstindex(inds) + 1, num_nodes_visited)  # (index of next filament, number of visited nodes)
     ret, state
@@ -109,7 +109,7 @@ function Base.iterate(it::SingleChunkIterator, state::Tuple)
     else
         node_indices = UnitRange(eachindex(f))
     end::UnitRange{Int}
-    ret = (i, node_indices, num_nodes_visited)
+    ret = (i, node_indices, num_nodes_visited)::eltype(it)
     num_nodes_visited += length(node_indices)
     state = (j + 1, num_nodes_visited)
     ret, state
