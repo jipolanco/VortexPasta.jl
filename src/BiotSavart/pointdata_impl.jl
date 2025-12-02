@@ -41,7 +41,7 @@ before [`compute_vorticity_fourier!`](@ref).
 function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, params::ParamsBiotSavart)
     Np = count_nodes(fs)
     set_num_points!(data, Np, params.quad)
-    chunks = FilamentChunkIterator(fs)  # defined in shortrange/shortrange.jl
+    chunks = FilamentChunkIterator(fs)
     @sync for chunk in chunks
         Threads.@spawn for (i, inds, num_nodes_visited) in chunk
             _add_point_charges!(data, fs[i], inds, num_nodes_visited, params, params.quad)

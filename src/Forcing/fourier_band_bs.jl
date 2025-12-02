@@ -1,4 +1,5 @@
-using ..BiotSavart: BiotSavart, BiotSavartCache, PointData, FilamentChunkIterator, count_nodes, resize_no_copy!, copy_host_to_device!
+using ..Filaments: FilamentChunkIterator
+using ..BiotSavart: BiotSavart, BiotSavartCache, PointData, count_nodes, resize_no_copy!, copy_host_to_device!
 using StaticArrays: SVector, SMatrix
 using LLVM.Interop: assume
 using AcceleratedKernels: AcceleratedKernels as AK

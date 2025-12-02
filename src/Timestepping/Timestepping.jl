@@ -24,6 +24,7 @@ using ..Filaments:
     DiscretisationMethod,
     UnitTangent,
     CurvatureVector,
+    FilamentChunkIterator,
     Vec3,
     nodes,
     segments,
@@ -53,7 +54,6 @@ using ..BiotSavart:
     VectorOfFilaments,
     VectorOfPositions,
     VectorOfVelocities,
-    FilamentChunkIterator,
     periods
 
 using ..Forcing: Forcing, AbstractForcing, AbstractDissipation, NoForcing, NoDissipation,
