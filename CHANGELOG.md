@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.5] - 2025-12-02
+
 ### Changed
 
 - Parallelise `Timestepping.advect_filaments!`.
