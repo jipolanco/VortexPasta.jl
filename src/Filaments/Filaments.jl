@@ -355,6 +355,7 @@ include("spline/closed_filament.jl")
 
 include("quantities.jl")
 include("utils.jl")
+include("chunk_iterator.jl")
 
 include("plotting.jl")
 

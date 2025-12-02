@@ -1,4 +1,5 @@
-using ..BiotSavart: BiotSavart, BiotSavartCache, PointData, FilamentChunkIterator, count_nodes, resize_no_copy!, copy_host_to_device!
+using ..Filaments: FilamentChunkIterator
+using ..BiotSavart: BiotSavart, BiotSavartCache, PointData, count_nodes, resize_no_copy!, copy_host_to_device!
 using StaticArrays: SVector, SMatrix
 using LLVM.Interop: assume
 using AcceleratedKernels: AcceleratedKernels as AK
@@ -233,26 +234,9 @@ function _compute_geometry!(forcing::FourierBandForcingBS, pointdata_cpu::PointD
     resize_no_copy!(integration_weights, Np)
     foreach(vs -> resize_no_copy!(vs, Np), derivatives_on_nodes)
     chunks = FilamentChunkIterator(fs)
-    @sync for (chunk, inds) in chunks
-        Threads.@spawn let
-            a, b = inds  # first and last node in first and last filaments of the chunk
-            i = first(chunk)
-            prev_indices = firstindex(fs):(i - 1)    # filament indices given to all previous chunks
-            n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
-            n += a - firstindex(fs[i])  # add nodes of current filament considered by previous threads
-            nfirst = n
-            @inbounds if length(chunk) == 1  # this chunk concerns a single filament
-                n = _compute_geometry_filament!(forcing, geom, fs[i], a:b, n; quad)::Int
-            else
-                n = _compute_geometry_filament!(forcing, geom, fs[i], a:lastindex(fs[i]), n; quad)::Int
-                for i in chunk[2:(end - 1)]
-                    n = _compute_geometry_filament!(forcing, geom, fs[i], eachindex(fs[i]), n; quad)::Int
-                end
-                let i = last(chunk)
-                    n = _compute_geometry_filament!(forcing, geom, fs[i], firstindex(fs[i]):b, n; quad)::Int
-                end
-            end
-            # @show nfirst:n
+    @sync for chunk in chunks
+        Threads.@spawn for (i, inds, num_nodes_visited) in chunk
+            _compute_geometry_filament!(forcing, geom, fs[i], inds, num_nodes_visited; quad)
         end
     end
     geom

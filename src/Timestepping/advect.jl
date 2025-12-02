@@ -22,40 +22,49 @@ advect_filaments!(fs, vL, dt; fbase = nothing, kws...) =
 
 # Variant called at the end of a timestep (case 1)
 function _advect_filaments!(fs, fbase::Nothing, vL, dt)
-    for i ∈ eachindex(fs, vL)
-        @inbounds _advect_filament!(fs[i], nothing, vL[i], dt)
+    @sync for chunk in FilamentChunkIterator(fs)
+        Threads.@spawn for (i, inds, _) in chunk
+            @inbounds _advect_filament!(fs[i], nothing, vL[i], inds, dt)
+        end
+    end
+    Threads.@threads for i in eachindex(fs)
+        Filaments.update_coefficients!(fs[i])  # note: in this case we recompute the knots
+    end
+    fs
+end
+
+# Variant called from within RK stages (case 2)
+function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}
+    @sync for chunk in FilamentChunkIterator(fs)
+        Threads.@spawn for (i, inds, _) in chunk
+            @inbounds _advect_filament!(fs[i], fbase[i], vL[i], inds, dt)
+        end
+    end
+    Threads.@threads for i in eachindex(fs)
+        # Compute interpolation coefficients making sure that knots are preserved (and not
+        # recomputed from new locations).
+        ts = knots(fbase[i])
+        Filaments.update_coefficients!(fs[i]; knots = ts)
     end
     fs
 end
 
 function _advect_filament!(
-        f::AbstractFilament, fbase::Nothing, vL::VectorOfVelocities, dt::Real,
+        f::AbstractFilament, fbase::Nothing, vL::VectorOfVelocities, inds, dt::Real,
     )
     Xs = nodes(f)
-    for i ∈ eachindex(Xs, vL)
+    for i ∈ inds
         @inbounds Xs[i] = Xs[i] + dt * vL[i]
     end
-    Filaments.update_coefficients!(f)  # note: in this case we recompute the knots
     nothing
 end
 
-# Variant called from within RK stages (case 2)
-function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}
-    for i ∈ eachindex(fs, fbase, vL)
-        @inbounds _advect_filament!(fs[i], fbase[i], vL[i], dt)
-    end
-    fs
-end
-
-function _advect_filament!(f::T, fbase::T, vL, dt) where {T <: AbstractFilament}
+function _advect_filament!(f::T, fbase::T, vL, inds, dt) where {T <: AbstractFilament}
     @assert Filaments.end_to_end_offset(f) == Filaments.end_to_end_offset(fbase)
     Xs = nodes(f)
     Ys = nodes(fbase)
-    for i ∈ eachindex(Xs, Ys, vL)
+    for i ∈ inds
         @inbounds Xs[i] = Ys[i] + dt * vL[i]
     end
-    # Compute interpolation coefficients making sure that knots are preserved (and not
-    # recomputed from new locations).
-    Filaments.update_coefficients!(f; knots = knots(fbase))
     nothing
 end

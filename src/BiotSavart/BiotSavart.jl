@@ -29,7 +29,7 @@ using ..Quadratures:
 
 using ..Filaments:
     Filaments, AbstractFilament, ClosedFilament, Segment, CurvatureBinormal,
-    Vec3, Derivative,
+    Vec3, Derivative, FilamentChunkIterator,
     knots, nodes, segments, integrate
 
 using Adapt: Adapt, adapt

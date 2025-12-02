@@ -24,6 +24,7 @@ using ..Filaments:
     DiscretisationMethod,
     UnitTangent,
     CurvatureVector,
+    FilamentChunkIterator,
     Vec3,
     nodes,
     segments,
