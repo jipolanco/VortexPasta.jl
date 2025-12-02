@@ -42,24 +42,9 @@ function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilame
     Np = count_nodes(fs)
     set_num_points!(data, Np, params.quad)
     chunks = FilamentChunkIterator(fs)  # defined in shortrange/shortrange.jl
-    @sync for (chunk, inds) in chunks
-        Threads.@spawn let
-            a, b = inds  # first and last node in first and last filaments of the chunk
-            i = first(chunk)
-            prev_indices = firstindex(fs):(i - 1)    # filament indices given to all previous chunks
-            n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
-            n += a - firstindex(fs[i])  # add nodes of current filament considered by previous threads
-            if length(chunk) == 1  # this chunk concerns a single filament
-                _add_point_charges!(data, fs[i], a:b, n, params, params.quad)
-            else
-                n = _add_point_charges!(data, fs[i], a:lastindex(fs[i]), n, params, params.quad)  # first filament of chunk
-                for i in chunk[2:(end - 1)]
-                    n = _add_point_charges!(data, fs[i], eachindex(fs[i]), n, params, params.quad)
-                end
-                let i = last(chunk)
-                    _add_point_charges!(data, fs[i], firstindex(fs[i]):b, n, params, params.quad)  # last filament of chunk
-                end
-            end
+    @sync for chunk in chunks
+        Threads.@spawn for (i, inds, num_nodes_visited) in chunk
+            _add_point_charges!(data, fs[i], inds, num_nodes_visited, params, params.quad)
         end
     end
     nothing

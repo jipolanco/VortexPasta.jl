@@ -159,28 +159,10 @@ function _add_local_integrals!(
     )
     lia_segment_fraction === nothing && return fields
     chunks = FilamentChunkIterator(fs)
-    @sync for (chunk, inds) in chunks
-        Threads.@spawn let
-            a, b = inds  # first and last node in first and last filaments of the chunk
-            i = first(chunk)
-            prev_indices = firstindex(fs):(i - 1)    # filament indices given to all previous chunks
-            n = count_nodes(view(fs, prev_indices))  # we will start writing at index n + 1
-            n += a - firstindex(fs[i])  # add nodes of current filament considered by previous threads
-            @inbounds if length(chunk) == 1  # this chunk concerns a single filament
-                fields_i = map(vs -> vs[i], fields)
-                _add_local_integrals!(fields_i, fs[i], a:b, n, cache; lia_segment_fraction)
-            else
-                fields_i = map(vs -> vs[i], fields)
-                n = _add_local_integrals!(fields_i, fs[i], a:lastindex(fs[i]), n, cache; lia_segment_fraction)
-                for i in chunk[2:(end - 1)]
-                    fields_i = map(vs -> vs[i], fields)
-                    n = _add_local_integrals!(fields_i, fs[i], eachindex(fs[i]), n, cache; lia_segment_fraction)
-                end
-                let i = last(chunk)
-                    fields_i = map(vs -> vs[i], fields)
-                    _add_local_integrals!(fields_i, fs[i], firstindex(fs[i]):b, n, cache; lia_segment_fraction)  # last filament of chunk
-                end
-            end
+    @sync for chunk in chunks
+        Threads.@spawn for (i, inds, num_nodes_visited) in chunk
+            fields_i = map(vs -> vs[i], fields)
+            _add_local_integrals!(fields_i, fs[i], inds, num_nodes_visited, cache; lia_segment_fraction)
         end
     end
     fields

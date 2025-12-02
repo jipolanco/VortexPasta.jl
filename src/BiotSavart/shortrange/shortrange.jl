@@ -61,6 +61,62 @@ erfc(::Zero) = One()
 
 # ==================================================================================================== #
 
+# Iterate over a single filament chunk.
+# We iterate over filaments fs, possibly starting somewhere in the middle of filament
+# fs[begin], and possibly ending somewhere in the middle of filament fs[end].
+# Note that fs is a SubArray, i.e. a view of a larger vector of filaments.
+struct SingleChunkIterator{Filaments <: AbstractVector{<:AbstractFilament}}
+    fs::Filaments         # all filaments (included those not in this chunk)
+    inds::UnitRange{Int}  # indices of considered filaments
+    a::Int  # index of start node in first filament (inclusive) -> iterate over nodes fs[inds[begin]][a:end]
+    b::Int  # index of end node in last filament (inclusive)    -> iterate over nodes fs[inds[end]][begin:b]
+end
+
+Base.IteratorSize(::Type{<:SingleChunkIterator}) = Base.HasLength()
+Base.length(it::SingleChunkIterator) = length(it.inds)  # = number of filaments included in this chunk
+Base.IteratorEltype(::Type{<:FilamentChunkIterator}) = Base.HasEltype()
+Base.eltype(::FilamentChunkIterator) = Tuple{Int, UnitRange{Int}, Int}  # = (filament_idx, node_indices, num_nodes_visited)
+
+function Base.iterate(it::SingleChunkIterator)
+    (; fs, inds, a, b) = it
+    isempty(inds) && return nothing
+    # First filament: start from index a
+    i = first(inds)
+    f = fs[i]
+    if length(inds) == 1  # the chunk covers (part of) a single filament only
+        node_indices = a:b
+    else  # the chunk covers two or more filaments
+        node_indices = a:lastindex(f)
+    end::UnitRange{Int}
+    # Count accumulated number of nodes until the end of the previous filament.
+    num_nodes_visited = sum(j -> length(fs[j]), firstindex(fs):(i - 1); init = 0)
+    # Include previously visited nodes in this filament (if a > firstindex(f)).
+    num_nodes_visited += a - firstindex(f)
+    ret = (i, node_indices, num_nodes_visited)
+    num_nodes_visited += length(node_indices)  # include nodes visited in this iteration
+    state = (firstindex(inds) + 1, num_nodes_visited)  # (index of next filament, number of visited nodes)
+    ret, state
+end
+
+function Base.iterate(it::SingleChunkIterator, state::Tuple)
+    (; fs, inds, b) = it
+    j, num_nodes_visited = state
+    j == lastindex(inds) + 1 && return nothing  # we're done iterating over filaments
+    i = inds[j]
+    f = fs[i]
+    if j == lastindex(inds)
+        node_indices = firstindex(f):b
+    else
+        node_indices = UnitRange(eachindex(f))
+    end::UnitRange{Int}
+    ret = (i, node_indices, num_nodes_visited)
+    num_nodes_visited += length(node_indices)
+    state = (j + 1, num_nodes_visited)
+    ret, state
+end
+
+# ==================================================================================================== #
+
 # Try to distribute filaments nodes over different threads so that each thread has approximately
 # the same number of filament nodes (discrete points). In fact, the number of nodes per
 # filament may be very unequal in practical situations, with e.g. a single filament having a
@@ -127,7 +183,8 @@ function Base.iterate(it::FilamentChunkIterator, state)
             i_next = j  # continue on the same filament
             i_node_idx_next = j_node_idx + 1
             state_new = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)::typeof(state)
-            return (i:j, (i_node_idx, j_node_idx)), state_new
+            ret = SingleChunkIterator(fs, i:j, i_node_idx, j_node_idx)
+            return ret, state_new
         elseif Np_available == Np_wanted
             # Stop at the end of this filament
             j_node_idx = j_node_idx + Np_wanted
@@ -136,7 +193,8 @@ function Base.iterate(it::FilamentChunkIterator, state)
             i_next = j + 1
             i_node_idx_next = firstindex(fs[j])
             state_new = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)::typeof(state)
-            return (i:j, (i_node_idx, j_node_idx)), state_new
+            ret = SingleChunkIterator(fs, i:j, i_node_idx, j_node_idx)
+            return ret, state_new
         else
             # Continue iterating over filaments
             Np_accumulated += Np_available
@@ -150,7 +208,8 @@ function Base.iterate(it::FilamentChunkIterator, state)
     i_next = j + 1
     i_node_idx_next = firstindex(fs[j])
     state_new = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)::typeof(state)
-    return (i:j, (i_node_idx, j_node_idx)), state_new
+    ret = SingleChunkIterator(fs, i:j, i_node_idx, j_node_idx)
+    return ret, state_new
 end
 
 # ==================================================================================================== #
