@@ -45,12 +45,20 @@ where $\tilde{\bm{v}}_{\text{s}}$ is the bandpass filtered Biot–Savart velocit
 active Fourier wavenumbers `kmin` and `kmax`. This choice ensures that energy is
 injected within this range of wavenumbers.
 
-If ``α′ ≠ 0``, an extra term is included which does not modify the energy content at the
+If ``α' ≠ 0``, an extra term is included which does not modify the energy content at the
 chosen wavenumbers:
 
 ```math
-\bm{v}_{\text{f}} = α \bm{s}' × \tilde{\bm{v}}_{\text{s}} - α′ \bm{s}' × \left[\bm{s}' × \tilde{\bm{v}}_{\text{s}}\right].
+\bm{v}_{\text{f}} = α \bm{s}' × \tilde{\bm{v}}_{\text{s}} - α' \bm{s}' × \left(\bm{s}' × \tilde{\bm{v}}_{\text{s}}\right).
 ```
+
+If, in addition, one wants the forcing not to modify the vortex length (`modify_length =
+false`), then the ``α`` term must not only be orthogonal to the local tangent ``\bm{s}'``
+but also to the local curvature ``\bm{s}''``. Therefore, it _must_ be parallel to the
+binormal vector ``\bm{s}' × \bm{s}''``. This leads to the following form of the ``α`` term:
+
+```math
+\bm{v}_{\text{f}} = α \frac{\bm{s}'' ⋅ \tilde{\bm{v}}_{\text{s}}}{|\bm{s}''|^2} \, \bm{s}' × \bm{s}''.
 
 ## Explanations
 
@@ -117,20 +125,7 @@ One can write this velocity as
 
 where ``α`` is a non-dimensional parameter setting the forcing amplitude.
 
-## Estimating the energy injection rate
-
-One can also try to estimate an energy injection rate at wavevector ``\bm{k}`` associated to this velocity:
-
-```math
-\frac{\text{d}E(\bm{k})}{\text{d}t}
-= ∮ \frac{δE(\bm{k})}{δ\bm{s}} ⋅ \frac{\text{d}\bm{s}}{\text{d}t} \, \mathrm{d}ξ
-= α \frac{Γ}{V} ∮ |\bm{v}_0|^2 \, \mathrm{d}ξ
 ```
-
-In general, this estimate may be quite inaccurate since the forcing can also affect the
-energy at wavevectors other than ``\bm{k}``. But still, this estimate is the one used when
-``ε_{\text{target}}`` is given, and may allow to obtain a roughly constant energy injection
-rate (even if it's generally different than the "target" one).
 """
 struct FourierBandForcingBS{T <: AbstractFloat, N} <: AbstractForcing
     α    :: T
@@ -303,18 +298,26 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
             vf_k = real(v̂ * Complex(c, s))
             vf = vf + vf_k
         end
-        vf = s⃗′ × vf
-        vs_filtered = vf  # velocity filtered at target wavevectors
-        if !modify_length
-            # If the forcing is not to modify vortex length, we make sure that vf is
-            # orthogonal to the local curvature.
+        # Currently, vf actually contains the Fourier-filtered velocity `vs_filtered`.
+        s′_times_vs_filtered = s⃗′ × vf  # = s′ × vs_filtered (needed to estimate ε_inj)
+        if modify_length
+            # In this case, the forcing is allowed to modify filament length.
+            # => It doesn't need to be orthogonal to s⃗″ (the local curvature).
+            # Therefore, it's simply proportional to s⃗′ × vs_filtered, which maximises energy injection.
+            vf = s′_times_vs_filtered
+        else
+            # If the forcing must not modify vortex length, we make sure that vf is
+            # orthogonal to the local curvature s⃗″. Since vf is also orthogonal to s⃗′ (=
+            # s⃗′ × vs_filtered in the base case), this means that it must be aligned with
+            # the binormal vector s⃗′ × s⃗″.
             s⃗_tt = @inbounds derivatives_on_nodes[2][i]
             s⃗″ = s⃗_t × (s⃗_tt × s⃗_t)  # curvature vector (up to a scalar constant)
-            # @assert s⃗″ ≈ f[j, CurvatureVector()] * (s_t² * s_t²)
             s″_norm2 = sum(abs2, s⃗″)
-            assume(s″_norm2 > 0)
-            vf = vf - ((vf ⋅ s⃗″) / s″_norm2) * s⃗″
-            # @assert norm(vf ⋅ s⃗″) < 1e-12
+            vf = if iszero(s″_norm2)
+                zero(V)  # zero-curvature case (locally straight vortex)
+            else
+                V(((s⃗″ ⋅ vf) / s″_norm2) * (s⃗′ × s⃗″))
+            end
         end
         if α != 0  # α was prescribed (and possibly α′ as well)
             vf = α * vf - α′ * (s⃗′ × vf)  # this will be the actual forcing velocity
@@ -325,7 +328,7 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
             # compensated by a factor 2 accounting for Hermitian symmetry: if we inject energy into the velocity at
             # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
             dξ = @inbounds integration_weights[i]
-            ε_local = (vs_filtered ⋅ vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
+            ε_local = (s′_times_vs_filtered ⋅ vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
             # We no longer need integration_weights, so we reuse it to store energy injection rates.
             @inbounds integration_weights[i] = ε_local
         end

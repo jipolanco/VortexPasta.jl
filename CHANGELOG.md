@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Reformulate computation of `FourierBandForcingBS` when `modify_length = false`.
+  We now explicitly write the forcing velocity as aligned with the binormal vector, while
+  previously we removed the component aligned with curvature using the Gram-Schmidt process.
+  The end result is the same as before. Docs on the used formulation have been also added.
+
 ## [0.32.5] - 2025-12-02
 
 ### Changed
