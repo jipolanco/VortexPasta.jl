@@ -20,7 +20,7 @@ function update_values_at_nodes!(
     # (1) Compute local tangents (this may be used by the forcing).
     # In fact, this is currently only used by NormalFluidForcing or in MinimalEnergy mode.
     if hasproperty(quantities, :tangents)
-        @timeit to "Compute tangents" _update_unit_tangents!(quantities.tangents, fs; scheduler)
+        @timeit to "Compute tangents" _update_unit_tangents!(quantities.tangents, fs)
     end
     # (2) Compute velocities and optionally streamfunction values
     @timeit to "Compute filament velocity" _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
@@ -28,7 +28,7 @@ function update_values_at_nodes!(
     if iter.mode === MinimalEnergy() && haskey(fields, :velocity)
         # Replace velocities (which will be used for advection) with -s⃗′ × v⃗ₛ
         @assert hasproperty(quantities, :tangents)
-        @timeit to "MinimalEnergy mode" _minimal_energy_velocities!(fields.velocity, quantities.tangents, iter; scheduler)
+        @timeit to "MinimalEnergy mode" _minimal_energy_velocities!(fields.velocity, quantities.tangents, fs, iter)
     end
     fields
 end
@@ -53,15 +53,18 @@ function _update_unit_tangents!(tangents_all, fs)
     tangents_all
 end
 
-function _minimal_energy_velocities!(vL_all, tangents_all, iter; scheduler)
+function _minimal_energy_velocities!(vL_all, tangents_all, fs, iter)
     vs_all = iter.vs  # BS velocities will be copied here
-    for n in eachindex(vL_all, vs_all, tangents_all)
-        vL = vL_all[n]
-        vs = vs_all[n]
-        tangents = tangents_all[n]
-        tforeach(eachindex(vL, vs, tangents); scheduler) do i
-            vs[i] = vL[i]  # copy actual BS velocity into iter.vs
-            vL[i] = vL[i] × tangents[i]  # = -s⃗′ × v⃗ₛ
+    @sync for chunk in FilamentChunkIterator(fs)
+        Threads.@spawn for (n, inds, _) in chunk
+            # f = fs[n]
+            vs = vs_all[n]
+            vL = vL_all[n]
+            tangents = tangents_all[n]
+            for i in inds
+                @inbounds vs[i] = vL[i]  # copy actual BS velocity into iter.vs
+                @inbounds vL[i] = vL[i] × tangents[i]  # = -s⃗′ × v⃗ₛ
+            end
         end
     end
     vs_all
