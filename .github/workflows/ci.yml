@@ -96,7 +96,7 @@ jobs:
           cp -av coverage.svg lcov_html/  # copy badge to HTML output, so that it's accessible from github pages
 
       - name: Archive code coverage results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: code-coverage-${{ matrix.julia-version }}
           path: |
