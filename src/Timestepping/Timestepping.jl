@@ -76,13 +76,9 @@ abstract type AbstractSolver end
     NO_VORTICES_LEFT
 end
 
-@enum SimulationMode begin
-    MODE_DEFAULT
-    MODE_MINIMAL_ENERGY
-end
-
-DefaultMode() = MODE_DEFAULT
-MinimalEnergy() = MODE_MINIMAL_ENERGY
+abstract type SimulationMode end
+struct DefaultMode <: SimulationMode end
+struct MinimalEnergy <: SimulationMode end
 
 include("timesteppers/timesteppers.jl")
 include("adaptivity.jl")
@@ -688,7 +684,6 @@ function init(
 
     vs = map(allocate_field_for_filament, fs)::VectorOfVectors
     ψs = similar(vs)
-    tangents = map(similar ∘ nodes, fs)  # unit tangents (not interpolable)
 
     mode === MinimalEnergy() && forcing !== NoForcing() && throw(
         ArgumentError(
@@ -696,16 +691,17 @@ function init(
         )
     )
 
-    quantities_base = (; vs, ψs, tangents,)
+    tangents = map(similar ∘ nodes, fs)  # unit tangents (not interpolable) -- only used in certain modes
+    quantities_base = (; vs, ψs,)
 
     quantities_with_forcing = if forcing isa NormalFluidForcing
-        (; quantities_base..., vL = similar(vs), vf = similar(vs), vn = similar(vs),)
+        (; quantities_base..., vL = similar(vs), vf = similar(vs), vn = similar(vs), tangents,)
     elseif forcing isa FourierBandForcing
         (; quantities_base..., v_ns = similar(vs), vf = similar(vs), vL = similar(vs),)  # we separately store vs and vL
     elseif forcing isa FourierBandForcingBS
         (; quantities_base..., vf = similar(vs), vL = similar(vs),)  # no normal fluid in this case
     elseif mode === MinimalEnergy() || dissipation !== NoDissipation()
-        (; quantities_base..., vL = similar(vs),)  # vL and vs are different
+        (; quantities_base..., vL = similar(vs), tangents,)  # vL and vs are different
     else
         (; quantities_base..., vL = vs,)  # vL is an alias to vs
     end
@@ -812,7 +808,7 @@ end
 
 function fields_to_interpolate(iter::VortexFilamentSolver)
     (; quantities,) = iter
-    qs = @delete quantities.tangents  # don't interpolate tangents
+    qs = @delete quantities.tangents  # don't interpolate tangents (does nothing if quantities.tangents doesn't exist)
     if qs.vs === qs.vL  # they're aliased
         values(@delete qs.vL)  # interpolate all fields except vL (aliased with vs)
     else

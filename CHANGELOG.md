@@ -5,6 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Timestepping: avoid computing tangents when not needed.
+
+- Timestepping: `MinimalEnergy` is now a singleton type instead of an enum instance.
+
+### Added
+
+- Add more timing sections.
+
 ## [0.32.6] - 2025-12-15
 
 ### Changed
