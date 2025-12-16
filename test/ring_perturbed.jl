@@ -85,7 +85,7 @@ function test_perturbed_vortex_ring()
             E_alt = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs_p, iter.prob.p; quad)
             H_alt = Diagnostics.helicity(fs, vs_p, iter.prob.p; quad)
             dLdt_alt = Diagnostics.stretching_rate(fs, vs_p; quad)
-            @test dLdt ≈ dLdt_alt atol=(100 * eps(dLdt))  # small difference comes from parallelisation of sum
+            @test dLdt ≈ dLdt_alt
             @test E ≈ E_alt atol=(10 * eps(E))  # these should be exactly the same, but may differ by ϵ
             # @show abs(H / Γ)
             @test abs(H / Γ) < 2e-5  # in theory it's equal to zero

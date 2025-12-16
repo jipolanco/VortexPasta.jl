@@ -250,3 +250,54 @@ function Base.iterate(it::FilamentChunkIterator, state)
 end
 
 # ==================================================================================================== #
+
+function parallel_reduce(
+        f::F, op::Op, fs::AbstractVector{<:AbstractVector}, nthreads;
+        init = zero(number_type(fs)),
+    ) where {F <: Function, Op <: Function}
+    T = typeof(init)
+    if nthreads == 1
+        x = init
+        for i in eachindex(fs)
+            xnew = @inline f(i, eachindex(fs[i]))::T
+            x = @inline op(x, xnew)
+        end
+    else
+        x = _parallel_reduce(f, op, init, fs, nthreads)::T
+    end
+    x
+end
+
+# 1. Reduce a scalar quantity
+function _parallel_reduce(f::F, op::Op, init::T, fs, nthreads) where {F, Op, T <: Threads.AtomicTypes}
+    x_ref = Threads.Atomic{T}(init)
+    @sync for chunk in FilamentChunkIterator(fs; nchunks = nthreads)
+        Threads.@spawn let x_local = init
+            for (i, inds, _) in chunk
+                xnew = @inline f(i, inds)::T
+                x_local = @inline op(x_local, xnew)::T
+            end
+            Threads.atomic_add!(x_ref, x_local)
+        end
+    end
+    x_ref[]
+end
+
+# 2. Reduce a vector quantity (typically Vec3)
+function _parallel_reduce(f::F, op::Op, init::SVector{N, T}, fs, nthreads) where {F, Op, N, T <: Threads.AtomicTypes}
+    V = typeof(init)
+    # Threads.Atomic only works with scalar quantities, so we create a tuple (actually SVector) of scalar Atomics.
+    x_ref = map(v -> Threads.Atomic{T}(v), init)
+    @sync for chunk in FilamentChunkIterator(fs; nchunks = nthreads)
+        Threads.@spawn let x_local = init
+            for (i, inds, _) in chunk
+                xnew = @inline f(i, inds)::V
+                x_local = @inline op(x_local, xnew)::V
+            end
+            for n in eachindex(x_ref)
+                Threads.atomic_add!(x_ref[n], x_local[n])
+            end
+        end
+    end
+    map(x -> x[], x_ref)::V
+end

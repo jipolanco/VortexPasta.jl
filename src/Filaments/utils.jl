@@ -162,24 +162,21 @@ This can be achieved either by [`update_coefficients!`](@ref) or [`close_filamen
 In the quadrature-based implementation (`quad <: AbstractQuadrature`), the interpolation
 coefficients must already have been computed via [`update_coefficients!`](@ref).
 """
-function filament_length(f::AbstractFilament; quad = nothing)
+function filament_length(f::AbstractFilament; inds = eachindex(f), quad = nothing)
+    checkbounds(f, inds)
     T = number_type(f)
     @assert T <: AbstractFloat
     L = zero(T)
-    for s ∈ segments(f)
-        L += segment_length(s; quad)
+    for i ∈ inds
+        L += segment_length(Segment(f, i); quad)
     end
     L
 end
 
-function filament_length(fs::AbstractVector{<:AbstractFilament}; kws...)
-    T = number_type(fs)
-    @assert T <: AbstractFloat
-    L = zero(T)
-    for f ∈ fs
-        L += filament_length(f; kws...)
+function filament_length(fs::AbstractVector{<:AbstractFilament}; nthreads = Threads.nthreads(), quad = nothing)
+    parallel_reduce(+, fs, nthreads) do i, inds
+        filament_length(fs[i]; inds, quad)
     end
-    L
 end
 
 # ======================================================================================== #
