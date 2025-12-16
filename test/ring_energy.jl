@@ -37,7 +37,10 @@ function test_vortex_ring_energy()
     params_periodic = ParamsBiotSavart(; params_common..., Ls = L, rcut, Ns, α)
     prob_periodic = VortexFilamentProblem(fs, tspan, params_periodic)
     iter_periodic = init(prob_periodic, RK4(); dt = 0.1)
-    JET.@test_opt ignored_modules=(Base,) Diagnostics.kinetic_energy(iter_periodic)
+    if VERSION ≥ v"1.12"
+        # This seems to fail on 1.11 due to Threads.Atomic.
+        JET.@test_opt ignored_modules=(Base,) Diagnostics.kinetic_energy(iter_periodic)
+    end
     # JET.@test_call Diagnostics.kinetic_energy(iter_periodic)  # fails when using Threads.Atomic
     E_periodic = Diagnostics.kinetic_energy(iter_periodic)
     E_periodic_quad = Diagnostics.kinetic_energy(iter_periodic; quad = GaussLegendre(4))
