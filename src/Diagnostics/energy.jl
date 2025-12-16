@@ -83,31 +83,49 @@ in non-periodic domains.
 function kinetic_energy_from_streamfunction end
 
 # Case of a set of filaments
-function kinetic_energy_from_streamfunction(fs::VectorOfFilaments, ψs::SetOfFilamentsData, args...; kws...)
+function kinetic_energy_from_streamfunction(
+        fs::VectorOfFilaments, ψs::SetOfFilamentsData, args...;
+        quad = nothing, nthreads = Threads.nthreads()
+    )
     T = number_type(ψs)
-    E = zero(T)
-    for i ∈ eachindex(fs, ψs)
-        E += kinetic_energy_from_streamfunction(fs[i], ψs[i], args...; kws...)
+    if nthreads == 1
+        E = zero(T)
+        for i ∈ eachindex(fs, ψs)
+            E += kinetic_energy_from_streamfunction(fs[i], ψs[i], args...; quad)
+        end
+    else
+        x_ref = Threads.Atomic{T}(zero(T))
+        @sync for chunk in FilamentChunkIterator(fs; nchunks = nthreads)
+            Threads.@spawn let x_local = zero(T)
+                for (i, inds, _) in chunk
+                    x_local += kinetic_energy_from_streamfunction(fs[i], ψs[i], args...; quad, inds)
+                end
+                Threads.atomic_add!(x_ref, x_local)
+            end
+        end
+        E = x_ref[]::T
     end
     E
 end
 
 # Case of a single filament
-function kinetic_energy_from_streamfunction(fs::AbstractFilament, ψs::SingleFilamentData, Γ::Real, Ls = (∞, ∞, ∞); quad = nothing)
-    _kinetic_energy_from_streamfunction(quad, fs, ψs, Γ, Ls)
+function kinetic_energy_from_streamfunction(f::AbstractFilament, ψs::SingleFilamentData, Γ::Real, Ls = (∞, ∞, ∞); quad = nothing, inds = eachindex(f))
+    _kinetic_energy_from_streamfunction(quad, f, ψs, inds, Γ, Ls)
 end
 
-function kinetic_energy_from_streamfunction(fs::AbstractFilament, ψs::SingleFilamentData, p::ParamsBiotSavart; kws...)
-    kinetic_energy_from_streamfunction(fs, ψs, p.Γ, p.Ls; kws...)
+function kinetic_energy_from_streamfunction(f::AbstractFilament, ψs::SingleFilamentData, p::ParamsBiotSavart; kws...)
+    kinetic_energy_from_streamfunction(f, ψs, p.Γ, p.Ls; kws...)
 end
 
 # 1. No quadratures (cheaper)
-function _kinetic_energy_from_streamfunction(::Nothing, f, ψf, Γ, Ls)
+function _kinetic_energy_from_streamfunction(::Nothing, f, ψf, inds, Γ, Ls)
+    @assert eachindex(f) == eachindex(ψf)
+    checkbounds(f, inds)
     prefactor = Γ / (2 * _domain_volume(Ls))
     T = number_type(ψf)
     E = zero(T)
     ts = knots(f)
-    for i ∈ eachindex(f, ψf)
+    @inbounds for i ∈ inds
         ψ⃗ = ψf[i]
         s⃗′ = f[i, Derivative(1)]
         δt = (ts[i + 1] - ts[i - 1]) / 2
@@ -121,11 +139,13 @@ function _kinetic_energy_from_streamfunction(quad, f, ψf, args...)
     _kinetic_energy_from_streamfunction(isinterpolable(ψf), quad, f, ψf, args...)
 end
 
-function _kinetic_energy_from_streamfunction(::IsInterpolable{true}, quad, f, ψf, Γ, Ls)
+function _kinetic_energy_from_streamfunction(::IsInterpolable{true}, quad, f, ψf, inds, Γ, Ls)
+    @assert eachindex(f) == eachindex(ψf)
+    checkbounds(f, inds)
     prefactor = Γ / (2 * _domain_volume(Ls))
     T = number_type(ψf)
     E = zero(T)
-    for i ∈ eachindex(segments(f))
+    for i ∈ inds
         E += integrate(f, i, quad) do f, i, ζ
             ψ⃗ = ψf(i, ζ)
             s⃗′ = f(i, ζ, Derivative(1))
@@ -135,7 +155,9 @@ function _kinetic_energy_from_streamfunction(::IsInterpolable{true}, quad, f, ψ
     prefactor * E
 end
 
-function _kinetic_energy_from_streamfunction(::IsInterpolable{false}, quad, f, ψf, Γ, Ls)
+function _kinetic_energy_from_streamfunction(::IsInterpolable{false}, quad, f, ψf, inds, Γ, Ls)
+    @assert eachindex(f) == eachindex(ψf)
+    checkbounds(f, inds)
     prefactor = Γ / (2 * _domain_volume(Ls))
     method = Filaments.discretisation_method(f)
     ts = Filaments.knots(f)
@@ -161,7 +183,7 @@ function _kinetic_energy_from_streamfunction(::IsInterpolable{false}, quad, f, �
         coefs = Filaments.init_coefficients(method, cs, cderiv)
         copyto!(cs, ψf)
         Filaments.compute_coefficients!(coefs, ts)
-        for i ∈ eachindex(segments(f))
+        for i ∈ inds
             E += integrate(f, i, quad) do f, i, ζ
                 ψ⃗ = Filaments.evaluate(coefs, ts, i, ζ)
                 s⃗′ = f(i, ζ, Derivative(1))
