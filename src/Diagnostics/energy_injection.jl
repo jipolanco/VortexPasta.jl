@@ -72,22 +72,22 @@ function energy_injection_rate(
         vL::SetOfFilamentsData,
         vs::SetOfFilamentsData,
         p::ParamsBiotSavart{T};
+        quad = nothing,
         nthreads = Threads.nthreads(),
-        kws...
     ) where {T <: AbstractFloat}
     @assert T === number_type(fs) === number_type(vL) === number_type(vs)
     if nthreads == 1
         ε = zero(T)
         for i in eachindex(fs, vL, vs)
-            ε += energy_injection_rate(fs[i], vL[i], vs[i], p; kws...)
+            ε += energy_injection_rate(fs[i], vL[i], vs[i], p; quad)
         end
     else
-        chunks = FilamentChunkIterator(fs; nchunks = nthreads, full_vectors = true)
+        chunks = FilamentChunkIterator(fs; nchunks = nthreads)
         ε_ref = Threads.Atomic{T}(zero(T))
         @sync for chunk in chunks
             Threads.@spawn let ε_local = zero(T)
-                for (i, _, _) in chunk
-                    ε_local += energy_injection_rate(fs[i], vL[i], vs[i], p; kws...)
+                for (i, inds, _) in chunk
+                    ε_local += energy_injection_rate(fs[i], vL[i], vs[i], p; inds, quad)
                 end
                 Threads.atomic_add!(ε_ref, ε_local)
             end
@@ -105,29 +105,32 @@ function energy_injection_rate(
         vL::CurvatureVector,
         vs::SetOfFilamentsData,
         p::ParamsBiotSavart{T};
-        kws...,
+        quad, nthreads = Threads.nthreads(),
     ) where {T <: AbstractFloat}
     @assert T === number_type(fs) === number_type(vs)
     Γ = p.Γ
     V = _domain_volume(p.Ls)
     prefactor = T(-Γ^2 / (V * 4 * π))
-    prefactor * stretching_rate(fs, vs)
+    prefactor * stretching_rate(fs, vs; quad, nthreads)
 end
 
 function energy_injection_rate(
         f::AbstractFilament, vL, vs::SingleFilamentData, p::ParamsBiotSavart{T};
         quad = nothing,
+        inds = eachindex(f),
     ) where {T <: AbstractFloat}
-    _energy_injection_rate(quad, f, vL, vs, p)
+    _energy_injection_rate(quad, f, vL, vs, inds, p)
 end
 
 # 1. No quadratures (cheaper)
-function _energy_injection_rate(quad::Nothing, f, vL::SingleFilamentData, vs, p)
+function _energy_injection_rate(quad::Nothing, f, vL::SingleFilamentData, vs, inds, p)
+    @assert eachindex(f) == eachindex(vL) == eachindex(vs)
+    checkbounds(f, inds)
     prefactor = p.Γ / _domain_volume(p.Ls)
     T = eltype(p)
     ε = zero(T)
     ts = knots(f)
-    for i in eachindex(f, vL, vs)
+    @inbounds for i in inds
         v⃗_s = vs[i]
         v⃗_L = vL[i]
         s⃗′ = f[i, Derivative(1)]
@@ -143,15 +146,17 @@ function _energy_injection_rate(quad, f, vL, vs, args...)
     _energy_injection_rate(with_interpolable_fields, quad, f, vL, vs, args...)
 end
 
-function _energy_injection_rate(::IsInterpolable{true}, quad, f, vL, vs, p)
+function _energy_injection_rate(::IsInterpolable{true}, quad, f, vL, vs, inds, p)
+    @assert eachindex(f) == eachindex(vL) == eachindex(vs)
+    checkbounds(f, inds)
     prefactor = p.Γ / _domain_volume(p.Ls)
     T = eltype(p)
     ε = zero(T)
-    for i in eachindex(f, vL, vs)
+    @inbounds for i in inds
         ε += integrate(f, i, quad) do f, i, ζ
-            v⃗_s = vs(i, ζ)
-            v⃗_L = vL(i, ζ)
-            s⃗′ = f(i, ζ, Derivative(1))
+            v⃗_s = @inbounds vs(i, ζ)
+            v⃗_L = @inbounds vL(i, ζ)
+            s⃗′ = @inbounds f(i, ζ, Derivative(1))
             (s⃗′ × v⃗_s) ⋅ v⃗_L
         end :: T
     end
@@ -159,7 +164,7 @@ function _energy_injection_rate(::IsInterpolable{true}, quad, f, vL, vs, p)
 end
 
 # To be implemented (not sure we need it...)
-function _energy_injection_rate(::IsInterpolable{false}, quad, f, vL, vs, p)
+function _energy_injection_rate(::IsInterpolable{false}, quad, f, vL, vs, inds, p)
     error(
         """
         computation of energy injection rate without interpolable fields not yet implemented.
