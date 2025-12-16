@@ -857,9 +857,9 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
 end
 
 function after_advection!(iter::VortexFilamentSolver)
-    (; fs, prob, refinement, fold_periodic, stats, to,) = iter
+    (; fs, prob, refinement, fold_periodic, stats, to) = iter
     # Perform reconnections, possibly changing the number of filaments.
-    rec = reconnect!(iter)
+    @timeit to "Reconnect" rec = reconnect!(iter)
     @debug lazy"Number of reconnections: $(rec.reconnection_count)"
     stats.reconnection_count += rec.reconnection_count
     stats.reconnection_length_loss += rec.reconnection_length_loss
@@ -868,22 +868,23 @@ function after_advection!(iter::VortexFilamentSolver)
     stats.reconnection_passes += rec.npasses
     L_fold = periods(prob.p)  # box size (periodicity)
     fields = fields_to_resize(iter)
-    after_advection!(fs, fields; L_fold, refinement, fold_periodic,)
+    @timeit to "Fold and refine" _fold_and_refine!(fs, fields; L_fold, refinement, fold_periodic)
+    nothing
 end
 
 # This should be called right after positions have been updated by the timestepper.
 # Here `fields` is a tuple containing the fields associated to each filament node.
 # Usually this is `(vs, ψs)`, which contain the velocities and streamfunction values at all
 # filament nodes.
-function after_advection!(fs, fields::Tuple; kws...)
+function _fold_and_refine!(fs, fields::Tuple; kws...)
     @inbounds for i ∈ eachindex(fs)
         fields_i = map(vs -> @inbounds(vs[i]), fields)  # typically this is (vs[i], ψs[i])
-        _after_advection!(fs[i], fields_i; kws...)
+        _fold_and_refine!(fs[i], fields_i; kws...)
     end
     fs
 end
 
-function _after_advection!(f::AbstractFilament, fields::Tuple; L_fold, refinement, fold_periodic,)
+function _fold_and_refine!(f::AbstractFilament, fields::Tuple; L_fold, refinement, fold_periodic,)
     if fold_periodic && Filaments.fold_periodic!(f, L_fold)
         Filaments.update_coefficients!(f)  # only called if nodes were modified by fold_periodic!
     end
@@ -947,7 +948,7 @@ Returns a `SimulationStatus`. Currently, this can be:
   be stopped.
 """
 function step!(iter::VortexFilamentSolver{T}) where {T}
-    (; fs, quantities, time, adaptivity, dtmin, advect!, rhs!,) = iter
+    (; fs, quantities, time, adaptivity, dtmin, advect!, rhs!, to) = iter
     (; ψs, vL,) = quantities
     vL_start = ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
     copyto!(vL_start, vL)
@@ -979,7 +980,7 @@ function step!(iter::VortexFilamentSolver{T}) where {T}
     end
 
     advect!(fs, vL, time.dt)
-    after_advection!(iter)
+    @timeit to "After advection" after_advection!(iter)
     time.t += time.dt
     time.nstep += 1
     status = finalise_step!(iter)
@@ -1022,7 +1023,7 @@ end
 # Called whenever filament positions have just been initialised or updated.
 # Returns a SimulationStatus.
 function finalise_step!(iter::VortexFilamentSolver)
-    (; fs, time, stats, adaptivity, rhs!,) = iter
+    (; fs, time, stats, adaptivity, rhs!, to) = iter
     (; vs, vL, ψs,) = iter.quantities
 
     @assert eachindex(fs) == eachindex(vL) == eachindex(vs)

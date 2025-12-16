@@ -23,7 +23,7 @@ function update_values_at_nodes!(
         @timeit to "Compute tangents" _update_unit_tangents!(quantities.tangents, fs)
     end
     # (2) Compute velocities and optionally streamfunction values
-    @timeit to "Compute filament velocity" _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
+    _update_values_at_nodes!(component, iter.fast_term, fields, fs, t, iter)
     # (3) Modify final velocities if running in non-default mode (optional)
     if iter.mode === MinimalEnergy() && haskey(fields, :velocity)
         # Replace velocities (which will be used for advection) with -s⃗′ × v⃗ₛ
@@ -79,10 +79,11 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     ) where {Names, N, V <: VectorOfVectors}
+    (; to) = iter
     if iter.LIA
-        BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+        @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
     else
-        BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
+        @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
     end
     add_external_fields!(fields, iter, fs, t, iter.to)
     apply_forcing!(fields, iter, fs, t, iter.to)
@@ -103,12 +104,13 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
+    (; to) = iter
     T = eltype_nested(Vec3, fields.velocity)
     @assert T <: Vec3
     if iter.LIA
         fill!(fields.velocity, zero(T))
     else
-        BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
+        @timeit to "Biot-Savart (excluding LIA)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
     end
     add_external_fields!(fields, iter, fs, t, iter.to)
     apply_forcing!(fields, iter, fs, t, iter.to)
@@ -123,7 +125,8 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = false)
+    (; to) = iter
+    @timeit to "Biot-Savart (long-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = false)
     add_external_fields!(fields, iter, fs, t, iter.to)
     apply_forcing!(fields, iter, fs, t, iter.to)
     nothing
@@ -142,7 +145,8 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+    (; to) = iter
+    @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
     nothing
 end
 
@@ -154,6 +158,7 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
-    BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
+    (; to) = iter
+    @timeit to "Biot-Savart (short-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
     nothing
 end

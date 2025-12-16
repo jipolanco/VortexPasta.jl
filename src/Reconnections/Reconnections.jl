@@ -147,24 +147,22 @@ function reconnect!(
         vs::Union{Nothing, AbstractVector{<:AbstractFilament}} = nothing;
         to::TimerOutput = TimerOutput(),
     ) where {F <: Function}
-    @timeit to "Reconnect" begin
-        T = number_type(fs)
-        ret = (;
-            reconnection_count = 0,
-            reconnection_length_loss = zero(T),  # decrease of vortex length due to reconnections (not due to removals)
-            filaments_removed_count = 0,
-            filaments_removed_length = zero(T),
-            npasses = 0,
-        )
-        R = typeof(ret)
-        nmax = max_passes(cache)
-        npasses = 0
-        while npasses < nmax
-            npasses += 1
-            nrec = ret.reconnection_count
-            ret = _reconnect_pass!(callback, ret, cache, fs, vs; to)::R
-            nrec == ret.reconnection_count && break  # no new reconnections were performed
-        end
+    T = number_type(fs)
+    ret = (;
+        reconnection_count = 0,
+        reconnection_length_loss = zero(T),  # decrease of vortex length due to reconnections (not due to removals)
+        filaments_removed_count = 0,
+        filaments_removed_length = zero(T),
+        npasses = 0,
+    )
+    R = typeof(ret)
+    nmax = max_passes(cache)
+    npasses = 0
+    while npasses < nmax
+        npasses += 1
+        nrec = ret.reconnection_count
+        ret = _reconnect_pass!(callback, ret, cache, fs, vs; to)::R
+        nrec == ret.reconnection_count && break  # no new reconnections were performed
     end
     ret
 end
