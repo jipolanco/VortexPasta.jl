@@ -16,7 +16,7 @@ public FilamentChunkIterator
 # We iterate over filaments fs, possibly starting somewhere in the middle of filament
 # fs[begin], and possibly ending somewhere in the middle of filament fs[end].
 # Note that fs is a SubArray, i.e. a view of a larger vector of filaments.
-struct SingleChunkIterator{Filaments <: AbstractVector{<:AbstractFilament}}
+struct SingleChunkIterator{Filaments <: AbstractVector{<:AbstractVector}}
     fs::Filaments         # all filaments (included those not in this chunk)
     inds::UnitRange{Int}  # indices of considered filaments
     a::Int  # index of start node in first filament (inclusive) -> iterate over nodes fs[inds[begin]][a:end]
@@ -74,7 +74,7 @@ end
 # lot of points and many other small filaments, so this can help with load balancing.
 
 """
-    FilamentChunkIterator(fs::AbstractVector{<:AbstractFilament}; [nchunks = Threads.nthreads()]) -> FilamentChunkIterator
+    FilamentChunkIterator(fs::AbstractVector{<:AbstractVector}; [nchunks = Threads.nthreads()]) -> FilamentChunkIterator
 
 Simplifies iterating over lists of filaments, especially when parallelising over CPU threads.
 
@@ -108,18 +108,28 @@ using VortexPasta.Filaments: FilamentChunkIterator
     end
 end
 ```
+
+This iterator can work not only with lists of filaments, but also with any kind of vector of vectors.
+For example, one could define the collection:
+
+```julia
+vs = [rand(rand(1:100)) for _ in 1:20]  # define 20 vectors of variable length (between 1 and 100 each)
+@sync for chunk in FilamentChunkIterator(vs)
+    # ...
+end
+```
 """
 struct FilamentChunkIterator{Filaments <: AbstractVector{<:AbstractVector}}
     fs::Filaments
     nchunks::Int
 end
 
-FilamentChunkIterator(fs::AbstractVector{<:AbstractFilament}; nchunks = Threads.nthreads()) =
+FilamentChunkIterator(fs::AbstractVector{<:AbstractVector}; nchunks = Threads.nthreads()) =
     FilamentChunkIterator(fs, nchunks)
 
 Base.IteratorSize(::Type{<:FilamentChunkIterator}) = Base.SizeUnknown()  # the iterator may generate less than `nchunks` elements
 Base.IteratorEltype(::Type{<:FilamentChunkIterator}) = Base.HasEltype()
-Base.eltype(::FilamentChunkIterator) = typeof((1:10, (2, 4)))  # = Tuple{UnitRange{Int}, Tuple{Int, Int}} = (i:j, (i_node_idx, j_node_idx))
+Base.eltype(::FilamentChunkIterator{F}) where {F} = SingleChunkIterator{F}
 
 function Base.iterate(it::FilamentChunkIterator)
     (; fs,) = it
