@@ -72,6 +72,43 @@ end
 # the same number of filament nodes (discrete points). In fact, the number of nodes per
 # filament may be very unequal in practical situations, with e.g. a single filament having a
 # lot of points and many other small filaments, so this can help with load balancing.
+
+"""
+    FilamentChunkIterator(fs::AbstractVector{<:AbstractFilament}; [nchunks = Threads.nthreads()]) -> FilamentChunkIterator
+
+Simplifies iterating over lists of filaments, especially when parallelising over CPU threads.
+
+This iterator divides the list of filaments into (maximum) `nchunks` chunks, so that each
+chunk has roughly the same number of _nodes_ (discretisation points). The number of chunks
+is by default the total number of available threads. The idea is that each thread deals with
+roughly the same number of nodes, so that all of them have the same amount of work to do
+(load balancing).
+
+This iterator is particularly well adapted to the case where the number of nodes per
+filament is very unequal, with e.g. a single filament having a lot of points and many other
+small filaments, which is actually quite common in turbulence simulations.
+
+To efficiently deal with that kind of case, each chunk can start or end in the middle of a
+filament, meaning that a given thread may have to perform work on a subset of all nodes of a
+given filament.
+
+# Examples
+
+Given a list of filaments `fs`, this iterator can be used as follows:
+
+```julia
+using VortexPasta.Filaments: FilamentChunkIterator
+
+# Iterate in parallel over all filament nodes.
+@sync for chunk in FilamentChunkIterator(fs)
+    Threads.@spawn for (i, inds, num_nodes_visited) in chunk
+        # Do some work on node indices `inds` of filament `fs[i]`.
+        # `num_nodes_visited` is an integer equal to the accumulated number of nodes in
+        # all previous filaments, fs[begin:(i - 1)], and may be useful in some cases.
+    end
+end
+```
+"""
 struct FilamentChunkIterator{Filaments <: AbstractVector{<:AbstractVector}}
     fs::Filaments
     nchunks::Int

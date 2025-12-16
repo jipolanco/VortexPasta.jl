@@ -59,6 +59,7 @@ max_cutoff_distance
 init_cache_short
 add_pair_interactions!
 foreach_charge
+foreach_pair
 nearby_charges
 ```
 

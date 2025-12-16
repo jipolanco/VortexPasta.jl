@@ -81,6 +81,12 @@ split!
 merge!
 ```
 
+## Iterating over filament nodes
+
+```@docs
+FilamentChunkIterator
+```
+
 ## Curve parametrisations
 
 ```@docs
