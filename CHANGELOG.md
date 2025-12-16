@@ -5,7 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Improve parallelisation strategy of certain timestepping functions (`advect!` in particular).
+
 ### Added
+
+- `Timestepping`: add more timing sections to `iter.to` (again).
 
 - `FilamentChunkIterator` now has a `full_vectors` option for iterating over "whole"
   filaments.
