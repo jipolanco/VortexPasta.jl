@@ -27,8 +27,11 @@ function _advect_filaments!(fs, fbase::Nothing, vL, dt)
             @inbounds _advect_filament!(fs[i], nothing, vL[i], inds, dt)
         end
     end
-    Threads.@threads for i in eachindex(fs)
-        Filaments.update_coefficients!(fs[i])  # note: in this case we recompute the knots
+    @sync for chunk in FilamentChunkIterator(fs; full_vectors = true)
+        Threads.@spawn for (i, inds, _) in chunk
+            @assert inds == eachindex(fs[i])  # we have "access" to the whole filament (due to full_vectors = true)
+            Filaments.update_coefficients!(fs[i])  # note: in this case we recompute the knots
+        end
     end
     fs
 end
@@ -40,11 +43,14 @@ function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}
             @inbounds _advect_filament!(fs[i], fbase[i], vL[i], inds, dt)
         end
     end
-    Threads.@threads for i in eachindex(fs)
+    @sync for chunk in FilamentChunkIterator(fs; full_vectors = true)
         # Compute interpolation coefficients making sure that knots are preserved (and not
         # recomputed from new locations).
-        ts = knots(fbase[i])
-        Filaments.update_coefficients!(fs[i]; knots = ts)
+        Threads.@spawn for (i, inds, _) in chunk
+            @assert inds == eachindex(fs[i])  # we have "access" to the whole filament (due to full_vectors = true)
+            ts = knots(fbase[i])
+            Filaments.update_coefficients!(fs[i]; knots = ts)
+        end
     end
     fs
 end

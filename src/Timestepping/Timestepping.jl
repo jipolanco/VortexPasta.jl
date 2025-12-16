@@ -1066,11 +1066,14 @@ function finalise_step!(iter::VortexFilamentSolver)
     # Update coefficients in case we need to interpolate fields, e.g. for diagnostics or
     # reconnections. We make sure we use the same parametrisation (knots) of the filaments
     # themselves.
-    # TODO: perform reconnections after this?
-    for i ∈ eachindex(fs)
-        local ts = Filaments.knots(fs[i])
-        foreach(fields_to_interpolate(iter)) do qs
-            Filaments.update_coefficients!(qs[i]; knots = ts)
+    chunks = FilamentChunkIterator(fs; full_vectors = true)
+    @timeit to "Prepare interpolable fields" @sync for chunk in chunks
+        Threads.@spawn for (i, inds, _) in chunk
+            @assert inds == eachindex(fs[i])  # we have "access" to the whole filament (due to full_vectors = true)
+            local ts = Filaments.knots(fs[i])
+            foreach(fields_to_interpolate(iter)) do qs
+                Filaments.update_coefficients!(qs[i]; knots = ts)
+            end
         end
     end
 
