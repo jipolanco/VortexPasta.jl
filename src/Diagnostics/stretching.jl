@@ -34,25 +34,9 @@ In the implementation, the last expression is the one used to compute the stretc
 function stretching_rate end
 
 function stretching_rate(fs::VectorOfFilaments, vs::SetOfFilamentsData; nthreads = Threads.nthreads(), quad = nothing)
-    T = number_type(vs)
-    if nthreads == 1
-        x = zero(T)
-        for i ∈ eachindex(fs, vs)
-            x += stretching_rate(fs[i], vs[i]; quad)
-        end
-    else
-        x_ref = Threads.Atomic{T}(zero(T))
-        @sync for chunk in FilamentChunkIterator(fs; nchunks = nthreads)
-            Threads.@spawn let x_local = zero(T)
-                for (i, inds, _) in chunk
-                    x_local += stretching_rate(fs[i], vs[i]; quad, inds)
-                end
-                Threads.atomic_add!(x_ref, x_local)
-            end
-        end
-        x = x_ref[]::T
+    maybe_parallelise_sum(fs, nthreads) do i, inds
+        stretching_rate(fs[i], vs[i]; quad, inds)
     end
-    x
 end
 
 function stretching_rate(f::AbstractFilament, vs::SingleFilamentData; quad = nothing, inds = eachindex(f))

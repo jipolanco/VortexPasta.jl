@@ -54,6 +54,28 @@ end
 
 _domain_volume(p::ParamsBiotSavart) = _domain_volume(p.Ls)
 
+function maybe_parallelise_sum(f::F, fs::VectorOfFilaments, nthreads) where {F <: Function}
+    T = number_type(fs)
+    if nthreads == 1
+        x = zero(T)
+        for i in eachindex(fs)
+            x += @inline f(i, eachindex(fs[i]))::T
+        end
+    else
+        x_ref = Threads.Atomic{T}(zero(T))
+        @sync for chunk in FilamentChunkIterator(fs; nchunks = nthreads)
+            Threads.@spawn let x_local = zero(T)
+                for (i, inds, _) in chunk
+                    x_local += @inline f(i, inds)::T
+                end
+                Threads.atomic_add!(x_ref, x_local)
+            end
+        end
+        x = x_ref[]::T
+    end
+    x
+end
+
 include("energy.jl")
 include("energy_injection.jl")
 include("helicity.jl")

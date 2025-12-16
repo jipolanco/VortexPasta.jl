@@ -87,25 +87,9 @@ function kinetic_energy_from_streamfunction(
         fs::VectorOfFilaments, ψs::SetOfFilamentsData, args...;
         quad = nothing, nthreads = Threads.nthreads()
     )
-    T = number_type(ψs)
-    if nthreads == 1
-        E = zero(T)
-        for i ∈ eachindex(fs, ψs)
-            E += kinetic_energy_from_streamfunction(fs[i], ψs[i], args...; quad)
-        end
-    else
-        x_ref = Threads.Atomic{T}(zero(T))
-        @sync for chunk in FilamentChunkIterator(fs; nchunks = nthreads)
-            Threads.@spawn let x_local = zero(T)
-                for (i, inds, _) in chunk
-                    x_local += kinetic_energy_from_streamfunction(fs[i], ψs[i], args...; quad, inds)
-                end
-                Threads.atomic_add!(x_ref, x_local)
-            end
-        end
-        E = x_ref[]::T
+    maybe_parallelise_sum(fs, nthreads) do i, inds
+        kinetic_energy_from_streamfunction(fs[i], ψs[i], args...; quad, inds)
     end
-    E
 end
 
 # Case of a single filament
