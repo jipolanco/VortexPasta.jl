@@ -11,6 +11,7 @@ using ..Filaments:
     Filaments,
     AbstractFilament, ClosedFilament,
     Derivative, UnitTangent, CurvatureVector, Vec3,
+    FilamentChunkIterator,
     knots, segments, integrate,
     number_type
 

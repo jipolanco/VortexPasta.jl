@@ -72,12 +72,27 @@ function energy_injection_rate(
         vL::SetOfFilamentsData,
         vs::SetOfFilamentsData,
         p::ParamsBiotSavart{T};
+        nthreads = Threads.nthreads(),
         kws...
     ) where {T <: AbstractFloat}
     @assert T === number_type(fs) === number_type(vL) === number_type(vs)
-    ε = zero(T)
-    for i in eachindex(fs, vL, vs)
-        ε += energy_injection_rate(fs[i], vL[i], vs[i], p; kws...)
+    if nthreads == 1
+        ε = zero(T)
+        for i in eachindex(fs, vL, vs)
+            ε += energy_injection_rate(fs[i], vL[i], vs[i], p; kws...)
+        end
+    else
+        chunks = FilamentChunkIterator(fs; nchunks = nthreads, full_vectors = true)
+        ε_ref = Threads.Atomic{T}(zero(T))
+        @sync for chunk in chunks
+            Threads.@spawn let ε_local = zero(T)
+                for (i, _, _) in chunk
+                    ε_local += energy_injection_rate(fs[i], vL[i], vs[i], p; kws...)
+                end
+                Threads.atomic_add!(ε_ref, ε_local)
+            end
+        end
+        ε = ε_ref[]::T
     end
     ε
 end
