@@ -163,8 +163,10 @@ function energy_flux(
         BiotSavart.interpolate_to_physical!(callback, cache)
         BiotSavart.copy_long_range_output!(vs_filtered, cache)
 
-        for j in eachindex(vs_filtered, fs)
-            Filaments.update_coefficients!(vs_filtered[j]; knots = Filaments.knots(fs[j]))
+        @sync for chunks in FilamentChunkIterator(fs; full_vectors = true)
+            Threads.@spawn for (j, _, _) in chunks
+                Filaments.update_coefficients!(vs_filtered[j]; knots = Filaments.knots(fs[j]))
+            end
         end
 
         # Compute dissipation of large-scale energy by each input velocity
@@ -296,6 +298,7 @@ function energy_transfer_matrix(
 
     vs_shells[end] .= vs .- vs_large  # the last shell now has the small-scale velocity (wavenumbers k > ks[end])
 
+    # TODO: parallelise over shells or over filament chunks?
     Threads.@threads for vs_shell in vs_shells
         for n in eachindex(vs_shell, fs)
             Filaments.update_coefficients!(vs_shell[n]; knots = Filaments.knots(fs[n]))
@@ -307,7 +310,8 @@ function energy_transfer_matrix(
     Threads.@threads for j in eachindex(vs_shells)
         transfers[j, j] = 0  # by definition diagonal values are zero
         for i in (j + 1):lastindex(vs_shells)
-            Tij = Diagnostics.energy_injection_rate(fs, vs_shells[j], vs_shells[i], params; quad)
+            # Don't parallelise inside of energy_injection_rate, since we're already running in parallel.
+            Tij = Diagnostics.energy_injection_rate(fs, vs_shells[j], vs_shells[i], params; quad, nthreads = 1)
             transfers[i, j] = Tij
             transfers[j, i] = -Tij  # matrix is antisymmetric
         end

@@ -22,22 +22,22 @@ to its direction of propagation, i.e. normal to the plane where the ring lives).
 """
 function vortex_impulse end
 
-function vortex_impulse(fs::VectorOfFilaments; kws...)
-    T = eltype(eltype(fs))
-    @assert T <: Vec3
-    p⃗ = zero(T)
-    for f ∈ fs
-        p⃗ = p⃗ + vortex_impulse(f; kws...)
+function vortex_impulse(fs::VectorOfFilaments; quad = nothing, nthreads = Threads.nthreads())
+    T = number_type(fs)
+    maybe_parallelise_sum(fs, nthreads; init = zero(Vec3{T})) do i, inds
+        vortex_impulse(fs[i]; quad, inds)
     end
-    p⃗
 end
 
-vortex_impulse(f::AbstractFilament; quad = nothing) = _vortex_impulse(quad, f)
+vortex_impulse(f::AbstractFilament; quad = nothing, inds = eachindex(f)) =
+    _vortex_impulse(quad, f, inds)
 
-function _vortex_impulse(quad, f::AbstractFilament)
+function _vortex_impulse(quad, f::AbstractFilament, inds)
+    checkbounds(f, inds)
     T = eltype(f)
     p⃗ = zero(T)
-    for seg ∈ segments(f)
+    for i ∈ inds
+        seg = Filaments.Segment(f, i)
         p⃗ = p⃗ + integrate(seg, quad) do seg, ζ
             s⃗ = seg(ζ)
             s⃗′ = seg(ζ, Derivative(1))
@@ -47,9 +47,10 @@ function _vortex_impulse(quad, f::AbstractFilament)
     p⃗ ./ 2
 end
 
-function _vortex_impulse(::Nothing, f::AbstractFilament)
+function _vortex_impulse(::Nothing, f::AbstractFilament, inds)
+    checkbounds(f, inds)
     ts = knots(f)
-    sum(eachindex(f)) do i
+    sum(inds) do i
         s⃗ = f[i]
         s⃗′ = f[i, Derivative(1)]
         δt = (ts[i + 1] - ts[i - 1]) / 2

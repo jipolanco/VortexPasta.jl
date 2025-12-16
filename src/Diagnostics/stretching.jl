@@ -33,24 +33,23 @@ In the implementation, the last expression is the one used to compute the stretc
 """
 function stretching_rate end
 
-function stretching_rate(fs::VectorOfFilaments, vs::SetOfFilamentsData; kws...)
-    T = number_type(vs)
-    x = zero(T)
-    for i ∈ eachindex(fs, vs)
-        x += stretching_rate(fs[i], vs[i]; kws...)
+function stretching_rate(fs::VectorOfFilaments, vs::SetOfFilamentsData; nthreads = Threads.nthreads(), quad = nothing)
+    maybe_parallelise_sum(fs, nthreads) do i, inds
+        stretching_rate(fs[i], vs[i]; quad, inds)
     end
-    x
 end
 
-function stretching_rate(f::AbstractFilament, vs::SingleFilamentData; quad = nothing)
-    _stretching_rate(quad, f, vs)
+function stretching_rate(f::AbstractFilament, vs::SingleFilamentData; quad = nothing, inds = eachindex(f))
+    _stretching_rate(quad, f, vs, inds)
 end
 
-function _stretching_rate(quad::Nothing, f::ClosedFilament, vs)
+function _stretching_rate(quad::Nothing, f::ClosedFilament, vs, inds)
+    @assert eachindex(f) == eachindex(vs)
+    checkbounds(f, inds)
     T = number_type(vs)
     x = zero(T)
     ts = Filaments.knots(f)
-    for i ∈ eachindex(f, vs)
+    @inbounds for i ∈ inds
         v⃗ = vs[i]
         s⃗′ = f[i, Derivative(1)]
         s⃗″ = f[i, Derivative(2)]
@@ -65,18 +64,20 @@ function _stretching_rate(quad::Nothing, f::ClosedFilament, vs)
 end
 
 # Case with quadratures (requires interpolating the velocity along filaments)
-function _stretching_rate(quad, f::ClosedFilament, vs)
-    _stretching_rate(isinterpolable(vs), quad, f, vs)
+function _stretching_rate(quad, f::ClosedFilament, vs, inds)
+    _stretching_rate(isinterpolable(vs), quad, f, vs, inds)
 end
 
-function _stretching_rate(::IsInterpolable{true}, quad, f::ClosedFilament, vs)
+function _stretching_rate(::IsInterpolable{true}, quad, f::ClosedFilament, vs, inds)
+    @assert eachindex(f) == eachindex(vs)
+    checkbounds(f, inds)
     T = number_type(vs)
     x = zero(T)
-    for i ∈ eachindex(segments(f))
+    @inbounds for i ∈ inds
         x += integrate(f, i, quad) do f, i, ζ
-            v⃗ = vs(i, ζ)
-            s⃗′ = f(i, ζ, Derivative(1))
-            s⃗″ = f(i, ζ, Derivative(2))
+            v⃗ = @inbounds vs(i, ζ)
+            s⃗′ = @inbounds f(i, ζ, Derivative(1))
+            s⃗″ = @inbounds f(i, ζ, Derivative(2))
             s′³ = sqrt(sum(abs2, s⃗′))^3  # = |s⃗′|³
             # Note: the integrand is (v⃗ ⋅ ρ⃗) * |s⃗′|, where ρ⃗ is the curvature vector and
             # |s⃗′| = dζ/dt is the conversion from arc length ζ to arbitrary
@@ -87,7 +88,9 @@ function _stretching_rate(::IsInterpolable{true}, quad, f::ClosedFilament, vs)
     x
 end
 
-function _stretching_rate(::IsInterpolable{false}, quad, f::ClosedFilament, vs)
+function _stretching_rate(::IsInterpolable{false}, quad, f::ClosedFilament, vs, inds)
+    @assert eachindex(f) == eachindex(vs)
+    checkbounds(f, inds)
     T = number_type(vs)
     x = zero(T)
 
@@ -112,12 +115,12 @@ function _stretching_rate(::IsInterpolable{false}, quad, f::ClosedFilament, vs)
         coefs = Filaments.init_coefficients(method, cs, cderiv)
         copyto!(cs, vs)
         Filaments.compute_coefficients!(coefs, ts)
-        for i ∈ eachindex(segments(f))
+        @inbounds for i ∈ inds
             x += integrate(f, i, quad) do f, i, ζ
-                s⃗′ = f(i, ζ, Derivative(1))
-                s⃗″ = f(i, ζ, Derivative(2))
+                s⃗′ = @inbounds f(i, ζ, Derivative(1))
+                s⃗″ = @inbounds f(i, ζ, Derivative(2))
                 s′³ = sqrt(sum(abs2, s⃗′))^3  # = |s⃗′|³
-                v⃗ = Filaments.evaluate(coefs, ts, i, ζ, Derivative(0))
+                v⃗ = @inbounds Filaments.evaluate(coefs, ts, i, ζ, Derivative(0))
                 # Note: the integrand is (v⃗ ⋅ ρ⃗) * |s⃗′|, where ρ⃗ is the curvature vector and
                 # |s⃗′| = dζ/dt is the conversion from arc length ζ to arbitrary
                 # parametrisation t.

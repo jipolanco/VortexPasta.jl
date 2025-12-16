@@ -174,8 +174,8 @@ function test_leapfrogging_rings(
         # which means they are cheap).
         @inferred Diagnostics.stretching_rate(iter)
         @inferred Diagnostics.stretching_rate(iter; quad = GaussLegendre(2))
-        @test 0 == @allocated Diagnostics.stretching_rate(iter)
-        @test 0 == @allocated Diagnostics.stretching_rate(iter; quad = GaussLegendre(2))
+        @test 0 == @allocated Diagnostics.stretching_rate(iter; nthreads = 1)
+        @test 0 == @allocated Diagnostics.stretching_rate(iter; quad = GaussLegendre(2), nthreads = 1)
     end
 
     VERBOSE && println(iter.to)

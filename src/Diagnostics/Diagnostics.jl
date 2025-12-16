@@ -11,6 +11,7 @@ using ..Filaments:
     Filaments,
     AbstractFilament, ClosedFilament,
     Derivative, UnitTangent, CurvatureVector, Vec3,
+    FilamentChunkIterator,
     knots, segments, integrate,
     number_type
 
@@ -52,6 +53,13 @@ function _domain_volume(Ls)
 end
 
 _domain_volume(p::ParamsBiotSavart) = _domain_volume(p.Ls)
+
+function maybe_parallelise_sum(
+        f::F, fs::VectorOfFilaments, nthreads;
+        init = zero(number_type(fs))
+    ) where {F <: Function}
+    Filaments.parallel_reduce(f, +, fs, nthreads; init)
+end
 
 include("energy.jl")
 include("energy_injection.jl")

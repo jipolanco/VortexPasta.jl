@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improve parallelisation strategy of certain timestepping functions (`advect!` in particular).
 
+- Parallelise evaluation of most diagnostics (energy, vortex length, energy injection rate, ...).
+
 ### Added
 
 - `Timestepping`: add more timing sections to `iter.to` (again).
