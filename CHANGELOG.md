@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `FilamentChunkIterator` now has a `full_vectors` option for iterating over "whole"
+  filaments.
+
 ## [0.32.7] - 2025-12-15
 
 ### Changed

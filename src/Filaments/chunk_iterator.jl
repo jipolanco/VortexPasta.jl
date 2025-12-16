@@ -74,7 +74,11 @@ end
 # lot of points and many other small filaments, so this can help with load balancing.
 
 """
-    FilamentChunkIterator(fs::AbstractVector{<:AbstractVector}; [nchunks = Threads.nthreads()]) -> FilamentChunkIterator
+    FilamentChunkIterator(
+        fs::AbstractVector{<:AbstractVector};
+        nchunks = Threads.nthreads(),
+        full_vectors = false,
+    ) -> FilamentChunkIterator
 
 Simplifies iterating over lists of filaments, especially when parallelising over CPU threads.
 
@@ -92,6 +96,11 @@ To efficiently deal with that kind of case, each chunk can start or end in the m
 filament, meaning that a given thread may have to perform work on a subset of all nodes of a
 given filament.
 
+Optionally, if one must perform global operations on all nodes of a filament (for example
+compute spline interpolation coefficients), one can pass `full_vectors = true`. In that
+case, filaments will not be broken into multiple subsets, and a given filament is guaranteed
+to be included in exactly a single chunk.
+
 # Examples
 
 Given a list of filaments `fs`, this iterator can be used as follows:
@@ -104,7 +113,8 @@ using VortexPasta.Filaments: FilamentChunkIterator
     Threads.@spawn for (i, inds, num_nodes_visited) in chunk
         # Do some work on node indices `inds` of filament `fs[i]`.
         # `num_nodes_visited` is an integer equal to the accumulated number of nodes in
-        # all previous filaments, fs[begin:(i - 1)], and may be useful in some cases.
+        # all previous chunks, which includes all filaments fs[begin:(i - 1)] and possibly
+        # the current one, fs[i]. This may be useful in some cases.
     end
 end
 ```
@@ -118,14 +128,34 @@ vs = [rand(rand(1:100)) for _ in 1:20]  # define 20 vectors of variable length (
     # ...
 end
 ```
+
+Using `full_vectors = true`:
+
+```julia
+# Iterate in parallel over all filament nodes.
+@sync for chunk in FilamentChunkIterator(fs; full_vectors = true)
+    Threads.@spawn for (i, inds, num_nodes_visited) in chunk
+        @assert inds == eachindex(fs[i])  # this is always true if full_vectors = true
+        # Do some work on the whole filament `fs[i]`.
+        # Similarly to before, `num_nodes_visited` is an integer equal to the accumulated
+        # number of nodes in all previous chunks, which includes all filaments fs[begin:(i - 1)].
+    end
+end
+```
 """
 struct FilamentChunkIterator{Filaments <: AbstractVector{<:AbstractVector}}
     fs::Filaments
     nchunks::Int
+    full_vectors::Bool
 end
 
-FilamentChunkIterator(fs::AbstractVector{<:AbstractVector}; nchunks = Threads.nthreads()) =
-    FilamentChunkIterator(fs, nchunks)
+function FilamentChunkIterator(
+        fs::AbstractVector{<:AbstractVector};
+        nchunks = Threads.nthreads(),
+        full_vectors::Bool = false,
+    )
+    FilamentChunkIterator(fs, nchunks, full_vectors)
+end
 
 Base.IteratorSize(::Type{<:FilamentChunkIterator}) = Base.SizeUnknown()  # the iterator may generate less than `nchunks` elements
 Base.IteratorEltype(::Type{<:FilamentChunkIterator}) = Base.HasEltype()
@@ -146,7 +176,7 @@ function Base.iterate(it::FilamentChunkIterator)
 end
 
 function Base.iterate(it::FilamentChunkIterator, state)
-    (; fs, nchunks,) = it
+    (; fs, nchunks, full_vectors) = it
     (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated,) = state
     if nchunk == nchunks || i_next == lastindex(fs) + 1
         return nothing  # we're done iterating
@@ -160,7 +190,7 @@ function Base.iterate(it::FilamentChunkIterator, state)
     if nchunk == nchunks
         Np_accumulated_wanted = Np_total  # make sure we iterate over all points by the last iteration
     end
-    if Np_accumulated_wanted == Np_accumulated
+    if Np_accumulated_wanted ≤ Np_accumulated
         # Nothing to do, iterate recursively with new value of nchunk
         state_new = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)::typeof(state)
         return iterate(it, state_new)
@@ -174,12 +204,21 @@ function Base.iterate(it::FilamentChunkIterator, state)
         # Available nodes in current filament
         Np_available = lastindex(fs[j]) - j_node_idx
         if Np_available > Np_wanted
-            # Stop in the middle of the filament
-            j_node_idx = j_node_idx + Np_wanted
-            Np_accumulated += Np_wanted
-            @assert Np_accumulated == Np_accumulated_wanted
-            i_next = j  # continue on the same filament
-            i_node_idx_next = j_node_idx + 1
+            if full_vectors
+                # Stop at the end of the filament
+                j_node_idx = j_node_idx + Np_available
+                Np_accumulated += Np_available
+                @assert Np_accumulated > Np_accumulated_wanted
+                i_next = j + 1
+                i_node_idx_next = firstindex(fs[j])
+            else
+                # Stop in the middle of the filament
+                j_node_idx = j_node_idx + Np_wanted
+                Np_accumulated += Np_wanted
+                @assert Np_accumulated == Np_accumulated_wanted
+                i_next = j  # continue on the same filament
+                i_node_idx_next = j_node_idx + 1
+            end
             state_new = (; nchunk, i_next, i_node_idx_next, Np_total, Np_accumulated)::typeof(state)
             ret = SingleChunkIterator(fs, i:j, i_node_idx, j_node_idx)
             return ret, state_new
