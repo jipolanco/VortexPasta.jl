@@ -8,6 +8,7 @@ using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Reconnections
 using VortexPasta.Timestepping
+using VortexPasta.Diagnostics
 using VortexPasta.Forcing
 using Rotations: Rotations
 using StableRNGs: StableRNG
@@ -156,6 +157,19 @@ SUITE["Timestepping"]["forcing"] = @benchmarkable Timestepping.apply_forcing!(fi
 end
 
 # results_timestepping = run(SUITE["Timestepping"])
+
+## Define diagnostics benchmarks
+
+quad = params.quad  # quadrature rule used for integration on filaments in diagnostics
+Nk = 10  # number of Fourier shells used for energy flux
+SUITE["Diagnostics"]["energy_spectrum"] = @benchmarkable Diagnostics.energy_spectrum($iter)
+SUITE["Diagnostics"]["kinetic_energy"] = @benchmarkable Diagnostics.kinetic_energy($iter)
+SUITE["Diagnostics"]["helicity"] = @benchmarkable Diagnostics.helicity($iter; quad = $quad)
+SUITE["Diagnostics"]["energy_injection_rate"] = @benchmarkable Diagnostics.energy_injection_rate($iter; quad = $quad)
+SUITE["Diagnostics"]["energy_flux"] = @benchmarkable Diagnostics.energy_flux($iter, $Nk; quad = $quad)
+SUITE["Diagnostics"]["energy_transfer_matrix"] = @benchmarkable Diagnostics.energy_transfer_matrix($iter, $Nk; quad = $quad)
+
+# run(SUITE["Diagnostics"]["energy_flux"])
 
 ## Example interactive usage:
 
