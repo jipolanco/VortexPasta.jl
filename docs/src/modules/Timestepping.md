@@ -57,6 +57,7 @@ ring tutorial for examples.
 ```@docs
 solve!
 step!
+can_compute_diagnostics
 ```
 
 ## Restarting a simulation

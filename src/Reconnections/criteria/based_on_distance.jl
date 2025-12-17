@@ -56,6 +56,7 @@ end
 
 distance(c::ReconnectBasedOnDistance) = c.dist
 max_passes(c::ReconnectBasedOnDistance) = c.max_passes
+require_interpolated_velocity(c::ReconnectBasedOnDistance) = c.use_velocity
 
 function Base.show(io::IO, c::ReconnectBasedOnDistance)
     print(io, "ReconnectBasedOnDistance($(c.dist); cos_max = $(c.cos_max), max_passes = $(c.max_passes), use_velocity = $(c.use_velocity), decrease_length = $(c.decrease_length))")

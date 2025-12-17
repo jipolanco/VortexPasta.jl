@@ -6,6 +6,7 @@ Module defining timestepping solvers for vortex filament simulations.
 module Timestepping
 
 export init, solve!, step!, VortexFilamentProblem, VortexFilamentSolver,
+       can_compute_diagnostics,
        save_checkpoint, load_checkpoint,
        inject_filament!,
        ShortRangeTerm, LocalTerm,
@@ -259,6 +260,7 @@ struct VortexFilamentSolver{
     affect!    :: Affect      # signature: affect!(iter)
     affect_t!  :: AffectTime  # signature: affect_t!(iter, t) where t is the current time
     callback :: Callback      # signature: callback(iter)
+    step_diagnostics   :: Int
     external_fields    :: ExternalFields  # velocity and streamfunction forcing
     stretching_velocity :: StretchingVelocity
     forcing  :: Forcing  # forcing term added to the vortex velocity: vL = vs + vf (+ possibly other terms)
@@ -308,6 +310,7 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     _maybe_print_function(io, "\n ├─ affect!:", iter.affect!)
     _maybe_print_function(io, "\n ├─ affect_t!:", iter.affect_t!)
     _maybe_print_function(io, "\n ├─ callback:", iter.callback)
+    print(io, "\n ├─ step_diagnostics: ", iter.step_diagnostics)
     for (name, func) ∈ pairs(iter.external_fields)
         func === nothing || print(io, "\n ├─ external_fields.$name: Function ($func)")
     end
@@ -372,6 +375,26 @@ end
 get_dt(iter::VortexFilamentSolver) = iter.time.dt
 get_t(iter::VortexFilamentSolver) = iter.time.t
 
+"""
+    can_compute_diagnostics(iter::VortexFilamentSolver) -> Bool
+
+Return `true` if the solver is ready to compute diagnostics, `false` otherwise.
+
+This should be used whenever the `step_diagnostics` option has been set in [`init`](@ref),
+to verify whether the solver state allows computing diagnostics at this timestep. Generally,
+this should be done either in the `callback` function passed to `init`, or after calling [`step!`](@ref).
+
+This returns `true` in either of the follwing two cases:
+
+- if `nstep % step_diagnostics == 0`,
+- if we're at the end of the simulation, i.e. `iter.t ≥ iter.prob.tspan[2]`.
+"""
+function can_compute_diagnostics(iter::VortexFilamentSolver)::Bool
+    (; nstep, step_diagnostics, t, prob) = iter
+    maybe_last_timestep = t ≥ prob.tspan[2]  # enable computation of diagnostics after the end of the simulation
+    maybe_last_timestep || (nstep % step_diagnostics == 0)
+end
+
 @doc raw"""
     init(prob::VortexFilamentProblem, scheme::TemporalScheme; dt::Real, kws...) -> VortexFilamentSolver
 
@@ -434,6 +457,11 @@ either [`step!`](@ref) or [`solve!`](@ref).
 - `affect_t!`: similar to `affect!`, but allows to modify filaments and other quantities
   _within a timestep_ (e.g. within each Runge–Kutta substep). Its signature must be
   `affect_t!(iter::VortexFilamentSolver, time::Real)`. See notes below for more details.
+
+- `step_diagnostics = 1`: every how many timesteps will diagnostics (from the
+  [`Diagnostics`](@ref) module) be computed. This is used to avoid computing certain
+  quantities (such as `ψs`) which are only needed for diagnostics (e.g. energy). If this option is used,
+  one should call [`can_compute_diagnostics`](@ref) before computing any diagnostics.
 
 - `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
   recording the time spent on different functions.
@@ -649,6 +677,7 @@ function init(
         forcing::AbstractForcing = NoForcing(),
         dissipation::AbstractDissipation = NoDissipation(),
         mode::SimulationMode = DefaultMode(),
+        step_diagnostics::Int = 1,
         timer = TimerOutput("VortexFilament"),
         filament_nderivs = Val(2),
     ) where {
@@ -762,9 +791,11 @@ function init(
     forcing_cache = Forcing.init_cache(forcing, cache_bs)
     dissipation_cache = Forcing.init_cache(dissipation, cache_bs)
 
+    step_diagnostics > 0 || throw(ArgumentError("step_diagnostics should be positive"))
+
     iter = VortexFilamentSolver(
         prob, fs, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, affect_t_, callback_, external_fields,
+        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, affect_t_, callback_, step_diagnostics, external_fields,
         stretching_velocity, forcing, forcing_cache, dissipation, dissipation_cache,
         timer, advect!, rhs!,
     )
@@ -1058,26 +1089,36 @@ function finalise_step!(iter::VortexFilamentSolver)
 
     iter.affect!(iter)
 
-    # Update velocities and streamfunctions to the next timestep (and first RK step).
+    # Update velocities (and possibly streamfunctions) to the next timestep (and first RK step).
     # Note that we only compute the streamfunction at full steps, and not in the middle of
-    # RK substeps.
-    # TODO: make computation of ψ optional?
-    fields = (velocity = vL, streamfunction = ψs,)
+    # RK substeps. Also, we only compute it if diagnostics may be computed later (since we
+    # only need it for the energy).
+    if can_compute_diagnostics(iter)
+        let fields = (; velocity = vL, streamfunction = ψs)
+            # Note: here we always include the LIA terms, even when using IMEX or multirate schemes.
+            # This must be taken into account by scheme implementations.
+            rhs!(fields, fs, time.t, iter; component = Val(:full))
+        end
+    else
+        let fields = (; velocity = vL)
+            rhs!(fields, fs, time.t, iter; component = Val(:full))
+        end
+    end
 
-    # Note: here we always include the LIA terms, even when using IMEX or multirate schemes.
-    # This must be taken into account by scheme implementations.
-    rhs!(fields, fs, time.t, iter; component = Val(:full))
-
-    # Update coefficients in case we need to interpolate fields, e.g. for diagnostics or
-    # reconnections. We make sure we use the same parametrisation (knots) of the filaments
-    # themselves.
-    chunks = FilamentChunkIterator(fs; full_vectors = true)
-    @timeit to "Prepare interpolable fields" @sync for chunk in chunks
-        Threads.@spawn for (i, inds, _) in chunk
-            @assert inds == eachindex(fs[i])  # we have "access" to the whole filament (due to full_vectors = true)
-            local ts = Filaments.knots(fs[i])
-            foreach(fields_to_interpolate(iter)) do qs
-                Filaments.update_coefficients!(qs[i]; knots = ts)
+    if can_compute_diagnostics(iter) || Reconnections.require_interpolated_velocity(iter.reconnect)
+        # Update coefficients in case we need to interpolate fields, e.g. for diagnostics or
+        # reconnections. We make sure we use the same parametrisation (knots) of the filaments
+        # themselves. In the case of reconnections, we may only need to interpolate the
+        # velocity (ReconnectBasedOnDistance only). In that case, we could update
+        # coefficients of the velocity only.
+        chunks = FilamentChunkIterator(fs; full_vectors = true)
+        @timeit to "Prepare interpolable fields" @sync for chunk in chunks
+            Threads.@spawn for (i, inds, _) in chunk
+                @assert inds == eachindex(fs[i])  # we have "access" to the whole filament (due to full_vectors = true)
+                local ts = Filaments.knots(fs[i])
+                foreach(fields_to_interpolate(iter)) do qs
+                    Filaments.update_coefficients!(qs[i]; knots = ts)
+                end
             end
         end
     end

@@ -117,6 +117,7 @@ function test_kelvin_waves(
 
     function callback(iter)
         local (; t, nstep, prob,) = iter
+        can_compute_diagnostics(iter) || return nothing
         push!(times, t)
         push!(X_probe, iter.fs[1][jprobe])
         T = iter.prob.tspan[2]
@@ -134,6 +135,7 @@ function test_kelvin_waves(
         #     io["Streamfunction"] = ψs
         # end
         push!(energy_time, E)
+        nothing
     end
 
     prob = @inferred VortexFilamentProblem(fs, tspan, params_bs)
@@ -153,6 +155,7 @@ function test_kelvin_waves(
         fast_term = ShortRangeTerm(),  # allows to increase the timestep with splitting methods
         adaptivity = AdaptBasedOnSegmentLength(factor),
         refinement = NoRefinement(),  # make sure that nodes don't "move" vertically due to refinement
+        step_diagnostics = 2,
         callback,
     )
 
@@ -247,7 +250,8 @@ function test_kelvin_waves(
 
     # Analyse the trajectory of a single node
     @testset "Node trajectory" begin
-        @test length(X_probe) == length(times) == iter.time.nstep + 1  # data include step 0
+        @test length(X_probe) == length(times)
+        @test times[begin] == 0 # data include step 0
         # Analyse probed data
         xs = getindex.(X_probe, 1)
         ys = getindex.(X_probe, 2)

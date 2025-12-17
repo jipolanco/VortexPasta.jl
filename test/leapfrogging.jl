@@ -85,6 +85,13 @@ function test_leapfrogging_rings(
 
     function callback(iter)
         local (; fs, vs, ψs, t, dt, nstep,) = iter
+        local quad = GaussLegendre(4)
+
+        if !can_compute_diagnostics(iter)
+            @test_throws "ERROR: diagnostics cannot be computed at this timestep" Diagnostics.kinetic_energy(iter; quad)
+            return nothing  # do nothing more at this timestep
+        end
+
         push!(times, t)
 
         # This can be useful for visualisation
@@ -93,7 +100,6 @@ function test_leapfrogging_rings(
         #     io["Streamfunction"] = ψs
         # end
 
-        quad = GaussLegendre(4)
         E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad)
         L = Diagnostics.filament_length(iter; quad)
         p⃗ = Diagnostics.vortex_impulse(iter; quad)
@@ -114,6 +120,8 @@ function test_leapfrogging_rings(
         push!(line_stretching_rate, dLdt)
         push!(impulse_time, p⃗)
         push!(sum_of_squared_radii, R²_all)
+
+        nothing
     end
 
     if test_jet
@@ -147,6 +155,7 @@ function test_leapfrogging_rings(
         prob, scheme;
         dt = 0.025,  # will be changed by the adaptivity
         # dtmin = 0.005 * dt_factor(scheme),
+        step_diagnostics = 10,
         adaptivity,
         refinement,
         callback,
