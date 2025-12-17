@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.10] - 2025-12-17
+
+### Changed
+
+- Timestepping: use `:greedy` scheduler in parallelisation of filament refinement.
+
 ## [0.32.9] - 2025-12-17
 
 ### Changed

@@ -908,14 +908,11 @@ end
 # Usually this is `(vs, ψs)`, which contain the velocities and streamfunction values at all
 # filament nodes.
 function fold_and_refine!(fs::AbstractVector{<:AbstractFilament}, fields::Tuple; kws...)
-    nchunks = 2 * Threads.nthreads()  # we launch (up to) 2 * nthreads to add some dynamism in case some threads finish quickly
-    chunks = FilamentChunkIterator(fs; nchunks, full_vectors = true)
-    @sync for chunk in chunks
-        Threads.@spawn for (i, inds, _) in chunk
-            @assert inds == eachindex(fs[i])  # this is always true if full_vectors = true
-            fields_i = map(vs -> @inbounds(vs[i]), fields)  # typically this is (vs[i], ψs[i])
-            _fold_and_refine!(fs[i], fields_i; kws...)
-        end
+    # In this case, it is difficult to know in advance the amount of work per filament,
+    # which can be very inhomogeneous. We use the :greedy scheduler for that reason.
+    Threads.@threads :greedy for i in eachindex(fs)
+        fields_i = map(vs -> @inbounds(vs[i]), fields)  # typically this is (vs[i], ψs[i])
+        _fold_and_refine!(fs[i], fields_i; kws...)
     end
     fs
 end
