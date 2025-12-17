@@ -55,6 +55,7 @@ abstract type ReconnectionCriterion end
 abstract type AbstractReconnectionCache end
 distance(c::AbstractReconnectionCache) = distance(criterion(c))
 max_passes(c::AbstractReconnectionCache) = max_passes(criterion(c))
+require_interpolated_velocity(::ReconnectionCriterion) = false  # used in Timestepping to know whether velocity should be interpolated
 
 """
     Reconnections.init_cache(
@@ -75,6 +76,8 @@ function init_cache(
     )
     _init_cache(crit, fs, Ls)
 end
+
+require_interpolated_velocity(c::AbstractReconnectionCache) = require_interpolated_velocity(criterion(c))
 
 struct ReconnectionCandidate{S <: Segment}
     a :: S

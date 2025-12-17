@@ -4,7 +4,16 @@
 using ..Diagnostics: Diagnostics
 using ..Filaments: Filaments
 
+function _check_diagnostics(iter)
+    can_compute_diagnostics(iter) || error(
+        """ERROR: diagnostics cannot be computed at this timestep.
+        Make sure `can_compute_diagnostics(iter) == true` before computing any diagnostics."""
+    )
+    nothing
+end
+
 function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; kws...)
+    _check_diagnostics(iter)
     (; ψs, fs, external_fields, t,) = iter
     Ls = BiotSavart.periods(iter.prob.p)
     E = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs, iter.prob.p; kws...)
@@ -20,6 +29,7 @@ function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolv
 end
 
 function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws...)
+    _check_diagnostics(iter)
     (; vs, fs,) = iter  # note: here we want vs (self-induced velocity) and not vL
     Ls = BiotSavart.periods(iter.prob.p)
     BiotSavart.domain_is_periodic(iter.prob.p) &&
@@ -28,12 +38,14 @@ function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws.
 end
 
 function Diagnostics.energy_injection_rate(iter::VortexFilamentSolver, vL = iter.vL; kws...)
+    _check_diagnostics(iter)
     (; vs, fs,) = iter
     p = iter.prob.p
     Diagnostics.energy_injection_rate(fs, vL, vs, p; kws...)
 end
 
 function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
+    _check_diagnostics(iter)
     velocities = (
         vs = (field = iter.vs, sign = -1),
         vinf = (field = CurvatureVector(), sign = -1),
@@ -50,6 +62,7 @@ function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
 end
 
 function Diagnostics.energy_transfer_matrix(iter::VortexFilamentSolver, Nk_or_ks; kws...)
+    _check_diagnostics(iter)
     params = iter.prob.p
     Diagnostics.energy_transfer_matrix(
         iter, iter.fs, iter.vs, Nk_or_ks, params; kws...
@@ -60,18 +73,22 @@ end
 # alias in Diagnostics just for consistency with the other diagnostics (it doesn't make any
 # difference really!).
 function Diagnostics.filament_length(iter::VortexFilamentSolver; kws...)
+    _check_diagnostics(iter)
     Diagnostics.filament_length(iter.fs; kws...)
 end
 
 function Diagnostics.vortex_impulse(iter::VortexFilamentSolver; kws...)
+    _check_diagnostics(iter)
     Diagnostics.vortex_impulse(iter.fs; kws...)
 end
 
 function Diagnostics.helicity(iter::VortexFilamentSolver; kws...)
+    _check_diagnostics(iter)
     Diagnostics.helicity(iter.fs, iter.vL, iter.prob.p; kws...)
 end
 
 function Diagnostics.stretching_rate(iter::VortexFilamentSolver; kws...)
+    _check_diagnostics(iter)
     (; fs, vL,) = iter
     Diagnostics.stretching_rate(fs, vL; kws...)
 end
@@ -82,5 +99,6 @@ Diagnostics.get_long_range_cache(iter::VortexFilamentSolver) = iter.cache_bs.lon
 function Diagnostics.integral_lengthscale(
         ks::AbstractVector{T}, Ek::AbstractVector{T}, Etot::T, Lvort::T, iter::VortexFilamentSolver{T}
     ) where {T}
+    _check_diagnostics(iter)
     Diagnostics.integral_lengthscale(ks, Ek, Etot, Lvort, iter.prob.p)
 end
