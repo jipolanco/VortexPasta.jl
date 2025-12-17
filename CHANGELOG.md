@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Timestepping: parallelise filament refining at the end of each timestep.
 
+### Added
+
+- Timestepping: add `step_diagnostics` option, which allows to avoid
+  computations whenever diagnostics are not needed.
+
 ## [0.32.8] - 2025-12-16
 
 ### Changed
