@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Timestepping: parallelise filament refining at the end of each timestep.
+
 ## [0.32.8] - 2025-12-16
 
 ### Changed
@@ -15,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `Timestepping`: add more timing sections to `iter.to` (again).
+- Timestepping: add more timing sections to `iter.to` (again).
 
 - `FilamentChunkIterator` now has a `full_vectors` option for iterating over "whole"
   filaments.
