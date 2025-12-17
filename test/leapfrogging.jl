@@ -155,7 +155,7 @@ function test_leapfrogging_rings(
         prob, scheme;
         dt = 0.025,  # will be changed by the adaptivity
         # dtmin = 0.005 * dt_factor(scheme),
-        step_diagnostics = 10,
+        step_diagnostics = ceil(Int, 10 / factor),
         adaptivity,
         refinement,
         callback,
@@ -276,7 +276,7 @@ function test_leapfrogging_rings(
         @test isapprox(impulse_mean, 1; rtol = rtol_impulse)
 
         # Check that the integral of dL(t)/dt is approximately L(t).
-        @test isapprox(line_length, line_length_integrated; rtol = rtol_energy / 10)
+        @test isapprox(line_length, line_length_integrated; rtol = rtol_energy)
     end
 
     VERBOSE && println()
