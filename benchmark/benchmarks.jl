@@ -137,13 +137,32 @@ end
 
 ## Define refinement benchmarks
 
-let refine = RefineBasedOnSegmentLength(l_res / 8)
+# Randomise filament node positions so that refinement can do some work.
+function randomise_nodes(rng, f::AbstractFilament)
+    N = length(f)
+    ts = Filaments.knots(f)
+    a = ts[begin]  # usually = 0
+    b = ts[end + 1]  # usually ≈ filament length
+    # New nodes at random positions in [a, b] (same number of nodes as before)
+    ts_new = sort!(a .+ rand(rng, N) .* (b - a))
+    f_new = similar(f)
+    f_new .= f.(ts_new)
+    update_coefficients!(f_new)
+    f_new
+end
+
+randomise_nodes(rng, fs) = map(f -> randomise_nodes(rng, f), fs)
+
+let refine = RefineBasedOnSegmentLength(l_res)
     local fields = ()
     SUITE["Refinement"]["RefineBasedOnSegmentLength"] = @benchmarkable Timestepping.fold_and_refine!(
         fs_ref, $fields;
         L_fold = $Ls, refinement = $refine, fold_periodic = true,
-    ) setup = (fs_ref = copy(fs))
+    ) setup = (fs_ref = randomise_nodes(StableRNG(42), fs))
 end
+
+# run(SUITE["Refinement"]["RefineBasedOnSegmentLength"])
+
 ## Define timestepping benchmarks
 
 prob = VortexFilamentProblem(fs, 0.1, params)
