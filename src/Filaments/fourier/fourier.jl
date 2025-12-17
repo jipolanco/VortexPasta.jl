@@ -189,8 +189,7 @@ function _refine!(method::FourierMethod, f::AbstractFilament, crit) :: NTuple{2,
     @assert method === discretisation_method(f)
 
     # Determine where to add or remove nodes.
-    cache = _nodes_to_refine!(f, crit)
-    (; inds_add, inds_rem,) = cache
+    (; inds_add, inds_rem,) = _nodes_to_refine!(f, crit)
     n_add = length(inds_add)
     n_rem = length(inds_rem)
     iszero(n_add + n_rem) && return (n_add, n_rem)

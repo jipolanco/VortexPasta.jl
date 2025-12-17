@@ -70,10 +70,9 @@ Implemented refinement criteria are:
 abstract type RefinementCriterion end
 
 function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
-    (; cache,) = crit
-    (; inds_add, inds_rem,) = cache
+    inds_add = Int[]
+    inds_rem = Int[]
     ts = knots(f)
-    empty!(cache)
     skipnext = false
     iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
     for i ∈ iter
@@ -91,7 +90,7 @@ function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
             skipnext = true
         end
     end
-    cache
+    (; inds_add, inds_rem)
 end
 
 """
@@ -121,8 +120,7 @@ function _refine!(method::DiscretisationMethod, f, crit)
     N = length(f)  # original number of nodes
 
     # Determine where to add or remove nodes.
-    cache = _nodes_to_refine!(f, crit)
-    (; inds_add, inds_rem,) = cache
+    (; inds_add, inds_rem,) = _nodes_to_refine!(f, crit)
     n_add = length(inds_add)
     n_rem = length(inds_rem)
     iszero(n_add + n_rem) && return (n_add, n_rem)
@@ -135,7 +133,7 @@ function _refine!(method::DiscretisationMethod, f, crit)
     # 1. Add nodes.
     # We iterate in reverse to avoiding the need to shift indices (assuming indices are
     # sorted).
-    for i ∈ reverse(inds_add)
+    @inbounds for i ∈ reverse(inds_add)
         insert_node!(f, i)
         # Shift indices to be removed if needed
         for (n, j) ∈ pairs(inds_rem)
@@ -158,18 +156,6 @@ function _refine!(method::DiscretisationMethod, f, crit)
     n_add, n_rem
 end
 
-struct RefinementCache
-    inds_rem :: Vector{Int}  # indices of nodes to remove
-    inds_add :: Vector{Int}  # indices of segments to refine
-    RefinementCache() = new(Int[], Int[])
-end
-
-function Base.empty!(c::RefinementCache)
-    empty!(c.inds_rem)
-    empty!(c.inds_add)
-    c
-end
-
 """
     NoRefinement <: RefinementCriterion
     NoRefinement()
@@ -178,16 +164,11 @@ Used to disable filament refinement.
 """
 struct NoRefinement <: RefinementCriterion end
 
-@inline Base.getproperty(crit::NoRefinement, name::Symbol) = _getproperty(crit, Val(name))
-
-# Return a fake cache.
-function _getproperty(::NoRefinement, ::Val{:cache})
+function _nodes_to_refine!(::AbstractFilament, crit::NoRefinement)
     inds_add = SVector{0, Int}()
     inds_rem = SVector{0, Int}()
     (; inds_add, inds_rem,)
 end
-
-_nodes_to_refine!(::AbstractFilament, crit::NoRefinement) = crit.cache
 
 """
     RefineBasedOnCurvature <: RefinementCriterion
@@ -227,9 +208,8 @@ struct RefineBasedOnCurvature <: RefinementCriterion
     ρℓ_min :: Float64
     ℓ_max  :: Float64
     ℓ_min  :: Float64
-    cache  :: RefinementCache
     RefineBasedOnCurvature(ρℓ_max, ρℓ_min; ℓ_max = Inf, ℓ_min = 0.0) =
-        new(ρℓ_max, ρℓ_min, ℓ_max, ℓ_min, RefinementCache())
+        new(ρℓ_max, ρℓ_min, ℓ_max, ℓ_min)
 end
 
 RefineBasedOnCurvature(ρℓ_max; kws...) = RefineBasedOnCurvature(ρℓ_max, ρℓ_max / 2.5; kws...)
@@ -280,10 +260,9 @@ struct RefineBasedOnSegmentLength <: RefinementCriterion
     ℓ_min :: Float64
     ℓ_max :: Float64
     ρℓ_max :: Float64
-    cache :: RefinementCache
     function RefineBasedOnSegmentLength(ℓ_min, ℓ_max = 2 * ℓ_min; ρℓ_max = Inf)
         ℓ_min < ℓ_max || error(lazy"ℓ_min should be smaller than ℓ_max (got ℓ_max/ℓ_min = $ℓ_max/$ℓ_min)")
-        new(ℓ_min, ℓ_max, ρℓ_max, RefinementCache())
+        new(ℓ_min, ℓ_max, ρℓ_max)
     end
 end
 
