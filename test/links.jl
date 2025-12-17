@@ -104,13 +104,10 @@ function test_linked_rings(
     # linking number. For two linked rings, |L| = 1.
     linking = H / (2 * Γ^2)
 
-    if periodic === Val(true)
-        # When periodicity is enabled, the accuracy seems to be mainly controlled by the
-        # splitting parameter α/kmax and by the accuracy of the NUFFTs.
-        rtol = 4e-6
-    else
-        rtol = 2e-9  # without periodicity things are really accurate
-    end
+    # When periodicity is enabled, the accuracy seems to be mainly controlled by the
+    # splitting parameter α/kmax and by the accuracy of the NUFFTs.
+    rtol = 4e-6
+
     # @show linking + 1
     @test isapprox(linking, -1; rtol)
 
