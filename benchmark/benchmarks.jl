@@ -135,6 +135,15 @@ let reconnect = ReconnectBasedOnDistance(l_res; max_passes = 10)
     SUITE["Reconnections"]["ReconnectBasedOnDistance"] = @benchmarkable Reconnections.reconnect!($cache_rec, fs_rec) setup=(fs_rec = copy(fs))
 end
 
+## Define refinement benchmarks
+
+let refine = RefineBasedOnSegmentLength(l_res / 8)
+    local fields = ()
+    SUITE["Refinement"]["RefineBasedOnSegmentLength"] = @benchmarkable Timestepping.fold_and_refine!(
+        fs_ref, $fields;
+        L_fold = $Ls, refinement = $refine, fold_periodic = true,
+    ) setup = (fs_ref = copy(fs))
+end
 ## Define timestepping benchmarks
 
 prob = VortexFilamentProblem(fs, 0.1, params)
@@ -144,7 +153,7 @@ adaptivity = AdaptBasedOnSegmentLength(0.5) | AdaptBasedOnVelocity(0.5 * l_min)
 refinement = RefineBasedOnSegmentLength(l_min)
 reconnect = ReconnectFast(l_min; max_passes = 10)
 forcing = FourierBandForcingBS(; kmin = 0.1, kmax = 2.5, ε_target = 100.0, modify_length = false)
-iter = init(prob, RK4(); dt = 0.01, adaptivity, refinement, reconnect, forcing)
+iter = init(prob, RK4(); dt = 0.01, adaptivity, refinement, reconnect, forcing, step_diagnostics = 5)
 step!(iter)
 reset_timer!(iter.to)
 

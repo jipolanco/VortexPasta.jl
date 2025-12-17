@@ -899,7 +899,7 @@ function after_advection!(iter::VortexFilamentSolver)
     stats.reconnection_passes += rec.npasses
     L_fold = periods(prob.p)  # box size (periodicity)
     fields = fields_to_resize(iter)
-    @timeit to "Fold and refine" _fold_and_refine!(fs, fields; L_fold, refinement, fold_periodic)
+    @timeit to "Fold and refine" fold_and_refine!(fs, fields; L_fold, refinement, fold_periodic)
     nothing
 end
 
@@ -907,7 +907,7 @@ end
 # Here `fields` is a tuple containing the fields associated to each filament node.
 # Usually this is `(vs, ψs)`, which contain the velocities and streamfunction values at all
 # filament nodes.
-function _fold_and_refine!(fs::AbstractVector{<:AbstractFilament}, fields::Tuple; kws...)
+function fold_and_refine!(fs::AbstractVector{<:AbstractFilament}, fields::Tuple; kws...)
     nchunks = 2 * Threads.nthreads()  # we launch (up to) 2 * nthreads to add some dynamism in case some threads finish quickly
     chunks = FilamentChunkIterator(fs; nchunks, full_vectors = true)
     @sync for chunk in chunks
