@@ -81,8 +81,6 @@ function _nodes_to_refine!(
         actions = Memory{UInt8}(undef, length(f) + 1)  # includes endpoint
     )
     @assert eachindex(f) == eachindex(actions)[begin:(end - 1)]
-    n_add = 0
-    n_rem = 0
     # (1) Compute actions to be performed
     for i in eachindex(f)
         actions[i] = Integer(_refinement_action(crit, f, i)::RefinementAction)
@@ -92,6 +90,8 @@ function _nodes_to_refine!(
     # - move removal operations one node to the right
     # - make sure we don't remove contiguous nodes
     # - count number of operations
+    n_add = 0
+    n_rem = 0
     removed_latest = false
     @inbounds for i in eachindex(f)
         action = actions[i]
@@ -161,8 +161,8 @@ function _refine!(method::DiscretisationMethod, f, crit)
                 i_after += 1
                 action = actions[i]
                 # Note: a node can have both an insert and a remove action, which corresponds to
-                # value 0x01 | 0x02 = 0x03. This means that the node itself will be removed, but
-                # that a node will also be inserted in the segment to its right.
+                # action = 0x01 | 0x02 = 0x03. This means that the node itself will be removed, but
+                # that a node will also be inserted on the segment to its right.
                 insert = !iszero(action & Integer(REFINEMENT_INSERT))
                 remove = !iszero(action & Integer(REFINEMENT_REMOVE))
                 if insert
