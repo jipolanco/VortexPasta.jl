@@ -293,12 +293,15 @@ and total line length is decreased:
 - nodes are **removed** if the local normalised curvature is ``ρℓ > (ρℓ)_{\\max}``.
 """
 struct RefineBasedOnSegmentLength <: RefinementCriterion
-    ℓ_min :: Float64
-    ℓ_max :: Float64
-    ρℓ_max :: Float64
+    ℓ_min   :: Float64
+    ℓ_min²  :: Float64
+    ℓ_max   :: Float64
+    ℓ_max²  :: Float64
+    ρℓ_max  :: Float64
+    ρℓ_max² :: Float64
     function RefineBasedOnSegmentLength(ℓ_min, ℓ_max = 2 * ℓ_min; ρℓ_max = Inf)
         ℓ_min < ℓ_max || error(lazy"ℓ_min should be smaller than ℓ_max (got ℓ_max/ℓ_min = $ℓ_max/$ℓ_min)")
-        new(ℓ_min, ℓ_max, ρℓ_max)
+        new(ℓ_min, ℓ_min^2, ℓ_max, ℓ_max^2, ρℓ_max, ρℓ_max^2)
     end
 end
 
@@ -308,16 +311,16 @@ function Base.show(io::IO, c::RefineBasedOnSegmentLength)
 end
 
 function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)::RefinementAction
-    (; ℓ_min, ℓ_max, ρℓ_max) = crit
-    ℓ = norm(f[i + 1] - f[i])
-    if ℓ > ℓ_max
+    (; ℓ_min², ℓ_max², ρℓ_max²) = crit
+    ℓ² = sum(abs2, f[i + 1] - f[i])
+    if ℓ² > ℓ_max²
         REFINEMENT_INSERT
-    elseif ℓ < ℓ_min 
+    elseif ℓ² < ℓ_min²
         REFINEMENT_REMOVE
-    elseif !isinf(ρℓ_max) # if removing large curvature regions 
+    elseif !isinf(ρℓ_max²) # if removing large curvature regions 
         ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
-        ρℓ = ρ * ℓ
-        if ρℓ > ρℓ_max
+        ρℓ² = ρ^2 * ℓ²
+        if ρℓ² > ρℓ_max²
             REFINEMENT_REMOVE
         else 
             REFINEMENT_DO_NOTHING
