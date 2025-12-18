@@ -177,7 +177,9 @@ function _refine!(method::DiscretisationMethod, f, crit)
     # TODO:
     # - can we avoid this if we only _inserted_ points (n_rem == 0), and if we're using splines with fast insertion?
     # - pass precomputed knots?
-    update_coefficients!(f)
+    if check_nodes(Bool, f)  # if we have enough points (otherwise filament should be deleted later)
+        update_coefficients!(f)
+    end
 
     # if n_add + n_rem > 0
     #     @assert length(nodes(f)) == N + n_add - n_rem
