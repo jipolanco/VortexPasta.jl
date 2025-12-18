@@ -78,30 +78,35 @@ end
 
 function _nodes_to_refine!(
         f::AbstractFilament, crit::RefinementCriterion;
-        actions = Memory{RefinementAction}(undef, length(f))
+        actions = Memory{UInt8}(undef, length(f) + 1)  # includes endpoint
     )
-    skipnext = false
-    iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
-    @assert iter == eachindex(actions)  # one-based indexing
+    @assert eachindex(f) == eachindex(actions)[begin:(end - 1)]
     n_add = 0
     n_rem = 0
-    for i ∈ iter
-        if skipnext
-            skipnext = false
-            action = REFINEMENT_DO_NOTHING
-        else
-            action = _refinement_action(crit, f, i)::RefinementAction
-        end
-        @inbounds actions[i] = action
-        if action === REFINEMENT_INSERT
-            @debug lazy"Inserting node after node $i"
-            n_add += 1
-        elseif action === REFINEMENT_REMOVE
-            @debug lazy"Removing node $i"
+    # (1) Compute actions to be performed
+    for i in eachindex(f)
+        actions[i] = Integer(_refinement_action(crit, f, i)::RefinementAction)
+    end
+    actions[end] = Integer(REFINEMENT_DO_NOTHING)  # endpoint
+    # (2) Post-process actions:
+    # - move removal operations one node to the right
+    # - make sure we don't remove contiguous nodes
+    # - count number of operations
+    removed_latest = false
+    @inbounds for i in eachindex(f)
+        action = actions[i]
+        n_add += !iszero(action & Integer(REFINEMENT_INSERT))
+        if removed_latest
+            removed_latest = false
+        elseif !iszero(action & Integer(REFINEMENT_REMOVE))
+            actions[i] = action ⊻ Integer(REFINEMENT_REMOVE)  # unset REFINEMENT_REMOVE operation from node i
+            actions[i + 1] = action | Integer(REFINEMENT_REMOVE)  # set REFINEMENT_REMOVE operation on node i + 1
             n_rem += 1
-            skipnext = true
+            removed_latest = true
         end
     end
+    # Wrap things at the endpoint / startpoint (this may add a remove operation to the startpoint)
+    actions[begin] = actions[begin] | actions[end]
     (; actions, n_add, n_rem)
 end
 
@@ -134,7 +139,7 @@ function _refine!(method::DiscretisationMethod, f, crit)
 
     @no_escape buf begin
         # Determine where to add or remove nodes.
-        actions = @alloc(RefinementAction, length(f))
+        actions = @alloc(UInt8, length(f) + 1)
         (; n_add, n_rem) = _nodes_to_refine!(f, crit; actions)
 
         if !iszero(n_add + n_rem)
@@ -147,7 +152,6 @@ function _refine!(method::DiscretisationMethod, f, crit)
             N_after = N + n_add - n_rem
             Xs_after = @alloc(V, N_after)
             ts_after = @alloc(T, N_after + 1)  # must include the endpoint
-            @assert eachindex(actions) == eachindex(Xs)
 
             i = firstindex(Xs) - 1  # current index in Xs, f, actions
             i_after = i             # current index in Xs_after
@@ -156,19 +160,27 @@ function _refine!(method::DiscretisationMethod, f, crit)
                 i += 1
                 i_after += 1
                 action = actions[i]
-                if action == REFINEMENT_INSERT
-                    # 1. Copy node i as usual
-                    Xs_after[i_after] = Xs[i]
-                    ts_after[i_after] = ts[i]
-                    # 2. Insert second node in the middle of segment [i, i + 1]
+                # Note: a node can have both an insert and a remove action, which corresponds to
+                # value 0x01 | 0x02 = 0x03. This means that the node itself will be removed, but
+                # that a node will also be inserted in the segment to its right.
+                insert = !iszero(action & Integer(REFINEMENT_INSERT))
+                remove = !iszero(action & Integer(REFINEMENT_REMOVE))
+                if insert
+                    if !remove
+                        # 1. Copy node i as usual
+                        Xs_after[i_after] = Xs[i]
+                        ts_after[i_after] = ts[i]
+                        i_after += 1  # increment counter for second point
+                    end
+                    # 2. Insert second node in the middle of segment [i, i + 1] (or replace
+                    # existent point if remove == true).
                     # Note: for splines we could use standard knot insertion algorithms
                     # (which are actually implemented), but that's probably not worth it,
                     # since in most cases we need to recompute coefficients later anyways.
                     X_new = f(i, T(0.5))  # interpolate position in the middle of the next segment
-                    i_after += 1
                     Xs_after[i_after] = X_new
                     ts_after[i_after] = T(0.5) * (ts[i] + ts[i + 1])
-                elseif action == REFINEMENT_REMOVE
+                elseif remove
                     # Skip copying node i, and decrement i_after since it will be copied in the next iteration.
                     i_after -= 1
                 else  # if action == REFINEMENT_DO_NOTHING
