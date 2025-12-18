@@ -252,12 +252,17 @@ Similarly, the keyword argument `ℓ_min` sets a lower limit for the distance be
 neighbouring nodes.
 """
 struct RefineBasedOnCurvature <: RefinementCriterion
-    ρℓ_max :: Float64
-    ρℓ_min :: Float64
+    ρℓ_max  :: Float64
+    ρℓ_max² :: Float64
+    ρℓ_min  :: Float64
+    ρℓ_min² :: Float64
     ℓ_max  :: Float64
+    ℓ_max² :: Float64
     ℓ_min  :: Float64
-    RefineBasedOnCurvature(ρℓ_max, ρℓ_min; ℓ_max = Inf, ℓ_min = 0.0) =
-        new(ρℓ_max, ρℓ_min, ℓ_max, ℓ_min)
+    ℓ_min² :: Float64
+    function RefineBasedOnCurvature(ρℓ_max, ρℓ_min; ℓ_max = Inf, ℓ_min = 0.0)
+        new(ρℓ_max, ρℓ_max^2, ρℓ_min, ρℓ_min^2, ℓ_max, ℓ_max^2, ℓ_min, ℓ_min^2)
+    end
 end
 
 RefineBasedOnCurvature(ρℓ_max; kws...) = RefineBasedOnCurvature(ρℓ_max, ρℓ_max / 2.5; kws...)
@@ -268,14 +273,14 @@ function Base.show(io::IO, c::RefineBasedOnCurvature)
 end
 
 function _refinement_action(crit::RefineBasedOnCurvature, f::AbstractFilament, i::Integer)::RefinementAction
-    (; ρℓ_min, ρℓ_max, ℓ_min, ℓ_max,) = crit
-    ℓ = norm(f[i + 1] - f[i])
+    (; ρℓ_min², ρℓ_max², ℓ_min², ℓ_max²,) = crit
+    ℓ² = sum(abs2, f[i + 1] - f[i])
     ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
     # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
-    ρℓ = ρ * ℓ
-    if ρℓ > ρℓ_max && ℓ > 2 * ℓ_min  # so that the new ℓ is roughly larger than ℓ_min
+    ρℓ² = ρ^2 * ℓ²
+    if ρℓ² > ρℓ_max² && ℓ² > 4 * ℓ_min²  # so that the new ℓ is roughly larger than ℓ_min
         REFINEMENT_INSERT
-    elseif ρℓ < ρℓ_min && ℓ < ℓ_max / 2  # so that the new ℓ is roughly smaller than ℓ_max
+    elseif ρℓ² < ρℓ_min² && ℓ² < ℓ_max² / 4  # so that the new ℓ is roughly smaller than ℓ_max
         REFINEMENT_REMOVE
     else
         REFINEMENT_DO_NOTHING
