@@ -43,6 +43,7 @@ using ..PaddedArrays: PaddedVector, pad_periodic!, FromCentre, FromRight, FromLe
 import ..PaddedArrays: npad  # overloaded for DiscretisationMethod
 
 using LinearAlgebra: norm, normalize, ⋅, ×
+using Bumper: Bumper, @no_escape, @alloc
 using StaticArrays
 using StructArrays
 

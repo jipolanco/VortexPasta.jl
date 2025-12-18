@@ -3,7 +3,6 @@ export
     QuinticSplineMethod
 
 using Base.Cartesian: @ntuple, @nexprs
-using Bumper: Bumper, @no_escape, @alloc
 
 """
     SplineMethod{k} <: DiscretisationMethod

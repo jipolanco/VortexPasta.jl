@@ -76,10 +76,12 @@ abstract type RefinementCriterion end
     REFINEMENT_REMOVE = 0x01 << 1   # remove the current node
 end
 
-function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
+function _nodes_to_refine!(
+        f::AbstractFilament, crit::RefinementCriterion;
+        actions = Memory{RefinementAction}(undef, length(f))
+    )
     skipnext = false
     iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
-    actions = Memory{RefinementAction}(undef, length(iter))
     @assert iter == eachindex(actions)  # one-based indexing
     n_add = 0
     n_rem = 0
@@ -104,7 +106,7 @@ function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
 end
 
 """
-    refine!(f::AbstractFilament, crit::RefinementCriterion) -> (Int, Int)
+    refine!(f::AbstractFilament, crit::RefinementCriterion) -> (n_added, n_removed)
 
 Refine the filament according to a given criterion.
 
@@ -129,56 +131,61 @@ function _refine!(method::DiscretisationMethod, f, crit)
     @assert method === discretisation_method(f)
 
     # Determine where to add or remove nodes.
-    (; actions, n_add, n_rem) = _nodes_to_refine!(f, crit)
-    iszero(n_add + n_rem) && return (n_add, n_rem)
+    buf = Bumper.default_buffer()
+    @no_escape buf begin
+        actions = @alloc(RefinementAction, length(f))
+        (; n_add, n_rem) = _nodes_to_refine!(f, crit; actions)
 
-    # Temporary vector where new nodes will be stored
-    Xs = nodes(f)
-    V = eltype(Xs)
-    T = eltype(V)
-    N = length(f)  # original number of nodes
-    N_after = N + n_add - n_rem
-    Xs_after = Memory{V}(undef, N_after)
-    @assert eachindex(actions) == eachindex(Xs)
+        if !iszero(n_add + n_rem)
+            # Temporary vector where new nodes will be stored
+            Xs = nodes(f)
+            V = eltype(Xs)
+            T = eltype(V)
+            N = length(f)  # original number of nodes
+            N_after = N + n_add - n_rem
+            Xs_after = @alloc(V, N_after)
+            @assert eachindex(actions) == eachindex(Xs)
 
-    # TODO: compute knots as well (and preserve them as much as possible)
+            # TODO: compute knots as well (and preserve them as much as possible)
 
-    i = firstindex(Xs) - 1  # current index in Xs, f, actions
-    i_after = i             # current index in Xs_after
-    @inbounds while i_after < lastindex(Xs_after)
-        # @assert i < lastindex(Xs)
-        i += 1
-        i_after += 1
-        action = actions[i]
-        if action == REFINEMENT_INSERT
-            # 1. Copy node i as usual
-            Xs_after[i_after] = Xs[i]
-            # 2. Insert second node in the middle of segment [i, i + 1]
-            # TODO: use optimised insertion for splines?
-            X_new = f(i, T(0.5))  # interpolate position in the middle of the next segment
-            i_after += 1
-            Xs_after[i_after] = X_new
-        elseif action == REFINEMENT_REMOVE
-            # Skip copying node i, and decrement i_after since it will be copied in the next iteration.
-            i_after -= 1
-        else  # if action == REFINEMENT_DO_NOTHING
-            # Simply copy node i
-            Xs_after[i_after] = Xs[i]
+            i = firstindex(Xs) - 1  # current index in Xs, f, actions
+            i_after = i             # current index in Xs_after
+            @inbounds while i_after < lastindex(Xs_after)
+                # @assert i < lastindex(Xs)
+                i += 1
+                i_after += 1
+                action = actions[i]
+                if action == REFINEMENT_INSERT
+                    # 1. Copy node i as usual
+                    Xs_after[i_after] = Xs[i]
+                    # 2. Insert second node in the middle of segment [i, i + 1]
+                    # TODO: use optimised insertion for splines?
+                    X_new = f(i, T(0.5))  # interpolate position in the middle of the next segment
+                    i_after += 1
+                    Xs_after[i_after] = X_new
+                elseif action == REFINEMENT_REMOVE
+                    # Skip copying node i, and decrement i_after since it will be copied in the next iteration.
+                    i_after -= 1
+                else  # if action == REFINEMENT_DO_NOTHING
+                    # Simply copy node i
+                    Xs_after[i_after] = Xs[i]
+                end
+            end
+
+            # Now copy new nodes onto original filament
+            resize!(f, N_after)
+            for i in eachindex(f, Xs_after)
+                @inbounds f[i] = Xs_after[i]
+            end
+
+            # Finally, recompute coefficients.
+            # TODO:
+            # - can we avoid this if we only _inserted_ points (n_rem == 0), and if we're using splines with fast insertion?
+            # - pass precomputed knots?
+            if check_nodes(Bool, f)  # if we have enough points (otherwise filament should be deleted later)
+                update_coefficients!(f)
+            end
         end
-    end
-
-    # Now copy new nodes onto original filament
-    resize!(f, N_after)
-    for i in eachindex(f, Xs_after)
-        @inbounds f[i] = Xs_after[i]
-    end
-
-    # Finally, recompute coefficients.
-    # TODO:
-    # - can we avoid this if we only _inserted_ points (n_rem == 0), and if we're using splines with fast insertion?
-    # - pass precomputed knots?
-    if check_nodes(Bool, f)  # if we have enough points (otherwise filament should be deleted later)
-        update_coefficients!(f)
     end
 
     # if n_add + n_rem > 0
@@ -197,7 +204,7 @@ Used to disable filament refinement.
 """
 struct NoRefinement <: RefinementCriterion end
 
-_nodes_to_refine!(::AbstractFilament, crit::NoRefinement) = (; actions = nothing, n_add = 0, n_rem = 0)
+refine!(::AbstractFilament, ::NoRefinement) = (0, 0)  # = (n_added, n_removed)
 
 """
     RefineBasedOnCurvature <: RefinementCriterion

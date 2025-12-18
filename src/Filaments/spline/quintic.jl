@@ -4,7 +4,6 @@
 # pentadiagonal solvers (here we use a generic banded matrix solver for that).
 
 using StaticArrays: SVector, SMatrix
-using Bumper: Bumper, @no_escape, @alloc
 
 # Specialisation for quintic splines.
 function solve_spline_coefficients!(
