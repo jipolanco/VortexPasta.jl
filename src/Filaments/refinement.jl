@@ -69,28 +69,38 @@ Implemented refinement criteria are:
 """
 abstract type RefinementCriterion end
 
+# Action to be performed for each filament node.
+@enum RefinementAction::UInt8 begin
+    REFINEMENT_DO_NOTHING = 0x00    # do nothing with the current node
+    REFINEMENT_INSERT = 0x01 << 0   # insert a node after the current node
+    REFINEMENT_REMOVE = 0x01 << 1   # remove the current node
+end
+
 function _nodes_to_refine!(f::AbstractFilament, crit::RefinementCriterion)
-    inds_add = Int[]
-    inds_rem = Int[]
-    ts = knots(f)
     skipnext = false
     iter = eachindex(segments(f))  # iterate over segments of the unmodified filament
+    actions = Memory{RefinementAction}(undef, length(iter))
+    @assert iter == eachindex(actions)  # one-based indexing
+    n_add = 0
+    n_rem = 0
     for i ∈ iter
         if skipnext
             skipnext = false
-            continue
+            action = REFINEMENT_DO_NOTHING
+        else
+            action = _refinement_action(crit, f, i)::RefinementAction
         end
-        action = _refinement_action(crit, f, i)
-        if action === :insert
-            @debug lazy"Inserting node at t = $((ts[i] + ts[i + 1]) / 2)"
-            push!(inds_add, i)
-        elseif action === :remove
-            @debug lazy"Removing node at t = $(ts[i + 1])"
-            push!(inds_rem, i + 1)
+        @inbounds actions[i] = action
+        if action === REFINEMENT_INSERT
+            @debug lazy"Inserting node after node $i"
+            n_add += 1
+        elseif action === REFINEMENT_REMOVE
+            @debug lazy"Removing node $i"
+            n_rem += 1
             skipnext = true
         end
     end
-    (; inds_add, inds_rem)
+    (; actions, n_add, n_rem)
 end
 
 """
@@ -117,41 +127,62 @@ end
 # Default implementation
 function _refine!(method::DiscretisationMethod, f, crit)
     @assert method === discretisation_method(f)
-    N = length(f)  # original number of nodes
 
     # Determine where to add or remove nodes.
-    (; inds_add, inds_rem,) = _nodes_to_refine!(f, crit)
-    n_add = length(inds_add)
-    n_rem = length(inds_rem)
+    (; actions, n_add, n_rem) = _nodes_to_refine!(f, crit)
     iszero(n_add + n_rem) && return (n_add, n_rem)
 
-    # Note: we add all knots first, then we remove all knots to be removed.
-    if n_add > 0
-        sizehint!(f, N + n_add)
-    end
+    # Temporary vector where new nodes will be stored
+    Xs = nodes(f)
+    V = eltype(Xs)
+    T = eltype(V)
+    N = length(f)  # original number of nodes
+    N_after = N + n_add - n_rem
+    Xs_after = Memory{V}(undef, N_after)
+    @assert eachindex(actions) == eachindex(Xs)
 
-    # 1. Add nodes.
-    # We iterate in reverse to avoiding the need to shift indices (assuming indices are
-    # sorted).
-    @inbounds for i ∈ reverse(inds_add)
-        insert_node!(f, i)
-        # Shift indices to be removed if needed
-        for (n, j) ∈ pairs(inds_rem)
-            if j > i
-                inds_rem[n] += 1
-            end
+    # TODO: compute knots as well (and preserve them as much as possible)
+
+    i = firstindex(Xs) - 1  # current index in Xs, f, actions
+    i_after = i             # current index in Xs_after
+    @inbounds while i_after < lastindex(Xs_after)
+        # @assert i < lastindex(Xs)
+        i += 1
+        i_after += 1
+        action = actions[i]
+        if action == REFINEMENT_INSERT
+            # 1. Copy node i as usual
+            Xs_after[i_after] = Xs[i]
+            # 2. Insert second node in the middle of segment [i, i + 1]
+            # TODO: use optimised insertion for splines?
+            X_new = f(i, T(0.5))  # interpolate position in the middle of the next segment
+            i_after += 1
+            Xs_after[i_after] = X_new
+        elseif action == REFINEMENT_REMOVE
+            # Skip copying node i, and decrement i_after since it will be copied in the next iteration.
+            i_after -= 1
+        else  # if action == REFINEMENT_DO_NOTHING
+            # Simply copy node i
+            Xs_after[i_after] = Xs[i]
         end
     end
 
-    # 2. Remove nodes
-    for i ∈ reverse(inds_rem)
-        remove_node!(f, i)
+    # Now copy new nodes onto original filament
+    resize!(f, N_after)
+    for i in eachindex(f, Xs_after)
+        @inbounds f[i] = Xs_after[i]
     end
 
-    if n_add + n_rem > 0
-        @assert length(nodes(f)) == N + n_add - n_rem
-        update_after_changing_nodes!(f; removed = n_rem > 0)
-    end
+    # Finally, recompute coefficients.
+    # TODO:
+    # - can we avoid this if we only _inserted_ points (n_rem == 0), and if we're using splines with fast insertion?
+    # - pass precomputed knots?
+    update_coefficients!(f)
+
+    # if n_add + n_rem > 0
+    #     @assert length(nodes(f)) == N + n_add - n_rem
+    #     update_after_changing_nodes!(f; removed = n_rem > 0)
+    # end
 
     n_add, n_rem
 end
@@ -164,11 +195,7 @@ Used to disable filament refinement.
 """
 struct NoRefinement <: RefinementCriterion end
 
-function _nodes_to_refine!(::AbstractFilament, crit::NoRefinement)
-    inds_add = SVector{0, Int}()
-    inds_rem = SVector{0, Int}()
-    (; inds_add, inds_rem,)
-end
+_nodes_to_refine!(::AbstractFilament, crit::NoRefinement) = (; actions = nothing, n_add = 0, n_rem = 0)
 
 """
     RefineBasedOnCurvature <: RefinementCriterion
@@ -219,18 +246,18 @@ function Base.show(io::IO, c::RefineBasedOnCurvature)
     print(io, "RefineBasedOnCurvature($ρℓ_max, $ρℓ_min; ℓ_max = $ℓ_max, ℓ_min = $ℓ_min)")
 end
 
-function _refinement_action(crit::RefineBasedOnCurvature, f::AbstractFilament, i::Integer)
+function _refinement_action(crit::RefineBasedOnCurvature, f::AbstractFilament, i::Integer)::RefinementAction
     (; ρℓ_min, ρℓ_max, ℓ_min, ℓ_max,) = crit
     ℓ = norm(f[i + 1] - f[i])
     ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
     # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
     ρℓ = ρ * ℓ
     if ρℓ > ρℓ_max && ℓ > 2 * ℓ_min  # so that the new ℓ is roughly larger than ℓ_min
-        :insert
+        REFINEMENT_INSERT
     elseif ρℓ < ρℓ_min && ℓ < ℓ_max / 2  # so that the new ℓ is roughly smaller than ℓ_max
-        :remove
+        REFINEMENT_REMOVE
     else
-        :nothing
+        REFINEMENT_DO_NOTHING
     end
 end
 
@@ -271,22 +298,22 @@ function Base.show(io::IO, c::RefineBasedOnSegmentLength)
     print(io, "RefineBasedOnSegmentLength($ℓ_min, $ℓ_max; ρℓ_max = $ρℓ_max)")
 end
 
-function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)
+function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)::RefinementAction
     (; ℓ_min, ℓ_max, ρℓ_max) = crit
     ℓ = norm(f[i + 1] - f[i])
     if ℓ > ℓ_max
-        :insert
+        REFINEMENT_INSERT
     elseif ℓ < ℓ_min 
-        :remove
+        REFINEMENT_REMOVE
     elseif !isinf(ρℓ_max) # if removing large curvature regions 
         ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
         ρℓ = ρ * ℓ
         if ρℓ > ρℓ_max
-            :remove
+            REFINEMENT_REMOVE
         else 
-            :nothing
+            REFINEMENT_DO_NOTHING
         end
     else
-        :nothing
+        REFINEMENT_DO_NOTHING
     end
 end

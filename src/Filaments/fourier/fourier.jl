@@ -187,14 +187,10 @@ _interpolate(m::FourierMethod, args...; kws...) =
 # increasing the number of coefficients in Fourier space (i.e. padding with zeroes).
 function _refine!(method::FourierMethod, f::AbstractFilament, crit) :: NTuple{2,Int}
     @assert method === discretisation_method(f)
-
-    # Determine where to add or remove nodes.
-    (; inds_add, inds_rem,) = _nodes_to_refine!(f, crit)
-    n_add = length(inds_add)
-    n_rem = length(inds_rem)
-    iszero(n_add + n_rem) && return (n_add, n_rem)
-
     # In FourierMethod, we just care about the overall change in the number of nodes.
+    # Determine how many nodes to add or remove.
+    (; n_add, n_rem) = _nodes_to_refine!(f, crit)
+    iszero(n_add + n_rem) && return (n_add, n_rem)
     n_mod = n_add - n_rem
     if n_mod == 0
         return (zero(n_add), zero(n_rem))
