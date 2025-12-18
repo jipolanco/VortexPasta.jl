@@ -130,23 +130,24 @@ end
 function _refine!(method::DiscretisationMethod, f, crit)
     @assert method === discretisation_method(f)
 
-    # Determine where to add or remove nodes.
     buf = Bumper.default_buffer()
+
     @no_escape buf begin
+        # Determine where to add or remove nodes.
         actions = @alloc(RefinementAction, length(f))
         (; n_add, n_rem) = _nodes_to_refine!(f, crit; actions)
 
         if !iszero(n_add + n_rem)
             # Temporary vector where new nodes will be stored
             Xs = nodes(f)
+            ts = knots(f)
             V = eltype(Xs)
-            T = eltype(V)
+            T = eltype(ts)
             N = length(f)  # original number of nodes
             N_after = N + n_add - n_rem
             Xs_after = @alloc(V, N_after)
+            ts_after = @alloc(T, N_after + 1)  # must include the endpoint
             @assert eachindex(actions) == eachindex(Xs)
-
-            # TODO: compute knots as well (and preserve them as much as possible)
 
             i = firstindex(Xs) - 1  # current index in Xs, f, actions
             i_after = i             # current index in Xs_after
@@ -158,19 +159,26 @@ function _refine!(method::DiscretisationMethod, f, crit)
                 if action == REFINEMENT_INSERT
                     # 1. Copy node i as usual
                     Xs_after[i_after] = Xs[i]
+                    ts_after[i_after] = ts[i]
                     # 2. Insert second node in the middle of segment [i, i + 1]
-                    # TODO: use optimised insertion for splines?
+                    # Note: for splines we could use standard knot insertion algorithms
+                    # (which are actually implemented), but that's probably not worth it,
+                    # since in most cases we need to recompute coefficients later anyways.
                     X_new = f(i, T(0.5))  # interpolate position in the middle of the next segment
                     i_after += 1
                     Xs_after[i_after] = X_new
+                    ts_after[i_after] = T(0.5) * (ts[i] + ts[i + 1])
                 elseif action == REFINEMENT_REMOVE
                     # Skip copying node i, and decrement i_after since it will be copied in the next iteration.
                     i_after -= 1
                 else  # if action == REFINEMENT_DO_NOTHING
                     # Simply copy node i
                     Xs_after[i_after] = Xs[i]
+                    ts_after[i_after] = ts[i]
                 end
             end
+
+            ts_after[end] = ts[end + 1]  # endpoint
 
             # Now copy new nodes onto original filament
             resize!(f, N_after)
@@ -178,20 +186,12 @@ function _refine!(method::DiscretisationMethod, f, crit)
                 @inbounds f[i] = Xs_after[i]
             end
 
-            # Finally, recompute coefficients.
-            # TODO:
-            # - can we avoid this if we only _inserted_ points (n_rem == 0), and if we're using splines with fast insertion?
-            # - pass precomputed knots?
+            # Finally, recompute coefficients, preserving computed knots.
             if check_nodes(Bool, f)  # if we have enough points (otherwise filament should be deleted later)
-                update_coefficients!(f)
+                update_coefficients!(f; knots = ts_after)
             end
         end
     end
-
-    # if n_add + n_rem > 0
-    #     @assert length(nodes(f)) == N + n_add - n_rem
-    #     update_after_changing_nodes!(f; removed = n_rem > 0)
-    # end
 
     n_add, n_rem
 end

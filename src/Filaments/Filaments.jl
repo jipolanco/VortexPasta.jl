@@ -720,7 +720,7 @@ function _update_knots_periodic!(
     @assert !(ts_in isa PaddedVector)
     length(ts_in) == length(ts) + 1 ||
         throw(DimensionMismatch("input knots should include the endpoint"))
-    L = ts_in[end] - ts[begin]  # knot period
+    L = ts_in[end] - ts_in[begin]  # knot period
     copyto!(ts, @view(ts_in[begin:end - 1]))
     pad_periodic!(ts, L)
     ts
