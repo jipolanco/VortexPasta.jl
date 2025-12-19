@@ -56,15 +56,13 @@ end
 function resize_container!(buf::AbstractVector{<:AbstractVector}, fs::VectorOfFilaments)
     i = lastindex(buf)
     N = lastindex(fs)
-    i === N && return buf
-    while i < N
-        i += 1
-        el = similar(first(buf), length(fs[i]))  # this can be a filament, a vector of velocities, ...
-        push!(buf, el)
-    end
-    while i > N
-        i -= 1
-        pop!(buf)
+    if i < N
+        resize!(buf, N)
+        for j in (i + 1):N
+            buf[j] = similar(first(buf), length(fs[j]))  # this can be a filament, a vector of velocities, ...
+        end
+    elseif i > N
+        resize!(buf, N)
     end
     @assert length(fs) == length(buf)
     buf
@@ -99,8 +97,9 @@ function update_velocities!(
         vL::VectorOfVectors, rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver;
         resize_cache = true, kws...,
     ) where {F <: Function, G <: Function}
+    (; to,) = iter
     if resize_cache
-        resize!(cache, iter.fs)  # in case the number of nodes (or filaments) has changed
+        @timeit to "Resize timestepping cache" resize!(cache, iter.fs)  # in case the number of nodes (or filaments) has changed
     end
     _update_velocities!(scheme(cache), vL, rhs!, advect!, cache, iter; kws...)
 end
