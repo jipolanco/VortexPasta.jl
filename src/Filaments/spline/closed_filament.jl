@@ -1,10 +1,11 @@
 function _update_coefficients_only!(
         method::SplineMethod, f::ClosedFilament;
         only_derivatives = false,
+        buf = Bumper.default_buffer(),
     )
     (; coefs, Xs, ts, Xoffset,) = f
     @assert method === coefs.method
-    compute_coefficients!(coefs, Xs, ts; Xoffset, only_derivatives)
+    compute_coefficients!(coefs, Xs, ts; Xoffset, only_derivatives, buf)
     f
 end
 

@@ -97,6 +97,7 @@ function compute_coefficients!(
         coefs::SplineCoefs, Xs::AbstractVector, ts::PaddedVector;
         Xoffset = zero(eltype(Xs)),
         only_derivatives = false,
+        buf = Bumper.default_buffer(),
     )
     (; method, cs, cderivs,) = coefs
     M = npad(method)
@@ -105,7 +106,7 @@ function compute_coefficients!(
     @assert M == npad(ts) == npad(cs)
     k = order(method)
     if !only_derivatives
-        solve_spline_coefficients!(Val(k), cs, ts, Xs; Xoffset)
+        solve_spline_coefficients!(Val(k), cs, ts, Xs; buf, Xoffset)
     end
     _compute_derivative_coefs!(Val(k), cderivs, cs, ts)
     coefs

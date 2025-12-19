@@ -219,7 +219,7 @@ function _refine!(method::DiscretisationMethod, f, crit)
 
             # Finally, recompute coefficients, preserving computed knots.
             if check_nodes(Bool, f)  # if we have enough points (otherwise filament should be deleted later)
-                update_coefficients!(f; knots = ts_after)
+                update_coefficients!(f; knots = ts_after, buf)
             end
         end
     end

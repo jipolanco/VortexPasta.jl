@@ -239,7 +239,11 @@ function similar_filament(
     ClosedFilament(f.parametrisation, Xs, method; offset, nderivs)
 end
 
-function update_coefficients!(f::ClosedFilament; knots = nothing)
+# Note: kws can include a `buf` keyword argument, which can be used in particular for
+# splines. In that case, it should generally be buf = Bumper.default_buffer().
+# Currently we use this in refine!, where we have already defined a Bumper buffer.
+# It doesn't hurt to pass that to methods other than splines.
+function update_coefficients!(f::ClosedFilament; knots = nothing, kws...)
     (; parametrisation, ts, Xs,) = f
     Xoffset = end_to_end_offset(f)
     M = npad(Xs)
@@ -254,7 +258,7 @@ function update_coefficients!(f::ClosedFilament; knots = nothing)
     _update_knots_periodic!(parametrisation, ts, Xs, knots)
 
     # 3. Estimate coefficients needed for derivatives and interpolations.
-    _update_coefficients_only!(f)
+    _update_coefficients_only!(f; kws...)
 
     f
 end

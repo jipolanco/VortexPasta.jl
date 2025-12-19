@@ -2,6 +2,7 @@
 function _update_coefficients_only!(
         ::FiniteDiffMethod, f::ClosedFilament;
         only_derivatives = false,
+        buf = nothing,  # unused
     )
     compute_coefficients!(f.coefs, f.Xs, f.ts; Xoffset = f.Xoffset)
     f

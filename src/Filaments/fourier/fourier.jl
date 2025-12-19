@@ -155,6 +155,7 @@ end
 function _update_coefficients_only!(
         ::FourierMethod, f::ClosedFilament;
         only_derivatives = false,
+        buf = nothing,  # unused
     )
     (; ts, Xs, Xoffset, coefs,) = f
     parametrisation(f) === FourierParametrisation() || error("FourierMethod requires using FourierParametrisation")
