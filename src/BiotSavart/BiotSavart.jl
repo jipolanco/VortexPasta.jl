@@ -586,7 +586,7 @@ function _compute_on_nodes!(
                 @timeit to "Add local integrals" add_local_integrals!(fields, cache, fs)
             end
             # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
-            @timeit to "Background vorticity" background_vorticity_correction!(fields, fs, params)
+            background_vorticity_correction!(fields, fs, params)  # this is very fast, so we don't time it
         end
     end
 
