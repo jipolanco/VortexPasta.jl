@@ -84,10 +84,11 @@ function _nodes_to_refine!(
     @assert eachindex(f) == eachindex(actions)
 
     # Compute actions to be performed
-    ℓ²_pprev = sum(abs2, f[end] - f[end - 1])
+    ℓ²_pprev = @inbounds sum(abs2, f[end] - f[end - 1])
     ℓ²_prev, action = _refinement_action(crit, f, lastindex(f))  # segment connecting endpoint and startpoint [N, 1]
     action_prev = Integer(action)
-    actions[begin - 1] = action_prev
+    @inbounds actions[begin - 1] = action_prev
+
     @inbounds for i in eachindex(f)
         ℓ², action = _refinement_action(crit, f, i)  # ℓ² is the length of the segment [i, i + 1]
         if action == REFINEMENT_INSERT
@@ -101,15 +102,13 @@ function _nodes_to_refine!(
             if ℓ² ≥ ℓ²_pprev
                 # It's better to remove the previous node.
                 # We just make sure that the current node will not be removed.
-                if action == REFINEMENT_REMOVE
-                    action_val = Integer(REFINEMENT_DO_NOTHING)
-                end
+                action_val = action_val & ~Integer(REFINEMENT_REMOVE)  # unset REFINEMENT_REMOVE bit if it's set
             else
                 # It's better to remove the current node (regardless of current action, meaning
                 # that it's possible to remove this node and insert right after this node).
                 # Unmark previous node for removal, and mark current node for removal instead.
-                actions[i - 1] = actions[i - 1] ⊻ Integer(REFINEMENT_REMOVE)
-                action_val = action_val | Integer(REFINEMENT_REMOVE)
+                actions[i - 1] = action_prev & ~Integer(REFINEMENT_REMOVE)  # unset REFINEMENT_REMOVE bit (always set in this case)
+                action_val = action_val | Integer(REFINEMENT_REMOVE)        # set REFINEMENT_REMOVE bit
             end
         end
         actions[i] = action_val
@@ -118,7 +117,7 @@ function _nodes_to_refine!(
         ℓ²_prev = ℓ²
     end
 
-    actions[end] = actions[begin - 1]  # periodic wrapping
+    @inbounds actions[end] = actions[begin - 1]  # periodic wrapping
 
     # Count number of added / removed nodes.
     n_add = n_rem = 0
