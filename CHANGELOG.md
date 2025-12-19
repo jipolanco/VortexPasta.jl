@@ -5,10 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.11] - 2025-12-19
+
 ### Changed
 
 - Speed-up implementation of filament refinement, avoiding expensive `insert!` and `popat!`
-  operations.
+  operations. The algorithm itself has been slightly modified as well, so it can
+  produce slightly different results compared to earlier versions.
 
 ## [0.32.10] - 2025-12-17
 
