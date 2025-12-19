@@ -78,35 +78,55 @@ end
 
 function _nodes_to_refine!(
         f::AbstractFilament, crit::RefinementCriterion;
-        actions = Memory{UInt8}(undef, length(f) + 1)  # includes endpoint
+        actions_buf = Memory{UInt8}(undef, length(f) + 2)  # includes padding (1 + 1 ghost points)
     )
-    @assert eachindex(f) == eachindex(actions)[begin:(end - 1)]
-    # (1) Compute actions to be performed
-    for i in eachindex(f)
-        actions[i] = Integer(_refinement_action(crit, f, i)::RefinementAction)
-    end
-    actions[end] = Integer(REFINEMENT_DO_NOTHING)  # endpoint
-    # (2) Post-process actions:
-    # - move removal operations one node to the right
-    # - make sure we don't remove contiguous nodes
-    # - count number of operations
-    n_add = 0
-    n_rem = 0
-    removed_latest = false
+    actions = PaddedVector{1}(actions_buf)
+    @assert eachindex(f) == eachindex(actions)
+
+    # Compute actions to be performed
+    ℓ²_pprev = sum(abs2, f[end] - f[end - 1])
+    ℓ²_prev, action = _refinement_action(crit, f, lastindex(f))  # segment connecting endpoint and startpoint [N, 1]
+    action_prev = Integer(action)
+    actions[begin - 1] = action_prev
     @inbounds for i in eachindex(f)
-        action = actions[i]
-        n_add += !iszero(action & Integer(REFINEMENT_INSERT))
-        if removed_latest
-            removed_latest = false
-        elseif !iszero(action & Integer(REFINEMENT_REMOVE))
-            actions[i] = action ⊻ Integer(REFINEMENT_REMOVE)  # unset REFINEMENT_REMOVE operation from node i
-            actions[i + 1] = action | Integer(REFINEMENT_REMOVE)  # set REFINEMENT_REMOVE operation on node i + 1
-            n_rem += 1
-            removed_latest = true
+        ℓ², action = _refinement_action(crit, f, i)  # ℓ² is the length of the segment [i, i + 1]
+        if action == REFINEMENT_INSERT
+            ℓ² = ℓ² / 4  # length of segment on the right will be roughly divided by 2
         end
+        action_val = Integer(action)
+        if !iszero(action_prev & Integer(REFINEMENT_REMOVE))  # previous node was marked for removal
+            # If the previous node was marked for removal, determine whether it's preferrable
+            # to remove the current node instead, to obtain a more homogeneous point distribution.
+            # In both cases, this should ensure that we don't remove two consecutive nodes (which we don't want).
+            if ℓ² ≥ ℓ²_pprev
+                # It's better to remove the previous node.
+                # We just make sure that the current node will not be removed.
+                if action == REFINEMENT_REMOVE
+                    action_val = Integer(REFINEMENT_DO_NOTHING)
+                end
+            else
+                # It's better to remove the current node (regardless of current action, meaning
+                # that it's possible to remove this node and insert right after this node).
+                # Unmark previous node for removal, and mark current node for removal instead.
+                actions[i - 1] = actions[i - 1] ⊻ Integer(REFINEMENT_REMOVE)
+                action_val = action_val | Integer(REFINEMENT_REMOVE)
+            end
+        end
+        actions[i] = action_val
+        action_prev = action_val
+        ℓ²_pprev = ℓ²_prev
+        ℓ²_prev = ℓ²
     end
-    # Wrap things at the endpoint / startpoint (this may add a remove operation to the startpoint)
-    actions[begin] = actions[begin] | actions[end]
+
+    actions[end] = actions[begin - 1]  # periodic wrapping
+
+    # Count number of added / removed nodes.
+    n_add = n_rem = 0
+    @simd for action in actions
+        n_add += !iszero(action & Integer(REFINEMENT_INSERT))
+        n_rem += !iszero(action & Integer(REFINEMENT_REMOVE))
+    end
+
     (; actions, n_add, n_rem)
 end
 
@@ -139,8 +159,8 @@ function _refine!(method::DiscretisationMethod, f, crit)
 
     @no_escape buf begin
         # Determine where to add or remove nodes.
-        actions = @alloc(UInt8, length(f) + 1)
-        (; n_add, n_rem) = _nodes_to_refine!(f, crit; actions)
+        actions_buf = @alloc(UInt8, length(f) + 2)
+        (; actions, n_add, n_rem) = _nodes_to_refine!(f, crit; actions_buf)
 
         if !iszero(n_add + n_rem)
             # Temporary vector where new nodes will be stored
@@ -272,19 +292,20 @@ function Base.show(io::IO, c::RefineBasedOnCurvature)
     print(io, "RefineBasedOnCurvature($ρℓ_max, $ρℓ_min; ℓ_max = $ℓ_max, ℓ_min = $ℓ_min)")
 end
 
-function _refinement_action(crit::RefineBasedOnCurvature, f::AbstractFilament, i::Integer)::RefinementAction
+function _refinement_action(crit::RefineBasedOnCurvature, f::AbstractFilament, i::Integer)
     (; ρℓ_min², ρℓ_max², ℓ_min², ℓ_max²,) = crit
-    ℓ² = sum(abs2, f[i + 1] - f[i])
-    ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
-    # ρ_alt = f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
+    ℓ² = @inbounds sum(abs2, f[i + 1] - f[i])
+    ρ = @inbounds (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
+    # ρ_alt = @inbounds f(i, 0.5, CurvatureScalar())  # this is likely more expensive, and less accurate for FiniteDiff
     ρℓ² = ρ^2 * ℓ²
-    if ρℓ² > ρℓ_max² && ℓ² > 4 * ℓ_min²  # so that the new ℓ is roughly larger than ℓ_min
+    action = if ρℓ² > ρℓ_max² && ℓ² > 4 * ℓ_min²  # so that the new ℓ is roughly larger than ℓ_min
         REFINEMENT_INSERT
     elseif ρℓ² < ρℓ_min² && ℓ² < ℓ_max² / 4  # so that the new ℓ is roughly smaller than ℓ_max
         REFINEMENT_REMOVE
     else
         REFINEMENT_DO_NOTHING
-    end
+    end::RefinementAction
+    ℓ², action
 end
 
 """
@@ -327,15 +348,15 @@ function Base.show(io::IO, c::RefineBasedOnSegmentLength)
     print(io, "RefineBasedOnSegmentLength($ℓ_min, $ℓ_max; ρℓ_max = $ρℓ_max)")
 end
 
-function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)::RefinementAction
+function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilament, i::Integer)
     (; ℓ_min², ℓ_max², ρℓ_max²) = crit
-    ℓ² = sum(abs2, f[i + 1] - f[i])
-    if ℓ² > ℓ_max²
+    ℓ² = @inbounds sum(abs2, f[i + 1] - f[i])
+    action = if ℓ² > ℓ_max²
         REFINEMENT_INSERT
     elseif ℓ² < ℓ_min²
         REFINEMENT_REMOVE
     elseif !isinf(ρℓ_max²) # if removing large curvature regions 
-        ρ = (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
+        ρ = @inbounds (f[i, CurvatureScalar()] + f[i + 1, CurvatureScalar()]) / 2
         ρℓ² = ρ^2 * ℓ²
         if ρℓ² > ρℓ_max²
             REFINEMENT_REMOVE
@@ -344,5 +365,6 @@ function _refinement_action(crit::RefineBasedOnSegmentLength, f::AbstractFilamen
         end
     else
         REFINEMENT_DO_NOTHING
-    end
+    end::RefinementAction
+    ℓ², action
 end
