@@ -4,15 +4,15 @@
 # pentadiagonal solvers (here we use a generic banded matrix solver for that).
 
 using StaticArrays: SVector, SMatrix
-using Bumper: Bumper, @no_escape, @alloc
 
 # Specialisation for quintic splines.
 function solve_spline_coefficients!(
         ::Val{6}, cs::PaddedVector{M}, ts::PaddedVector{M}, Xs::AbstractVector;
         Xoffset = zero(eltype(Xs)),
+        buf = Bumper.default_buffer(),
     ) where {M}
     periodise_coordinates!(cs, Xs, ts, Xoffset)  # useful if Xoffset ≠ 0
-    _solve_quintic_spline_coefficients!(cs, ts)
+    _solve_quintic_spline_coefficients!(cs, ts, buf)
     pad_periodic!(cs)
     cs
 end
@@ -25,7 +25,7 @@ function lmul_utranspose(Uᵀ_left::SMatrix{2, 2}, Uᵀ_right::SMatrix{2, 2}, y:
     Uᵀ_left * y_hi + Uᵀ_right * y_lo
 end
 
-function _solve_quintic_spline_coefficients!(cs::AbstractVector, ts)
+function _solve_quintic_spline_coefficients!(cs::AbstractVector, ts, buf)
     n = length(ts)
     if n < 7
         _solve_quintic_spline_coefficients_small!(cs, ts)
@@ -34,12 +34,11 @@ function _solve_quintic_spline_coefficients!(cs::AbstractVector, ts)
     m = n - 2
     kl, ku = 2, 2  # lower and upper band sizes
     T = eltype(ts)
-    buf = Bumper.default_buffer()
     @no_escape buf begin
         V = @alloc(SVector{2, T}, m)
         AB = @alloc(T, kl + ku + 1, m)
         buffers = (; AB, V,)
-        _solve_quintic_spline_coefficients!(buffers, cs, ts)
+        _solve_quintic_spline_coefficients_impl!(buffers, cs, ts)
     end
     cs
 end
@@ -50,7 +49,7 @@ hcat_transpose(u::T, v::T) where {T <: Number} = SVector{2}(u, v)  # scalar case
 quintic_ldiv_terms(ys::SMatrix{2}) = (ys[1, :], ys[2, :])
 quintic_ldiv_terms(ys::SVector{2}) = ys
 
-function _solve_quintic_spline_coefficients!(buffers::NamedTuple, cs::AbstractVector, ts)
+function _solve_quintic_spline_coefficients_impl!(buffers::NamedTuple, cs::AbstractVector, ts)
     (; AB, V,) = buffers
     n = length(ts)
     m = n - 2

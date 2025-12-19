@@ -86,7 +86,8 @@ function test_restarts(::Type{T}; scheme = RK4(), dt_factor = T(0.5),) where {T}
     solve!(iter_2)
 
     @test times[N] == times[end]
-    @test energy[N] ≈ energy[end] rtol=1e-4  # note: the variability comes from threading; with 1 thread these are basically equal
+    # @show (energy[N] - energy[end]) / energy[end]
+    @test energy[N] ≈ energy[end] rtol=1e-3  # note: the variability comes from threading; with 1 thread these are basically equal
 
     @testset "Restart from t = 0" begin
         checkpoint = @inferred load_checkpoint("trefoil_checkpoint.vtkhdf", T, method; read_time = false)

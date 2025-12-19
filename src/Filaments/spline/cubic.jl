@@ -28,12 +28,12 @@ end
 function solve_spline_coefficients!(
         ::Val{4}, cs::PaddedVector{M}, ts::PaddedVector{M}, Xs::AbstractVector;
         Xoffset = zero(eltype(Xs)),
+        # Use Bumper to allocate buffer arrays "for free" (not managed by Julia's GC)
+        buf = Bumper.default_buffer(),
     ) where {M}
     periodise_coordinates!(cs, Xs, ts, Xoffset)  # useful if Xoffset ≠ 0
     n = length(ts)
     T = eltype(ts)
-    # Use Bumper to allocate buffer arrays "for free" (not managed by Julia's GC).
-    buf = Bumper.default_buffer()
     @no_escape buf begin
         bufs_thomas = (
             bc = @alloc(SVector{2, T}, n),

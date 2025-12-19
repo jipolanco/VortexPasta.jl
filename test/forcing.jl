@@ -287,16 +287,16 @@ end
         @testset "FourierBandForcing" begin
             forcing = @inferred FourierBandForcing(vn; α, α′)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 2.3170998729112178
-            @test 2.2 < E_ratio < 2.4
+            # @show E_ratio  # = 2.1951275471870866
+            @test 2.1 < E_ratio < 2.3
             save_files && filaments_to_vtkhdf("forcing_band.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "FourierBandForcing")
         end
         @testset "FourierBandForcing (filtered vorticity)" begin
             forcing = @inferred FourierBandForcing(vn; α, α′, filtered_vorticity = true)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 1.6623415469720322
-            @test 1.6 < E_ratio < 1.7
+            # @show E_ratio  # = 1.5658668699951874
+            @test 1.5 < E_ratio < 1.6
             save_files && filaments_to_vtkhdf("forcing_band_filtered_vorticity.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "FourierBandForcing (filtered vorticity)")
         end
@@ -348,8 +348,8 @@ end
                 nothing
             end
             (; iter, E_ratio, spectra) = simulate(prob, forcing; callback, dt_factor = 0.5)
-            # @show α′, E_ratio  # = (0.0, 1.5285725540231294) / (1.0, 1.5051607461784633)
-            @test 1.45 < E_ratio < 1.55
+            # @show α′, E_ratio  # = (0.0, 1.5242453555895266) / (1.0, 1.5597690673654219)
+            @test 1.45 < E_ratio < 1.60
             let
                 quad = GaussLegendre(3)
                 ks_flux, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad)
@@ -423,7 +423,7 @@ end
             # Check linear evolution at beginning of simulation, with the expected ε.
             let a = searchsortedlast(times, a), b = searchsortedlast(times, b)
                 local ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # energy injection rate at wavenumber k⃗
-                # @show ε_inj
+                # @show (ε_inj - forcing.ε_target) / forcing.ε_target
                 @test ε_inj ≈ forcing.ε_target rtol=0.2  # the agreement is not that great, but that's ok
             end
         end

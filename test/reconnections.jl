@@ -296,7 +296,7 @@ function test_trefoil_knot_reconnection(
         @test 0.98 < last(energy_rel) < 0.99
     elseif Criterion <: ReconnectFast
         @test 1.60 < t_reconnect[] < 1.70
-        @test 0.970 < last(energy_rel) < 0.980
+        @test 0.975 < last(energy_rel) < 0.985
     end
 
     if test_jet
