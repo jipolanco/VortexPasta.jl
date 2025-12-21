@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.12] - 2025-12-21
+
+### Added
+
+- Timestepping: add `step_refinement` and `step_reconnect` options.
+
 ## [0.32.11] - 2025-12-19
 
 ### Changed

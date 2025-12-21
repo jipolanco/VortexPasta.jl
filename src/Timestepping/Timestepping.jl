@@ -261,6 +261,8 @@ struct VortexFilamentSolver{
     affect_t!  :: AffectTime  # signature: affect_t!(iter, t) where t is the current time
     callback :: Callback      # signature: callback(iter)
     step_diagnostics   :: Int
+    step_refinement    :: Int
+    step_reconnect     :: Int
     external_fields    :: ExternalFields  # velocity and streamfunction forcing
     stretching_velocity :: StretchingVelocity
     forcing  :: Forcing  # forcing term added to the vortex velocity: vL = vs + vf (+ possibly other terms)
@@ -311,6 +313,8 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     _maybe_print_function(io, "\n ├─ affect_t!:", iter.affect_t!)
     _maybe_print_function(io, "\n ├─ callback:", iter.callback)
     print(io, "\n ├─ step_diagnostics: ", iter.step_diagnostics)
+    print(io, "\n ├─ step_refinement: ", iter.step_refinement)
+    print(io, "\n ├─ step_reconnect: ", iter.step_reconnect)
     for (name, func) ∈ pairs(iter.external_fields)
         func === nothing || print(io, "\n ├─ external_fields.$name: Function ($func)")
     end
@@ -462,6 +466,12 @@ either [`step!`](@ref) or [`solve!`](@ref).
   [`Diagnostics`](@ref) module) be computed. This is used to avoid computing certain
   quantities (such as `ψs`) which are only needed for diagnostics (e.g. energy). If this option is used,
   one should call [`can_compute_diagnostics`](@ref) before computing any diagnostics.
+
+- `step_refinement = 1`: every how many timesteps to perform filament refinement (see
+  `refinement` option) and periodic folding (see `fold_periodic` option).
+
+- `step_reconnect = 1`: every how many timesteps to perform vortex reconnections (see
+  `reconnect` option).
 
 - `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
   recording the time spent on different functions.
@@ -678,6 +688,8 @@ function init(
         dissipation::AbstractDissipation = NoDissipation(),
         mode::SimulationMode = DefaultMode(),
         step_diagnostics::Int = 1,
+        step_refinement::Int = 1,
+        step_reconnect::Int = 1,
         timer = TimerOutput("VortexFilament"),
         filament_nderivs = Val(2),
     ) where {
@@ -792,10 +804,13 @@ function init(
     dissipation_cache = Forcing.init_cache(dissipation, cache_bs)
 
     step_diagnostics > 0 || throw(ArgumentError("step_diagnostics should be positive"))
+    step_refinement > 0 || throw(ArgumentError("step_refinement should be positive"))
+    step_reconnect > 0 || throw(ArgumentError("step_reconnect should be positive"))
 
     iter = VortexFilamentSolver(
         prob, fs, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, affect_t_, callback_, step_diagnostics, external_fields,
+        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, affect_t_, callback_,
+        step_diagnostics, step_refinement, step_reconnect, external_fields,
         stretching_velocity, forcing, forcing_cache, dissipation, dissipation_cache,
         timer, advect!, rhs!,
     )
@@ -888,18 +903,22 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
 end
 
 function after_advection!(iter::VortexFilamentSolver)
-    (; fs, prob, refinement, fold_periodic, stats, to) = iter
-    # Perform reconnections, possibly changing the number of filaments.
-    @timeit to "Reconnect" rec = reconnect!(iter)
-    @debug lazy"Number of reconnections: $(rec.reconnection_count)"
-    stats.reconnection_count += rec.reconnection_count
-    stats.reconnection_length_loss += rec.reconnection_length_loss
-    stats.filaments_removed_count += rec.filaments_removed_count
-    stats.filaments_removed_length += rec.filaments_removed_length
-    stats.reconnection_passes += rec.npasses
-    L_fold = periods(prob.p)  # box size (periodicity)
-    fields = fields_to_resize(iter)
-    @timeit to "Fold and refine" fold_and_refine!(fs, fields; L_fold, refinement, fold_periodic)
+    (; fs, prob, nstep, refinement, fold_periodic, stats, to) = iter
+    if nstep % iter.step_reconnect == 0
+        # Perform reconnections, possibly changing the number of filaments.
+        @timeit to "Reconnect" rec = reconnect!(iter)
+        @debug lazy"Number of reconnections: $(rec.reconnection_count)"
+        stats.reconnection_count += rec.reconnection_count
+        stats.reconnection_length_loss += rec.reconnection_length_loss
+        stats.filaments_removed_count += rec.filaments_removed_count
+        stats.filaments_removed_length += rec.filaments_removed_length
+        stats.reconnection_passes += rec.npasses
+    end
+    if nstep % iter.step_refinement == 0
+        L_fold = periods(prob.p)  # box size (periodicity)
+        fields = fields_to_resize(iter)
+        @timeit to "Fold and refine" fold_and_refine!(fs, fields; L_fold, refinement, fold_periodic)
+    end
     nothing
 end
 
