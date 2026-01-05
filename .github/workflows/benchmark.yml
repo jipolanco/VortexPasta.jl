@@ -57,6 +57,7 @@ jobs:
           name: Julia benchmark result
           tool: 'julia'
           output-file-path: benchmark/output.json
+          benchmark-data-dir-path: "bench"
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           # Show alert with commit comment on detecting possible performance regression
