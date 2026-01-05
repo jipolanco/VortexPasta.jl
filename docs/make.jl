@@ -213,7 +213,7 @@ if haskey(ENV, "GITHUB_REPOSITORY")  # if we're on github
         repo = "github.com/jipolanco/VortexPasta.jl",
         branch = "gh-pages",
         devbranch = "master",
-        forcepush = true,
+        forcepush = false,
         push_preview = true,
     )
 end
