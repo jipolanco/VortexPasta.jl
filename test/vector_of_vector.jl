@@ -3,7 +3,6 @@ using JET: @test_opt
 using Test
 
 function broadcast_factorised!(ws, us, vs)
-    fill!(ws, 0)
     @. ws = 3 * (us + vs) + 2 * us
     ws
 end
