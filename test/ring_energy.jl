@@ -41,9 +41,14 @@ function test_vortex_ring_energy()
     # JET.@test_call Diagnostics.kinetic_energy(iter_periodic)  # fails when using Threads.Atomic
     E_periodic = Diagnostics.kinetic_energy(iter_periodic)
     E_periodic_quad = Diagnostics.kinetic_energy(iter_periodic; quad = GaussLegendre(4))
-    ftest_periodic(args, kwargs) = Diagnostics.kinetic_energy(args...; kwargs...)
-    @test 0 == Base.allocated(ftest_periodic, (iter_periodic,), (nthreads = 1,))
-    @test 0 == Base.allocated(ftest_periodic, (iter_periodic,), (nthreads = 1, quad = GaussLegendre(4)))
+    @test 0 == Base.allocated() do
+        @inline
+        Diagnostics.kinetic_energy(iter_periodic; nthreads = 1)
+    end
+    @test 0 == Base.allocated() do
+        @inline
+        Diagnostics.kinetic_energy(iter_periodic; nthreads = 1, quad = GaussLegendre(4))
+    end
     @test isapprox(E_periodic, E_periodic_quad; rtol = 1e-8)  # roughly the same result
     E_periodic_wrong = @test_logs(
         (:warn, r"should only be called when working with non-periodic domains"),
@@ -58,9 +63,14 @@ function test_vortex_ring_energy()
     JET.@test_call Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
     E_nonper_v = Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
     E_nonper_quad = Diagnostics.kinetic_energy_nonperiodic(iter_nonper; quad = GaussLegendre(4))
-    ftest_nonper(args, kwargs) = Diagnostics.kinetic_energy_nonperiodic(args...; kwargs...)
-    @test 0 == Base.allocated(ftest_nonper, (iter_nonper,), ())
-    # @test 0 == Base.allocated(ftest_nonper, (iter_nonper,), (quad = GaussLegendre(4),))
+    @test 0 == Base.allocated() do
+        @inline
+        Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
+    end
+    # @test 0 == Base.allocated() do
+    #     @inline
+    #     Diagnostics.kinetic_energy_nonperiodic(iter_nonper; quad = GaussLegendre(4))
+    # end
     @test isapprox(E_nonper_v, E_nonper_quad; rtol = 1e-8)  # roughly the same result
     E_nonper_ψ = Diagnostics.kinetic_energy_from_streamfunction(iter_nonper)
 

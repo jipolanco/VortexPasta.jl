@@ -90,7 +90,10 @@ end
         @test_opt broadcast_factorised!(ws, us, vs)
         # Note: the @allocated macro seems to report spurious allocations since Julia 1.12.
         # This doesn't seem to be the case with the (undocumented) Base.allocated function.
-        @test 0 == Base.allocated(broadcast_factorised!, ws, us, vs)
+        @test 0 == Base.allocated() do
+            @inline
+            broadcast_factorised!(ws, us, vs)
+        end
     end
     ##
 end
