@@ -181,10 +181,11 @@ function test_leapfrogging_rings(
         # Check that we perform 0 allocations (in fact there are allocations needed for
         # interpolations, but they are manually managed using Bumper.jl and not by Julia's GC,
         # which means they are cheap).
-        @inferred Diagnostics.stretching_rate(iter)
-        @inferred Diagnostics.stretching_rate(iter; quad = GaussLegendre(2))
-        @test 0 == @allocated Diagnostics.stretching_rate(iter; nthreads = 1)
-        @test 0 == @allocated Diagnostics.stretching_rate(iter; quad = GaussLegendre(2), nthreads = 1)
+        fstretch(args, kwargs) = Diagnostics.stretching_rate(args...; kwargs...)  # wrapper which can be used with Base.allocated
+        @inferred fstretch((iter,), (nthreads = 1,))
+        @inferred fstretch((iter,), (nthreads = 1, quad = GaussLegendre(2)))
+        @test 0 == Base.allocated(fstretch, (iter,), (nthreads = 1,))
+        @test 0 == Base.allocated(fstretch, (iter,), (nthreads = 1, quad = GaussLegendre(2)))
     end
 
     VERBOSE && println(iter.to)

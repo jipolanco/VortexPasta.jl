@@ -88,9 +88,9 @@ end
 
         # Check that there are no inference issues and no unwanted allocations.
         @test_opt broadcast_factorised!(ws, us, vs)
-        broadcast_factorised!(ws, us, vs)  # run once just to be sure that everything is compiled
-        # For some reason, this allocation test randomly fails on Julia 1.12.3.
-        @test_skip 0 == @allocated broadcast_factorised!(ws, us, vs)
+        # Note: the @allocated macro seems to report spurious allocations since Julia 1.12.
+        # This doesn't seem to be the case with the (undocumented) Base.allocated function.
+        @test 0 == Base.allocated(broadcast_factorised!, ws, us, vs)
     end
     ##
 end
