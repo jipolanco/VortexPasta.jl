@@ -39,8 +39,8 @@ function test_vortex_ring_energy()
     iter_periodic = init(prob_periodic, RK4(); dt = 0.1)
     JET.@test_opt ignored_modules=(Base,) Diagnostics.kinetic_energy(iter_periodic)
     # JET.@test_call Diagnostics.kinetic_energy(iter_periodic)  # fails when using Threads.Atomic
-    E_periodic = Diagnostics.kinetic_energy(iter_periodic)
-    E_periodic_quad = Diagnostics.kinetic_energy(iter_periodic; quad = GaussLegendre(4))
+    E_periodic = Diagnostics.kinetic_energy(iter_periodic; nthreads = 1)
+    E_periodic_quad = Diagnostics.kinetic_energy(iter_periodic; nthreads = 1, quad = GaussLegendre(4))
     @test 0 == Base.allocated() do
         @inline
         Diagnostics.kinetic_energy(iter_periodic; nthreads = 1)

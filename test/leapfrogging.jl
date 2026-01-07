@@ -1,6 +1,7 @@
 # Test the time evolution of a system of two leapfrogging vortex rings.
 
 using Test
+using BenchmarkTools: @ballocated
 using Statistics: mean, std
 using Random
 using StableRNGs: StableRNG
@@ -183,14 +184,12 @@ function test_leapfrogging_rings(
         # which means they are cheap).
         @inferred Diagnostics.stretching_rate(iter)
         @inferred Diagnostics.stretching_rate(iter; quad = GaussLegendre(2))
-        @test 0 == Base.allocated() do
-            @inline
-            Diagnostics.stretching_rate(iter; nthreads = 1)
-        end
-        @test 0 == Base.allocated() do
-            @inline
-            Diagnostics.stretching_rate(iter; quad = GaussLegendre(2), nthreads = 1)
-        end
+        @inferred Diagnostics.stretching_rate(iter; nthreads = 1)  # this is mainly to ensure that this function is compiled before checking for allocations
+        @inferred Diagnostics.stretching_rate(iter; quad = GaussLegendre(2), nthreads = 1)
+        # We use BenchmarkTools.@ballocated instead of Base.@allocated since it seems to be way more
+        # robust. Using gctrial=false makes things a lot faster (avoids GC.gc()).
+        @ballocated 0 == Diagnostics.stretching_rate($iter; nthreads = 1) samples=1 gctrial=false
+        @ballocated 0 == Diagnostics.stretching_rate($iter; quad = GaussLegendre(2), nthreads = 1) samples=1 gctrial=false
     end
 
     VERBOSE && println(iter.to)
