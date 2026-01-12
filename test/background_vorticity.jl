@@ -11,7 +11,7 @@
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.PredefinedCurves
-using VortexPasta.Containers: VectorOfVectors
+using VortexPasta.VectorsOfVectors: VectorOfVectors
 using LinearAlgebra: norm
 using Test
 

@@ -1,9 +1,9 @@
 """
-    Containers
+    VectorsOfVectors
 
-Module defining containers for conveniently working with filament data.
+Module defining the `VectorOfVectors` type for conveniently working with values attached to filament nodes.
 """
-module Containers
+module VectorsOfVectors
 
 export VectorOfVectors
 

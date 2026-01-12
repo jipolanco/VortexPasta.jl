@@ -1,7 +1,7 @@
 using VortexPasta.PaddedArrays: PaddedVector, pad_periodic!
 using VortexPasta.Filaments
 using VortexPasta.FilamentIO
-using VortexPasta.Containers: VectorOfVectors
+using VortexPasta.VectorsOfVectors: VectorOfVectors
 using VortexPasta.BiotSavart
 using LinearAlgebra: ⋅
 using HDF5: HDF5

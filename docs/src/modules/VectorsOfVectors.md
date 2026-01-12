@@ -1,12 +1,12 @@
-# Containers
+# VectorsOfVectors
 
 ```@meta
-CurrentModule = VortexPasta.Containers
+CurrentModule = VortexPasta.VectorsOfVectors
 CollapsedDocStrings = false
 ```
 
 ```@docs
-Containers
+VectorsOfVectors
 ```
 
 ## Exported types

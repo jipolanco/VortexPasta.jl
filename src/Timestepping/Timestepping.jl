@@ -17,7 +17,7 @@ export init, solve!, step!, VortexFilamentProblem, VortexFilamentSolver,
 
 using ..VortexPasta: VortexPasta  # version()
 
-using ..Containers: VectorOfVectors
+using ..VectorsOfVectors: VectorOfVectors
 
 using ..Filaments:
     Filaments,

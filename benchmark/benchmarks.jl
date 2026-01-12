@@ -3,7 +3,7 @@
 
 using VortexPasta
 using VortexPasta.PredefinedCurves
-using VortexPasta.Containers: VectorOfVectors
+using VortexPasta.VectorsOfVectors: VectorOfVectors
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Reconnections

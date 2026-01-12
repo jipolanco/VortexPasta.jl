@@ -36,9 +36,9 @@ DocMeta.setdocmeta!(
 )
 
 DocMeta.setdocmeta!(
-    VortexPasta.Containers,
+    VortexPasta.VectorsOfVectors,
     :DocTestSetup,
-    :(using VortexPasta.Containers),
+    :(using VortexPasta.VectorsOfVectors),
 )
 
 DocMeta.setdocmeta!(
@@ -183,7 +183,7 @@ function make_all(; draft = false,)
                 "modules/BiotSavart.md",
                 "modules/SyntheticFields.md",
                 "modules/Forcing.md",
-                "modules/Containers.md",
+                "modules/VectorsOfVectors.md",
                 "modules/Reconnections.md",
                 "modules/Timestepping.md",
                 "modules/Diagnostics.md",

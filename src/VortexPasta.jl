@@ -22,7 +22,7 @@ include("Reconnections/Reconnections.jl")
 include("BiotSavart/BiotSavart.jl")
 include("Diagnostics/Diagnostics.jl")
 
-include("Containers/Containers.jl")  # VectorOfVectors
+include("VectorsOfVectors/VectorsOfVectors.jl")
 include("SyntheticFields/SyntheticFields.jl")
 include("Forcing/Forcing.jl")
 include("Timestepping/Timestepping.jl")
@@ -31,7 +31,7 @@ include("Timestepping/Timestepping.jl")
 const ALL_MODULES = (
     PaddedArrays, PredefinedCurves, CellLists, Constants,
     Quadratures, Filaments, FindNearbySegments, FilamentIO,
-    Reconnections, BiotSavart, Diagnostics, Containers,
+    Reconnections, BiotSavart, Diagnostics, VectorsOfVectors,
     SyntheticFields, Forcing,
     Timestepping,
 )

@@ -9,7 +9,7 @@ using VortexPasta.Quadratures: NoQuadrature, GaussLegendre, AdaptiveTanhSinh
 using VortexPasta.Filaments
 using VortexPasta.Filaments: discretisation_method
 using VortexPasta.PredefinedCurves: define_curve, Ring, TrefoilKnot
-using VortexPasta.Containers: VectorOfVectors
+using VortexPasta.VectorsOfVectors: VectorOfVectors
 using VortexPasta.PaddedArrays: PaddedVector
 
 function test_filament_ring(N, method)

@@ -1,4 +1,4 @@
-using VortexPasta.Containers: VectorOfVectors
+using VortexPasta.VectorsOfVectors: VectorOfVectors
 using BenchmarkTools: @ballocated
 using JET: @test_opt
 using Test
