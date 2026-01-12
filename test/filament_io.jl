@@ -5,6 +5,8 @@ using VortexPasta.Containers: VectorOfVectors
 using VortexPasta.BiotSavart
 using LinearAlgebra: ⋅
 using HDF5: HDF5
+using JSON: JSON
+using StructUtils: @tags  # for JSON reading
 using Test
 
 function init_ring_filament(; R, z, sign)
@@ -299,6 +301,18 @@ function test_hdf5()
     nothing
 end
 
+# This is for parsing JSON files using JSON.jl.
+struct ParaViewTimeSeriesItem
+    name::String
+    time::Float64
+end
+
+#  https://juliaio.github.io/JSON.jl/dev/reading/#Field-customization-through-tags
+@tags struct ParaViewTimeSeriesFile
+    file_series_version::String & (json = (name = "file-series-version",),)
+    files::Vector{ParaViewTimeSeriesItem}
+end
+
 function test_json_vtk_time_series()
     tsf = @inferred TimeSeriesFile()
     tsf[0.0] = "rings_0.vtkhdf"
@@ -318,6 +332,17 @@ function test_json_vtk_time_series()
     }
     """
     @test s == s_expected
+    # Make sure the file can be parsed as standard JSON (e.g. using JSON.jl)
+    let tsf_json = @inferred JSON.parsefile("rings.vtkhdf.series", ParaViewTimeSeriesFile)
+        @test tsf_json.file_series_version == "1.0"
+        local files = tsf_json.files
+        @test length(files) == 3
+        for i in eachindex(files)
+            local (; name, time) = files[i]
+            @test name == tsf.files[i]
+            @test time == tsf.times[i]
+        end
+    end
     nothing
 end
 
