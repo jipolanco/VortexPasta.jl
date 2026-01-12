@@ -148,9 +148,11 @@ function write_vtkhdf(
         @assert periods isa Union{Nothing, Real}
         periods_ = (periods, periods, periods)  # same period in all directions (works with `nothing` too)
     end
-    HDF5.h5open(filename, "w") do io
-        writer = init_vtkhdf(io, fs; periods = periods_, kwargs...)
-        func(writer)
+    let periods = periods_
+        HDF5.h5open(filename, "w") do io
+            writer = init_vtkhdf(io, fs; periods, kwargs...)
+            func(writer)
+        end
     end
     nothing
 end
