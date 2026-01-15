@@ -59,6 +59,7 @@ binormal vector ``\bm{s}' × \bm{s}''``. This leads to the following form of the
 
 ```math
 \bm{v}_{\text{f}} = α \frac{\bm{s}'' ⋅ \tilde{\bm{v}}_{\text{s}}}{|\bm{s}''|^2} \, \bm{s}' × \bm{s}''.
+```
 
 ## Explanations
 
@@ -124,8 +125,6 @@ One can write this velocity as
 ```
 
 where ``α`` is a non-dimensional parameter setting the forcing amplitude.
-
-```
 """
 struct FourierBandForcingBS{T <: AbstractFloat, N} <: AbstractForcing
     α    :: T
