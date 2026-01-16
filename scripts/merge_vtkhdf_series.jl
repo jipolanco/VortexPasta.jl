@@ -10,9 +10,9 @@ Options:
     -o    Output file (stdout by default)
 
 In practice, one generally has a list of vtkhdf.series files in the same directory (e.g.
-`checkpoint*.vtkhdf.series`), in which case one can simply do:
+`simulation_run{1,2,3,…}.vtkhdf.series`) for different runs, in which case one can simply do:
 
-    julia merge_vtkhdf_series.jl -o simulation.vtkhdf.series checkpoint*.vtkhdf.series
+    julia merge_vtkhdf_series.jl -o simulation.vtkhdf.series simulation_run*.vtkhdf.series
 """
 
 if "--help" in ARGS
