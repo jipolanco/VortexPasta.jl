@@ -109,8 +109,10 @@ This can be used to make sure that the new simulation starts at time `t = 0` (an
 Restart simulation from checkpoint:
 
 ```julia
-p = BiotSavartParams(...)
-checkpoint = load_checkpoint("filaments_1234.vtkhdf", Float64, CubicSplineMethod())
+using VortexPasta.BiotSavart
+using VortexPasta.Timestepping
+p = ParamsBiotSavart(...)
+checkpoint = load_checkpoint("filaments_1234.vtkhdf", Float64, QuinticSplineMethod())
 tsim = 2.0  # total simulation time
 prob = VortexFilamentProblem(checkpoint, tsim, p)
 iter = init(prob, RK4(); ...)
