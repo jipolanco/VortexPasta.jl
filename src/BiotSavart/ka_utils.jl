@@ -60,7 +60,6 @@ end
 
 """
     ka_generate_kernel(kernel, backend::KA.Backend, x::AbstractArray; [workgroupsize])
-    ka_generate_kernel(kernel, backend::KA.Backend, ndrange::Dims; [workgroupsize])
 
 Generate statically sized KA kernel.
 
@@ -74,17 +73,11 @@ By default, the workgroupsize is determined automatically and may depend on the 
 backend (CPU, GPU) and on the array dimensions `ndrange = size(x)`.
 """
 function ka_generate_kernel(
-        kernel::F, backend::KA.Backend, ndrange::Dims;
-        workgroupsize = ka_default_workgroupsize(backend, ndrange),
-    ) where {F <: Function}
-    kernel(backend, workgroupsize, ndrange)
-end
-
-function ka_generate_kernel(
         kernel::F, backend::KA.Backend, u::AbstractArray;
-        kws...,
+        workgroupsize = ka_default_workgroupsize(backend, size(u)),
     ) where {F <: Function}
-    ka_generate_kernel(kernel, backend, size(u); kws...)
+    ndrange = size(u)
+    kernel(backend, workgroupsize, ndrange)
 end
 
 # Resize vector trying to avoid copy when N is larger than the original length.

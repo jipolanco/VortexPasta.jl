@@ -15,8 +15,7 @@ using ..Filaments:
     knots, segments, integrate,
     number_type
 
-using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, ParamsBiotSavart, Infinity, ∞,
-                    ka_generate_kernel, ka_default_workgroupsize
+using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, ParamsBiotSavart, Infinity, ∞
 
 using Bumper: Bumper, @no_escape, @alloc
 using Adapt: adapt

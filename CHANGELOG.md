@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rename module: `Containers` -> `VectorsOfVectors`.
 
+### Fixed
+
+- This version hopefully fixes garbage values sometimes found in energy spectra
+  (quite randomly, very difficult to reproduce).
+
 ## [0.32.12] - 2025-12-21
 
 ### Added

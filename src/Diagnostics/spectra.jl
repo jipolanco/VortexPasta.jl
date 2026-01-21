@@ -139,11 +139,26 @@ function _compute_spectrum!(
     # the energy spectra. However, it means that some indices `I` will be outside of the grid,
     # and this needs to be checked in the kernel.
     dims = size(uhat_comps[1])
-    groupsize = ka_default_workgroupsize(backend, dims) :: NTuple
+    groupsize = (min(256, dims[1]), 1, 1)
     ngroups = cld.(dims, groupsize)  # number of workgroups in each direction
     ndrange = ngroups .* groupsize   # pad array dimensions
     Nk = length(Ek)
-    kernel! = ka_generate_kernel(compute_spectrum_kernel!, backend, ndrange)
+    kernel! = compute_spectrum_kernel!(backend, groupsize, ndrange)
+
+    # Temporary buffer for reduction on GPU (on the CPU we use Bumper instead)
+    buf_gpu = if backend isa KA.CPU
+        nothing
+    else
+        KA.allocate(backend, eltype(Ek), (Nk, ngroups...))
+    end
+
+    # Sum data from all workgroups, writing results onto Ek_d.
+    Ek_d = if typeof(KA.get_backend(Ek)) === typeof(backend)
+        fill!(Ek, 0)
+        Ek  # output is already on the compute device
+    else
+        KA.zeros(backend, eltype(Ek), Nk)  # allocate array on the device
+    end
 
     # Use Bumper to allocate temporary CPU arrays (doesn't do anything for GPU arrays).
     buf = Bumper.default_buffer()
@@ -151,28 +166,19 @@ function _compute_spectrum!(
         Ek_groups = if backend isa KA.CPU
             @alloc(eltype(Ek), Nk, ngroups...)
         else
-            KA.allocate(backend, eltype(Ek), (Nk, ngroups...))
+            buf_gpu
         end
-
+        fill!(Ek_groups, zero(eltype(Ek_groups)))
         kernel!(f, Ek_groups, uhat_comps, wavenumbers, with_hermitian_symmetry, Δk_inv)  # execute kernel
-
-        # Sum data from all workgroups, writing results onto Ek_d.
-        Ek_d = if typeof(KA.get_backend(Ek)) === typeof(backend)
-            fill!(Ek, 0)
-            Ek  # output is already on the compute device
-        else
-            KA.zeros(backend, eltype(Ek), Nk)  # allocate array on the device
-        end
         Base.mapreducedim!(identity, +, Ek_d, Ek_groups)  # sum values from all workgroups onto Ek_d
-
-        if backend isa KA.GPU
-            KA.unsafe_free!(Ek_groups)  # manually free GPU memory
-        end
     end
 
-    if Ek !== Ek_d
+    if Ek !== Ek_d  # typically, this is if Ek is on the CPU and Ek_d on the GPU
         copyto!(Ek, Ek_d)  # copy from device to host
         KA.unsafe_free!(Ek_d)
+        if buf_gpu !== nothing
+            KA.unsafe_free!(buf_gpu)  # manually free GPU memory
+        end
     end
 
     ks, Ek
@@ -249,13 +255,12 @@ end
     @synchronize  # make sure E_sm and n_sm are synchronised across threads
 
     # Step 2: add results to global memory.
-    @inbounds Ek_wg = view(Ek_blocks, 1:Nk, idx_group...)  # local part of the output array
+    # We assume Ek_blocks is initially zero everywhere.
     if tid == 1
-        fill!(Ek_wg, 0)
         @inbounds for l ∈ 1:Nt
             E = E_sm[l]
             n = n_sm[l]
-            Ek_wg[n] += E
+            Ek_blocks[n, idx_group...] += E
         end
     end
 
