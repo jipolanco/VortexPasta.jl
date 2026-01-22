@@ -91,29 +91,3 @@ function resize_no_copy!(x, N)
     end
     x
 end
-
-## ================================================================================ ##
-## This is for testing some GPU-specific code on CPUs. Used only in tests.
-
-struct PseudoGPU <: KA.GPU end
-
-KA.isgpu(::PseudoGPU) = false  # needed to be considered as a CPU backend by KA
-KA.allocate(::PseudoGPU, ::Type{T}, dims::Dims) where {T} = KA.allocate(KA.CPU(), T, dims)
-KA.synchronize(::PseudoGPU) = nothing
-
-# Emulate multiple devices using task-local storage
-KA.ndevices(::PseudoGPU) = 4
-KA.device(::PseudoGPU) = get(task_local_storage(), :PseudoGPU_device, 1)::Int
-function KA.device!(backend::PseudoGPU, device::Int)
-    1 ≤ device ≤ KA.ndevices(backend) || throw(ArgumentError("invalid device"))
-    task_local_storage(:PseudoGPU_device, device)
-end
-
-KA.copyto!(::PseudoGPU, u, v) = copyto!(u, v)
-Adapt.adapt(::PseudoGPU, u::Array) = copy(u)  # simulate host → device copy (making sure arrays are not aliased)
-
-# Convert kernel to standard CPU kernel (relies on KA internals...)
-function (kernel::KA.Kernel{PseudoGPU, GroupSize, NDRange, Fun})(args...; kws...) where {GroupSize, NDRange, Fun}
-    kernel_cpu = KA.Kernel{KA.CPU, GroupSize, NDRange, Fun}(KA.CPU(), kernel.f)
-    kernel_cpu(args...; kws...)
-end

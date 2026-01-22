@@ -8,7 +8,6 @@ using OpenCL, pocl_jll
 using JET: JET
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
-using VortexPasta.BiotSavart: PseudoGPU  # for testing only
 using VortexPasta.Diagnostics: Diagnostics
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
@@ -126,27 +125,29 @@ end
         backend_long = NonuniformFFTsBackend(CPU()),
         backend_short = CellListsBackend(CPU()),
     )
-    # The PseudoGPU type is internal. It is only used to test GPU-specific code when we
-    # don't have an actual GPU.
-    backend = VERSION < v"1.12" ? PseudoGPU() : OpenCLBackend()
-    gpu = test_ring_collision(
-        backend_long = NonuniformFFTsBackend(backend),
-        backend_short = CellListsBackend(backend),
-    )
-    # Note: due to autotuning (which is quite random), the two sets of results can be a bit
-    # different, thus we use a relative large `rtol`.
-    @testset "Compare CPU / $backend" begin
-        @testset "Velocity and streamfunction" begin
-            @test cpu.velocity ≈ gpu.velocity rtol=1e-6
-            @test cpu.streamfunction ≈ gpu.streamfunction rtol=1e-6
-        end
-        @testset "Energy spectra" begin
-            # Compare energy spectra (first 8 modes only, since kmax may differ between both cases
-            # due to autotuning). We make sure we have computed enough modes, but this is basically
-            # almost the case.
-            if length(cpu.spectrum.ks) ≥ 9 && length(gpu.spectrum.ks) ≥ 9
-                @test cpu.spectrum.ks[1:8] ≈ gpu.spectrum.ks[1:8]
-                @test cpu.spectrum.Ek[1:8] ≈ gpu.spectrum.Ek[1:8] rtol=1e-5
+    # OpenCLBackend only works correctly starting from v1.12.
+    # On v1.11: "ERROR: Your device does not support SPIR-V, which is currently required for native execution."
+    if VERSION ≥ v"1.12"
+        backend = OpenCLBackend()
+        gpu = test_ring_collision(
+            backend_long = NonuniformFFTsBackend(backend),
+            backend_short = CellListsBackend(backend),
+        )
+        # Note: due to autotuning (which is quite random), the two sets of results can be a bit
+        # different, thus we use a relative large `rtol`.
+        @testset "Compare CPU / $backend" begin
+            @testset "Velocity and streamfunction" begin
+                @test cpu.velocity ≈ gpu.velocity rtol=1e-6
+                @test cpu.streamfunction ≈ gpu.streamfunction rtol=1e-6
+            end
+            @testset "Energy spectra" begin
+                # Compare energy spectra (first 8 modes only, since kmax may differ between both cases
+                # due to autotuning). We make sure we have computed enough modes, but this is basically
+                # almost the case.
+                if length(cpu.spectrum.ks) ≥ 9 && length(gpu.spectrum.ks) ≥ 9
+                    @test cpu.spectrum.ks[1:8] ≈ gpu.spectrum.ks[1:8]
+                    @test cpu.spectrum.Ek[1:8] ≈ gpu.spectrum.Ek[1:8] rtol=1e-5
+                end
             end
         end
     end

@@ -233,7 +233,6 @@ function set_elements!(
     ) where {F, Folded}
     Folded::Bool
     (; backend, device) = cl
-    # In fact this fails with PseudoGPU, which uses standard CPU arrays:
     # typeof(KA.get_backend(xp)) === typeof(backend) ||
     #     throw(ArgumentError(lazy"coordinate vector `xp` should be on the computing device ($backend)"))
     device_current = KA.device(backend)
