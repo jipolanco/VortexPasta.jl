@@ -125,60 +125,97 @@ function _compute_spectrum!(
     eachindex(ks) === eachindex(Ek) ||
         throw(DimensionMismatch("incompatible dimensions of vectors"))
     iszero(ks[begin]) || throw(ArgumentError("output wavenumbers should include k = 0"))
+    backend = KA.get_backend(cache)  # CPU, GPU
+    _compute_spectrum_impl!(f, backend, Ek, ks, cache)
+end
+
+function _compute_spectrum_impl!(f::F, backend::KA.CPU, Ek, ks, cache) where {F <: Function}
+    (; field, wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
+    uhat = field::NTuple  # = (ux, uy, uz)
     Δk = ks[begin + 1] - ks[begin]  # we assume this is constant
     Δk_inv = 1 / Δk
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)
+    kxs = wavenumbers[1]
+    @assert with_hermitian_symmetry == (kxs[end] > 0)
 
-    if backend isa KA.CPU  # avoid assertion on the GPU, simply to avoid scalar indexing from the CPU (slow)
-        kxs = wavenumbers[1]
-        @assert with_hermitian_symmetry == (kxs[end] > 0)
+    Nk = length(Ek)
+
+    # Use Bumper to allocate temporary CPU arrays.
+    buf = Bumper.default_buffer()
+    @no_escape buf begin
+        nchunks = Threads.nthreads()
+        T = eltype(Ek)
+        Ek_threads = @alloc(T, Nk, nchunks)
+        Base.require_one_based_indexing(Ek_threads)
+        inds_all = CartesianIndices(uhat[1])
+        @sync for j in 1:nchunks
+            Threads.@spawn begin
+                Ek_local = @view Ek_threads[:, j]
+                fill!(Ek_local, zero(T))
+                Nall = length(inds_all)
+                istart = ((j - 1) * Nall) ÷ nchunks + 1
+                iend = (j * Nall) ÷ nchunks
+                inds = inds_all[istart:iend]
+                @inbounds for I in inds
+                    k⃗ = Vec3(map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I)))
+                    kx = k⃗[1]::T
+
+                    # Find bin for current k⃗
+                    factor = ifelse(!with_hermitian_symmetry || iszero(kx), T(0.5), T(1.0))
+                    k² = sum(abs2, k⃗)::T
+                    knorm = sqrt(k²)
+                    n = 1 + unsafe_trunc(Int, knorm * Δk_inv + T(0.5))  # this implicitly assumes ks[begin] == 0
+
+                    if n ≤ Nk
+                        u⃗ = Vec3(
+                            ntuple(Val(3)) do d
+                                @inline
+                                @inbounds(uhat[d][I])::Complex{T}
+                            end
+                        )
+                        v² = f(u⃗, k⃗, k², I)  # possibly modifies the input coefficients
+                        Ek_local[n] += factor * v² * Δk_inv
+                    end
+                end
+            end
+        end
+        fill!(Ek, zero(eltype(Ek)))
+        Base.mapreducedim!(identity, +, Ek, Ek_threads)  # sum values from all workgroups onto Ek
     end
+
+    ks, Ek
+end
+
+function _compute_spectrum_impl!(f::F, backend::KA.GPU, Ek, ks, cache) where {F <: Function}
+    (; field, wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
+    uhat_comps = field::NTuple  # = (ux, uy, uz)
+    Δk = ks[begin + 1] - ks[begin]  # we assume this is constant
+    Δk_inv = 1 / Δk
+    with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)
+    kxs = wavenumbers[1]
+    @assert with_hermitian_symmetry == (kxs[end] > 0)
 
     # We pad the `ndrange` (the visited indices) so that all threads are active whitin each
     # workgroup. This makes it easier to implement the reduction operations needed to obtain
     # the energy spectra. However, it means that some indices `I` will be outside of the grid,
     # and this needs to be checked in the kernel.
     dims = size(uhat_comps[1])
-    groupsize = (min(256, dims[1]), 1, 1)
+    groupsize = (8, 8, 4)
     ngroups = cld.(dims, groupsize)  # number of workgroups in each direction
     ndrange = ngroups .* groupsize   # pad array dimensions
     Nk = length(Ek)
-    kernel! = compute_spectrum_kernel!(backend, groupsize, ndrange)
+    kernel! = compute_spectrum_kernel_gpu!(backend, groupsize, ndrange)
 
-    # Temporary buffer for reduction on GPU (on the CPU we use Bumper instead)
-    buf_gpu = if backend isa KA.CPU
-        nothing
-    else
-        KA.allocate(backend, eltype(Ek), (Nk, ngroups...))
-    end
+    Ek_groups = KA.allocate(backend, eltype(Ek), (Nk, ngroups...))
+    fill!(Ek_groups, zero(eltype(Ek_groups)))
+    kernel!(f, Ek_groups, uhat_comps, wavenumbers, with_hermitian_symmetry, Δk_inv)  # execute kernel
+    Ek_to_reduce = reshape(Ek_groups, (Nk, :))
+    Ek_d = AK.reduce(+, Ek_to_reduce; init = zero(eltype(Ek_to_reduce)), dims = 2)  # sum values from all workgroups onto Ek_d
 
-    # Use Bumper to allocate temporary CPU arrays (doesn't do anything for GPU arrays).
-    buf = Bumper.default_buffer()
-    @no_escape buf begin
-        Ek_groups = if backend isa KA.CPU
-            @alloc(eltype(Ek), Nk, ngroups...)
-        else
-            buf_gpu
-        end
-        fill!(Ek_groups, zero(eltype(Ek_groups)))
-        kernel!(f, Ek_groups, uhat_comps, wavenumbers, with_hermitian_symmetry, Δk_inv)  # execute kernel
-        Ek_to_reduce = reshape(Ek_groups, (Nk, :))
-        Ek_d = if backend isa KA.CPU
-            Base.mapreducedim!(identity, +, Ek, Ek_to_reduce)  # sum values from all workgroups onto Ek
-            Ek  # Ek_d is the same vector as Ek
-        else
-            AK.reduce(+, Ek_to_reduce; init = zero(eltype(Ek_to_reduce)), dims = 2)  # sum values from all workgroups
-        end
-    end
-
-    if Ek !== Ek_d
-        copyto!(Ek, Ek_d)  # copy from device to host (or device to device, if Ek is on the same device as Ek_d)
-    end
+    copyto!(Ek, Ek_d)  # copy from device to host (or device to device, if Ek is on the same device as Ek_d)
     KA.synchronize(backend)  # just in case, to avoid freeing memory still being used
-    KA.unsafe_free!(Ek_d)
-    if buf_gpu !== nothing
-        KA.unsafe_free!(buf_gpu)  # manually free GPU memory
-    end
+    KA.unsafe_free!(Ek_d)  # manually free GPU memory
+    KA.unsafe_free!(Ek_groups)
 
     ks, Ek
 end
@@ -186,22 +223,14 @@ end
 # Computes one partial energy spectrum per workgroup.
 # Here Ek_blocks is an array of dimensions (Nk, number_of_workgroups...).
 # Note that `uhat` must be passed as a tuple of arrays (u, v, w).
-# NOTE: this is probably not optimal for CPU threads.
-@kernel unsafe_indices=true function compute_spectrum_kernel!(
+@kernel unsafe_indices=true cpu=false function compute_spectrum_kernel_gpu!(
         f::F,
         Ek_blocks::AbstractArray, @Const(uhat::Tuple),
         @Const(wavenumbers::Tuple),
         @Const(with_hermitian_symmetry), @Const(Δk_inv),
     ) where {F}
-    # Definitions which persist across @synchronize statements:
-    @uniform begin
-        T = eltype(Ek_blocks)
-        Nk = size(Ek_blocks, 1)     # spectrum length
-        Nt = prod(@groupsize())     # number of work items ("threads") per workgroup
-        # Memory shared across work items (threads) in a single workgroup (block):
-        E_sm = @localmem T Nt       # energy E(k) * dk for each visited k⃗ (one per work item)
-        n_sm = @localmem UInt16 Nt  # bin index associated to each visited k⃗ (one per work item)
-    end
+    T = eltype(Ek_blocks)
+    Nk = size(Ek_blocks, 1)     # spectrum length
 
     # We use unsafe_indices=true since we explicitly check that we're inbounds below.
     # This means that we should avoid explicitly asking for global indices.
@@ -236,30 +265,9 @@ end
                     @inbounds(uhat[d][I])::Complex{T}
                 end
             )
-            v² = f(u⃗, k⃗, k², I)  # possibly modifies the input coefficients
-            @inbounds E_sm[tid] = factor * v² * Δk_inv
-            @inbounds n_sm[tid] = n
-        else
-            # If we're outside the wanted energy spectrum (k > kmax), we just add 0 energy to
-            # some arbitrary bin.
-            @inbounds E_sm[tid] = 0
-            @inbounds n_sm[tid] = 1
-        end
-    else
-        # This is if we're outside of the array indices.
-        @inbounds E_sm[tid] = 0
-        @inbounds n_sm[tid] = 1
-    end
-
-    @synchronize  # make sure E_sm and n_sm are synchronised across threads
-
-    # Step 2: add results to global memory.
-    # We assume Ek_blocks is initially zero everywhere.
-    if tid == 1
-        @inbounds for l ∈ 1:Nt
-            E = E_sm[l]
-            n = n_sm[l]
-            Ek_blocks[n, idx_group...] += E
+            v² = @inline f(u⃗, k⃗, k², I)  # possibly modifies the input coefficients
+            E = factor * v² * Δk_inv
+            @inbounds Atomix.@atomic Ek_blocks[n, idx_group...] += E
         end
     end
 
