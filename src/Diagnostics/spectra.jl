@@ -117,13 +117,7 @@ energy_spectrum!(Ek::AbstractVector, ks::AbstractVector, cache; kws...) =
 function _compute_spectrum!(
         f::F, Ek::AbstractVector, ks::AbstractVector, cache::LongRangeCache,
     ) where {F <: Function}
-    (; field, wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
-    uhat_comps = field::NTuple  # = (ux, uy, uz)
-
-    backend = KA.get_backend(cache)  # CPU, GPU
-
-    eachindex(ks) === eachindex(Ek) ||
-        throw(DimensionMismatch("incompatible dimensions of vectors"))
+    eachindex(ks) === eachindex(Ek) || throw(DimensionMismatch("incompatible dimensions of vectors"))
     iszero(ks[begin]) || throw(ArgumentError("output wavenumbers should include k = 0"))
     backend = KA.get_backend(cache)  # CPU, GPU
     _compute_spectrum_impl!(f, backend, Ek, ks, cache)
