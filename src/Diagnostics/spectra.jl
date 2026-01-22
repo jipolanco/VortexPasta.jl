@@ -163,10 +163,17 @@ function _compute_spectrum!(
         fill!(Ek_groups, zero(eltype(Ek_groups)))
         kernel!(f, Ek_groups, uhat_comps, wavenumbers, with_hermitian_symmetry, Δk_inv)  # execute kernel
         Ek_to_reduce = reshape(Ek_groups, (Nk, :))
-        Ek_d = AK.reduce(+, Ek_to_reduce; init = zero(eltype(Ek_to_reduce)), dims = 2)  # sum values from all workgroups
+        Ek_d = if backend isa KA.CPU
+            Base.mapreducedim!(identity, +, Ek, Ek_to_reduce)  # sum values from all workgroups onto Ek
+            Ek  # Ek_d is the same vector as Ek
+        else
+            AK.reduce(+, Ek_to_reduce; init = zero(eltype(Ek_to_reduce)), dims = 2)  # sum values from all workgroups
+        end
     end
 
-    copyto!(Ek, Ek_d)  # copy from device to host (or device to device, if Ek is on the same device as Ek_d)
+    if Ek !== Ek_d
+        copyto!(Ek, Ek_d)  # copy from device to host (or device to device, if Ek is on the same device as Ek_d)
+    end
     KA.synchronize(backend)  # just in case, to avoid freeing memory still being used
     KA.unsafe_free!(Ek_d)
     if buf_gpu !== nothing
