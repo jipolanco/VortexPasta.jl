@@ -194,7 +194,7 @@ function _compute_spectrum_impl!(f::F, backend::KA.GPU, Ek, ks, cache) where {F 
     # the energy spectra. However, it means that some indices `I` will be outside of the grid,
     # and this needs to be checked in the kernel.
     dims = size(uhat_comps[1])
-    groupsize = (8, 8, 4)
+    groupsize = (8, 8, 8)  # = 512 threads per block
     ngroups = cld.(dims, groupsize)  # number of workgroups in each direction
     ndrange = ngroups .* groupsize   # pad array dimensions
     Nk = length(Ek)
