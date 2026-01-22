@@ -22,6 +22,7 @@ using Adapt: adapt
 using KernelAbstractions:
     KernelAbstractions as KA,
     @kernel, @index, @Const, @groupsize, @localmem, @synchronize, @uniform, @ndrange
+using AcceleratedKernels: AcceleratedKernels as AK
 using StructArrays: StructArrays, StructArray
 using LinearAlgebra: ⋅, ×
 

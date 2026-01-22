@@ -152,14 +152,6 @@ function _compute_spectrum!(
         KA.allocate(backend, eltype(Ek), (Nk, ngroups...))
     end
 
-    # Sum data from all workgroups, writing results onto Ek_d.
-    Ek_d = if typeof(KA.get_backend(Ek)) === typeof(backend)
-        fill!(Ek, 0)
-        Ek  # output is already on the compute device
-    else
-        KA.zeros(backend, eltype(Ek), Nk)  # allocate array on the device
-    end
-
     # Use Bumper to allocate temporary CPU arrays (doesn't do anything for GPU arrays).
     buf = Bumper.default_buffer()
     @no_escape buf begin
@@ -170,15 +162,15 @@ function _compute_spectrum!(
         end
         fill!(Ek_groups, zero(eltype(Ek_groups)))
         kernel!(f, Ek_groups, uhat_comps, wavenumbers, with_hermitian_symmetry, Δk_inv)  # execute kernel
-        Base.mapreducedim!(identity, +, Ek_d, Ek_groups)  # sum values from all workgroups onto Ek_d
+        Ek_to_reduce = reshape(Ek_groups, (Nk, :))
+        Ek_d = AK.reduce(+, Ek_to_reduce; init = zero(eltype(Ek_to_reduce)), dims = 2)  # sum values from all workgroups
     end
 
-    if Ek !== Ek_d  # typically, this is if Ek is on the CPU and Ek_d on the GPU
-        copyto!(Ek, Ek_d)  # copy from device to host
-        KA.unsafe_free!(Ek_d)
-        if buf_gpu !== nothing
-            KA.unsafe_free!(buf_gpu)  # manually free GPU memory
-        end
+    copyto!(Ek, Ek_d)  # copy from device to host (or device to device, if Ek is on the same device as Ek_d)
+    KA.synchronize(backend)  # just in case, to avoid freeing memory still being used
+    KA.unsafe_free!(Ek_d)
+    if buf_gpu !== nothing
+        KA.unsafe_free!(buf_gpu)  # manually free GPU memory
     end
 
     ks, Ek
