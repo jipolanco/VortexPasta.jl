@@ -141,15 +141,15 @@ function _compute_spectrum_impl!(f::F, backend::KA.CPU, Ek, ks, cache) where {F 
         T = eltype(Ek)
         Ek_threads = @alloc(T, Nk, nchunks)
         Base.require_one_based_indexing(Ek_threads)
-        inds_all = CartesianIndices(uhat[1])
         @sync for j in 1:nchunks
             Threads.@spawn begin
                 Ek_local = @view Ek_threads[:, j]
                 fill!(Ek_local, zero(T))
+                inds_all = CartesianIndices(uhat[1])
                 Nall = length(inds_all)
                 istart = ((j - 1) * Nall) ÷ nchunks + 1
                 iend = (j * Nall) ÷ nchunks
-                inds = inds_all[istart:iend]
+                inds = @view inds_all[istart:iend]
                 @inbounds for I in inds
                     k⃗ = Vec3(map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I)))
                     kx = k⃗[1]::T
