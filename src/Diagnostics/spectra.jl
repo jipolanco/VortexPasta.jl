@@ -140,44 +140,59 @@ function _compute_spectrum_impl!(f::F, backend::KA.CPU, Ek, ks, cache) where {F 
         nchunks = Threads.nthreads()
         T = eltype(Ek)
         Ek_threads = @alloc(T, Nk, nchunks)
-        Base.require_one_based_indexing(Ek_threads)
-        @sync for j in 1:nchunks
-            Threads.@spawn begin
-                Ek_local = @view Ek_threads[:, j]
-                fill!(Ek_local, zero(T))
-                inds_all = CartesianIndices(uhat[1])
-                Nall = length(inds_all)
-                istart = ((j - 1) * Nall) ÷ nchunks + 1
-                iend = (j * Nall) ÷ nchunks
-                inds = @view inds_all[istart:iend]
-                @inbounds for I in inds
-                    k⃗ = Vec3(map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I)))
-                    kx = k⃗[1]::T
-
-                    # Find bin for current k⃗
-                    factor = ifelse(!with_hermitian_symmetry || iszero(kx), T(0.5), T(1.0))
-                    k² = sum(abs2, k⃗)::T
-                    knorm = sqrt(k²)
-                    n = 1 + unsafe_trunc(Int, knorm * Δk_inv + T(0.5))  # this implicitly assumes ks[begin] == 0
-
-                    if n ≤ Nk
-                        u⃗ = Vec3(
-                            ntuple(Val(3)) do d
-                                @inline
-                                @inbounds(uhat[d][I])::Complex{T}
-                            end
-                        )
-                        v² = f(u⃗, k⃗, k², I)  # possibly modifies the input coefficients
-                        Ek_local[n] += factor * v² * Δk_inv
-                    end
-                end
-            end
-        end
-        fill!(Ek, zero(eltype(Ek)))
+        _compute_spectrum_impl_cpu_threads!(f, Ek_threads, uhat, wavenumbers, with_hermitian_symmetry, Δk_inv)
+        fill!(Ek, zero(T))
         Base.mapreducedim!(identity, +, Ek, Ek_threads)  # sum values from all workgroups onto Ek
     end
 
     ks, Ek
+end
+
+function _compute_spectrum_impl_cpu_threads!(
+        f::F, Ek_threads::AbstractMatrix, uhat,
+        wavenumbers, with_hermitian_symmetry, Δk_inv
+    ) where {F <: Function}
+    T = eltype(Ek_threads)
+    Nk, nchunks = size(Ek_threads)
+    Base.require_one_based_indexing(Ek_threads)
+
+    Threads.@threads for j in 1:nchunks
+        Ek_local = @view Ek_threads[:, j]
+        fill!(Ek_local, zero(T))
+
+        # Parallelise along last dimension (z).
+        inds_all = axes(uhat[1])
+        inds_front = Base.front(inds_all)  # indices x, y
+        inds_last = last(inds_all)         # indices z
+        Nlast = length(inds_last)
+        n_start = ((j - 1) * Nlast) ÷ nchunks + 1
+        n_end = (j * Nlast) ÷ nchunks
+        inds_last_thread = inds_last[n_start:n_end]
+
+        @inbounds for i_last in inds_last_thread, I_front in CartesianIndices(inds_front)
+            I = CartesianIndex(I_front, i_last)
+            k⃗ = Vec3(map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I)))
+            kx = k⃗[1]::T
+
+            # Find bin for current k⃗
+            factor = ifelse(!with_hermitian_symmetry || iszero(kx), T(0.5), T(1.0))
+            k² = sum(abs2, k⃗)::T
+            knorm = sqrt(k²)
+            n = 1 + unsafe_trunc(Int, knorm * Δk_inv + T(0.5))  # this implicitly assumes ks[begin] == 0
+
+            if n ≤ Nk
+                u⃗ = Vec3(
+                    ntuple(Val(3)) do d
+                        @inline
+                        @inbounds(uhat[d][I])::Complex{T}
+                    end
+                )
+                v² = f(u⃗, k⃗, k², I)  # possibly modifies the input coefficients
+                Ek_local[n] += factor * v² * Δk_inv
+            end
+        end
+    end
+    Ek_threads
 end
 
 function _compute_spectrum_impl!(f::F, backend::KA.GPU, Ek, ks, cache) where {F <: Function}
