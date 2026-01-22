@@ -104,7 +104,7 @@ struct NonuniformFFTsBackend{
     ka_device  :: Int
     kws :: KwArgs
     function NonuniformFFTsBackend(
-            ka_backend::KA.Backend = ka_default_cpu_backend();
+            backend::KA.Backend = ka_default_cpu_backend();
             device::Integer = 1,
             σ = 1.5,
             m = HalfSupport(4),
@@ -112,14 +112,10 @@ struct NonuniformFFTsBackend{
             use_atomics = Threads.nthreads() > 4,
             other...,
         )
-        # Pass the chosen KA backend to NonuniformFFTs, except if the backend is a PseudoGPU
-        # (used in testing only). Actually passing a PseudoGPU to NonuniformFFTs might work,
-        # but would need to be tested...
-        backend = ka_backend isa PseudoGPU ? ka_default_cpu_backend() : ka_backend
         kws = (; backend, fftw_flags, use_atomics, other...,)
         hs = to_halfsupport(m)
         KA.device!(backend, device)  # this will fail if `device` is an invalid device id
-        new{typeof(hs), typeof(σ), typeof(ka_backend), typeof(kws)}(hs, σ, ka_backend, device, kws)
+        new{typeof(hs), typeof(σ), typeof(backend), typeof(kws)}(hs, σ, backend, device, kws)
     end
 end
 

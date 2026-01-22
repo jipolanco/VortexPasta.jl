@@ -1,7 +1,6 @@
 using VortexPasta
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
-using VortexPasta.BiotSavart: PseudoGPU  # for testing only
 using VortexPasta.PredefinedCurves
 using VortexPasta.Forcing
 using VortexPasta.FilamentIO
@@ -533,18 +532,22 @@ end
             plots && plot_spectra(spectra; title = "Forcing + dissipation")
         end
 
-        gpu_backend = VERSION < v"1.12" ? PseudoGPU() : OpenCLBackend()
-        @testset "Forcing + dissipation ($gpu_backend, SmallScaleDissipationBS)" begin
-            backend_long = NonuniformFFTsBackend(gpu_backend; σ = 1.5, m = HalfSupport(4))
-            backend_short = CellListsBackend(gpu_backend)
-            params_gpu = generate_biot_savart_parameters(Float64; L = 2π, rcut = 2π / 3, aspect, backend_long, backend_short)
-            prob_gpu = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params_gpu)
-            dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
-            forcing = @inferred FourierBandForcingBS(; ε_target = 2e-4, kmin = 0.1, kmax = 2.5)
-            (; iter, E_ratio, spectra) = simulate(prob_gpu, forcing, dissipation; callback)
-            @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
-            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.2), ε_diss_time)
-            plots && plot_spectra(spectra; title = "Forcing + dissipation (PseudoGPU)")
+        # OpenCLBackend only works correctly starting from v1.12.
+        # On v1.11: "ERROR: Your device does not support SPIR-V, which is currently required for native execution."
+        if VERSION ≥ v"1.12"
+            backend_gpu = OpenCLBackend()
+            @testset "Forcing + dissipation ($backend_gpu, SmallScaleDissipationBS)" begin
+                backend_long = NonuniformFFTsBackend(backend_gpu; σ = 1.5, m = HalfSupport(4))
+                backend_short = CellListsBackend(backend_gpu)
+                params_gpu = generate_biot_savart_parameters(Float64; L = 2π, rcut = 2π / 3, aspect, backend_long, backend_short)
+                prob_gpu = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params_gpu)
+                dissipation = @inferred SmallScaleDissipationBS(; ε_target = 1e-4, kdiss)
+                forcing = @inferred FourierBandForcingBS(; ε_target = 2e-4, kmin = 0.1, kmax = 2.5)
+                (; iter, E_ratio, spectra) = simulate(prob_gpu, forcing, dissipation; callback)
+                @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
+                @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.2), ε_diss_time)
+                plots && plot_spectra(spectra; title = "Forcing + dissipation ($backend_gpu)")
+            end
         end
 
         @testset "SmallScaleDissipationBS: Error if kdiss is too large" begin
