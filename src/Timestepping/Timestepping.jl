@@ -13,6 +13,7 @@ export init, solve!, step!, VortexFilamentProblem, VortexFilamentSolver,
        MinimalEnergy,
        ParamsBiotSavart,                                          # from ..BiotSavart
        NoReconnections, ReconnectBasedOnDistance, ReconnectFast,  # from ..Reconnections
+       PointData, FieldData,  # from FilamentIO
        reset_timer!  # from TimerOutputs
 
 using ..VortexPasta: VortexPasta  # version()
@@ -37,7 +38,7 @@ using ..Filaments:
     RefinementCriterion,
     NoRefinement
 
-using ..FilamentIO: FilamentIO
+using ..FilamentIO: FilamentIO, PointData, FieldData
 
 using ..Reconnections:
     Reconnections,

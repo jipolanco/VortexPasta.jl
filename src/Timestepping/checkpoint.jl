@@ -95,7 +95,7 @@ struct LoadedCheckpoint{Filaments, Time <: TimeInfo, Stats <: SimulationStats}
 end
 
 """
-    load_checkpoint(filename, T, method::DiscretisationMethod; read_time = true) -> LoadedCheckpoint
+    load_checkpoint([f::Function], filename, T, method::DiscretisationMethod; read_time = true) -> LoadedCheckpoint
 
 Load simulation state previously written by [`save_checkpoint`](@ref).
 
@@ -103,6 +103,9 @@ The resulting checkpoint can be used to construct a [`VortexFilamentProblem`](@r
 
 If `read_time = false`, time information will _not_ be read from the checkpoint file.
 This can be used to make sure that the new simulation starts at time `t = 0` (and `nstep = 0`).
+
+The optional `f` function may be used to read extra fields (e.g. velocities) from the checkpoint.
+This works just like [`FilamentIO.read_vtkhdf`](@ref), see its docs for some examples.
 
 ## Examples
 
@@ -119,7 +122,7 @@ iter = init(prob, RK4(); ...)
 solve!(iter)
 ```
 """
-function load_checkpoint(filename, ::Type{T}, method::DiscretisationMethod; read_time = true) where {T <: AbstractFloat}
+function load_checkpoint(func::F, filename, ::Type{T}, method::DiscretisationMethod; read_time = true) where {F <: Function, T <: AbstractFloat}
     time = TimeInfo()  # this initialises all fields to 0 (t = 0, nstep = 0, ...)
     stats = SimulationStats(T)
     fs = FilamentIO.read_vtkhdf(filename, T, method) do io
@@ -141,9 +144,13 @@ function load_checkpoint(filename, ::Type{T}, method::DiscretisationMethod; read
                 _read_all_properties!(g, stats)
             end
         end
+        func(io)
     end
     LoadedCheckpoint(fs, time, stats)
 end
+
+load_checkpoint(filename, ::Type{T}, method::DiscretisationMethod; kws...) where {T <: AbstractFloat} =
+    load_checkpoint(Returns(nothing), filename, T, method; kws...)
 
 # Create problem from checkpoint
 function VortexFilamentProblem(

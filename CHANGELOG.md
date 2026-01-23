@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Allow reading other fields (e.g. velocities) in `Timestepping.load_checkpoint` using
+  optional function argument, similarly to `FilamentIO.read_vtkhdf`.
+
 ## [0.32.13] - 2026-01-22
 
 ### Changed
