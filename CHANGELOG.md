@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.14] - 2026-01-23
+
 ### Added
 
 - Allow reading other fields (e.g. velocities) in `Timestepping.load_checkpoint` using
