@@ -4,6 +4,7 @@ using VortexPasta.CellLists
 using StaticArrays: SVector
 using StableRNGs: StableRNG
 using KernelAbstractions: CPU
+using SIMD: SIMD
 using BenchmarkTools
 
 @inline function deperiodise_separation_folded(r⃗::Vec, Ls, Ls_half) where {Vec}
@@ -14,6 +15,14 @@ end
     # @assert -L < r < L  # this is true if both points x and y are in [0, L) (r = x - y)
     r = ifelse(r ≥ +Lh, r - L, r)
     r = ifelse(r < -Lh, r + L, r)
+    # @assert abs(r) ≤ Lhalf
+    r
+end
+
+@inline function deperiodise_separation_folded(r::SIMD.Vec, L::Real, Lh::Real)
+    # @assert -L < r < L  # this is true if both points x and y are in [0, L) (r = x - y)
+    r = SIMD.vifelse(r ≥ +Lh, r - L, r)
+    r = SIMD.vifelse(r < -Lh, r + L, r)
     # @assert abs(r) ≤ Lhalf
     r
 end
@@ -59,7 +68,7 @@ function interactions_foreach_source!(f::F, cl::PeriodicCellList, wp, xp, vp, r_
     fill!(wp, 0)
     @inbounds Threads.@threads for i in eachindex(xp, vp)
         x⃗ = xp[i]
-        CellLists.foreach_source(cl, x⃗) do j
+        CellLists.foreach_source(cl, x⃗; folded = Val(true)) do j
             @inbounds y⃗ = xp[j]
             # Assume both points are already in the main periodic cell.
             r⃗ = deperiodise_separation_folded(x⃗ - y⃗, Ls, Ls_half)
@@ -72,18 +81,44 @@ function interactions_foreach_source!(f::F, cl::PeriodicCellList, wp, xp, vp, r_
     wp
 end
 
-function interactions_foreach_pair!(f::F, cl::PeriodicCellList, wp, xp, vp, r_cut) where {F}
+function interactions_foreach_pair!(f::F, cl::PeriodicCellList, wp, xp, vp, r_cut; simd = false) where {F}
     (; Ls,) = cl
     Ls_half = Ls ./ 2
     r²_cut = r_cut^2
     fill!(wp, 0)
-    CellLists.foreach_pair(cl, xp) do x⃗, i, j
-        @inbounds y⃗ = xp[j]
-        # Assume both points are already in the main periodic cell.
-        r⃗ = deperiodise_separation_folded(x⃗ - y⃗, Ls, Ls_half)
-        r² = sum(abs2, r⃗)
-        @inbounds if r² <= r²_cut
-            wp[i] += f(vp[i], vp[j], r⃗, r²)
+    if simd
+        CellLists.foreach_pair(cl, xp; folded = Val(true), batch_size = Val(4)) do x⃗, i, js, m
+            # @inbounds x⃗ = xp[i]
+            W = length(js)
+            j = SIMD.Vec(js)
+            N = length(x⃗)  # number of dimensions (= 3)
+            # xp_tup = StructArrays.components(xp)::NTuple{N}
+            ys = ntuple(Val(N)) do d
+                SIMD.Vec(map(l -> @inbounds(xp[l][d]), js))
+            end
+            # ys = map(x -> @inbounds(x[j]), xp_tup)::NTuple{N, SIMD.Vec}
+            rs = ntuple(Val(N)) do d
+                @inbounds deperiodise_separation_folded(x⃗[d] - ys[d], Ls[d], Ls_half[d])::SIMD.Vec
+            end
+            r² = sum(abs2, rs)::SIMD.Vec
+            mask = SIMD.Vec(ntuple(identity, Val(W))) ≤ m
+            mask = mask & (r² ≤ r²_cut)
+            if any(mask)
+                vi = @inbounds vp[i]
+                vj = @inbounds vp[j]
+                ws = f(vi, vj, rs, r²)
+                @inbounds wp[i] += sum(SIMD.vifelse(mask, ws, zero(ws)))
+            end
+        end
+    else
+        CellLists.foreach_pair(cl, xp; folded = Val(true)) do x⃗, i, j
+            @inbounds y⃗ = xp[j]
+            # Assume both points are already in the main periodic cell.
+            r⃗ = deperiodise_separation_folded(x⃗ - y⃗, Ls, Ls_half)
+            r² = sum(abs2, r⃗)
+            @inbounds if r² <= r²_cut
+                wp[i] += f(vp[i], vp[j], r⃗, r²)
+            end
         end
     end
     wp
@@ -100,7 +135,7 @@ function main()
     Np = 400_000
     rng = StableRNG(42)
 
-    # Random locations and values within the domain
+    # Random locations and values within the domain (already folded into [0, L]^3)
     xp = rand(rng, SVector{3, T}, Np)
     for i in eachindex(xp)
         xp[i] = xp[i] .* Ls
@@ -109,22 +144,28 @@ function main()
     wp = similar(vp)  # this is the "influence" on a point of all neighbouring points
 
     # Arbitrary interaction function
-    function f_interaction(u, v, r⃗, r²)
-        r_c = oftype(r², 2π / 100)  # to avoid singularity
+    function f_interaction(u::T, v, r⃗, r²) where {T}
+        r_c = T(2π / 100)  # to avoid singularity
         r = sqrt(r²)
         u * v / (r + r_c) * exp(-r² / r_c^2)
     end
 
+    backend = CPU()
     for nsubdiv in 1:2
-        cl = PeriodicCellList(CPU(), rs_cut, Ls, Val(nsubdiv))
-        CellLists.set_elements!(cl, xp)
-        sub = suite["nsubdiv = $nsubdiv"]
-        sub["set_elements!"] = @benchmarkable CellLists.set_elements!($cl, $xp)
+        cl = PeriodicCellList(backend, rs_cut, Ls, Val(nsubdiv))
+        CellLists.set_elements!(cl, xp; folded = Val(true))
+        wp_a = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut))
+        wp_b = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut; simd = true))
+        @assert wp_a ≈ wp_b  # verification
+        sub = suite[string(typeof(backend))]["nsubdiv = $nsubdiv"]
+        sub["set_elements!"] = @benchmarkable CellLists.set_elements!($cl, $xp; folded = Val(true))
         sub["iterator_interface"] = @benchmarkable interactions_iterator_interface!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
         sub["foreach_source"] = @benchmarkable interactions_foreach_source!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
         sub["foreach_pair"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
+        if backend isa CPU
+            sub["foreach_pair (SIMD)"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut; simd = true)
+        end
     end
-
 
     suite
 end

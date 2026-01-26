@@ -223,7 +223,7 @@ By default this is `identity`.
 
 Moreover, one may pass `folded = Val(true)` in case all points in `xp` have been folded into
 the main periodic cell (i.e. `x⃗ ∈ [0, L]ᵈ`), which can speed-up computations. **This is a
-dangerous option**: if points haven't been really folded, this lead to wrong results or crashes.
+dangerous option**: if points haven't been really folded, this will lead to wrong results or crashes.
 
 This function resets the cell list, removing all previously existent points.
 """
