@@ -214,6 +214,10 @@ end
         inds_central = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
     end
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
+    get_neighbouring_cell_indices(cl, I₀)
+end
+
+@inline function get_neighbouring_cell_indices(cl::PeriodicCellList, I₀::CartesianIndex)
     M = subdivisions(cl)
     CartesianIndices(map(i -> (i - M):(i + M), Tuple(I₀)))
 end
@@ -438,27 +442,67 @@ function _foreach_pair_sorted(backend::CPU, f::F, cl, xp_dest, batch_size, folde
         @inbounds pointperm_dest[j] = i
     end
 
+    _foreach_pair_sorted_impl!(backend, f, cl, xp_dest, batch_size, pointperm_dest, cumulative_npoints_per_cell_dest)
+
+    nothing
+end
+
+function _foreach_pair_sorted_impl!(
+        backend::CPU, f::F, cl, xp_dest, batch_size::Nothing, pointperm_dest, cumulative_npoints_per_cell_dest
+    ) where {F}
     # Iterate in parallel over cells.
     axs = axes(cl.head_indices)
     axs_front = Base.front(axs)
     axs_last = last(axs)
+    ncells_per_dir = size(cl)
     Threads.@threads for I_last in axs_last  # parallelise over last dimension
         @inbounds for I_front in CartesianIndices(axs_front)
-            I = CartesianIndex(I_front, I_last)
-            n = LinearIndices(ncells_per_dir)[I]
+            I₀ = CartesianIndex(I_front, I_last)
+            n = LinearIndices(ncells_per_dir)[I₀]
             # Iterate over destination points in this cell
             a = cumulative_npoints_per_cell_dest[n] + 1
             b = cumulative_npoints_per_cell_dest[n + 1]
+
+            cell_indices = get_neighbouring_cell_indices(cl, I₀)
+
             for j in a:b
                 i = pointperm_dest[j]
-                @inbounds x⃗ = xp_dest[i]
+                x⃗ = xp_dest[i]
                 g = Fix12(f, x⃗, i)
-                _foreach_source(backend, g, cl, x⃗, batch_size, folded)
+                _foreach_source(backend, g, cl, cell_indices, batch_size)
             end
         end
     end
+end
 
-    nothing
+function _foreach_pair_sorted_impl!(
+        backend::CPU, f::F, cl, xp_dest, ::Val{batch_size}, pointperm_dest, cumulative_npoints_per_cell_dest
+    ) where {F, batch_size}
+    (; head_indices) = cl
+    # Iterate in parallel over cells.
+    axs = axes(head_indices)
+    axs_front = Base.front(axs)
+    axs_last = last(axs)
+    ncells_per_dir = size(cl)
+    Threads.@threads for I_last in axs_last  # parallelise over last dimension
+        @inbounds for I_front in CartesianIndices(axs_front)
+            I₀ = CartesianIndex(I_front, I_last)
+            n = LinearIndices(ncells_per_dir)[I₀]
+
+            # Iterate over destination points in this cell
+            a = cumulative_npoints_per_cell_dest[n] + 1
+            b = cumulative_npoints_per_cell_dest[n + 1]
+
+            cell_indices = get_neighbouring_cell_indices(cl, I₀)
+
+            for k in a:b
+                i = pointperm_dest[k]
+                x⃗ = xp_dest[i]
+                g = Fix12(f, x⃗, i)
+                _foreach_source(backend, g, cl, cell_indices, Val(batch_size))
+            end
+        end
+    end
 end
 
 """
@@ -504,9 +548,14 @@ coordinates (which is convenient in the context of SIMD).
     nothing
 end
 
-@inline function _foreach_source(::CPU, f::F, cl, x⃗, batch_size::Nothing, folded::Val) where {F}
-    (; head_indices, next_index) = cl
+@inline function _foreach_source(backend::CPU, f::F, cl, x⃗, batch_size, folded::Val) where {F}
     cell_indices = get_neighbouring_cell_indices(cl, x⃗, folded)
+    _foreach_source(backend, f, cl, cell_indices, batch_size)
+    nothing
+end
+
+@inline function _foreach_source(::CPU, f::F, cl, cell_indices::CartesianIndices, batch_size::Nothing) where {F}
+    (; head_indices, next_index) = cl
     # Iterate over "active" cells around the destination point.
     # TODO: exclude "corner" cells which are for sure beyond the cut-off distance?
     @inbounds for I in cell_indices
@@ -519,10 +568,9 @@ end
     nothing
 end
 
-@inline function _foreach_source(::CPU, f::F, cl, x⃗, ::Val{batch_size}, folded::Val) where {F, batch_size}
+@inline function _foreach_source(::CPU, f::F, cl, cell_indices::CartesianIndices, ::Val{batch_size}) where {F, batch_size}
     (; head_indices, next_index) = cl
     IndexType = eltype(head_indices)
-    cell_indices = get_neighbouring_cell_indices(cl, x⃗, folded)
     inds = MVector{batch_size, IndexType}(undef)
     m = 0
     @inbounds for I in cell_indices
