@@ -1,11 +1,26 @@
 module CellListsBenchmarks
 
+ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
+ENV["POCL_CPU_MAX_CU_COUNT"] = Threads.nthreads()  # limit number of CPU threads used by OpenCLBackend (based on POCL)
+ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
+
 using VortexPasta.CellLists
 using StaticArrays: SVector
 using StableRNGs: StableRNG
-using KernelAbstractions: CPU
+using KernelAbstractions: KernelAbstractions as KA, CPU
 using SIMD: SIMD
 using BenchmarkTools
+using Adapt: adapt
+using OpenCL, pocl_jll
+
+using ThreadPinning
+pinthreads(:cores)
+threadinfo()
+
+# Print OpenCL information
+OpenCL.versioninfo()
+@show cl.platform()
+@show cl.device()
 
 @inline function deperiodise_separation_folded(r⃗::Vec, Ls, Ls_half) where {Vec}
     map(deperiodise_separation_folded, r⃗, Vec(Ls), Vec(Ls_half))::typeof(r⃗)
@@ -121,7 +136,14 @@ function interactions_foreach_pair!(f::F, cl::PeriodicCellList, wp, xp, vp, r_cu
             end
         end
     end
+    KA.synchronize(cl.backend)
     wp
+end
+
+function benchmark_set_elements!(cl, xp)
+    CellLists.set_elements!(cl, xp; folded = Val(true))
+    KA.synchronize(cl.backend)
+    nothing
 end
 
 function main()
@@ -136,12 +158,12 @@ function main()
     rng = StableRNG(42)
 
     # Random locations and values within the domain (already folded into [0, L]^3)
-    xp = rand(rng, SVector{3, T}, Np)
-    for i in eachindex(xp)
-        xp[i] = xp[i] .* Ls
+    xp_cpu = rand(rng, SVector{3, T}, Np)
+    for i in eachindex(xp_cpu)
+        xp_cpu[i] = xp_cpu[i] .* Ls
     end
-    vp = randn(rng, T, Np)
-    wp = similar(vp)  # this is the "influence" on a point of all neighbouring points
+    vp_cpu = randn(rng, T, Np)
+    wp_cpu = similar(vp_cpu)  # this is the "influence" on a point of all neighbouring points
 
     # Arbitrary interaction function
     function f_interaction(u::T, v, r⃗, r²) where {T}
@@ -150,17 +172,28 @@ function main()
         u * v / (r + r_c) * exp(-r² / r_c^2)
     end
 
-    backend = CPU()
-    for nsubdiv in 1:2
+    backends = [
+        "CPU" => CPU(),
+        "OpenCLBackend" => OpenCLBackend(),
+    ]
+
+    for (backend_name, backend) in backends, nsubdiv in 1:2
         cl = PeriodicCellList(backend, rs_cut, Ls, Val(nsubdiv))
+        xp = adapt(backend, xp_cpu)
+        vp = adapt(backend, vp_cpu)
+        wp = adapt(backend, wp_cpu)
         CellLists.set_elements!(cl, xp; folded = Val(true))
-        wp_a = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut))
-        wp_b = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut; simd = true))
-        @assert wp_a ≈ wp_b  # verification
-        sub = suite[string(typeof(backend))]["nsubdiv = $nsubdiv"]
-        sub["set_elements!"] = @benchmarkable CellLists.set_elements!($cl, $xp; folded = Val(true))
-        sub["iterator_interface"] = @benchmarkable interactions_iterator_interface!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
-        sub["foreach_source"] = @benchmarkable interactions_foreach_source!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
+        if backend isa CPU
+            wp_a = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut))
+            wp_b = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut; simd = true))
+            @assert wp_a ≈ wp_b  # verification
+        end
+        sub = suite[backend_name]["nsubdiv = $nsubdiv"]
+        sub["set_elements!"] = @benchmarkable benchmark_set_elements!($cl, $xp)
+        if backend isa CPU
+            sub["iterator_interface"] = @benchmarkable interactions_iterator_interface!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
+            sub["foreach_source"] = @benchmarkable interactions_foreach_source!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
+        end
         sub["foreach_pair"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
         if backend isa CPU
             sub["foreach_pair (SIMD)"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut; simd = true)
