@@ -16,6 +16,7 @@ export PeriodicCellList, static, nearby_elements
 public set_elements!, foreach_pair, foreach_source
 
 using ..PaddedArrays: PaddedArrays, PaddedArray, pad_periodic!
+using AcceleratedKernels: AcceleratedKernels as AK
 using Atomix: Atomix
 using KernelAbstractions: KernelAbstractions as KA, CPU, GPU
 using Static: StaticInt, static, dynamic
