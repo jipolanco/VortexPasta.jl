@@ -443,67 +443,14 @@ function _foreach_pair_sorted(backend::CPU, f::F, cl, xp_dest, batch_size, folde
         @inbounds pointperm_dest[j] = i
     end
 
-    _foreach_pair_sorted_impl!(backend, f, cl, xp_dest, batch_size, pointperm_dest, cumulative_npoints_per_cell_dest)
+    Threads.@threads :dynamic for j in eachindex(xp_dest)
+        @inbounds i = pointperm_dest[j]
+        @inbounds x⃗ = xp_dest[i]
+        g = Fix12(f, x⃗, i)
+        _foreach_source(backend, g, cl, x⃗, batch_size, folded)
+    end
 
     nothing
-end
-
-function _foreach_pair_sorted_impl!(
-        backend::CPU, f::F, cl, xp_dest, batch_size::Nothing, pointperm_dest, cumulative_npoints_per_cell_dest
-    ) where {F}
-    # Iterate in parallel over cells.
-    axs = axes(cl.head_indices)
-    axs_front = Base.front(axs)
-    axs_last = last(axs)
-    ncells_per_dir = size(cl)
-    Threads.@threads for I_last in axs_last  # parallelise over last dimension
-        @inbounds for I_front in CartesianIndices(axs_front)
-            I₀ = CartesianIndex(I_front, I_last)
-            n = LinearIndices(ncells_per_dir)[I₀]
-            # Iterate over destination points in this cell
-            a = cumulative_npoints_per_cell_dest[n] + 1
-            b = cumulative_npoints_per_cell_dest[n + 1]
-
-            cell_indices = get_neighbouring_cell_indices(cl, I₀)
-
-            for j in a:b
-                i = pointperm_dest[j]
-                x⃗ = xp_dest[i]
-                g = Fix12(f, x⃗, i)
-                _foreach_source(backend, g, cl, cell_indices, batch_size)
-            end
-        end
-    end
-end
-
-function _foreach_pair_sorted_impl!(
-        backend::CPU, f::F, cl, xp_dest, ::Val{batch_size}, pointperm_dest, cumulative_npoints_per_cell_dest
-    ) where {F, batch_size}
-    (; head_indices) = cl
-    # Iterate in parallel over cells.
-    axs = axes(head_indices)
-    axs_front = Base.front(axs)
-    axs_last = last(axs)
-    ncells_per_dir = size(cl)
-    Threads.@threads for I_last in axs_last  # parallelise over last dimension
-        @inbounds for I_front in CartesianIndices(axs_front)
-            I₀ = CartesianIndex(I_front, I_last)
-            n = LinearIndices(ncells_per_dir)[I₀]
-
-            # Iterate over destination points in this cell
-            a = cumulative_npoints_per_cell_dest[n] + 1
-            b = cumulative_npoints_per_cell_dest[n + 1]
-
-            cell_indices = get_neighbouring_cell_indices(cl, I₀)
-
-            for k in a:b
-                i = pointperm_dest[k]
-                x⃗ = xp_dest[i]
-                g = Fix12(f, x⃗, i)
-                _foreach_source(backend, g, cl, cell_indices, Val(batch_size))
-            end
-        end
-    end
 end
 
 """
