@@ -131,7 +131,7 @@ end
     nothing
 end
 
-function _foreach_pair(backend::GPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
+function _foreach_pair(backend::GPU, f::F, cl, xp_dest, batch_size, folded::Val, sort_points) where {F}
     (; head_indices, next_index, Ls, rs_cell,) = cl
     M = subdivisions(cl)
     groupsize = 256

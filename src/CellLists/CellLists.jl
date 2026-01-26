@@ -87,6 +87,10 @@ struct PeriodicCellList{
     rs_cell       :: CellDims     # dimensions of a cell (can be different in each direction)
     nsubdiv       :: StaticInt{M}
     Ls            :: Periods
+    # These are only used in foreach_pair, if sort_points = true (which is the default):
+    idx_within_cell_dest :: IndexVector  # index of a destination point within its cell [length Np_dest]
+    pointperm_dest :: IndexVector  # permutation of destination points [length Np_dest]
+    cumulative_npoints_per_cell_dest :: IndexVector  # cumulative number of destination points in each cell [length Ncells + 1]
 end
 
 function Base.show(io::IO, cl::PeriodicCellList{N}) where {N}
@@ -157,8 +161,11 @@ function PeriodicCellList(
     @assert size(head_indices) == ncells
 
     next_index = KA.allocate(backend, IndexType, 0)
+    idx_within_cell_dest = similar(next_index, 0)
+    pointperm_dest = similar(next_index, 0)
+    cumulative_npoints_per_cell_dest = similar(pointperm_dest)
 
-    PeriodicCellList(backend, device, head_indices, next_index, rs_cell, nsubdiv, Ls)
+    PeriodicCellList(backend, device, head_indices, next_index, rs_cell, nsubdiv, Ls, idx_within_cell_dest, pointperm_dest, cumulative_npoints_per_cell_dest)
 end
 
 """
@@ -214,7 +221,7 @@ end
 """
     CellLists.set_elements!([get_coordinate::Function], cl::PeriodicCellList, xp::AbstractVector; folded = Val(false))
 
-Set all elements of the cell list.
+Set all source elements of the cell list.
 
 In general `xp` is a vector of spatial locations.
 
@@ -276,6 +283,7 @@ end
         f::Function, cl::PeriodicCellList, xp_dest::AbstractVector;
         batch_size = nothing,
         folded = Val(false),
+        sort_points = true,
     )
 
 Iterate over all point pairs within the chosen cut-off distance.
@@ -295,6 +303,9 @@ all destination points `xp_dest`, ensuring that only a single thread can write t
 
 One may set `folded = Val(true)` if points in `xp_dest` have been previously folded.
 See [`set_elements!`](@ref) for more details.
+
+If `sort_points = true`, destination points will be visited in a spatially-sorted order,
+which may speed-up memory accesses.
 
 This function should be called after [`CellLists.set_elements!`](@ref).
 
@@ -349,10 +360,22 @@ function foreach_pair(
         f::F, cl::PeriodicCellList, xp_dest::AbstractVector;
         batch_size::Union{Nothing, Val} = nothing,
         folded::Val{Folded} = Val(false),
+        sort_points::Bool = true,
     ) where {F <: Function, Folded}
     Folded::Bool
     (; backend) = cl
-    _foreach_pair(backend, f, cl, xp_dest, batch_size, folded)
+    if sort_points
+        resize!(cl.idx_within_cell_dest, length(xp_dest))
+        resize!(cl.pointperm_dest, length(xp_dest))
+        resize!(cl.cumulative_npoints_per_cell_dest, length(cl.head_indices) + 1)
+        _foreach_pair_sorted(backend, f, cl, xp_dest, batch_size, folded)
+        # This is mainly to avoid useless data copies when vectors are resized the next time.
+        resize!(cl.idx_within_cell_dest, 0)
+        resize!(cl.pointperm_dest, 0)
+        resize!(cl.cumulative_npoints_per_cell_dest, 0)
+    else
+        _foreach_pair_unsorted(backend, f, cl, xp_dest, batch_size, folded)
+    end
     nothing
 end
 
@@ -366,12 +389,75 @@ end
 @inline (g::Fix12)(args::Vararg{Any, N}) where {N} = @inline g.f(g.a, g.b, args...)
 
 # On the CPU, this simply calls foreach_source in parallel for each destination point.
-function _foreach_pair(backend::CPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
+function _foreach_pair_unsorted(backend::CPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
     Threads.@threads :dynamic for i in eachindex(xp_dest)
         @inbounds x⃗ = xp_dest[i]
         g = Fix12(f, x⃗, i)
         _foreach_source(backend, g, cl, x⃗, batch_size, folded)
     end
+    nothing
+end
+
+# Note: this is adapted from the NonuniformFFTs.jl implementation.
+function _foreach_pair_sorted(backend::CPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
+    (; rs_cell, Ls, idx_within_cell_dest, pointperm_dest, cumulative_npoints_per_cell_dest) = cl
+
+    @assert eachindex(pointperm_dest) == eachindex(xp_dest)
+    ncells_per_dir = size(cl)
+
+    fill!(cumulative_npoints_per_cell_dest, 0)
+    Threads.@threads for i in eachindex(xp_dest)
+        @inbounds x⃗ = xp_dest[i]
+        if folded === Val(true)
+            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, ncells_per_dir)
+        else
+            inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, ncells_per_dir)
+        end
+        @inbounds n = LinearIndices(ncells_per_dir)[inds...]
+        index_within_cell = @inbounds (Atomix.@atomic cumulative_npoints_per_cell_dest[n + 1] += 1)
+        @inbounds idx_within_cell_dest[i] = index_within_cell
+    end
+
+    # Compute cumulative sum.
+    @inbounds for i ∈ eachindex(IndexLinear(), cumulative_npoints_per_cell_dest)[2:end]
+        cumulative_npoints_per_cell_dest[i] += cumulative_npoints_per_cell_dest[i - 1]
+    end
+    @assert cumulative_npoints_per_cell_dest[begin] == 0
+    @assert cumulative_npoints_per_cell_dest[end] == length(xp_dest)
+
+    # Compute index permutation.
+    Threads.@threads for i in eachindex(xp_dest)
+        @inbounds x⃗ = xp_dest[i]
+        if folded === Val(true)
+            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, ncells_per_dir)
+        else
+            inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, ncells_per_dir)
+        end
+        @inbounds n = LinearIndices(ncells_per_dir)[inds...]
+        @inbounds j = cumulative_npoints_per_cell_dest[n] + idx_within_cell_dest[i]
+        @inbounds pointperm_dest[j] = i
+    end
+
+    # Iterate in parallel over cells.
+    axs = axes(cl.head_indices)
+    axs_front = Base.front(axs)
+    axs_last = last(axs)
+    Threads.@threads for I_last in axs_last  # parallelise over last dimension
+        @inbounds for I_front in CartesianIndices(axs_front)
+            I = CartesianIndex(I_front, I_last)
+            n = LinearIndices(ncells_per_dir)[I]
+            # Iterate over destination points in this cell
+            a = cumulative_npoints_per_cell_dest[n] + 1
+            b = cumulative_npoints_per_cell_dest[n + 1]
+            for j in a:b
+                i = pointperm_dest[j]
+                @inbounds x⃗ = xp_dest[i]
+                g = Fix12(f, x⃗, i)
+                _foreach_source(backend, g, cl, x⃗, batch_size, folded)
+            end
+        end
+    end
+
     nothing
 end
 
