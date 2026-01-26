@@ -338,7 +338,7 @@ init_coefficients!(f::FourierBandVectorField, u_rms::Real; kws...) =
     else
         û = SVector(map(u -> @inbounds(u[js...]), ûs))
     end
-    cs[i] = @inline op(cs[i], û, k⃗)
+    @inbounds cs[i] = @inline op(cs[i], û, k⃗)
     nothing
 end
 
