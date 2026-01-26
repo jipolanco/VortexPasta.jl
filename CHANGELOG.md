@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Speed-up cell-list computations on CPU and GPU by iterating over destination
+  points in "spatial" order. This likely helps with memory locality.
+
 ## [0.32.14] - 2026-01-23
 
 ### Added

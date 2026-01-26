@@ -96,13 +96,13 @@ function interactions_foreach_source!(f::F, cl::PeriodicCellList, wp, xp, vp, r_
     wp
 end
 
-function interactions_foreach_pair!(f::F, cl::PeriodicCellList, wp, xp, vp, r_cut; simd = false) where {F}
+function interactions_foreach_pair!(f::F, cl::PeriodicCellList, wp, xp, vp, r_cut; simd = false, sort_points = true) where {F}
     (; Ls,) = cl
     Ls_half = Ls ./ 2
     r²_cut = r_cut^2
     fill!(wp, 0)
     if simd
-        CellLists.foreach_pair(cl, xp; folded = Val(true), batch_size = Val(4)) do x⃗, i, js, m
+        CellLists.foreach_pair(cl, xp; folded = Val(true), sort_points, batch_size = Val(4)) do x⃗, i, js, m
             # @inbounds x⃗ = xp[i]
             W = length(js)
             j = SIMD.Vec(js)
@@ -126,7 +126,7 @@ function interactions_foreach_pair!(f::F, cl::PeriodicCellList, wp, xp, vp, r_cu
             end
         end
     else
-        CellLists.foreach_pair(cl, xp; folded = Val(true)) do x⃗, i, j
+        CellLists.foreach_pair(cl, xp; folded = Val(true), sort_points) do x⃗, i, j
             @inbounds y⃗ = xp[j]
             # Assume both points are already in the main periodic cell.
             r⃗ = deperiodise_separation_folded(x⃗ - y⃗, Ls, Ls_half)
@@ -184,9 +184,11 @@ function main()
         wp = adapt(backend, wp_cpu)
         CellLists.set_elements!(cl, xp; folded = Val(true))
         if backend isa CPU
-            wp_a = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut))
+            wp_a = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut; sort_points = true))
             wp_b = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut; simd = true))
+            wp_c = copy(interactions_foreach_pair!(f_interaction, cl, wp, xp, vp, r_cut; sort_points = false))
             @assert wp_a ≈ wp_b  # verification
+            @assert wp_a ≈ wp_c  # verification
         end
         sub = suite[backend_name]["nsubdiv = $nsubdiv"]
         sub["set_elements!"] = @benchmarkable benchmark_set_elements!($cl, $xp)
@@ -194,9 +196,11 @@ function main()
             sub["iterator_interface"] = @benchmarkable interactions_iterator_interface!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
             sub["foreach_source"] = @benchmarkable interactions_foreach_source!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
         end
-        sub["foreach_pair"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut)
+        sub["foreach_pair (unsorted)"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut; sort_points = false)
+        sub["foreach_pair (sorted)"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut; sort_points = true)
         if backend isa CPU
-            sub["foreach_pair (SIMD)"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut; simd = true)
+            sub["foreach_pair (SIMD/sorted)"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut; simd = true, sort_points = true)
+            sub["foreach_pair (SIMD/unsorted)"] = @benchmarkable interactions_foreach_pair!($f_interaction, $cl, $wp, $xp, $vp, $r_cut; simd = true, sort_points = false)
         end
     end
 

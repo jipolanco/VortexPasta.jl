@@ -1,4 +1,4 @@
-using KernelAbstractions: @kernel, @index, @Const
+using KernelAbstractions: @kernel, @index, @Const, @groupsize
 
 @inline function determine_cell_index_gpu(x, rcut, L, N)
     # (1) Make sure x is in [0, L).
@@ -70,10 +70,15 @@ end
 
 @kernel function foreach_pair_kernel(
         f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
-        rs_cell, Ls,
+        rs_cell, Ls, @Const(pointperm_dest),
         ::Val{M}, folded::Val,  # = number of subdivisions (equal to number of ghost cells)
     ) where {F <: Function, M}
-    i = @index(Global, Linear)
+    i₀ = @index(Global, Linear)
+    i = if pointperm_dest === nothing
+        i₀
+    else
+        @inbounds pointperm_dest[i₀]
+    end
     x⃗ = @inbounds xp_dest[i]
     if folded === Val(true)
         inds_central = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(head_indices))
@@ -95,10 +100,15 @@ end
 @kernel function foreach_pair_batched_kernel(
         f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
         rs_cell, Ls,
-        ::Val{batch_size},
+        ::Val{batch_size}, @Const(pointperm_dest),
         ::Val{M}, folded::Val,  # = number of subdivisions (equal to number of ghost cells)
     ) where {F <: Function, batch_size, M}
-    i = @index(Global, Linear)
+    i₀ = @index(Global, Linear)
+    i = if pointperm_dest === nothing
+        i₀
+    else
+        @inbounds pointperm_dest[i₀]
+    end
     x⃗ = @inbounds xp_dest[i]
     IndexType = eltype(head_indices)
     inds = MVector{batch_size, IndexType}(undef)
@@ -131,13 +141,14 @@ end
     nothing
 end
 
-function _foreach_pair(backend::GPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
+function _foreach_pair_unsorted(backend::GPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
     (; head_indices, next_index, Ls, rs_cell,) = cl
     M = subdivisions(cl)
     groupsize = 256
+    pointperm_dest = nothing
     if batch_size === nothing
         kernel = foreach_pair_kernel(backend, groupsize)
-        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, Val(M), folded; ndrange = size(xp_dest))
+        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, pointperm_dest, Val(M), folded; ndrange = size(xp_dest))
     else
         kernel = foreach_pair_batched_kernel(backend, groupsize)
         kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, batch_size, Val(M), folded; ndrange = size(xp_dest))
@@ -145,3 +156,103 @@ function _foreach_pair(backend::GPU, f::F, cl, xp_dest, batch_size, folded::Val)
     nothing
 end
 
+# One workgroup = one cell
+# Note: this doesn't seem to be faster than foreach_pair_kernel with pointperm_dest
+# @kernel unsafe_indices=true function foreach_pair_sorted_kernel(
+#         f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
+#         rs_cell, Ls,
+#         @Const(cumulative_npoints_per_cell_dest), @Const(pointperm_dest),
+#         ::Val{M},  # = number of subdivisions (equal to number of ghost cells)
+#     ) where {F, M}
+#     I₀ = @index(Group, Cartesian)  # this is the index of the current cell
+#     ncell = @index(Group, Linear)
+#     thread_idx = @index(Local, Linear)
+#     nthreads = prod(@groupsize())
+#     cell_indices = CartesianIndices(map(i -> (i - M):(i + M), Tuple(I₀)))
+#
+#     a = @inbounds cumulative_npoints_per_cell_dest[ncell]
+#     b = @inbounds cumulative_npoints_per_cell_dest[ncell + 1]
+#
+#     @inbounds for k in (a + thread_idx):nthreads:b
+#         i = pointperm_dest[k]
+#         x⃗ = xp_dest[i]
+#         for I in cell_indices
+#             j = head_indices[I]
+#             while j != EMPTY
+#                 @inline f(x⃗, i, j)
+#                 j = next_index[j]
+#             end
+#         end
+#     end
+#
+#     nothing
+# end
+
+function _foreach_pair_sorted(backend::GPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
+    (; rs_cell, Ls, idx_within_cell_dest, pointperm_dest, cumulative_npoints_per_cell_dest) = cl
+
+    @assert eachindex(pointperm_dest) == eachindex(xp_dest)
+    ncells_per_dir = size(cl)
+
+    fill!(cumulative_npoints_per_cell_dest, 0)
+
+    AK.foreachindex(xp_dest) do i
+        @inline
+        @inbounds x⃗ = xp_dest[i]
+        if folded === Val(true)
+            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, ncells_per_dir)
+        else
+            inds = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, ncells_per_dir)
+        end
+        @inbounds n = LinearIndices(ncells_per_dir)[inds...]
+        index_within_cell = @inbounds (Atomix.@atomic cumulative_npoints_per_cell_dest[n + 1] += 1)
+        @inbounds idx_within_cell_dest[i] = index_within_cell
+    end
+
+    # Compute cumulative sum.
+    AK.accumulate!(+, cumulative_npoints_per_cell_dest; init = zero(eltype(cumulative_npoints_per_cell_dest)))
+
+    # Compute index permutation.
+    AK.foreachindex(xp_dest) do i
+        @inline
+        @inbounds x⃗ = xp_dest[i]
+        if folded === Val(true)
+            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, ncells_per_dir)
+        else
+            inds = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, ncells_per_dir)
+        end
+        @inbounds n = LinearIndices(ncells_per_dir)[inds...]
+        @inbounds j = cumulative_npoints_per_cell_dest[n] + idx_within_cell_dest[i]
+        @inbounds pointperm_dest[j] = i
+    end
+
+    M = subdivisions(cl)
+    groupsize = 256
+    (; head_indices, next_index) = cl
+
+    if batch_size === nothing
+        kernel = foreach_pair_kernel(backend, groupsize)
+        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, pointperm_dest, Val(M), folded; ndrange = size(xp_dest))
+    else
+        kernel = foreach_pair_batched_kernel(backend, groupsize)
+        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, batch_size, pointperm_dest, Val(M), folded; ndrange = size(xp_dest))
+    end
+
+    # Launch main kernel
+    # ngroups = size(cl)
+    # groupsize = ntuple(d -> d == 1 ? 256 : 1, Val(length(ngroups)))
+    # ndrange = ngroups .* groupsize
+    #
+    # M = subdivisions(cl)
+    # if batch_size === nothing
+    #     kernel = foreach_pair_sorted_kernel(backend, groupsize, ndrange)
+    #     kernel(
+    #         f, cl.head_indices, cl.next_index, xp_dest,
+    #         rs_cell, Ls, cumulative_npoints_per_cell_dest, pointperm_dest, Val(M),
+    #     )
+    # else
+    #     # TODO?
+    # end
+
+    nothing
+end
