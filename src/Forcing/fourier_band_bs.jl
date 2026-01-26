@@ -239,10 +239,12 @@ end
 function _compute_geometry_filament!(::FourierBandForcingBS, geom, f::ClosedFilament, inds::AbstractUnitRange, n::Int; quad)
     (; nodes, derivatives_on_nodes, integration_weights) = geom
     # Obtain length of previous segment assuming closed filament.
-    len_prev = let j = first(inds) - 1  # note: we can safely index a filament at i = 0 (same as index i = N)
+    @inbounds len_prev = let j = first(inds) - 1  # note: we can safely index a filament at i = 0 (same as index i = N)
         sqrt(sum(abs2, f[j + 1] - f[j]))   # length of segment to the right (rough estimate)
+        # seg = Filaments.Segment(f, j)
+        # Filaments.segment_length(seg; quad)  # more accurate estimate (but more expensive)
     end
-    for j in inds
+    @inbounds for j in inds
         n += 1
         nodes[n] = f[j]
         derivatives_on_nodes[1][n] = f[j, Derivative(1)]
@@ -267,6 +269,50 @@ function _to_gpu!(::FourierBandForcingBS, pointdata_gpu::PointData, geom_cpu::Na
     geom_gpu
 end
 
+@inline function _forcing_bs_modify_length!(dξ::T, s⃗′::V, vs_filtered::V, α, α′) where {T, V}
+    # In this case, the forcing is allowed to modify filament length.
+    # => It doesn't need to be orthogonal to s⃗″ (the local curvature).
+    # Therefore, it's simply proportional to s⃗′ × vs_filtered, which maximises energy injection.
+    vf = s⃗′ × vs_filtered
+    if α != 0  # α was prescribed (and possibly α′ as well)
+        ε_local = zero(T)  # we don't care about this value (not used in this case)
+        vf = V(α * vf - α′ * (s⃗′ × vf))  # this will be the actual forcing velocity
+    else
+        # Estimate local contribution to energy injection rate.
+        # In principle, we should divide dξ by two to get an estimate of the local segment
+        # length (taking half the length of each local segment). However, this is
+        # compensated by a factor 2 accounting for Hermitian symmetry: if we inject energy into the velocity at
+        # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
+        ε_local = T(sum(abs2, vf)) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
+    end
+    vf, ε_local
+end
+
+@inline function _forcing_bs_dont_modify_length!(dξ::T, s⃗′::V, s⃗_tt::V, vs_filtered::V, α, α′) where {T, V}
+    # If the forcing must not modify vortex length, we make sure that vf is
+    # orthogonal to the local curvature s⃗″. Since vf is also orthogonal to s⃗′ (=
+    # s⃗′ × vs_filtered in the base case), this means that it must be aligned with
+    # the binormal vector s⃗′ × s⃗″.
+    s⃗″ = s⃗′ × (s⃗_tt × s⃗′)  # curvature vector (up to a scalar constant)
+    s″_norm2 = sum(abs2, s⃗″)
+    vf = if iszero(s″_norm2)
+        zero(V)  # zero-curvature case (locally straight vortex)
+    else
+        V(((s⃗″ ⋅ vs_filtered) / s″_norm2) * (s⃗′ × s⃗″))
+    end
+    if α != 0  # α was prescribed (and possibly α′ as well)
+        ε_local = zero(T)
+        vf = V(α * vf - α′ * (s⃗′ × vf))  # this will be the actual forcing velocity
+    else
+        ε_local = if iszero(s″_norm2)
+            zero(T)
+        else
+            T((s⃗″ · vs_filtered)^2 / s″_norm2) * dξ
+        end
+    end
+    vf, ε_local
+end
+
 function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::AbstractVector, geom::NamedTuple, cache)
     (; v_d, prefactor) = cache
     (; nodes, derivatives_on_nodes, integration_weights) = geom
@@ -288,49 +334,30 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
         assume(s_t_inv > 0)
         s⃗′ = s⃗_t * s_t_inv  # unit tangent
         V = eltype(vf_lin)  # usually SVector{3, T} == Vec3{T}
-        vf = zero(V)  # forcing velocity (excluding α prefactor)
+
+        # Compute Fourier-filtered velocity
+        vs_filtered = zero(V)
         for n in eachindex(qs)  # iterate over active wavevectors k⃗
             k⃗ = @inbounds SVector(qs[n]) .* Δks
             v̂ = @inbounds cs[n]
             k_dot_s = k⃗ ⋅ s⃗
             local s, c = sincos(k_dot_s)  # note: CUDA defines sincos as well, so it should be fast
-            vf_k = real(v̂ * Complex(c, s))
-            vf = vf + vf_k
+            vs_k = real(v̂ * Complex(c, s))
+            vs_filtered = vs_filtered + vs_k
         end
-        # Currently, vf actually contains the Fourier-filtered velocity `vs_filtered`.
-        s′_times_vs_filtered = s⃗′ × vf  # = s′ × vs_filtered (needed to estimate ε_inj)
-        if modify_length
-            # In this case, the forcing is allowed to modify filament length.
-            # => It doesn't need to be orthogonal to s⃗″ (the local curvature).
-            # Therefore, it's simply proportional to s⃗′ × vs_filtered, which maximises energy injection.
-            vf = s′_times_vs_filtered
+
+        # Compute forcing velocity. If ε_target was set, this will also store the estimated
+        # local energy injection rate in integration_weights[i].
+        dξ = @inbounds integration_weights[i]
+        vf, ε_local = if modify_length
+            _forcing_bs_modify_length!(dξ, s⃗′, vs_filtered, α, α′)
         else
-            # If the forcing must not modify vortex length, we make sure that vf is
-            # orthogonal to the local curvature s⃗″. Since vf is also orthogonal to s⃗′ (=
-            # s⃗′ × vs_filtered in the base case), this means that it must be aligned with
-            # the binormal vector s⃗′ × s⃗″.
             s⃗_tt = @inbounds derivatives_on_nodes[2][i]
-            s⃗″ = s⃗_t × (s⃗_tt × s⃗_t)  # curvature vector (up to a scalar constant)
-            s″_norm2 = sum(abs2, s⃗″)
-            vf = if iszero(s″_norm2)
-                zero(V)  # zero-curvature case (locally straight vortex)
-            else
-                V(((s⃗″ ⋅ vf) / s″_norm2) * (s⃗′ × s⃗″))
-            end
+            _forcing_bs_dont_modify_length!(dξ, s⃗′, s⃗_tt, vs_filtered, α, α′)
         end
-        if α != 0  # α was prescribed (and possibly α′ as well)
-            vf = α * vf - α′ * (s⃗′ × vf)  # this will be the actual forcing velocity
-        else
-            # Estimate local contribution to energy injection rate.
-            # In principle, we should divide dξ by two to get an estimate of the local segment
-            # length (taking half the length of each local segment). However, this is
-            # compensated by a factor 2 accounting for Hermitian symmetry: if we inject energy into the velocity at
-            # a wavevector +k⃗, then we're also injecting the same energy at v(-k⃗).
-            dξ = @inbounds integration_weights[i]
-            ε_local = (s′_times_vs_filtered ⋅ vf) * dξ  # estimated energy injection rate around local node (without Γ/V prefactor)
-            # We no longer need integration_weights, so we reuse it to store energy injection rates.
-            @inbounds integration_weights[i] = ε_local
-        end
+
+        # Reuse integration_weights to store local contribution to energy injection rate.
+        @inbounds integration_weights[i] = ε_local
         @inbounds vf_lin[i] = vf
     end
 
