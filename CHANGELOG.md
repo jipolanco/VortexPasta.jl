@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.15] - 2026-01-27
+
 ### Changed
 
 - Speed-up cell-list computations on CPU and GPU by iterating over destination
