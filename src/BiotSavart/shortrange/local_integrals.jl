@@ -11,7 +11,7 @@ function remove_self_interaction!(outputs::NamedTuple, cache::ShortRangeCache)
     outputs
 end
 
-function _remove_self_interaction!(::KA.Backend, avoid_explicit_erf::Val, outputs::NamedTuple{Names}, cache) where {Names}
+function _remove_self_interaction!(ka_backend::KA.Backend, avoid_explicit_erf::Val, outputs::NamedTuple{Names}, cache) where {Names}
     (; pointdata, params) = cache
     (; nodes, node_idx_prev, points, charges,) = pointdata
     (; Ls, Γ, α, quad) = params.common
@@ -51,7 +51,7 @@ function _remove_self_interaction!(::KA.Backend, avoid_explicit_erf::Val, output
                 # @assert -Lh ≤ r < Lh
                 r
             end
-            vals = _remove_self_interaction_integral(avoid_explicit_erf, values(quantities), α, r⃗, qs⃗′)::Tuple
+            vals = _remove_self_interaction_integral(avoid_explicit_erf, ka_backend, values(quantities), α, r⃗, qs⃗′)::Tuple
             foreach(values(outputs), vals) do vs, v
                 @inline
                 @inbounds vs[i] -= prefactor * Vec3(v)
@@ -64,7 +64,7 @@ end
 
 # Compute total BS integral (without Γ/4π prefactor) over local segments.
 @inline function _remove_self_interaction_integral(
-        avoid_explicit_erf::Val{true}, quantities::Tuple, α, r⃗, qs⃗′,
+        avoid_explicit_erf::Val{true}, ka_backend, quantities::Tuple, α, r⃗, qs⃗′,
     )
     r² = sum(abs2, r⃗)
     assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
@@ -79,7 +79,7 @@ end
 
 # Compute long-range BS integral (without Γ/4π prefactor) over local segments (needs erf).
 @inline function _remove_self_interaction_integral(
-        avoid_explicit_erf::Val{false}, quantities::Tuple, α, r⃗, qs⃗′,
+        avoid_explicit_erf::Val{false}, ka_backend, quantities::Tuple, α, r⃗, qs⃗′,
     )
     r² = sum(abs2, r⃗)
     assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
@@ -87,8 +87,8 @@ end
     assume(r > 0)  # tell the compiler that we're not dividing by zero
     r_inv = 1 / r
     αr = α * r
-    erf_αr = erf(αr)
-    exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))
+    erf_αr = erf_nosimd(ka_backend, αr)
+    exp_term = two_over_sqrt_pi(αr) * αr * exp_nosimd(ka_backend, -(αr * αr))
     map(quantities) do quantity
         @inline
         long_range_integrand(quantity, erf_αr, exp_term, r_inv, qs⃗′, r⃗)

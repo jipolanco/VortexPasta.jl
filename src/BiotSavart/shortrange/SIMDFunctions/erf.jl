@@ -27,12 +27,11 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Vectorised implementation of erf(x) adapted from VectorizationBase.jl
-# See https://github.com/JuliaSIMD/VectorizationBase.jl/blob/129a0e533202ee3bf1b60a925f74ad153e8bcdd7/src/special/verf.jl.
-
-module SIMDFunctions
-
-using SIMD: Vec, vifelse
+# Vectorised implementation of erf(x) adapted from VectorizationBase.jl,
+# which itself seems to be based on the xsimd C++ library.
+# See:
+# - https://github.com/JuliaSIMD/VectorizationBase.jl/blob/129a0e533202ee3bf1b60a925f74ad153e8bcdd7/src/special/verf.jl
+# - https://github.com/xtensor-stack/xsimd/blob/master/include/xsimd/arch/common/xsimd_common_math.hpp
 
 @inline vfmadd(a, b, c) = muladd(a, b, c)
 @inline vfnmadd(a, b, c) = vfmadd(-a, b, c)
@@ -57,9 +56,7 @@ using SIMD: Vec, vifelse
     # Base.FastMath.div_fast(w * y, z)
 end
 
-# vscalef(b::Bool, x, y, z) = b ? (x * (2^y)) : z
-# vscalef(b::Vec, x, y, z) = vifelse(b, x * (2^y), z)
-# vscalef(b::Vec, x, y, z) = vifelse(b, x * exp2(y), z)  # SIMD + exp2 fails on CUDA
+vscalef(b::Bool, x, y, z) = b ? (x * (2^y)) : z
 
 # This should work on CPU and GPU (tested with CUDA)
 # Note: `y` is expected to contain negative integer values (in float format)
@@ -124,7 +121,7 @@ end
     v64f, v70f
 end
 
-@inline function verf(v0f::Vec{<:Any, Float64})
+@inline function erf(v0f::Union{Float64, Vec{<:Any, Float64}})
     v3f = abs(v0f)
     v4f = v0f * v0f
     m6 = v3f < 0.675
@@ -155,7 +152,7 @@ end
     v105f
 end
 
-@inline function verf(v0f::Vec{<:Any, Float32})
+@inline function erf(v0f::Union{Float32, Vec{<:Any, Float32}})
     v3f = abs(v0f)
     m4 = v3f < 0.6666667f0
     v8f = v3f * v3f
@@ -213,4 +210,3 @@ end
     v66f
 end
 
-end
