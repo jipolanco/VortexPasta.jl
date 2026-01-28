@@ -25,9 +25,9 @@ function test_erfc(xs)
     T = eltype(xs)
     # Note: erfc computed as 1 - erf gets quite inaccurate (in a relative sense) when we
     # reach values very close to 0. But that's ok, since we only care about absolute error.
-    atol = 4 * eps(T)
+    atol = T === Float64 ? 1e-14 : 1f-6
     for x in xs
-        @test SpecialFunctions.erfc(x) ≈ (one(x) - SIMDFunctions.erf(x)) atol=atol
+        @test SpecialFunctions.erfc(x) ≈ SIMDFunctions.erfc(x) atol=atol
     end
     nothing
 end

@@ -1,9 +1,6 @@
 # Based on SLEEF.jl, adapted to allow using SIMD.Vec types.
 # For scalars (or automatic vectorisation), performance is the same as directly using SLEEF.exp.
 
-ftype(::T) where {T <: AbstractFloat} = T
-ftype(::Vec{N, T}) where {N, T <: AbstractFloat} = T
-
 const MLN2E = 1.442695040888963407359924681001892137426645954152985934135449406931 # log2(e)
 
 # Split log(2) into upper and lower parts

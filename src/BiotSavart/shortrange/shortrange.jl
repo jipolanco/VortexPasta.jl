@@ -48,13 +48,13 @@ function short_range_velocity end
 
 @inline exp_simd(x::SIMD.Vec) = SIMDFunctions.exp(x)
 @inline erf_simd(x::SIMD.Vec) = SIMDFunctions.erf(x)
-@inline erfc_simd(x::SIMD.Vec) = one(x) - erf_simd(x)
+@inline erfc_simd(x::SIMD.Vec) = SIMDFunctions.erfc(x)
 
 # Note: even without explicit SIMD, calling SIMD-friendly implementations can enable
 # automatic SIMD and thus noticeably improve performance.
 @inline exp_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.exp(x)
 @inline erf_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.erf(x)
-@inline erfc_nosimd(::CPU, x::AbstractFloat) = one(x) - SIMDFunctions.erf(x)
+@inline erfc_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.erfc(x)
 
 # On GPU we call the functions from Base or SpecialFunctions, since these are usually
 # overridden in each GPU implementation (CUDA, ...) and therefore should be fast.
