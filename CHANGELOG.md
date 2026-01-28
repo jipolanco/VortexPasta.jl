@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Implement SIMD-friendly `exp`. This improves performance of short-range pair
+  interactions on CPU (both with `use_simd = true` and `false`, since in the
+  latter case it helps with automatic vectorisation). It also makes the explicit
+  SIMD implementation (`use_simd = true`) work on GPUs (tested on CUDA), even
+  though it seems to be slower than `use_simd = false` (which is the default on GPUs).
+
 ## [0.32.15] - 2026-01-27
 
 ### Changed
