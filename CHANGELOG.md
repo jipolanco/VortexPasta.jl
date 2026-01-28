@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.16] - 2026-01-28
+
 ### Changed
 
 - Implement SIMD-friendly `exp`. This improves performance of short-range pair
@@ -12,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   latter case it helps with automatic vectorisation). It also makes the explicit
   SIMD implementation (`use_simd = true`) work on GPUs (tested on CUDA), even
   though it seems to be slower than `use_simd = false` (which is the default on GPUs).
+
+- Add SIMD implementation of `erfc`. We now use this instead of doing `1 - erf`
+  with a vectorised `erf`.
 
 ## [0.32.15] - 2026-01-27
 
