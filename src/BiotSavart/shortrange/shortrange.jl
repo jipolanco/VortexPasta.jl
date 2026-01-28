@@ -10,8 +10,8 @@ using SIMD: SIMD
 
 include("cache_common.jl")
 
-include("SIMDFunctions.jl")
-using .SIMDFunctions: verf
+include("SIMDFunctions/SIMDFunctions.jl")
+using .SIMDFunctions: SIMDFunctions
 
 """
     nearby_charges(c::ShortRangeCache, x⃗::Vec3)
@@ -46,14 +46,25 @@ function foreach_pair end
 
 function short_range_velocity end
 
-erf(x::SIMD.Vec) = verf(x)
-erfc(x::SIMD.Vec) = one(x) - erf(x)
+@inline exp_simd(x::SIMD.Vec) = SIMDFunctions.exp(x)
+@inline erf_simd(x::SIMD.Vec) = SIMDFunctions.erf(x)
+@inline erfc_simd(x::SIMD.Vec) = one(x) - erf_simd(x)
 
-erf(x::AbstractFloat) = SpecialFunctions.erf(x)
-erfc(x::AbstractFloat) = SpecialFunctions.erfc(x)
+# Note: even without explicit SIMD, calling SIMD-friendly implementations can enable
+# automatic SIMD and thus noticeably improve performance.
+@inline exp_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.exp(x)
+@inline erf_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.erf(x)
+@inline erfc_nosimd(::CPU, x::AbstractFloat) = one(x) - SIMDFunctions.erf(x)
 
-erf(::Zero) = Zero()
-erfc(::Zero) = One()
+# On GPU we call the functions from Base or SpecialFunctions, since these are usually
+# overridden in each GPU implementation (CUDA, ...) and therefore should be fast.
+@inline exp_nosimd(::GPU, x::AbstractFloat) = exp(x)
+@inline erf_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.erf(x)
+@inline erfc_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.erfc(x)
+
+@inline exp_nosimd(::KA.Backend, x::Zero) = exp(x)    # = 1 (defined in Constants.jl)
+@inline erf_nosimd(::KA.Backend, ::Zero) = Zero()
+@inline erfc_nosimd(::KA.Backend, ::Zero) = One()
 
 @inline two_over_sqrt_pi(::SIMD.Vec{W, T}) where {W, T} = 2 / sqrt(T(π))
 @inline two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
@@ -211,8 +222,8 @@ function _add_pair_interactions_simd!(
             rs = sqrt(r²s_simd)
             rs_inv = inv(rs)
             αr = α * rs
-            erfc_αr = erfc(αr)
-            exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))  # SIMD exp currently doesn't work with CUDA -- `LLVM error: Undefined external symbol "exp"`
+            erfc_αr = erfc_simd(αr)
+            exp_term = two_over_sqrt_pi(αr) * αr * exp_simd(-(αr * αr))
             args = (erfc_αr, exp_term, rs_inv, q⃗s_simd, r⃗s_simd)
 
             foreach(values(outputs), values(quantities)) do vs, quantity
@@ -240,6 +251,7 @@ function _add_pair_interactions_nosimd!(
     (; points, charges, node_idx_prev) = pointdata
     (; quad,) = params
     (; Γ, α, Ls) = params.common
+    ka_backend = KA.get_backend(cache)
     T = typeof(Γ)
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
@@ -278,8 +290,8 @@ function _add_pair_interactions_nosimd!(
             assume(r > 0)   # tell the compiler that we're not dividing by zero
             r_inv = 1 / r
             αr = α * r
-            erfc_αr = erfc(αr)
-            exp_term = two_over_sqrt_pi(αr) * αr * exp(-(αr * αr))
+            erfc_αr = erfc_nosimd(ka_backend, αr)
+            exp_term = two_over_sqrt_pi(αr) * αr * exp_nosimd(ka_backend, -(αr * αr))
             args = (erfc_αr, exp_term, r_inv, qs⃗′, r⃗)
             foreach(values(outputs), values(quantities)) do vs, quantity
                 @inline
