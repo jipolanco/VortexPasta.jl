@@ -63,8 +63,10 @@ function short_range_velocity end
 @inline erfc_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.erfc(x)
 
 @inline exp_nosimd(::KA.Backend, x::Zero) = exp(x)    # = 1 (defined in Constants.jl)
+@inline exp_simd(x::Zero) = exp(x)
 @inline erf_nosimd(::KA.Backend, ::Zero) = Zero()
 @inline erfc_nosimd(::KA.Backend, ::Zero) = One()
+@inline erfc_simd(::Zero) = One()
 
 @inline two_over_sqrt_pi(::SIMD.Vec{W, T}) where {W, T} = 2 / sqrt(T(π))
 @inline two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
