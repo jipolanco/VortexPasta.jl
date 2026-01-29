@@ -5,13 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.17] - 2026-01-29
+
 ### Fixed
 
 - Fix multi-GPU issue on AMDGPU.
   On AMDGPU (not sure about other backends), when an array on device X is `resize!`d while
   device Y is activated, the array is then silently "transferred" to device Y. For this
-  reason, we now resize arrays in the same device where they were initially created. This
-  might be a bug in AMDGPU.jl.
+  reason, we now resize arrays in the same device where they were initially created.
 
 ## [0.32.16] - 2026-01-28
 
