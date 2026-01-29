@@ -131,7 +131,7 @@ function make_all(; draft = false,)
 
     # Try to download latest version of simpleanalytics script.
     try
-        script = "public/sa.js"  # see also config.mts where we include this file in <head>
+        script = "assets/sa.js"  # see also config.mts where we include this file in <head>
         dst = joinpath(@__DIR__, "src", script)
         Downloads.download("https://scripts.simpleanalyticscdn.com/latest.js", dst)
         # attributes = Dict(:async => "", Symbol("data-collect-dnt") => "true")
