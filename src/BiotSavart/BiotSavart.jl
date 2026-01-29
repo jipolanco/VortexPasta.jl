@@ -438,6 +438,10 @@ function do_longrange!(
         # Copy point data to the cache (possibly on a GPU).
         @assert pointdata_cpu !== pointdata  # they are different objects
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
+            # Resize output arrays
+            noutputs = length(pointdata_cpu.nodes)
+            foreach(v -> resize_no_copy!(v, noutputs), outputs)
+
             @timeit to "Copy point charges (host -> device)" begin
                 # Only copy fields needed for long-range computations
                 copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
@@ -491,6 +495,10 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
 
     @timeit to "Short-range component (async)" begin
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
+            # Resize output arrays
+            noutputs = length(pointdata_cpu.nodes)
+            foreach(v -> resize_no_copy!(v, noutputs), outputs)  # resize output arrays
+
             if LIA === Val(true) || LIA === Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
                     # For now, only copy what we need for local term
@@ -543,7 +551,6 @@ function _compute_on_nodes!(
     # TODO: skip unneeded quantities if LIA === Val(:only) or LIA === Val(false)
     @timeit to "Add point charges" add_point_charges!(pointdata, fs, params)  # done on the CPU
 
-    noutputs = sum(length, fs)  # total number of interpolation points
     channel = Channel{Symbol}(2)  # 2 is the length of the channel (for :shortrange + :longrange)
     tasks = Task[]
 
@@ -551,7 +558,6 @@ function _compute_on_nodes!(
         let cache = cache.longrange
             # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
-            foreach(v -> resize_no_copy!(v, noutputs), outputs)  # resize output arrays
             # Compute long-range part asynchronously (e.g. on a GPU).
             local task = Threads.@spawn :interactive try
                 do_longrange!(cache, outputs, pointdata; callback_vorticity)
@@ -567,7 +573,6 @@ function _compute_on_nodes!(
         let cache = cache.shortrange
         # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
-            foreach(v -> resize_no_copy!(v, noutputs), outputs)  # resize output arrays
             # Compute short-range part asynchronously (e.g. on a GPU).
             local task = Threads.@spawn :interactive try
                 do_shortrange!(cache, outputs, pointdata; LIA)
