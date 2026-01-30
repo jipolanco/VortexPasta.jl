@@ -397,8 +397,8 @@ function compute_on_nodes!(
     fields
 end
 
-function copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = length(src))
-    resize_no_copy!(dst, N)
+function copy_host_to_device!(dst::AbstractVector, src::AbstractVector)
+    resize_no_copy!(dst, length(src))
     backend = KA.get_backend(dst)
     if KA.device(backend) == 1
         # CUDA: apparently we can't pagelock the same CPU array from multiple CUDA devices,
@@ -406,21 +406,39 @@ function copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = leng
         KA.pagelock!(backend, src)
     end
     KA.copyto!(backend, dst, src)
-    nothing
+    dst
 end
 
-function copy_host_to_device!(dst::StructVector, src::StructVector, N = length(src))
-    foreach(StructArrays.components(dst), StructArrays.components(src)) do a, b
-        copy_host_to_device!(a, b, N)
-    end
-    nothing
+function copy_host_to_device!(dst::StructVector, src::StructVector)
+    copy_host_to_device!(StructArrays.components(dst), StructArrays.components(src))
+    dst
 end
 
-function copy_host_to_device!(dst::Tuple, src::Tuple, N = length(first(src)))
+function copy_host_to_device!(dst::Tuple, src::Tuple)
     foreach(dst, src) do a, b
-        copy_host_to_device!(a, b, N)
+        copy_host_to_device!(a, b)
     end
-    nothing
+    dst
+end
+
+function copy_device_to_host!(dst::AbstractVector, src::AbstractVector)
+    resize_no_copy!(dst, length(src))
+    # backend = KA.get_backend(src)
+    # KA.copyto!(backend, dst, src)  # asynchronous copy (on CUDA at least)
+    copyto!(dst, src)  # synchronous copy
+    dst
+end
+
+function copy_device_to_host!(dst::StructVector, src::StructVector)
+    copy_device_to_host!(StructArrays.components(dst), StructArrays.components(src))
+    dst
+end
+
+function copy_device_to_host!(dst::Tuple, src::Tuple)
+    foreach(dst, src) do a, b
+        copy_device_to_host!(a, b)
+    end
+    dst
 end
 
 function do_longrange!(
@@ -672,9 +690,7 @@ end
 
 function _copy_output_values_on_nodes!(backend::GPU, op::F, vs, vs_d, vs_h::AbstractVector) where {F}
     # Perform GPU -> CPU copy (device-to-host)
-    resize_no_copy!(vs_h, length(vs_d))
-    # KA.copyto!(backend, vs_h[i], vs_d[i])  # may fail on CUDA due to pinning of CPU memory (https://github.com/JuliaGPU/CUDA.jl/issues/2594)
-    copyto!(vs_h, vs_d)
+    copy_device_to_host!(vs_h, vs_d)
     KA.synchronize(backend)  # make sure we're done copying data to CPU (may be needed on CUDA, where KA.copyto! is asynchronous)
     _copy_output_values_on_nodes!(CPU(), op, vs, vs_h)  # finally, perform CPU -> CPU copy
 end
