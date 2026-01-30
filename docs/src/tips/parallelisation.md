@@ -199,3 +199,29 @@ Note that, with the `hints = true` option, ThreadPinning will complain about
 our choice of using `MKL_NUM_THREADS = number_of_julia_threads`. This warning
 can be ignored, since FFTs are executed from a single Julia thread and it's
 therefore what we want.
+
+## Heterogeneous clusters
+
+It is common to find clusters with heterogeneous CPU architectures.
+For example, the CPUs used in login and compute nodes are often not the same.
+This can lead to problems or to suboptimal performance when code is compiled on
+the login node and executed on a compute node.
+
+This problem also exists in Julia, as code is "precompiled" when packages are
+installed or updated by the user (typically in a login node).
+The [solution](https://juliahpc.github.io/user_gettingstarted/#set_julia_cpu_target_appropriately)
+is to set the `JULIA_CPU_TARGET` environment variable in the `~/.bashrc` file (or similar).
+This could look something like:
+
+```bash
+export JULIA_CPU_TARGET="generic;znver5,clone_all;znver4,clone_all"
+```
+
+The actual values to put in `JULIA_CPU_TARGET` (instead of `znver4` and
+`znver5` above) depend on your cluster!
+To find them, you can run from the login node:
+
+```bash
+julia -E 'Sys.CPU_NAME'  # this gives the architecture of the login node
+srun -n 1 [options...] julia -E 'Sys.CPU_NAME'  # this gives the architecture of a compute node (assuming the cluster uses SLURM)
+```
