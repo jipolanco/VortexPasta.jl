@@ -9,7 +9,11 @@ An efficient vortex filament solver for the simulation of quantum vortex flows.
 
 See the [documentation](https://jipolanco.github.io/VortexPasta.jl/dev/) for an introduction, installation instructions, examples and much more.
 
-[![Quantum turbulence simulation](https://github.com/user-attachments/assets/33d1989e-6788-4771-bd96-527af5a39411)](https://jipolanco.github.io/VortexPasta.jl/dev/)
+<div align="center">
+    <a href="https://jipolanco.github.io/VortexPasta.jl/dev/">
+        <img src="https://github.com/user-attachments/assets/717fa80c-eb48-4f5f-98af-311b4e3c791d" alt="Quantum turbulence simulation"/>
+    </a>
+</div>
 
 ## References
 
