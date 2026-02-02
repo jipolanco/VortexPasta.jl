@@ -86,14 +86,14 @@ Base.@propagate_inbounds function Base.setindex!(v::HostVector, x, i::Int)
     v.data[i] = x
 end
 
-function Base.copyto!(v::HostVector, src::DenseArray)
+function Base.copyto!(v::HostVector{T}, src::DenseArray{T}) where {T}
     n = length(src)
     resize_no_copy!(v, n)
     # This should work both when src is either a CPU or a GPU array.
     unsafe_copyto!(pointer(v), pointer(src), n)  # TODO: parallelise copy when src is on the CPU?
 end
 
-function Base.copyto!(dst::DenseArray, v::HostVector)
+function Base.copyto!(dst::DenseArray{T}, v::HostVector{T}) where {T}
     n = length(v)
     resize_no_copy!(dst, n)
     # This should work both when src is either a CPU or a GPU array.
@@ -122,10 +122,13 @@ function copy_host_to_device!(dst::Tuple, src::Tuple, buf::HostVector)
 end
 
 function copy_device_to_host!(dst::AbstractVector, src::AbstractVector, buf::HostVector)
+    copy_device_to_host!(buf, src)
+end
+
+function copy_device_to_host!(buf::AbstractVector, src::AbstractVector)
     @assert KA.get_backend(buf) == KA.get_backend(src)
     copyto!(buf, src)  # copy device -> host_pinned (synchronous)
-    copyto!(dst, buf)  # copy host_pinned -> host_unpinned
-    dst
+    buf
 end
 
 function copy_device_to_host!(dst::StructVector, src::StructVector)

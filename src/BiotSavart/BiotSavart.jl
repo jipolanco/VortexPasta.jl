@@ -488,7 +488,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
             if LIA !== Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
                     copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes, pointdata.buf_host)
-                    copy_host_to_device!(pointdata.node_idx_prev, pointdata_cpu.node_idx_prev, pointdata.buf_host)  # needed in remove_self_interaction! (and in add_pair_interactions! if avoid_explicit_erf = false)
+                    copy_host_to_device!(pointdata.node_idx_prev, pointdata_cpu.node_idx_prev, pointdata.buf_host_int)  # needed in remove_self_interaction! (and in add_pair_interactions! if avoid_explicit_erf = false)
                     copy_host_to_device!(pointdata.points, pointdata_cpu.points, pointdata.buf_host)
                     copy_host_to_device!(pointdata.charges, pointdata_cpu.charges, pointdata.buf_host)
                 end
@@ -652,26 +652,38 @@ function copy_output_values_on_nodes!(vs::AbstractVector, vs_d::AbstractVector, 
     copy_output_values_on_nodes!(op, vs, vs_d, args...)
 end
 
-function _copy_output_values_on_nodes!(backend::GPU, op::F, vs::StructVector, vs_d::StructVector, buf_host::HostVector) where {F}
-    foreach(StructArrays.components(vs), StructArrays.components(vs_d)) do us, us_d
-        _copy_output_values_on_nodes!(backend, op, us, us_d, buf_host)
+function _copy_output_values_on_nodes!(backend::GPU, op::F, vs::AllFilamentVelocities, vs_d::StructVector, buf_host::HostVector) where {F}
+    for (i, us) in enumerate(StructArrays.components(vs_d))
+        _copy_output_values_on_nodes!(backend, op, vs, i, us, buf_host)  # copy i-th component
     end
     vs
 end
 
-function _copy_output_values_on_nodes!(backend::GPU, op::F, vs::AbstractVector{T}, vs_d::AbstractVector{T}, buf_host::HostVector{T}) where {F, T}
+function _copy_output_values_on_nodes!(backend::GPU, op::F, vs::AllFilamentVelocities, i::Int, vs_d::AbstractVector{T}, buf_host::HostVector{T}) where {F, T}
     # Perform GPU -> CPU copy (device-to-host)
     @assert backend == KA.get_backend(buf_host)
     copy_device_to_host!(buf_host, vs_d)
-    _copy_output_values_on_nodes!(CPU(), op, vs, buf_host)  # finally, perform CPU -> CPU copy
+    _copy_output_values_on_nodes!(CPU(), op, vs, i, buf_host)  # finally, perform CPU -> CPU copy
 end
 
 # CPU -> CPU copy (change of vector "format")
-function _copy_output_values_on_nodes!(::CPU, op::F, vs::AbstractVector, vs_h::AbstractVector, ignored = nothing) where {F}
+function _copy_output_values_on_nodes!(::CPU, op::F, vs::AllFilamentVelocities, vs_h::AbstractVector, ignored = nothing) where {F}
     n = 0
     @inbounds for vf in vs, j in eachindex(vf)
         q = vs_h[n += 1]
-        vf[j] = op(vf[j], q)  # typically op == +, meaning that we add to the previous value
+        vf[j] = @inline op(vf[j], q)  # typically op == +, meaning that we add to the previous value
+    end
+    vs
+end
+
+# Same as above, but for a single component `i`.
+function _copy_output_values_on_nodes!(::CPU, op::F, vs::AllFilamentVelocities, i::Int, vs_h::HostVector{T}, ignored = nothing) where {F, T}
+    n = 0
+    @inbounds for vf in vs, j in eachindex(vf)
+        q = vs_h[n += 1]::T
+        v = vf[j]
+        vi_new = @inline op(v[i], q)  # typically op == +, meaning that we add to the previous value
+        vf[j] = Base.setindex(v, vi_new, i)
     end
     vs
 end

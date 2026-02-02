@@ -264,7 +264,7 @@ function _to_gpu!(::FourierBandForcingBS, pointdata_gpu::PointData, geom_cpu::Na
     integration_weights = subsegment_lengths[1]::AbstractVector  # reuse as a buffer
     geom_gpu = (; nodes, derivatives_on_nodes, integration_weights)
     foreach(geom_cpu, geom_gpu) do src, dst
-        copy_host_to_device!(dst, src)
+        copy_host_to_device!(dst, src, pointdata_gpu.buf_host)
     end
     geom_gpu
 end
