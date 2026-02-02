@@ -439,8 +439,8 @@ function evaluate!(
     @timeit to "(4) Compute forcing (GPU)" _evaluate_from_geometry!(forcing, vf_lin, geom_gpu, cache)
 
     @timeit to "(5) Copy forcing GPU -> CPU" begin
-        vs_buf = cache_bs.pointdata.nodes  # CPU array used as intermediate buffer
-        BiotSavart.copy_output_values_on_nodes!(vf_all, vf_lin, vs_buf)
+        buf_host = cache_bs.longrange.pointdata.buf_host  # CPU array used as intermediate buffer
+        BiotSavart.copy_output_values_on_nodes!(vf_all, vf_lin, buf_host)
     end
 
     vf_all

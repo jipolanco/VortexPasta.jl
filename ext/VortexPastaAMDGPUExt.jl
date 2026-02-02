@@ -12,7 +12,7 @@ function BiotSavart.pagelock!(::ROCBackend, A::DenseArray{T}) where {T}
     ptr = pointer(A)
     bytesize = length(A) * sizeof(T)
     flags = HIP.hipHostRegisterPortable  # "Memory is considered registered by all contexts. HIP only supports one context so this is always assumed true."
-    if bytesize > 0
+    if !isempty(A)
         HIP.hipHostRegister(ptr, bytesize, flags)
     end
     nothing
@@ -21,7 +21,9 @@ end
 function BiotSavart.unpagelock!(::ROCBackend, A::DenseArray{T}) where {T}
     @debug "Unpinning CPU array using AMDGPU"
     ptr = pointer(A)
-    HIP.hipHostUnregister(ptr)
+    if !isempty(A)
+        HIP.hipHostUnregister(ptr)
+    end
     nothing
 end
 

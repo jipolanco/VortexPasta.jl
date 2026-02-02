@@ -10,7 +10,7 @@ function BiotSavart.pagelock!(::CUDABackend, A::DenseArray{T}) where {T}
     ptr = pointer(A)
     bytesize = length(A) * sizeof(T)
     flags = CUDA.MEMHOSTREGISTER_PORTABLE  # "The memory returned by this call will be considered as pinned memory by all CUDA contexts, not just the one that performed the allocation."
-    if bytesize > 0
+    if !isempty(A)
         CUDA.cuMemHostRegister_v2(ptr, bytesize, flags)
     end
     nothing
@@ -19,7 +19,9 @@ end
 function BiotSavart.unpagelock!(::CUDABackend, A::DenseArray{T}) where {T}
     @debug "Unpinning CPU array using CUDA"
     ptr = pointer(A)
-    CUDA.cuMemHostUnregister(ptr)
+    if !isempty(A)
+        CUDA.cuMemHostUnregister(ptr)
+    end
     nothing
 end
 

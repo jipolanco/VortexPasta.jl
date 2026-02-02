@@ -531,8 +531,7 @@ function set_interpolation_points!(cache::LongRangeCache, fs::VectorOfFilaments)
     )
 end
 
-# Here charges_h is used as a buffer in the GPU implementation.
-# See set_interpolation_points! for details.
+# See copy_output_values_on_nodes! for details.
 # Here `op` is a binary operator `op(new, old)`. For example, to add the new value to a
 # previously existent value, pass op = +.
 function copy_long_range_output!(
@@ -540,10 +539,10 @@ function copy_long_range_output!(
         vs::AbstractVector{<:VectorOfVelocities}, cache::LongRangeCache,
         charges = default_interpolation_output(cache),
     ) where {F}
-    (; charges_h,) = cache.common.pointdata
+    (; buf_host,) = cache.common.pointdata
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
-    copy_output_values_on_nodes!(op, vs, charges, charges_h)
+    copy_output_values_on_nodes!(op, vs, charges, buf_host)
     vs
 end
 

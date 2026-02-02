@@ -120,6 +120,7 @@ activate_device!
 ```@docs
 AbstractBackend
 BiotSavartCache
+HostVector
 background_vorticity_correction!
 process_point_charges!
 copy_output_values_on_nodes!
