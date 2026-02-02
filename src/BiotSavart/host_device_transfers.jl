@@ -86,26 +86,49 @@ Base.@propagate_inbounds function Base.setindex!(v::HostVector, x, i::Int)
     v.data[i] = x
 end
 
-function Base.copyto!(v::HostVector{T}, src::DenseArray{T}) where {T}
-    n = length(src)
-    resize_no_copy!(v, n)
-    # This should work both when src is either a CPU or a GPU array.
-    unsafe_copyto!(pointer(v), pointer(src), n)  # TODO: parallelise copy when src is on the CPU?
+function as_array(v::HostVector{T}) where {T}
+    unsafe_wrap(Array, pointer(v), size(v); own = false)
 end
 
+# TODO: parallelise copy when src is on the CPU?
+function Base.copyto!(v::HostVector{T}, src::DenseArray{T}) where {T}
+    n = length(src)
+    @assert length(v) == n  # already resized
+    # This should work both when src is either a CPU or a GPU array.
+    # unsafe_copyto!(pointer(v), pointer(src), n)  # doesn't work with OpenCL
+    GC.@preserve v begin
+        copyto!(as_array(v), src)
+    end
+end
+
+# TODO: parallelise copy when dst is on the CPU?
 function Base.copyto!(dst::DenseArray{T}, v::HostVector{T}) where {T}
     n = length(v)
-    resize_no_copy!(dst, n)
+    @assert length(dst) == n  # already resized
     # This should work both when src is either a CPU or a GPU array.
-    unsafe_copyto!(pointer(dst), pointer(v), n)  # TODO: parallelise copy when dst is on the CPU?
+    # unsafe_copyto!(pointer(dst), pointer(v), n)  # doesn't work with OpenCL
+    GC.@preserve v begin
+        copyto!(dst, as_array(v))
+    end
 end
 
 ## ========================================================================================== ##
 
 function copy_host_to_device!(dst::AbstractVector, src::AbstractVector, buf::HostVector)
     @assert KA.get_backend(buf) == KA.get_backend(dst)
+    n = length(src)
+    resize_no_copy!(buf, n)
+    resize_no_copy!(dst, n)
     copyto!(buf, src)  # copy host_unpinned -> host_pinned
     copyto!(dst, buf)  # copy host_pinned -> device (synchronous)
+    dst
+end
+
+# Avoid intermediate array if CPU -> CPU copy
+function copy_host_to_device!(dst::Vector, src::Vector, ::HostVector)
+    n = length(src)
+    resize_no_copy!(dst, n)
+    copyto!(dst, src)
     dst
 end
 
@@ -121,24 +144,28 @@ function copy_host_to_device!(dst::Tuple, src::Tuple, buf::HostVector)
     dst
 end
 
-function copy_device_to_host!(dst::AbstractVector, src::AbstractVector, buf::HostVector)
-    copy_device_to_host!(buf, src)
-end
-
-function copy_device_to_host!(buf::AbstractVector, src::AbstractVector)
+function copy_device_to_host!(buf::HostVector, src::AbstractVector)
     @assert KA.get_backend(buf) == KA.get_backend(src)
+    n = length(src)
+    resize_no_copy!(buf, n)
     copyto!(buf, src)  # copy device -> host_pinned (synchronous)
     buf
 end
 
-function copy_device_to_host!(dst::StructVector, src::StructVector)
-    copy_device_to_host!(StructArrays.components(dst), StructArrays.components(src))
-    dst
-end
-
-function copy_device_to_host!(dst::Tuple, src::Tuple)
-    foreach(dst, src) do a, b
-        copy_device_to_host!(a, b)
-    end
-    dst
-end
+# function copy_device_to_host!(dst::AbstractVector, src::AbstractVector, buf::HostVector)
+#     copy_device_to_host!(buf, src)
+#     copyto!(dst, buf)
+#     dst
+# end
+#
+# function copy_device_to_host!(dst::StructVector, src::StructVector)
+#     copy_device_to_host!(StructArrays.components(dst), StructArrays.components(src))
+#     dst
+# end
+#
+# function copy_device_to_host!(dst::Tuple, src::Tuple)
+#     foreach(dst, src) do a, b
+#         copy_device_to_host!(a, b)
+#     end
+#     dst
+# end
