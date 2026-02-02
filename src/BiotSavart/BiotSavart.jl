@@ -66,6 +66,7 @@ const VectorOfVelocities = VectorOfVec
 const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
 
 include("ka_utils.jl")
+include("host_device_transfers.jl")
 include("pointdata.jl")
 include("types_shortrange.jl")
 include("types_longrange.jl")
@@ -395,50 +396,6 @@ function compute_on_nodes!(
     ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
     _compute_on_nodes!(fields, cache, fs; LIA, kws...)
     fields
-end
-
-function copy_host_to_device!(dst::AbstractVector, src::AbstractVector)
-    resize_no_copy!(dst, length(src))
-    backend = KA.get_backend(dst)
-    if KA.device(backend) == 1
-        # CUDA: apparently we can't pagelock the same CPU array from multiple CUDA devices,
-        # so we just do it if we're on device 1.
-        KA.pagelock!(backend, src)
-    end
-    KA.copyto!(backend, dst, src)
-    dst
-end
-
-function copy_host_to_device!(dst::StructVector, src::StructVector)
-    copy_host_to_device!(StructArrays.components(dst), StructArrays.components(src))
-    dst
-end
-
-function copy_host_to_device!(dst::Tuple, src::Tuple)
-    foreach(dst, src) do a, b
-        copy_host_to_device!(a, b)
-    end
-    dst
-end
-
-function copy_device_to_host!(dst::AbstractVector, src::AbstractVector)
-    resize_no_copy!(dst, length(src))
-    # backend = KA.get_backend(src)
-    # KA.copyto!(backend, dst, src)  # asynchronous copy (on CUDA at least)
-    copyto!(dst, src)  # synchronous copy
-    dst
-end
-
-function copy_device_to_host!(dst::StructVector, src::StructVector)
-    copy_device_to_host!(StructArrays.components(dst), StructArrays.components(src))
-    dst
-end
-
-function copy_device_to_host!(dst::Tuple, src::Tuple)
-    foreach(dst, src) do a, b
-        copy_device_to_host!(a, b)
-    end
-    dst
 end
 
 function do_longrange!(
