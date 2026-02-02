@@ -28,8 +28,8 @@ end
 function HostVector{T}(::UndefInitializer, backend::KA.Backend, n::Int) where {T}
     data = Memory{T}(undef, n)
     v = HostVector(data, n, backend)
-    pagelock!(backend, v)
-    finalizer(x -> unpagelock!(backend, x), v)  # remove pagelock when vector is freed
+    pagelock!(v)
+    finalizer(unpagelock!, v)  # remove pagelock when vector is freed
     v
 end
 
