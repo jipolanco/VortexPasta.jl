@@ -67,9 +67,9 @@ function resize_no_copy!(v::HostVector{T}, n) where {T}
         @assert capacity_new ≥ n
         data_new = Memory{T}(undef, capacity_new)
         # We need to redo the pagelock since the pointer and data size have changed.
-        unpagelock!(v.backend, v)
+        unpagelock!(v)
         v.data = data_new
-        pagelock!(v.backend, v)
+        pagelock!(v)
     end
     v.n = n  # change the logical vector size
     @assert n ≤ length(v.data)
