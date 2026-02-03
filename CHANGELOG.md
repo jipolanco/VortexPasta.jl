@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.32.18] - 2026-02-03
+
 ### Fixed
 
 - Fix potential issues in GPU-CPU data transfers, in AMDGPU in particular, but also in multi-GPU with CUDA.
