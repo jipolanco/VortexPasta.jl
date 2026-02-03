@@ -530,6 +530,7 @@ function _compute_on_nodes!(
     tasks = Task[]
 
     if with_longrange
+        @debug "Computing long-range interactions asynchronously" KA.get_backend(cache.longrange)
         let cache = cache.longrange
             # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
@@ -545,6 +546,7 @@ function _compute_on_nodes!(
     end
 
     if with_shortrange
+        @debug "Computing short-range interactions asynchronously" KA.get_backend(cache.shortrange)
         let cache = cache.shortrange
         # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
@@ -561,6 +563,7 @@ function _compute_on_nodes!(
 
     # Perform CPU-only operations associated to the short-range part (this differentiation is kind of arbitrary).
     if with_shortrange && LIA !== Val(:only)
+        @debug "Computing synchronous operations"
         @timeit to "CPU-only operations (synchronous)" begin
             if params.shortrange.lia_segment_fraction !== nothing
                 @timeit to "Add local integrals" add_local_integrals!(fields, cache, fs)
@@ -576,6 +579,7 @@ function _compute_on_nodes!(
     while ntasks > 0
         @timeit to "Wait for async task to finish" begin
             taskname = take!(channel)::Symbol  # wait for first async task to finish
+            @debug "Task finished: $taskname"
             ntasks -= 1
         end
         # Add results from asynchronous task.
