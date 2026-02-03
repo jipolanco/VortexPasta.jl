@@ -687,8 +687,8 @@ end
 # Same as above, but for a single component `i`.
 function _copy_output_values_on_nodes!(::CPU, op::F, vs::AllFilamentVelocities, i::Int, vs_h::HostVector{T}, ignored = nothing) where {F, T}
     @sync for chunk in FilamentChunkIterator(vs)
-        Threads.@spawn for (i, inds, n) in chunk
-            vf = vs[i]
+        Threads.@spawn for (filament_idx, inds, n) in chunk
+            vf = vs[filament_idx]
             @inbounds for j in inds
                 q = vs_h[n += 1]::T
                 v = vf[j]
