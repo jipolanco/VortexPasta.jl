@@ -9,7 +9,6 @@ Vortex lines are assumed to be very thin with respect to the scales of interest,
 In the VFM, each vortex line induces a velocity field around it given by the [Biot--Savart law](https://en.wikipedia.org/wiki/Biot%E2%80%93Savart_law):
 
 ```math
-\newcommand{\bm}[1]{\boldsymbol{#1}}  % needed for MathJax
 \bm{v}(\bm{x}) =
 \frac{Γ}{4π} ∮_{\mathcal{C}} \frac{(\bm{s} - \bm{x}) \times \mathrm{d}\bm{s}}{|\bm{s} - \bm{x}|^3}
 ```
@@ -46,11 +45,14 @@ The standard way of accounting for the radius ``a`` of the vortex core is to spl
 \newcommand{\svec}{\bm{s}}
 \newcommand{\dd}{\mathrm{d}}
 \newcommand{\sj}{\svec_0}
-\vvec(\sj) =
+\begin{align*}
+\vvec(\sj) &=
 \frac{Γ}{4π} ∫_{\mathcal{C}_0} \frac{(\svec - \sj) \times \dd\svec}{|\svec - \sj|^3}
 +
 \frac{Γ}{4π} ∫_{\mathcal{C} ∖ \mathcal{C}_0} \frac{(\svec - \sj) \times \dd\svec}{|\svec - \sj|^3}
-= \vvec_{\text{local}}(\sj) + \vvec_{\text{non-local}}(\sj)
+\\
+&= \vvec_{\text{local}}(\sj) + \vvec_{\text{non-local}}(\sj)
+\end{align*}
 ```
 
 Here ``\mathcal{C}_0`` denotes a portion of the set of curves ``\mathcal{C}`` which is in the neighbourhood of the point of interest ``\bm{s}_0``.

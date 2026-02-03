@@ -227,7 +227,7 @@ plot_filaments(f)
 # ⟨ \bm{ω} ⟩
 # = \frac{1}{V} ∫_Ω \bm{ω}(\bm{x}) \, \mathrm{d}^3\bm{x}
 # = \frac{Γ}{V} ∫_{\mathcal{C}} \mathrm{d}\bm{s}
-# = \frac{Γ}{V} ∫_{\mathcal{C}} \bm{s}'(t) \, \mathrm{d}t
+# = \frac{Γ}{V} ∫_{\mathcal{C}} \bm{s}'(\xi) \, \mathrm{d}\xi
 # ```
 #
 # where ``Ω`` represents the periodic domain and ``V = L^3`` is its volume.
