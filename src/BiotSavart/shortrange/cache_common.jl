@@ -18,8 +18,10 @@ function ShortRangeCacheCommon(params::ParamsShortRange, pointdata_in::PointData
     expected_device = KA.device(backend)  # 1, 2, ...
     @assert KA.device(ka_backend) == expected_device
     pointdata = adapt(ka_backend, pointdata_in)      # create PointData replica on the device if needed
-    if pointdata === pointdata_in       # basically if ka_backend isa CPU
-        pointdata = copy(pointdata_in)  # make sure pointdata and pointdata_in are not aliased!
+    pointdata = if ka_backend isa CPU
+        copy(pointdata_in)  # make sure pointdata and pointdata_in are not aliased!
+    else
+        adapt(ka_backend, pointdata_in)  # create PointData replica on the device
     end
     outputs = (;
         velocity = similar(pointdata.charges),

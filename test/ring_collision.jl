@@ -1,9 +1,13 @@
 # This tests a simple case with more than one vortex filament.
 
+ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
+ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
+
 using Test
 using LinearAlgebra: norm, normalize, ⋅
 using StaticArrays
 using Statistics: mean, std
+using KernelAbstractions: KernelAbstractions as KA
 using OpenCL, pocl_jll
 using JET: JET
 using VortexPasta.Filaments
@@ -72,9 +76,11 @@ function test_ring_collision(;
             n += 1
             Ẋ = f[i, Derivative(1)]
             Ẍ = f[i, Derivative(2)]
-            if i in (firstindex(f), 4, lastindex(f))  # arbitrary
-                @test Ẋ == cache.shortrange.pointdata.derivatives_on_nodes[1][n]
-                @test Ẍ == cache.shortrange.pointdata.derivatives_on_nodes[2][n]
+            if KA.get_backend(backend_short) isa CPU  # avoid scalar indexing error on GPU
+                if i in (firstindex(f), 4, lastindex(f))  # arbitrary
+                    @test Ẋ == cache.shortrange.pointdata.derivatives_on_nodes[1][n]
+                    @test Ẍ == cache.shortrange.pointdata.derivatives_on_nodes[2][n]
+                end
             end
             t̂, ρ⃗ = normalise_derivatives(Ẋ, Ẍ)  # tangent and curvature vectors
             v⃗ = v[i]

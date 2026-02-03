@@ -66,6 +66,7 @@ const VectorOfVelocities = VectorOfVec
 const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
 
 include("ka_utils.jl")
+include("host_device_transfers.jl")
 include("pointdata.jl")
 include("types_shortrange.jl")
 include("types_longrange.jl")
@@ -397,32 +398,6 @@ function compute_on_nodes!(
     fields
 end
 
-function copy_host_to_device!(dst::AbstractVector, src::AbstractVector, N = length(src))
-    resize_no_copy!(dst, N)
-    backend = KA.get_backend(dst)
-    if KA.device(backend) == 1
-        # CUDA: apparently we can't pagelock the same CPU array from multiple CUDA devices,
-        # so we just do it if we're on device 1.
-        KA.pagelock!(backend, src)
-    end
-    KA.copyto!(backend, dst, src)
-    nothing
-end
-
-function copy_host_to_device!(dst::StructVector, src::StructVector, N = length(src))
-    foreach(StructArrays.components(dst), StructArrays.components(src)) do a, b
-        copy_host_to_device!(a, b, N)
-    end
-    nothing
-end
-
-function copy_host_to_device!(dst::Tuple, src::Tuple, N = length(first(src)))
-    foreach(dst, src) do a, b
-        copy_host_to_device!(a, b, N)
-    end
-    nothing
-end
-
 function do_longrange!(
         cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu;
         callback_vorticity::Fvort,
@@ -444,9 +419,9 @@ function do_longrange!(
 
             @timeit to "Copy point charges (host -> device)" begin
                 # Only copy fields needed for long-range computations
-                copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
-                copy_host_to_device!(pointdata.points, pointdata_cpu.points)
-                copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
+                copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes, pointdata.buf_host)
+                copy_host_to_device!(pointdata.points, pointdata_cpu.points, pointdata.buf_host)
+                copy_host_to_device!(pointdata.charges, pointdata_cpu.charges, pointdata.buf_host)
             end
             @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
 
@@ -497,13 +472,13 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             # Resize output arrays
             noutputs = length(pointdata_cpu.nodes)
-            foreach(v -> resize_no_copy!(v, noutputs), outputs)  # resize output arrays
+            foreach(v -> resize_no_copy!(v, noutputs), outputs)
 
             if LIA === Val(true) || LIA === Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
                     # For now, only copy what we need for local term
-                    copy_host_to_device!(pointdata.derivatives_on_nodes, pointdata_cpu.derivatives_on_nodes)  # needed for local term (LIA)
-                    copy_host_to_device!(pointdata.subsegment_lengths, pointdata_cpu.subsegment_lengths)      # needed for local term (LIA)
+                    copy_host_to_device!(pointdata.derivatives_on_nodes, pointdata_cpu.derivatives_on_nodes, pointdata.buf_host)  # needed for local term (LIA)
+                    copy_host_to_device!(pointdata.subsegment_lengths, pointdata_cpu.subsegment_lengths, pointdata.buf_host)      # needed for local term (LIA)
                 end
                 @timeit to "Local term (LIA)" compute_local_term!(outputs, cache)  # NOTE: this function _replaces_ old values, so it must be called first
             else
@@ -512,10 +487,10 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
 
             if LIA !== Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
-                    copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes)
-                    copy_host_to_device!(pointdata.node_idx_prev, pointdata_cpu.node_idx_prev)  # needed in remove_self_interaction! (and in add_pair_interactions! if avoid_explicit_erf = false)
-                    copy_host_to_device!(pointdata.points, pointdata_cpu.points)
-                    copy_host_to_device!(pointdata.charges, pointdata_cpu.charges)
+                    copy_host_to_device!(pointdata.nodes, pointdata_cpu.nodes, pointdata.buf_host)
+                    copy_host_to_device!(pointdata.node_idx_prev, pointdata_cpu.node_idx_prev, pointdata.buf_host_int)  # needed in remove_self_interaction! (and in add_pair_interactions! if avoid_explicit_erf = false)
+                    copy_host_to_device!(pointdata.points, pointdata_cpu.points, pointdata.buf_host)
+                    copy_host_to_device!(pointdata.charges, pointdata_cpu.charges, pointdata.buf_host)
                 end
                 @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
                 @timeit to "Pair interactions" add_pair_interactions!(outputs, cache)
@@ -555,6 +530,7 @@ function _compute_on_nodes!(
     tasks = Task[]
 
     if with_longrange
+        @debug "Computing long-range interactions asynchronously" KA.get_backend(cache.longrange)
         let cache = cache.longrange
             # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
@@ -570,6 +546,7 @@ function _compute_on_nodes!(
     end
 
     if with_shortrange
+        @debug "Computing short-range interactions asynchronously" KA.get_backend(cache.shortrange)
         let cache = cache.shortrange
         # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
@@ -586,6 +563,7 @@ function _compute_on_nodes!(
 
     # Perform CPU-only operations associated to the short-range part (this differentiation is kind of arbitrary).
     if with_shortrange && LIA !== Val(:only)
+        @debug "Computing synchronous operations"
         @timeit to "CPU-only operations (synchronous)" begin
             if params.shortrange.lia_segment_fraction !== nothing
                 @timeit to "Add local integrals" add_local_integrals!(fields, cache, fs)
@@ -601,17 +579,17 @@ function _compute_on_nodes!(
     while ntasks > 0
         @timeit to "Wait for async task to finish" begin
             taskname = take!(channel)::Symbol  # wait for first async task to finish
+            @debug "Task finished: $taskname"
             ntasks -= 1
         end
         # Add results from asynchronous task.
         @timeit to "Copy output (device -> host)" let
-            local buf_cpu = pointdata.nodes  # used as a temporary CPU buffer in GPU->CPU transfers (it already has the right size!)
             if taskname == :shortrange
                 timer = cache.shortrange.to
-                _add_output_from_async_task!(fields, cache.shortrange.outputs, buf_cpu)
+                _add_output_from_async_task!(fields, cache.shortrange.outputs, cache.shortrange.pointdata.buf_host)
             elseif taskname == :longrange
                 timer = cache.longrange.to
-                _add_output_from_async_task!(fields, cache.longrange.outputs, buf_cpu)
+                _add_output_from_async_task!(fields, cache.longrange.outputs, cache.longrange.pointdata.buf_host)
             end
             # Add timings from asynchronous computations.
             TimerOutputs.merge!(to, timer; tree_point = tree_point_base)  # https://github.com/KristofferC/TimerOutputs.jl/issues/143
@@ -623,18 +601,18 @@ function _compute_on_nodes!(
     nothing
 end
 
-function _add_output_from_async_task!(fields, outputs, buf_cpu)
+function _add_output_from_async_task!(fields, outputs, buf_host::HostVector)
     if hasproperty(fields, :streamfunction)
-        copy_output_values_on_nodes!(+, fields.streamfunction, outputs.streamfunction, buf_cpu)
+        copy_output_values_on_nodes!(+, fields.streamfunction, outputs.streamfunction, buf_host)
     end
     if hasproperty(fields, :velocity)
-        copy_output_values_on_nodes!(+, fields.velocity, outputs.velocity, buf_cpu)
+        copy_output_values_on_nodes!(+, fields.velocity, outputs.velocity, buf_host)
     end
     nothing
 end
 
 """
-    copy_output_values_on_nodes!([op::Function], vs::AbstractVector, vs_d::AbstractVector, [vs_h::AbstractVector])
+    copy_output_values_on_nodes!([op::Function], vs::AbstractVector, vs_d::AbstractVector, [buf::HostVector])
 
 Copy computed values onto a vector of vectors.
 
@@ -651,14 +629,26 @@ Copy computed values onto a vector of vectors.
   "linear" vector, meaning that there is a single vector of quantities (`Vec3`) for all filament nodes across all filaments.
    Note that this vector may also be on a GPU device (`_d` = device).
 
-- `vs_h`: this is an optional CPU vector (`_h` = host), which may be passed if `vs_d` is _not_ a CPU
+- `buf`: this is an optional CPU vector in the form of a [`HostVector`](@ref), which may be passed if `vs_d` is _not_ a CPU
   array. In that case, it will be used as an intermediate buffer array, and thus passing it may help reduce CPU allocations.
 """
 function copy_output_values_on_nodes!(
-        op::F, vs::AbstractVector, vs_d::AbstractVector, vs_h = nothing,
+        op::F, vs::AbstractVector, vs_d::AbstractVector, buf::Union{Nothing, HostVector} = nothing,
     ) where {F <: Function}
     backend = KA.get_backend(vs_d)
-    _copy_output_values_on_nodes!(backend, op, vs, vs_d, vs_h)
+    T = Filaments.number_type(vs_d)
+    n = length(vs_d)
+    buf_host = if backend isa CPU
+        nothing  # we don't need a buffer if doing CPU -> CPU copy
+    elseif buf === nothing
+        HostVector{T}(undef, backend, n)
+    else
+        @assert backend == KA.get_backend(buf)  # make sure it's already associated to the right GPU backend
+        @assert buf isa HostVector{T}  # make sure it has the right element type
+        resize_no_copy!(buf, n)
+        buf
+    end
+    _copy_output_values_on_nodes!(backend, op, vs, vs_d, buf_host)
 end
 
 function copy_output_values_on_nodes!(vs::AbstractVector, vs_d::AbstractVector, args...)
@@ -666,25 +656,38 @@ function copy_output_values_on_nodes!(vs::AbstractVector, vs_d::AbstractVector, 
     copy_output_values_on_nodes!(op, vs, vs_d, args...)
 end
 
-function _copy_output_values_on_nodes!(backend::GPU, op::F, vs, vs_d, ::Nothing) where {F}
-    _copy_output_values_on_nodes!(backend, op, vs, vs_d, adapt(CPU(), vs))  # this allocates a new CPU array!
+function _copy_output_values_on_nodes!(backend::GPU, op::F, vs::AllFilamentVelocities, vs_d::StructVector, buf_host::HostVector) where {F}
+    for (i, us) in enumerate(StructArrays.components(vs_d))
+        _copy_output_values_on_nodes!(backend, op, vs, i, us, buf_host)  # copy i-th component
+    end
+    vs
 end
 
-function _copy_output_values_on_nodes!(backend::GPU, op::F, vs, vs_d, vs_h::AbstractVector) where {F}
+function _copy_output_values_on_nodes!(backend::GPU, op::F, vs::AllFilamentVelocities, i::Int, vs_d::AbstractVector{T}, buf_host::HostVector{T}) where {F, T}
     # Perform GPU -> CPU copy (device-to-host)
-    resize_no_copy!(vs_h, length(vs_d))
-    # KA.copyto!(backend, vs_h[i], vs_d[i])  # may fail on CUDA due to pinning of CPU memory (https://github.com/JuliaGPU/CUDA.jl/issues/2594)
-    copyto!(vs_h, vs_d)
-    KA.synchronize(backend)  # make sure we're done copying data to CPU (may be needed on CUDA, where KA.copyto! is asynchronous)
-    _copy_output_values_on_nodes!(CPU(), op, vs, vs_h)  # finally, perform CPU -> CPU copy
+    @assert backend == KA.get_backend(buf_host)
+    copy_device_to_host!(buf_host, vs_d)
+    _copy_output_values_on_nodes!(CPU(), op, vs, i, buf_host)  # finally, perform CPU -> CPU copy
 end
 
 # CPU -> CPU copy (change of vector "format")
-function _copy_output_values_on_nodes!(::CPU, op::F, vs::AbstractVector, vs_h::AbstractVector, ignored = nothing) where {F}
+function _copy_output_values_on_nodes!(::CPU, op::F, vs::AllFilamentVelocities, vs_h::AbstractVector, ignored = nothing) where {F}
     n = 0
     @inbounds for vf in vs, j in eachindex(vf)
         q = vs_h[n += 1]
-        vf[j] = op(vf[j], q)  # typically op == +, meaning that we add to the previous value
+        vf[j] = @inline op(vf[j], q)  # typically op == +, meaning that we add to the previous value
+    end
+    vs
+end
+
+# Same as above, but for a single component `i`.
+function _copy_output_values_on_nodes!(::CPU, op::F, vs::AllFilamentVelocities, i::Int, vs_h::HostVector{T}, ignored = nothing) where {F, T}
+    n = 0
+    @inbounds for vf in vs, j in eachindex(vf)
+        q = vs_h[n += 1]::T
+        v = vf[j]
+        vi_new = @inline op(v[i], q)  # typically op == +, meaning that we add to the previous value
+        vf[j] = Base.setindex(v, vi_new, i)
     end
     vs
 end
