@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/BiotSavart/longrange/src/BiotSavart/longrange/exact_sum.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">src/BiotSavart/longrange/src/BiotSavart/longrange</a> - exact_sum.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">94.5&nbsp;%</td>
+            <td class="headerCovTableEntry">73</td>
+            <td class="headerCovTableEntry">69</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-09-24 13:53:32</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : export ExactSumBackend</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : using AbstractFFTs: fftfreq, rfftfreq</span>
+<span id="L4"><span class="lineNum">       4</span>              : using LinearAlgebra: ⋅</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : &quot;&quot;&quot;</span>
+<span id="L7"><span class="lineNum">       7</span>              :     ExactSumBackend &lt;: LongRangeBackend</span>
+<span id="L8"><span class="lineNum">       8</span>              : </span>
+<span id="L9"><span class="lineNum">       9</span>              : Compute long-range interactions &quot;exactly&quot; (up to filament discretisation</span>
+<span id="L10"><span class="lineNum">      10</span>              : errors) using sums of Fourier series across non-uniform points.</span>
+<span id="L11"><span class="lineNum">      11</span>              : </span>
+<span id="L12"><span class="lineNum">      12</span>              : This should only be used for testing, as it is very slow and scales very badly</span>
+<span id="L13"><span class="lineNum">      13</span>              : with the number of non-uniform points.</span>
+<span id="L14"><span class="lineNum">      14</span>              : &quot;&quot;&quot;</span>
+<span id="L15"><span class="lineNum">      15</span> <span class="tlaGNC tlaBgGNC">           1 : struct ExactSumBackend &lt;: LongRangeBackend end</span></span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : struct ExactSumCache{</span>
+<span id="L18"><span class="lineNum">      18</span>              :         CacheCommon &lt;: LongRangeCacheCommon,</span>
+<span id="L19"><span class="lineNum">      19</span>              :     } &lt;: LongRangeCache</span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC">           1 :     common :: CacheCommon</span></span>
+<span id="L21"><span class="lineNum">      21</span>              : end</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span> <span class="tlaUNC tlaBgUNC">           0 : has_real_to_complex(::ExactSumBackend) = true</span></span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC tlaBgGNC">           1 : function init_cache_long_ewald(</span></span>
+<span id="L26"><span class="lineNum">      26</span>              :         params_all::ParamsBiotSavart{T},</span>
+<span id="L27"><span class="lineNum">      27</span>              :         params::ParamsLongRange{T, &lt;:ExactSumBackend}, args...,</span>
+<span id="L28"><span class="lineNum">      28</span>              :     ) where {T}</span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">           1 :     pc = params_all.common</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">           1 :     @assert params === params_all.longrange</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">           1 :     (; Ls,) = pc</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">           1 :     (; Ns,) = params</span></span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">           1 :     wavenumbers = ntuple(Val(3)) do i</span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">           3 :         N, L = Ns[i], Ls[i]</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">           3 :         f = i == 1 ? rfftfreq : fftfreq</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">           3 :         f(N, T(2π * N / L))</span></span>
+<span id="L37"><span class="lineNum">      37</span>              :     end</span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">           1 :     cache_common = LongRangeCacheCommon(params_all, wavenumbers, args...)</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">           1 :     ExactSumCache(cache_common)</span></span>
+<span id="L40"><span class="lineNum">      40</span>              : end</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span>              : # Set to zero &quot;asymmetric&quot; modes, to ease comparison with other implementations.</span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">           2 : function _ensure_hermitian_symmetry!(c::ExactSumCache, us::AbstractArray)</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">           2 :     _ensure_hermitian_symmetry!(c, Val(ndims(us)), us)</span></span>
+<span id="L45"><span class="lineNum">      45</span>              : end</span>
+<span id="L46"><span class="lineNum">      46</span>              : </span>
+<span id="L47"><span class="lineNum">      47</span>              : # Ensure Hermitian symmetry one dimension at a time.</span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">           6 : @inline function _ensure_hermitian_symmetry!(c::ExactSumCache, ::Val{d}, us) where {d}</span></span>
+<span id="L49"><span class="lineNum">      49</span> <span class="tlaGNC">           6 :     N = size(us, d)</span></span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">           6 :     kd = c.common.wavenumbers_d[d]</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">           6 :     Δk = kd[2]</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">           6 :     imin = if kd[end] &gt; 0  # real-to-complex dimension (rfftfreq)</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">           2 :         @assert d == 1</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">           2 :         N</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">           4 :     elseif iseven(N)</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">           4 :         imin_ = (N ÷ 2) + 1  # asymmetric mode</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">           4 :         @assert -kd[imin_] ≈ kd[imin_ - 1] + Δk</span></span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">           4 :         imin_</span></span>
+<span id="L59"><span class="lineNum">      59</span>              :     else</span>
+<span id="L60"><span class="lineNum">      60</span> <span class="tlaGNC">           6 :         0</span></span>
+<span id="L61"><span class="lineNum">      61</span>              :     end</span>
+<span id="L62"><span class="lineNum">      62</span> <span class="tlaGNC">           6 :     if imin &gt; 0</span></span>
+<span id="L63"><span class="lineNum">      63</span> <span class="tlaGNC">          24 :         inds = ntuple(j -&gt; j == d ? imin : Colon(), Val(ndims(us)))</span></span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">           6 :         vs = view(us, inds...)</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">           6 :         fill!(vs, zero(eltype(vs)))</span></span>
+<span id="L66"><span class="lineNum">      66</span>              :     end</span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">           6 :     _ensure_hermitian_symmetry!(c, Val(d - 1), us)</span></span>
+<span id="L68"><span class="lineNum">      68</span>              : end</span>
+<span id="L69"><span class="lineNum">      69</span>              : </span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">           2 : _ensure_hermitian_symmetry!(::ExactSumCache, ::Val{0}, us) = us  # we're done, do nothing</span></span>
+<span id="L71"><span class="lineNum">      71</span>              : </span>
+<span id="L72"><span class="lineNum">      72</span> <span class="tlaGNC">           2 : function transform_to_fourier!(c::ExactSumCache, prefactor::Real)</span></span>
+<span id="L73"><span class="lineNum">      73</span> <span class="tlaGNC">           2 :     (; uhat_d, wavenumbers_d, pointdata_d,) = c.common</span></span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">           2 :     (; points, charges,) = pointdata_d</span></span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">           2 :     @assert size(uhat_d) == map(length, wavenumbers_d)</span></span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">           2 :     fill!(uhat_d, zero(eltype(uhat_d)))</span></span>
+<span id="L77"><span class="lineNum">      77</span> <span class="tlaGNC">           2 :     inds = CartesianIndices(uhat_d)</span></span>
+<span id="L78"><span class="lineNum">      78</span> <span class="tlaGNC">           2 :     @inbounds for i ∈ eachindex(points, charges)</span></span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">         180 :         X = points[i]</span></span>
+<span id="L80"><span class="lineNum">      80</span> <span class="tlaGNC">         180 :         Q = prefactor * charges[i]</span></span>
+<span id="L81"><span class="lineNum">      81</span> <span class="tlaGNC">         180 :         @inbounds Threads.@threads for I ∈ inds</span></span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">    85461441 :             k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))</span></span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">    85979078 :             uhat_d[I] += Q * cis(-k⃗ ⋅ X)</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaUNC tlaBgUNC">           0 :         end</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC tlaBgGNC">         358 :     end</span></span>
+<span id="L86"><span class="lineNum">      86</span>              :     # We zero out some &quot;asymmetric&quot; modes to ease the comparison with other implementations.</span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">           2 :     _ensure_hermitian_symmetry!(c, c.common.uhat_d)</span></span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">           2 :     c</span></span>
+<span id="L89"><span class="lineNum">      89</span>              : end</span>
+<span id="L90"><span class="lineNum">      90</span>              : </span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaGNC">           3 : function _interpolate_to_physical!(callback::F, output::StructVector, c::ExactSumCache) where {F}</span></span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">           3 :     (; uhat_d, wavenumbers_d, pointdata_d,) = c.common</span></span>
+<span id="L93"><span class="lineNum">      93</span> <span class="tlaGNC">           3 :     (; points,) = pointdata_d</span></span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaGNC">           3 :     @assert length(points) == length(output)</span></span>
+<span id="L95"><span class="lineNum">      95</span> <span class="tlaGNC">           3 :     kxs = first(wavenumbers_d)</span></span>
+<span id="L96"><span class="lineNum">      96</span> <span class="tlaGNC">           3 :     kx_lims = first(kxs), last(kxs)</span></span>
+<span id="L97"><span class="lineNum">      97</span> <span class="tlaGNC">           3 :     @assert kxs[2] &gt; 0  # only positive half is included (Hermitian symmetry)</span></span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaGNC">           3 :     @inbounds Threads.@threads for i ∈ eachindex(points, output)</span></span>
+<span id="L99"><span class="lineNum">      99</span> <span class="tlaGNC">          90 :         X = points[i]</span></span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">          90 :         q⃗ = zero(real(eltype(uhat_d)))</span></span>
+<span id="L101"><span class="lineNum">     101</span> <span class="tlaGNC">          90 :         for I ∈ CartesianIndices(uhat_d)</span></span>
+<span id="L102"><span class="lineNum">     102</span> <span class="tlaGNC">    42281748 :             k⃗ = Vec3(map(getindex, wavenumbers_d, Tuple(I)))</span></span>
+<span id="L103"><span class="lineNum">     103</span> <span class="tlaGNC">    42508437 :             v_orig = uhat_d[I]::Vec3</span></span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">    41646838 :             v = Vec3(@inline callback(Tuple(v_orig), Tuple(I)))  # the callback takes tuples and returns tuples</span></span>
+<span id="L105"><span class="lineNum">     105</span> <span class="tlaGNC">    40091747 :             z = cis(k⃗ ⋅ X)</span></span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC">   114172044 :             δq⃗ = if k⃗[1] ∈ kx_lims</span></span>
+<span id="L107"><span class="lineNum">     107</span>              :                 # Note: the imaginary part will cancel out with -k⃗ (also computed)</span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">     1936396 :                 real(v) * real(z) - imag(v) * imag(z)  # = real(v * z)</span></span>
+<span id="L109"><span class="lineNum">     109</span>              :             else</span>
+<span id="L110"><span class="lineNum">     110</span>              :                 # Apply Hermitian symmetry</span>
+<span id="L111"><span class="lineNum">     111</span> <span class="tlaGNC">    78596607 :                 2 * (</span></span>
+<span id="L112"><span class="lineNum">     112</span>              :                     real(v) * real(z) -</span>
+<span id="L113"><span class="lineNum">     113</span>              :                     imag(v) * imag(z)</span>
+<span id="L114"><span class="lineNum">     114</span>              :                 ) # = real(v * z + conj(v) * conj(z))</span>
+<span id="L115"><span class="lineNum">     115</span>              :             end</span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">    42004902 :             q⃗ = q⃗ + δq⃗</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">    42259014 :         end</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">          90 :         output[i] = q⃗</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaUNC tlaBgUNC">           0 :     end</span></span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaUNC">           0 :     nothing</span></span>
+<span id="L121"><span class="lineNum">     121</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

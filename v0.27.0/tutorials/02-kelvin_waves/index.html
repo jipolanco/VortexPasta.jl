@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Kelvin waves · VortexPasta</title><meta name="title" content="Kelvin waves · VortexPasta"/><meta property="og:title" content="Kelvin waves · VortexPasta"/><meta property="twitter:title" content="Kelvin waves · VortexPasta"/><meta name="description" content="Documentation for VortexPasta."/><meta property="og:description" content="Documentation for VortexPasta."/><meta property="twitter:description" content="Documentation for VortexPasta."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/fonts.css" rel="stylesheet" type="text/css"/><script src="../../assets/sa.js" data-collect-dnt="true" async></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">VortexPasta</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">VortexPasta.jl</a></li><li><input class="collapse-toggle" id="menuitem-2" type="checkbox" checked/><label class="tocitem" for="menuitem-2"><span class="docs-label">Tutorials</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../01-vortex_ring/">Vortex ring</a></li><li class="is-active"><a class="tocitem" href>Kelvin waves</a><ul class="internal"><li><a class="tocitem" href="#Physical-configuration"><span>Physical configuration</span></a></li><li><a class="tocitem" href="#Defining-an-unclosed-infinite-curve"><span>Defining an unclosed infinite curve</span></a></li><li><a class="tocitem" href="#Defining-a-curve-from-parametric-function"><span>Defining a curve from parametric function</span></a></li><li><a class="tocitem" href="#Using-predefined-curves"><span>Using predefined curves</span></a></li><li><a class="tocitem" href="#Ensuring-periodicity-of-the-velocity"><span>Ensuring periodicity of the velocity</span></a></li><li><a class="tocitem" href="#Simulating-Kelvin-waves"><span>Simulating Kelvin waves</span></a></li><li><a class="tocitem" href="#Measuring-performance"><span>Measuring performance</span></a></li><li><a class="tocitem" href="#Fourier-analysis"><span>Fourier analysis</span></a></li></ul></li></ul></li><li><input class="collapse-toggle" id="menuitem-3" type="checkbox"/><label class="tocitem" for="menuitem-3"><span class="docs-label">Explanations</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../methods/VFM/">The vortex filament model</a></li><li><a class="tocitem" href="../../methods/Ewald/">Ewald summation for Biot–Savart</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-4" type="checkbox"/><label class="tocitem" for="menuitem-4"><span class="docs-label">Tips and tricks</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../tips/parallelisation/">Parallelisation</a></li><li><a class="tocitem" href="../../tips/gpu/">GPU usage</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-5" type="checkbox"/><label class="tocitem" for="menuitem-5"><span class="docs-label">Modules</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../modules/PaddedArrays/">PaddedArrays</a></li><li><a class="tocitem" href="../../modules/PredefinedCurves/">PredefinedCurves</a></li><li><a class="tocitem" href="../../modules/CellLists/">CellLists</a></li><li><a class="tocitem" href="../../modules/Quadratures/">Quadratures</a></li><li><a class="tocitem" href="../../modules/Filaments/">Filaments</a></li><li><a class="tocitem" href="../../modules/FilamentIO/">FilamentIO</a></li><li><a class="tocitem" href="../../modules/FindNearbySegments/">FindNearbySegments</a></li><li><a class="tocitem" href="../../modules/Constants/">Constants</a></li><li><a class="tocitem" href="../../modules/BiotSavart/">BiotSavart</a></li><li><a class="tocitem" href="../../modules/SyntheticFields/">SyntheticFields</a></li><li><a class="tocitem" href="../../modules/Forcing/">Forcing</a></li><li><a class="tocitem" href="../../modules/Containers/">Containers</a></li><li><a class="tocitem" href="../../modules/Reconnections/">Reconnections</a></li><li><a class="tocitem" href="../../modules/Timestepping/">Timestepping</a></li><li><a class="tocitem" href="../../modules/Diagnostics/">Diagnostics</a></li></ul></li><li><a class="tocitem" href="../../references/">References</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Kelvin waves</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Kelvin waves</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/jipolanco/VortexPasta.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/jipolanco/VortexPasta.jl/blob/master/docs/literate/tutorials/02-kelvin_waves.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="tutorial-kelvin-waves"><a class="docs-heading-anchor" href="#tutorial-kelvin-waves">Kelvin waves</a><a id="tutorial-kelvin-waves-1"></a><a class="docs-heading-anchor-permalink" href="#tutorial-kelvin-waves" title="Permalink"></a></h1><p>This tutorial describes the simulation of Kelvin waves propagating along nearly-straight and infinite vortex lines.</p><p>Here we will:</p><ul><li>learn how to define infinite but unclosed filaments;</li><li>look at diagnostics such as the energy over time;</li><li>perform spatial and temporal Fourier analysis to detect relevant wavenumbers and frequencies associated to Kelvin waves.</li></ul><p>It is recommended to first follow the <a href="../01-vortex_ring/#tutorial-vortex-ring">vortex ring tutorial</a> before following this tutorial.</p><ul><li><a href="#Physical-configuration">Physical configuration</a></li><li><a href="#Defining-an-unclosed-infinite-curve">Defining an unclosed infinite curve</a></li><li><a href="#Defining-a-curve-from-parametric-function">Defining a curve from parametric function</a></li><li><a href="#Using-predefined-curves">Using predefined curves</a></li><li><a href="#Ensuring-periodicity-of-the-velocity">Ensuring periodicity of the velocity</a></li><li><a href="#Simulating-Kelvin-waves">Simulating Kelvin waves</a></li><li class="no-marker"><ul><li><a href="#Setting-physical-and-numerical-parameters">Setting physical and numerical parameters</a></li><li><a href="#tutorial-kelvin-waves-timestep">Choosing the timestep and the temporal scheme</a></li><li><a href="#Running-the-simulation">Running the simulation</a></li></ul></li><li><a href="#Measuring-performance">Measuring performance</a></li><li><a href="#Fourier-analysis">Fourier analysis</a></li><li class="no-marker"><ul><li><a href="#Spatial-analysis">Spatial analysis</a></li><li><a href="#tutorial-kelvin-waves-temporal-analysis">Temporal analysis</a></li></ul></li></ul><h2 id="Physical-configuration"><a class="docs-heading-anchor" href="#Physical-configuration">Physical configuration</a><a id="Physical-configuration-1"></a><a class="docs-heading-anchor-permalink" href="#Physical-configuration" title="Permalink"></a></h2><p>The idea of this tutorial is to study the time evolution of an infinite straight line slightly modified by a sinusoidal perturbation.</p><p>We will consider such a vortex line in a cubic periodic domain of size <span>$L = 2π$</span>. The line is oriented in the <span>$z$</span> direction and modified by a perturbation of amplitude <span>$ϵL$</span> along <span>$x$</span>. The perturbation is periodic with period <span>$λ = L/m = 2π/m$</span> where <span>$m$</span> is an integer representing the <em>mode</em> of the perturbation (relative to the domain size <span>$L$</span>).</p><p>Such an infinite line <span>$\bm{s} = (x, y, z)$</span> can be parametrised as</p><p class="math-container">\[\begin{align*}
+  x(t) &amp;= x_0 + ϵ \, \sin(2πmt) \\
+  y(t) &amp;= y_0 \\
+  z(t) &amp;= z_0 + \left( t - \frac{1}{2} \right) L
+\end{align*}\]</p><p>for <span>$t ∈ \mathbb{R}$</span>. In particular, note that the line exactly crosses the domain after a period <span>$T = 1$</span>, going from <span>$\bm{s}(t)$</span> to <span>$\bm{s}(t + 1) = \bm{s}(t) + (0, \, 0, \, L)$</span>.</p><p>The analytical prediction is that, over time, a small perturbation should rotate around the vortex in the direction opposite to its circulation. Its frequency is given by (see e.g. <a href="../../references/#Schwarz1985">Schwarz (1985)</a>):</p><p class="math-container">\[ω_{\text{KW}}(k) = \frac{Γ k^2}{4π} \left[
+  \ln\left( \frac{2}{k a} \right) - γ + \frac{1}{2} - Δ
+\right]\]</p><p>where <span>$k = 2πm/L$</span> is the perturbation wavenumber, <span>$γ ≈ 0.5772$</span> the <a href="https://en.wikipedia.org/wiki/Euler%27s_constant">Euler–Mascheroni constant</a>, <span>$Δ$</span> the vortex core parameter and <span>$a$</span> its radius (<span>$a ≪ 1/k$</span>).</p><h2 id="Defining-an-unclosed-infinite-curve"><a class="docs-heading-anchor" href="#Defining-an-unclosed-infinite-curve">Defining an unclosed infinite curve</a><a id="Defining-an-unclosed-infinite-curve-1"></a><a class="docs-heading-anchor-permalink" href="#Defining-an-unclosed-infinite-curve" title="Permalink"></a></h2><p>Following the <a href="../01-vortex_ring/#tutorial-vortex-ring-init-filament">vortex ring tutorial</a>, one may want to define such a line as follows:</p><pre><code class="language-julia hljs">using VortexPasta
+using VortexPasta.Filaments
+using VortexPasta.Filaments: Vec3
+
+N = 64  # number of discretisation points per line
+m = 2    # perturbation mode
+L = 2π   # domain period
+x⃗₀ = Vec3(L/4, L/4, L/2)  # line &quot;origin&quot;
+ϵ = 0.01
+ts = range(0, 1; length = N + 1)[1:N]  # important: we exclude the endpoint (t = 1)
+points = [x⃗₀ + Vec3(ϵ * L * sinpi(2m * t), 0, L * (t - 1/2)) for t ∈ ts]
+f = Filaments.init(ClosedFilament, points, QuinticSplineMethod())</code></pre><p>Let&#39;s look at the result:</p><pre><code class="language-julia hljs">using GLMakie
+
+# Give a colour to a filament based on its local orientation wrt Z.
+function filament_colour(f::AbstractFilament, refinement)
+    cs = Float32[]
+    ζs = range(0, 1; length = refinement + 1)[1:refinement]  # for interpolation
+    for seg ∈ segments(f), ζ ∈ ζs
+        colour = seg(ζ, UnitTangent())[3]  # in [-1, 1]
+        push!(cs, colour)
+    end
+    let seg = last(segments(f))  # &quot;close&quot; the curve
+        colour = seg(1.0, UnitTangent())[3]
+        push!(cs, colour)
+    end
+    cs
+end
+
+# Plot a list of filaments
+function plot_filaments(fs::AbstractVector)
+    fig = Figure()
+    ax = Axis3(fig[1, 1]; aspect = :data)
+    ticks = range(0, 2π; step = π/2)
+    tickformat(xs) = map(x -&gt; string(x/π, &quot;π&quot;), xs)
+    ax.xticks = ax.yticks = ax.zticks = ticks
+    ax.xtickformat = ax.ytickformat = ax.ztickformat = tickformat
+    hidespines!(ax)
+    wireframe!(ax, Rect(0, 0, 0, L, L, L); color = (:black, 0.5), linewidth = 0.2)
+    for f ∈ fs
+        refinement = 4
+        color = filament_colour(f, refinement)
+        plot!(
+            ax, f;
+            refinement, color, colormap = :RdBu_9, colorrange = (-1, 1), markersize = 4,
+        )
+    end
+    fig
+end
+
+# Plot a single filament
+plot_filaments(f::AbstractFilament) = plot_filaments([f])
+
+plot_filaments(f)</code></pre><img src="752dcd2a.png" alt="Example block output"/><p>Things look almost as expected except for the fact that the line tries to close itself when it reaches the end. To avoid this, one needs to explicitly give <a href="../../modules/Filaments/#VortexPasta.Filaments.init"><code>Filaments.init</code></a> an end-to-end vector via the <code>offset</code> keyword argument. In our case the end-to-end vector is <span>$\bm{Δ} = (0, 0, 2π)$</span>.</p><pre><code class="language-julia hljs">f = Filaments.init(ClosedFilament, points, QuinticSplineMethod(); offset = (0, 0, 2π))
+plot_filaments(f)</code></pre><img src="00699091.png" alt="Example block output"/><p>Now everything looks fine! Note that the end-to-end vector corresponds to the separation between a node <code>f[i]</code> and the node <code>f[i + N]</code>. For example:</p><pre><code class="language-julia hljs">@show f[end + 1] - f[begin]
+@show Vec3(0, 0, 2π)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">f[end + 1] - f[begin] = [0.0, 0.0, 6.283185307179586]
+Vec3(0, 0, 2π) = [0.0, 0.0, 6.283185307179586]</code></pre><div class="admonition is-info"><header class="admonition-header">End-to-end vector</header><div class="admonition-body"><p>The end-to-end vector <em>must</em> be an integer multiple of the domain period, which in this case is <span>$(2π, 2π, 2π)$</span>.</p></div></div><h2 id="Defining-a-curve-from-parametric-function"><a class="docs-heading-anchor" href="#Defining-a-curve-from-parametric-function">Defining a curve from parametric function</a><a id="Defining-a-curve-from-parametric-function-1"></a><a class="docs-heading-anchor-permalink" href="#Defining-a-curve-from-parametric-function" title="Permalink"></a></h2><p>The <a href="../../modules/Filaments/#VortexPasta.Filaments.init"><code>Filaments.init</code></a> function actually allows to define a curve directly from its (continuous) parametric function. In this case one doesn&#39;t need to care about end-to-end vectors and &quot;offsets&quot;, since these are usually encoded in the parametrisation.</p><p>For example, for the curve above we would define the function:</p><pre><code class="language-julia hljs">fcurve(t) = x⃗₀ + Vec3(
+    ϵ * L * sinpi(2 * m * t),
+    0,
+    (t - 0.5) * L,
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">fcurve (generic function with 1 method)</code></pre><p>The function will be evaluated over the interval <span>$t ∈ [0, 1]$</span>. The only assumption is that the parametric function must either represent:</p><ul><li>a closed curve with period <span>$T = 1$</span>;</li><li>an unclosed periodic curve which crosses the domain after a period <span>$T = 1$</span>.</li></ul><p>Here we are in the second case, and the function above indeed satisfies this condition.</p><p>Now we just pass the function to <code>Filaments.init</code>:</p><pre><code class="language-julia hljs">f_alt = Filaments.init(fcurve, ClosedFilament, N, QuinticSplineMethod())</code></pre><p>Note that this generates a filament which is practically identical to the previous one (just with a shift in the node positions, not really visible here):</p><pre><code class="language-julia hljs">plot_filaments([f, f_alt])</code></pre><img src="78b8dbdf.png" alt="Example block output"/><h2 id="Using-predefined-curves"><a class="docs-heading-anchor" href="#Using-predefined-curves">Using predefined curves</a><a id="Using-predefined-curves-1"></a><a class="docs-heading-anchor-permalink" href="#Using-predefined-curves" title="Permalink"></a></h2><p>There is another convenient way of defining such curves, using the <a href="../../modules/PredefinedCurves/#VortexPasta.PredefinedCurves"><code>VortexPasta.PredefinedCurves</code></a> module which provides definitions of parametric functions for commonly-used curves. As we will see in the next section, this is particularly convenient when we want to create multiple vortices which share the same geometry, but which have for instance different orientations or different spatial locations in the domain.</p><p>Here we want to use the <a href="../../modules/PredefinedCurves/#VortexPasta.PredefinedCurves.PeriodicLine"><code>PeriodicLine</code></a> definitions, which allow one to pass arbitrary functions as perturbations. Note that curve definitions in <code>PredefinedCurves</code> are normalised. In particular, the period of <code>PeriodicLine</code> is 1, and the perturbation that we give it will be in terms of this unit period.</p><pre><code class="language-julia hljs">using VortexPasta.PredefinedCurves: PeriodicLine, define_curve
+x_perturb(t) = ϵ * sinpi(2m * t)  # perturbation along x (takes t ∈ [0, 1])
+p = PeriodicLine(x = x_perturb)   # this represents a line with period 1 along z</code></pre><p>We now want to &quot;convert&quot; this line to a parametric function which can be then evaluated to generate points. This is done using the <a href="../../modules/PredefinedCurves/#VortexPasta.PredefinedCurves.define_curve"><code>define_curve</code></a> function, which allows in particular to rescale the curve (we want a period of <span>$L = 2π$</span> instead of <span>$1$</span>). We would also like the curve to be centred at <span>$\bm{x}_0$</span>.</p><pre><code class="language-julia hljs">S = define_curve(p; scale = L, translate = x⃗₀)
+@show S(0.0) S(0.5) S(1.0)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">S(0.0) = [1.5707963267948966, 1.5707963267948966, 0.0]
+S(0.5) = [1.5707963267948966, 1.5707963267948966, 3.141592653589793]
+S(1.0) = [1.5707963267948966, 1.5707963267948966, 6.283185307179586]</code></pre><p>As we can see, <code>S</code> is a function which can be evaluated at any value of <span>$t$</span>. In fact, <code>S</code> is identical to the <code>fcurve</code> function we defined above. We can now pass this function to <a href="../../modules/Filaments/#VortexPasta.Filaments.init"><code>Filaments.init</code></a> to generate a filament:</p><pre><code class="language-julia hljs">f = Filaments.init(S, ClosedFilament, N, QuinticSplineMethod())
+plot_filaments(f)</code></pre><img src="7445294f.png" alt="Example block output"/><h2 id="Ensuring-periodicity-of-the-velocity"><a class="docs-heading-anchor" href="#Ensuring-periodicity-of-the-velocity">Ensuring periodicity of the velocity</a><a id="Ensuring-periodicity-of-the-velocity-1"></a><a class="docs-heading-anchor-permalink" href="#Ensuring-periodicity-of-the-velocity" title="Permalink"></a></h2><p>For now we have initialised one infinite unclosed filament. One needs to be careful when working with unclosed filaments in periodic domains. Indeed, a single straight vortex filament in a periodic domain generates a non-zero circulation along the domain boundaries (or equivalently, a non-zero mean vorticity), which violates the periodicity condition. (One may compensate this by considering a uniform background vorticity field with opposite circulation, but this is outside of the scope of the tutorial.)</p><p>The mean vorticity in the periodic domain is given by</p><p class="math-container">\[⟨ \bm{ω} ⟩
+= \frac{1}{V} ∫_Ω \bm{ω}(\bm{x}) \, \mathrm{d}^3\bm{x}
+= \frac{Γ}{V} ∫_{\mathcal{C}} \mathrm{d}\bm{s}
+= \frac{Γ}{V} ∫_{\mathcal{C}} \bm{s}&#39;(t) \, \mathrm{d}t\]</p><p>where <span>$Ω$</span> represents the periodic domain and <span>$V = L^3$</span> is its volume. So the last integral must be zero to ensure periodicity. It is quite obvious that this is not the case for the filament defined above, and we can readily verify it:</p><pre><code class="language-julia hljs">integrate(f_alt, GaussLegendre(4)) do ff, i, ζ
+    ff(i, ζ, Derivative(1))
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3-element SVector{3, Float64} with indices SOneTo(3):
+ -6.765421556309548e-17
+ -1.333667967889273e-29
+  6.283185307179587</code></pre><p>This means that, for each vortex oriented in the <span>$+z$</span> direction, we need to compensate by a vortex oriented in the <span>$-z$</span> direction to obtain a zero total circulation.</p><p>In practice, to make sure that the total circulation is zero and to stabilise the system, we want to have four vortices such that their coordinates respect mirror symmetry with respect to the planes <span>$x = L/2$</span> and <span>$y = L/2$</span>. Respecting these two symmetries means that both planes effectively become impermeable (but free-slip) walls. That is, the velocity induced by the vortices on those planes can only be parallel to the planes and not normal to them. More generally, due to periodicity, all planes <span>$x = nL/2$</span> and <span>$y = nL/2$</span> (for integer <span>$n$</span>) effectively become impermeable walls.</p><p>Let&#39;s now create these four vortices:</p><pre><code class="language-julia hljs">funcs = [
+    # &quot;Positive&quot; vortices
+    define_curve(p; scale = (+L, +L, +L), translate = (0.25L, 0.25L, 0.5L)),
+    define_curve(p; scale = (-L, -L, +L), translate = (0.75L, 0.75L, 0.5L)),  # mirror symmetry wrt x and y
+    # &quot;Negative&quot; vortices: we use the `orientation` keyword to flip their orientation.
+    define_curve(p; scale = (+L, -L, +L), translate = (0.25L, 0.75L, 0.5L), orientation = -1),  # mirror symmetry wrt y
+    define_curve(p; scale = (-L, +L, +L), translate = (0.75L, 0.25L, 0.5L), orientation = -1),  # mirror symmetry wrt x
+]
+fs = map(S -&gt; Filaments.init(S, ClosedFilament, N, QuinticSplineMethod()), funcs)
+plot_filaments(fs)</code></pre><img src="9880cd29.png" alt="Example block output"/><p>Here the colours represent the local orientation of the curve tangent with respect to the <span>$z$</span> axis. We can check that, when we sum the contributions of all filaments, the mean vorticity is zero:</p><pre><code class="language-julia hljs"># This computes the integral along each filament and sums the results.
+sum(fs) do f
+    integrate(f, GaussLegendre(4)) do ff, i, ζ
+        f(i, ζ, Derivative(1))
+    end
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3-element SVector{3, Float64} with indices SOneTo(3):
+ -7.28583859910259e-17
+ -3.0445100560873424e-29
+  2.6645352591003757e-15</code></pre><p>Now we&#39;re ready to perform simulations.</p><h2 id="Simulating-Kelvin-waves"><a class="docs-heading-anchor" href="#Simulating-Kelvin-waves">Simulating Kelvin waves</a><a id="Simulating-Kelvin-waves-1"></a><a class="docs-heading-anchor-permalink" href="#Simulating-Kelvin-waves" title="Permalink"></a></h2><p>As in the <a href="../01-vortex_ring/#tutorial-vortex-ring">vortex ring tutorial</a>, we use the <a href="../../modules/Timestepping/#Timestepping"><code>Timestepping</code></a> module to perform a temporal simulation of the configuration we just prepared.</p><h3 id="Setting-physical-and-numerical-parameters"><a class="docs-heading-anchor" href="#Setting-physical-and-numerical-parameters">Setting physical and numerical parameters</a><a id="Setting-physical-and-numerical-parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-physical-and-numerical-parameters" title="Permalink"></a></h3><p>We start by setting the parameters for Biot–Savart computations:</p><pre><code class="language-julia hljs">using VortexPasta.BiotSavart
+M = floor(Int, 32 * 2/3)  # resolution of long-range grid
+kmax = π * (M - 1) / L    # maximum resolved wavenumber (Nyquist frequency) for long-range part
+β = 3.5                   # accuracy parameter
+α = kmax / (2β)           # Ewald splitting parameter
+
+params = ParamsBiotSavart(;
+    Γ = 1.0,    # vortex circulation
+    a = 1e-8,   # vortex core size
+    Δ = 1/4,    # vortex core parameter (1/4 for a constant vorticity distribution)
+    α = α,      # Ewald splitting parameter
+    Ls = (L, L, L),  # same domain size in all directions
+    Ns = (M, M, M),  # same long-range resolution in all directions
+    rcut = β / α,    # cut-off distance for short-range computations
+    quadrature = GaussLegendre(3),        # quadrature for integrals over filament segments
+    backend_long = NonuniformFFTsBackend(),  # this is the default
+    backend_short = CellListsBackend(2),
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ParamsBiotSavart{Float64} with:
+ - Physical parameters:
+   * Vortex circulation:         Γ  = 1.0
+   * Vortex core radius:         a  = 1.0e-8
+   * Vortex core parameter:      Δ  = 0.25
+   * Domain period:              Ls = (6.283185307179586, 6.283185307179586, 6.283185307179586)
+ - Numerical parameters:
+   * Ewald splitting parameter:  α = 1.4285714285714286 (σ = 1/α√2 = 0.49497474683058323)
+   * Quadrature rule:            GaussLegendre{3}()
+   * Quadrature rule (alt.):     AdaptiveTanhSinh(Float64; nlevels = 5, rtol = 1.4901161193847656e-8) (used near singularities)
+   * Short-range backend:        CellListsBackend{2}()
+   * Short-range cut-off:        r_cut = 2.4499999999999997 (r_cut/L = 0.3899296105751435)
+   * Short-range cut-off coeff.: β_shortrange = 3.4999999999999996
+   * Local segment fraction:     1
+   * Long-range backend:         NonuniformFFTsBackend(CPU(false); m = HalfSupport{4}(), σ = 1.5)
+   * Long-range resolution:      Ns = (21, 21, 21) (kmax = 10.0)
+   * Long-range cut-off coeff.:  β_longrange = 3.5
+   * Long-range spherical truncation: false</code></pre><p>We would like to compute a few periods of Kelvin wave oscillations. For this, we first compute the expected Kelvin wave frequency and its associated period:</p><pre><code class="language-julia hljs">(; Γ, a, Δ,) = params         # extract parameters needed for KW frequency
+γ = MathConstants.eulergamma  # Euler–Mascheroni constant
+k = 2π * m / L
+ω_kw = Γ * k^2 / (4 * π) * (
+    log(2 / (k * a)) - γ + 1/2 - Δ
+)
+T_kw = 2π / ω_kw              # expected Kelvin wave period</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1.0909579075062508</code></pre><p>We create a <a href="../../modules/Timestepping/#VortexPasta.Timestepping.VortexFilamentProblem"><code>VortexFilamentProblem</code></a> to simulate a few Kelvin wave periods. To make things more interesting later when doing the <a href="#tutorial-kelvin-waves-temporal-analysis">temporal Fourier analysis</a> of the results, we don&#39;t simulate an integer number of periods so that the results are not exactly time-periodic.</p><pre><code class="language-julia hljs">using VortexPasta.Timestepping
+tspan = (0.0, 3.2 * T_kw)
+prob = VortexFilamentProblem(fs, tspan, params)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">VortexFilamentProblem with fields:
+ ├─ p: ParamsBiotSavart{Float64}(Γ = 1.0, a = 1.0e-8, Δ = 0.25, α = 1.4285714285714286, …)
+ ├─ tspan: (0.0, 3.491065304020003) -- simulation timespan
+ └─ fs: 4-element VectorOfVectors -- vortex filaments at t = 0.0</code></pre><p>We now create a callback which will be used to store some data for further analysis. We will store the times and the position over time of a single filament node to be able to visualise and analyse the oscillations. Moreover, we will store the system energy to verify that energy is conserved over time (see <a href="../../methods/VFM/#VFM-energy">VFM notes</a> for detains on how it is computed). For computing the energy we use the <a href="../../modules/Diagnostics/#VortexPasta.Diagnostics.kinetic_energy_from_streamfunction"><code>kinetic_energy_from_streamfunction</code></a> function from the <a href="../../modules/Diagnostics/#VortexPasta.Diagnostics"><code>Diagnostics</code></a> module.</p><pre><code class="language-julia hljs">using VortexPasta.Diagnostics
+
+times::Vector{Float64} = Float64[]
+X_probe::Vector{Vec3{Float64}} = Vec3{Float64}[]  # will contain positions of a chosen node
+energy::Vector{Float64} = Float64[]
+
+function callback(iter)
+    (; nstep, t,) = iter
+    if nstep == 0  # make sure vectors are empty at the beginning of the simulation
+        empty!(times)
+        empty!(X_probe)
+        empty!(energy)
+    end
+    push!(times, t)
+    s⃗ = iter.fs[1][3]  # we choose a single node of a single filament
+    push!(X_probe, s⃗)
+    # Compute energy
+    E = Diagnostics.kinetic_energy_from_streamfunction(iter)
+    push!(energy, E)
+    nothing
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">callback (generic function with 1 method)</code></pre><p>Note that we have annotated the types of the variables <code>times</code>, <code>X_probe</code> and <code>energy</code> for performance reasons, since these are <em>global</em> variables which are used (and modified) from within the <code>callback</code> function. See <a href="https://docs.julialang.org/en/v1/manual/performance-tips/#Avoid-untyped-global-variables">here</a> and <a href="https://docs.julialang.org/en/v1/manual/variables-and-scoping/#man-typed-globals">here</a> for details.</p><h3 id="tutorial-kelvin-waves-timestep"><a class="docs-heading-anchor" href="#tutorial-kelvin-waves-timestep">Choosing the timestep and the temporal scheme</a><a id="tutorial-kelvin-waves-timestep-1"></a><a class="docs-heading-anchor-permalink" href="#tutorial-kelvin-waves-timestep" title="Permalink"></a></h3><p>In the <a href="../01-vortex_ring/#tutorial-vortex-ring">vortex ring tutorial</a> we have used the standard <a href="../../modules/Timestepping/#VortexPasta.Timestepping.RK4"><code>RK4</code></a> scheme. To capture the vortex evolution and avoid blow-up, this scheme requires the timestep <span>$Δt$</span> to be of the order of the period of the <strong>fastest</strong> resolved Kelvin waves, which have a wavelength <span>$λ$</span> equal to (twice) the filament resolution <span>$δ$</span> (the typical distance between two discretisation points).</p><p>We first estimate the filament resolution using <a href="../../modules/Filaments/#VortexPasta.Filaments.minimum_node_distance"><code>minimum_node_distance</code></a>:</p><pre><code class="language-julia hljs">δ = minimum_node_distance(prob.fs)  # should be close to L/N in our case</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.0981747704246807</code></pre><p>Now we compute the Kelvin wave frequency associated to this distance:</p><pre><code class="language-julia hljs">kelvin_wave_period(λ; a, Δ, Γ) = 2 * λ^2 / Γ / (log(λ / (π * a)) + 1/2 - (Δ + MathConstants.γ))
+dt_kw = kelvin_wave_period(δ; a, Δ, Γ)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.0013178102262909038</code></pre><p>Note that this time scale is very small compared to the period of the large-scale Kelvin waves:</p><pre><code class="language-julia hljs">T_kw / dt_kw</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">827.8566107176529</code></pre><p>This means that we would need a relatively large simulation time to observe the evolution of large-scale Kelvin waves over multiple periods.</p><p>For the <a href="../../modules/Timestepping/#VortexPasta.Timestepping.RK4"><code>RK4</code></a> scheme, this time scale really seems to set the maximum allowed timestep limit. We can check that a simulation with <code>RK4</code> using <code>dt = dt_kw</code> remains stable. In particular, energy stays constant in time after running a few iterations with this timestep:</p><pre><code class="language-julia hljs">iter = init(prob, RK4(); dt = dt_kw, callback)
+for _ ∈ 1:40
+    step!(iter)
+end
+energy&#39;</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1×41 adjoint(::Vector{Float64}) with eltype Float64:
+ 0.159397  0.159397  0.159397  0.159397  …  0.159397  0.159397  0.159397</code></pre><p>However, using <code>dt = 2 * dt_kw</code> quickly leads to instability and energy blow-up:</p><pre><code class="language-julia hljs">iter = init(prob, RK4(); dt = 2 * dt_kw, callback)
+for _ ∈ 1:40
+    step!(iter)
+end
+energy&#39;</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1×41 adjoint(::Vector{Float64}) with eltype Float64:
+ 0.159397  0.159397  0.159397  0.159397  …  0.313075  0.312704  0.320886</code></pre><p>This limit is basically set by the short-range Biot–Savart interactions and in particular the local term (see <a href="../../methods/VFM/#VFM-desingularisation">Desingularisation</a>), which presents fast temporal variations. On the upside, this term is cheap to compute, which means that we can take advantage of a splitting scheme (such as <a href="https://en.wikipedia.org/wiki/Strang_splitting">Strang splitting</a>) to accelerate computations.</p><p>The idea is to write the time evolution of a vortex point due to the Biot–Savart law as:</p><p class="math-container">\[\frac{\mathrm{d}\bm{s}}{\mathrm{d}t} = \bm{v}(\bm{s})
+= \bm{v}_{\text{local}}(\bm{s}) + \bm{v}_{\text{non-local}}(\bm{s})\]</p><p>where the local term <span>$\bm{v}_{\text{local}}(\bm{s})$</span> represents the fast dynamics (thus requiring very small timesteps) while being cheap to compute, while the non-local term <span>$\bm{v}_{\text{non-local}}(\bm{s})$</span> represents the slow dynamics and has a higher computational cost.</p><p>Using a splitting method can make sense when it is easier or more convenient to separately solve the two equations:</p><p class="math-container">\[\begin{align*}
+\frac{\mathrm{d}\bm{s}}{\mathrm{d}t} &amp;= \bm{v}_{\text{local}}(\bm{s}) &amp; \quad &amp; \text{(fast)}
+\\
+\frac{\mathrm{d}\bm{s}}{\mathrm{d}t} &amp;= \bm{v}_{\text{non-local}}(\bm{s}) &amp; \quad &amp; \text{(slow)}
+\end{align*}\]</p><p>In some applications, this is the case because one of the terms is linear or because one of the sub-equations can be solved analytically. This is not the case here, but this splitting is still convenient because it allows us to use different timesteps for each sub-equation. In particular, we can use a smaller timestep for the local (fast) term, which is the one that sets the timestep limit.</p><p>One of the most popular (and classical) splitting methods is <strong>Strang splitting</strong>, which is second order in time. In this method, a single simulation timestep (<span>$t → t + Δt$</span>) is decomposed in 3 steps:</p><ol><li>Advance solution <span>$\bm{s}(t) → \bm{s}_1$</span> in the interval <span>$t → t + \frac{Δt}{2}$</span> using equation <span>$\text{(fast)}$</span>.</li><li>Advance solution <span>$\bm{s}_1 → \bm{s}_2$</span> in the interval <span>$t → t + Δt$</span> using equation <span>$\text{(slow)}$</span>.</li><li>Advance solution <span>$\bm{s}_2 → \bm{s}(t + Δt)$</span> in the interval <span>$t + \frac{Δt}{2} → t + Δt$</span> using equation <span>$\text{(fast)}$</span>.</li></ol><p>In the following we use the <a href="../../modules/Timestepping/#VortexPasta.Timestepping.Strang"><code>Strang</code></a> splitting scheme, which allows to use different explicit Runge–Kutta schemes for the &quot;fast&quot; and &quot;slow&quot; equations, and allows to set a smaller timestep to solve the former.</p><p>Concretely, we solve steps 1 and 3 using the standard RK4 scheme, while for step 2 the <a href="../../modules/Timestepping/#VortexPasta.Timestepping.Midpoint"><code>Midpoint</code></a> scheme is used by default (but this can be changed, see <a href="../../modules/Timestepping/#VortexPasta.Timestepping.Strang"><code>Strang</code></a> docs for details). Moreover, steps 1 and 3 are decomposed into <span>$M = 16$</span> substeps, meaning that they are solved with a smaller timestep <span>$Δt_{\text{fast}} = (Δt/2) / M = Δt / 32$</span>. In practice, this means that we can multiply our &quot;global&quot; timestep <span>$Δt$</span> by 32 and retain the stability of the solver.</p><pre><code class="language-julia hljs">scheme = Strang(RK4(); nsubsteps = 16)
+dt = 32 * dt_kw</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.04216992724130892</code></pre><p>More generally, when using Strang splitting with the <code>RK4</code> scheme for the fast dynamics, setting <code>nsubsteps = M</code> allows us to set the global timestep to <code>dt = 2M * dt_kw</code>. We could tune the number <span>$M$</span> of inner iterations to allow even larger timesteps, but this might lead to precision loss.</p><h3 id="Running-the-simulation"><a class="docs-heading-anchor" href="#Running-the-simulation">Running the simulation</a><a id="Running-the-simulation-1"></a><a class="docs-heading-anchor-permalink" href="#Running-the-simulation" title="Permalink"></a></h3><p>We now solve the full problem with this splitting scheme. Note that we use <a href="../../modules/Timestepping/#VortexPasta.Timestepping.LocalTerm"><code>LocalTerm</code></a> to identify the &quot;fast&quot; motions to the local (LIA) term of the Biot–Savart integrals. We could alternatively use <a href="../../modules/Timestepping/#VortexPasta.Timestepping.ShortRangeTerm"><code>ShortRangeTerm</code></a> for a different interpretation of what represents the &quot;fast&quot; motions.</p><pre><code class="language-julia hljs">iter = init(prob, scheme; dt, callback, fast_term = LocalTerm())
+reset_timer!(iter.to)  # to get more accurate timings (removes most of the compilation time)
+solve!(iter)
+iter.to</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr1">────────────────────────────────────────────────────────────────────────────────</span>
+<span class="sgr1">                              </span>         Time                    Allocations      
+                              ───────────────────────   ────────────────────────
+      Tot / % measured:            5.42s /  86.5%            310MiB /  46.8%    
+
+Section               ncalls     time    %tot     avg     alloc    %tot      avg
+────────────────────────────────────────────────────────────────────────────────
+Update values at n...  10.9k    4.49s   95.7%   413μs    144MiB   99.4%  13.6KiB
+  LIA term (only)      10.6k    516ms   11.0%  48.6μs   81.4MiB   56.2%  7.85KiB
+  Short-range comp...    249    419ms    8.9%  1.68ms   5.59MiB    3.9%  23.0KiB
+    Compute Biot–S...    249    384ms    8.2%  1.54ms   3.34MiB    2.3%  13.7KiB
+    Self-interaction     332   25.6ms    0.5%  77.2μs   2.25MiB    1.6%  6.94KiB
+    Process point ...    249   7.56ms    0.2%  30.3μs     0.00B    0.0%    0.00B
+    Background vor...    249    366μs    0.0%  1.47μs     0.00B    0.0%    0.00B
+  Long-range compo...    249    304ms    6.5%  1.22ms   14.9MiB   10.3%  61.1KiB
+    Vorticity to F...    249    135ms    2.9%   544μs   6.05MiB    4.2%  24.9KiB
+    Velocity             249    127ms    2.7%   510μs   6.64MiB    4.6%  27.3KiB
+      Convert to p...    249    127ms    2.7%   510μs   6.64MiB    4.6%  27.3KiB
+    Streamfunction        83   39.9ms    0.9%   480μs   2.17MiB    1.5%  26.8KiB
+      Convert to p...     83   39.6ms    0.8%   477μs   2.17MiB    1.5%  26.8KiB
+    Set interpolat...    249   1.06ms    0.0%  4.26μs     0.00B    0.0%    0.00B
+  Add point charges      249   8.21ms    0.2%  33.0μs    331KiB    0.2%  1.33KiB
+Advect filaments       10.9k    198ms    4.2%  18.2μs    843KiB    0.6%    79.4B
+Callback                  83    781μs    0.0%  9.41μs   7.07KiB    0.0%    87.2B
+reconnect!                83   16.4μs    0.0%   198ns     0.00B    0.0%    0.00B
+Affect!                   83   8.79μs    0.0%   106ns     0.00B    0.0%    0.00B
+<span class="sgr1">────────────────────────────────────────────────────────────────────────────────</span></code></pre><p>We can check that energy is conserved:</p><pre><code class="language-julia hljs">energy&#39;</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1×84 adjoint(::Vector{Float64}) with eltype Float64:
+ 0.159397  0.159397  0.159397  0.159397  …  0.159397  0.159397  0.159397</code></pre><p>We see that the energy seems to take the same value at all times. We can verify this quantitatively by looking at its standard deviation (normalised by the mean energy), which is negligible:</p><pre><code class="language-julia hljs">using Statistics: mean, std
+Emean = mean(energy)
+Estd = std(energy)
+Estd / Emean</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1.5806446035661727e-8</code></pre><p>We now plot the evolution of the <span>$x$</span> and <span>$y$</span> coordinates of the closen filament node:</p><pre><code class="language-julia hljs">fig = Figure()
+ax = Axis(fig[1, 1]; xlabel = L&quot;t / T_{\text{KW}}&quot;, ylabel = &quot;Position&quot;)
+tnorm = times ./ T_kw  # normalised time
+xpos = map(s⃗ -&gt; s⃗[1], X_probe)  # get all X positions over time
+ypos = map(s⃗ -&gt; s⃗[2], X_probe)  # get all Y positions over time
+scatterlines!(ax, tnorm, xpos; marker = &#39;o&#39;, label = L&quot;x(t)&quot;)
+scatterlines!(ax, tnorm, ypos; marker = &#39;o&#39;, label = L&quot;y(t)&quot;)
+Legend(fig[1, 2], ax; orientation = :vertical, framevisible = false, padding = (0, 0, 0, 0), labelsize = 22, rowgap = 5)
+fig</code></pre><img src="4415f24c.svg" alt="Example block output"/><p>We see that the <span>$x$</span> and <span>$y$</span> positions of the chosen point oscillate sinusoidally. The period of the oscillations are very close to the expected Kelvin wave period <span>$T_{\text{KW}}$</span>.</p><p>The oscillations above suggest circular trajectories, as we can check in the following figure:</p><pre><code class="language-julia hljs">scatterlines(
+    xpos, ypos;
+    color = tnorm,
+    axis = (aspect = DataAspect(), xlabel = L&quot;x(t)&quot;, ylabel = L&quot;y(t)&quot;),
+)</code></pre><img src="75d82f36.svg" alt="Example block output"/><h2 id="Measuring-performance"><a class="docs-heading-anchor" href="#Measuring-performance">Measuring performance</a><a id="Measuring-performance-1"></a><a class="docs-heading-anchor-permalink" href="#Measuring-performance" title="Permalink"></a></h2><p>The VortexPasta solver uses the <a href="https://github.com/KristofferC/TimerOutputs.jl">TimerOutputs.jl</a> package to estimate the time spent (and memory allocated) in different stages of the computation.</p><p>Accessing timing information is very simple, as it is all included in the <code>to</code> field of the <a href="../../modules/Timestepping/#VortexPasta.Timestepping.VortexFilamentSolver"><code>VortexFilamentSolver</code></a>:</p><pre><code class="language-julia hljs">iter.to</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr1">─────────────────────────────────────────────────────────────────────────────────────────</span>
+<span class="sgr1">                                       </span>         Time                    Allocations
+                                       ───────────────────────   ────────────────────────
+           Tot / % measured:                10.4s /  45.2%            716MiB /  20.2%
+
+Section                        ncalls     time    %tot     avg     alloc    %tot      avg
+─────────────────────────────────────────────────────────────────────────────────────────
+Update values at nodes          10.9k    4.49s   95.7%   413μs    144MiB   99.4%  13.6KiB
+  LIA term (only)               10.6k    516ms   11.0%  48.6μs   81.4MiB   56.2%  7.85KiB
+  Short-range component           249    419ms    8.9%  1.68ms   5.59MiB    3.9%  23.0KiB
+    Compute Biot–Savart           249    384ms    8.2%  1.54ms   3.34MiB    2.3%  13.7KiB
+    Self-interaction              332   25.6ms    0.5%  77.2μs   2.25MiB    1.6%  6.94KiB
+    Process point charges         249   7.56ms    0.2%  30.3μs     0.00B    0.0%    0.00B
+    Background vorticity          249    366μs    0.0%  1.47μs     0.00B    0.0%    0.00B
+  Long-range component            249    304ms    6.5%  1.22ms   14.9MiB   10.3%  61.1KiB
+    Vorticity to Fourier          249    135ms    2.9%   544μs   6.05MiB    4.2%  24.9KiB
+    Velocity                      249    127ms    2.7%   510μs   6.64MiB    4.6%  27.3KiB
+      Convert to physical         249    127ms    2.7%   510μs   6.64MiB    4.6%  27.3KiB
+    Streamfunction                 83   39.9ms    0.9%   480μs   2.17MiB    1.5%  26.8KiB
+      Convert to physical          83   39.6ms    0.8%   477μs   2.17MiB    1.5%  26.8KiB
+    Set interpolation points      249   1.06ms    0.0%  4.26μs     0.00B    0.0%    0.00B
+  Add point charges               249   8.21ms    0.2%  33.0μs    331KiB    0.2%  1.33KiB
+Advect filaments                10.9k    198ms    4.2%  18.2μs    843KiB    0.6%    79.4B
+Callback                           83    781μs    0.0%  9.41μs   7.07KiB    0.0%    87.2B
+reconnect!                         83   16.4μs    0.0%   198ns     0.00B    0.0%    0.00B
+Affect!                            83   8.79μs    0.0%   106ns     0.00B    0.0%    0.00B
+<span class="sgr1">─────────────────────────────────────────────────────────────────────────────────────────</span></code></pre><p>We can see that, in this particular case, the runtime is mostly dominated by the the LIA (local) term, which is computed much more often than the non-local interactions due to the use of a splitting scheme for the temporal evolution.</p><h2 id="Fourier-analysis"><a class="docs-heading-anchor" href="#Fourier-analysis">Fourier analysis</a><a id="Fourier-analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Fourier-analysis" title="Permalink"></a></h2><h3 id="Spatial-analysis"><a class="docs-heading-anchor" href="#Spatial-analysis">Spatial analysis</a><a id="Spatial-analysis-1"></a><a class="docs-heading-anchor-permalink" href="#Spatial-analysis" title="Permalink"></a></h3><p>The idea is to identify the spatial fluctuations of a single vortex with respect to the unperturbed filament. For this, we first write the perturbations in complex representation as a function of the <span>$z$</span> coordinate, i.e. <span>$w(z) = x(z) + i y(z)$</span>.</p><p>We want to apply the FFT to these two functions. For this, we need all points of the vortex filament to be equispaced in <span>$z$</span>:</p><pre><code class="language-julia hljs">f = iter.fs[1]               # vortex to analyse
+zs = getindex.(nodes(f), 3)  # z locations
+N = length(zs)
+zs_expected = range(zs[begin], zs[begin] + L; length = N + 1)[1:N]  # equispaced locations
+isapprox(zs, zs_expected; rtol = 1e-5)  # check that z locations are approximately equispaced</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">true</code></pre><p>Now that we have verified this, we define the complex function <span>$w(z) = x(z) + i y(z)$</span> and we perform a complex-to-complex FFT to obtain <span>$\hat{w}(k)$</span>:</p><pre><code class="language-julia hljs">xs = getindex.(nodes(f), 1)  # x locations
+ys = getindex.(nodes(f), 2)  # y locations
+ws = @. xs + im * ys
+
+using FFTW: fft, fft!, fftfreq
+w_hat = fft(ws)
+@. w_hat = w_hat / N  # normalise FFT
+@show w_hat[1]       # the zero frequency gives the mean location
+w_hat[1] ≈ π/2 + π/2 * im  # we expect the mean location to be (π/2, π/2)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">true</code></pre><p>The associated wavenumbers are multiples of <span>$2π/Δz = 2πN/L$</span>:</p><pre><code class="language-julia hljs">Δz = L / N
+@assert isapprox(Δz, zs[2] - zs[1]; rtol = 1e-4)
+ks = fftfreq(N, 2π / Δz)
+ks&#39;  # should be integers if L = 2π</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1×64 adjoint(::AbstractFFTs.Frequencies{Float64}) with eltype Float64:
+ 0.0  1.0  2.0  3.0  4.0  5.0  6.0  …  -6.0  -5.0  -4.0  -3.0  -2.0  -1.0</code></pre><p>Note that this includes positive and negative wavenumbers. More precisely, <code>ks[2:N÷2]</code> contains the positive wavenumbers, and <code>ks[N÷2+1:end]</code> contains the corresponding negative wavenumbers.</p><p>We now want to compute the wave action spectrum <span>$n(k) = |\hat{w}(k)|^2 + |\hat{w}(-k)|^2$</span>, which is related to the amplitude of the oscillations at the scale <span>$λ = 2π/k$</span>.</p><pre><code class="language-julia hljs">function wave_action_spectrum(ks::AbstractVector, w_hat::AbstractVector)
+    @assert ks[2] == -ks[end]  # contains positive and negative wavenumbers
+    @assert length(ks) == length(w_hat)
+    N = length(ks)
+    dk = ks[2]  # this is the wavenumber increment
+    if iseven(N)
+        Nh = N ÷ 2
+        @assert ks[Nh + 1] ≈ -(ks[Nh] + dk)  # wavenumbers change sign after index Nh
+    else
+        Nh = N ÷ 2 + 1
+        @assert ks[Nh + 1] == -ks[Nh]  # wavenumbers change sign after index Nh
+    end
+    ks_pos = ks[2:Nh]  # only positive wavenumbers
+    nk = similar(ks_pos)
+    for j ∈ eachindex(ks_pos)
+        local k = ks_pos[j]
+        i⁺ = 1 + j      # index of coefficient corresponding to wavenumber +k
+        i⁻ = N + 1 - j  # index of coefficient corresponding to wavenumber -k
+        @assert ks[i⁺] == -ks[i⁻] == k  # verification
+        nk[j] = abs2(w_hat[i⁺]) + abs2(w_hat[i⁻])
+    end
+    ks_pos, nk
+end
+
+ks_pos, nk = wave_action_spectrum(ks, w_hat)
+nk_normalised = nk ./ ((ϵ * L)^2 / 2)
+sum(nk_normalised)  # we expect the sum to be 1</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.9999903664789065</code></pre><p>We can finally plot the final state:</p><pre><code class="language-julia hljs">fig = Figure()
+ax = Axis(
+    fig[1, 1];
+    xscale = log10, yscale = log10, xlabel = L&quot;k&quot;, ylabel = L&quot;2 \, n(k) / A^2&quot;,
+    xlabelsize = 20, ylabelsize = 20,
+    xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
+    yminorticksvisible = true, yminorticks = exp10.(-40:10),
+)
+scatterlines!(ax, ks_pos, nk_normalised)
+xlims!(ax, 0.8 * ks_pos[begin], nothing)
+ylims!(ax, 1e-30, 1e1)
+vlines!(ax, ks_pos[m]; linestyle = :dash, color = :orangered)
+fig</code></pre><img src="65ff1833.svg" alt="Example block output"/><p>We see that the wave action spectrum is strongly peaked at the wavenumber <span>$k = 2πm/L$</span> (dashed vertical line) corresponding to the perturbation mode <span>$m$</span> we chose at the beginning. Note that the other peaks (which here are about 6 orders of magnitude smaller than the main peak) are not numerical artefacts. Instead, these peaks appearing at wavenumbers <span>$q = k (1 + 2n)$</span> for integer <span>$n$</span> can be explained analytically (see box below). Their relative magnitude should further decrease if one decreases the perturbation amplitude.</p><details class="admonition is-details"><summary class="admonition-header">A kind of proof using LIA</summary><div class="admonition-body"><p>One way to illustrate this analytically is using the local induction approximation (LIA). Let&#39;s consider the perturbed line <span>$\bm{s}(z) = [ϵ \sin(z), 0, z]$</span> parametrised by the <span>$z$</span> coordinate. The LIA can be written as</p><p class="math-container">\[\bm{v}_{\text{LIA}} = C \frac{\bm{s}&#39; × \bm{s}&#39;&#39;}{|\bm{s}&#39;|^3}\]</p><p>where <span>$C$</span> is (roughly) a constant. Derivatives are with respect to the chosen parametrisation (which can differ from the &quot;natural&quot; arc-length parametrisation), hence the normalising factor in the denominator.</p><p>In our case we have <span>$\bm{s}&#39; = [ϵ \cos(z), 0, 1]$</span> and <span>$\bm{s}&#39;&#39; = [-ϵ \sin(z), 0, 0]$</span>, and thus</p><p class="math-container">\[v_{\text{LIA}} = \frac{C ϵ \sin(z)}{(1 + ϵ^2 \cos^2 z)^{3/2}}.\]</p><p>Using a Taylor expansion, one can easily show that the denominator introduces fluctuations over the odd harmonics <span>$q = 1 + 2n$</span> for <span>$n ∈ \{ 1, 2, 3, … \}$</span>:</p><p class="math-container">\[v_{\text{LIA}} = C ϵ \sin(z) \left[1 - \frac{3}{2} ϵ^2 \cos^2 z + \mathcal{O}(ϵ^4) \right].\]</p><p>Noting that <span>$\sin(z) \cos^2(z) = [\sin(z) + \sin(3z)] / 4$</span>, one clearly sees that the term in <span>$ϵ^2$</span> excites modes at wavenumber <span>$q = 3$</span>, i.e. the third harmonic of the perturbed mode <span>$k = 1$</span>. Since the contribution is proportional to <span>$ϵ^2$</span>, this non-linear effect should be negligible for very small perturbation amplitudes. It is easy to see that all of this generalises to all odd harmonics <span>$q = 1 + 2n$</span> by taking into account higher-order terms of the Taylor expansion.</p><p>In the tutorial, we initially perturbed the mode <span>$k = 2$</span>, which excites its odd harmonics <span>$q = k (1 + 2n) = 6, 10, 14, …$</span> as seen in the above figure.</p></div></details><p>We also see that the sum <span>$∑_k n(k)$</span> (which is basically just the value of the main peak in this case) is equal to <span>$A^2/2$</span>, where <span>$A = ϵL$</span> is the amplitude of the initial perturbation.</p><p>The main conclusion is that, when we perturb a single Kelvin wave mode as we did here, that original mode is exactly preserved over time (except for negligible high-order effects).</p><h3 id="tutorial-kelvin-waves-temporal-analysis"><a class="docs-heading-anchor" href="#tutorial-kelvin-waves-temporal-analysis">Temporal analysis</a><a id="tutorial-kelvin-waves-temporal-analysis-1"></a><a class="docs-heading-anchor-permalink" href="#tutorial-kelvin-waves-temporal-analysis" title="Permalink"></a></h3><p>We can do something similar to analyse the <em>temporal</em> oscillations of the filament. For example, we can take the same temporal data we analysed before, corresponding to the position of a single filament node:</p><pre><code class="language-julia hljs">xt = getindex.(X_probe, 1)  # x positions of a single node over time
+yt = getindex.(X_probe, 2)  # y positions of a single node over time
+zt = getindex.(X_probe, 3)  # z positions of a single node over time
+std(zt) / mean(zt)    # ideally, the z positions shouldn&#39;t change over time</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1.6604626841552364e-5</code></pre><p>Similarly to before, we now write <span>$w(t) = x(t) + i y(t)$</span> and perform an FFT:</p><pre><code class="language-julia hljs">inds_t = eachindex(times)[begin:end - 1]  # don&#39;t consider the last time to make sure the timestep Δt is constant
+wt = @views @. xt[inds_t] + im * yt[inds_t]
+Nt = length(wt)           # number of time snapshots
+Δt = times[2] - times[1]  # timestep
+@assert times[begin:end-1] ≈ range(times[begin], times[end-1]; length = Nt)  # check that times are equispaced
+w_hat = fft(wt)
+@. w_hat = w_hat / Nt  # normalise FFT
+ωs = fftfreq(Nt, 2π / Δt)
+
+ωs_pos, nω = wave_action_spectrum(ωs, w_hat)
+ωs_normalised = ωs_pos ./ ω_kw  # normalise by expected KW frequency
+
+fig = Figure()
+ax = Axis(
+    fig[1, 1];
+    xscale = log10, yscale = log10, xlabel = L&quot;ω / ω_{\text{kw}}&quot;, ylabel = L&quot;n(ω)&quot;,
+    xlabelsize = 20, ylabelsize = 20,
+    xticks = LogTicks(0:4), xminorticksvisible = true, xminorticks = IntervalsBetween(9),
+    yticks = LogTicks(-20:10), yminorticksvisible = true, yminorticks = IntervalsBetween(9),
+)
+scatterlines!(ax, ωs_normalised, nω; label = &quot;Original signal&quot;)
+xlims!(ax, 0.8 * ωs_normalised[begin], 1.2 * ωs_normalised[end])
+vlines!(ax, 1.0; linestyle = :dash, color = :orangered)
+fig</code></pre><img src="a108b91a.svg" alt="Example block output"/><p>We see that the temporal spectrum is strongly peaked near the analytical Kelvin wave frequency (dashed vertical line). However, since the trajectory is not perfectly periodic in time (the signal is discontinuous when going from the final time to the initial time), other frequencies are also present in the spectrum (this is known as <a href="https://mathworld.wolfram.com/Leakage.html">spectral leakage</a>).</p><p>To reduce the effect of spectral leakage, the usual solution is to apply a window function to the original signal to make it periodic. There are <a href="https://en.wikipedia.org/wiki/Window_function#Examples_of_window_functions">many examples of window functions</a> which are commonly used in signal processing.</p><p>Here we use the <a href="https://github.com/JuliaDSP/DSP.jl">DSP.jl</a> package which includes many <a href="https://docs.juliadsp.org/stable/windows/">definitions of window functions</a>. Note that we first need to subtract the mean value from our input signal before multiplying it by the window function. Below we compare the previous temporal spectrum with the one obtained after applying the <a href="https://en.wikipedia.org/wiki/Hann_function">Hann window</a>:</p><pre><code class="language-julia hljs">using DSP: DSP
+
+wt_mean = mean(wt)
+window = DSP.Windows.hanning(Nt)
+wt_windowed = @. (wt - wt_mean) * window
+w_hat = fft(wt_windowed)
+@. w_hat = w_hat / Nt  # normalise FFT
+_, nω_windowed = wave_action_spectrum(ωs, w_hat)
+
+scatterlines!(ax, ωs_normalised, nω_windowed; label = &quot;Windowed signal&quot;)
+Legend(fig[0, 1], ax; orientation = :horizontal, framevisible = false, colgap = 32, patchsize = (40, 10))
+rowgap!(fig[:, 1].layout, 6)  # reduce gap between plot and legend (default gap is 18)
+fig</code></pre><img src="fb4706b5.svg" alt="Example block output"/><p>The new spectrum is still peaked near the expected frequency, while artificial modes far from this frequency are strongly damped compared to the original spectrum. Note however that windowing tends to smoothen the spectrum around the analytical Kelvin wave frequency.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../01-vortex_ring/">« Vortex ring</a><a class="docs-footer-nextpage" href="../../methods/VFM/">The vortex filament model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.10.2 on <span class="colophon-date" title="Friday 25 April 2025 15:37">Friday 25 April 2025</span>. Using Julia version 1.11.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

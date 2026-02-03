@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/BiotSavart/shortrange/src/BiotSavart/shortrange/lia.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">src/BiotSavart/shortrange/src/BiotSavart/shortrange</a> - lia.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">53</td>
+            <td class="headerCovTableEntry">53</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2024-07-10 07:24:42</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : using ..Filaments: CurvatureBinormal, UnitTangent</span>
+<span id="L2"><span class="lineNum">       2</span>              : using LinearAlgebra: normalize</span>
+<span id="L3"><span class="lineNum">       3</span>              : using StaticArrays: SVector</span>
+<span id="L4"><span class="lineNum">       4</span>              : </span>
+<span id="L5"><span class="lineNum">       5</span>              : &quot;&quot;&quot;</span>
+<span id="L6"><span class="lineNum">       6</span>              :     local_self_induced_velocity(</span>
+<span id="L7"><span class="lineNum">       7</span>              :         f::AbstractFilament, i::Int, [prefactor::Real];</span>
+<span id="L8"><span class="lineNum">       8</span>              :         a::Real, [Γ::Real],</span>
+<span id="L9"><span class="lineNum">       9</span>              :         Δ = 0.25, quad = nothing, fit_circle = false,</span>
+<span id="L10"><span class="lineNum">      10</span>              :         segment_fraction = nothing,</span>
+<span id="L11"><span class="lineNum">      11</span>              :     )</span>
+<span id="L12"><span class="lineNum">      12</span>              : </span>
+<span id="L13"><span class="lineNum">      13</span>              : Compute local self-induced velocity of filament node `f[i]`.</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              : This corresponds to the LIA term (localised induction approximation).</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : This is the same as `local_self_induced(Velocity(), f, i, [prefactor]; kwargs...)`.</span>
+<span id="L18"><span class="lineNum">      18</span>              : See also [`local_self_induced`](@ref).</span>
+<span id="L19"><span class="lineNum">      19</span>              : &quot;&quot;&quot;</span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC tlaBgGNC">         100 : local_self_induced_velocity(args...; kws...) =</span></span>
+<span id="L21"><span class="lineNum">      21</span>              :     local_self_induced(Velocity(), args...; kws...)</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span>              : # Prefactor was not given as an argument, compute it.</span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">         100 : local_self_induced(q::OutputField, f, i; Γ, kws...) =</span></span>
+<span id="L25"><span class="lineNum">      25</span>              :     local_self_induced(q, f, i, Γ / 4π; kws...)</span>
+<span id="L26"><span class="lineNum">      26</span>              : </span>
+<span id="L27"><span class="lineNum">      27</span>              : &quot;&quot;&quot;</span>
+<span id="L28"><span class="lineNum">      28</span>              :     local_self_induced(</span>
+<span id="L29"><span class="lineNum">      29</span>              :         q::OutputField, f::AbstractFilament, i::Int, [prefactor::Real];</span>
+<span id="L30"><span class="lineNum">      30</span>              :         a::Real, Δ::Real = 0.25, segment_fraction = nothing, quad = nothing, [Γ],</span>
+<span id="L31"><span class="lineNum">      31</span>              :     )</span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span>              : Compute localised induction approximation (LIA) term at node `f[i]`.</span>
+<span id="L34"><span class="lineNum">      34</span>              : </span>
+<span id="L35"><span class="lineNum">      35</span>              : Possible output fields to be passed as first argument are `Velocity()` and `Streamfunction()`.</span>
+<span id="L36"><span class="lineNum">      36</span>              : </span>
+<span id="L37"><span class="lineNum">      37</span>              : One must pass either the circulation `Γ` as a keyword argument, or a precomputed</span>
+<span id="L38"><span class="lineNum">      38</span>              : `prefactor` which is usually equal to `Γ / 4π` (both for velocity and streamfunction).</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span>              : # Mandatory arguments</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span>              : - the vortex core size `a` as a keyword argument;</span>
+<span id="L43"><span class="lineNum">      43</span>              : </span>
+<span id="L44"><span class="lineNum">      44</span>              : - either the vortex circulation `Γ` as a keyword argument, or the precomputed</span>
+<span id="L45"><span class="lineNum">      45</span>              :   prefactor `Γ / 4π` as a positional argument.</span>
+<span id="L46"><span class="lineNum">      46</span>              : </span>
+<span id="L47"><span class="lineNum">      47</span>              : # Optional arguments</span>
+<span id="L48"><span class="lineNum">      48</span>              : </span>
+<span id="L49"><span class="lineNum">      49</span>              : - the optional parameter `Δ` sets the effect of the vorticity profile (see</span>
+<span id="L50"><span class="lineNum">      50</span>              :   [`ParamsBiotSavart`](@ref) for details);</span>
+<span id="L51"><span class="lineNum">      51</span>              : </span>
+<span id="L52"><span class="lineNum">      52</span>              : - the optional parameter `segment_fraction` can be used to indicate that the LIA term should</span>
+<span id="L53"><span class="lineNum">      53</span>              :   only be computed over a fraction of the segments neighbouring the node `f[i]`. In that case,</span>
+<span id="L54"><span class="lineNum">      54</span>              :   it should be a real number in ``(0, 1]`` (where 1 corresponds to integrating over the full</span>
+<span id="L55"><span class="lineNum">      55</span>              :   segments, which the default);</span>
+<span id="L56"><span class="lineNum">      56</span>              : </span>
+<span id="L57"><span class="lineNum">      57</span>              : - a quadrature rule can be passed via `quad`, which can improve the estimation</span>
+<span id="L58"><span class="lineNum">      58</span>              :   of the LIA term and the stability of the solver (even a 1-point quadrature</span>
+<span id="L59"><span class="lineNum">      59</span>              :   rule can importantly improve stability!);</span>
+<span id="L60"><span class="lineNum">      60</span>              : </span>
+<span id="L61"><span class="lineNum">      61</span>              : - if `quad = nothing`, one may set `fit_circle = true` to estimate the binormal</span>
+<span id="L62"><span class="lineNum">      62</span>              :   vector by fitting a circle passing through 3 neighbouring nodes (as done in</span>
+<span id="L63"><span class="lineNum">      63</span>              :   Schwarz PRB 1985), instead of using local derivatives. For now, this is only implemented</span>
+<span id="L64"><span class="lineNum">      64</span>              :   for `q = Velocity()`, and it may be removed in the future.</span>
+<span id="L65"><span class="lineNum">      65</span>              : </span>
+<span id="L66"><span class="lineNum">      66</span>              : &quot;&quot;&quot;</span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">     6754733 : function local_self_induced(</span></span>
+<span id="L68"><span class="lineNum">      68</span>              :         q::OutputField, f::AbstractFilament, i::Int, prefactor::Real;</span>
+<span id="L69"><span class="lineNum">      69</span>              :         a::Real, Δ::Real = 0.25, quad = nothing, kws...,</span>
+<span id="L70"><span class="lineNum">      70</span>              :     )</span>
+<span id="L71"><span class="lineNum">      71</span> <span class="tlaGNC">     3378372 :     _local_self_induced(q, to_quadrature(quad), f, i, prefactor; a, Δ, kws...)</span></span>
+<span id="L72"><span class="lineNum">      72</span>              : end</span>
+<span id="L73"><span class="lineNum">      73</span>              : </span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">     3378769 : to_quadrature(quad::AbstractQuadrature) = quad</span></span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">          10 : to_quadrature(::Nothing) = NoQuadrature()</span></span>
+<span id="L76"><span class="lineNum">      76</span>              : </span>
+<span id="L77"><span class="lineNum">      77</span> <span class="tlaGNC">      106231 : function _local_self_induced(</span></span>
+<span id="L78"><span class="lineNum">      78</span>              :         ::Velocity, ::NoQuadrature, f::AbstractFilament, i::Int, prefactor::Real;</span>
+<span id="L79"><span class="lineNum">      79</span>              :         a::Real, Δ::Real, fit_circle = false, segment_fraction = nothing, kws...,</span>
+<span id="L80"><span class="lineNum">      80</span>              :     )</span>
+<span id="L81"><span class="lineNum">      81</span> <span class="tlaGNC">       53116 :     ℓ₋ = norm(f[i] - f[i - 1])</span></span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">       53117 :     ℓ₊ = norm(f[i + 1] - f[i])</span></span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">       53115 :     γ = something(segment_fraction, true)  # true in the sense of 1</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">       53115 :     β = prefactor * (log(2 * γ * sqrt(ℓ₋ * ℓ₊) / a) - Δ)</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">       53117 :     if fit_circle</span></span>
+<span id="L86"><span class="lineNum">      86</span>              :         # Fit circle passing through the 3 points.</span>
+<span id="L87"><span class="lineNum">      87</span>              :         # See https://en.wikipedia.org/wiki/Circumscribed_circle#Higher_dimensions</span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">           5 :         A = @inbounds f[i - 1]</span></span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">           5 :         B = @inbounds f[i]</span></span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaGNC">           5 :         C = @inbounds f[i + 1]</span></span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaGNC">           5 :         a = A - B</span></span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">           5 :         b = C - B</span></span>
+<span id="L93"><span class="lineNum">      93</span> <span class="tlaGNC">           5 :         a2 = sum(abs2, a)</span></span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaGNC">           5 :         b2 = sum(abs2, b)</span></span>
+<span id="L95"><span class="lineNum">      95</span> <span class="tlaGNC">           5 :         ab2 = sum(abs2, a - b)</span></span>
+<span id="L96"><span class="lineNum">      96</span> <span class="tlaGNC">           5 :         (2 * β / sqrt(a2 * b2 * ab2)) * (b × a)</span></span>
+<span id="L97"><span class="lineNum">      97</span>              :     else</span>
+<span id="L98"><span class="lineNum">      98</span>              :         # Evaluate derivatives at node `i`.</span>
+<span id="L99"><span class="lineNum">      99</span> <span class="tlaGNC">       53112 :         Ẋ = f[i, Derivative(1)]  # ∂f/∂t at node i</span></span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">      105910 :         Ẍ = f[i, Derivative(2)]</span></span>
+<span id="L101"><span class="lineNum">     101</span>              :         # Note that the derivatives are wrt the parameter `t` and not exactly wrt</span>
+<span id="L102"><span class="lineNum">     102</span>              :         # the arc length `ξ`, hence the extra `norm(Ẋ)^3` factor wrt the literature.</span>
+<span id="L103"><span class="lineNum">     103</span>              :         # Usually, `norm(Ẋ)` should be actually quite close to 1 for chordal</span>
+<span id="L104"><span class="lineNum">     104</span>              :         # parametrisation.</span>
+<span id="L105"><span class="lineNum">     105</span> <span class="tlaGNC">       53112 :         β / norm(Ẋ)^3 * (Ẋ × Ẍ)</span></span>
+<span id="L106"><span class="lineNum">     106</span>              :     end</span>
+<span id="L107"><span class="lineNum">     107</span>              : end</span>
+<span id="L108"><span class="lineNum">     108</span>              : </span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaGNC">     2489540 : lia_integration_limits(::Nothing) = (nothing, nothing)</span></span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC">      823268 : lia_integration_limits(γ::Real) = ((one(γ) - γ, one(γ)), (zero(γ), γ))</span></span>
+<span id="L111"><span class="lineNum">     111</span>              : </span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">       10313 : nonlia_integration_limits(::Nothing) = (nothing, nothing)</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">       45471 : nonlia_integration_limits(γ::Real) = ((zero(γ), one(γ) - γ), (γ, one(γ)))</span></span>
+<span id="L114"><span class="lineNum">     114</span>              : </span>
+<span id="L115"><span class="lineNum">     115</span>              : # Alternative estimation using quadratures.</span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">     5864921 : function _local_self_induced(</span></span>
+<span id="L117"><span class="lineNum">     117</span>              :         ::Velocity, quad::AbstractQuadrature, f::AbstractFilament, i::Int, prefactor::Real;</span>
+<span id="L118"><span class="lineNum">     118</span>              :         a::Real, Δ::Real, segment_fraction::Union{Nothing, Real} = nothing,</span>
+<span id="L119"><span class="lineNum">     119</span>              :         kws...,</span>
+<span id="L120"><span class="lineNum">     120</span>              :     )</span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">     2934042 :     lims = lia_integration_limits(segment_fraction)</span></span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">     2933653 :     ℓ₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ</span></span>
+<span id="L123"><span class="lineNum">     123</span> <span class="tlaGNC">     7865223 :         norm(f(j, ζ, Derivative(1)))</span></span>
+<span id="L124"><span class="lineNum">     124</span>              :     end</span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">     2936283 :     ℓ₊ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">     7865662 :         norm(f(j, ζ, Derivative(1)))</span></span>
+<span id="L127"><span class="lineNum">     127</span>              :     end</span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">     2935323 :     b⃗ = f[i, CurvatureBinormal()]</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">     2931871 :     β = prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) - Δ)</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">     2931711 :     β * b⃗</span></span>
+<span id="L131"><span class="lineNum">     131</span>              : end</span>
+<span id="L132"><span class="lineNum">     132</span>              : </span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">       27110 : function _local_self_induced(</span></span>
+<span id="L134"><span class="lineNum">     134</span>              :         ::Streamfunction, ::NoQuadrature,</span>
+<span id="L135"><span class="lineNum">     135</span>              :         f::AbstractFilament, i::Int, prefactor::Real;</span>
+<span id="L136"><span class="lineNum">     136</span>              :         a::Real, Δ::Real, segment_fraction = nothing, kws...,</span>
+<span id="L137"><span class="lineNum">     137</span>              :     )</span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">       13556 :     ℓ₋ = norm(f[i] - f[i - 1])</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">       13555 :     ℓ₊ = norm(f[i + 1] - f[i])</span></span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">       13554 :     γ = something(segment_fraction, true)  # true in the sense of 1</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">       13554 :     t̂ = f[i, UnitTangent()]</span></span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">       13556 :     β = 2 * prefactor * (log(2 * γ * sqrt(ℓ₋ * ℓ₊) / a) + 1 - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)</span></span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">       13555 :     β * t̂</span></span>
+<span id="L144"><span class="lineNum">     144</span>              : end</span>
+<span id="L145"><span class="lineNum">     145</span>              : </span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">      759145 : function _local_self_induced(</span></span>
+<span id="L147"><span class="lineNum">     147</span>              :         ::Streamfunction, quad::AbstractQuadrature,</span>
+<span id="L148"><span class="lineNum">     148</span>              :         f::AbstractFilament, i::Int, prefactor::Real;</span>
+<span id="L149"><span class="lineNum">     149</span>              :         a::Real, Δ::Real,</span>
+<span id="L150"><span class="lineNum">     150</span>              :         segment_fraction::Union{Nothing, Real} = nothing,</span>
+<span id="L151"><span class="lineNum">     151</span>              :         kws...,</span>
+<span id="L152"><span class="lineNum">     152</span>              :     )</span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">      379597 :     lims = lia_integration_limits(segment_fraction)</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">      379606 :     ℓ₋ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">     1002272 :         norm(f(j, ζ, Derivative(1)))</span></span>
+<span id="L156"><span class="lineNum">     156</span>              :     end</span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">      379655 :     ℓ₊ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">     1002543 :         norm(f(j, ζ, Derivative(1)))</span></span>
+<span id="L159"><span class="lineNum">     159</span>              :     end</span>
+<span id="L160"><span class="lineNum">     160</span>              :     # Use local (non-averaged) tangent at point of interest.</span>
+<span id="L161"><span class="lineNum">     161</span>              :     # We want to make sure that the result is exactly tangent to the curve at the node.</span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">      379658 :     t̂ = f[i, UnitTangent()]</span></span>
+<span id="L163"><span class="lineNum">     163</span>              :     # Note: the +1 coefficient is required for energy conservation.</span>
+<span id="L164"><span class="lineNum">     164</span>              :     # It is required so that the resulting energy follows Hamilton's equation (at least for</span>
+<span id="L165"><span class="lineNum">     165</span>              :     # the case of a vortex ring), and it has been verified in many cases that it improves</span>
+<span id="L166"><span class="lineNum">     166</span>              :     # the effective energy conservation.</span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">      379634 :     β = 2 * prefactor * (log(2 * sqrt(ℓ₋ * ℓ₊) / a) + 1 - Δ)  # note: prefactor = Γ/4π (hence the 2 in front)</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">      379622 :     β * t̂</span></span>
+<span id="L169"><span class="lineNum">     169</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Diagnostics/src/Diagnostics/spectra_helicity.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Diagnostics/src/Diagnostics</a> - spectra_helicity.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">95.2&nbsp;%</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntry">20</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-08-27 11:15:38</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : &quot;&quot;&quot;</span>
+<span id="L2"><span class="lineNum">       2</span>              :     helicity_spectrum(iter::VortexFilamentSolver) -&gt; (ks, Hk)</span>
+<span id="L3"><span class="lineNum">       3</span>              :     helicity_spectrum(cache) -&gt; (ks, Hk)</span>
+<span id="L4"><span class="lineNum">       4</span>              : </span>
+<span id="L5"><span class="lineNum">       5</span>              : Compute helicity spectrum associated to vortex filament state.</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : Returns a tuple of vectors `(ks, Hk)` where `ks` contains the probed wavenumbers and `Hk`</span>
+<span id="L8"><span class="lineNum">       8</span>              : the helicity associated to each wavenumber.</span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span>              : See also [`helicity_spectrum!`](@ref) for a non-allocating variant and for more details.</span>
+<span id="L11"><span class="lineNum">      11</span>              : &quot;&quot;&quot;</span>
+<span id="L12"><span class="lineNum">      12</span>              : function helicity_spectrum end</span>
+<span id="L13"><span class="lineNum">      13</span>              : </span>
+<span id="L14"><span class="lineNum">      14</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L15"><span class="lineNum">      15</span>              :     helicity_spectrum!(Hk::AbstractVector, ks::AbstractVector, cache)</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : Compute helicity spectrum associated to vortex filament state.</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              : For a single wave vector ``\bm{k}``, the associated helicity is defined as</span>
+<span id="L20"><span class="lineNum">      20</span>              : </span>
+<span id="L21"><span class="lineNum">      21</span>              : ```math</span>
+<span id="L22"><span class="lineNum">      22</span>              : H(\bm{k}) ≡ \frac{V}{Δk} \bm{v}^*_{\bm{k}} ⋅ \bm{ω}_{\bm{k}}</span>
+<span id="L23"><span class="lineNum">      23</span>              : = 2\frac{V}{Δk} \bm{k} ⋅ \left[ \bm{v}_{\text{r}} × \bm{v}_{\text{i}} \right].</span>
+<span id="L24"><span class="lineNum">      24</span>              : ```</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              : In the last expression, the subscripts ``\text{r}`` and ``\text{i}`` respectively denote</span>
+<span id="L27"><span class="lineNum">      27</span>              : real and imaginary parts.</span>
+<span id="L28"><span class="lineNum">      28</span>              : That result can be easily found by doing some algebra, after replacing</span>
+<span id="L29"><span class="lineNum">      29</span>              : ``\bm{ω}_{\bm{k}} = \mathrm{i} \bm{k} × \bm{u}_{\bm{k}}``.</span>
+<span id="L30"><span class="lineNum">      30</span>              : It explicitly shows that ``H(\bm{k})`` is purely real.</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              : As usual, this function computes the sum of ``H(\bm{k})`` over spherical shells of radius</span>
+<span id="L33"><span class="lineNum">      33</span>              : ``k_n ≤ |\bm{k}| &lt; k_n + Δk = k_{n + 1}``.</span>
+<span id="L34"><span class="lineNum">      34</span>              : </span>
+<span id="L35"><span class="lineNum">      35</span>              : Defined as above, the total helicity in a (cubic) periodic domain of volume ``V = L^3`` is</span>
+<span id="L36"><span class="lineNum">      36</span>              : ``H = ∑_{\bm{k}} H(\bm{k}) Δk`` where ``Δk = 2π/L`` is the resolution in wavenumber space.</span>
+<span id="L37"><span class="lineNum">      37</span>              : </span>
+<span id="L38"><span class="lineNum">      38</span>              : See [`energy_spectrum!`](@ref) for details on accepted `cache` arguments.</span>
+<span id="L39"><span class="lineNum">      39</span>              : &quot;&quot;&quot;</span>
+<span id="L40"><span class="lineNum">      40</span>              : function helicity_spectrum! end</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC tlaBgGNC">          78 : function helicity_spectrum(cache; kws...)</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">          39 :     ks, Hk = init_spectrum(cache)</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">          39 :     helicity_spectrum!(Hk, ks, cache; kws...)</span></span>
+<span id="L45"><span class="lineNum">      45</span>              : end</span>
+<span id="L46"><span class="lineNum">      46</span>              : </span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">          41 : function helicity_spectrum!(</span></span>
+<span id="L48"><span class="lineNum">      48</span>              :         Hk::AbstractVector, ks::AbstractVector, cache::LongRangeCache;</span>
+<span id="L49"><span class="lineNum">      49</span>              :     )</span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">          41 :     (; state,) = cache.common</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">          41 :     p = BiotSavart.get_parameters(cache)</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">          41 :     V = prod(p.Ls)  # domain volume</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">          41 :     from_velocity = state.quantity == :velocity &amp;&amp; state.smoothing_scale == 0</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">          41 :     from_vorticity = state.quantity == :vorticity &amp;&amp; state.smoothing_scale == 0</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">          41 :     if from_velocity</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">          40 :         _compute_spectrum!(Hk, ks, cache) do u⃗, k⃗, k², I</span></span>
+<span id="L57"><span class="lineNum">      57</span>              :             # Note: û ⋅ ω̂ is expected to be purely real.</span>
+<span id="L58"><span class="lineNum">      58</span>              :             # Also, the factor 2 is because _compute_spectrum applies a factor 0.5 (for</span>
+<span id="L59"><span class="lineNum">      59</span>              :             # energy), which is not present in the helicity.</span>
+<span id="L60"><span class="lineNum">      60</span> <span class="tlaGNC">      622304 :             ω⃗ = im * (k⃗ × u⃗)</span></span>
+<span id="L61"><span class="lineNum">      61</span> <span class="tlaGNC">      628080 :             2V * real(u⃗ ⋅ ω⃗)</span></span>
+<span id="L62"><span class="lineNum">      62</span>              :         end</span>
+<span id="L63"><span class="lineNum">      63</span> <span class="tlaGNC">           1 :     elseif from_vorticity</span></span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">           1 :         _compute_spectrum!(Hk, ks, cache) do ω⃗, k⃗, k², I</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">      265311 :             local β = ifelse(iszero(k²), one(k²), 1 / k²)</span></span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">      265327 :             local u⃗_lap = im * (k⃗ × ω⃗)  # this is k² * û</span></span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">      266703 :             2V * β * real(u⃗_lap ⋅ ω⃗)</span></span>
+<span id="L68"><span class="lineNum">      68</span>              :         end</span>
+<span id="L69"><span class="lineNum">      69</span>              :     else</span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaUNC tlaBgUNC">           0 :         error(lazy&quot;the current state of the long-range cache ($state) is currently not supported&quot;)</span></span>
+<span id="L71"><span class="lineNum">      71</span>              :     end</span>
+<span id="L72"><span class="lineNum">      72</span> <span class="tlaGNC tlaBgGNC">          41 :     ks, Hk</span></span>
+<span id="L73"><span class="lineNum">      73</span>              : end</span>
+<span id="L74"><span class="lineNum">      74</span>              : </span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">          80 : helicity_spectrum!(Hk::AbstractVector, ks::AbstractVector, cache; kws...) =</span></span>
+<span id="L76"><span class="lineNum">      76</span>              :     helicity_spectrum!(Hk, ks, get_long_range_cache(cache); kws...)</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
