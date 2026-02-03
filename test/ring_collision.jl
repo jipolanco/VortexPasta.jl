@@ -1,5 +1,8 @@
 # This tests a simple case with more than one vortex filament.
 
+ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
+ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
+
 using Test
 using LinearAlgebra: norm, normalize, ⋅
 using StaticArrays

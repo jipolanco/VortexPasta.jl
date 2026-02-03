@@ -1,7 +1,7 @@
 ## ========================================================================================== ##
 
 """
-    HostVector{T, Backend <: KA.Backend} <: AbstractVector{T}
+    HostVector{T, Backend <: KA.Backend} <: DenseVector{T}
 
 CPU vector involved in host-device transfers.
 
@@ -19,7 +19,7 @@ where:
 - `backend` is a KernelAbstractions backend (such as `CUDABackend` or `ROCBackend`);
 - `n` is the vector length.
 """
-mutable struct HostVector{T, Backend <: KA.Backend} <: AbstractVector{T}
+mutable struct HostVector{T, Backend <: KA.Backend} <: DenseVector{T}
     data::Memory{T}  # length ≥ n
     n::Int  # logical length (exposed to the user)
     backend::Backend
@@ -41,6 +41,7 @@ KA.get_backend(v::HostVector) = v.backend
 
 Base.size(v::HostVector) = (v.n,)
 Base.pointer(v::HostVector) = pointer(v.data)
+Base.pointer(v::HostVector, i::Int) = pointer(v.data, i)
 Base.similar(v::HostVector, ::Type{S}, dims::Dims{1}) where {S} = HostVector{S}(undef, v.backend, dims[1])
 Base.IndexStyle(::Type{<:HostVector}) = IndexLinear()
 
@@ -86,18 +87,18 @@ Base.@propagate_inbounds function Base.setindex!(v::HostVector, x, i::Int)
     v.data[i] = x
 end
 
-function as_array(v::HostVector{T}) where {T}
-    unsafe_wrap(Array, pointer(v), size(v); own = false)
-end
+# Pointer-based copyto, should work with most CPU and GPU backends.
+# OpenCL doesn't implement unsafe_copyto! for CLPtr, so we override this function in a
+# package extension.
+copyto_ptr!(dst, src, n) = unsafe_copyto!(pointer(dst), pointer(src), n)
 
 # TODO: parallelise copy when src is on the CPU?
 function Base.copyto!(v::HostVector{T}, src::DenseArray{T}) where {T}
     n = length(src)
     @assert length(v) == n  # already resized
     # This should work both when src is either a CPU or a GPU array.
-    # unsafe_copyto!(pointer(v), pointer(src), n)  # doesn't work with OpenCL
-    GC.@preserve v begin
-        copyto!(as_array(v), src)
+    GC.@preserve src v begin
+        copyto_ptr!(v, src, n)
     end
 end
 
@@ -106,9 +107,8 @@ function Base.copyto!(dst::DenseArray{T}, v::HostVector{T}) where {T}
     n = length(v)
     @assert length(dst) == n  # already resized
     # This should work both when src is either a CPU or a GPU array.
-    # unsafe_copyto!(pointer(dst), pointer(v), n)  # doesn't work with OpenCL
-    GC.@preserve v begin
-        copyto!(dst, as_array(v))
+    GC.@preserve dst v begin
+        copyto_ptr!(dst, v, n)
     end
 end
 
