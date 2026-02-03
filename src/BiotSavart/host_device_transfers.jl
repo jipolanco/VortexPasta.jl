@@ -92,7 +92,6 @@ end
 # package extension.
 copyto_ptr!(dst, src, n) = unsafe_copyto!(pointer(dst), pointer(src), n)
 
-# TODO: parallelise copy when src is on the CPU?
 function Base.copyto!(v::HostVector{T}, src::DenseArray{T}) where {T}
     n = length(src)
     @assert length(v) == n  # already resized
@@ -100,9 +99,19 @@ function Base.copyto!(v::HostVector{T}, src::DenseArray{T}) where {T}
     GC.@preserve src v begin
         copyto_ptr!(v, src, n)
     end
+    v
 end
 
-# TODO: parallelise copy when dst is on the CPU?
+# Specialisation for CPU -> CPU case
+function Base.copyto!(v::HostVector{T}, src::Array{T}) where {T}
+    n = length(src)
+    @assert length(v) == n  # already resized
+    Threads.@threads for i in eachindex(src, v)
+        @inbounds v[i] = src[i]
+    end
+    v
+end
+
 function Base.copyto!(dst::DenseArray{T}, v::HostVector{T}) where {T}
     n = length(v)
     @assert length(dst) == n  # already resized
@@ -110,6 +119,17 @@ function Base.copyto!(dst::DenseArray{T}, v::HostVector{T}) where {T}
     GC.@preserve dst v begin
         copyto_ptr!(dst, v, n)
     end
+    dst
+end
+
+# Specialisation for CPU -> CPU case
+function Base.copyto!(dst::Array{T}, v::HostVector{T}) where {T}
+    n = length(v)
+    @assert length(dst) == n  # already resized
+    Threads.@threads for i in eachindex(dst, v)
+        @inbounds dst[i] = v[i]
+    end
+    dst
 end
 
 ## ========================================================================================== ##
@@ -128,7 +148,9 @@ end
 function copy_host_to_device!(dst::Vector, src::Vector, ::HostVector)
     n = length(src)
     resize_no_copy!(dst, n)
-    copyto!(dst, src)
+    Threads.@threads for i in eachindex(dst, src)
+        @inbounds dst[i] = src[i]
+    end
     dst
 end
 

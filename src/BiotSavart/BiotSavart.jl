@@ -672,22 +672,30 @@ end
 
 # CPU -> CPU copy (change of vector "format")
 function _copy_output_values_on_nodes!(::CPU, op::F, vs::AllFilamentVelocities, vs_h::AbstractVector, ignored = nothing) where {F}
-    n = 0
-    @inbounds for vf in vs, j in eachindex(vf)
-        q = vs_h[n += 1]
-        vf[j] = @inline op(vf[j], q)  # typically op == +, meaning that we add to the previous value
+    @sync for chunk in FilamentChunkIterator(vs)
+        Threads.@spawn for (i, inds, n) in chunk
+            vf = vs[i]
+            @inbounds for j in inds
+                q = vs_h[n += 1]
+                vf[j] = @inline op(vf[j], q)  # typically op == +, meaning that we add to the previous value
+            end
+        end
     end
     vs
 end
 
 # Same as above, but for a single component `i`.
 function _copy_output_values_on_nodes!(::CPU, op::F, vs::AllFilamentVelocities, i::Int, vs_h::HostVector{T}, ignored = nothing) where {F, T}
-    n = 0
-    @inbounds for vf in vs, j in eachindex(vf)
-        q = vs_h[n += 1]::T
-        v = vf[j]
-        vi_new = @inline op(v[i], q)  # typically op == +, meaning that we add to the previous value
-        vf[j] = Base.setindex(v, vi_new, i)
+    @sync for chunk in FilamentChunkIterator(vs)
+        Threads.@spawn for (i, inds, n) in chunk
+            vf = vs[i]
+            @inbounds for j in inds
+                q = vs_h[n += 1]::T
+                v = vf[j]
+                vi_new = @inline op(v[i], q)  # typically op == +, meaning that we add to the previous value
+                vf[j] = Base.setindex(v, vi_new, i)
+            end
+        end
     end
     vs
 end
