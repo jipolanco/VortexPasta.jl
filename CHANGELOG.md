@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fix potential issues in GPU-CPU data transfers, in AMDGPU in particular, but also in multi-GPU with CUDA.
+  This is achieved using a new staging area in CPU memory managed by a new
+  `HostVector` type, which is reallocated as little as possible (this was
+  previously needed each time the number of filament points increased during a
+  simulation).
+
 ## [0.32.17] - 2026-01-29
 
 ### Fixed
