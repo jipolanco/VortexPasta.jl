@@ -86,12 +86,11 @@ end
     r = sqrt(r²)
     assume(r > 0)  # tell the compiler that we're not dividing by zero
     r_inv = 1 / r
-    αr = α * r
-    erf_αr = erf_nosimd(ka_backend, αr)
-    exp_term = two_over_sqrt_pi(αr) * αr * exp_nosimd(ka_backend, -(αr * αr))
+    g = GaussianMollifier(α)
+    a, b = weights_shortrange_nosimd(ka_backend, g, r)
     map(quantities) do quantity
         @inline
-        long_range_integrand(quantity, erf_αr, exp_term, r_inv, qs⃗′, r⃗)
+        long_range_integrand(quantity, a, b, r_inv, qs⃗′, r⃗)
     end
 end
 

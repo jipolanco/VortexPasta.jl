@@ -103,6 +103,13 @@ transform_to_fourier!
 similar(::LongRangeCache, ::Dims{3})
 ```
 
+## Ewald splitting functions (mollifiers)
+
+```@docs
+AbstractMollifier
+GaussianMollifier
+```
+
 ## KernelAbstractions utils
 
 [KernelAbstractions.jl](https://github.com/JuliaGPU/KernelAbstractions.jl) is
