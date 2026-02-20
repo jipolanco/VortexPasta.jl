@@ -13,7 +13,7 @@ splitting `erf(αr) + erfc(αr) = 1`.
 
 - `α::AbstractFloat`: splitting parameter (an inverse length scale).
 """
-struct GaussianMollifier{T <: AbstractFloat} <: AbstractMollifier
+struct GaussianMollifier{T <: Real} <: AbstractMollifier
     α::T
 end
 
