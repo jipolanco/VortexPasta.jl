@@ -5,8 +5,6 @@ using ..Filaments: deperiodise_separation, Segment, segments
 # SIMD-specific stuff, in particular for erf implementation
 using HostCPUFeatures: pick_vector_width
 using Static: dynamic
-using SpecialFunctions: SpecialFunctions
-using SIMD: SIMD
 
 include("cache_common.jl")
 

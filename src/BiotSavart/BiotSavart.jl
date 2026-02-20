@@ -34,6 +34,8 @@ using ..Filaments:
 
 using Adapt: Adapt, adapt
 using LLVM.Interop: assume  # can enable compiler optimisations
+using SIMD: SIMD  # for explicit SIMD
+using SpecialFunctions: SpecialFunctions  # erf, erfc, besseli, ...
 
 using KernelAbstractions:
     KernelAbstractions,  # importing this avoids docs failure
