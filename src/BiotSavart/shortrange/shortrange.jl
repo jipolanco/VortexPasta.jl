@@ -193,7 +193,7 @@ function _add_pair_interactions_simd!(
             rs = sqrt(r²s_simd)
             rs_inv = inv(rs)
             g = GaussianMollifier(α)
-            a, b = weights_shortrange_simd(g, r)
+            a, b = weights_shortrange_simd(g, rs)
             args = (a, b, rs_inv, q⃗s_simd, r⃗s_simd)
 
             foreach(values(outputs), values(quantities)) do vs, quantity
