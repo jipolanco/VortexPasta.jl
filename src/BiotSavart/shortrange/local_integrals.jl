@@ -87,7 +87,7 @@ end
     assume(r > 0)  # tell the compiler that we're not dividing by zero
     r_inv = 1 / r
     g = GaussianMollifier(α)
-    a, b = weights_shortrange_nosimd(ka_backend, g, r)
+    a, b = weights_longrange_nosimd(ka_backend, g, r)
     map(quantities) do quantity
         @inline
         long_range_integrand(quantity, a, b, r_inv, qs⃗′, r⃗)

@@ -67,13 +67,13 @@ end
 end
 
 # Same as above but replacing erfc -> erf.
-@inline function weights_longrange_simd(g::GaussianMollifier, r)
-    (; α,) = g
-    αr = α * r
-    a = erf_simd(αr)
-    b = two_over_sqrt_pi(r) * αr * exp_simd(-(αr * αr))
-    a, b
-end
+# @inline function weights_longrange_simd(g::GaussianMollifier, r)
+#     (; α,) = g
+#     αr = α * r
+#     a = erf_simd(αr)
+#     b = two_over_sqrt_pi(r) * αr * exp_simd(-(αr * αr))
+#     a, b
+# end
 
 @inline function weights_longrange_nosimd(backend::KA.Backend, g::GaussianMollifier, r)
     (; α,) = g
