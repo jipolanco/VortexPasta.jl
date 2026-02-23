@@ -1,24 +1,25 @@
-export GaussianMollifier
-
 """
-    GaussianMollifier{T <: AbstractFloat} <: AbstractMollifier
-    GaussianMollifier(α::AbstractFloat)
+    GaussianSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
+    GaussianSplitting(α::AbstractFloat)
 
-Gaussian mollifier for Ewald summation.
+Gaussian splitting kernel for Ewald summation.
 
-This is the standard mollifier traditionally used in Ewald methods, associated to the
-splitting `erf(αr) + erfc(αr) = 1`.
+This is the standard splitting kernel traditionally used in Ewald methods, associated to the
+identity `erf(αr) + erfc(αr) = 1`.
 
 # Parameters
 
 - `α::AbstractFloat`: splitting parameter (an inverse length scale).
 """
-struct GaussianMollifier{T <: Real} <: AbstractMollifier
+struct GaussianSplitting{T <: Real} <: AbstractEwaldSplitting
     α::T
 end
 
-function Base.show(io::IO, g::GaussianMollifier)
-    print(io, "GaussianMollifier(α = $(g.α))")
+# This converts real values to the wanted precision, except when α is a RealConst (typically Zero(), see params.jl).
+convert_floats(::Type{T}, g::GaussianSplitting) where {T} = GaussianSplitting(maybe_convert(T, g.α))
+
+function Base.show(io::IO, g::GaussianSplitting)
+    print(io, "GaussianSplitting(α = $(g.α))")
 end
 
 include("SIMDFunctions/SIMDFunctions.jl")
@@ -50,7 +51,7 @@ using .SIMDFunctions: SIMDFunctions
 @inline two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
 @inline two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway
 
-@inline function weights_shortrange_simd(g::GaussianMollifier, r)
+@inline function weights_shortrange_simd(g::GaussianSplitting, r)
     (; α,) = g
     αr = α * r
     a = erfc_simd(αr)
@@ -58,7 +59,7 @@ using .SIMDFunctions: SIMDFunctions
     a, b
 end
 
-@inline function weights_shortrange_nosimd(backend::KA.Backend, g::GaussianMollifier, r)
+@inline function weights_shortrange_nosimd(backend::KA.Backend, g::GaussianSplitting, r)
     (; α,) = g
     αr = α * r
     a = erfc_nosimd(backend, αr)
@@ -67,7 +68,7 @@ end
 end
 
 # Same as above but replacing erfc -> erf.
-# @inline function weights_longrange_simd(g::GaussianMollifier, r)
+# @inline function weights_longrange_simd(g::GaussianSplitting, r)
 #     (; α,) = g
 #     αr = α * r
 #     a = erf_simd(αr)
@@ -75,7 +76,7 @@ end
 #     a, b
 # end
 
-@inline function weights_longrange_nosimd(backend::KA.Backend, g::GaussianMollifier, r)
+@inline function weights_longrange_nosimd(backend::KA.Backend, g::GaussianSplitting, r)
     (; α,) = g
     αr = α * r
     a = erf_nosimd(backend, αr)

@@ -86,7 +86,7 @@ end
     r = sqrt(r²)
     assume(r > 0)  # tell the compiler that we're not dividing by zero
     r_inv = 1 / r
-    g = GaussianMollifier(α)
+    g = GaussianSplitting(α)
     a, b = weights_longrange_nosimd(ka_backend, g, r)
     map(quantities) do quantity
         @inline

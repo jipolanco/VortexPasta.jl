@@ -192,7 +192,7 @@ function _add_pair_interactions_simd!(
             # The next operations should all take advantage of SIMD.
             rs = sqrt(r²s_simd)
             rs_inv = inv(rs)
-            g = GaussianMollifier(α)
+            g = GaussianSplitting(α)
             a, b = weights_shortrange_simd(g, rs)
             args = (a, b, rs_inv, q⃗s_simd, r⃗s_simd)
 
@@ -259,7 +259,7 @@ function _add_pair_interactions_nosimd!(
             r = sqrt(r²)
             assume(r > 0)   # tell the compiler that we're not dividing by zero
             r_inv = 1 / r
-            g = GaussianMollifier(α)
+            g = GaussianSplitting(α)
             a, b = weights_shortrange_nosimd(ka_backend, g, r)
             args = (a, b, r_inv, qs⃗′, r⃗)
             foreach(values(outputs), values(quantities)) do vs, quantity

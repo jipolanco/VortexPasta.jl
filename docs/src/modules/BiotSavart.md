@@ -103,11 +103,12 @@ transform_to_fourier!
 similar(::LongRangeCache, ::Dims{3})
 ```
 
-## Ewald splitting functions (mollifiers)
+## Ewald splitting functions
 
 ```@docs
-AbstractMollifier
-GaussianMollifier
+AbstractEwaldSplitting
+GaussianSplitting
+NoSplitting
 ```
 
 ## KernelAbstractions utils
