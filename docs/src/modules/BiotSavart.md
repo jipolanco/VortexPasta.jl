@@ -31,6 +31,7 @@ domain_is_periodic
 ```@docs
 AbstractEwaldSplitting
 GaussianSplitting
+KaiserBesselSplitting
 NoSplitting
 ```
 

@@ -1,6 +1,6 @@
 # Smoothing kernels which can be used for performing Ewald summation.
 
-export NoSplitting, GaussianSplitting
+export NoSplitting, GaussianSplitting, KaiserBesselSplitting
 
 """
     AbstractEwaldSplitting
@@ -33,9 +33,6 @@ convert_floats(::Type{T}, g::NoSplitting) where {T} = g
 Base.show(io::IO, ::NoSplitting) = print(io, "NoSplitting()")
 Base.summary(io::IO, g::NoSplitting) = show(io, g)
 
-accuracy_coefficient_shortrange(::NoSplitting, rcut) = rcut === Infinity() ? Infinity() : Zero()
-accuracy_coefficient_longrange(::NoSplitting, kmax) = Infinity()  # there's no long-range
-
 @inline weights_shortrange_simd(::NoSplitting, r) = one(r), zero(r)
 @inline weights_shortrange_nosimd(::KA.Backend, ::NoSplitting, r) = one(r), zero(r)
 
@@ -44,3 +41,4 @@ accuracy_coefficient_longrange(::NoSplitting, kmax) = Infinity()  # there's no l
 # @inline weights_longrange_nosimd(::KA.Backend, g::NoSplitting, r) = zero(r), zero(r)
 
 include("gaussian.jl")
+include("kaiser_bessel.jl")

@@ -74,13 +74,13 @@ As a result, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$
 $\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{(f)}}(\bm{r})$ with:
 
 ```math
-\begin{align}
+\begin{align*}
     \bm{\nabla}G^{\text{(n)}}(\bm{r})
     &= -\frac{\bm{r}}{4\pi r^3} \left[ \operatorname{erfc}(αr) + \frac{2αr}{\sqrt{π}} \right]
     \\
     \bm{\nabla}G^{\text{(f)}}(\bm{r})
     &= -\frac{\bm{r}}{4\pi r^3} \left[ \operatorname{erf}(αr) - \frac{2αr}{\sqrt{π}} \right]
-\end{align}
+\end{align*}
 ```
 """
 struct GaussianSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting
@@ -142,9 +142,9 @@ function Base.show(io::IO, g::GaussianSplitting{T, N}) where {T, N}
     indent = get(io, :indent, 0)
     pre = ' '^indent
     rcut_L = rcut / minimum(Ls)
-    β_shortrange = accuracy_coefficient_shortrange(g, rcut)
     kmax = maximum_wavenumber(Ns, Ls)
-    β_longrange = accuracy_coefficient_longrange(g, kmax)
+    β_shortrange = α * rcut
+    β_longrange = kmax / (2 * α)
     print(io, "$(pre)GaussianSplitting{$T, $N} with:")
     print(io, "\n$(pre) - Domain period:               Ls = ", Ls)
     print(io, "\n$(pre) - Ewald splitting parameter:   α  = ", α)
@@ -158,9 +158,6 @@ end
 function Base.summary(io::IO, g::GaussianSplitting)
     print(io, "GaussianSplitting(Ls = $(g.Ls), α = $(g.α), rcut = $(g.rcut)), Ns = $(g.Ns))")
 end
-
-accuracy_coefficient_shortrange(g::GaussianSplitting, rcut) = g.α * rcut
-accuracy_coefficient_longrange(g::GaussianSplitting, kmax) = kmax / (2 * g.α)
 
 # Evaluate splitting kernel in Fourier space.
 # Note that this may be called from a GPU kernel.

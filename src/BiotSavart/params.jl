@@ -172,9 +172,7 @@ function to_hdf5(g, p::ParamsLongRange{T}) where {T}
     (; common, Ns,) = p
     (; splitting,) = common
     kmax = maximum_wavenumber(p)
-    β_longrange = accuracy_coefficient_longrange(splitting, kmax)
     g["backend_longrange"] = string(p.backend)
-    g["beta_longrange"] = β_longrange
     g["Ns"] = collect(Ns)
     g["truncate_spherical"] = p.truncate_spherical
     nothing
