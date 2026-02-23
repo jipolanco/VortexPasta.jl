@@ -24,4 +24,18 @@ of dense vortex systems.
 """
 struct NoSplitting <: AbstractEwaldSplitting end
 
+convert_floats(::Type{T}, g::NoSplitting) where {T} = g
+
+Base.show(io::IO, ::NoSplitting) = print(io, "NoSplitting()")
+
+accuracy_coefficient_shortrange(::NoSplitting, rcut) = rcut === Infinity() ? Infinity() : Zero()
+accuracy_coefficient_longrange(::NoSplitting, kmax) = Infinity()  # there's no long-range
+
+@inline weights_shortrange_simd(::NoSplitting, r) = one(r), zero(r)
+@inline weights_shortrange_nosimd(::KA.Backend, ::NoSplitting, r) = one(r), zero(r)
+
+# There's no long-range when splitting is disabled.
+# @inline weights_longrange_simd(g::NoSplitting, r) = zero(r), zero(r)
+# @inline weights_longrange_nosimd(::KA.Backend, g::NoSplitting, r) = zero(r), zero(r)
+
 include("gaussian.jl")

@@ -7,8 +7,7 @@ const MaybeConst{T} = Union{RealConst, T}
 # but then precompilation fails (enters an infinite loop?). Tested on Julia 1.10-rc1.
 struct ParamsCommon{
         T <: AbstractFloat,
-        Alpha <: Real,  #  <: MaybeConst{T} (fails!!)
-        Sigma <: Real,  #  <: MaybeConst{T} (fails!!)
+        Splitting <: AbstractEwaldSplitting,
         Periods <: NTuple{3, MaybeConst{T}},
         Quad <: StaticSizeQuadrature,
         QuadNearSingularity <: StaticSizeQuadrature,
@@ -16,18 +15,16 @@ struct ParamsCommon{
     Γ  :: T        # vortex circulation
     a  :: T        # vortex core size
     Δ  :: T        # LIA coefficient given by core vorticity profile
-    α  :: Alpha    # Ewald splitting parameter (inverse length scale)
-    σ  :: Sigma    # Ewald splitting length scale = 1 / α√2 = std of Gaussian filter
+    splitting :: Splitting    # Ewald splitting kernel (Gaussian, ...)
     Ls :: Periods  # size of unit cell (= period in each direction)
     quad :: Quad   # quadrature rule used for short- and long-range computations
     quad_near_singularity :: QuadNearSingularity  # quadrature rule to be used near singularities (usually the same as quad)
     avoid_explicit_erf :: Bool
-    function ParamsCommon{T}(Γ, a, Δ, α_in, Ls_in, quad, quad_near_singularity, avoid_explicit_erf) where {T}
-        α = maybe_convert(T, α_in)  # don't convert constants (e.g. if α = Zero())
+    function ParamsCommon{T}(Γ, a, Δ, splitting_in, Ls_in, quad, quad_near_singularity, avoid_explicit_erf) where {T}
+        splitting = convert_floats(T, splitting_in)
         Ls = map(L -> maybe_convert(T, L), Ls_in)
-        σ = 1 / (α * sqrt(T(2)))
-        new{T, typeof(α), typeof(σ), typeof(Ls), typeof(quad), typeof(quad_near_singularity)}(
-            Γ, a, Δ, α, σ, Ls, quad, quad_near_singularity, avoid_explicit_erf,
+        new{T, typeof(splitting), typeof(Ls), typeof(quad), typeof(quad_near_singularity)}(
+            Γ, a, Δ, splitting, Ls, quad, quad_near_singularity, avoid_explicit_erf,
         )
     end
 end
@@ -36,15 +33,14 @@ maybe_convert(::Type{T}, x::Real) where {T <: AbstractFloat} = convert(T, x)
 maybe_convert(::Type{T}, x::RealConst) where {T <: AbstractFloat} = x  # don't convert constants (Zero, Infinity)
 
 function Base.show(io::IO, p::ParamsCommon)
-    (; Γ, a, Δ, Ls, α,) = p
-    σ = 1 / (α * sqrt(2))
+    (; Γ, a, Δ, Ls,) = p
     print(io, "\n - Physical parameters:")
     print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
     print(io, "\n   * Vortex core radius:         a  = ", a)
     print(io, "\n   * Vortex core parameter:      Δ  = ", Δ)
     print(io, "\n   * Domain period:              Ls = ", Ls)
     print(io, "\n - Numerical parameters:")
-    print(io, "\n   * Ewald splitting parameter:  α = ", α, " (σ = 1/α√2 = ", σ, ")")
+    print(io, "\n   * Ewald splitting kernel:     ", p.splitting)
     print(io, "\n   * Quadrature rule:            ", p.quad)
     print(io, "\n   * Quadrature rule (alt.):     ", p.quad_near_singularity, " (used near singularities)")
     print(io, "\n   * Avoid explicit erf:         ", p.avoid_explicit_erf)
@@ -56,7 +52,7 @@ function to_hdf5(g, p::ParamsCommon{T}) where {T}
     g["a"] = p.a
     g["Delta"] = p.Δ
     g["Ls"] = collect(T, p.Ls)    # this allows converting Infinity() to a float (e.g. Inf)
-    g["alpha"] = convert(T, p.α)  # convert Zero() -> 0.0
+    g["splitting"] = string(p.splitting)
     g["quad"] = string(p.quad)
     g["quad_near_singularity"] = string(p.quad_near_singularity)
     g["avoid_explicit_erf"] = string(p.avoid_explicit_erf)
@@ -67,8 +63,8 @@ Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
 Base.eltype(p::ParamsCommon) = eltype(typeof(p))
 
 function Base.convert(::Type{T}, p::ParamsCommon) where {T <: AbstractFloat}
-    (; Γ, a, Δ, α, Ls, quad, quad_near_singularity, avoid_explicit_erf) = p
-    ParamsCommon{T}(Γ, a, Δ, α, Ls, quad, quad_near_singularity, avoid_explicit_erf)  # converts all floats to type T
+    (; Γ, a, Δ, splitting, Ls, quad, quad_near_singularity, avoid_explicit_erf) = p
+    ParamsCommon{T}(Γ, a, Δ, splitting, Ls, quad, quad_near_singularity, avoid_explicit_erf)  # converts all floats to type T
 end
 
 ## ================================================================================ ##
@@ -83,7 +79,7 @@ struct ParamsShortRange{
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
-    common  :: Common      # common parameters (Γ, α, Ls)
+    common  :: Common      # common parameters (Γ, splitting, Ls)
     rcut    :: CutoffDist  # cutoff distance
     rcut_sq :: CutoffDist  # squared cutoff distance
     lia_segment_fraction :: LIASegmentFraction
@@ -118,12 +114,12 @@ end
 
 function Base.show(io::IO, p::ParamsShortRange)
     (; common, rcut, lia_segment_fraction,) = p
-    (; Ls, α,) = common
-    β_shortrange = α === Zero() ? (rcut === Infinity() ? Infinity() : Zero()) : α * rcut
+    (; Ls, splitting,) = common
+    β_shortrange = accuracy_coefficient_shortrange(splitting, rcut)
     rcut_L = rcut === Infinity() ? rcut : rcut / minimum(Ls)  # avoid Infinity() / Infinity()
     print(io, "\n   * Short-range backend:        ", p.backend)
     print(io, "\n   * Short-range cut-off:        r_cut = ", rcut, " (r_cut/L = ", rcut_L, ")")
-    print(io, "\n   * Short-range cut-off coeff.: β_shortrange = ", β_shortrange)
+    print(io, "\n   * Short-range accuracy coeff.: β_shortrange = ", β_shortrange)
     print(io, "\n   * Local segment fraction:     ", something(lia_segment_fraction, 1))
     print(io, "\n   * Short-range uses SIMD:      ", p.use_simd)
     nothing
@@ -131,8 +127,8 @@ end
 
 function to_hdf5(g, p::ParamsShortRange{T}) where {T}
     (; common, rcut, lia_segment_fraction,) = p
-    (; α,) = common
-    β_shortrange = α === Zero() ? (rcut === Infinity() ? Infinity() : Zero()) : α * rcut
+    (; splitting,) = common
+    β_shortrange = accuracy_coefficient_shortrange(splitting, rcut)
     g["backend_shortrange"] = string(p.backend)
     g["beta_shortrange"] = β_shortrange
     g["r_cut"] = convert(T, rcut)
@@ -159,7 +155,7 @@ struct ParamsLongRange{
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
-    common  :: Common      # common parameters (Γ, α, Ls)
+    common  :: Common      # common parameters (Γ, splitting, Ls)
     Ns      :: Dims{3}     # grid dimensions for FFTs
     truncate_spherical :: Bool  # if true, perform spherical truncation in Fourier space
 end
@@ -175,9 +171,9 @@ end
 
 function Base.show(io::IO, p::ParamsLongRange{T}) where {T}
     (; common, Ns,) = p
-    (; α,) = common
+    (; splitting,) = common
     kmax = maximum_wavenumber(p)
-    β_longrange = kmax === Zero() ? Zero() : kmax / (2 * α)
+    β_longrange = accuracy_coefficient_longrange(splitting, kmax)
     print(io, "\n   * Long-range backend:         ", p.backend)
     print(io, "\n   * Long-range resolution:      Ns = ", Ns, " (kmax = ", kmax, ")")
     print(io, "\n   * Long-range cut-off coeff.:  β_longrange = ", β_longrange)
@@ -187,9 +183,9 @@ end
 
 function to_hdf5(g, p::ParamsLongRange{T}) where {T}
     (; common, Ns,) = p
-    (; α,) = common
+    (; splitting,) = common
     kmax = maximum_wavenumber(p)
-    β_longrange = kmax === Zero() ? Zero() : kmax / (2 * α)
+    β_longrange = accuracy_coefficient_longrange(splitting, kmax)
     g["backend_longrange"] = string(p.backend)
     g["beta_longrange"] = β_longrange
     g["Ns"] = collect(Ns)
@@ -349,17 +345,14 @@ function ParamsBiotSavart(
         avoid_explicit_erf::Bool = true,
         kws...,
     ) where {T}
-    # TODO better split into physical (Γ, a, Δ, Ls) and numerical (α, rcut, Ns, ...) parameters?
-    # - define ParamsPhysical instead of ParamsCommon
-    # - include α in both ParamsShortRange and ParamsLongRange?
-    (; Ns, rcut,) = _extra_params(α; kws...)
+    (; splitting, Ns, rcut,) = _splitting_params(α; kws...)
     if lia_segment_fraction !== nothing && quadrature_near_singularity === NoQuadrature()
         @warn(
             "quadrature_near_singularity has been set to NoQuadrature(); this will lead to wrong results!",
             quadrature, quadrature_near_singularity, lia_segment_fraction  # print these variables for extra information
         )
     end
-    common = ParamsCommon{T}(Γ, a, Δ, α, Ls, quadrature, quadrature_near_singularity, avoid_explicit_erf)
+    common = ParamsCommon{T}(Γ, a, Δ, splitting, Ls, quadrature, quadrature_near_singularity, avoid_explicit_erf)
     sr = ParamsShortRange(backend_short, quadrature, common, rcut, lia_segment_fraction, use_simd)
     lr = ParamsLongRange(backend_long, quadrature, common, Ns, longrange_truncate_spherical)
     ParamsBiotSavart(common, sr, lr)
@@ -429,8 +422,14 @@ Returns `true` if the domain is periodic in *all* directions, `false` otherwise.
 domain_is_periodic(p::ParamsBiotSavart) = domain_is_periodic(periods(p))
 domain_is_periodic(Ls::NTuple) = !is_open_domain(Ls)
 
-_extra_params(α::Zero; Ns = nothing, rcut = ∞) = (; Ns = (0, 0, 0), rcut,)  # Ns is always (0, 0, 0), no matter the input
-_extra_params(α::Real; Ns, rcut,) = (; Ns, rcut,)  # Ns and rcut are required in this case
+# Ns is always (0, 0, 0), no matter the input
+_splitting_params(α::Zero; Ns = nothing, rcut = Infinity()) = (;
+    splitting = NoSplitting(), Ns = (0, 0, 0), rcut,
+)
+
+_splitting_params(α::Real; Ns, rcut) = (;
+    splitting = GaussianSplitting(; α = float(α)), Ns, rcut,
+)
 
 ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls, kws...) where {T} =
     ParamsBiotSavart(T, Γ, α, _convert_periods(Ls); kws...)
@@ -440,7 +439,7 @@ _convert_periods(L::Real) = (L, L, L)
 
 ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)
 
-# This is for convenience: doing p.α is equivalent to p.common.α.
+# This is for convenience: doing p.splitting is equivalent to p.common.splitting.
 @inline function Base.getproperty(p::ParamsBiotSavart, name::Symbol)
     common = getfield(p, :common)
     if hasproperty(common, name)
@@ -471,9 +470,9 @@ function to_hdf5(g, p::ParamsBiotSavart)
 end
 
 function Base.summary(io::IO, p::ParamsBiotSavart{T}) where {T}
-    # Print a few physical parameters (and α)
-    (; Γ, a, Δ, α,) = p.common
-    print(io, "ParamsBiotSavart{$T}(Γ = $Γ, a = $a, Δ = $Δ, α = $α, …)")
+    # Print a few physical and numerical parameters
+    (; Γ, a, Δ, splitting,) = p.common
+    print(io, "ParamsBiotSavart{$T}(Γ = $Γ, a = $a, Δ = $Δ, splitting = $splitting, …)")
 end
 
 @doc raw"""

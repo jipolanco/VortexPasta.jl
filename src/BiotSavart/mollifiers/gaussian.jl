@@ -1,6 +1,6 @@
 """
     GaussianSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
-    GaussianSplitting(α::AbstractFloat)
+    GaussianSplitting(; α::AbstractFloat)
 
 Gaussian splitting kernel for Ewald summation.
 
@@ -11,16 +11,32 @@ identity `erf(αr) + erfc(αr) = 1`.
 
 - `α::AbstractFloat`: splitting parameter (an inverse length scale).
 """
-struct GaussianSplitting{T <: Real} <: AbstractEwaldSplitting
+@kwdef struct GaussianSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
     α::T
 end
 
-# This converts real values to the wanted precision, except when α is a RealConst (typically Zero(), see params.jl).
-convert_floats(::Type{T}, g::GaussianSplitting) where {T} = GaussianSplitting(maybe_convert(T, g.α))
+# This converts real values to the wanted precision.
+convert_floats(::Type{T}, g::GaussianSplitting) where {T} = GaussianSplitting(convert(T, g.α))
 
 function Base.show(io::IO, g::GaussianSplitting)
     print(io, "GaussianSplitting(α = $(g.α))")
 end
+
+accuracy_coefficient_shortrange(g::GaussianSplitting, rcut) = rcut / g.α
+accuracy_coefficient_longrange(g::GaussianSplitting, kmax) = kmax / (2 * g.α)
+
+# Evaluate splitting kernel in Fourier space.
+# Note that this may be called from a GPU kernel.
+# It doesn't need to be very performant since it's only done once when creating a BiotSavartCache.
+function splitting_kernel_fourier(g::GaussianSplitting)
+    (; α,) = g
+    β = -1 / (4 * α * α)
+    @inline(k² -> exp(β * k²))
+end
+
+# Factor in ⟨ψ⟩ = C * ⟨ω⟩ to be applied when the mean vorticity ⟨ω⟩ is nonzero.
+# See background_vorticity_correction! for details.
+background_vorticity_correction_factor(g::GaussianSplitting) = 1 / (4 * g.α^2)
 
 include("SIMDFunctions/SIMDFunctions.jl")
 using .SIMDFunctions: SIMDFunctions
@@ -41,15 +57,8 @@ using .SIMDFunctions: SIMDFunctions
 @inline erf_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.erf(x)
 @inline erfc_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.erfc(x)
 
-@inline exp_nosimd(::KA.Backend, x::Zero) = exp(x)    # = 1 (defined in Constants.jl)
-@inline exp_simd(x::Zero) = exp(x)
-@inline erf_nosimd(::KA.Backend, ::Zero) = Zero()
-@inline erfc_nosimd(::KA.Backend, ::Zero) = One()
-@inline erfc_simd(::Zero) = One()
-
 @inline two_over_sqrt_pi(::SIMD.Vec{W, T}) where {W, T} = 2 / sqrt(T(π))
 @inline two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
-@inline two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway
 
 @inline function weights_shortrange_simd(g::GaussianSplitting, r)
     (; α,) = g

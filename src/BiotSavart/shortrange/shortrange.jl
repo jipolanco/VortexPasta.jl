@@ -158,7 +158,7 @@ function _add_pair_interactions_simd!(
     (; pointdata, params) = cache
     (; points, charges, node_idx_prev,) = pointdata
     (; quad,) = params
-    (; Γ, α, Ls) = params.common
+    (; Γ, splitting, Ls) = params.common
     T = typeof(Γ)
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
@@ -192,8 +192,7 @@ function _add_pair_interactions_simd!(
             # The next operations should all take advantage of SIMD.
             rs = sqrt(r²s_simd)
             rs_inv = inv(rs)
-            g = GaussianSplitting(α)
-            a, b = weights_shortrange_simd(g, rs)
+            a, b = weights_shortrange_simd(splitting, rs)
             args = (a, b, rs_inv, q⃗s_simd, r⃗s_simd)
 
             foreach(values(outputs), values(quantities)) do vs, quantity
@@ -220,7 +219,7 @@ function _add_pair_interactions_nosimd!(
     (; pointdata, params) = cache
     (; points, charges, node_idx_prev) = pointdata
     (; quad,) = params
-    (; Γ, α, Ls) = params.common
+    (; Γ, splitting, Ls) = params.common
     ka_backend = KA.get_backend(cache)
     T = typeof(Γ)
     rcut² = params.rcut_sq
@@ -259,8 +258,7 @@ function _add_pair_interactions_nosimd!(
             r = sqrt(r²)
             assume(r > 0)   # tell the compiler that we're not dividing by zero
             r_inv = 1 / r
-            g = GaussianSplitting(α)
-            a, b = weights_shortrange_nosimd(ka_backend, g, r)
+            a, b = weights_shortrange_nosimd(ka_backend, splitting, r)
             args = (a, b, r_inv, qs⃗′, r⃗)
             foreach(values(outputs), values(quantities)) do vs, quantity
                 @inline

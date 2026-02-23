@@ -239,7 +239,8 @@ implicitly by setting the zero mode ``\hat{\bm{\omega}}(\bm{k} = \bm{0}) = \bm{0
 the short-range component, only the streamfunction needs to be corrected, while the velocity
 is not affected by the background vorticity.
 
-The correction to the short-range streamfunction is given by
+When using the standard [`GaussianSplitting`](@ref) for Ewald summation, the correction to
+the short-range streamfunction is given by:
 
 ```math
 \bm{ψ}^{<}_{0}
@@ -261,7 +262,7 @@ function background_vorticity_correction!(
     ψs_all === nothing && return fields
     domain_is_periodic(params) || return fields  # correction only makes sense in periodic domain
 
-    (; Γ, Ls, α,) = params
+    (; Γ, Ls, splitting,) = params
 
     # Compute mean vorticity associated to filaments.
     # This simply corresponds to adding the end_to_end_offset's of each filament.
@@ -274,7 +275,7 @@ function background_vorticity_correction!(
     ω⃗_back = -ω⃗_mean  # background vorticity
 
     # Streamfunction associated to background vorticity
-    ψ⃗_back = ω⃗_back / (4 * α^2)
+    ψ⃗_back = ω⃗_back * background_vorticity_correction_factor(splitting)
 
     @inbounds for ψs ∈ ψs_all, i ∈ eachindex(ψs)
         ψs[i] = ψs[i] + ψ⃗_back
