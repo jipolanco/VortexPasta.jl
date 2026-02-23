@@ -33,14 +33,16 @@ maybe_convert(::Type{T}, x::Real) where {T <: AbstractFloat} = convert(T, x)
 maybe_convert(::Type{T}, x::RealConst) where {T <: AbstractFloat} = x  # don't convert constants (Zero, Infinity)
 
 function Base.show(io::IO, p::ParamsCommon)
-    (; Γ, a, Δ, Ls,) = p
+    (; Γ, a, Δ,) = p
+    indent = get(io, :indent, 0)
+    io_sub = IOContext(io, :indent => indent + 5)
     print(io, "\n - Physical parameters:")
     print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
     print(io, "\n   * Vortex core radius:         a  = ", a)
     print(io, "\n   * Vortex core parameter:      Δ  = ", Δ)
-    print(io, "\n   * Domain period:              Ls = ", Ls)
     print(io, "\n - Numerical parameters:")
-    print(io, "\n   * Ewald splitting kernel:     ", p.splitting)
+    print(io, "\n   * Ewald splitting kernel:\n")
+    print(io_sub, p.splitting)
     print(io, "\n   * Quadrature rule:            ", p.quad)
     print(io, "\n   * Quadrature rule (alt.):     ", p.quad_near_singularity, " (used near singularities)")
     print(io, "\n   * Avoid explicit erf:         ", p.avoid_explicit_erf)
@@ -113,26 +115,15 @@ struct ParamsShortRange{
 end
 
 function Base.show(io::IO, p::ParamsShortRange)
-    (; common, rcut, lia_segment_fraction,) = p
-    (; Ls, splitting,) = common
-    β_shortrange = accuracy_coefficient_shortrange(splitting, rcut)
-    rcut_L = rcut === Infinity() ? rcut : rcut / minimum(Ls)  # avoid Infinity() / Infinity()
     print(io, "\n   * Short-range backend:        ", p.backend)
-    print(io, "\n   * Short-range cut-off:        r_cut = ", rcut, " (r_cut/L = ", rcut_L, ")")
-    print(io, "\n   * Short-range accuracy coeff.: β_shortrange = ", β_shortrange)
-    print(io, "\n   * Local segment fraction:     ", something(lia_segment_fraction, 1))
+    print(io, "\n   * Local segment fraction:     ", something(p.lia_segment_fraction, 1))
     print(io, "\n   * Short-range uses SIMD:      ", p.use_simd)
     nothing
 end
 
 function to_hdf5(g, p::ParamsShortRange{T}) where {T}
-    (; common, rcut, lia_segment_fraction,) = p
-    (; splitting,) = common
-    β_shortrange = accuracy_coefficient_shortrange(splitting, rcut)
     g["backend_shortrange"] = string(p.backend)
-    g["beta_shortrange"] = β_shortrange
-    g["r_cut"] = convert(T, rcut)
-    g["lia_segment_fraction"] = lia_segment_fraction === nothing ? one(T) : lia_segment_fraction  # setting this to nothing is equivalent to setting it to 1
+    g["lia_segment_fraction"] = p.lia_segment_fraction === nothing ? one(T) : p.lia_segment_fraction  # setting this to nothing is equivalent to setting it to 1
     g["use_simd"] = p.use_simd
     nothing
 end
@@ -162,21 +153,17 @@ end
 
 has_real_to_complex(p::ParamsLongRange) = has_real_to_complex(p.backend)
 
-function maximum_wavenumber(p::ParamsLongRange{T}) where {T}
-    minimum(zip(p.Ns, p.common.Ls)) do (N, L)
-        local m = (N - 1) ÷ 2
+function maximum_wavenumber(Ns::NTuple{N}, Ls::NTuple{N, T}) where {N, T}
+    minimum(zip(Ns, Ls)) do (M, L)
+        local m = (M - 1) ÷ 2
         convert(T, 2π * m / L)  # convert in case m/L = Zero()
     end
 end
 
+maximum_wavenumber(p::ParamsLongRange) = maximum_wavenumber(p.Ns, p.common.Ls)
+
 function Base.show(io::IO, p::ParamsLongRange{T}) where {T}
-    (; common, Ns,) = p
-    (; splitting,) = common
-    kmax = maximum_wavenumber(p)
-    β_longrange = accuracy_coefficient_longrange(splitting, kmax)
     print(io, "\n   * Long-range backend:         ", p.backend)
-    print(io, "\n   * Long-range resolution:      Ns = ", Ns, " (kmax = ", kmax, ")")
-    print(io, "\n   * Long-range cut-off coeff.:  β_longrange = ", β_longrange)
     print(io, "\n   * Long-range spherical truncation: ", p.truncate_spherical)
     nothing
 end
@@ -212,7 +199,7 @@ The type parameter `T` corresponds to the precision used in computations
 
 # Construction
 
-    ParamsBiotSavart([T = Float64]; Γ, a, α, Ls, Ns, rcut, optional_kws...)
+    ParamsBiotSavart([T = Float64]; Γ, a, splitting, Ls, optional_kws...)
 
 where the optional parameter `T` sets the numerical precision.
 
@@ -228,14 +215,18 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
 
 - `a::Real`: vortex core size (assumed constant);
 
+- `splitting::AbstractEwaldSplitting`: a choice of Ewald splitting kernel for FFT-based
+  long-range computations.
+  Possible choices are:
+  - [`GaussianSplitting`](@ref): standard Gaussian splitting window;
+  - [`NoSplitting`](@ref): disables Ewald splitting and periodicity.
+
+## Old keyword arguments
+
+Instead of the `splitting` parameter, one can pass the following parameters:
+
 - `α::Real`: Ewald splitting parameter (inverse length scale). One can set
   `α = Zero()` to efficiently disable long-range computations.
-
-- `Ls::Union{Real, NTuple{3, Real}}`: domain period in each Cartesian direction.
-  If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
-  the same in all directions.
-
-  One can set `Ls = Infinity()` to disable periodicity. This should be done in combination with `α = Zero()`.
 
 - `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions.
   This parameter is not required if `α = Zero()`.
@@ -244,6 +235,17 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
   For performance and practical reasons, the cutoff distance must be less than half the cell
   unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
   This parameter is not required if `α = Zero()`.
+
+- `Ls::Union{Real, NTuple{3, Real}}`: domain period in each Cartesian direction.
+  If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
+  the same in all directions.
+
+  This option is ignored when `splitting = NoSplitting()`, in which case periodic boundary
+  conditions are disabled (see [`NoSplitting`](@ref)).
+
+Depending on the value of `α`, this corresponds to passing `splitting = GaussianSplitting(…)` or `splitting = NoSplitting()`.
+
+These arguments are kept for backwards compatibility and may dissappear in the future.
 
 ## Optional keyword arguments and their defaults
 
@@ -319,6 +321,8 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
   the local segments. Note that the local integrals (short-range and full) are mathematically singular,
   and numerically might lead to some loss of accuracy due to [catastrophic cancellation](https://en.wikipedia.org/wiki/Catastrophic_cancellation),
   especially when working in single precision (`T = Float32`).
+  Note that this also applies to Ewald splitting kernels other than
+  [`GaussianSplitting`](@ref) using functions different from `erf`.
 """
 struct ParamsBiotSavart{
         T,
@@ -332,31 +336,45 @@ struct ParamsBiotSavart{
 end
 
 function ParamsBiotSavart(
-        ::Type{T}, Γ::Real, α::Real, Ls::NTuple{3, Real};
-        a::Real,
+        Γ::T, a::T, splitting::AbstractEwaldSplitting;
+        Δ::Real = T(0.25),
         quadrature::StaticSizeQuadrature = GaussLegendre(3),
         quadrature_near_singularity::StaticSizeQuadrature = quadrature,
-        backend_short::ShortRangeBackend = default_short_range_backend(Ls),
-        backend_long::LongRangeBackend = default_long_range_backend(Ls),
+        backend_short::ShortRangeBackend = default_short_range_backend(splitting),
+        backend_long::LongRangeBackend = default_long_range_backend(splitting),
         longrange_truncate_spherical::Bool = false,
-        Δ::Real = 0.25,
         lia_segment_fraction::Union{Nothing, Real} = nothing,
         use_simd::Bool = default_use_simd(backend_short),
         avoid_explicit_erf::Bool = true,
-        kws...,
-    ) where {T}
-    (; splitting, Ns, rcut,) = _splitting_params(α; kws...)
+    ) where {T <: AbstractFloat}
     if lia_segment_fraction !== nothing && quadrature_near_singularity === NoQuadrature()
         @warn(
             "quadrature_near_singularity has been set to NoQuadrature(); this will lead to wrong results!",
             quadrature, quadrature_near_singularity, lia_segment_fraction  # print these variables for extra information
         )
     end
+    Ls = periods(splitting)
+    Ns = fourier_grid_size(splitting)
+    rcut = cutoff_distance(splitting)
     common = ParamsCommon{T}(Γ, a, Δ, splitting, Ls, quadrature, quadrature_near_singularity, avoid_explicit_erf)
     sr = ParamsShortRange(backend_short, quadrature, common, rcut, lia_segment_fraction, use_simd)
     lr = ParamsLongRange(backend_long, quadrature, common, Ns, longrange_truncate_spherical)
     ParamsBiotSavart(common, sr, lr)
 end
+
+function ParamsBiotSavart(
+        Γ::T;
+        a::Real,
+        α = nothing, Ls = nothing,  # these are now optional, since they can be passed via `splitting`
+        Ns = nothing, rcut = nothing, splitting = nothing,
+        kws...,
+    ) where {T <: AbstractFloat}
+    splitting_actual = _which_splitting(splitting, Ls, α, Ns, rcut)
+    ParamsBiotSavart(T(Γ), T(a), splitting_actual; kws...)
+end
+
+ParamsBiotSavart(::Type{T}; Γ::Real, kws...) where {T} = ParamsBiotSavart(T(Γ); kws...)
+ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)
 
 function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T <: AbstractFloat}
     common = convert(T, p.common)
@@ -371,21 +389,11 @@ is_open_domain(::Infinity, etc...) = true
 is_open_domain(::Real, etc...) = is_open_domain(etc...)
 is_open_domain() = false
 
-function default_short_range_backend(Ls::Tuple)
-    if is_open_domain(Ls)
-        NaiveShortRangeBackend()
-    else
-        CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
-    end
-end
+default_short_range_backend(::NoSplitting) = NaiveShortRangeBackend()  # cell lists not implemented for open boundary conditions
+default_short_range_backend(::AbstractEwaldSplitting) = CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
 
-function default_long_range_backend(Ls::Tuple)
-    if is_open_domain(Ls)
-        NullLongRangeBackend()
-    else
-        NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4))
-    end
-end
+default_long_range_backend(::NoSplitting) = NullLongRangeBackend()
+default_long_range_backend(::AbstractEwaldSplitting) = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4))  # this gives 6-digit NUFFT accuracy
 
 # By default, use explicit SIMD on CPU, and disable it on GPU (still needs to be tested, and
 # currently seems to fail on CUDA with `LLVM error: Undefined external symbol "exp"`)
@@ -422,22 +430,12 @@ Returns `true` if the domain is periodic in *all* directions, `false` otherwise.
 domain_is_periodic(p::ParamsBiotSavart) = domain_is_periodic(periods(p))
 domain_is_periodic(Ls::NTuple) = !is_open_domain(Ls)
 
-# Ns is always (0, 0, 0), no matter the input
-_splitting_params(α::Zero; Ns = nothing, rcut = Infinity()) = (;
-    splitting = NoSplitting(), Ns = (0, 0, 0), rcut,
-)
+# If splitting was passed
+_which_splitting(splitting::AbstractEwaldSplitting, args...) = splitting
 
-_splitting_params(α::Real; Ns, rcut) = (;
-    splitting = GaussianSplitting(; α = float(α)), Ns, rcut,
-)
-
-ParamsBiotSavart(::Type{T}; Γ::Real, α::Real, Ls, kws...) where {T} =
-    ParamsBiotSavart(T, Γ, α, _convert_periods(Ls); kws...)
-
-_convert_periods(Ls::NTuple{3, Real}) = Ls
-_convert_periods(L::Real) = (L, L, L)
-
-ParamsBiotSavart(; kws...) = ParamsBiotSavart(Float64; kws...)
+# If splitting was not passed
+_which_splitting(::Nothing, Ls, α::Zero, Ns = nothing, rcut = Infinity()) = NoSplitting()
+_which_splitting(::Nothing, Ls, α::Real, Ns, rcut) = GaussianSplitting(; Ls, α, Ns, rcut)
 
 # This is for convenience: doing p.splitting is equivalent to p.common.splitting.
 @inline function Base.getproperty(p::ParamsBiotSavart, name::Symbol)

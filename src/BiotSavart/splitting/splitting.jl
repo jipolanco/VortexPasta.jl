@@ -24,9 +24,14 @@ of dense vortex systems.
 """
 struct NoSplitting <: AbstractEwaldSplitting end
 
+periods(g::NoSplitting) = (Infinity(), Infinity(), Infinity())
+cutoff_distance(g::NoSplitting) = Infinity()
+fourier_grid_size(g::NoSplitting) = (0, 0, 0)
+
 convert_floats(::Type{T}, g::NoSplitting) where {T} = g
 
 Base.show(io::IO, ::NoSplitting) = print(io, "NoSplitting()")
+Base.summary(io::IO, g::NoSplitting) = show(io, g)
 
 accuracy_coefficient_shortrange(::NoSplitting, rcut) = rcut === Infinity() ? Infinity() : Zero()
 accuracy_coefficient_longrange(::NoSplitting, kmax) = Infinity()  # there's no long-range
