@@ -26,6 +26,14 @@ periods
 domain_is_periodic
 ```
 
+## Ewald splitting kernels
+
+```@docs
+AbstractEwaldSplitting
+GaussianSplitting
+NoSplitting
+```
+
 ## Exported functions
 
 ```@docs
@@ -101,14 +109,6 @@ to_coarse_grained_vorticity!
 interpolate_to_physical!
 transform_to_fourier!
 similar(::LongRangeCache, ::Dims{3})
-```
-
-## Ewald splitting functions
-
-```@docs
-AbstractEwaldSplitting
-GaussianSplitting
-NoSplitting
 ```
 
 ## KernelAbstractions utils
