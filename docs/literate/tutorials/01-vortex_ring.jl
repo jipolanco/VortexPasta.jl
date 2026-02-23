@@ -215,12 +215,15 @@ nothing  # hide
 # for long-range computations and the accuracy parameter ``β``, and we set the other
 # parameters based on that:
 
-M = floor(Int, 32 * 2/3)  # we prefer if the FFT size is a power of 2, here M′ = σM = 32 (where σ = 1.5)
-kmax = π * M / L          # this is the maximum resolved wavenumber (the Nyquist frequency)
-β = 3.5                   # non-dimensional accuracy parameter
-α = kmax / (2β)           # Ewald splitting parameter || "α" can be typed by "\alpha<tab>"
-rcut = β / α              # cut-off distance for short-range computations
-rcut / L                  # note: the cut-off distance should be less than half the period L
+M = floor(Int, 64 * 2/3)  # we prefer if the FFT size is a power of 2, here M′ = σM = 64 (where σ = 1.5)
+β = 3.5                   # non-dimensional accuracy parameter (β = 3.5 corresponds to 6-digit accuracy)
+splitting = GaussianSplitting(;
+    β,
+    Ls = (L, L, L),  # same domain size in all directions
+    Ns = (M, M, M),  # same long-range resolution in all directions
+)
+
+# See also [`GaussianSplitting`](@ref) for more details.
 
 # Additionally, we can optionally set the parameters for numerical integration.
 # In particular, we can set the quadrature rule used to approximate line integrals within each filament
@@ -235,13 +238,7 @@ nothing  # hide
 # Finally, we put all these parameters together in a [`ParamsBiotSavart`](@ref) object:
 
 using VortexPasta.BiotSavart
-params = ParamsBiotSavart(;
-    Γ, α, Δ, a,
-    Ls = (L, L, L),  # same domain size in all directions
-    Ns = (M, M, M),  # same long-range resolution in all directions
-    rcut,
-    quadrature,
-)
+params = ParamsBiotSavart(; Γ, Δ, a, splitting, quadrature)
 
 # Note that there are a few parameters, namely the short-range and long-range backends,
 # which haven't been discussed yet.
