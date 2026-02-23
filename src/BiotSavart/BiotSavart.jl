@@ -70,7 +70,7 @@ const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
 include("ka_utils.jl")
 include("host_device_transfers.jl")
 include("pointdata.jl")
-include("mollifiers/mollifiers.jl")
+include("splitting/splitting.jl")
 include("types_shortrange.jl")
 include("types_longrange.jl")
 include("params.jl")
