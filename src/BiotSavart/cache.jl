@@ -11,7 +11,7 @@ Includes arrays and data required for computation of Biot–Savart integrals.
 - `shortrange`: cache associated to short-range computations;
 
 - `longrange`: cache associated to long-range computations. It can be `NullLongRangeCache()`
-  in case the Ewald parameter `α` was set to `Zero()`;
+  in case [`NoSplitting`](@ref) was chosen to disable Ewald summation;
 
 - `to`: a `TimerOutput` instance for measuring the time spent on different functions.
 

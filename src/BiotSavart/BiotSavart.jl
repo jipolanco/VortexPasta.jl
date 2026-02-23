@@ -202,8 +202,8 @@ Base.@propagate_inbounds _make_field_pair(key, vs::AbstractVector, i::Integer) =
 
 Correct computed fields in case the mean filament vorticity is non-zero.
 
-This ensures that results do not depend on the Ewald splitting parameter ``α`` when the
-filament "charge" is non-zero in a periodic domain.
+This ensures that results do not depend on Ewald splitting parameters (e.g. ``α`` in
+[`GaussianSplitting`](@ref)) when the filament "charge" is non-zero in a periodic domain.
 
 In practice, as detailed below, this function only corrects the short-range streamfunction,
 as the velocity is not affected by the background vorticity, and long-range corrections are

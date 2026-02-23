@@ -90,7 +90,8 @@ The last column is the associated value of the accuracy parameter ``β`` in Ewal
 formulated in [Polanco2025](@citet). Once one has set ``β`` and Ewald's splitting parameter
 ``α`` (an inverse lengthscale), the cut-offs in physical and Fourier space are ``r_{\\text{cut}} = β / α``
 and ``k_{\\text{max}} = 2βα``. In this formulation, ``β`` controls the method accuracy while
-``α`` is tuned to maximise performance.
+``α`` is tuned to maximise performance. Note that these values of ``α`` and ``β`` only apply to the standard
+splitting based on Gaussian smoothing (see [`GaussianSplitting`](@ref)).
 
 """
 struct NonuniformFFTsBackend{
