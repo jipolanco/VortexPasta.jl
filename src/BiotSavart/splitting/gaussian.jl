@@ -1,11 +1,10 @@
-"""
+@doc raw"""
     GaussianSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
     GaussianSplitting(; Ls, β, α, rcut, Ns)
 
 Gaussian splitting kernel for Ewald summation.
 
-This is the standard splitting kernel traditionally used in Ewald methods, based on the
-identity `erf(αr) + erfc(αr) = 1` for the solution of the 3D Poisson equation.
+This is the standard splitting kernel traditionally used in Ewald methods.
 
 # Parameters
 
@@ -40,7 +39,7 @@ GaussianSplitting{Float64, 3} with:
 ```
 
 As detailed in [Polanco2025](@citet), the splitting and truncation parameters will then be set such that
-``r_{\\text{cut}} = β / α`` and ``k_{\\text{max}} = 2 α β``.
+``r_{\text{cut}} = β / α`` and ``k_{\text{max}} = 2 α β``.
 One can use the following table to choose `β` according to the wanted precision:
 
 | Precision digits |  Ewald ``β`` |
@@ -55,6 +54,34 @@ One can use the following table to choose `β` according to the wanted precision
 
 For more control, one can pass all of `α`, `rcut` and `Ns`, in which case `β` will be ignored.
 But doing this is not recommended as it can lead to loss of accuracy.
+
+# Extended help
+
+## Kernel definitions
+
+This kernel splits the 3D Green's function ``G(\bm{r}) = 1 / (4πr)`` into the near- and far-field
+contributions:
+
+```math
+G(\bm{r}) = G^{\text{(n)}}(\bm{r}) + G^{\text{(f)}}(\bm{r}) =
+\frac{\operatorname{erfc}(αr)}{4πr} + \frac{\operatorname{erf}(αr)}{4πr}
+```
+
+where ``\operatorname{erf}(x)`` is the [error function](https://en.wikipedia.org/wiki/Error_function) and ``\operatorname{erfc}(x) = 1 - \erf(x)``.
+Here ``α`` is Ewald's splitting parameter (an inverse length scale).
+
+As a result, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as
+$\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{(f)}}(\bm{r})$ with:
+
+```math
+\begin{align}
+    \bm{\nabla}G^{\text{(n)}}(\bm{r})
+    &= -\frac{\bm{r}}{4\pi r^3} \left[ \operatorname{erfc}(αr) + \frac{2αr}{\sqrt{π}} \right]
+    \\
+    \bm{\nabla}G^{\text{(f)}}(\bm{r})
+    &= -\frac{\bm{r}}{4\pi r^3} \left[ \operatorname{erf}(αr) - \frac{2αr}{\sqrt{π}} \right]
+\end{align}
+```
 """
 struct GaussianSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting
     Ls::NTuple{N, T}
