@@ -1,3 +1,5 @@
+using SpecialFunctions: besseli
+
 @doc raw"""
     KaiserBesselSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
     KaiserBesselSplitting(; Ls, β, rcut, Ns)
@@ -97,15 +99,30 @@ Its Fourier transform is
 \frac{\sinh\sqrt{\beta^2 - (k r_{\text{c}})^2}}{\sqrt{\beta^2 - (k r_{\text{c}})^2}}.
 ```
 """
-struct KaiserBesselSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting
+struct KaiserBesselSplitting{
+        T <: AbstractFloat, N,
+        ChebEven <: ChebyshevSeries{:even, T},
+        ChebOdd <: ChebyshevSeries{:odd, T},
+    } <: AbstractEwaldSplitting
     Ls::NTuple{N, T}
     β::T
     rcut::T
     Ns::Dims{N}
+    f::ChebEven  # KB kernel
+    F::ChebOdd   # integral of KB kernel
 end
 
 function KaiserBesselSplitting(; Ls::NTuple{N, T}, β = nothing, rcut = nothing, Ns = nothing) where {N, T}
-    KaiserBesselSplitting(Ls, _kb_splitting_params(Ls, β, rcut, Ns)...)
+    let (β, rcut, Ns) = _kb_splitting_params(Ls, β, rcut, Ns)
+        # TODO: tune rtol as a function of β?
+        C = β / (2 * rcut * sinh(β))
+        f = ChebyshevApproximations.approximate(rcut; symmetry = Val(:even), rtol = 10 * eps(T)) do r
+            @inline
+            2 * C * besseli(0, β * sqrt(1 - (r / rcut)^2))
+        end
+        F = ChebyshevApproximations.integrate(f)
+        KaiserBesselSplitting(Ls, β, rcut, Ns, f, F)
+    end
 end
 
 # This converts real values to the wanted precision.
@@ -116,9 +133,9 @@ function convert_floats(::Type{T}, g::KaiserBesselSplitting{S, N}) where {T, S, 
     KaiserBesselSplitting(convert.(T, Ls), convert(T, β), convert(T, rcut), Ns)
 end
 
-periods(g::GaussianSplitting) = g.Ls
-cutoff_distance(g::GaussianSplitting) = g.rcut
-fourier_grid_size(g::GaussianSplitting) = g.Ns
+periods(g::KaiserBesselSplitting) = g.Ls
+cutoff_distance(g::KaiserBesselSplitting) = g.rcut
+fourier_grid_size(g::KaiserBesselSplitting) = g.Ns
 
 # β and rcut given
 function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Real, Ns::Nothing) where {N, T}

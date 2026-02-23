@@ -40,5 +40,8 @@ Base.summary(io::IO, g::NoSplitting) = show(io, g)
 # @inline weights_longrange_simd(g::NoSplitting, r) = zero(r), zero(r)
 # @inline weights_longrange_nosimd(::KA.Backend, g::NoSplitting, r) = zero(r), zero(r)
 
+include("chebyshev.jl")  # for function approximation (integral of KB kernel, ...)
+using .ChebyshevApproximations: ChebyshevApproximations, ChebyshevSeries
+
 include("gaussian.jl")
 include("kaiser_bessel.jl")
