@@ -66,7 +66,8 @@ f(r) = \frac{β}{2 r_{\text{c}} \sinh(β)} I_0 \! \left(β \sqrt{1 - \frac{r^2}{
 ```
 
 normalised such that ``F(r_{\text{c}}) = 1``.
-Here ``r_{\text{c}}`` represents the kernel support in physical space while ``β`` is a
+Here ``I_0`` is the modified Bessel function of the first kind and of order 0,
+``r_{\text{c}}`` represents the kernel support in physical space, and ``β`` is a
 nondimensional shape parameter.
 
 As a result, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as
@@ -75,11 +76,25 @@ $\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{
 ```math
 \begin{align*}
     \bm{\nabla}G^{\text{(n)}}(\bm{r})
-    &= -\frac{\bm{r}}{4\pi r^3} \left[ 1 - F(r) + 2r f(r) \right]
+    &= -\frac{\bm{r}}{4\pi r^3} \left[ 1 - F(r) + 2r f(r) \right],
     \\
     \bm{\nabla}G^{\text{(f)}}(\bm{r})
-    &= -\frac{\bm{r}}{4\pi r^3} \left[ F(r) - 2r f(r) \right]
+    &= -\frac{\bm{r}}{4\pi r^3} \left[ F(r) - 2r f(r) \right].
 \end{align*}
+```
+
+Far-ranged fields can be interpreted as those induced by the coarse-grained vorticity field
+obtained by convoluting the singular vorticity to the kernel
+```math
+\varphi(\bm{r}) = \frac{\beta^2}{4\pi r_{\text{c}}^3 \sinh(\beta)}
+\frac{I_1\left(\beta \sqrt{1 - \frac{r^2}{r_{\text{c}}^2}}\right)}{\sqrt{1 - \frac{r^2}{r_{\text{c}}^2}}}.
+```
+
+Its Fourier transform is
+```math
+\hat{\varphi}(\bm{k}) =
+\frac{\beta}{\sinh{\beta}}
+\frac{\sinh\sqrt{\beta^2 - (k r_{\text{c}})^2}}{\sqrt{\beta^2 - (k r_{\text{c}})^2}}.
 ```
 """
 struct KaiserBesselSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting

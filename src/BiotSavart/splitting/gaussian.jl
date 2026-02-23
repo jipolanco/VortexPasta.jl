@@ -67,7 +67,8 @@ G(\bm{r}) = G^{\text{(n)}}(\bm{r}) + G^{\text{(f)}}(\bm{r}) =
 \frac{\operatorname{erfc}(αr)}{4πr} + \frac{\operatorname{erf}(αr)}{4πr}
 ```
 
-where ``\operatorname{erf}(x)`` is the [error function](https://en.wikipedia.org/wiki/Error_function) and ``\operatorname{erfc}(x) = 1 - \erf(x)``.
+where ``\operatorname{erf}(x) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} \, \mathrm{d}t`` is the
+[error function](https://en.wikipedia.org/wiki/Error_function) and ``\operatorname{erfc}(x) = 1 - \erf(x)``.
 Here ``α`` is Ewald's splitting parameter (an inverse length scale).
 
 As a result, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as
@@ -76,11 +77,19 @@ $\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{
 ```math
 \begin{align*}
     \bm{\nabla}G^{\text{(n)}}(\bm{r})
-    &= -\frac{\bm{r}}{4\pi r^3} \left[ \operatorname{erfc}(αr) + \frac{2αr}{\sqrt{π}} \right]
+    &= -\frac{\bm{r}}{4\pi r^3} \left[ \operatorname{erfc}(αr) + \frac{2αr}{\sqrt{π}} \, e^{-(α r)^2} \right],
     \\
     \bm{\nabla}G^{\text{(f)}}(\bm{r})
-    &= -\frac{\bm{r}}{4\pi r^3} \left[ \operatorname{erf}(αr) - \frac{2αr}{\sqrt{π}} \right]
+    &= -\frac{\bm{r}}{4\pi r^3} \left[ \operatorname{erf}(αr) - \frac{2αr}{\sqrt{π}} \, e^{-(α r)^2} \right].
 \end{align*}
+```
+
+Far-ranged fields can be interpreted as those induced by a Gaussian-filtered vorticity field
+since ``-\nabla^2 G^{\text{f}}(\bm{r}) = (\alpha / \sqrt{\pi})^3 \, e^{-(\alpha r)^2} ≡ φ(\bm{r})``.
+The Fourier transform of this convolution kernel is given by
+
+```math
+\hat{\varphi}(\bm{k}) = e^{-k^2 / (4 \alpha^2)}
 ```
 """
 struct GaussianSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting
