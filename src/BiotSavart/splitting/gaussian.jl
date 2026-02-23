@@ -106,7 +106,7 @@ function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Nothing, rcu
     T(α), T(rcut), Ns
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Real, rcut::Real, Ns::Real) where {N, T}
+function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Real, rcut::Real, Ns::Dims{N}) where {N, T}
     T(α), T(rcut), Ns
 end
 
