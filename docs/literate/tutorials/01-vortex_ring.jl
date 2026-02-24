@@ -215,6 +215,7 @@ nothing  # hide
 # for long-range computations and the accuracy parameter ``β``, and we set the other
 # parameters based on that:
 
+using VortexPasta.BiotSavart
 M = floor(Int, 64 * 2/3)  # we prefer if the FFT size is a power of 2, here M′ = σM = 64 (where σ = 1.5)
 β = 3.5                   # non-dimensional accuracy parameter (β = 3.5 corresponds to 6-digit accuracy)
 splitting = GaussianSplitting(;
@@ -237,7 +238,6 @@ nothing  # hide
 #
 # Finally, we put all these parameters together in a [`ParamsBiotSavart`](@ref) object:
 
-using VortexPasta.BiotSavart
 params = ParamsBiotSavart(; Γ, Δ, a, splitting, quadrature)
 
 # Note that there are a few parameters, namely the short-range and long-range backends,
