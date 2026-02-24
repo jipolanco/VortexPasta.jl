@@ -294,15 +294,11 @@ end
 @testset "Leapfrogging vortex rings" begin
     ##
     # Grid-related parameters
-    β = 3.5
+    β = 18.0
     L = 2π
-    rcut = L/2
-    α = β / rcut
-    kmax = 2α * β
-    Ngrid = ceil(Int, kmax * L / π)
-
     Ls = (1, 1, 1) .* L
-    Ns = (1, 1, 1) .* Ngrid
+    Ns = (1, 1, 1) .* 32
+    splitting = KaiserBesselSplitting(; Ls, β, Ns)
 
     # Physical vortex parameters
     Γ = 1.2
@@ -310,15 +306,15 @@ end
     Δ = 1/4  # full core
     params_bs = @inferred ParamsBiotSavart(;
         Γ, a, Δ,
-        α, rcut, Ls, Ns,
-        backend_short = NaiveShortRangeBackend(),
+        splitting,
+        backend_short = CellListsBackend(),
         backend_long = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4)),
         quadrature = GaussLegendre(3),
     )
 
     # Check overloaded getproperty and propertynames for ParamsBiotSavart.
-    @test α == @inferred (p -> p.α)(params_bs)
-    @test :α ∈ @inferred propertynames(params_bs)
+    @test splitting === @inferred (p -> p.splitting)(params_bs)
+    @test :splitting ∈ @inferred propertynames(params_bs)
 
     # Initialise simulation
     R_init = π / 3
