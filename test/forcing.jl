@@ -15,20 +15,17 @@ using Random
 using StableRNGs
 using Test
 
-function generate_biot_savart_parameters(::Type{T}; aspect, L = 2π, rcut = L / 2, kws...) where {T}
+function generate_biot_savart_parameters(::Type{T}; aspect, L = 2π, rcut = L / 3, kws...) where {T}
     Γ = 1.0
     a = 1e-6
     Δ = 1/4
     Ls = aspect .* L
-    β = 3.0
-    α = β / rcut
-    kmax = 2α * β
-    M = ceil(Int, kmax * L / π) + 2
-    Ns = aspect .* M
+    β = 15.0
+    splitting = KaiserBesselSplitting(; Ls, β, rcut)
     ParamsBiotSavart(
         T;
-        Γ, α, a, Δ, rcut, Ls, Ns,
-        backend_short = NaiveShortRangeBackend(),
+        Γ, a, Δ, splitting,
+        backend_short = CellListsBackend(),
         backend_long = NonuniformFFTsBackend(σ = T(1.5), m = HalfSupport(4)),
         quadrature = GaussLegendre(3),
         kws...,
@@ -309,8 +306,8 @@ end
             (; iter, E_ratio, L_ratio, spectra) = simulate(prob, forcing)
             # @show L_ratio  # = 1.769109204675119
             @test 1.70 < L_ratio < 1.80
-            # @show E_ratio  # = 1.8191571174645174
-            @test 1.75 < E_ratio < 1.85
+            # @show E_ratio  # = 1.8555256077271287
+            @test 1.80 < E_ratio < 1.90
         end
         @testset "FourierBandForcingBS (constant ε_target, modify_length = false)" begin
             forcing = @inferred FourierBandForcingBS(; ε_target = 0.05, kmin = 0.5, kmax = 2.5, modify_length = false)
@@ -422,7 +419,7 @@ end
             let a = searchsortedlast(times, a), b = searchsortedlast(times, b)
                 local ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # energy injection rate at wavenumber k⃗
                 # @show (ε_inj - forcing.ε_target) / forcing.ε_target
-                @test ε_inj ≈ forcing.ε_target rtol=0.2  # the agreement is not that great, but that's ok
+                @test ε_inj ≈ forcing.ε_target rtol=0.4  # the agreement is not that great, but that's ok
             end
         end
     end

@@ -153,6 +153,11 @@ end
 
 has_real_to_complex(p::ParamsLongRange) = has_real_to_complex(p.backend)
 
+function kmax_to_gridsize(kmax::T, L::T) where {T}
+    m = ceil(Int, kmax * L / T(2π))
+    2m + 2
+end
+
 function maximum_wavenumber(Ns::NTuple{N}, Ls::NTuple{N, T}) where {N, T}
     minimum(zip(Ns, Ls)) do (M, L)
         local m = (M - 1) ÷ 2

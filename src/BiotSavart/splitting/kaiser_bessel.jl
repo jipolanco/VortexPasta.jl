@@ -157,8 +157,7 @@ fourier_grid_size(g::KaiserBesselSplitting) = g.Ns
 function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Real, Ns::Nothing) where {N, T}
     kmax = β / rcut
     Ns = map(Ls) do L
-        m = floor(Int, kmax * L / T(2π))
-        2m + 1
+        kmax_to_gridsize(kmax, L)
     end
     T(β), T(rcut), Ns
 end
