@@ -212,7 +212,6 @@ end
     vs = map(similar ∘ nodes, fs)
     velocity_on_nodes!(vs, cache_bs, fs)
     vs_self = map(copy, vs)
-    α_ewald = params.α
 
     # Obtain velocity field in Fourier space
     data = BiotSavart.get_longrange_field_fourier(cache_bs)
