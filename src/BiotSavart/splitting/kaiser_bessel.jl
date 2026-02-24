@@ -225,8 +225,11 @@ end
     a, b
 end
 
+# Note: this function may be evaluated in r > rcut, outside the domain of the Chebyshev
+# approximations.
 @inline function weights_longrange_nosimd(backend::KA.Backend, g::KaiserBesselSplitting, r)
-    a = @inline g.F(r)
-    b = r * @inline g.f(r)  # TODO: include r in f(r)?
+    (; rcut) = g
+    a = ifelse(r ≥ rcut, one(r), @inline(g.F(r)))
+    b = ifelse(r ≥ rcut, zero(r), r * @inline(g.f(r)))
     a, b
 end

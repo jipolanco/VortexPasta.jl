@@ -169,9 +169,7 @@ function Base.show(io::IO, p::ParamsLongRange{T}) where {T}
 end
 
 function to_hdf5(g, p::ParamsLongRange{T}) where {T}
-    (; common, Ns,) = p
-    (; splitting,) = common
-    kmax = maximum_wavenumber(p)
+    (; Ns,) = p
     g["backend_longrange"] = string(p.backend)
     g["Ns"] = collect(Ns)
     g["truncate_spherical"] = p.truncate_spherical

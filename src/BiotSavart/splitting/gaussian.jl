@@ -119,8 +119,8 @@ function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Real, rcut::
     rcut = β / α
     kmax = 2 * α * β
     Ns = map(Ls) do L
-        m = floor(Int, kmax * L / T(2π))
-        2m + 1
+        m = ceil(Int, kmax * L / T(2π))
+        2m + 2
     end
     T(α), T(rcut), Ns
 end
@@ -129,7 +129,7 @@ function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Nothing, rcu
     α = β / rcut
     kmax = 2 * α * β
     Ns = map(Ls) do L
-        m = floor(Int, kmax * L / T(2π))
+        m = ceil(Int, kmax * L / T(2π))
         2m + 1
     end
     T(α), T(rcut), Ns

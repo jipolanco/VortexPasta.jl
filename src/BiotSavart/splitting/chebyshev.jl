@@ -18,11 +18,6 @@ struct ChebyshevSeries{Symmetry, T, Coefs <: AbstractVector{T}} <: Function
         T = eltype(cs)
         new{Symmetry, T, typeof(cs)}(cs, T(L), T(Linv))
     end
-    # TODO: make this work?
-    # global function _ChebyshevSeries{Symmetry}(cs, L, Linv) where {Symmetry}
-    #     T = eltype(cs)
-    #     new{Symmetry, T, typeof(cs)}(cs, T(L), T(Linv))
-    # end
 end
 
 function ChebyshevSeries(cs, L; symmetry::Val{Symmetry} = Val(:none)) where {Symmetry}
