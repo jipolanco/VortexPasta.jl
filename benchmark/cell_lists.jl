@@ -1,8 +1,8 @@
 module CellListsBenchmarks
 
-ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
-ENV["POCL_CPU_MAX_CU_COUNT"] = Threads.nthreads()  # limit number of CPU threads used by OpenCLBackend (based on POCL)
-ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
+# ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
+# ENV["POCL_CPU_MAX_CU_COUNT"] = Threads.nthreads()  # limit number of CPU threads used by OpenCLBackend (based on POCL)
+# ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
 
 using VortexPasta.CellLists
 using StaticArrays: SVector
@@ -11,16 +11,16 @@ using KernelAbstractions: KernelAbstractions as KA, CPU
 using SIMD: SIMD
 using BenchmarkTools
 using Adapt: adapt
-using OpenCL, pocl_jll
+# using OpenCL, pocl_jll
 
 using ThreadPinning
 pinthreads(:cores)
 threadinfo()
 
 # Print OpenCL information
-OpenCL.versioninfo()
-@show cl.platform()
-@show cl.device()
+# OpenCL.versioninfo()
+# @show cl.platform()
+# @show cl.device()
 
 @inline function deperiodise_separation_folded(r⃗::Vec, Ls, Ls_half) where {Vec}
     map(deperiodise_separation_folded, r⃗, Vec(Ls), Vec(Ls_half))::typeof(r⃗)
@@ -174,7 +174,7 @@ function main()
 
     backends = [
         "CPU" => CPU(),
-        "OpenCLBackend" => OpenCLBackend(),
+        # "OpenCLBackend" => OpenCLBackend(),
     ]
 
     for (backend_name, backend) in backends, nsubdiv in 1:2
