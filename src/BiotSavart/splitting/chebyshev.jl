@@ -2,6 +2,7 @@
 
 module ChebyshevApproximations
 
+using Adapt: Adapt
 using FFTW: FFTW
 using StaticArrays: SVector
 
@@ -13,13 +14,26 @@ struct ChebyshevSeries{Symmetry, T, Coefs <: AbstractVector{T}} <: Function
     cs::Coefs
     L::T
     Linv::T  # = 1/L
-    function ChebyshevSeries{Symmetry}(cs, L) where {Symmetry}
+    function ChebyshevSeries{Symmetry}(cs, L, Linv) where {Symmetry}
         T = eltype(cs)
-        new{Symmetry, T, typeof(cs)}(cs, T(L), T(1/L))
+        new{Symmetry, T, typeof(cs)}(cs, T(L), T(Linv))
     end
+    # TODO: make this work?
+    # global function _ChebyshevSeries{Symmetry}(cs, L, Linv) where {Symmetry}
+    #     T = eltype(cs)
+    #     new{Symmetry, T, typeof(cs)}(cs, T(L), T(Linv))
+    # end
 end
 
-ChebyshevSeries(cs, L) = ChebyshevSeries{:none}(cs, L)
+function ChebyshevSeries(cs, L; symmetry::Val{Symmetry} = Val(:none)) where {Symmetry}
+    ChebyshevSeries{Symmetry}(cs, L, 1/L)
+end
+
+@inline function Adapt.adapt_structure(to, g::ChebyshevSeries{Symmetry}) where {Symmetry}
+    (; L, Linv) = g
+    cs = Adapt.adapt(to, g.cs)
+    ChebyshevSeries{Symmetry}(cs, L, Linv)
+end
 
 @inline (f::ChebyshevSeries{:none})(x) = eval_chebyshev_clenshaw(f.cs, x * f.Linv)
 @inline (f::ChebyshevSeries{:even})(x) = eval_chebyshev_clenshaw_even(f.cs, x * f.Linv)
@@ -89,7 +103,7 @@ function integrate(f::ChebyshevSeries{:none})
         cs_int[δ + n] = cs[δ + n - 1] / (2 * n)
     end
     cs_int .*= L  # rescale according to interval size
-    ChebyshevSeries{:none}(cs_int, L)
+    ChebyshevSeries(cs_int, L; symmetry = Val(:none))
 end
 
 function integrate(f::ChebyshevSeries{:even})
@@ -108,7 +122,7 @@ function integrate(f::ChebyshevSeries{:even})
         cs_int[i] = cs[i] / (2 * n)
     end
     cs_int .*= L  # rescale according to interval size
-    ChebyshevSeries{:odd}(cs_int, L)
+    ChebyshevSeries(cs_int, L; symmetry = Val(:odd))
 end
 
 # Approximate function f(x) using Chebyshev series.
@@ -160,7 +174,7 @@ function approximate(
         cs[1:1:(n - 1)]
     end
 
-    ChebyshevSeries{Symmetry}(cs_final, L)
+    ChebyshevSeries(cs_final, L; symmetry)
 end
 
 end

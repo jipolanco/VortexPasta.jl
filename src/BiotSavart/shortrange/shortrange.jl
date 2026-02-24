@@ -155,10 +155,10 @@ end
 function _add_pair_interactions_simd!(
         ::Val{include_local_integration}, outputs::NamedTuple{Names}, cache
     ) where {include_local_integration, Names}
-    (; pointdata, params) = cache
+    (; splitting, pointdata, params) = cache
     (; points, charges, node_idx_prev,) = pointdata
     (; quad,) = params
-    (; Γ, splitting, Ls) = params.common
+    (; Γ, Ls) = params.common
     T = typeof(Γ)
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
@@ -216,10 +216,10 @@ end
 function _add_pair_interactions_nosimd!(
         ::Val{include_local_integration}, outputs::NamedTuple{Names}, cache
     ) where {include_local_integration, Names}
-    (; pointdata, params) = cache
+    (; splitting, pointdata, params) = cache
     (; points, charges, node_idx_prev) = pointdata
     (; quad,) = params
-    (; Γ, splitting, Ls) = params.common
+    (; Γ, Ls) = params.common
     ka_backend = KA.get_backend(cache)
     T = typeof(Γ)
     rcut² = params.rcut_sq

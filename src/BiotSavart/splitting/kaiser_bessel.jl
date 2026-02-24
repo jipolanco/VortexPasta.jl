@@ -57,13 +57,13 @@ G(\bm{r}) = G^{\text{(n)}}(\bm{r}) + G^{\text{(f)}}(\bm{r}) =
 where
 
 ```math
-F(r) = 2 \int_0^r f(u) \, \mathrm{d}u
+F(r) = \int_0^r f(u) \, \mathrm{d}u
 ```
 
 and ``f(r)`` is the Kaiser--Bessel kernel:
 
 ```math
-f(r) = \frac{β}{2 r_{\text{c}} \sinh(β)} I_0 \! \left(β \sqrt{1 - \frac{r^2}{r_{\text{c}}^2}}\right)
+f(r) = \frac{β}{r_{\text{c}} \sinh(β)} I_0 \! \left(β \sqrt{1 - \frac{r^2}{r_{\text{c}}^2}}\right)
 \quad \text{for } |r| ≤ r_{\text{c}},
 ```
 
@@ -78,10 +78,10 @@ $\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{
 ```math
 \begin{align*}
     \bm{\nabla}G^{\text{(n)}}(\bm{r})
-    &= -\frac{\bm{r}}{4\pi r^3} \left[ 1 - F(r) + 2r f(r) \right],
+    &= -\frac{\bm{r}}{4\pi r^3} \left[ 1 - F(r) + r f(r) \right],
     \\
     \bm{\nabla}G^{\text{(f)}}(\bm{r})
-    &= -\frac{\bm{r}}{4\pi r^3} \left[ F(r) - 2r f(r) \right].
+    &= -\frac{\bm{r}}{4\pi r^3} \left[ F(r) - r f(r) \right].
 \end{align*}
 ```
 
@@ -107,6 +107,7 @@ struct KaiserBesselSplitting{
     Ls::NTuple{N, T}
     β::T
     rcut::T
+    C_background::T  # see background_vorticity_correction_factor
     Ns::Dims{N}
     f::ChebEven  # KB kernel
     F::ChebOdd   # integral of KB kernel
@@ -115,14 +116,29 @@ end
 function KaiserBesselSplitting(; Ls::NTuple{N, T}, β = nothing, rcut = nothing, Ns = nothing) where {N, T}
     let (β, rcut, Ns) = _kb_splitting_params(Ls, β, rcut, Ns)
         # TODO: tune rtol as a function of β?
-        C = β / (2 * rcut * sinh(β))
-        f = ChebyshevApproximations.approximate(rcut; symmetry = Val(:even), rtol = 10 * eps(T)) do r
-            @inline
-            2 * C * besseli(0, β * sqrt(1 - (r / rcut)^2))
-        end
+        C = β / (rcut * sinh(β))
+        f_actual(r) = C * besseli(0, β * sqrt(1 - (r / rcut)^2))
+        f = ChebyshevApproximations.approximate(f_actual, rcut; symmetry = Val(:even), rtol = 10 * eps(T))
         F = ChebyshevApproximations.integrate(f)
-        KaiserBesselSplitting(Ls, β, rcut, Ns, f, F)
+        C_background = _estimate_background_correction_factor(f_actual, rcut; rtol = eps(T))  # estimate it to machine epsilon
+        KaiserBesselSplitting(Ls, β, rcut, C_background, Ns, f, F)
     end
+end
+
+# This is only done just once when creating the splitting.
+# The factor is C = ∫_0^{rcut} r² f(r) dr / 2.
+function _estimate_background_correction_factor(f::F, rcut; rtol) where {F <: Function}
+    f_rr = ChebyshevApproximations.approximate(r -> r^2 * f(r), rcut; rtol)
+    F_rr = ChebyshevApproximations.integrate(f_rr)
+    F_rr(rcut)
+end
+
+@inline function Adapt.adapt_structure(to, g::KaiserBesselSplitting)
+    KaiserBesselSplitting(
+        g.Ls, g.β, g.rcut, g.C_background, g.Ns,
+        adapt(to, g.f),
+        adapt(to, g.F),
+    )
 end
 
 # This converts real values to the wanted precision.
@@ -173,4 +189,44 @@ function Base.show(io::IO, g::KaiserBesselSplitting{T, N}) where {T, N}
     print(io, "\n$(pre) - Short-range cut-off:    r_cut = ", rcut, " (r_cut/L_min = ", rcut_L, ")")
     print(io, "\n$(pre) - Long-range resolution:  Ns = ", Ns, " (k_max = ", kmax, ")")
     nothing
+end
+
+# Evaluate splitting kernel in Fourier space.
+# Note that this may be called from a GPU kernel.
+# It doesn't need to be very performant since it's only done once when creating a BiotSavartCache.
+function splitting_kernel_fourier(g::KaiserBesselSplitting)
+    (; β, rcut,) = g
+    C = β / sinh(β)
+    @inline function (k²)
+        T = typeof(k²)
+        s = β^2 - k² * rcut^2
+        if s > 0
+            q = sqrt(s)
+            T(C * sinh(q) / q)
+        else
+            zero(T)
+        end
+    end
+end
+
+# Factor in ⟨ψ⟩ = C * ⟨ω⟩ to be applied when the mean vorticity ⟨ω⟩ is nonzero.
+# See background_vorticity_correction! for details.
+background_vorticity_correction_factor(g::KaiserBesselSplitting) = g.C_background
+
+@inline function weights_shortrange_simd(g::KaiserBesselSplitting, r)
+    a = one(r) - @inline g.F(r)
+    b = r * @inline g.f(r)  # TODO: include r in f(r)?
+    a, b
+end
+
+@inline function weights_shortrange_nosimd(backend::KA.Backend, g::KaiserBesselSplitting, r)
+    a = one(r) - @inline g.F(r)
+    b = r * @inline g.f(r)  # TODO: include r in f(r)?
+    a, b
+end
+
+@inline function weights_longrange_nosimd(backend::KA.Backend, g::KaiserBesselSplitting, r)
+    a = @inline g.F(r)
+    b = r * @inline g.f(r)  # TODO: include r in f(r)?
+    a, b
 end

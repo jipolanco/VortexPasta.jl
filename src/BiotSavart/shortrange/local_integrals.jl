@@ -12,9 +12,9 @@ function remove_self_interaction!(outputs::NamedTuple, cache::ShortRangeCache)
 end
 
 function _remove_self_interaction!(ka_backend::KA.Backend, avoid_explicit_erf::Val, outputs::NamedTuple{Names}, cache) where {Names}
-    (; pointdata, params) = cache
+    (; splitting, pointdata, params) = cache
     (; nodes, node_idx_prev, points, charges,) = pointdata
-    (; Ls, Γ, splitting, quad) = params.common
+    (; Ls, Γ, quad) = params.common
 
     @assert eachindex(nodes) === eachindex(node_idx_prev)
     foreach(outputs) do vs
