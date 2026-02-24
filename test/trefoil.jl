@@ -4,6 +4,7 @@ using VortexPasta.PredefinedCurves: define_curve, TrefoilKnot
 using VortexPasta.Filaments
 using VortexPasta.Filaments: GeometricQuantity, Vec3
 using VortexPasta.BiotSavart
+using VortexPasta.BiotSavart: AbstractEwaldSplitting
 using VortexPasta.Diagnostics
 using SpecialFunctions: erf
 using ForwardDiff: ForwardDiff
@@ -143,8 +144,6 @@ function compare_long_range(
         params_kws...,
         backend_long = backend,
     )
-    Ls = params_exact.Ls
-    quad = params_exact.quad
     T = eltype(params_exact)
 
     # This is just to check that Base.show is implemented for ParamsBiotSavart.
@@ -282,10 +281,8 @@ function compare_short_range(fs::AbstractVector{<:AbstractFilament}; params_kws.
     nothing
 end
 
-function compute_filament_velocity_and_streamfunction(f::AbstractFilament; α, Ls, Ns, params_kws...)
-    rcut = 4 * sqrt(2) / α
-    @assert rcut < minimum(Ls) * 2 / 5  # cell lists requirement (with nsubdiv = 2)
-    params = ParamsBiotSavart(; params_kws..., α, Ns, Ls, rcut)
+function compute_filament_velocity_and_streamfunction(f::AbstractFilament; splitting, params_kws...)
+    params = ParamsBiotSavart(; splitting, params_kws...)
     fs = [f]
     cache = BiotSavart.init_cache(params)
     vs = map(similar ∘ nodes, fs)
@@ -297,15 +294,17 @@ function compute_filament_velocity_and_streamfunction(f::AbstractFilament; α, L
     fields
 end
 
-# Check that the total induced velocity doesn't depend strongly on the Ewald parameter α.
-# (In theory it shouldn't depend at all...)
-function check_independence_on_ewald_parameter(f, αs; β = 3.5, quad = GaussLegendre(3), Ls, params_kws...)
-    fields_all = map(αs) do α
-        kmax = 2 * α * β
-        Ns = ceil.(Int, (kmax / π) .* Ls) .+ 2
+# Check that the total induced velocity doesn't depend on the Ewald parameter α (up to the
+# ~1e-6 accuracy associated to β = 3.5 for GaussianSplitting).
+function check_independence_on_splitting_parameter(
+        ::Type{Splitting}, f, rcuts;
+        β = 3.5, quad = GaussLegendre(3), Ls, params_kws...
+    ) where {Splitting <: AbstractEwaldSplitting}
+    fields_all = map(rcuts) do rcut
+        splitting = Splitting(; Ls, rcut, β)
         compute_filament_velocity_and_streamfunction(
             f;
-            α, Ns, rcut = β / α, Ls,
+            splitting,
             backend_short = CellListsBackend(2),
             backend_long = NonuniformFFTsBackend(fftw_flags = FFTW.ESTIMATE),  # use FFTW.ESTIMATE to save some time
             quadrature = quad,
@@ -323,19 +322,15 @@ function check_independence_on_ewald_parameter(f, αs; β = 3.5, quad = GaussLeg
             norm(a - b) / norm(b)
         end
     end
-    # @show maxdiffs_vel maxdiffs_stf
-    @test maximum(maxdiffs_vel) < 3e-4
-    @test maximum(maxdiffs_stf) < 1e-5
+    # @show Splitting maximum(maxdiffs_vel) maximum(maxdiffs_stf)
+    @test maximum(maxdiffs_vel) < 3e-6
+    @test maximum(maxdiffs_stf) < 1e-7
     nothing
 end
 
-function test_helicity(f; quadrature = GaussLegendre(3), Ns, Ls, params_kws...)
-    β = 3.5
-    kmax = minimum(2π .* Ns ./ Ls)
-    α = kmax / 2β
-    rcut = β / α
+function test_helicity(f; quadrature = GaussLegendre(3), splitting, params_kws...)
     backend_short = CellListsBackend(2)
-    params = ParamsBiotSavart(; α, Ns, Ls, rcut, quadrature, backend_short, params_kws...)
+    params = ParamsBiotSavart(; splitting, quadrature, backend_short, params_kws...)
     fs = [f]
     cache = BiotSavart.init_cache(params)
     vs = map(similar ∘ nodes, fs)
@@ -397,45 +392,48 @@ end
     Ls = (1.5π, 1.5π, 2π)  # Ly is small to test periodicity effects
     Ns = (3, 3, 4) .* 30
     kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    params_kws = (; Ls, Γ = 7.4, a = 1e-5,)
-    β = 3.5  # accuracy coefficient
+    Γ = 7.4
+    a = 1e-5
+    params_kws = (; Ls, Γ, a,)
+    β_gauss = 3.5  # accuracy coefficient
+    β_kb = 18.0
     α_default = 3.0
-    kmax_default = 2 * α_default * β
-    Ns_default = ceil.(Int, (kmax_default / π) .* Ls) .+ 2
     @testset "Long range" begin
         # Test NUFFT backends with default parameters
         tol = 1e-5  # allowed relative error
         @testset "NonuniformFFTsBackend" begin
-            local β = 3.5
-            local α = 3.0
-            local kmax = 2 * α * β
-            local Ns = ceil.(Int, (kmax / π) .* Ls) .+ 2
-            compare_long_range([f], NonuniformFFTsBackend(fftw_flags = FFTW.ESTIMATE); tol, params_kws..., Ns, α, rcut = β / α)
+            local splitting = GaussianSplitting(; Ls, β = β_gauss, α = α_default)
+            compare_long_range([f], NonuniformFFTsBackend(fftw_flags = FFTW.ESTIMATE); tol, Γ, a, splitting)
         end
         @testset "$quantity near r = 0" for quantity ∈ (Velocity(), Streamfunction())
             test_long_range_accuracy_near_zero(Float64, quantity)
         end
     end
     @testset "Short range" begin
-        compare_short_range([f]; params_kws..., Ns = Ns_default, α = α_default, rcut = β / α_default)
+        local splitting = GaussianSplitting(; Ls, β = β_gauss, α = α_default)
+        compare_short_range([f]; Γ, a, splitting)
     end
     @testset "Dependence on α" begin
-        αs = [kmax / 5, kmax / 6, kmax / 7, kmax / 8, kmax / 12, kmax / 16]
+        # αs = [kmax / 5, kmax / 6, kmax / 7, kmax / 8, kmax / 12, kmax / 16]
+        rcuts = range(0.3, 0.9; step = 0.1)
         quadratures = (GaussLegendre(3), NoQuadrature())
         @testset "$quad" for quad ∈ quadratures
             @testset "use_simd = $use_simd" for use_simd ∈ (true, false)
                 @testset "avoid_explicit_erf = $avoid_explicit_erf" for avoid_explicit_erf ∈ (true, false)
-                    check_independence_on_ewald_parameter(f, αs; quad, β, use_simd, avoid_explicit_erf, params_kws...)
+                    @testset "GaussianSplitting" check_independence_on_splitting_parameter(GaussianSplitting, f, rcuts; quad, β = β_gauss, use_simd, avoid_explicit_erf, params_kws...)
+                    @testset "KaiserBesselSplitting" check_independence_on_splitting_parameter(KaiserBesselSplitting, f, rcuts; quad, β = β_kb, use_simd, avoid_explicit_erf, params_kws...)
                 end
             end
         end
         @testset "FourierMethod()" begin
             f_fourier = @inferred init_trefoil_filament(32; method = FourierMethod())
-            check_independence_on_ewald_parameter(f_fourier, αs; β, params_kws...)
+            @testset "GaussianSplitting" check_independence_on_splitting_parameter(GaussianSplitting, f_fourier, rcuts; β = β_gauss, params_kws...)
+            @testset "KaiserBesselSplitting" check_independence_on_splitting_parameter(KaiserBesselSplitting, f_fourier, rcuts; β = β_kb, params_kws...)
         end
     end
     @testset "Helicity" begin
-        test_helicity(f; Ns = Ns_default, α = α_default, rcut = β / α_default, params_kws...)
+        local splitting = GaussianSplitting(; Ls, β = β_gauss, α = α_default)
+        test_helicity(f; Γ, a, splitting)
     end
     @testset "Curvature" begin
         methods = (FiniteDiffMethod(), CubicSplineMethod(), QuinticSplineMethod(), FourierMethod())
