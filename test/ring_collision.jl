@@ -49,7 +49,8 @@ function test_ring_collision(;
 
     params = BiotSavart.autotune(
         filaments, β;
-        Γ, a, Δ, Ls = Lbox,
+        Γ, a, Δ,
+        Ls = (Lbox, Lbox, Lbox),
         backend_long,
         backend_short,
         verbose = VERBOSE,

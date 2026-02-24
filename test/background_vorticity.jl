@@ -22,7 +22,7 @@ function init_params_biot_savart(; L, Ngrid, β)
     ParamsBiotSavart(
         Float64;
         Γ = 1.0, a = 1e-8,
-        α, Ls = L,
+        α, Ls = (L, L, L),
         rcut, Ns = (Ngrid, Ngrid, Ngrid),
         backend_long = NonuniformFFTsBackend(m = HalfSupport(4))  # ~1e-6 accuracy
     )
