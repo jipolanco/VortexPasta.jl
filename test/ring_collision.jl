@@ -21,10 +21,14 @@ function init_ring_filament(; R, z, sign)
     (; R, z, sign, tlims, S,)
 end
 
-function test_ring_collision(;
+accuracy_coefficient(::Type{GaussianSplitting}) = 3.5  # ~1e-6 accuracy
+accuracy_coefficient(::Type{KaiserBesselSplitting}) = 18.0  # ~1e-6 accuracy
+
+function test_ring_collision(
+        ::Type{Splitting};
         backend_long = NonuniformFFTsBackend(),
         backend_short = CellListsBackend(),
-    )
+    ) where {Splitting <: AbstractEwaldSplitting}
     R = π / 3  # ring radius
     L = π / 8  # ring distance
 
@@ -45,9 +49,9 @@ function test_ring_collision(;
     Δ = 1/4
     Lbox = 3π
     Ls = (Lbox, Lbox, Lbox)
-    β = 3.5  # accuracy parameter
     Ns = (40, 40, 40)
-    splitting = GaussianSplitting(; Ls, β, Ns)
+    β = accuracy_coefficient(Splitting)
+    splitting = Splitting(; Ls, β, Ns)
 
     params = ParamsBiotSavart(;
         Γ, a, Δ,
@@ -55,7 +59,7 @@ function test_ring_collision(;
         backend_long,
         backend_short,
     )
-    # println(params)
+    println(params)
 
     cache = BiotSavart.init_cache(params)
     vs = map(f -> similar(nodes(f)), filaments)
@@ -127,32 +131,34 @@ function test_ring_collision(;
 end
 
 @testset "Ring collision" begin
-    cpu = test_ring_collision(
-        backend_long = NonuniformFFTsBackend(CPU()),
-        backend_short = CellListsBackend(CPU()),
-    )
-    # OpenCLBackend only works correctly starting from v1.12.
-    # On v1.11: "ERROR: Your device does not support SPIR-V, which is currently required for native execution."
-    if VERSION ≥ v"1.12"
-        backend = OpenCLBackend()
-        gpu = test_ring_collision(
-            backend_long = NonuniformFFTsBackend(backend),
-            backend_short = CellListsBackend(backend),
+    splittings = (GaussianSplitting, KaiserBesselSplitting)
+    for Splitting in splittings
+        cpu = test_ring_collision(
+            Splitting;
+            backend_long = NonuniformFFTsBackend(CPU()),
+            backend_short = CellListsBackend(CPU()),
         )
-        # Note: due to autotuning (which is quite random), the two sets of results can be a bit
-        # different, thus we use a relative large `rtol`.
-        @testset "Compare CPU / $backend" begin
-            @testset "Velocity and streamfunction" begin
-                @test cpu.velocity ≈ gpu.velocity rtol=1e-6
-                @test cpu.streamfunction ≈ gpu.streamfunction rtol=1e-6
-            end
-            @testset "Energy spectra" begin
-                # Compare energy spectra (first 8 modes only, since kmax may differ between both cases
-                # due to autotuning). We make sure we have computed enough modes, but this is basically
-                # almost the case.
-                if length(cpu.spectrum.ks) ≥ 9 && length(gpu.spectrum.ks) ≥ 9
-                    @test cpu.spectrum.ks[1:8] ≈ gpu.spectrum.ks[1:8]
-                    @test cpu.spectrum.Ek[1:8] ≈ gpu.spectrum.Ek[1:8] rtol=1e-5
+        # OpenCLBackend only works correctly starting from v1.12.
+        # On v1.11: "ERROR: Your device does not support SPIR-V, which is currently required for native execution."
+        if VERSION ≥ v"1.12"
+            backend = OpenCLBackend()
+            gpu = test_ring_collision(
+                Splitting;
+                backend_long = NonuniformFFTsBackend(backend),
+                backend_short = CellListsBackend(backend),
+            )
+            @testset "Compare CPU / $backend" begin
+                @testset "Velocity and streamfunction" begin
+                    # @show norm(cpu.velocity - gpu.velocity) / norm(cpu.velocity)
+                    # @show norm(cpu.streamfunction - gpu.streamfunction) / norm(cpu.streamfunction)
+                    @test cpu.velocity ≈ gpu.velocity rtol=1e-12
+                    @test cpu.streamfunction ≈ gpu.streamfunction rtol=1e-14
+                end
+                @testset "Energy spectra" begin
+                    # Compare energy spectra.
+                    # @show norm(cpu.spectrum.Ek - gpu.spectrum.Ek) / norm(cpu.spectrum.Ek)
+                    @test cpu.spectrum.ks ≈ gpu.spectrum.ks
+                    @test cpu.spectrum.Ek ≈ gpu.spectrum.Ek rtol=1e-15
                 end
             end
         end

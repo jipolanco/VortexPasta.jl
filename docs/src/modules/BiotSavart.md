@@ -15,7 +15,6 @@ BiotSavart
 
 ```@docs
 ParamsBiotSavart
-autotune
 ```
 
 ### Accessing parameters
