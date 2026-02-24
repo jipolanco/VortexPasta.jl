@@ -2,6 +2,7 @@
 
 ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
 ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
+ENV["POCL_CPU_MAX_CU_COUNT"] = Threads.nthreads()
 
 using Test
 using LinearAlgebra: norm, normalize, ⋅
@@ -13,8 +14,6 @@ using JET: JET
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Diagnostics: Diagnostics
-
-VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
 function init_ring_filament(; R, z, sign)
     tlims = (0.0, 2.0)
@@ -45,16 +44,16 @@ function test_ring_collision(;
     a = 1e-6
     Δ = 1/4
     Lbox = 3π
+    Ls = (Lbox, Lbox, Lbox)
     β = 3.5  # accuracy parameter
+    Ns = (40, 40, 40)
+    splitting = GaussianSplitting(; Ls, β, Ns)
 
-    params = BiotSavart.autotune(
-        filaments, β;
+    params = ParamsBiotSavart(;
         Γ, a, Δ,
-        Ls = (Lbox, Lbox, Lbox),
+        splitting,
         backend_long,
         backend_short,
-        verbose = VERBOSE,
-        Cstart = 1.5,
     )
     # println(params)
 

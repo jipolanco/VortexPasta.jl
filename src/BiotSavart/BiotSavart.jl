@@ -19,7 +19,7 @@ export
     CPU,  # from KernelAbstractions
     reset_timer!  # from TimerOutputs
 
-public init_cache, autotune
+public init_cache
 
 using ..Constants: Zero, One, Infinity, ∞
 
@@ -76,7 +76,6 @@ include("types_longrange.jl")
 include("params.jl")
 include("pointdata_impl.jl")  # requires ParamsBiotSavart (params.jl)
 include("cache.jl")
-include("autotune.jl")
 
 include("shortrange/shortrange.jl")
 include("longrange/longrange.jl")

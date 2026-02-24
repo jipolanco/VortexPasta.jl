@@ -5,6 +5,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- `ParamsBiotSavart` now accepts a `splitting` keyword argument, which replaces
+  the old `Ls`, `Ns`, `α` and `rcut` arguments (now included in the splitting).
+  The old parameters are still accepted, and are translated into
+  `splitting = GaussianSplitting(; Ls, Ns, α, rcut)`. This is in part to allow other
+  splitting kernels such as `KaiserBesselSplitting`, which takes slightly different parameters
+  (e.g. no `α`).
+
+- To disable periodicity, one should now pass `splitting = NoSplitting()`.
+
+### Added
+
+- Add `KaiserBesselSplitting` for Ewald splitting based on the Kaiser-Bessel kernel.
+  This kernel has near-optimal localisation in physical and spectral spaces, so it can
+  allow important performance gains compared to the standard `GaussianSplitting`.
+
+### Removed
+
+- Remove `BiotSavart.autotune`, not really used and not very robust for
+  determining optimal splitting parameters.
+
 ## [0.32.18] - 2026-02-03
 
 ### Fixed

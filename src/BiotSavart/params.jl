@@ -195,13 +195,11 @@ The type parameter `T` corresponds to the precision used in computations
 
 # Construction
 
-    ParamsBiotSavart([T = Float64]; Γ, a, splitting, Ls, optional_kws...)
+    ParamsBiotSavart([T = Float64]; Γ, a, splitting, optional_kws...)
 
 where the optional parameter `T` sets the numerical precision.
 
 Mandatory and optional keyword arguments are detailed in the extended help below.
-
-See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–Savart parameters.
 
 # Extended help
 
@@ -216,32 +214,6 @@ See also [`BiotSavart.autotune`](@ref) for an alternative way of setting Biot–
   Possible choices are:
   - [`GaussianSplitting`](@ref): standard Gaussian splitting window;
   - [`NoSplitting`](@ref): disables Ewald splitting and periodicity.
-
-## Old keyword arguments
-
-Instead of the `splitting` parameter, one can pass the following parameters:
-
-- `α::Real`: Ewald splitting parameter (inverse length scale). One can set
-  `α = Zero()` to efficiently disable long-range computations.
-
-- `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions.
-  This parameter is not required if `α = Zero()`.
-
-- `rcut`: cutoff distance for computation of short-range interactions.
-  For performance and practical reasons, the cutoff distance must be less than half the cell
-  unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
-  This parameter is not required if `α = Zero()`.
-
-- `Ls::Union{Real, NTuple{3, Real}}`: domain period in each Cartesian direction.
-  If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
-  the same in all directions.
-
-  This option is ignored when `splitting = NoSplitting()`, in which case periodic boundary
-  conditions are disabled (see [`NoSplitting`](@ref)).
-
-Depending on the value of `α`, this corresponds to passing `splitting = GaussianSplitting(…)` or `splitting = NoSplitting()`.
-
-These arguments are kept for backwards compatibility and may dissappear in the future.
 
 ## Optional keyword arguments and their defaults
 
@@ -319,6 +291,32 @@ These arguments are kept for backwards compatibility and may dissappear in the f
   especially when working in single precision (`T = Float32`).
   Note that this also applies to Ewald splitting kernels other than
   [`GaussianSplitting`](@ref) using functions different from `erf`.
+
+## Deprecated keyword arguments
+
+Instead of the `splitting` parameter, one can pass the following parameters:
+
+- `α::Real`: Ewald splitting parameter (inverse length scale). One can set
+  `α = Zero()` to efficiently disable long-range computations.
+
+- `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions.
+  This parameter is not required if `α = Zero()`.
+
+- `rcut`: cutoff distance for computation of short-range interactions.
+  For performance and practical reasons, the cutoff distance must be less than half the cell
+  unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
+  This parameter is not required if `α = Zero()`.
+
+- `Ls::Union{Real, NTuple{3, Real}}`: domain period in each Cartesian direction.
+  If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
+  the same in all directions.
+
+  This option is ignored when `splitting = NoSplitting()`, in which case periodic boundary
+  conditions are disabled (see [`NoSplitting`](@ref)).
+
+Depending on the value of `α`, this corresponds to passing `splitting = GaussianSplitting(…)` or `splitting = NoSplitting()`.
+
+These arguments are kept for backwards compatibility and may dissappear in the future.
 """
 struct ParamsBiotSavart{
         T,
