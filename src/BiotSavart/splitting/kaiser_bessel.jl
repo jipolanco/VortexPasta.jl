@@ -128,7 +128,7 @@ end
 # This is only done just once when creating the splitting.
 # The factor is C = ∫_0^{rcut} r² f(r) dr / 2.
 function _estimate_background_correction_factor(f::F, rcut; rtol) where {F <: Function}
-    f_rr = ChebyshevApproximations.approximate(r -> r^2 * f(r), rcut; rtol)
+    f_rr = ChebyshevApproximations.approximate(r -> r^2 * f(r) / 2, rcut; rtol)
     F_rr = ChebyshevApproximations.integrate(f_rr)
     F_rr(rcut)
 end

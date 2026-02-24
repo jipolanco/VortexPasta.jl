@@ -1,6 +1,6 @@
 # Smoothing kernels which can be used for performing Ewald summation.
 
-export NoSplitting, GaussianSplitting, KaiserBesselSplitting
+export AbstractEwaldSplitting, NoSplitting, GaussianSplitting, KaiserBesselSplitting
 
 """
     AbstractEwaldSplitting
