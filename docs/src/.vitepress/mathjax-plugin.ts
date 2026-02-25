@@ -13,7 +13,7 @@ interface MathJaxOptions {
 }
 
 async function initializeMathJax(options: MathJaxOptions = {}) {
-  const font = options.font || 'mathjax-newcm'
+  const font = options.font || 'mathjax-pagella'
 
   const config: any = {
     loader: {
