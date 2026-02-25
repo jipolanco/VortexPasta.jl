@@ -64,15 +64,18 @@ and ``f(r)`` is the Kaiser--Bessel kernel:
 
 ```math
 f(r) = \frac{β}{r_{\text{c}} \sinh(β)} I_0 \! \left(β \sqrt{1 - \frac{r^2}{r_{\text{c}}^2}}\right)
-\quad \text{for } |r| ≤ r_{\text{c}},
+\quad \text{for } r ≡ |r| ≤ r_{\text{c}},
 ```
 
 normalised such that ``F(r_{\text{c}}) = 1``.
 Here ``I_0`` is the modified Bessel function of the first kind and of order 0,
 ``r_{\text{c}}`` represents the kernel support in physical space, and ``β`` is a
-nondimensional shape parameter.
+nondimensional shape parameter controlling accuracy.
+Choosing ``β = 18`` gives roughly 6-digit accuracy (equivalent to ``β = 3.5``
+for [`GaussianSplitting`](@ref)).
+A full characterisation of the influence of ``β`` on accuracy still needs to be done.
 
-As a result, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as
+As a result of the above choice, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as
 $\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{(f)}}(\bm{r})$ with:
 
 ```math
@@ -96,8 +99,15 @@ Its Fourier transform is
 ```math
 \hat{\varphi}(\bm{k}) =
 \frac{\beta}{\sinh{\beta}}
-\frac{\sinh\sqrt{\beta^2 - (k r_{\text{c}})^2}}{\sqrt{\beta^2 - (k r_{\text{c}})^2}}.
+\frac{\sinh\sqrt{\beta^2 - (k r_{\text{c}})^2}}{\sqrt{\beta^2 - (k r_{\text{c}})^2}}
+\quad\text{for } k ≡ |\bm{k}| ≤ β / r_{\text{c}}.
 ```
+
+## Kernel truncation
+
+Given the shape parameter ``β`` and the physical space truncation ``r_{\text{c}}``, the
+maximum wavenumber that needs to be resolved is ``k_{\text{max}} = β / r_{\text{c}}`` to
+achieve the desired accuracy (controlled by ``β``).
 """
 struct KaiserBesselSplitting{
         T <: AbstractFloat, N,

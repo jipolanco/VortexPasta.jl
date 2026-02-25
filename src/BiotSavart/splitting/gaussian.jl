@@ -91,6 +91,11 @@ The Fourier transform of this convolution kernel is given by
 ```math
 \hat{\varphi}(\bm{k}) = e^{-k^2 / (4 \alpha^2)}
 ```
+
+## Kernel truncation
+
+Given the accuracy and splitting parameters ``β`` and ``α``, the required physical and Fourier space
+truncations are ``r_{\text{cut}} = β / α`` and ``k_{\text{max}} = 2 α β`` to achieve the desired accuracy.
 """
 struct GaussianSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting
     Ls::NTuple{N, T}
