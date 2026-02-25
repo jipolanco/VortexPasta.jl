@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.33.1] - 2026-02-25
+
+### Improvements
+
+- Make sure evaluation of Chebyshev polynomials is inlined.
+  This is critical for GPU performance, at least on CUDA.
+
 ## [0.33.0] - 2026-02-25
 
 ### Changed
