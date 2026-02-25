@@ -34,7 +34,7 @@ end
 @inline (f::ChebyshevSeries{:even})(x) = eval_chebyshev_clenshaw_even(f.cs, x * f.Linv)
 @inline (f::ChebyshevSeries{:odd})(x) = eval_chebyshev_clenshaw_odd(f.cs, x * f.Linv)
 
-function eval_chebyshev_clenshaw(cs::AbstractVector, x)
+@inline function eval_chebyshev_clenshaw(cs::AbstractVector, x)
     Base.require_one_based_indexing(cs)
     N = length(cs)
     N == 0 && return zero(x)
@@ -48,7 +48,7 @@ function eval_chebyshev_clenshaw(cs::AbstractVector, x)
     @inbounds cs[begin] + x * Bp - Bpp
 end
 
-function eval_chebyshev_clenshaw_even(cs::AbstractVector, x)
+@inline function eval_chebyshev_clenshaw_even(cs::AbstractVector, x)
     Base.require_one_based_indexing(cs)
     N = length(cs)
     N == 0 && return zero(x)
@@ -64,7 +64,7 @@ function eval_chebyshev_clenshaw_even(cs::AbstractVector, x)
     @inbounds cs[begin] + x * Bp - Bpp
 end
 
-function eval_chebyshev_clenshaw_odd(cs::AbstractVector, x)
+@inline function eval_chebyshev_clenshaw_odd(cs::AbstractVector, x)
     Base.require_one_based_indexing(cs)
     N = length(cs)
     N == 0 && return zero(x)
