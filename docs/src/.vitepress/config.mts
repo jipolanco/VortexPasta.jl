@@ -1,7 +1,6 @@
 import { defineConfig } from 'vitepress'
 import { tabsMarkdownPlugin } from 'vitepress-plugin-tabs'
 import { mathjaxPlugin } from './mathjax-plugin'
-// import katex from "markdown-it-katex";
 import footnote from "markdown-it-footnote";
 import path from 'path'
 
@@ -51,7 +50,6 @@ export default defineConfig({
       md.use(tabsMarkdownPlugin);
       md.use(footnote);
       mathjax.markdownConfig(md);
-      // md.use(katex),
     },
     theme: {
       light: "github-light",
@@ -87,6 +85,7 @@ export default defineConfig({
   },
   themeConfig: {
     outline: 'deep',
+    // https://vitepress.dev/reference/default-theme-config
     logo: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
     search: {
       provider: 'local',

@@ -5,13 +5,8 @@ using ..Filaments: deperiodise_separation, Segment, segments
 # SIMD-specific stuff, in particular for erf implementation
 using HostCPUFeatures: pick_vector_width
 using Static: dynamic
-using SpecialFunctions: SpecialFunctions
-using SIMD: SIMD
 
 include("cache_common.jl")
-
-include("SIMDFunctions/SIMDFunctions.jl")
-using .SIMDFunctions: SIMDFunctions
 
 """
     nearby_charges(c::ShortRangeCache, x⃗::Vec3)
@@ -45,32 +40,6 @@ See [`CellLists.foreach_pair`](@ref) for more details (which is called when usin
 function foreach_pair end
 
 function short_range_velocity end
-
-@inline exp_simd(x::SIMD.Vec) = SIMDFunctions.exp(x)
-@inline erf_simd(x::SIMD.Vec) = SIMDFunctions.erf(x)
-@inline erfc_simd(x::SIMD.Vec) = SIMDFunctions.erfc(x)
-
-# Note: even without explicit SIMD, calling SIMD-friendly implementations can enable
-# automatic SIMD and thus noticeably improve performance.
-@inline exp_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.exp(x)
-@inline erf_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.erf(x)
-@inline erfc_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.erfc(x)
-
-# On GPU we call the functions from Base or SpecialFunctions, since these are usually
-# overridden in each GPU implementation (CUDA, ...) and therefore should be fast.
-@inline exp_nosimd(::GPU, x::AbstractFloat) = exp(x)
-@inline erf_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.erf(x)
-@inline erfc_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.erfc(x)
-
-@inline exp_nosimd(::KA.Backend, x::Zero) = exp(x)    # = 1 (defined in Constants.jl)
-@inline exp_simd(x::Zero) = exp(x)
-@inline erf_nosimd(::KA.Backend, ::Zero) = Zero()
-@inline erfc_nosimd(::KA.Backend, ::Zero) = One()
-@inline erfc_simd(::Zero) = One()
-
-@inline two_over_sqrt_pi(::SIMD.Vec{W, T}) where {W, T} = 2 / sqrt(T(π))
-@inline two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
-@inline two_over_sqrt_pi(::Zero) = Zero()  # we don't really care about this value; it gets multiplied by Zero() anyway
 
 """
     add_pair_interactions!(outputs::NamedTuple, cache::ShortRangeCache)
@@ -186,10 +155,10 @@ end
 function _add_pair_interactions_simd!(
         ::Val{include_local_integration}, outputs::NamedTuple{Names}, cache
     ) where {include_local_integration, Names}
-    (; pointdata, params) = cache
+    (; splitting, pointdata, params) = cache
     (; points, charges, node_idx_prev,) = pointdata
     (; quad,) = params
-    (; Γ, α, Ls) = params.common
+    (; Γ, Ls) = params.common
     T = typeof(Γ)
     rcut² = params.rcut_sq
     prefactor = Γ / T(4π)
@@ -223,10 +192,8 @@ function _add_pair_interactions_simd!(
             # The next operations should all take advantage of SIMD.
             rs = sqrt(r²s_simd)
             rs_inv = inv(rs)
-            αr = α * rs
-            erfc_αr = erfc_simd(αr)
-            exp_term = two_over_sqrt_pi(αr) * αr * exp_simd(-(αr * αr))
-            args = (erfc_αr, exp_term, rs_inv, q⃗s_simd, r⃗s_simd)
+            a, b = weights_shortrange_simd(splitting, rs)
+            args = (a, b, rs_inv, q⃗s_simd, r⃗s_simd)
 
             foreach(values(outputs), values(quantities)) do vs, quantity
                 @inline
@@ -249,10 +216,10 @@ end
 function _add_pair_interactions_nosimd!(
         ::Val{include_local_integration}, outputs::NamedTuple{Names}, cache
     ) where {include_local_integration, Names}
-    (; pointdata, params) = cache
+    (; splitting, pointdata, params) = cache
     (; points, charges, node_idx_prev) = pointdata
     (; quad,) = params
-    (; Γ, α, Ls) = params.common
+    (; Γ, Ls) = params.common
     ka_backend = KA.get_backend(cache)
     T = typeof(Γ)
     rcut² = params.rcut_sq
@@ -291,10 +258,8 @@ function _add_pair_interactions_nosimd!(
             r = sqrt(r²)
             assume(r > 0)   # tell the compiler that we're not dividing by zero
             r_inv = 1 / r
-            αr = α * r
-            erfc_αr = erfc_nosimd(ka_backend, αr)
-            exp_term = two_over_sqrt_pi(αr) * αr * exp_nosimd(ka_backend, -(αr * αr))
-            args = (erfc_αr, exp_term, r_inv, qs⃗′, r⃗)
+            a, b = weights_shortrange_nosimd(ka_backend, splitting, r)
+            args = (a, b, r_inv, qs⃗′, r⃗)
             foreach(values(outputs), values(quantities)) do vs, quantity
                 @inline
                 # Note: we can safely sum at index `i` without atomics, since the implementation

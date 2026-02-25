@@ -47,7 +47,7 @@ struct LongRangeCacheCommon{
     outputs     :: OutputVectors       # output velocity and streamfunction fields (as linear vectors)
     uhat        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])
     vorticity_prefactor :: T             # prefactor Γ/V appearing in the Fourier transform of the vorticity
-    ewald_gaussian    :: RealScalarField   # real-valued Ewald Gaussian smoothing in Fourier space ([Nx, Ny, Nz])
+    ewald_op_fourier    :: RealScalarField   # real-valued Ewald Gaussian smoothing in Fourier space ([Nx, Ny, Nz])
     state           :: LongRangeCacheState
     to              :: Timer             # timer for operations run on the device
 end
@@ -72,7 +72,7 @@ end
     map(v -> T(v * op), û)
 end
 
-@inline get_ewald_interpolation_callback(c::LongRangeCacheCommon) = EwaldInterpolationCallback(c.ewald_gaussian)
+@inline get_ewald_interpolation_callback(c::LongRangeCacheCommon) = EwaldInterpolationCallback(c.ewald_op_fourier)
 @inline get_ewald_interpolation_callback(c::LongRangeCache) = get_ewald_interpolation_callback(c.common)
 
 function LongRangeCacheCommon(
@@ -82,10 +82,10 @@ function LongRangeCacheCommon(
     ) where {T}
     pcommon = params_all.common
     params = params_all.longrange
-    (; Γ, Ls, α,) = pcommon
+    (; Γ, Ls, splitting,) = pcommon
     (; backend,) = params
     @assert T === eltype(pcommon)
-    @assert α !== Zero()
+    @assert splitting !== NoSplitting()
     Nks = map(length, wavenumbers)
     uhat = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
     vorticity_prefactor = Γ / prod(Ls)
@@ -102,10 +102,10 @@ function LongRangeCacheCommon(
         streamfunction = similar(pointdata.charges),
         default = similar(pointdata.charges),  # this is the "default" output when no output has been selected
     )
-    ewald_gaussian = init_ewald_gaussian_operator(T, backend, wavenumbers, α)
+    ewald_op_fourier = init_ewald_operator_fourier(T, backend, wavenumbers, splitting)
     state = LongRangeCacheState()
     to = TimerOutput()
-    LongRangeCacheCommon(params, params_all, wavenumbers, pointdata, outputs, uhat, vorticity_prefactor, ewald_gaussian, state, to)
+    LongRangeCacheCommon(params, params_all, wavenumbers, pointdata, outputs, uhat, vorticity_prefactor, ewald_op_fourier, state, to)
 end
 
 has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)

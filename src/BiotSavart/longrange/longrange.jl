@@ -20,7 +20,7 @@ end
 Dummy cache type returned by [`init_cache_long`](@ref) when long-range
 computations are disabled.
 
-This is the case when the Ewald splitting parameter ``α`` is set to `Zero()`.
+This corresponds to disabling Ewald summation using [`NoSplitting`](@ref).
 """
 struct NullLongRangeCache <: LongRangeCache end
 
@@ -31,13 +31,11 @@ backend(::NullLongRangeCache) = NullLongRangeBackend()
 
 Initialise the cache for the long-range backend defined in `p.longrange`.
 
-Note that, if `p.α === Zero()`, then long-range computations are disabled and
+Note that, if `p.splitting === NoSplitting()`, then long-range computations are disabled and
 this returns a [`NullLongRangeCache`](@ref).
 """
 function init_cache_long(params::ParamsBiotSavart, pointdata::PointData)
-    # If long-range stuff is run on a GPU, we create a separate TimerOutput.
-    # This is to avoid short- and long-range parts writing asynchronously to the same timer.
-    if params.α === Zero()
+    if params.splitting === NoSplitting()
         NullLongRangeCache()  # disables Ewald method / long-range computations
     else
         init_cache_long_ewald(params, params.longrange, pointdata)
@@ -94,7 +92,7 @@ This simply corresponds to inverting a Laplacian (``-∇^2 \bm{ψ} = \bm{ω}``),
 Fourier space is:
 
 ```math
-\hat{\bm{ψ}}_{α}(\bm{k}) = \hat{\bm{ω}}(\bm{k}) / k²
+\hat{\bm{ψ}}(\bm{k}) = \hat{\bm{ω}}(\bm{k}) / k²
 ```
 
 This function should be called after [`compute_vorticity_fourier!`](@ref).
@@ -196,7 +194,7 @@ If called right after [`compute_vorticity_fourier!`](@ref), this function perfor
 operation:
 
 ```math
-\hat{\bm{v}}_{α}(\bm{k}) = \frac{i \bm{k} × \, \hat{\bm{ω}}(\bm{k})}{k^2}.
+\hat{\bm{v}}(\bm{k}) = \frac{i \bm{k} × \, \hat{\bm{ω}}(\bm{k})}{k^2}.
 ```
 
 Optionally, if one is also interested in the streamfunction, one can call
@@ -233,7 +231,9 @@ Compute coarse-grained vorticity in Fourier space.
 The vorticity is coarse-grained at scale ``ℓ`` using a Gaussian filter.
 
 Ideally, for accuracy reasons, the smoothing scale ``ℓ`` should be larger than the Ewald
-splitting scale ``σ = 1 / α√2``. Also note that applying this function leads to **loss of
+splitting scale ``σ = 1 / α√2`` (if using the standard [`GaussianSplitting`](@ref), but this
+also applies to other splitting functions).
+Also note that applying this function leads to **loss of
 small-scale information**, so that one should be careful when performing additional
 calculations (energy spectra, ...) afterwards.
 
@@ -273,10 +273,6 @@ BiotSavart.copy_long_range_output!(ωs_ℓ, cache.longrange)  # copy results fro
 function to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real; warn = true)
     (; uhat, state,) = c.common
     wavenumbers = get_wavenumbers(c)
-    σ_ewald = ewald_smoothing_scale(c)
-    if warn && ℓ < σ_ewald
-        @warn lazy"for accuracy reasons, the smoothing scale (ℓ = $ℓ) should be larger than the Ewald splitting scale (σ = $σ_ewald)"
-    end
     ℓ_old = state.smoothing_scale  # current smoothing scale (usually 0, but can be different)
     ka_backend = KA.get_backend(c)
     uhat_comps = StructArrays.components(uhat)
@@ -381,29 +377,32 @@ function interpolate_to_physical!(callback::F, output::StructVector, cache::Long
     output
 end
 
-@kernel function init_ewald_gaussian_operator_kernel!(
-        u::AbstractArray{T, 3} where {T},
+@kernel function init_ewald_operator_kernel!(
+        f::F,
+        u::AbstractArray{T, N},
         @Const(ks),
-        @Const(beta::Real),  # = -1/(4α²) // CUDA doesn't like Unicode characters?? ("ptxas fatal : Unexpected non-ASCII character encountered...")
-    )
+    ) where {F <: Function, T, N}
     I = @index(Global, Cartesian)
-    k⃗ = map(getindex, ks, Tuple(I))
+    k⃗ = ntuple(Val(N)) do d
+        @inline
+        @inbounds ks[d][I[d]]
+    end
     k² = sum(abs2, k⃗)
     # This is simply a Gaussian smoothing operator in Fourier space (note: β = -1/4α²).
-    @inbounds u[I] = exp(beta * k²)
+    @inbounds u[I] = @inline f(k²)
     nothing
 end
 
-function init_ewald_gaussian_operator(
-        ::Type{T}, backend::LongRangeBackend, ks, α::Real,
+function init_ewald_operator_fourier(
+        ::Type{T}, backend::LongRangeBackend, ks, splitting::AbstractEwaldSplitting,
     ) where {T <: Real}
     ka_backend = KA.get_backend(backend)
     dims = map(length, ks)
     u = KA.zeros(ka_backend, T, dims)
     @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device
-    β = -1 / (4 * α^2)
-    kernel = ka_generate_kernel(init_ewald_gaussian_operator_kernel!, ka_backend, u)
-    kernel(u, ks, β)
+    f = splitting_kernel_fourier(splitting)::Function
+    kernel = ka_generate_kernel(init_ewald_operator_kernel!, ka_backend, u)
+    kernel(f, u, ks)
     u
 end
 

@@ -290,19 +290,19 @@ end
 # We start by setting the parameters for Biot--Savart computations:
 
 using VortexPasta.BiotSavart
-M = floor(Int, 32 * 2/3)  # resolution of long-range grid
-kmax = π * (M - 1) / L    # maximum resolved wavenumber (Nyquist frequency) for long-range part
+M = floor(Int, 64 * 2/3)  # resolution of long-range grid
 β = 3.5                   # accuracy parameter
-α = kmax / (2β)           # Ewald splitting parameter
+splitting = GaussianSplitting(;
+    β,
+    Ls = (L, L, L),  # same domain size in all directions
+    Ns = (M, M, M),  # same long-range resolution in all directions
+)
 
 params = ParamsBiotSavart(;
     Γ = 1.0,    # vortex circulation
     a = 1e-8,   # vortex core size
     Δ = 1/4,    # vortex core parameter (1/4 for a constant vorticity distribution)
-    α = α,      # Ewald splitting parameter
-    Ls = (L, L, L),  # same domain size in all directions
-    Ns = (M, M, M),  # same long-range resolution in all directions
-    rcut = β / α,    # cut-off distance for short-range computations
+    splitting = splitting,   # Ewald splitting parameters
     quadrature = GaussLegendre(3),        # quadrature for integrals over filament segments
     backend_long = NonuniformFFTsBackend(),  # this is the default
     backend_short = CellListsBackend(2),

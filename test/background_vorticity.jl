@@ -15,15 +15,11 @@ using VortexPasta.VectorsOfVectors: VectorOfVectors
 using LinearAlgebra: norm
 using Test
 
-function init_params_biot_savart(; L, Ngrid, β)
-    kmax = Ngrid * π / L
-    α = kmax / (2β)
-    rcut = β / α
+function init_params_biot_savart(splitting::AbstractEwaldSplitting)
     ParamsBiotSavart(
         Float64;
-        Γ = 1.0, a = 1e-8,
-        α, Ls = L,
-        rcut, Ns = (Ngrid, Ngrid, Ngrid),
+        Γ = 2.0, a = 1e-8,
+        splitting,
         backend_long = NonuniformFFTsBackend(m = HalfSupport(4))  # ~1e-6 accuracy
     )
 end
@@ -38,6 +34,7 @@ end
 
 Np = 64
 L = 2π
+Ls = (L, L, L)
 
 # Create 4×4 array of aligned vortices with identical helical perturbations.
 Nx = 4
@@ -55,21 +52,30 @@ vs = map(similar ∘ nodes, fs) |> VectorOfVectors
 ψs = map(similar ∘ nodes, fs) |> VectorOfVectors
 fields = (velocity = vs, streamfunction = ψs)
 
-Ns = [32, 64]  # this also changes the splitting parameter α by a factor 2
+accuracy_coefficient(::Type{GaussianSplitting}) = 3.5  # ~1e-6 accuracy
+accuracy_coefficient(::Type{KaiserBesselSplitting}) = 18.0  # ~1e-6 accuracy
 
-fields_comp = map(Ns) do Ngrid
-    β = 3.5  # ~ 1e-6 accuracy
-    params = init_params_biot_savart(; L, Ngrid, β)
-    evaluate_bs_on_nodes!(fields, fs, params)
-    deepcopy(fields)
-end
+splittings = (GaussianSplitting, KaiserBesselSplitting)
 
-# @show norm(fields_comp[1].velocity - fields_comp[2].velocity) / norm(fields_comp[1].velocity)
-# @show norm(fields_comp[1].streamfunction - fields_comp[2].streamfunction) / norm(fields_comp[1].streamfunction)
+@testset "Splitting: $Splitting" for Splitting in splittings
+    Ns = [32, 64]  # this also changes the splitting parameter α by a factor 2
 
-@testset "Independence on α" begin
-    @test isapprox(fields_comp[1].velocity, fields_comp[2].velocity; rtol = 5e-7)
-    @test isapprox(fields_comp[1].streamfunction, fields_comp[2].streamfunction; rtol = 5e-7)
+    fields_comp = map(Ns) do Ngrid
+        β = accuracy_coefficient(Splitting)
+        splitting = Splitting(; β, Ls, Ns = (Ngrid, Ngrid, Ngrid))
+        params = init_params_biot_savart(splitting)
+        evaluate_bs_on_nodes!(fields, fs, params)
+        deepcopy(fields)
+    end
+
+    # @show Splitting
+    # @show norm(fields_comp[1].velocity - fields_comp[2].velocity) / norm(fields_comp[1].velocity)
+    # @show norm(fields_comp[1].streamfunction - fields_comp[2].streamfunction) / norm(fields_comp[1].streamfunction)
+
+    @testset "Independence on splitting parameters" begin
+        @test isapprox(fields_comp[1].velocity, fields_comp[2].velocity; rtol = 5e-7)
+        @test isapprox(fields_comp[1].streamfunction, fields_comp[2].streamfunction; rtol = 1e-8)
+    end
 end
 
 # using GLMakie
@@ -92,12 +98,14 @@ fs = [f]
 vs = map(similar ∘ nodes, fs) |> VectorOfVectors
 ψs = map(similar ∘ nodes, fs) |> VectorOfVectors
 fields = (velocity = vs, streamfunction = ψs)
-β = 3.5  # ~ 1e-6 accuracy
 Ngrid = 32
-params = init_params_biot_savart(; L, Ngrid, β)
-cache = evaluate_bs_on_nodes!(fields, fs, params)
 
-@testset "Coarse-grained vorticity" begin
+@testset "Coarse-grained vorticity (with $Splitting)" for Splitting in splittings
+    β = accuracy_coefficient(Splitting)
+    splitting = Splitting(; β, Ls, Ns = (Ngrid, Ngrid, Ngrid))
+    params = init_params_biot_savart(splitting)
+    cache = evaluate_bs_on_nodes!(fields, fs, params)
+
     # Now that we have computed the actual fields in Fourier space, obtain the coarse-grained
     # vorticity at a chosen scale.
     # Here the cache contains the velocity.

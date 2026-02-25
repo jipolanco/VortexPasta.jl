@@ -15,7 +15,6 @@ BiotSavart
 
 ```@docs
 ParamsBiotSavart
-autotune
 ```
 
 ### Accessing parameters
@@ -24,6 +23,15 @@ autotune
 circulation
 periods
 domain_is_periodic
+```
+
+## Ewald splitting kernels
+
+```@docs
+AbstractEwaldSplitting
+GaussianSplitting
+KaiserBesselSplitting
+NoSplitting
 ```
 
 ## Exported functions

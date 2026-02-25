@@ -1,6 +1,6 @@
 # Note: all input values may be SIMD types (Vec or tuple of Vec).
-@inline function short_range_integrand(::Velocity, erfc_αr, exp_term, r_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V}
-    factor = (erfc_αr + exp_term) * r_inv^3
+@inline function short_range_integrand(::Velocity, a, b, r_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V}
+    factor = (a + b) * r_inv^3
     vec = crossprod(qs⃗′, r⃗)
     map(vec) do component
         @inline
@@ -8,8 +8,8 @@
     end
 end
 
-@inline function short_range_integrand(::Streamfunction, erfc_αr, exp_term, r_inv, qs⃗′, r⃗)
-    factor = erfc_αr * r_inv
+@inline function short_range_integrand(::Streamfunction, a, b, r_inv, qs⃗′, r⃗)
+    factor = a * r_inv
     vec = qs⃗′
     map(vec) do component
         @inline
@@ -17,8 +17,8 @@ end
     end
 end
 
-@inline function long_range_integrand(::Velocity, erf_αr, exp_term, r_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V}
-    factor = (erf_αr - exp_term) * r_inv^3
+@inline function long_range_integrand(::Velocity, a, b, r_inv::V, qs⃗′::NTuple{3, V}, r⃗::NTuple{3, V}) where {V}
+    factor = (a - b) * r_inv^3
     vec = crossprod(qs⃗′, r⃗)
     map(vec) do component
         @inline
@@ -26,8 +26,8 @@ end
     end
 end
 
-@inline function long_range_integrand(::Streamfunction, erf_αr, exp_term, r_inv, qs⃗′, r⃗)
-    factor = erf_αr * r_inv
+@inline function long_range_integrand(::Streamfunction, a, b, r_inv, qs⃗′, r⃗)
+    factor = a * r_inv
     vec = qs⃗′
     map(vec) do component
         @inline

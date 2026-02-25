@@ -34,7 +34,7 @@ function test_vortex_ring_energy()
     β = 3
     α = kmax / 2β
     rcut = β / α
-    params_periodic = ParamsBiotSavart(; params_common..., Ls = L, rcut, Ns, α)
+    params_periodic = ParamsBiotSavart(; params_common..., Ls = (L, L, L), rcut, Ns, α)
     prob_periodic = VortexFilamentProblem(fs, tspan, params_periodic)
     iter_periodic = init(prob_periodic, RK4(); dt = 0.1)
     JET.@test_opt ignored_modules=(Base,) Diagnostics.kinetic_energy(iter_periodic)
