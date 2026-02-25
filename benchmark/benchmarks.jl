@@ -18,33 +18,11 @@ using ThreadPinning
 pinthreads(:cores)
 threadinfo()
 
-function generate_biot_savart_parameters(;
-        Ls::NTuple{3, T}, β = 3.5,
-        Ns::Union{Nothing, Dims{3}} = nothing,
-        rcut::Union{Nothing, Real} = Ns === nothing ? min(Ls...) / 3 : nothing,
-        kws...,
-    ) where {T}
-    Γ = 1.0
-    a = 1e-7
-    Δ = 1/2
-    if Ns === nothing
-        @assert rcut isa Real
-        α = β / rcut
-        kmax = 2α * β
-        Ns = ceil.(Int, (kmax / π) .* Ls) .+ 2
-    else
-        @assert rcut === nothing
-        ks_max = @. π * (Ns - 2) / Ls
-        kmax = min(ks_max...)
-        α = kmax / (2 * β)
-        rcut = β / α
-    end
-    ParamsBiotSavart(
-        T;
-        Γ, α, a, Δ, rcut, Ls, Ns,
-        backend_short = CellListsBackend(2),
-        backend_long = NonuniformFFTsBackend(CPU(); σ = T(1.5), m = HalfSupport(4)),
-        # backend_long = NonuniformFFTsBackend(CUDABackend(); σ = T(1.5), m = HalfSupport(4)),
+function generate_biot_savart_parameters(splitting; kws...)
+    ParamsBiotSavart(;
+        Γ = 1.0, a = 1e-7, Δ = 1/2, splitting,
+        backend_short = CellListsBackend(CPU(), 2),
+        backend_long = NonuniformFFTsBackend(CPU(); σ = 1.5, m = HalfSupport(4)),
         quadrature = GaussLegendre(3),
         quadrature_near_singularity = GaussLegendre(3),
         lia_segment_fraction = 0.2,
@@ -109,7 +87,8 @@ npoints = sum(length, fs)  # ~ 70000 points
 ## Define Biot–Savart benchmarks
 
 Ns = (128, 128, 128)
-params = generate_biot_savart_parameters(; Ls, Ns)
+splitting = GaussianSplitting(; Ls, Ns, β = 3.5)
+params = generate_biot_savart_parameters(splitting)
 cache = BiotSavart.init_cache(params)
 vs = similar(fs)
 ψs = similar(fs)
@@ -123,6 +102,27 @@ SUITE["BiotSavart"]["velocity + streamfunction"] = @benchmarkable BiotSavart.com
 
 SUITE["BiotSavart"]["add_point_charges!"] = @benchmarkable BiotSavart.add_point_charges!($(cache.pointdata), $fs, $params)
 SUITE["BiotSavart"]["add_local_integrals!"] = @benchmarkable BiotSavart.add_local_integrals!($fields, $cache, $fs)
+
+# Compare different splitting kernels at ~1e-6 accuracy with the same Ns.
+# In practice, this means that KaiserBesselSplitting will have a smaller rcut:
+# rcut_KB / rcut_G = β_KB / (2 * β_G^2) ≈ 0.73.
+splittings = (
+    GaussianSplitting(; Ls, β = 3.5, Ns = (128, 128, 128)),
+    KaiserBesselSplitting(; Ls, β = 18.0, Ns = (128, 128, 128)),
+)
+for splitting in splittings, use_simd in (false, true)
+    local params = generate_biot_savart_parameters(splitting; use_simd)
+    local cache = BiotSavart.init_cache(params)
+    BiotSavart.velocity_on_nodes!(vs, cache, fs)
+    BiotSavart.compute_on_nodes!(fields, cache, fs)
+    reset_timer!(cache.to)
+    local key = string(typeof(splitting))
+    SUITE["BiotSavart"][key]["velocity"] = @benchmarkable BiotSavart.velocity_on_nodes!($vs, $cache, $fs)
+    SUITE["BiotSavart"][key]["velocity + streamfunction"] = @benchmarkable BiotSavart.compute_on_nodes!($fields, $cache, $fs)
+    SUITE["BiotSavart"][key]["add_local_integrals!"] = @benchmarkable BiotSavart.add_local_integrals!($fields, $cache, $fs)
+    local results = run(SUITE["BiotSavart"])[key]
+    println(params, '\n', results, '\n', cache.to)
+end
 
 ## Define reconnection benchmarks
 
