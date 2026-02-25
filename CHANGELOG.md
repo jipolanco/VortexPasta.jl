@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.33.0] - 2026-02-25
+
 ### Changed
 
 - `ParamsBiotSavart` now accepts a `splitting` keyword argument, which replaces
@@ -14,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   splitting kernels such as `KaiserBesselSplitting`, which takes slightly different parameters
   (e.g. no `α`).
 
-- To disable periodicity, one should now pass `splitting = NoSplitting()`.
+- To disable periodicity, one should now pass `splitting = NoSplitting()` instead of `α = Zero()`.
 
 ### Added
 
