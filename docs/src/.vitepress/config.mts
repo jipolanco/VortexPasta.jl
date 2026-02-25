@@ -4,7 +4,6 @@ import { mathjaxPlugin } from './mathjax-plugin'
 import footnote from "markdown-it-footnote";
 import path from 'path'
 
-// console.log(process.env)
 const mathjax = mathjaxPlugin()
 
 function getBaseRepository(base: string): string {
@@ -24,9 +23,10 @@ const navTemp = {
 const nav = [
   ...navTemp.nav,
   {
-    component: 'VersionPicker',
+    component: 'VersionPicker'
   }
 ]
+
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   // ignoreDeadLinks: true,  // useful when testing
@@ -44,7 +44,8 @@ export default defineConfig({
     ['script', {src: `${baseTemp.base}siteinfo.js`}],
     ['script', {src: `${baseTemp.base}sa.js`, async: '', 'data-collect-dnt': 'true'}]
   ],
-   markdown: {
+  
+  markdown: {
     config(md) {
       md.use(tabsMarkdownPlugin);
       md.use(footnote);
@@ -66,9 +67,6 @@ export default defineConfig({
       alias: {
         '@': path.resolve(__dirname, '../components')
       }
-    },
-    build: {
-      assetsInlineLimit: 0, // so we can tell whether we have created inlined images or not, we don't let vite inline them
     },
     optimizeDeps: {
       exclude: [ 
@@ -99,10 +97,10 @@ export default defineConfig({
     sidebar: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
     editLink: 'REPLACE_ME_DOCUMENTER_VITEPRESS',
     socialLinks: [
-      // { icon: 'slack', link: 'https://julialang.org/slack/' }
+      { icon: 'github', link: 'REPLACE_ME_DOCUMENTER_VITEPRESS' }
     ],
     footer: {
-      message: 'Made with <a href="https://documenter.juliadocs.org/stable/" target="_blank"><strong>Documenter.jl</strong></a>, <a href="https://vitepress.dev" target="_blank"><strong>VitePress</strong></a> and <a href="https://luxdl.github.io/DocumenterVitepress.jl/stable/" target="_blank"><strong>DocumenterVitepress.jl</strong></a> <br>',
+      message: 'Made with <a href="https://luxdl.github.io/DocumenterVitepress.jl/dev/" target="_blank"><strong>DocumenterVitepress.jl</strong></a><br>',
       copyright: `© Copyright ${new Date().getUTCFullYear()}.`
     }
   }
