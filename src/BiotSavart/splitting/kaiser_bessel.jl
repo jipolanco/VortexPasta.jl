@@ -32,13 +32,13 @@ The **recommended way** is to pass the nondimensional accuracy coefficient `β` 
 
 ```jldoctest
 julia> Ls = (2π, 2π, 2π);
-julia> β = 14;  # gives roughly 6-digit accuracy (to be checked...)
+julia> β = 18;  # gives roughly 6-digit accuracy
 julia> Ns = (128, 128, 128);
 julia> splitting = KaiserBesselSplitting(; Ls, β, Ns)
 KaiserBesselSplitting{Float64, 3} with:
  - Domain period:          Ls = (6.283185307179586, 6.283185307179586, 6.283185307179586)
- - Shape parameter:        β  = 14.0
- - Short-range cut-off:    r_cut = 0.2222222222222222 (r_cut/L_min = 0.035367765131532294)
+ - Shape parameter:        β  = 18.0
+ - Short-range cut-off:    r_cut = 0.2857142857142857 (r_cut/L_min = 0.04547284088339867)
  - Long-range resolution:  Ns = (128, 128, 128) (k_max = 63.0)
 ```
 
@@ -115,10 +115,17 @@ end
 
 function KaiserBesselSplitting(; Ls::NTuple{N, T}, β = nothing, rcut = nothing, Ns = nothing) where {N, T}
     let (β, rcut, Ns) = _kb_splitting_params(Ls, β, rcut, Ns)
-        # TODO: tune rtol as a function of β?
         C = β / (rcut * sinh(β))
         f_actual(r) = C * besseli(0, β * sqrt(1 - (r / rcut)^2))
-        f = ChebyshevApproximations.approximate(f_actual, rcut; symmetry = Val(:even), rtol = 10 * eps(T))
+        # Set relative accuracy of Chebyshev approximation. This determines the length of
+        # the Chebyshev series, and thus the f(r) and F(r) evaluation cost.
+        # TODO: rtol should be a continuous function of β
+        rtol = if β < T(19.0)  # up to about 6-digit accuracy (typically β = 18)
+            max(eps(T), T(1e-7))
+        else  # higher accuracy
+            2 * eps(T)
+        end
+        f = ChebyshevApproximations.approximate(f_actual, rcut; symmetry = Val(:even), rtol)
         F = ChebyshevApproximations.integrate(f)
         C_background = _estimate_background_correction_factor(f_actual, rcut; rtol = eps(T))  # estimate it to machine epsilon
         KaiserBesselSplitting(Ls, β, rcut, C_background, Ns, f, F)
