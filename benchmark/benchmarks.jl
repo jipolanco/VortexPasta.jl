@@ -116,12 +116,12 @@ for splitting in splittings, use_simd in (false, true)
     BiotSavart.velocity_on_nodes!(vs, cache, fs)
     BiotSavart.compute_on_nodes!(fields, cache, fs)
     reset_timer!(cache.to)
-    local key = string(typeof(splitting))
+    local key = string(nameof(typeof(splitting)))
     SUITE["BiotSavart"][key]["velocity"] = @benchmarkable BiotSavart.velocity_on_nodes!($vs, $cache, $fs)
     SUITE["BiotSavart"][key]["velocity + streamfunction"] = @benchmarkable BiotSavart.compute_on_nodes!($fields, $cache, $fs)
     SUITE["BiotSavart"][key]["add_local_integrals!"] = @benchmarkable BiotSavart.add_local_integrals!($fields, $cache, $fs)
-    local results = run(SUITE["BiotSavart"])[key]
-    println(params, '\n', results, '\n', cache.to)
+    # local results = run(SUITE["BiotSavart"])[key]
+    # println(params, '\n', results, '\n', cache.to)
 end
 
 ## Define reconnection benchmarks
