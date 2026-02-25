@@ -6,6 +6,7 @@ using Statistics: mean, std
 using LinearAlgebra: norm, normalize, ⋅
 using UnicodePlots: lineplot
 using Optim: Optim
+using ADTypes: AutoForwardDiff
 using VortexPasta.PredefinedCurves: define_curve, PeriodicLine
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
@@ -37,7 +38,7 @@ end
 dt_factor(::RK4) = 1.5    # this factor seems to give stability with RK4
 dt_factor(::DP5) = 1.3    # I'd expect DP5 to allow a larger timestep than RK4, but that doesn't seem to be the case...
 dt_factor(::SSPRK33) = 1.1
-dt_factor(::Euler) = 0.08  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
+dt_factor(::Euler) = 0.05  # Euler needs a really small dt to stay stable, and accuracy is quite bad!!
 dt_factor(::Midpoint) = 0.4
 
 # IMEX-RK methods
@@ -88,15 +89,13 @@ function test_kelvin_waves(
         @assert Lx == Ly == Lz
         Ls = (Lx, Ly, Lz)
         Ns = (1, 1, 1) .* 24
-        kmax = (Ns[1] ÷ 2) * 2π / Ls[1]
-        β = 4.0  # => 1e-8 accuracy
-        α = kmax / 2β
-        rcut = β / α
+        # splitting = GaussianSplitting(; Ls, β = 3.5, Ns)
+        splitting = KaiserBesselSplitting(; Ls, β = 18, Ns)
         ParamsBiotSavart(;
-            Γ, α, a, Δ, rcut, Ls, Ns,
-            # backend_short = CellListsBackend(2),
+            Γ, a, Δ, splitting,
+            # backend_short = CellListsBackend(1),
             backend_short = NaiveShortRangeBackend(),
-            backend_long = NonuniformFFTsBackend(m = HalfSupport(5), σ = 1.5),  # => 1e-8 accuracy
+            backend_long = NonuniformFFTsBackend(m = HalfSupport(4), σ = 1.5),
             quadrature = quad,
             lia_segment_fraction = quad === NoQuadrature() ? nothing : 0.1,
         )
@@ -235,16 +234,16 @@ function test_kelvin_waves(
         energy_std = std(energy_time)
         # @show energy_initial
         VERBOSE && @show energy_std / energy_initial
-        # @show energy_last / energy_initial - 1
+        VERBOSE && @show energy_last / energy_initial - 1
         if iseuler
-            @test energy_std / energy_initial < 1e-6
-            @test isapprox(energy_last, energy_initial; rtol = 1e-5)
+            @test energy_std / energy_initial < 1e-7
+            @test isapprox(energy_last, energy_initial; rtol = 1e-6)
         elseif method isa CubicSplineMethod || quad === NoQuadrature()
-            @test energy_std / energy_initial < 2e-9
-            @test isapprox(energy_last, energy_initial; rtol = 2e-9)
+            @test energy_std / energy_initial < 1e-8
+            @test isapprox(energy_last, energy_initial; rtol = 1e-8)
         else
-            @test energy_std / energy_initial < 1e-9
-            @test isapprox(energy_last, energy_initial; rtol = 2e-9)
+            @test energy_std / energy_initial < 1e-8
+            @test isapprox(energy_last, energy_initial; rtol = 1e-9)
         end
     end
 
@@ -258,7 +257,7 @@ function test_kelvin_waves(
         zs = getindex.(X_probe, 3)
 
         # Position along the filament direction
-        # @show maximum(z -> abs(z - zs[begin]) / zs[begin], zs)
+        # VERBOSE && @show maximum(z -> abs(z - zs[begin]) / zs[begin], zs)
         let rtol = iseuler ? 1e-5 : 1e-6
             @test all(z -> isapprox(z, zs[begin]; rtol), zs)  # the chosen node practically doesn't move vertically
         end
@@ -268,7 +267,7 @@ function test_kelvin_waves(
         @. ys -= line.y
 
         A = abs(line.A)
-        @test std(xs) < A  # if this fails is likely because the solver diverged
+        @test std(xs) < A  # if this fails it's likely because the solver diverged
         @test std(ys) < A
 
         xmodel(t, p) = p[1] * cos(p[2] * t)
@@ -282,12 +281,12 @@ function test_kelvin_waves(
 
         # Try to fit sinusoidal trajectory using Optim.
         # We minimise the square distance between data and model.
-        xfit = Optim.optimize(p0, Optim.LBFGS(); autodiff = :forward) do p
+        xfit = Optim.optimize(p0, Optim.LBFGS(); autodiff = AutoForwardDiff()) do p
             sum(zip(xs, times)) do (x, t)
                 abs2(x - xmodel(t, p))
             end
         end
-        yfit = Optim.optimize(p0, Optim.LBFGS(); autodiff = :forward) do p
+        yfit = Optim.optimize(p0, Optim.LBFGS(); autodiff = AutoForwardDiff()) do p
             sum(zip(ys, times)) do (y, t)
                 abs2(y - ymodel(t, p))
             end
@@ -324,9 +323,11 @@ end
 
 @testset "Kelvin waves" begin
     schemes = (
-        RK4(), KenCarp3(),
+        RK4(),
+        KenCarp3(),
         SanduMRI33a(RK4(), 1),
         # SanduMRI45a(RK4(), 1),
+        # Euler(),
     )
     @testset "Scheme: $scheme" for scheme ∈ schemes
         test_kelvin_waves(scheme; method = QuinticSplineMethod())

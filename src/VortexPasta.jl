@@ -47,55 +47,65 @@ using PrecompileTools: @setup_workload, @compile_workload
     using .Timestepping
     using .Diagnostics
 
-    ## Set-up a vortex filament simulation
-    # Grid-related parameters
-    Ls = (1, 1, 1) .* 2π
-    Ns = (1, 1, 1) .* 32
-    kmax = minimum(splat((N, L) -> (N ÷ 2) * 2π / L), zip(Ns, Ls))
-    α = kmax / 5
-    rcut = 4 * sqrt(2) / α
+    get_quadrature(::CubicSplineMethod) = GaussLegendre(2)
+    get_quadrature(::QuinticSplineMethod) = GaussLegendre(3)
 
-    # Physical vortex parameters
-    Γ = 1.2
-    a = 1e-6
-    Δ = 1/4  # full core
-
-    @compile_workload begin
-        params_bs = ParamsBiotSavart(;
-            Γ, a, Δ,
-            α, rcut, Ls, Ns,
+    function run_simulation(; splitting, method)
+        quadrature = get_quadrature(method)
+        params = ParamsBiotSavart(;
+            Γ = 1.2, a = 1e-6, Δ = 1/4,
+            splitting,
             backend_short = CellListsBackend(2),
             backend_long = NonuniformFFTsBackend(),
-            quadrature = GaussLegendre(2),
+            quadrature,
+            quadrature_near_singularity = quadrature,
+            lia_segment_fraction = 0.1,
         )
 
         # Initialise vortex ring
         S = define_curve(Ring(); scale = π / 3)
-        f = Filaments.init(S, ClosedFilament, 32, CubicSplineMethod())
+        f = Filaments.init(S, ClosedFilament, 32, method)
         fs = [f]
         l_min = minimum_node_distance(fs)
 
         # Initialise and run simulation
         tspan = (0.0, 0.01)
-        prob = VortexFilamentProblem(fs, tspan, params_bs)
+        prob = VortexFilamentProblem(fs, tspan, params)
+        energy = Float64[]
 
-        # function callback(iter)
-        #     E = Diagnostics.kinetic_energy_from_streamfunction(iter)
-        #     nothing
-        # end
+        function callback(iter)
+            E = Diagnostics.kinetic_energy(iter)
+            push!(energy, E)
+            nothing
+        end
 
-        # Precompilation of `init` seems to fail when setting multiple CPU targets via the
-        # JULIA_CPU_TARGET environment variable (this is useful on HPC clusters), so we
-        # comment it out.
-        # iter = init(
-        #     prob, RK4();
-        #     dt = 0.001,
-        #     adaptivity = AdaptBasedOnSegmentLength(1.0),
-        #     refinement = RefineBasedOnSegmentLength(0.75 * l_min),
-        #     reconnect = ReconnectBasedOnDistance(l_min),
-        #     callback,
-        # )
-        # solve!(iter)
+        iter = init(
+            prob, RK4();
+            dt = 0.001,
+            adaptivity = AdaptBasedOnSegmentLength(0.5),
+            refinement = RefineBasedOnSegmentLength(0.75 * l_min),
+            reconnect = ReconnectFast(l_min),
+            callback,
+        )
+
+        step!(iter)  # perform a single timestep
+        ks, Ek = Diagnostics.energy_spectrum(iter)
+
+        nothing
+    end
+
+    Ls = (1, 1, 1) .* 2π
+    Ns = (1, 1, 1) .* 32
+    splittings = (
+        GaussianSplitting(; Ls, Ns, β = 2.0),
+        KaiserBesselSplitting(; Ls, Ns, β = 8.0),
+    )
+    methods = (
+        CubicSplineMethod(), QuinticSplineMethod(),
+    )
+
+    for splitting in splittings, method in methods
+        @compile_workload run_simulation(; splitting, method)
     end
 end
 
