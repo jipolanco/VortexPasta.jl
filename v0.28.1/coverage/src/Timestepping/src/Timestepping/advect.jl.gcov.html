@@ -1,0 +1,140 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Timestepping/src/Timestepping/advect.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Timestepping/src/Timestepping</a> - advect.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">92.3&nbsp;%</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntry">24</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-06-20 08:19:57</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : # These functions are used to advect filament locations in time: t -&gt; t + δt, according to a</span>
+<span id="L2"><span class="lineNum">       2</span>              : # computed (mean) velocity throughout the timestep.</span>
+<span id="L3"><span class="lineNum">       3</span>              : #</span>
+<span id="L4"><span class="lineNum">       4</span>              : # There are two possible cases:</span>
+<span id="L5"><span class="lineNum">       5</span>              : #</span>
+<span id="L6"><span class="lineNum">       6</span>              : # (1) δt is the full simulation timestep Δt, and we're computing the positions at time</span>
+<span id="L7"><span class="lineNum">       7</span>              : #     t + Δt from positions at time t and the mean velocities obtained from the chosen</span>
+<span id="L8"><span class="lineNum">       8</span>              : #     temporal scheme;</span>
+<span id="L9"><span class="lineNum">       9</span>              : #</span>
+<span id="L10"><span class="lineNum">      10</span>              : # (2) δt is a fraction of Δt, e.g. in the case of a RK substep.</span>
+<span id="L11"><span class="lineNum">      11</span>              : </span>
+<span id="L12"><span class="lineNum">      12</span>              : # This function will dispatch to one of the two possible cases, according to the value of fbase:</span>
+<span id="L13"><span class="lineNum">      13</span>              : #</span>
+<span id="L14"><span class="lineNum">      14</span>              : # - `nothing` (default), used when the filaments `fs` should be advected with the</span>
+<span id="L15"><span class="lineNum">      15</span>              : #   chosen velocity at the end of a timestep (case 1);</span>
+<span id="L16"><span class="lineNum">      16</span>              : #</span>
+<span id="L17"><span class="lineNum">      17</span>              : # - some list of filaments similar to `fs`, used to advect from `fbase` to `fs` with the</span>
+<span id="L18"><span class="lineNum">      18</span>              : #   chosen velocity (case 2). This is generally done from within RK stages, and in this case</span>
+<span id="L19"><span class="lineNum">      19</span>              : #   we do not recompute the filament parametrisation (knots).</span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC tlaBgGNC">      210510 : advect_filaments!(fs, vL, dt; fbase = nothing, kws...) =</span></span>
+<span id="L21"><span class="lineNum">      21</span>              :     _advect_filaments!(fs, fbase, vL, dt; kws...)</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span>              : # Variant called at the end of a timestep (case 1)</span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">       10709 : function _advect_filaments!(fs, fbase::Nothing, vL, dt)</span></span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">       10709 :     for i ∈ eachindex(fs, vL)</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">       21408 :         @inbounds _advect_filament!(fs[i], nothing, vL[i], dt)</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">       32107 :     end</span></span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">       10709 :     fs</span></span>
+<span id="L29"><span class="lineNum">      29</span>              : end</span>
+<span id="L30"><span class="lineNum">      30</span>              : </span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">       21408 : function _advect_filament!(</span></span>
+<span id="L32"><span class="lineNum">      32</span>              :         f::AbstractFilament, fbase::Nothing, vL::VectorOfVelocities, dt::Real,</span>
+<span id="L33"><span class="lineNum">      33</span>              :     )</span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">       21408 :     Xs = nodes(f)</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">       21408 :     for i ∈ eachindex(Xs, vL)</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">      793363 :         @inbounds Xs[i] = Xs[i] + dt * vL[i]</span></span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">     1565318 :     end</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">       21408 :     Filaments.update_coefficients!(f)  # note: in this case we recompute the knots</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L40"><span class="lineNum">      40</span>              : end</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span>              : # Variant called from within RK stages (case 2)</span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC tlaBgGNC">       60657 : function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">       60657 :     for i ∈ eachindex(fs, fbase, vL)</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">      117736 :         @inbounds _advect_filament!(fs[i], fbase[i], vL[i], dt)</span></span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">      174815 :     end</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">       60657 :     fs</span></span>
+<span id="L48"><span class="lineNum">      48</span>              : end</span>
+<span id="L49"><span class="lineNum">      49</span>              : </span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">      117736 : function _advect_filament!(f::T, fbase::T, vL, dt) where {T &lt;: AbstractFilament}</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">      117736 :     Xs = nodes(f)</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">      117736 :     Ys = nodes(fbase)</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">      117736 :     for i ∈ eachindex(Xs, Ys, vL)</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">     3992918 :         @inbounds Xs[i] = Ys[i] + dt * vL[i]</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">     7868100 :     end</span></span>
+<span id="L56"><span class="lineNum">      56</span>              :     # Compute interpolation coefficients making sure that knots are preserved (and not</span>
+<span id="L57"><span class="lineNum">      57</span>              :     # recomputed from new locations).</span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">      117736 :     Filaments.update_coefficients!(f; knots = knots(fbase))</span></span>
+<span id="L59"><span class="lineNum">      59</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L60"><span class="lineNum">      60</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
