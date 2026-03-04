@@ -18,51 +18,12 @@ using Statistics: std
 using GLMakie, CairoMakie, MathTeXEngine  # for plots
 using InverseFunctions: InverseFunctions
 
-# Set TeX Gyre Pagella as math font.
-# MathTeXEngine.set_texfont_family!(FontFamily("TeXGyrePagella"))  # doesn't work on MathTeXEngine v0.6.6
-# As a workaround, we use system-installed fonts.
-full_font_path(fname...) = joinpath(expanduser("~/.local/share/fonts/texlive-opentype/public"), fname...)
-MathTeXEngine.set_texfont_family!(
-    FontFamily(
-        (
-            :regular => full_font_path("tex-gyre", "texgyrepagella-regular.otf"),
-            :italic => full_font_path("tex-gyre", "texgyrepagella-italic.otf"),
-            :bold => full_font_path("tex-gyre", "texgyrepagella-bold.otf"),
-            :bolditalic => full_font_path("tex-gyre", "texgyrepagella-bolditalic.otf"),
-            :math => full_font_path("tex-gyre-math", "texgyrepagella-math.otf"),
-        )
-    )
-)
+# Set TeX Gyre Pagella as text and math font.
+MathTeXEngine.set_texfont_family!(FontFamily("TeXGyrePagella"))
 Makie.set_theme!(theme_latexfonts())
 GLMakie.activate!()
 
 ## Helper functions
-
-function init_biot_savart_parameters(;
-        Ls, β = 3.5,
-        rcut = min(Ls...) * (2/5),  # default = maximum possible cut-off distance for short-range part (depends on CellListsBackend parameters)
-        Γ = 1.0, a = 1e-8,
-    )
-    α = β / rcut                # Ewald splitting parameter
-    kmax = 2 * α * β            # maximum resolved wavenumber (Nyquist frequency) for long-range part
-    Ns = map(Ls) do L
-        1 + ceil(Int, kmax * L / π)  # long-range grid resolution (~FFT size)
-    end
-    ParamsBiotSavart(;
-        Γ,   # vortex circulation
-        a,   # vortex core size
-        Δ = 1/2,    # vortex core parameter (1/4 for a constant vorticity distribution)
-        α,      # Ewald splitting parameter
-        Ls,     # same domain size in all directions
-        Ns,     # same long-range resolution in all directions
-        rcut,   # cut-off distance for short-range computations
-        quadrature = GaussLegendre(3),        # quadrature for integrals over filament segments
-        quadrature_near_singularity = GaussLegendre(3),
-        lia_segment_fraction = 0.2,
-        backend_long = NonuniformFFTsBackend(m = HalfSupport(4)),  # this is the default
-        backend_short = CellListsBackend(2),
-    )
-end
 
 # Give a colour to a filament based on its local orientation wrt Z.
 function filament_colour(f::AbstractFilament, refinement)
@@ -199,13 +160,12 @@ function transform_val_space(ax::Axis, which::Int, spaces::Pair{Symbol,Symbol}, 
 end
 
 function run_simulation(;
-        lattice::Symbol = :square,   # :square or :hexagonal
+        lattice::Symbol = :hexagonal,   # :square or :hexagonal
         Lz = 2π,             # domain period (vertical)
         Lx = Lz,             # domain period (horizontal) -- proportional to inter-vortex distance
         N = 64,              # number of points per vortex (= line resolution)
         in_phase_perturbation = true,  # perturbations of all vortices are in phase?
-        nvort_x = 2,   # number of vortices along X direction (number of vortices along Y depends on this and on `lattice` value)
-        nvort_y = 2,
+        nvort_x = 2,   # number of vortices along X direction (should be even; number of vortices along Y depends on `lattice` value)
         Az_rms = 1e-5 * Lz,   # amplitude of random perturbation varying in Z (rms value)
         Ax = 0 * Lx,      # amplitude of perturbation varying in X
         Ay = Ax,          # amplitude of perturbation varying in Y
@@ -218,16 +178,27 @@ function run_simulation(;
     )
     #== Biot-Savart parameters ==#
     # Domain size in y direction
-    Ly = if lattice == :square
-        Lx
+    if lattice == :square
+        nvort_y = nvort_x
+        Ly = Lx
     elseif lattice == :hexagonal
-        Lx * sqrt(3)
+        @assert iseven(nvort_x)
+        nvort_y = nvort_x ÷ 2
+        Ly = Lx * sqrt(3) / 2  # we divide by 2 so that Ly is "close" to Lx, but this requires even nvort_x
     else
         throw(ArgumentError("`lattice` parameter should be :square or :hexagonal"))
     end
     Ls = (Lx, Ly, Lz)
     rcut = min(Ls...) * rcut_factor
-    params = init_biot_savart_parameters(; Ls, rcut, Γ = 0.1, a = π * 1e-8)
+    params = ParamsBiotSavart(;
+        Γ = 0.1, a = π * 1e-8, Δ = 1/2,
+        # splitting = GaussianSplitting(; Ls, β = 3.5, rcut),
+        splitting = KaiserBesselSplitting(; Ls, β = 18.0, rcut),
+        quadrature = GaussLegendre(3),        # quadrature for integrals over filament segments
+        quadrature_near_singularity = GaussLegendre(3),
+        backend_long = NonuniformFFTsBackend(m = HalfSupport(4)),
+        backend_short = CellListsBackend(2),
+    )
     println('\n', params)
 
     #== Initialise vortices ==#
@@ -318,6 +289,7 @@ function run_simulation(;
             local fname = "rotation_$nstep.vtkhdf"
             save_checkpoint(fname, iter; refinement = 4) do io
                 io["curvature"] = CurvatureScalar()
+                io["velocity"] = iter.vL
             end
             tsf[t] = fname
             save("rotation.vtkhdf.series", tsf)
@@ -383,16 +355,15 @@ end
 
 ## Run simulation
 
-lattice = :square
-# lattice = :hexagonal
-Lz = 2π       # domain period (vertical)
+# lattice = :square
+lattice = :hexagonal
+Lz = 2π        # domain period (vertical)
 Lx = Lz / 32   # domain period (horizontal) -- this is proportional to the inter-vortex distance
 
 # Initial vortices
 N = 64             # number of discretisation points per line
 in_phase_perturbation = true  # perturbations of all vortices are in phase?
-nvort_x = 4    # number of vortices per direction (x, y)
-nvort_y = 4
+nvort_x = 4    # number of vortices along x direction (should be even)
 Az_rms = 1e-5 * Lz   # amplitude of random perturbation (rms value)
 Ax = 0e-2 * Lx
 Ay = Ax
@@ -406,7 +377,7 @@ method = FourierMethod()  # filament discretisation method
 
 results = run_simulation(;
     lattice, Lz, Lx, N, in_phase_perturbation,
-    nvort_x, nvort_y, Az_rms, method,
+    nvort_x, Az_rms, method,
     Ax, Ay, kx, ky, nrotations,
     rcut_factor, dt_factor,
 )
@@ -495,7 +466,7 @@ end
 k_ℓ = 2π / ℓ  # wavenumber associated to inter-vortex distance
 
 fontsize = 14
-fig = Figure(; size = (350, 300), fontsize)
+fig = Figure(; size = (400, 300), fontsize)
 ax = Axis(fig[1, 1]; xlabel = L"kℓ", ylabel = L"ω(k)")
 ax.xgridvisible = ax.ygridvisible = false
 ax.xlabelpadding = 4
@@ -514,7 +485,7 @@ hm = @views heatmap!(
     # colorrange = (wplot_max - 3, wplot_max - 2),
     # colorrange = (wplot_max - 3, wplot_max - 2),
 )
-# Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}|^2")
+Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}|^2")
 hlines!(ax, 0; color = :black, linestyle = :dash, linewidth = 1)
 xright = rel2data(ax, :x, 1.0)  # rightmost coordinate (in data space)
 ybottom = rel2data(ax, :y, 0.0)
@@ -532,7 +503,7 @@ end
 let color = :chocolate, n = searchsortedlast(ks_fine, 6.0)
     lines!(ax, ks_fine .* ℓ, ωs_ℓ; color, linestyle = :dash, linewidth = 2.0, label = L"2Ω + \frac{κ k^2}{4π} \ln(ℓ/a)")
     annotation!(
-        ax, 10 + ks_fine[n] * ℓ, 2.0 * ωs_ℓ[n], ks_fine[n] * ℓ, ωs_ℓ[n];
+        ax, 20 + ks_fine[n] * ℓ, 2.0 * ωs_ℓ[n], ks_fine[n] * ℓ, ωs_ℓ[n];
         color, text = L"-2Ω - \frac{κ k^2}{4π} \ln(ℓ/a)", fontsize = fontsize + 2,
         style = Ann.Styles.LineArrow(),
     )
