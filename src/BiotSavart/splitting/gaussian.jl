@@ -168,7 +168,11 @@ function Base.show(io::IO, g::GaussianSplitting{T, N}) where {T, N}
 end
 
 function Base.summary(io::IO, g::GaussianSplitting)
-    print(io, "GaussianSplitting(Ls = $(g.Ls), α = $(g.α), rcut = $(g.rcut)), Ns = $(g.Ns))")
+    (; Ns) = g
+    Ls = round.(g.Ls; sigdigits = 3)
+    α = round(g.α; sigdigits = 3)
+    rcut = round(g.rcut; sigdigits = 3)
+    print(io, "GaussianSplitting(Ls ≈ $Ls, rcut ≈ $rcut, Ns = $Ns, α ≈ $α")
 end
 
 # Evaluate splitting kernel in Fourier space.

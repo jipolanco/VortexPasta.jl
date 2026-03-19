@@ -4,7 +4,6 @@ module ChebyshevApproximations
 
 using Adapt: Adapt
 using FFTW: FFTW
-using StaticArrays: SVector
 
 # Approximates a function in interval [-L, L] using Chebyshev series.
 # It can take symmetries into account (odd/even) to reduce the number of operations.
@@ -21,7 +20,7 @@ struct ChebyshevSeries{Symmetry, T, Coefs <: AbstractVector{T}} <: Function
 end
 
 function ChebyshevSeries(cs, L; symmetry::Val{Symmetry} = Val(:none)) where {Symmetry}
-    ChebyshevSeries{Symmetry}(cs, L, 1/L)
+    ChebyshevSeries{Symmetry}(cs, L, 1 / L)
 end
 
 @inline function Adapt.adapt_structure(to, g::ChebyshevSeries{Symmetry}) where {Symmetry}

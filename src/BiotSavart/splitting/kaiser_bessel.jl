@@ -207,6 +207,14 @@ function Base.show(io::IO, g::KaiserBesselSplitting{T, N}) where {T, N}
     nothing
 end
 
+function Base.summary(io::IO, g::KaiserBesselSplitting{T, N}) where {T, N}
+    (; Ns) = g
+    Ls = round.(g.Ls; sigdigits = 3)
+    β = round(g.β; sigdigits = 3)
+    rcut = round(g.rcut; sigdigits = 3)
+    print(io, "KaiserBesselSplitting(Ls ≈ $Ls, rcut ≈ $rcut, Ns = $Ns, β ≈ $β)")
+end
+
 # Evaluate splitting kernel in Fourier space.
 # Note that this may be called from a GPU kernel.
 # It doesn't need to be very performant since it's only done once when creating a BiotSavartCache.

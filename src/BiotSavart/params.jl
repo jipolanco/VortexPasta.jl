@@ -468,8 +468,13 @@ end
 
 function Base.summary(io::IO, p::ParamsBiotSavart{T}) where {T}
     # Print a few physical and numerical parameters
-    (; Γ, a, Δ, splitting,) = p.common
-    print(io, "ParamsBiotSavart{$T}(Γ = $Γ, a = $a, Δ = $Δ, splitting = $splitting, …)")
+    (; splitting,) = p.common
+    Γ = round(p.common.Γ; sigdigits = 3)
+    a = round(p.common.a; sigdigits = 3)
+    Δ = round(p.common.Δ; sigdigits = 3)
+    print(io, "ParamsBiotSavart{$T}(Γ ≈ $Γ, a ≈ $a, Δ ≈ $Δ, splitting = ")
+    summary(io, splitting)
+    print(io, ", …)")
 end
 
 @doc raw"""
