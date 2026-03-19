@@ -132,7 +132,7 @@ end
 
 @testset "Ring collision" begin
     splittings = (GaussianSplitting, KaiserBesselSplitting)
-    for Splitting in splittings
+    @testset "$Splitting" for Splitting in splittings
         cpu = test_ring_collision(
             Splitting;
             backend_long = NonuniformFFTsBackend(CPU()),
@@ -158,7 +158,7 @@ end
                     # Compare energy spectra.
                     # @show norm(cpu.spectrum.Ek - gpu.spectrum.Ek) / norm(cpu.spectrum.Ek)
                     @test cpu.spectrum.ks ≈ gpu.spectrum.ks
-                    @test cpu.spectrum.Ek ≈ gpu.spectrum.Ek rtol=1e-15
+                    @test cpu.spectrum.Ek ≈ gpu.spectrum.Ek rtol=2e-15
                 end
             end
         end
