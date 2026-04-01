@@ -159,6 +159,101 @@ function transform_val_space(ax::Axis, which::Int, spaces::Pair{Symbol,Symbol}, 
     @lift $new[which]
 end
 
+# Perform "imaginary-time" evolution to find a stable equilibrium (minimal energy) configuration.
+function find_stable_equilibrium!(xs::AbstractVector{T}, ys::AbstractVector{T}; Ls, rtol = T(1e-6), verbose = false, checkpoints = false) where {T}
+    # We perform a pseudo-2D simulation with very few points in z.
+    @info "Performing imaginary-time evolution"
+    N = 4
+    Lx, Ly, _ = Ls
+    ℓ = sqrt(Lx * Ly / length(xs))  # mean inter-vortex distance
+    Lz = min(Lx, Ly)  # this is not physically relevant here
+    Ls = (Lx, Ly, Lz)
+    ε = ℓ / 100  # random perturbation strength
+    rng = StableRNG(42)
+    fs = map(eachindex(xs, ys)) do i
+        x, y = xs[i], ys[i]
+        x += ε * randn(rng, T)
+        y += ε * randn(rng, T)
+        # Add small random perturbation just in case we're at an unstable equilibrium (maximal energy)
+        Filaments.init(ClosedFilament{T}, N, FourierMethod()) do τ
+            z = τ * Lz  # note: τ ∈ [0, 1]
+            Vec3(x, y, z)
+        end
+    end
+    rcut = min(Ls...) / 2
+    Γ = one(T)
+    params = ParamsBiotSavart(;
+        Γ, a = T(1e-7), Δ = T(1/2),
+        splitting = KaiserBesselSplitting(; Ls, β = 18.0, rcut),
+        backend_short = NaiveShortRangeBackend(),
+        backend_long = NonuniformFFTsBackend(m = HalfSupport(4)),
+        quadrature = GaussLegendre(3),
+    )
+    if verbose
+        println(params)
+    end
+    tsim = one(T)  # ignored
+    prob = VortexFilamentProblem(fs, tsim, params)
+    iter = init(prob, RK4(); dt = one(T), adaptivity = AdaptBasedOnSegmentLength(0.5) | AdaptBasedOnVelocity(0.1), mode = MinimalEnergy())
+    atol = rtol * Γ / ℓ  # maximum allowed velocity
+    atol² = atol^2
+    max_squared_velocity(iter) = maximum(vs -> maximum(v⃑ -> sum(abs2, v⃑), vs), iter.vs)
+    v²_max = max_squared_velocity(iter)
+    E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+    E_initial = E
+    if verbose
+        @show iter.nstep, iter.t, iter.dt, E, v²_max/atol²
+    end
+    tsf = TimeSeriesFile()
+    if checkpoints
+        let fname = "imaginary_time_step$(iter.nstep).vtkhdf"
+            save_checkpoint(fname, iter)
+            tsf[iter.t] = fname
+        end
+    end
+    function check_straight(f; atol)
+        x, y, _ = f[begin]
+        ok = true
+        for s⃗ in f
+            ok = ok && isapprox(s⃗.x, x; atol)
+            ok = ok && isapprox(s⃗.y, y; atol)
+        end
+        ok
+    end
+    while v²_max > atol²
+        step!(iter)
+        if !all(f -> check_straight(f; atol = ℓ * rtol), iter.fs)
+            error("vortices did not remain straight during imaginary time evolution. Try reducing point spacing δ (by changing Lz or N).")
+        end
+        v²_max = max_squared_velocity(iter)
+        if iter.nstep % 100 == 0
+            if verbose
+                @show iter.nstep, iter.t, iter.dt, E, v²_max/atol²
+            end
+            if checkpoints
+                let fname = "imaginary_time_step$(iter.nstep).vtkhdf"
+                    save_checkpoint(fname, iter)
+                    tsf[iter.t] = fname
+                    save("imaginary_time.vtkhdf.series", tsf)
+                end
+            end
+        end
+    end
+    if verbose
+        println(iter.to)
+    end
+    E = Diagnostics.kinetic_energy(iter; quad = params.quad)
+    @assert E < E_initial  # we minimised the energy
+    # Now copy back the equilibrium positions.
+    for i in eachindex(xs, ys, iter.fs)
+        f = iter.fs[i]
+        x, y, _ = f[begin]
+        xs[i] = x
+        ys[i] = y
+    end
+    (xs, ys)
+end
+
 function run_simulation(;
         lattice::Symbol = :hexagonal,   # :square or :hexagonal
         Lz = 2π,             # domain period (vertical)
@@ -223,14 +318,27 @@ function run_simulation(;
         [1/4, 3/4]  # 2 vortices in a minimal periodic unit cell
     end
 
-    for j in 1:nvort_y, i in 1:nvort_x, pos in cell_positions
+    # Set base XY positions of the vortices (ideally these are equilibrium positions
+    # associated to minimum energy configurations).
+    xs_base = zeros(nvort_x, nvort_y, length(cell_positions))
+    ys_base = copy(xs_base)
+    for k in eachindex(cell_positions), j in 1:nvort_y, i in 1:nvort_x
+        pos = cell_positions[k]
+        xs_base[i, j, k] = (i - 1 + pos) * Lx / nvort_x
+        ys_base[i, j, k] = (j - 1 + pos) * Ly / nvort_y
+    end
+
+    # Make sure we're starting from a stable equilibrium configuration.
+    find_stable_equilibrium!(vec(xs_base), vec(ys_base); Ls, verbose = true)
+
+    for i in eachindex(xs_base, ys_base)
         f = similar(f_base)
         if !in_phase_perturbation || isempty(fs)
             # Don't update ws if in_phase_perturbation == true and this is not the first vortex.
             random_perturbation!(rng, ws; Lz, Az_rms)  # compute random perturbation, modifying ws
         end
-        x₀ = (i - 1 + pos) * Lx / nvort_x  # x position of vortex (before perturbation)
-        y₀ = (j - 1 + pos) * Ly / nvort_y  # y position of vortex (before perturbation)
+        x₀ = xs_base[i]  # x position of vortex (before perturbation)
+        y₀ = ys_base[i]  # y position of vortex (before perturbation)
         dx = Ax * sinpi(2 * kx * x₀ / Lx)
         dy = Ay * sinpi(2 * ky * y₀ / Ly)
         for n in eachindex(f, f_base)
@@ -304,28 +412,6 @@ function run_simulation(;
         nothing
     end
 
-    function affect!(iter)
-        # If we have enabled in-phase perturbations, we enforce instantaneous
-        # perturbations to stay synchronised at the end of each timestep, by
-        # copying relative displacements of the first vortex to the other vortices.
-        # This avoids relative displacements from diverging over long simulation
-        # times due to numerical noise, and allows to obtain nicer looking dispersion relations.
-        if in_phase_perturbation
-            local f₁ = iter.fs[1]  # first vortex
-            for n in eachindex(iter.fs)[2:end]
-                local f = iter.fs[n]
-                for i in eachindex(f₁, f)
-                    local s⃗ = f₁[i]
-                    local dw = (s⃗.x + im * s⃗.y) - w_equilibrium[1]  # displacement relative to equilibrium position of first vortex
-                    local w = w_equilibrium[n] + dw  # new absolute position of vortex i
-                    f[i] = (real(w), imag(w), s⃗.z)   # update position of point in vortex i (also copying z position)
-                end
-                Filaments.update_coefficients!(f)  # this is needed after modifying a filament
-            end
-        end
-        nothing
-    end
-
     # Determine timestep and temporal scheme
     δ = Lz / N  # line resolution (assuming nearly straight lines)
     dt_kw = BiotSavart.kelvin_wave_period(params, δ)
@@ -335,7 +421,7 @@ function run_simulation(;
     # dt = 2 * dt_factor * scheme.nsubsteps * dt_kw
 
     # Initialise and run simulation
-    iter = init(prob, scheme; dt, callback, affect!)
+    iter = init(prob, scheme; dt, callback)
     println(iter, '\t')
     solve!(iter)
     println(iter.to)  # show timing information
@@ -355,7 +441,7 @@ end
 
 ## Run simulation
 
-# lattice = :square
+# lattice = :square  # note: the square lattice is unstable, and becomes a triangular lattice after "imaginary time" evolution
 lattice = :hexagonal
 Lz = 2π        # domain period (vertical)
 Lx = Lz / 32   # domain period (horizontal) -- this is proportional to the inter-vortex distance
@@ -372,6 +458,13 @@ nrotations = 32
 nsave = 100 * nrotations
 rcut_factor = 2/5  # for performance: balance between short and long-range (max 2/5)
 dt_factor = 0.25   # small dt probably needed for strong rotations
+
+# Test imaginary time evolution
+# let Ly = Lx * sqrt(3), rng = StableRNG(55), Nvort = 10 * nvort_x^2
+#     local xs = Lx * rand(rng, Nvort)
+#     local ys = Ly * rand(rng, Nvort)
+#     find_stable_equilibrium!(xs, ys; Ls = (Lx, Ly, Lz), verbose = true, checkpoints = true)
+# end
 
 method = FourierMethod()  # filament discretisation method
 
