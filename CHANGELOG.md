@@ -5,9 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.33.2] - 2026-04-13
+
+### Changed
+
+- Update for CUDA.jl v6, which has been split into multiple subpackages (CUDACore, CUDATools, cuFFT, cuBLAS, ...).
+  One now only needs to load CUDACore.jl and cuFFT.jl instead of the whole CUDA.jl package.
+
 ## [0.33.1] - 2026-02-25
 
-### Improvements
+### Improved
 
 - Make sure evaluation of Chebyshev polynomials is inlined.
   This is critical for GPU performance, at least on CUDA.
