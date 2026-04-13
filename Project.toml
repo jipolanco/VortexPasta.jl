@@ -37,13 +37,13 @@ TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [weakdeps]
 AMDGPU = "21141c5a-9bdb-4563-92ae-f87d6854732e"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 OpenCL = "08131aa3-fb12-5dee-8b74-c09406e224a2"
 
 [extensions]
 VortexPastaAMDGPUExt = ["AMDGPU"]
-VortexPastaCUDAExt = ["CUDA"]
+VortexPastaCUDAExt = ["CUDACore"]
 VortexPastaMakieExt = ["Makie"]
 VortexPastaOpenCLExt = ["OpenCL"]
 
@@ -55,7 +55,7 @@ Accessors = "0.1.39"
 Adapt = "4.0.4"
 Atomix = "1.1.2"
 Bumper = "0.4, 0.5, 0.6, 0.7"
-CUDA = "5.9"
+CUDACore = "6"
 CommonSolve = "0.2.4"
 FFTW = "1.6"
 FastGaussQuadrature = "1"

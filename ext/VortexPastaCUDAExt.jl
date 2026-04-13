@@ -1,6 +1,6 @@
 module VortexPastaCUDAExt
 
-using CUDA: CUDA, CUDABackend
+using CUDACore: CUDACore, CUDABackend
 using VortexPasta.BiotSavart
 
 # Adapted from https://github.com/JuliaGPU/CUDA.jl/blob/e2eab84e89085b5298d44634858993939479f0ac/lib/cudadrv/memory.jl#L167
@@ -9,9 +9,9 @@ function BiotSavart.pagelock!(::CUDABackend, A::DenseArray{T}) where {T}
     @debug "Pinning CPU array using CUDA"
     ptr = pointer(A)
     bytesize = length(A) * sizeof(T)
-    flags = CUDA.MEMHOSTREGISTER_PORTABLE  # "The memory returned by this call will be considered as pinned memory by all CUDA contexts, not just the one that performed the allocation."
+    flags = CUDACore.MEMHOSTREGISTER_PORTABLE  # "The memory returned by this call will be considered as pinned memory by all CUDA contexts, not just the one that performed the allocation."
     if !isempty(A)
-        CUDA.cuMemHostRegister_v2(ptr, bytesize, flags)
+        CUDACore.cuMemHostRegister_v2(ptr, bytesize, flags)
     end
     nothing
 end
@@ -20,7 +20,7 @@ function BiotSavart.unpagelock!(::CUDABackend, A::DenseArray{T}) where {T}
     @debug "Unpinning CPU array using CUDA"
     ptr = pointer(A)
     if !isempty(A)
-        CUDA.cuMemHostUnregister(ptr)
+        CUDACore.cuMemHostUnregister(ptr)
     end
     nothing
 end
