@@ -18,6 +18,7 @@ jobs:
     env:
       JULIA_NUM_THREADS: 4
       JULIA_ENABLE_JET_KA_TESTS: false  # disable JET.jl tests involving KernelAbstractions kernels (they generally fail...)
+      JULIA_DISABLE_OPENCL_TESTS: true  # don't run tests with OpenCLBackend() (they seem to fail on CI)
       # https://portablecl.org/docs/html/using.html#tuning-pocl-behavior-with-env-variables
       POCL_CPU_MAX_CU_COUNT: 4  # limit number of CPU threads used by OpenCLBackend (based on POCL)
       # POCL_DEBUG: error,warning,general

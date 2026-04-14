@@ -6,6 +6,9 @@
 #
 # - `JULIA_TESTS_VERBOSE=true`: prints more information during tests, including lots of
 #   plots using UnicodePlots.jl and timings from TimerOutputs.jl.
+#
+# - `JULIA_DISABLE_OPENCL_TESTS=true`: disables OpenCL-based tests of GPU code on the CPU.
+#   This may prevent crashes on CI.
 
 using Test
 using InteractiveUtils: versioninfo

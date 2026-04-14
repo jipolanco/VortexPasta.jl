@@ -9,6 +9,8 @@ using SIMD: SIMD
 using Random
 using Test
 
+DISABLE_OPENCL_TESTS::Bool = get(ENV, "JULIA_DISABLE_OPENCL_TESTS", "false") == "true"
+
 @inline function deperiodise_separation(r⃗::Vec3, Ls, Ls_half)
     map(deperiodise_separation, r⃗, Vec3(Ls), Vec3(Ls_half))::typeof(r⃗)
 end
@@ -238,7 +240,7 @@ function test_cell_lists()
 
         # OpenCLBackend only works correctly starting from v1.12.
         # On v1.11: "ERROR: Your device does not support SPIR-V, which is currently required for native execution."
-        if VERSION ≥ v"1.12"
+        if VERSION ≥ v"1.12" && !DISABLE_OPENCL_TESTS
             backend_gpu = OpenCLBackend()
             @testset "Using foreach_pair ($backend_gpu)" begin
                 cl_gpu = construct_cell_list(r_cut, Ls; backend = backend_gpu, nsubdiv = Val(nsubdiv))

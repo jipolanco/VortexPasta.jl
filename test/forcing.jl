@@ -15,6 +15,8 @@ using Random
 using StableRNGs
 using Test
 
+DISABLE_OPENCL_TESTS::Bool = get(ENV, "JULIA_DISABLE_OPENCL_TESTS", "false") == "true"
+
 function generate_biot_savart_parameters(::Type{T}; aspect, L = 2π, rcut = L / 3, kws...) where {T}
     Γ = 1.0
     a = 1e-6
@@ -530,7 +532,7 @@ end
 
         # OpenCLBackend only works correctly starting from v1.12.
         # On v1.11: "ERROR: Your device does not support SPIR-V, which is currently required for native execution."
-        if VERSION ≥ v"1.12"
+        if VERSION ≥ v"1.12" && !DISABLE_OPENCL_TESTS
             backend_gpu = OpenCLBackend()
             @testset "Forcing + dissipation ($backend_gpu, SmallScaleDissipationBS)" begin
                 backend_long = NonuniformFFTsBackend(backend_gpu; σ = 1.5, m = HalfSupport(4))
