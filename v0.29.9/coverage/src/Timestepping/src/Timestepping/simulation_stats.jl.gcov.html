@@ -1,0 +1,128 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Timestepping/src/Timestepping/simulation_stats.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Timestepping/src/Timestepping</a> - simulation_stats.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryLo">30.0&nbsp;%</td>
+            <td class="headerCovTableEntry">10</td>
+            <td class="headerCovTableEntry">3</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-08-28 15:53:19</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : &quot;&quot;&quot;</span>
+<span id="L2"><span class="lineNum">       2</span>              :     SimulationStats{T &lt;: AbstractFloat}</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : Contains accumulated statistics of different events occurring since the beginning of a</span>
+<span id="L5"><span class="lineNum">       5</span>              : simulation.</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : # Available fields</span>
+<span id="L8"><span class="lineNum">       8</span>              : </span>
+<span id="L9"><span class="lineNum">       9</span>              : - `reconnection_count::Int`: **total number of reconnections**;</span>
+<span id="L10"><span class="lineNum">      10</span>              : </span>
+<span id="L11"><span class="lineNum">      11</span>              : - `reconnection_length_loss::T`: accumulated **decrease of filament length due to reconnections**.</span>
+<span id="L12"><span class="lineNum">      12</span>              :   This is estimated from each reconnection event as the difference between the local vortex</span>
+<span id="L13"><span class="lineNum">      13</span>              :   lengths before and after the reconnection, using the straight segment approximation.</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              : - `filaments_removed_count::Int`: **total number of removed filaments** (this generally happens</span>
+<span id="L16"><span class="lineNum">      16</span>              :   when the number of discretisation points becomes too small for the spatial discretisation</span>
+<span id="L17"><span class="lineNum">      17</span>              :   to work);</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              : - `filaments_removed_length::T`: **total length of removed filaments**. Note that this length is</span>
+<span id="L20"><span class="lineNum">      20</span>              :   estimated using a straight segment approximation (no quadratures). This is because</span>
+<span id="L21"><span class="lineNum">      21</span>              :   filaments are removed when they can no longer be represented using a continuous</span>
+<span id="L22"><span class="lineNum">      22</span>              :   interpolation function;</span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span>              : - `reconnection_passes::Int`: **total number of reconnection passes**. This is the total</span>
+<span id="L25"><span class="lineNum">      25</span>              :   number of reconnection scans since the beginning of the simulation. Note that the</span>
+<span id="L26"><span class="lineNum">      26</span>              :   [`ReconnectBasedOnDistance`](@ref) and [`ReconnectFast`](@ref) accept a `max_passes` option,</span>
+<span id="L27"><span class="lineNum">      27</span>              :   thus allowing multiple reconnection passes per timestep.</span>
+<span id="L28"><span class="lineNum">      28</span>              : &quot;&quot;&quot;</span>
+<span id="L29"><span class="lineNum">      29</span>              : mutable struct SimulationStats{T &lt;: AbstractFloat}</span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC tlaBgGNC">          69 :     reconnection_count       :: Int</span></span>
+<span id="L31"><span class="lineNum">      31</span>              :     reconnection_length_loss :: T</span>
+<span id="L32"><span class="lineNum">      32</span>              :     filaments_removed_count  :: Int</span>
+<span id="L33"><span class="lineNum">      33</span>              :     filaments_removed_length :: T</span>
+<span id="L34"><span class="lineNum">      34</span>              :     reconnection_passes      :: Int</span>
+<span id="L35"><span class="lineNum">      35</span>              : end</span>
+<span id="L36"><span class="lineNum">      36</span>              : </span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">          69 : SimulationStats(::Type{T}) where {T} = SimulationStats(0, zero(T), 0, zero(T), 0)</span></span>
+<span id="L38"><span class="lineNum">      38</span>              : </span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaUNC tlaBgUNC">           0 : function Base.show(io::IO, stats::SimulationStats)</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaUNC">           0 :     print(io, &quot;SimulationStats:&quot;)</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaUNC">           0 :     print(io, &quot;\n - reconnection_count        = &quot;, stats.reconnection_count)</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaUNC">           0 :     print(io, &quot;\n - reconnection_length_loss  = &quot;, stats.reconnection_length_loss)</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaUNC">           0 :     print(io, &quot;\n - filaments_removed_count   = &quot;, stats.filaments_removed_count)</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaUNC">           0 :     print(io, &quot;\n - filaments_removed_length  = &quot;, stats.filaments_removed_length)</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaUNC">           0 :     print(io, &quot;\n - reconnection_passes       = &quot;, stats.reconnection_passes)</span></span>
+<span id="L46"><span class="lineNum">      46</span>              : end</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC tlaBgGNC">          14 : Base.summary(io::IO, stats::SimulationStats) = print(io, typeof(stats), &quot;(...)&quot;)</span></span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
