@@ -144,13 +144,30 @@ struct ShortRangeTerm <: FastBiotSavartTerm end
 
 """
     LocalTerm <: FastBiotSavartTerm
+    LocalTerm([δ::Float64])
 
 Identifies fast dynamics with the **local (LIA) term** associated to the desingularisation
 of the Biot–Savart integral.
 
 This is useful for split timestepping schemes like IMEX or multirate methods.
+
+By default this term estimates the contribution of the two discrete segments adjacent to
+each filament node. Therefore, the local contribution depends on the discretisation, and the
+length of the "local" segments contributing to this term may change from one filament node to the other.
+
+Alternatively, the optional `δ` parameter is optional and allows to set a local segment
+length which is the same for all filament nodes and is independent of the filament
+discretisation (even though it should be typically smaller than the discretisation).
 """
-struct LocalTerm <: FastBiotSavartTerm end
+struct LocalTerm <: FastBiotSavartTerm
+    δ::Union{Nothing, Float64}
+    function LocalTerm(δ::Union{Nothing, Real} = nothing)
+        if δ !== nothing
+            δ > 0 || throw(ArgumentError("the local distance δ should be positive (got δ = $δ)"))
+        end
+        new(δ)
+    end
+end
 
 """
     VortexFilamentSolver
