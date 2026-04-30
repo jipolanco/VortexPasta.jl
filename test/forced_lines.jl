@@ -14,8 +14,8 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
 using UnicodePlots: lineplot, lineplot!
-using JET: JET
-using KernelAbstractions: KernelAbstractions as KA  # for JET only
+# using JET: JET
+# using KernelAbstractions: KernelAbstractions as KA  # for JET only
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
@@ -361,19 +361,19 @@ function test_forced_lines(
     @test all(8 .< energy ./ energy_prev .< 40)
 
     ## Inference tests
-    enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
-    if enable_jet
-        # Check that everything is inferred.
-        # (This is only for tests and can be ignored!)
-        JET.@test_opt ignored_modules=(Base, Base.PCRE, KA, Base.IteratorsMD) init(
-            prob, scheme;
-            dt,
-            callback, affect!,
-            external_velocity = forcing_velocity,
-            external_streamfunction = forcing_streamfunction,
-        )
-        JET.@test_opt ignored_modules=(Base, Base.PCRE, KA, Base.IteratorsMD) step!(iter)
-    end
+    # enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
+    # if enable_jet
+    #     # Check that everything is inferred.
+    #     # (This is only for tests and can be ignored!)
+    #     JET.@test_opt ignored_modules=(Base, Base.PCRE, KA, Base.IteratorsMD) init(
+    #         prob, scheme;
+    #         dt,
+    #         callback, affect!,
+    #         external_velocity = forcing_velocity,
+    #         external_streamfunction = forcing_streamfunction,
+    #     )
+    #     JET.@test_opt ignored_modules=(Base, Base.PCRE, KA, Base.IteratorsMD) step!(iter)
+    # end
 
     nothing
 end

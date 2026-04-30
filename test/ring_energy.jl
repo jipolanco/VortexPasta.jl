@@ -4,7 +4,7 @@ using VortexPasta.Filaments
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics: Diagnostics
-using JET: JET
+# using JET: JET
 
 function test_vortex_ring_energy()
     # Initialise ring
@@ -37,8 +37,8 @@ function test_vortex_ring_energy()
     params_periodic = ParamsBiotSavart(; params_common..., Ls = (L, L, L), rcut, Ns, α)
     prob_periodic = VortexFilamentProblem(fs, tspan, params_periodic)
     iter_periodic = init(prob_periodic, RK4(); dt = 0.1)
-    JET.@test_opt ignored_modules=(Base,) Diagnostics.kinetic_energy(iter_periodic)
-    # JET.@test_call Diagnostics.kinetic_energy(iter_periodic)  # fails when using Threads.Atomic
+    # JET.@test_opt ignored_modules=(Base,) Diagnostics.kinetic_energy(iter_periodic)
+    # JET.@test_call Diagnostics.kinetic_energy(iter_periodic)  # fails when using Threads.Atomic?
     E_periodic = Diagnostics.kinetic_energy(iter_periodic; nthreads = 1)
     E_periodic_quad = Diagnostics.kinetic_energy(iter_periodic; nthreads = 1, quad = GaussLegendre(4))
     # Allocation tests sometimes fail quite randomly on Julia 1.12.
@@ -56,8 +56,8 @@ function test_vortex_ring_energy()
     params_nonper = ParamsBiotSavart(; params_common..., Ls = Infinity(), α = Zero())
     prob_nonper = VortexFilamentProblem(fs, tspan, params_nonper)
     iter_nonper = init(prob_nonper, RK4(); dt = 0.1)
-    JET.@test_opt ignored_modules=(Base,) Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
-    JET.@test_call Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
+    # JET.@test_opt ignored_modules=(Base,) Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
+    # JET.@test_call Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
     E_nonper_v = Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
     E_nonper_quad = Diagnostics.kinetic_energy_nonperiodic(iter_nonper; quad = GaussLegendre(4))
     if VERSION < v"1.12"

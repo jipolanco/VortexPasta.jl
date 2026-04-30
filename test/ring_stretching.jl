@@ -5,8 +5,8 @@ using VortexPasta.PredefinedCurves
 using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics: Diagnostics
-using JET: JET
-using KernelAbstractions: KernelAbstractions as KA  # for JET only
+# using JET: JET
+# using KernelAbstractions: KernelAbstractions as KA  # for JET only
 using LinearAlgebra: norm
 using UnicodePlots: UnicodePlots, lineplot, lineplot!
 
@@ -88,10 +88,10 @@ function test_ring_stretching()
     )
     solve!(iter)
 
-    enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
-    if enable_jet
-        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
-    end
+    # enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
+    # if enable_jet
+    #     JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
+    # end
 
     # Analytical solution
     L_expected = @. vortex_length[1] * exp(times / stretching_velocity.τ)

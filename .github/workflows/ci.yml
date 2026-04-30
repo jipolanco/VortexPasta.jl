@@ -33,6 +33,7 @@ jobs:
         julia-version:
           - '1.11'
           - '1.12'
+          - '~1.13-rc1'
         os:
           - ubuntu-24.04
         arch:

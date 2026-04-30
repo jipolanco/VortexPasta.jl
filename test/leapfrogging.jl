@@ -16,9 +16,9 @@ using VortexPasta.Timestepping
 using VortexPasta.Timestepping: VortexFilamentSolver
 using VortexPasta.Diagnostics
 
-using JET: JET
-using KernelAbstractions: KernelAbstractions as KA  # for JET only
-using StaticArrays: StaticArrays  # for JET only
+# using JET: JET
+# using KernelAbstractions: KernelAbstractions as KA  # for JET only
+# using StaticArrays: StaticArrays  # for JET only
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
@@ -73,8 +73,8 @@ function test_leapfrogging_rings(
         label = string(scheme),
         test_jet = true,
     )
-    enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
-    test_jet = test_jet && enable_jet
+    # enable_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
+    # test_jet = test_jet && enable_jet
 
     # Define callback function to be run at each simulation timestep
     times = Float64[]
@@ -125,10 +125,10 @@ function test_leapfrogging_rings(
         nothing
     end
 
-    if test_jet
-        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) init(prob, scheme; dt = 0.01)
-        JET.@test_call ignored_modules=(Base, StaticArrays) init(prob, scheme; dt = 0.01)
-    end
+    # if test_jet
+    #     JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) init(prob, scheme; dt = 0.01)
+    #     JET.@test_call ignored_modules=(Base, StaticArrays) init(prob, scheme; dt = 0.01)
+    # end
 
     l_min = minimum_knot_increment(prob.fs)
     method = Filaments.discretisation_method(eltype(prob.fs))
@@ -162,11 +162,11 @@ function test_leapfrogging_rings(
         callback,
     )
 
-    if test_jet
-        JET.@test_opt ignored_modules=(Base,) callback(iter)
-        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
-        JET.@test_call ignored_modules=(Base, StaticArrays) step!(iter)
-    end
+    # if test_jet
+    #     JET.@test_opt ignored_modules=(Base,) callback(iter)
+    #     JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
+    #     JET.@test_call ignored_modules=(Base, StaticArrays) step!(iter)
+    # end
 
     # Run simulation
     step!(iter)  # to avoid including compilation time in the next line

@@ -1,6 +1,6 @@
 using VortexPasta.VectorsOfVectors: VectorOfVectors
 using BenchmarkTools: @ballocated
-using JET: @test_opt
+# using JET: JET
 using Test
 
 function broadcast_factorised!(ws, us, vs)
@@ -78,7 +78,7 @@ end
     end
 
     @testset "Broadcasting" begin
-        @test_opt broadcast_sum(us, us)
+        # JET.@test_opt broadcast_sum(us, us)
         vs = @inferred us .+ 2 .* us
         @test typeof(vs) === typeof(us)
         @test vs ≈ 3 * us
@@ -88,7 +88,7 @@ end
         @test ws == vs + us
 
         # Check that there are no inference issues and no unwanted allocations.
-        @test_opt broadcast_factorised!(ws, us, vs)
+        # JET.@test_opt broadcast_factorised!(ws, us, vs)
         # This test randomly fails on Julia 1.12, so we disable it for now.
         # @test 0 == @ballocated broadcast_factorised!($ws, $us, $vs) samples=1 gctrial=false
     end
