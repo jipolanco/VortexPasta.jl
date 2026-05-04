@@ -53,7 +53,7 @@ vs = map(similar ∘ nodes, fs) |> VectorOfVectors
 fields = (velocity = vs, streamfunction = ψs)
 
 accuracy_coefficient(::Type{GaussianSplitting}) = 3.5  # ~1e-6 accuracy
-accuracy_coefficient(::Type{KaiserBesselSplitting}) = 18.0  # ~1e-6 accuracy
+accuracy_coefficient(::Type{KaiserBesselSplitting}) = 15.5  # ~1e-6 accuracy
 
 splittings = (GaussianSplitting, KaiserBesselSplitting)
 
@@ -73,8 +73,14 @@ splittings = (GaussianSplitting, KaiserBesselSplitting)
     # @show norm(fields_comp[1].streamfunction - fields_comp[2].streamfunction) / norm(fields_comp[1].streamfunction)
 
     @testset "Independence on splitting parameters" begin
-        @test isapprox(fields_comp[1].velocity, fields_comp[2].velocity; rtol = 5e-7)
-        @test isapprox(fields_comp[1].streamfunction, fields_comp[2].streamfunction; rtol = 1e-8)
+        for (a, b) in zip(fields_comp[1].velocity, fields_comp[2].velocity)
+            # @show norm(a - b) / norm(b)
+            @test a ≈ b rtol=3e-7
+        end
+        for (a, b) in zip(fields_comp[1].streamfunction, fields_comp[2].streamfunction)
+            # @show norm(a - b) / norm(b)
+            @test a ≈ b rtol=2e-8
+        end
     end
 end
 
@@ -132,7 +138,7 @@ Ngrid = 32
     BiotSavart.interpolate_to_physical!(cache.longrange)     # interpolate to vortex positions
     BiotSavart.copy_long_range_output!(ωs_ℓ, cache.longrange)  # copy results
 
-    @test all(ω -> isapprox(ω, ωs_ℓ[1][1]; rtol = 1e-6), ωs_ℓ[1])  # all vorticities are equal (up to chosen accuracy)
+    @test all(ω -> isapprox(ω, ωs_ℓ[1][1]; rtol = 4e-7), ωs_ℓ[1])  # all vorticities are equal (up to chosen accuracy)
     ω⃗ = sum(ωs_ℓ[1]) ./ length(ωs_ℓ[1])  # average vorticity
-    @test ω⃗[3] ≈ ω_expected rtol=1e-5
+    @test ω⃗[3] ≈ ω_expected rtol=4e-6
 end
