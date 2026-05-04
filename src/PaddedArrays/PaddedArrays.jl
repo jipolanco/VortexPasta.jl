@@ -101,6 +101,10 @@ Base.isapprox(w::PaddedArray{M}, v::PaddedArray{M}; kwargs...) where {M} =
 # We make sure the computation includes ghost cells (for consistency with copyto!, ==, isapprox, ...).
 LinearAlgebra.norm2(v::PaddedArray{M}) where {M} = LinearAlgebra.norm2(parent(v))
 
+# This is used in tests
+Base.:(+)(a::PaddedArray{M}, b::PaddedArray{M}) where {M} = PaddedArray{M}(a.data + b.data)
+Base.:(-)(a::PaddedArray{M}, b::PaddedArray{M}) where {M} = PaddedArray{M}(a.data - b.data)
+
 function Base.similar(v::PaddedArray{M, T, N}, ::Type{S}, dims::Dims{N}) where {S, M, T, N}
     PaddedArray{M}(similar(v.data, S, dims .+ 2M))
 end

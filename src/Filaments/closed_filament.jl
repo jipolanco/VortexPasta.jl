@@ -224,6 +224,23 @@ end
 
 allvectors(f::ClosedFilament) = (f.ts, f.Xs, allvectors(f.coefs)...)
 
+# Sum or subtract two "filaments", which may also represent values (velocities) defined on filaments. This is used in tests.
+Base.:(+)(u::ClosedFilament, v::ClosedFilament) = _apply_binary_op(+, u, v)
+Base.:(-)(u::ClosedFilament, v::ClosedFilament) = _apply_binary_op(-, u, v)
+
+function _apply_binary_op(op::F, u::ClosedFilament{Tu, Method}, v::ClosedFilament{Tv, Method}) where {F <: Function, Tu, Tv, Method}
+    @assert u.parametrisation === v.parametrisation
+    @assert u.ts == v.ts
+    @assert u.Xoffset == v.Xoffset
+    @assert npad(u) == npad(v)
+    T = promote_type(Tu, Tv)
+    f = similar(u, T)
+    copyto!(f.ts, u.ts)
+    broadcast!(op, parent(f.Xs), parent(u.Xs), parent(v.Xs))
+    update_coefficients!(f; knots = f.ts)
+    f
+end
+
 function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
     similar_filament(f, T, dims)
 end

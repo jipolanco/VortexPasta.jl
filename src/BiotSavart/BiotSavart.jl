@@ -610,7 +610,7 @@ function _compute_on_nodes!(
     nothing
 end
 
-fill_ghost_values!(vs_all::AbstractVector{<:VectorOfVelocities}) = foreach(fill_ghost_values!, vs_all)
+fill_ghost_values!(vs_all::AbstractVector{<:VectorOfVelocities}) = (foreach(fill_ghost_values!, vs_all); vs_all)
 fill_ghost_values!(vs::PaddedVector) = pad_periodic!(vs)
 fill_ghost_values!(vs::AbstractVector) = vs  # no ghost values
 

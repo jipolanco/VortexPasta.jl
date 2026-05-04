@@ -6,10 +6,12 @@ function add_external_fields!(fields::NamedTuple, iter::VortexFilamentSolver, fs
     if haskey(fields, :velocity)
         _add_external_field!(fields.velocity, external_fields.velocity, fs, t, to)
         _add_stretching_velocity!(fields.velocity, stretching_velocity, fs, to)
+        BiotSavart.fill_ghost_values!(fields.velocity)  # avoid garbage values in ghost region of PaddedVectors
     end
     if haskey(fields, :streamfunction)
         # We multiply the external streamfunction by 2 to get the right kinetic energy.
         _add_external_field!(fields.streamfunction, external_fields.streamfunction, fs, t, to; factor = 2)
+        BiotSavart.fill_ghost_values!(fields.streamfunction)
     end
     fields
 end
@@ -63,6 +65,7 @@ function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time
         # NOTE: dissipation should be applied _after_ forcing, since forcing assumes that vL
         # currently contains the Biot-Savart velocity (with no extra terms).
         _apply_dissipation!(fields.velocity, iter.dissipation, iter.dissipation_cache, iter, fs, time, to)
+        BiotSavart.fill_ghost_values!(fields.velocity)  # avoid garbage values in ghost region of PaddedVectors
     end
     fields
 end
