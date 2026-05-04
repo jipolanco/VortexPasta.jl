@@ -114,6 +114,10 @@ Base.@propagate_inbounds function Base.getindex(v::PaddedArray{M, T, N}, I::Vara
     parent(v)[J...]
 end
 
+# Here inds could be a range, e.g. 2:5.
+# We just return the values associated to the range.
+Base.getindex(v::PaddedArray{M}, inds::AbstractVector) where {M} = parent(v)[M .+ inds]
+
 Base.@propagate_inbounds function Base.setindex!(
         v::PaddedArray{M, T, N},
         val,

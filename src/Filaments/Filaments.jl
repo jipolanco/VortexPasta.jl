@@ -376,6 +376,10 @@ Base.@propagate_inbounds Base.getindex(
     f::AbstractFilament, i::Int, d::Union{Derivative, GeometricQuantity},
 ) = f(AtNode(i), d)
 
+# Here inds could be a range, e.g. 2:5.
+# We just return the positions associated to the range.
+Base.getindex(f::AbstractFilament, inds::AbstractVector) = nodes(f)[inds]
+
 # This is the default parametrisation for any generic discretisation method.
 # Specific discretisation methods (e.g. Fourier) may choose a different default
 # parametrisation.

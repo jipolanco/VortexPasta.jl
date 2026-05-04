@@ -328,8 +328,8 @@ function test_static_figure_eight_knot(
             f1, f2 = @inferred Filaments.split!(copy(f), i, j)
             update_coefficients!.((f1, f2))
             @test length(f1) == length(f2) == length(f) ÷ 2
-            @test f1 == f[i + 1:j]
-            @test f2 == vcat(f[j + 1:end], f[begin:i])
+            @test f1 == f[(i + 1):j]
+            @test f2 == vcat(f[(j + 1):end], f[begin:i])
         end
     end
 
