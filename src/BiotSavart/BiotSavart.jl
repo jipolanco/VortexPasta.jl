@@ -605,13 +605,12 @@ function _compute_on_nodes!(
 
     # Pad results to avoid garbage values in ghost cells, taking into account the
     # periodicity of the filaments.
-    for field in fields, X in field
-        fill_ghost_values!(X)
-    end
+    foreach(fill_ghost_values!, fields)
 
     nothing
 end
 
+fill_ghost_values!(vs_all::AbstractVector{<:VectorOfVelocities}) = foreach(fill_ghost_values!, vs_all)
 fill_ghost_values!(vs::PaddedVector) = pad_periodic!(vs)
 fill_ghost_values!(vs::AbstractVector) = vs  # no ghost values
 
