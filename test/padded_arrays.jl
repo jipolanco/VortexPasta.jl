@@ -1,5 +1,6 @@
 using VortexPasta.PaddedArrays
 using VortexPasta.PaddedArrays: FromRight, FromLeft, FromCentre, npad
+using LinearAlgebra: norm
 using Test
 
 @testset "PaddedArrays" begin
@@ -154,5 +155,12 @@ using Test
         @test parent(w) == parent(v)
         @test w == v   # arrays are now equal
         @test isapprox(w, v)
+    end
+
+    @testset "norm" begin
+        data = collect(1.0:20.0)
+        v = @inferred PaddedArray{2}(data)
+        # Note: the norm includes ghost cells.
+        @test norm(v) == norm(v.data)
     end
 end

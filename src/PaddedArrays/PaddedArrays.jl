@@ -12,6 +12,7 @@ module PaddedArrays
 export PaddedArray, PaddedVector, pad_periodic!
 
 using Adapt: Adapt, adapt
+using LinearAlgebra: LinearAlgebra
 
 """
     PaddedArray{M, T, N} <: AbstractArray{T, N}
@@ -95,6 +96,10 @@ Base.:(==)(w::PaddedArray{M}, v::PaddedArray{M}) where {M} = w.data == v.data
 
 Base.isapprox(w::PaddedArray{M}, v::PaddedArray{M}; kwargs...) where {M} =
     isapprox(w.data, v.data; kwargs...)
+
+# This is called when doing norm(v).
+# We make sure the computation includes ghost cells (for consistency with copyto!, ==, isapprox, ...).
+LinearAlgebra.norm2(v::PaddedArray{M}) where {M} = LinearAlgebra.norm2(parent(v))
 
 function Base.similar(v::PaddedArray{M, T, N}, ::Type{S}, dims::Dims{N}) where {S, M, T, N}
     PaddedArray{M}(similar(v.data, S, dims .+ 2M))
