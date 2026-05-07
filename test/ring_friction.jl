@@ -149,6 +149,7 @@ function test_ring_friction_dynamic(f, params, forcing::NormalFluidForcing)
                 s⃗′ = fs[i][j, UnitTangent()]
                 vL_test[j] = v⃗ₛ + α * s⃗′ × v⃗ₙₛ - α′ * s⃗′ × (s⃗′ × v⃗ₙₛ)
             end
+            BiotSavart.fill_ghost_values!(vL_test)  # just in case ghost values are compared
             @test vL_test ≈ vL[i]
         end
     end
