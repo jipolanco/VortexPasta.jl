@@ -1,10 +1,9 @@
 # GPU usage
 
-Currently, it is possible to accelerate the computation of [long-range
+Currently, it is possible to accelerate the computation of both [short-range](@ref Short-range-velocity) and [long-range
 interactions](@ref Long-range-velocity) using GPUs.
-To do this, one should set `backend_long = NonuniformFFTsBackend(...)`
-when creating a [`ParamsBiotSavart`](@ref) and use the wanted GPU device as detailed in
-[`NonuniformFFTsBackend`](@ref).
+The respective GPU-compatible backends are [`CellListsBackend`](@ref) and [`NonuniformFFTsBackend`](@ref),
+see their documentations for details.
 
 ## Using a local CUDA toolkit
 
