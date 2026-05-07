@@ -123,18 +123,19 @@ struct KaiserBesselSplitting{
     F::ChebOdd   # integral of KB kernel
 end
 
-function KaiserBesselSplitting(; Ls::NTuple{N, T}, β = nothing, rcut = nothing, Ns = nothing) where {N, T}
-    let (β, rcut, Ns) = _kb_splitting_params(Ls, β, rcut, Ns)
+function KaiserBesselSplitting(; Ls::NTuple{N, T}, β = nothing, rcut = nothing, Ns = nothing, rtol = nothing) where {N, T}
+    let (β, rcut, Ns, rtol) = _kb_splitting_params(Ls, β, rcut, Ns, rtol)
         C = β / (rcut * sinh(β))
         f_actual(r) = C * besseli(0, β * sqrt(1 - (r / rcut)^2))
         # Set relative accuracy of Chebyshev approximation. This determines the length of
         # the Chebyshev series, and thus the f(r) and F(r) evaluation cost.
         # TODO: rtol should be a continuous function of β
-        rtol = if β < T(19.0)  # up to about 6-digit accuracy (typically β = 18)
-            max(eps(T), T(1e-7))
-        else  # higher accuracy
-            2 * eps(T)
-        end
+        # rtol = if β < T(19.0)  # up to about 6-digit accuracy (typically β = 18)
+        #     max(eps(T), T(1e-7))
+        # else  # higher accuracy
+        #     2 * eps(T)
+        # end
+        
         f = ChebyshevApproximations.approximate(f_actual, rcut; symmetry = Val(:even), rtol)
         F = ChebyshevApproximations.integrate(f)
         C_background = _estimate_background_correction_factor(f_actual, rcut; rtol = eps(T))  # estimate it to machine epsilon
@@ -171,27 +172,52 @@ cutoff_distance(g::KaiserBesselSplitting) = g.rcut
 fourier_grid_size(g::KaiserBesselSplitting) = g.Ns
 
 # β and rcut given
-function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Real, Ns::Nothing) where {N, T}
+function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Real, Ns::Nothing, rtol::Nothing) where {N, T}
     kmax = β / rcut
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
     end
-    T(β), T(rcut), Ns
+    digits = T(0.5) * β - T(0.5)
+    rtol = T(10.0)^(-digits)
+    T(β), T(rcut), Ns, T(rtol)
 end
 
 # rcut and Ns given
-function _kb_splitting_params(Ls::NTuple{N, T}, β::Nothing, rcut::Real, Ns::Dims{N}) where {N, T}
+function _kb_splitting_params(Ls::NTuple{N, T}, β::Nothing, rcut::Real, Ns::Dims{N}, rtol::Nothing) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
     β = rcut * kmax
-    T(β), T(rcut), Ns
+    digits = T(0.5) * β - T(0.5)
+    rtol = T(10.0)^(-digits)
+    T(β), T(rcut), Ns , T(rtol)
 end
 
 # β and Ns given
-function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Nothing, Ns::Dims{N}) where {N, T}
+function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Nothing, Ns::Dims{N}, rtol::Nothing) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
     rcut = β / kmax
-    T(β), T(rcut), Ns
+    digits = T(0.5) * β - T(0.5)
+    rtol = T(10.0)^(-digits)
+    T(β), T(rcut), Ns, T(rtol)
 end
+
+# rtol and rcut given
+function _kb_splitting_params(Ls::NTuple{N,T}, β::Nothing, rcut::Real, Ns::Nothing, rtol::Real) where {N, T}
+    β = 1-2*log10(rtol)
+    kmax = β / rcut
+    Ns = map(Ls) do L
+        kmax_to_gridsize(kmax, L)
+    end
+    T(β), T(rcut), Ns, T(rtol)
+end
+
+# rtol and Ns given
+function _kb_splitting_params(Ls::NTuple{N,T}, β::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Real) where {N, T}
+    kmax = maximum_wavenumber(Ns, Ls)
+    β = 1-2*log10(rtol)
+    rcut = β / kmax 
+    T(β), T(rcut), Ns, T(rtol)
+end
+
 
 function Base.show(io::IO, g::KaiserBesselSplitting{T, N}) where {T, N}
     (; Ns, Ls, β, rcut) = g
