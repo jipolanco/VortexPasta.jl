@@ -129,13 +129,6 @@ function KaiserBesselSplitting(; Ls::NTuple{N, T}, β = nothing, rcut = nothing,
         f_actual(r) = C * besseli(0, β * sqrt(1 - (r / rcut)^2))
         # Set relative accuracy of Chebyshev approximation. This determines the length of
         # the Chebyshev series, and thus the f(r) and F(r) evaluation cost.
-        # TODO: rtol should be a continuous function of β
-        # rtol = if β < T(19.0)  # up to about 6-digit accuracy (typically β = 18)
-        #     max(eps(T), T(1e-7))
-        # else  # higher accuracy
-        #     2 * eps(T)
-        # end
-        
         f = ChebyshevApproximations.approximate(f_actual, rcut; symmetry = Val(:even), rtol)
         F = ChebyshevApproximations.integrate(f)
         C_background = _estimate_background_correction_factor(f_actual, rcut; rtol = eps(T))  # estimate it to machine epsilon
