@@ -97,6 +97,18 @@ function Base.copyto!(vs::VectorOfVectors, us::VectorOfVectors)
     vs
 end
 
+# This may be used in tests. We want to make sure that ghost entries are also summed to
+# avoid garbage values in output.
+function Base.:(+)(us::VectorOfVectors, vs::VectorOfVectors)
+    data = map(i -> us[i] + vs[i], eachindex(us, vs))
+    VectorOfVectors(data)
+end
+
+function Base.:(-)(us::VectorOfVectors, vs::VectorOfVectors)
+    data = map(i -> us[i] - vs[i], eachindex(us, vs))
+    VectorOfVectors(data)
+end
+
 # This is called when doing push!.
 Base.resize!(vs::VectorOfVectors, n::Integer) = (resize!(vs.u, n); vs)
 Base.pop!(vs::VectorOfVectors) = pop!(vs.u)

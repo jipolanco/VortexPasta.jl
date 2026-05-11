@@ -4,6 +4,10 @@
 #   that may call KernelAbstractions.jl kernels at some point. Those kernels are by
 #   construction type unstable, so those tests will always fail...
 #
+#   **Update 30/04/2026**: this environment variable is now ignored since JET is completely
+#   disabled either way. This is because JET currently doesn't support Julia 1.13, so we
+#   need to remove it from Project.toml in order to develop VortexPasta.jl with that Julia version.
+#
 # - `JULIA_TESTS_VERBOSE=true`: prints more information during tests, including lots of
 #   plots using UnicodePlots.jl and timings from TimerOutputs.jl.
 #

@@ -14,8 +14,8 @@ using StaticArrays
 using Rotations
 using UnicodePlots: lineplot, lineplot!
 using LinearAlgebra: norm, I, ⋅
-using JET: JET
-using KernelAbstractions: KernelAbstractions as KA  # for JET only
+# using JET: JET
+# using KernelAbstractions: KernelAbstractions as KA  # for JET only
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
@@ -117,7 +117,7 @@ function test_trefoil_knot_reconnection(
         large_trefoil = false,
         scheme = RK4(),
     ) where {Criterion <: ReconnectionCriterion}
-    test_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
+    # test_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # enable JET tests involving KA kernels
     scale = large_trefoil ? (π / 2.8) : (π / 4)
     S = define_curve(TrefoilKnot(); translate = π, scale)
     N = 64
@@ -299,10 +299,10 @@ function test_trefoil_knot_reconnection(
         @test 0.975 < last(energy_rel) < 0.985
     end
 
-    if test_jet
-        JET.@test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
-        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
-    end
+    # if test_jet
+    #     JET.@test_opt VortexFilamentProblem(fs_init, tspan, params_bs)
+    #     JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
+    # end
 
     nothing
 end
@@ -324,12 +324,12 @@ function test_static_figure_eight_knot(
         @testset "Filaments.split!" begin
             i = length(f) ÷ 4
             j = 3i
-            JET.@test_opt ignored_modules=(Base,) Filaments.split!(copy(f), i, j)
+            # JET.@test_opt ignored_modules=(Base,) Filaments.split!(copy(f), i, j)
             f1, f2 = @inferred Filaments.split!(copy(f), i, j)
             update_coefficients!.((f1, f2))
             @test length(f1) == length(f2) == length(f) ÷ 2
-            @test f1 == f[i + 1:j]
-            @test f2 == vcat(f[j + 1:end], f[begin:i])
+            @test f1 == f[(i + 1):j]
+            @test f2 == vcat(f[(j + 1):end], f[begin:i])
         end
     end
 

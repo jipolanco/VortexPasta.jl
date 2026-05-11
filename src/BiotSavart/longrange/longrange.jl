@@ -542,6 +542,7 @@ function copy_long_range_output!(
     nout = sum(length, vs)
     nout == length(charges) || throw(DimensionMismatch("wrong length of output vector `vs`"))
     copy_output_values_on_nodes!(op, vs, charges, buf_host)
+    fill_ghost_values!(vs)  # avoid possible garbage values in ghost cells
     vs
 end
 

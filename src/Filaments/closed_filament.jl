@@ -224,6 +224,28 @@ end
 
 allvectors(f::ClosedFilament) = (f.ts, f.Xs, allvectors(f.coefs)...)
 
+# Sum or subtract two "filaments", which may also represent values (velocities) defined on filaments. This is used in tests.
+Base.:(+)(u::ClosedFilament, v::ClosedFilament) = _apply_binary_op(+, u, v)
+Base.:(-)(u::ClosedFilament, v::ClosedFilament) = _apply_binary_op(-, u, v)
+
+function _apply_binary_op(op::F, u::ClosedFilament{Tu, Method}, v::ClosedFilament{Tv, Method}) where {F <: Function, Tu, Tv, Method}
+    @assert u.parametrisation === v.parametrisation
+    if Tu === Tv
+        @assert u.ts == v.ts
+        @assert u.Xoffset == v.Xoffset
+    else  # typically Float32 + Float64 (used in tests)
+        @assert u.ts ≈ v.ts
+        @assert u.Xoffset ≈ v.Xoffset
+    end
+    @assert npad(u) == npad(v)
+    T = promote_type(Tu, Tv)
+    f = similar(u, T)
+    copyto!(f.ts, u.ts)
+    broadcast!(op, parent(f.Xs), parent(u.Xs), parent(v.Xs))
+    update_coefficients!(f; knots = f.ts)
+    f
+end
+
 function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T <: Number}
     similar_filament(f, T, dims)
 end
@@ -236,7 +258,11 @@ function similar_filament(
         nderivs::Val = Val(nderivatives(f)),
     ) where {T <: Number}
     Xs = similar(nodes(f), Vec3{T}, dims)
-    ClosedFilament(f.parametrisation, Xs, method; offset, nderivs)
+    g = ClosedFilament(f.parametrisation, Xs, method; offset, nderivs)
+    if dims[1] == length(f)
+        copyto!(g.ts, f.ts)  # make sure the filaments have the same knots (may be updated later)
+    end
+    g
 end
 
 # Note: kws can include a `buf` keyword argument, which can be used in particular for

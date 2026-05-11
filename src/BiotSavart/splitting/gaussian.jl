@@ -68,7 +68,7 @@ G(\bm{r}) = G^{\text{(n)}}(\bm{r}) + G^{\text{(f)}}(\bm{r}) =
 ```
 
 where ``\operatorname{erf}(x) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} \, \mathrm{d}t`` is the
-[error function](https://en.wikipedia.org/wiki/Error_function) and ``\operatorname{erfc}(x) = 1 - \erf(x)``.
+[error function](https://en.wikipedia.org/wiki/Error_function) and ``\operatorname{erfc}(x) = 1 - \operatorname{erf}(x)``.
 Here ``α`` is Ewald's splitting parameter (an inverse length scale).
 
 As a result, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as

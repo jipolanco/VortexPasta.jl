@@ -32,6 +32,8 @@ using ..Filaments:
     Vec3, Derivative, FilamentChunkIterator,
     knots, nodes, segments, integrate
 
+using ..PaddedArrays: PaddedVector, pad_periodic!
+
 using Adapt: Adapt, adapt
 using LLVM.Interop: assume  # can enable compiler optimisations
 using SIMD: SIMD  # for explicit SIMD
@@ -601,8 +603,16 @@ function _compute_on_nodes!(
 
     foreach(fetch, tasks)  # if a task failed with an error, this will rethrow the error
 
+    # Pad results to avoid garbage values in ghost cells, taking into account the
+    # periodicity of the filaments.
+    foreach(fill_ghost_values!, fields)
+
     nothing
 end
+
+fill_ghost_values!(vs_all::AbstractVector{<:VectorOfVelocities}) = (foreach(fill_ghost_values!, vs_all); vs_all)
+fill_ghost_values!(vs::PaddedVector) = pad_periodic!(vs)
+fill_ghost_values!(vs::AbstractVector) = vs  # no ghost values
 
 function _add_output_from_async_task!(fields, outputs, buf_host::HostVector)
     if hasproperty(fields, :streamfunction)

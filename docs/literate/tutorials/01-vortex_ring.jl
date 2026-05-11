@@ -373,18 +373,14 @@ fig
 # So, while it is possible to disable periodicity, this should only be used for testing or
 # for small calculations.
 #
-# To disable periodicity, one should pass `α = Zero()` and `Ls = Infinity()` to
+# To disable periodicity, one should pass `splitting = NoSplitting()` to
 # [`ParamsBiotSavart`](@ref):
 
 params_inf = ParamsBiotSavart(;
-    Γ, α = Zero(), Δ, a,
-    Ls = Infinity(),
-    quadrature,
+    Γ, Δ, a, quadrature,
+    splitting = NoSplitting(),
 )
 
-# Here [`Zero`](@ref) and [`Infinity`](@ref) are custom types that, as one may expect,
-# represent ``0`` and ``+∞``.
-#
 # We can now compute the vortex ring velocity in the absence of periodic effects:
 
 cache_inf = BiotSavart.init_cache(params_inf, fs)

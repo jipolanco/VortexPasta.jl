@@ -12,6 +12,7 @@ module PaddedArrays
 export PaddedArray, PaddedVector, pad_periodic!
 
 using Adapt: Adapt, adapt
+using LinearAlgebra: LinearAlgebra
 
 """
     PaddedArray{M, T, N} <: AbstractArray{T, N}
@@ -96,6 +97,14 @@ Base.:(==)(w::PaddedArray{M}, v::PaddedArray{M}) where {M} = w.data == v.data
 Base.isapprox(w::PaddedArray{M}, v::PaddedArray{M}; kwargs...) where {M} =
     isapprox(w.data, v.data; kwargs...)
 
+# This is called when doing norm(v).
+# We make sure the computation includes ghost cells (for consistency with copyto!, ==, isapprox, ...).
+LinearAlgebra.norm2(v::PaddedArray{M}) where {M} = LinearAlgebra.norm2(parent(v))
+
+# This is used in tests
+Base.:(+)(a::PaddedArray{M}, b::PaddedArray{M}) where {M} = PaddedArray{M}(a.data + b.data)
+Base.:(-)(a::PaddedArray{M}, b::PaddedArray{M}) where {M} = PaddedArray{M}(a.data - b.data)
+
 function Base.similar(v::PaddedArray{M, T, N}, ::Type{S}, dims::Dims{N}) where {S, M, T, N}
     PaddedArray{M}(similar(v.data, S, dims .+ 2M))
 end
@@ -104,6 +113,10 @@ Base.@propagate_inbounds function Base.getindex(v::PaddedArray{M, T, N}, I::Vara
     J = ntuple(n -> I[n] + M, Val(N))
     parent(v)[J...]
 end
+
+# Here inds could be a range, e.g. 2:5.
+# We just return the values associated to the range.
+Base.getindex(v::PaddedArray{M}, inds::AbstractVector) where {M} = parent(v)[M .+ inds]
 
 Base.@propagate_inbounds function Base.setindex!(
         v::PaddedArray{M, T, N},

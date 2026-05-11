@@ -13,8 +13,8 @@ using VortexPasta.BiotSavart
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
 
-using JET: JET
-using KernelAbstractions: KernelAbstractions as KA  # for JET only
+# using JET: JET
+# using KernelAbstractions: KernelAbstractions as KA  # for JET only
 
 VERBOSE::Bool = get(ENV, "JULIA_TESTS_VERBOSE", "false") in ("true", "1")
 
@@ -57,7 +57,7 @@ function test_kelvin_waves(
         method = QuinticSplineMethod(), Lz = 2π, A = 0.01, k = 1,
         quad = GaussLegendre(4),
     )
-    test_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
+    # test_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
 
     Lx = Ly = Lz
     lines = [
@@ -171,9 +171,9 @@ function test_kelvin_waves(
         # println(plt)
     end
 
-    if test_jet
-        JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
-    end
+    # if test_jet
+    #     JET.@test_opt ignored_modules=(Base, KA, Base.IteratorsMD) step!(iter)
+    # end
 
     (; fs, vs, ψs,) = iter  # `vs` already contains the initial velocities
 

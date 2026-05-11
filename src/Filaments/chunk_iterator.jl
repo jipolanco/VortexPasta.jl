@@ -269,7 +269,7 @@ function parallel_reduce(
 end
 
 # 1. Reduce a scalar quantity
-function _parallel_reduce(f::F, op::Op, init::T, fs, nthreads) where {F, Op, T <: Threads.AtomicTypes}
+function _parallel_reduce(f::F, op::Op, init::T, fs, nthreads) where {F, Op, T <: Number}
     x_ref = Threads.Atomic{T}(init)
     @sync for chunk in FilamentChunkIterator(fs; nchunks = nthreads)
         Threads.@spawn let x_local = init
@@ -284,7 +284,7 @@ function _parallel_reduce(f::F, op::Op, init::T, fs, nthreads) where {F, Op, T <
 end
 
 # 2. Reduce a vector quantity (typically Vec3)
-function _parallel_reduce(f::F, op::Op, init::SVector{N, T}, fs, nthreads) where {F, Op, N, T <: Threads.AtomicTypes}
+function _parallel_reduce(f::F, op::Op, init::SVector{N, T}, fs, nthreads) where {F, Op, N, T <: Number}
     V = typeof(init)
     # Threads.Atomic only works with scalar quantities, so we create a tuple (actually SVector) of scalar Atomics.
     x_ref = map(v -> Threads.Atomic{T}(v), init)
