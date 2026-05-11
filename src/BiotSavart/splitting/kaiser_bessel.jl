@@ -2,7 +2,7 @@ using SpecialFunctions: besseli
 
 @doc raw"""
     KaiserBesselSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
-    KaiserBesselSplitting(; Ls, β, rcut, Ns)
+    KaiserBesselSplitting(; Ls, β, rcut, Ns, rtol)
 
 Kaiser--Bessel splitting kernel for Ewald summation.
 
@@ -19,6 +19,7 @@ since the Kaiser--Bessel kernel has compact support (`|r| < rcut`).
 - `β::T`: nondimensional shape parameter,
 - `rcut::T`: cut-off distance for short-range computations,
 - `Ns::NTuple{3, Int}`: size of FFT grid for long-range computations.
+- `rtol::T`: desired relative accuracy
 
 Note that one does _not_ need to pass all of these parameters (see below).
 
@@ -27,8 +28,8 @@ Note that one does _not_ need to pass all of these parameters (see below).
 There are several ways of constructing a `KaiserBesselSplitting`.
 Note that the period `Ls` is always required.
 
-The **recommended way** is to pass the nondimensional accuracy coefficient `β` and _one of_
-`rcut` or `Ns`. For example:
+The **recommended way** is to pass the nondimensional accuracy coefficient `β` _or_ the desired 
+relative accuracy `rtol` and _one of_ `rcut` or `Ns`. For example:
 
 ```jldoctest
 julia> Ls = (2π, 2π, 2π);
@@ -40,7 +41,20 @@ KaiserBesselSplitting{Float64, 3} with:
  - Shape parameter:        β  = 18.0
  - Short-range cut-off:    r_cut = 0.2857142857142857 (r_cut/L_min = 0.04547284088339867)
  - Long-range resolution:  Ns = (128, 128, 128) (k_max = 63.0)
+ - Relative accuracy:      rtol = 1.9054607179632482e-8
 ```
+
+One can use the following table to choose `β` according to the wanted precision:
+
+| Precision digits |  Ewald ``β``  |
+| :--------------: | :-----------: |
+|         3        |      7.0      |
+|         4        |      9.0      |
+|         6        |     13.0      |
+|         8        |     18.0      |
+|        10        |     22.0      |
+|        12        |     27.0      |
+|        14        |     32.0      |
 
 # Extended help
 
@@ -71,9 +85,12 @@ normalised such that ``F(r_{\text{c}}) = 1``.
 Here ``I_0`` is the modified Bessel function of the first kind and of order 0,
 ``r_{\text{c}}`` represents the kernel support in physical space, and ``β`` is a
 nondimensional shape parameter controlling accuracy.
-Choosing ``β = 18`` gives roughly 6-digit accuracy (equivalent to ``β = 3.5``
+Choosing ``β = 13`` gives roughly 6-digit accuracy (equivalent to ``β = 3.5``
 for [`GaussianSplitting`](@ref)).
-A full characterisation of the influence of ``β`` on accuracy still needs to be done.
+The shape parameter ``β`` is related to the desired tolerance ``r_{\text{tol}}`` by the following equation:
+```math
+r_{\text{tol}}(β) = 10^{-(0.44β + 0.2)}
+```
 
 As a result of the above choice, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as
 $\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{(f)}}(\bm{r})$ with:
@@ -119,6 +136,7 @@ struct KaiserBesselSplitting{
     rcut::T
     C_background::T  # see background_vorticity_correction_factor
     Ns::Dims{N}
+    rtol::T
     f::ChebEven  # KB kernel
     F::ChebOdd   # integral of KB kernel
 end
@@ -132,7 +150,7 @@ function KaiserBesselSplitting(; Ls::NTuple{N, T}, β = nothing, rcut = nothing,
         f = ChebyshevApproximations.approximate(f_actual, rcut; symmetry = Val(:even), rtol)
         F = ChebyshevApproximations.integrate(f)
         C_background = _estimate_background_correction_factor(f_actual, rcut; rtol = eps(T))  # estimate it to machine epsilon
-        KaiserBesselSplitting(Ls, β, rcut, C_background, Ns, f, F)
+        KaiserBesselSplitting(Ls, β, rcut, C_background, Ns, rtol, f, F)
     end
 end
 
@@ -146,7 +164,7 @@ end
 
 @inline function Adapt.adapt_structure(to, g::KaiserBesselSplitting)
     KaiserBesselSplitting(
-        g.Ls, g.β, g.rcut, g.C_background, g.Ns,
+        g.Ls, g.β, g.rcut, g.C_background, g.Ns, g.rtol,
         adapt(to, g.f),
         adapt(to, g.F),
     )
@@ -156,8 +174,8 @@ end
 convert_floats(::Type{T}, g::KaiserBesselSplitting{T}) where {T} = g
 
 function convert_floats(::Type{T}, g::KaiserBesselSplitting{S, N}) where {T, S, N}
-    (; Ls, β, rcut, Ns) = g
-    KaiserBesselSplitting(convert.(T, Ls), convert(T, β), convert(T, rcut), Ns)
+    (; Ls, β, rcut, Ns, rtol) = g
+    KaiserBesselSplitting(convert.(T, Ls), convert(T, β), convert(T, rcut), Ns, convert(T, rtol))
 end
 
 periods(g::KaiserBesselSplitting) = g.Ls
@@ -170,7 +188,7 @@ function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Real, Ns::Nothin
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
     end
-    digits = T(0.5) * β - T(0.5)
+    digits = T(0.44) * β - T(0.2)
     rtol = T(10.0)^(-digits)
     T(β), T(rcut), Ns, T(rtol)
 end
@@ -179,7 +197,7 @@ end
 function _kb_splitting_params(Ls::NTuple{N, T}, β::Nothing, rcut::Real, Ns::Dims{N}, rtol::Nothing) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
     β = rcut * kmax
-    digits = T(0.5) * β - T(0.5)
+    digits = T(0.44) * β - T(0.2)
     rtol = T(10.0)^(-digits)
     T(β), T(rcut), Ns , T(rtol)
 end
@@ -188,7 +206,7 @@ end
 function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Nothing, Ns::Dims{N}, rtol::Nothing) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
     rcut = β / kmax
-    digits = T(0.5) * β - T(0.5)
+    digits = T(0.44) * β - T(0.2)
     rtol = T(10.0)^(-digits)
     T(β), T(rcut), Ns, T(rtol)
 end
@@ -213,7 +231,7 @@ end
 
 
 function Base.show(io::IO, g::KaiserBesselSplitting{T, N}) where {T, N}
-    (; Ns, Ls, β, rcut) = g
+    (; Ns, Ls, β, rcut, rtol) = g
     indent = get(io, :indent, 0)
     pre = ' '^indent
     rcut_L = rcut / minimum(Ls)
@@ -223,6 +241,7 @@ function Base.show(io::IO, g::KaiserBesselSplitting{T, N}) where {T, N}
     print(io, "\n$(pre) - Shape parameter:        β  = ", β)
     print(io, "\n$(pre) - Short-range cut-off:    r_cut = ", rcut, " (r_cut/L_min = ", rcut_L, ")")
     print(io, "\n$(pre) - Long-range resolution:  Ns = ", Ns, " (k_max = ", kmax, ")")
+    print(io, "\n$(pre) - Relative accuracy:      rtol = ", rtol)
     nothing
 end
 
@@ -231,7 +250,8 @@ function Base.summary(io::IO, g::KaiserBesselSplitting{T, N}) where {T, N}
     Ls = round.(g.Ls; sigdigits = 3)
     β = round(g.β; sigdigits = 3)
     rcut = round(g.rcut; sigdigits = 3)
-    print(io, "KaiserBesselSplitting(Ls ≈ $Ls, rcut ≈ $rcut, Ns = $Ns, β ≈ $β)")
+    rtol = g.rtol
+    print(io, "KaiserBesselSplitting(Ls ≈ $Ls, rcut ≈ $rcut, Ns = $Ns, β ≈ $β , rtol ≈ $rtol)")
 end
 
 # Evaluate splitting kernel in Fourier space.
