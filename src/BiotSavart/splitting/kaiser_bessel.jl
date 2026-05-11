@@ -41,7 +41,7 @@ KaiserBesselSplitting{Float64, 3} with:
  - Shape parameter:        β  = 18.0
  - Short-range cut-off:    r_cut = 0.2857142857142857 (r_cut/L_min = 0.04547284088339867)
  - Long-range resolution:  Ns = (128, 128, 128) (k_max = 63.0)
- - Relative accuracy:      rtol = 1.9054607179632482e-8
+ - Relative accuracy:      rtol = 7.58577575029185e-9
 ```
 
 One can use the following table to choose `β` according to the wanted precision:
@@ -87,9 +87,9 @@ Here ``I_0`` is the modified Bessel function of the first kind and of order 0,
 nondimensional shape parameter controlling accuracy.
 Choosing ``β = 13`` gives roughly 6-digit accuracy (equivalent to ``β = 3.5``
 for [`GaussianSplitting`](@ref)).
-The shape parameter ``β`` is related to the desired tolerance ``r_{\text{tol}}`` by the following equation:
+The shape parameter ``β`` is related to the desired tolerance ``\text{rtol}`` by the following empirical formula:
 ```math
-r_{\text{tol}}(β) = 10^{-(0.44β + 0.2)}
+\text{rtol}(β) = 10^{-(0.44β + 0.2)}
 ```
 
 As a result of the above choice, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as
@@ -188,7 +188,7 @@ function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Real, Ns::Nothin
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
     end
-    digits = T(0.44) * β - T(0.2)
+    digits = T(0.44) * β + T(0.2)
     rtol = T(10.0)^(-digits)
     T(β), T(rcut), Ns, T(rtol)
 end
@@ -197,23 +197,23 @@ end
 function _kb_splitting_params(Ls::NTuple{N, T}, β::Nothing, rcut::Real, Ns::Dims{N}, rtol::Nothing) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
     β = rcut * kmax
-    digits = T(0.44) * β - T(0.2)
+    digits = T(0.44) * β + T(0.2)
     rtol = T(10.0)^(-digits)
-    T(β), T(rcut), Ns , T(rtol)
+    T(β), T(rcut), Ns, T(rtol)
 end
 
 # β and Ns given
 function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Nothing, Ns::Dims{N}, rtol::Nothing) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
     rcut = β / kmax
-    digits = T(0.44) * β - T(0.2)
+    digits = T(0.44) * β + T(0.2)
     rtol = T(10.0)^(-digits)
     T(β), T(rcut), Ns, T(rtol)
 end
 
 # rtol and rcut given
 function _kb_splitting_params(Ls::NTuple{N,T}, β::Nothing, rcut::Real, Ns::Nothing, rtol::Real) where {N, T}
-    β = 1-2*log10(rtol)
+    β = -(log10(rtol) + 0.2) / 0.44
     kmax = β / rcut
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
@@ -224,7 +224,7 @@ end
 # rtol and Ns given
 function _kb_splitting_params(Ls::NTuple{N,T}, β::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Real) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
-    β = 1-2*log10(rtol)
+    β = -(log10(rtol) + 0.2) / 0.44
     rcut = β / kmax 
     T(β), T(rcut), Ns, T(rtol)
 end
@@ -250,8 +250,8 @@ function Base.summary(io::IO, g::KaiserBesselSplitting{T, N}) where {T, N}
     Ls = round.(g.Ls; sigdigits = 3)
     β = round(g.β; sigdigits = 3)
     rcut = round(g.rcut; sigdigits = 3)
-    rtol = g.rtol
-    print(io, "KaiserBesselSplitting(Ls ≈ $Ls, rcut ≈ $rcut, Ns = $Ns, β ≈ $β , rtol ≈ $rtol)")
+    rtol = round(g.rtol; sigdigits = 3)
+    print(io, "KaiserBesselSplitting(Ls ≈ $Ls, rcut ≈ $rcut, Ns = $Ns, β ≈ $β, rtol ≈ $rtol)")
 end
 
 # Evaluate splitting kernel in Fourier space.
