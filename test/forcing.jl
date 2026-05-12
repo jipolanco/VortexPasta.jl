@@ -22,8 +22,7 @@ function generate_biot_savart_parameters(::Type{T}; aspect, L = 2π, rcut = L / 
     a = 1e-6
     Δ = 1/4
     Ls = aspect .* L
-    β = 15.0
-    splitting = KaiserBesselSplitting(; Ls, β, rcut)
+    splitting = KaiserBesselSplitting(; Ls, rtol = 1e-6, rcut)
     ParamsBiotSavart(
         T;
         Γ, a, Δ, splitting,

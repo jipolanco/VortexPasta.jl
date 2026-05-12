@@ -294,11 +294,10 @@ end
 @testset "Leapfrogging vortex rings" begin
     ##
     # Grid-related parameters
-    β = 18.0
     L = 2π
     Ls = (1, 1, 1) .* L
     Ns = (1, 1, 1) .* 32
-    splitting = KaiserBesselSplitting(; Ls, β, Ns)
+    splitting = KaiserBesselSplitting(; Ls, rtol = 1e-6, Ns)
 
     # Physical vortex parameters
     Γ = 1.2
