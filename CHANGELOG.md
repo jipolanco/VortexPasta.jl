@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Estimate relative errors associated to `KaiserBesselSplitting`.
+  Also allow setting `rtol` instead of `β` (M. Flamant).
+
+- Support Julia 1.13.
+
 ## [0.33.2] - 2026-04-13
 
 ### Changed
