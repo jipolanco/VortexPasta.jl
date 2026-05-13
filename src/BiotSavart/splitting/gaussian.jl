@@ -1,6 +1,6 @@
 @doc raw"""
     GaussianSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
-    GaussianSplitting(; Ls, β, α, rcut, Ns)
+    GaussianSplitting(; Ls, β, α, rcut, Ns, rtol)
 
 Gaussian splitting kernel for Ewald summation.
 
@@ -13,6 +13,7 @@ This is the standard splitting kernel traditionally used in Ewald methods.
 - `α::T`: splitting parameter (an inverse length scale),
 - `rcut::T`: cut-off distance for short-range computations,
 - `Ns::NTuple{3, Int}`: size of FFT grid for long-range computations.
+- `rtol::T`: desired relative accuracy
 
 Note that one does _not_ need to pass all of these parameters (see below).
 
@@ -21,8 +22,8 @@ Note that one does _not_ need to pass all of these parameters (see below).
 There are several ways of constructing a `GaussianSplitting`.
 Note that the period `Ls` is always required.
 
-The **recommended way** is to pass the nondimensional accuracy coefficient `β` and _one of_
-`α`, `rcut` or `Ns`. For example:
+The **recommended way** is to pass the nondimensional accuracy coefficient `β` _or_ the desired 
+relative accuracy `rtol` and _one of_ `α`, `rcut` or `Ns`. For example:
 
 ```jldoctest
 julia> Ls = (2π, 2π, 2π);
@@ -36,6 +37,7 @@ GaussianSplitting{Float64, 3} with:
  - Long-range resolution:       Ns = (128, 128, 128) (kmax = 63.0)
  - Short-range accuracy coeff.: β_shortrange = 3.5
  - Long-range cut-off coeff.:   β_longrange = 3.5
+ - Relative accuracy :          rtol = 2.398239748342885e-7
 ```
 
 As detailed in [Polanco2025](@citet), the splitting and truncation parameters will then be set such that
@@ -51,6 +53,13 @@ One can use the following table to choose `β` according to the wanted precision
 |        10        |     4.5      |
 |        12        |     5.0      |
 |        14        |     5.5      |
+
+The accuracy coefficient ``β`` is related to the desired tolerance ``\text{rtol}`` by the following 
+empirical formula:
+```math
+\text{rtol}(β) \approx C e^{-β^2}
+```
+with C = 10^{-1.3} a factor determined through numerical characterization.
 
 For more control, one can pass all of `α`, `rcut` and `Ns`, in which case `β` will be ignored.
 But doing this is not recommended as it can lead to loss of accuracy.
@@ -102,55 +111,96 @@ struct GaussianSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting
     α::T
     rcut::T
     Ns::Dims{N}
+    rtol::T
 end
 
-function GaussianSplitting(; Ls::NTuple{N, T}, β = nothing, α = nothing, rcut = nothing, Ns = nothing) where {N, T}
-    GaussianSplitting(Ls, _gaussian_splitting_params(Ls, β, α, rcut, Ns)...)
+function GaussianSplitting(; Ls::NTuple{N, T}, β = nothing, α = nothing, rcut = nothing, Ns = nothing, rtol = nothing) where {N, T}
+    GaussianSplitting(Ls, _gaussian_splitting_params(Ls, β, α, rcut, Ns, rtol)...)
 end
 
 # This converts real values to the wanted precision.
 convert_floats(::Type{T}, g::GaussianSplitting{T}) where {T} = g
 
 function convert_floats(::Type{T}, g::GaussianSplitting{S, N}) where {T, S, N}
-    (; Ls, α, rcut, Ns) = g
-    GaussianSplitting(convert.(T, Ls), convert(T, α), convert(T, rcut), Ns)
+    (; Ls, α, rcut, Ns, rtol) = g
+    GaussianSplitting(convert.(T, Ls), convert(T, α), convert(T, rcut), Ns, convert(T, rtol))
 end
 
 periods(g::GaussianSplitting) = g.Ls
 cutoff_distance(g::GaussianSplitting) = g.rcut
 fourier_grid_size(g::GaussianSplitting) = g.Ns
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Real, rcut::Nothing, Ns::Nothing) where {N, T}
+function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Real, rcut::Nothing, Ns::Nothing, rtol::Nothing) where {N, T}
     rcut = β / α
     kmax = 2 * α * β
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
     end
-    T(α), T(rcut), Ns
+    C = 10^(-1.3)
+    rtol = C * exp(-β^2)
+    T(α), T(rcut), Ns, T(rtol)
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Nothing, rcut::Real, Ns::Nothing) where {N, T}
+function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Nothing, rcut::Real, Ns::Nothing, rtol::Nothing) where {N, T}
     α = β / rcut
     kmax = 2 * α * β
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
     end
-    T(α), T(rcut), Ns
+    C = 10^(-1.3)
+    rtol = C * exp(-β^2)
+    T(α), T(rcut), Ns, T(rtol)
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Nothing, rcut::Nothing, Ns::Dims{N}) where {N, T}
+function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Nothing) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
     α = kmax / (2 * β)
     rcut = β / α
-    T(α), T(rcut), Ns
+    C = 10^(-1.3)
+    rtol = C * exp(-β^2)
+    T(α), T(rcut), Ns, T(rtol)
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Real, rcut::Real, Ns::Dims{N}) where {N, T}
-    T(α), T(rcut), Ns
+function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Real, rcut::Real, Ns::Dims{N}, rtol::Nothing) where {N, T}
+    β = α* rcut
+    C = 10^(-1.3)
+    rtol = C * exp(-β^2)
+    T(α), T(rcut), Ns, T(rtol)
+end
+
+function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Real, rcut::Nothing, Ns::Nothing, rtol::Real) where {N, T}
+    C = 10^(-1.3)
+    β = sqrt(-log(rtol / C))
+    rcut = β / α
+    kmax = 2 * α * β
+    Ns = map(Ls) do L
+        kmax_to_gridsize(kmax, L)
+    end
+    T(α), T(rcut), Ns, T(rtol)
+end
+
+function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Nothing, rcut::Real, Ns::Nothing, rtol::Real) where {N, T}
+    C = 10^(-1.3)
+    β = sqrt(-log(rtol / C))
+    α = β / rcut
+    kmax = 2 * α * β
+    Ns = map(Ls) do L
+        kmax_to_gridsize(kmax, L)
+    end
+    T(α), T(rcut), Ns, T(rtol)
+end
+
+function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Real) where {N, T}
+    C = 10^(-1.3)
+    β = sqrt(-log(rtol / C))
+    kmax = maximum_wavenumber(Ns, Ls)
+    α = kmax / (2 * β)
+    rcut = β / α
+    T(α), T(rcut), Ns, T(rtol)
 end
 
 function Base.show(io::IO, g::GaussianSplitting{T, N}) where {T, N}
-    (; Ns, Ls, α, rcut) = g
+    (; Ns, Ls, α, rcut, rtol) = g
     indent = get(io, :indent, 0)
     pre = ' '^indent
     rcut_L = rcut / minimum(Ls)
@@ -164,6 +214,7 @@ function Base.show(io::IO, g::GaussianSplitting{T, N}) where {T, N}
     print(io, "\n$(pre) - Long-range resolution:       Ns = ", Ns, " (k_max = ", kmax, ")")
     print(io, "\n$(pre) - Short-range accuracy coeff.: β_shortrange = α * r_cut = ", β_shortrange)
     print(io, "\n$(pre) - Long-range accuracy coeff.:  β_longrange = k_max / 2α = ", β_longrange)
+    print(io, "\n$(pre) - Relative accuracy :          rtol = ", rtol)
     nothing
 end
 
@@ -172,7 +223,8 @@ function Base.summary(io::IO, g::GaussianSplitting)
     Ls = round.(g.Ls; sigdigits = 3)
     α = round(g.α; sigdigits = 3)
     rcut = round(g.rcut; sigdigits = 3)
-    print(io, "GaussianSplitting(Ls ≈ $Ls, rcut ≈ $rcut, Ns = $Ns, α ≈ $α")
+    rtol = round(g.rtol; sigdigits = 3)
+    print(io, "GaussianSplitting(Ls ≈ $Ls, rcut ≈ $rcut, Ns = $Ns, α ≈ $α, rtol ≈ $rtol)")
 end
 
 # Evaluate splitting kernel in Fourier space.
