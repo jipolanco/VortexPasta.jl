@@ -41,7 +41,7 @@ KaiserBesselSplitting{Float64, 3} with:
  - Shape parameter:        β  = 18.0
  - Short-range cut-off:    r_cut = 0.2857142857142857 (r_cut/L_min = 0.04547284088339867)
  - Long-range resolution:  Ns = (128, 128, 128) (k_max = 63.0)
- - Relative accuracy:      rtol = 7.58577575029185e-9
+ - Relative accuracy:      rtol = 9.609467576211012e-9
 ```
 
 One can use the following table to choose `β` according to the wanted precision:
@@ -50,9 +50,9 @@ One can use the following table to choose `β` according to the wanted precision
 | :--------------: | :-----------: |
 |         3        |      7.0      |
 |         4        |      9.0      |
-|         6        |     13.0      |
+|         6        |     14.0      |
 |         8        |     18.0      |
-|        10        |     22.0      |
+|        10        |     23.0      |
 |        12        |     27.0      |
 |        14        |     32.0      |
 
@@ -85,12 +85,13 @@ normalised such that ``F(r_{\text{c}}) = 1``.
 Here ``I_0`` is the modified Bessel function of the first kind and of order 0,
 ``r_{\text{c}}`` represents the kernel support in physical space, and ``β`` is a
 nondimensional shape parameter controlling accuracy.
-Choosing ``β = 13`` gives roughly 6-digit accuracy (equivalent to ``β = 3.5``
+Choosing ``β = 14`` gives roughly 6-digit accuracy (equivalent to ``β = 3.5``
 for [`GaussianSplitting`](@ref)).
 The shape parameter ``β`` is related to the desired tolerance ``\text{rtol}`` by the following empirical formula:
 ```math
-\text{rtol}(β) = 10^{-(0.44β + 0.2)}
+\text{rtol}(β) \approx C e^{-β}
 ```
+with C = 10^{-0.2} a factor determined through numerical characterization.
 
 As a result of the above choice, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as
 $\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{(f)}}(\bm{r})$ with:
@@ -188,8 +189,8 @@ function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Real, Ns::Nothin
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
     end
-    digits = T(0.44) * β + T(0.2)
-    rtol = T(10.0)^(-digits)
+    C = 10^(-0.2)
+    rtol = C * exp(-β)
     T(β), T(rcut), Ns, T(rtol)
 end
 
@@ -197,8 +198,8 @@ end
 function _kb_splitting_params(Ls::NTuple{N, T}, β::Nothing, rcut::Real, Ns::Dims{N}, rtol::Nothing) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
     β = rcut * kmax
-    digits = T(0.44) * β + T(0.2)
-    rtol = T(10.0)^(-digits)
+    C = 10^(-0.2)
+    rtol = C * exp(-β)
     T(β), T(rcut), Ns, T(rtol)
 end
 
@@ -206,14 +207,15 @@ end
 function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Nothing, Ns::Dims{N}, rtol::Nothing) where {N, T}
     kmax = maximum_wavenumber(Ns, Ls)
     rcut = β / kmax
-    digits = T(0.44) * β + T(0.2)
-    rtol = T(10.0)^(-digits)
+    C = 10^(-0.2)
+    rtol = C * exp(-β)
     T(β), T(rcut), Ns, T(rtol)
 end
 
 # rtol and rcut given
 function _kb_splitting_params(Ls::NTuple{N,T}, β::Nothing, rcut::Real, Ns::Nothing, rtol::Real) where {N, T}
-    β = -(log10(rtol) + 0.2) / 0.44
+    C = 10^(-0.2)
+    β = -log(rtol / C)
     kmax = β / rcut
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
@@ -223,8 +225,9 @@ end
 
 # rtol and Ns given
 function _kb_splitting_params(Ls::NTuple{N,T}, β::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Real) where {N, T}
+    C = 10^(-0.2)
+    β = -log(rtol / C)
     kmax = maximum_wavenumber(Ns, Ls)
-    β = -(log10(rtol) + 0.2) / 0.44
     rcut = β / kmax 
     T(β), T(rcut), Ns, T(rtol)
 end
