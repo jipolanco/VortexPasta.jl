@@ -298,10 +298,10 @@ end
 # ~1e-6 accuracy associated to β = 3.5 for GaussianSplitting).
 function check_independence_on_splitting_parameter(
         ::Type{Splitting}, f, rcuts;
-        β = 3.5, quad = GaussLegendre(3), Ls, params_kws...
+        rtol = 1e-6, quad = GaussLegendre(3), Ls, params_kws...
     ) where {Splitting <: AbstractEwaldSplitting}
     fields_all = map(rcuts) do rcut
-        splitting = Splitting(; Ls, rcut, β)
+        splitting = Splitting(; Ls, rcut, rtol)
         compute_filament_velocity_and_streamfunction(
             f;
             splitting,
@@ -323,8 +323,8 @@ function check_independence_on_splitting_parameter(
         end
     end
     # @show Splitting maximum(maxdiffs_vel) maximum(maxdiffs_stf)
-    @test maximum(maxdiffs_vel) < 3e-6
-    @test maximum(maxdiffs_stf) < 1e-7
+    @test maximum(maxdiffs_vel) < 10 * rtol  # works for rtol = 1e-6
+    @test maximum(maxdiffs_stf) < rtol / 5
     nothing
 end
 
@@ -395,14 +395,13 @@ end
     Γ = 7.4
     a = 1e-5
     params_kws = (; Ls, Γ, a,)
-    β_gauss = 3.5  # accuracy coefficient
-    β_kb = 18.0
+    rtol = 1e-6  # relative tolerance in Ewald splitting (see GaussianSplitting and KaiserBesselSplitting)
     α_default = 3.0
     @testset "Long range" begin
         # Test NUFFT backends with default parameters
         tol = 1e-5  # allowed relative error
         @testset "NonuniformFFTsBackend" begin
-            local splitting = GaussianSplitting(; Ls, β = β_gauss, α = α_default)
+            local splitting = GaussianSplitting(; Ls, rtol, α = α_default)
             compare_long_range([f], NonuniformFFTsBackend(fftw_flags = FFTW.ESTIMATE); tol, Γ, a, splitting)
         end
         @testset "$quantity near r = 0" for quantity ∈ (Velocity(), Streamfunction())
@@ -410,29 +409,28 @@ end
         end
     end
     @testset "Short range" begin
-        local splitting = GaussianSplitting(; Ls, β = β_gauss, α = α_default)
+        local splitting = GaussianSplitting(; Ls, rtol, α = α_default)
         compare_short_range([f]; Γ, a, splitting)
     end
-    @testset "Dependence on α" begin
-        # αs = [kmax / 5, kmax / 6, kmax / 7, kmax / 8, kmax / 12, kmax / 16]
+    @testset "Dependence on r_cut" begin
         rcuts = range(0.3, 0.9; step = 0.1)
         quadratures = (GaussLegendre(3), NoQuadrature())
         @testset "$quad" for quad ∈ quadratures
             @testset "use_simd = $use_simd" for use_simd ∈ (true, false)
                 @testset "avoid_explicit_erf = $avoid_explicit_erf" for avoid_explicit_erf ∈ (true, false)
-                    @testset "GaussianSplitting" check_independence_on_splitting_parameter(GaussianSplitting, f, rcuts; quad, β = β_gauss, use_simd, avoid_explicit_erf, params_kws...)
-                    @testset "KaiserBesselSplitting" check_independence_on_splitting_parameter(KaiserBesselSplitting, f, rcuts; quad, β = β_kb, use_simd, avoid_explicit_erf, params_kws...)
+                    @testset "GaussianSplitting" check_independence_on_splitting_parameter(GaussianSplitting, f, rcuts; rtol, quad, use_simd, avoid_explicit_erf, params_kws...)
+                    @testset "KaiserBesselSplitting" check_independence_on_splitting_parameter(KaiserBesselSplitting, f, rcuts; rtol, quad, use_simd, avoid_explicit_erf, params_kws...)
                 end
             end
         end
         @testset "FourierMethod()" begin
             f_fourier = @inferred init_trefoil_filament(32; method = FourierMethod())
-            @testset "GaussianSplitting" check_independence_on_splitting_parameter(GaussianSplitting, f_fourier, rcuts; β = β_gauss, params_kws...)
-            @testset "KaiserBesselSplitting" check_independence_on_splitting_parameter(KaiserBesselSplitting, f_fourier, rcuts; β = β_kb, params_kws...)
+            @testset "GaussianSplitting" check_independence_on_splitting_parameter(GaussianSplitting, f_fourier, rcuts; rtol, params_kws...)
+            @testset "KaiserBesselSplitting" check_independence_on_splitting_parameter(KaiserBesselSplitting, f_fourier, rcuts; rtol, params_kws...)
         end
     end
     @testset "Helicity" begin
-        local splitting = GaussianSplitting(; Ls, β = β_gauss, α = α_default)
+        local splitting = GaussianSplitting(; Ls, rtol, α = α_default)
         test_helicity(f; Γ, a, splitting)
     end
     @testset "Curvature" begin

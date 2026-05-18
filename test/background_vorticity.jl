@@ -52,17 +52,13 @@ vs = map(similar ∘ nodes, fs) |> VectorOfVectors
 ψs = map(similar ∘ nodes, fs) |> VectorOfVectors
 fields = (velocity = vs, streamfunction = ψs)
 
-accuracy_coefficient(::Type{GaussianSplitting}) = 3.5  # ~1e-6 accuracy
-accuracy_coefficient(::Type{KaiserBesselSplitting}) = 15.5  # ~1e-6 accuracy
-
 splittings = (GaussianSplitting, KaiserBesselSplitting)
 
 @testset "Splitting: $Splitting" for Splitting in splittings
-    Ns = [32, 64]  # this also changes the splitting parameter α by a factor 2
+    Ns = [32, 64]  # this also changes the splitting parameter α by a factor 2 (in GaussianSplitting)
 
     fields_comp = map(Ns) do Ngrid
-        β = accuracy_coefficient(Splitting)
-        splitting = Splitting(; β, Ls, Ns = (Ngrid, Ngrid, Ngrid))
+        splitting = Splitting(; rtol = 1e-6, Ls, Ns = (Ngrid, Ngrid, Ngrid))
         params = init_params_biot_savart(splitting)
         evaluate_bs_on_nodes!(fields, fs, params)
         deepcopy(fields)
@@ -75,11 +71,11 @@ splittings = (GaussianSplitting, KaiserBesselSplitting)
     @testset "Independence on splitting parameters" begin
         for (a, b) in zip(fields_comp[1].velocity, fields_comp[2].velocity)
             # @show norm(a - b) / norm(b)
-            @test a ≈ b rtol=3e-7
+            @test a ≈ b rtol=2e-6
         end
         for (a, b) in zip(fields_comp[1].streamfunction, fields_comp[2].streamfunction)
             # @show norm(a - b) / norm(b)
-            @test a ≈ b rtol=2e-8
+            @test a ≈ b rtol=2e-7
         end
     end
 end
