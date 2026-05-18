@@ -103,8 +103,7 @@ fields = (velocity = vs, streamfunction = ψs)
 Ngrid = 32
 
 @testset "Coarse-grained vorticity (with $Splitting)" for Splitting in splittings
-    β = accuracy_coefficient(Splitting)
-    splitting = Splitting(; β, Ls, Ns = (Ngrid, Ngrid, Ngrid))
+    splitting = Splitting(; rtol = 1e-6, Ls, Ns = (Ngrid, Ngrid, Ngrid))
     params = init_params_biot_savart(splitting)
     cache = evaluate_bs_on_nodes!(fields, fs, params)
 
