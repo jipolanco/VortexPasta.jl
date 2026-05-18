@@ -7,8 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Estimate relative errors associated to `KaiserBesselSplitting`.
-  Also allow setting `rtol` instead of `β` (M. Flamant).
+- BiotSavart: allow setting `rtol` instead of `β` in `KaiserBesselSplitting` and `GaussianSplitting` (M. Flamant).
 
 - Support Julia 1.13.
 
