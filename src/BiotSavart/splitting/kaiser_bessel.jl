@@ -87,11 +87,11 @@ Here ``I_0`` is the modified Bessel function of the first kind and of order 0,
 nondimensional shape parameter controlling accuracy.
 Choosing ``β = 14`` gives roughly 6-digit accuracy (equivalent to ``β = 3.5``
 for [`GaussianSplitting`](@ref)).
-The shape parameter ``β`` is related to the desired tolerance ``\text{rtol}`` by the following empirical formula:
+The shape parameter ``β`` is related to the desired tolerance ``\text{rtol}`` by the formula:
 ```math
 \text{rtol}(β) \approx C e^{-β}
 ```
-with C = 10^{-0.2} a factor determined through numerical characterization.
+with ``C = 10^{-0.2} ≈ 0.63`` an empirical factor.
 
 As a result of the above choice, the Biot--Savart kernel $\bm{\nabla}G(\bm{r}) = -\bm{r} / (4πr^3)$ is split as
 $\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{(f)}}(\bm{r})$ with:

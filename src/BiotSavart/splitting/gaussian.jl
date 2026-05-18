@@ -55,11 +55,11 @@ One can use the following table to choose `β` according to the wanted precision
 |        14        |     5.5      |
 
 The accuracy coefficient ``β`` is related to the desired tolerance ``\text{rtol}`` by the following 
-empirical formula:
+formula:
 ```math
 \text{rtol}(β) \approx C e^{-β^2}
 ```
-with C = 10^{-1.3} a factor determined through numerical characterization.
+with ``C = 10^{-1.3} ≈ 0.05`` an empirical factor.
 
 For more control, one can pass all of `α`, `rcut` and `Ns`, in which case `β` will be ignored.
 But doing this is not recommended as it can lead to loss of accuracy.
