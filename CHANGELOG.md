@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Timestepping: fix random issue in time adaptivity (mainly `AdaptBasedOnVelocity`).
+  The problem was that `Timestepping.maximum_vector_norm` included ghost values in `PaddedVector`s.
+  These were sometimes undefined, eventually leading to `dt = NaN`.
+  We now exclude iterating over ghost values.
+
 ## [0.34.0] - 2026-05-18
 
 ### Added

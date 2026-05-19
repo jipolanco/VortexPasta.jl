@@ -983,8 +983,10 @@ function maximum_vector_norm(vs::VectorOfVectors{<:Vec3})
     T = number_type(vs)
     @assert T <: AbstractFloat
     v²_max = zero(T)
-    for vnodes ∈ vs, v⃗ ∈ vnodes
-        v²_max = max(v²_max, sum(abs2, v⃗)::T)
+    # Note: eachindex avoids iterating over ghost cells (which we don't want) if vnodes is a PaddedVector
+    for vnodes in vs, i in eachindex(vnodes)
+        @inbounds v² = sum(abs2, vnodes[i])::T
+        v²_max = max(v²_max, v²)
     end
     sqrt(v²_max)
 end
