@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.1] - 2026-05-19
+
 ### Fixed
 
 - Timestepping: fix random issue in time adaptivity (mainly `AdaptBasedOnVelocity`).
