@@ -116,6 +116,7 @@ KenCarp4
 ```@docs
 SplittingScheme
 Strang
+Strang4
 ```
 
 ### Multirate Runge–Kutta schemes
