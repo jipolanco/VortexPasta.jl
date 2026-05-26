@@ -52,7 +52,8 @@ dt_factor(::SSPRK33) = 0.9
 dt_factor(::Midpoint) = 0.25
 dt_factor(::Euler) = 0.08
 
-dt_factor(::Strang{RK4}) = 3.5
+dt_factor(scheme::Strang{RK4}) = 3.5 * scheme.nsubsteps
+dt_factor(scheme::Strang4{RK4}) = 3.5 * scheme.nsubsteps
 
 dt_factor(::KenCarp4) = 2.5
 dt_factor(::KenCarp3) = 1.4
@@ -380,7 +381,8 @@ end
         Ascher343(),
         # Euler(),  # too slow!
         # Midpoint(),  # too slow!
-        Strang(RK4(), Midpoint()),
+        Strang(RK4(), Midpoint(); nsubsteps = 2),
+        Strang4(RK4(), RK4(); nsubsteps = 2),
         MultirateMidpoint(32),
         SanduMRI33a(12),
         SanduMRI33a(CrankNicolson(), 4),
