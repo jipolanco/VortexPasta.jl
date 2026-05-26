@@ -5,6 +5,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.2] - 2026-05-26
+
+### Added
+
+- Add `Strang4` temporal scheme: 4-th order generalisation of the classical
+  Strang splitting scheme (M. Flamant).
+
 ## [0.34.1] - 2026-05-19
 
 ### Fixed
