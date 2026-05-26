@@ -9,9 +9,9 @@ Uses one scheme for advancing the "fast" terms (assumed to be cheap to compute a
 possibly a different scheme for the "slow" (and expensive) terms. By default these schemes
 are respectively taken to be [`RK4`](@ref) and the 2nd order [`Midpoint`](@ref) method.
 
-By default, according to Strang splitting, the fast term is advanced with a timestep of
-`dt/2` (twice in a full timestep). One can pass `nsubsteps` to use even smaller timesteps
-for the fast term.
+The fast term is advanced with a timestep of ``Δt/2`` (twice in a full time step).
+One can pass `nsubsteps` to use even smaller time steps for the fast term.
+This typically allows to increase the global time step ``Δt`` while preserving stability.
 
 See [`SplittingScheme`](@ref) for more details.
 """

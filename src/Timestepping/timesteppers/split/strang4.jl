@@ -1,17 +1,20 @@
 export Strang4
 
-"""
-    Strang([fast = RK4()], [slow = RK4()]; nsubsteps::Int = 1) <: SplittingScheme
+@doc raw"""
+    Strang4([fast = RK4()], [slow = RK4()]; nsubsteps::Int = 1) <: SplittingScheme
 
-4th order Strang splitting scheme.
+4th order Strang splitting scheme (a.k.a. triple jump).
 
 Uses one scheme for advancing the "fast" terms (assumed to be cheap to compute as well), and
 possibly a different scheme for the "slow" (and expensive) terms. By default, to preserve
-the global 4th-order accuracy, both schemes are taken to be [`RK4`](@ref) method.
+the global 4th-order accuracy, both schemes are taken to be [`RK4`](@ref).
 
-According to the Triple jump composition procedure, the time step is split into three substeps 
-using coefficients (γ, 1 - 2γ, γ) with 'γ = \frac{1}{2 - 2^\frac{1}{3}}'. One can pass 
-`nsubsteps` to use even smaller timesteps for the fast term.
+The triple jump scheme splits the global time step ``Δt`` into three substeps 
+``(γ, 1 - 2γ, γ) Δt`` with ``γ = \left( 2 - 2^{1/3} \right)^{-1} ≈ 1.35``. Note that the
+intermediate substep goes backwards in time (``1 - 2γ ≈ -1.70``).
+
+One can pass `nsubsteps` to use even smaller time steps for the fast term.
+This typically allows to increase the global time step ``Δt`` while preserving stability.
 
 See [`SplittingScheme`](@ref) for more details.
 """
@@ -98,6 +101,7 @@ function _update_velocities!(
     end
 
     γ1 = 1 / (2 - cbrt(2))
+
     # 1. First step: t -> t + γ * dt
     _advance_fast!(t, γ1 / 2)
     _advance_slow!(t, γ1)
