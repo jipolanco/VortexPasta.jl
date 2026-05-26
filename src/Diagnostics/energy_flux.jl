@@ -3,8 +3,8 @@ export energy_flux, energy_transfer_matrix
 using Adapt: Adapt, adapt
 
 @doc raw"""
-    energy_flux(iter::VortexFilamentSolver, Nk::Integer; quad = nothing) -> (ks, fluxes)
-    energy_flux(iter::VortexFilamentSolver, ks::AbstractVector; quad = nothing) -> (ks, fluxes)
+    energy_flux(iter::VortexFilamentSolver, Nk::Integer; quad = iter.prob.p.quad) -> (ks, fluxes)
+    energy_flux(iter::VortexFilamentSolver, ks::AbstractVector; quad = iter.prob.p.quad) -> (ks, fluxes)
 
 Compute the energy "flux" across scales due to various velocity terms.
 
@@ -147,7 +147,7 @@ end
 function energy_flux(
         cache::LongRangeCache, fs, velocities::NamedTuple,
         ks::AbstractVector, params::ParamsBiotSavart;
-        quad = nothing, vs_buf = similar(first(velocities).field),
+        quad = params.quad, vs_buf = similar(first(velocities).field),
     )
     (; wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
     @assert state.quantity == :velocity
@@ -187,8 +187,8 @@ end
 ## ========================================================================================== ##
 
 @doc raw"""
-    energy_transfer_matrix(iter::VortexFilamentSolver, Nk::Integer; quad = nothing) -> (ks, transfers)
-    energy_transfer_matrix(iter::VortexFilamentSolver, ks::AbstractVector; quad = nothing) -> (ks, transfers)
+    energy_transfer_matrix(iter::VortexFilamentSolver, Nk::Integer; quad = iter.prob.p.quad) -> (ks, transfers)
+    energy_transfer_matrix(iter::VortexFilamentSolver, ks::AbstractVector; quad = iter.prob.p.quad) -> (ks, transfers)
 
 Compute energy transfers between different Fourier shells.
 
@@ -264,7 +264,7 @@ end
 
 function energy_transfer_matrix(
         cache::LongRangeCache, fs::AbstractVector, vs::AbstractVector, ks::AbstractVector, params::ParamsBiotSavart;
-        quad = nothing,
+        quad = params.quad,
     )
     (; wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
     @assert state.quantity == :velocity

@@ -15,8 +15,9 @@ end
 function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; kws...)
     _check_diagnostics(iter)
     (; ψs, fs, external_fields, t,) = iter
-    Ls = BiotSavart.periods(iter.prob.p)
-    E = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs, iter.prob.p; kws...)
+    params = iter.prob.p
+    Ls = BiotSavart.periods(params)
+    E = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs, params; quad = params.quad, kws...)
     # Add kinetic energy of external velocity field, if available.
     # Note that we only do this if we also included the streamfunction, since otherwise
     # we don't have enough information to estimate the total kinetic energy.
@@ -31,17 +32,18 @@ end
 function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws...)
     _check_diagnostics(iter)
     (; vs, fs,) = iter  # note: here we want vs (self-induced velocity) and not vL
-    Ls = BiotSavart.periods(iter.prob.p)
-    BiotSavart.domain_is_periodic(iter.prob.p) &&
+    params = iter.prob.p
+    Ls = BiotSavart.periods(params)
+    BiotSavart.domain_is_periodic(params) &&
         @warn(lazy"`kinetic_energy_nonperiodic` should only be called when working with non-periodic domains (got Ls = $Ls)")
-    Diagnostics.kinetic_energy_nonperiodic(fs, vs, iter.prob.p; kws...)
+    Diagnostics.kinetic_energy_nonperiodic(fs, vs, params; quad = params.quad, kws...)
 end
 
 function Diagnostics.energy_injection_rate(iter::VortexFilamentSolver, vL = iter.vL; kws...)
     _check_diagnostics(iter)
     (; vs, fs,) = iter
-    p = iter.prob.p
-    Diagnostics.energy_injection_rate(fs, vL, vs, p; kws...)
+    params = iter.prob.p
+    Diagnostics.energy_injection_rate(fs, vL, vs, params; quad = params.quad, kws...)
 end
 
 function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
@@ -50,7 +52,7 @@ function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
         vs = (field = iter.vs, sign = -1),
         vinf = (field = CurvatureVector(), sign = -1),
     )
-    p = iter.prob.p
+    params = iter.prob.p
     if hasproperty(iter, :vf)
         velocities = (; velocities..., vf = (field = iter.vf, sign = +1))
     end
@@ -58,14 +60,14 @@ function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
         velocities = (; velocities..., vdiss = (field = iter.vdiss, sign = -1))
     end
     vs_buf = similar(iter.vs)
-    Diagnostics.energy_flux(iter, iter.fs, velocities, Nk_or_ks, p; vs_buf, kws...)
+    Diagnostics.energy_flux(iter, iter.fs, velocities, Nk_or_ks, params; quad = params.quad, vs_buf, kws...)
 end
 
 function Diagnostics.energy_transfer_matrix(iter::VortexFilamentSolver, Nk_or_ks; kws...)
     _check_diagnostics(iter)
     params = iter.prob.p
     Diagnostics.energy_transfer_matrix(
-        iter, iter.fs, iter.vs, Nk_or_ks, params; kws...
+        iter, iter.fs, iter.vs, Nk_or_ks, params; quad = params.quad, kws...
     )
 end
 
