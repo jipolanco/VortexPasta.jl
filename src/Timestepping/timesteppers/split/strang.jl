@@ -65,11 +65,13 @@ function _update_velocities!(
     # dynamics. This means that there's an extra computation of the "slow" velocity which
     # could be avoided...
 
-    # 1. Advance fast dynamics: t -> t + dt/2
-    let component = Val(:fast), cache = cache_fast, τ = t, c = 1/2
+    function _advance_fast!(τ_start, c)
+        local component = Val(:fast)
+        local cache = cache_fast
         local rhs! = gen_rhs(component)
         local (; nsubsteps,) = scheme
-        dτ = c * dt / nsubsteps  # timestep in each substep
+        local τ = τ_start
+        local dτ = c * dt / nsubsteps  # timestep in each substep
         for _ ∈ 1:nsubsteps
             rhs!(vtmp, ftmp, τ, iter)
             update_velocities!(
@@ -79,12 +81,14 @@ function _update_velocities!(
             advect!(ftmp, vtmp, dτ; fbase = ftmp)
             τ += dτ
         end
-        @assert τ ≈ t + c * dt
+        @assert τ ≈ τ_start + c * dt
     end
 
-    # 2. Advance slow dynamics: t -> t + dt
-    let component = Val(:slow), cache = cache_slow, τ = t, dτ = dt
+    function _advance_slow!(τ, c)
+        local component = Val(:slow)
+        local cache = cache_slow
         local rhs! = gen_rhs(component)
+        local dτ = c * dt
         rhs!(vtmp, ftmp, τ, iter)
         update_velocities!(
             vtmp, rhs!, advect!, cache, iter;
@@ -93,22 +97,14 @@ function _update_velocities!(
         advect!(ftmp, vtmp, dτ; fbase = ftmp)
     end
 
+    # 1. Advance fast dynamics: t -> t + dt/2
+    _advance_fast!(t, 1/2)
+
+    # 2. Advance slow dynamics: t -> t + dt
+    _advance_slow!(t, 1)
+
     # 3. Advance fast dynamics: t + dt/2 -> t + dt
-    let component = Val(:fast), cache = cache_fast, τ = t + dt/2, c = 1/2
-        local rhs! = gen_rhs(component)
-        local (; nsubsteps,) = scheme
-        dτ = c * dt / nsubsteps  # timestep in each substep
-        for _ ∈ 1:nsubsteps
-            rhs!(vtmp, ftmp, τ, iter)
-            update_velocities!(
-                vtmp, rhs!, advect!, cache, iter;
-                resize_cache = false, t = τ, dt = dτ, fs = ftmp,
-            )
-            advect!(ftmp, vtmp, dτ; fbase = ftmp)
-            τ += dτ
-        end
-        @assert τ ≈ t + dt
-    end
+    _advance_fast!(t + dt/2, 1/2)
 
     # Now ftmp is at the final position. We compute the effective velocity to go from fs to
     # ftmp (for consistency with other schemes).
