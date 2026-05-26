@@ -9,7 +9,7 @@ Uses one scheme for advancing the "fast" terms (assumed to be cheap to compute a
 possibly a different scheme for the "slow" (and expensive) terms. By default, to preserve
 the global 4th-order accuracy, both schemes are taken to be [`RK4`](@ref).
 
-The triple jump scheme splits the global time step ``Δt`` into three substeps 
+The triple jump scheme [Blanes2024](@cite) splits the global time step ``Δt`` into three substeps 
 ``(γ, 1 - 2γ, γ) Δt`` with ``γ = \left( 2 - 2^{1/3} \right)^{-1} ≈ 1.35``. Note that the
 intermediate substep goes backwards in time (``1 - 2γ ≈ -1.70``).
 
