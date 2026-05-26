@@ -13,3 +13,4 @@ The evolution due to both terms is approximated using some kind of Runge–Kutta
 abstract type SplittingScheme <: TemporalScheme end
 
 include("strang.jl")
+include("strang4.jl")
