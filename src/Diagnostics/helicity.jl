@@ -3,9 +3,9 @@ export helicity
 using LinearAlgebra: ⋅
 
 @doc raw"""
-    helicity(iter::VortexFilamentSolver; quad = nothing) -> Real
+    helicity(iter::VortexFilamentSolver; quad = iter.prob.p.quad) -> Real
+    helicity(fs, vs, p::ParamsBiotSavart; quad = p.quad) -> Real
     helicity(fs, vs, Γ::Real; quad = nothing) -> Real
-    helicity(fs, vs, p::ParamsBiotSavart; quad = nothing) -> Real
 
 Compute helicity of a vortex configuration.
 
@@ -38,9 +38,13 @@ keyword argument.
 """
 function helicity end
 
-function helicity(fs::VectorOfFilaments, vs::SetOfFilamentsData, p; quad = nothing, nthreads = Threads.nthreads())  # p could be Γ::Real or a ParamsBiotSavart
+function helicity(fs::VectorOfFilaments, vs::SetOfFilamentsData, p::ParamsBiotSavart; quad = p.quad, nthreads = Threads.nthreads())
+    helicity(fs, vs, p.Γ; quad, nthreads)
+end
+
+function helicity(fs::VectorOfFilaments, vs::SetOfFilamentsData, Γ::Real; quad = nothing, nthreads = Threads.nthreads())
     maybe_parallelise_sum(fs, nthreads) do i, inds
-        helicity(fs[i], vs[i], p; quad, inds)
+        helicity(fs[i], vs[i], Γ; quad, inds)
     end
 end
 
@@ -49,7 +53,7 @@ function helicity(f::AbstractFilament, vs::SingleFilamentData, Γ::Real; quad = 
 end
 
 function helicity(f::AbstractFilament, vs::SingleFilamentData, p::ParamsBiotSavart; kws...)
-    helicity(f, vs, p.Γ; kws...)
+    helicity(f, vs, p.Γ; quad = p.quad, kws...)
 end
 
 function _helicity(::Nothing, f::AbstractFilament, vs::SingleFilamentData, inds, Γ::Real)

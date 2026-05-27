@@ -76,23 +76,23 @@ end
 # difference really!).
 function Diagnostics.filament_length(iter::VortexFilamentSolver; kws...)
     _check_diagnostics(iter)
-    Diagnostics.filament_length(iter.fs; kws...)
+    Diagnostics.filament_length(iter.fs; quad = iter.prob.p.quad, kws...)
 end
 
 function Diagnostics.vortex_impulse(iter::VortexFilamentSolver; kws...)
     _check_diagnostics(iter)
-    Diagnostics.vortex_impulse(iter.fs; kws...)
+    Diagnostics.vortex_impulse(iter.fs; quad = iter.prob.p.quad, kws...)
 end
 
 function Diagnostics.helicity(iter::VortexFilamentSolver; kws...)
     _check_diagnostics(iter)
-    Diagnostics.helicity(iter.fs, iter.vL, iter.prob.p; kws...)
+    Diagnostics.helicity(iter.fs, iter.vL, iter.prob.p; quad = iter.prob.p.quad, kws...)
 end
 
 function Diagnostics.stretching_rate(iter::VortexFilamentSolver; kws...)
     _check_diagnostics(iter)
     (; fs, vL,) = iter
-    Diagnostics.stretching_rate(fs, vL; kws...)
+    Diagnostics.stretching_rate(fs, vL; quad = iter.prob.p.quad, kws...)
 end
 
 # This allows passing a VortexFilamentSolver to energy_spectrum / energy_spectrum!.
