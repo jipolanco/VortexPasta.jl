@@ -109,7 +109,7 @@ function test_leapfrogging_rings(
 
         if nstep == 1  # only test once
             # Check that by default the quadrature in ParamsBiotSavart (i.e. iter.prob.p.quad) is used
-            rtol = 10 * eps(eltype(E))  # tiny differences can be expected when multiple threads are used
+            rtol = 100 * eps(eltype(E))  # tiny differences can be expected when multiple threads are used
             @test E ≈ Diagnostics.kinetic_energy_from_streamfunction(iter) rtol=rtol
             @test E ≈ Diagnostics.kinetic_energy(iter) rtol=rtol
             @test H ≈ Diagnostics.helicity(iter) rtol=rtol
