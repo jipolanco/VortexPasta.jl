@@ -109,12 +109,13 @@ function test_leapfrogging_rings(
 
         if nstep == 1  # only test once
             # Check that by default the quadrature in ParamsBiotSavart (i.e. iter.prob.p.quad) is used
-            @test E == Diagnostics.kinetic_energy_from_streamfunction(iter)
-            @test E == Diagnostics.kinetic_energy(iter)
-            @test H == Diagnostics.helicity(iter)
-            @test L == Diagnostics.filament_length(iter)
-            @test p⃗ == Diagnostics.vortex_impulse(iter)
-            @test dLdt == Diagnostics.stretching_rate(iter)
+            rtol = 10 * eps(eltype(E))  # tiny differences can be expected when multiple threads are used
+            @test E ≈ Diagnostics.kinetic_energy_from_streamfunction(iter) rtol=rtol
+            @test E ≈ Diagnostics.kinetic_energy(iter) rtol=rtol
+            @test H ≈ Diagnostics.helicity(iter) rtol=rtol
+            @test L ≈ Diagnostics.filament_length(iter) rtol=rtol
+            @test p⃗ ≈ Diagnostics.vortex_impulse(iter) rtol=rtol
+            @test dLdt ≈ Diagnostics.stretching_rate(iter) rtol=rtol
         end
 
         # R²_all = @inferred sum(vortex_ring_squared_radius, fs)  # inference randomly fails on Julia 1.10-beta1...
