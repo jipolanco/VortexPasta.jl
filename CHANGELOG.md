@@ -5,6 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.3] - 2026-05-28
+
+### Changed
+
+- **[Slightly breaking]**: when computing diagnostics from an `iter::VortexFilamentSolver`,
+  the default quadrature rule (`quad`) for line integrals is now the same used
+  for Biot--Savart computations (#105). Previously one needed to explicitly pass
+  `quad = iter.prob.p.quad` (or something equivalent), since the default was `quad = nothing`
+  (which applies a basic linear interpolation between nodes).
+
 ## [0.34.2] - 2026-05-26
 
 ### Added
