@@ -3,8 +3,8 @@ using LinearAlgebra: ⋅, ×
 export energy_injection_rate
 
 @doc raw"""
-    energy_injection_rate(iter::VortexFilamentSolver, [vL]; quad = nothing) -> Real
-    energy_injection_rate(fs, vL, vs, p::ParamsBiotSavart; quad = nothing) -> Real
+    energy_injection_rate(iter::VortexFilamentSolver, [vL]; quad = iter.prob.p.quad) -> Real
+    energy_injection_rate(fs, vL, vs, p::ParamsBiotSavart; quad = p.quad) -> Real
 
 Compute energy injection rate from current filament velocities.
 
@@ -72,7 +72,7 @@ function energy_injection_rate(
         vL::SetOfFilamentsData,
         vs::SetOfFilamentsData,
         p::ParamsBiotSavart{T};
-        quad = nothing,
+        quad = p.quad,
         nthreads = Threads.nthreads(),
     ) where {T <: AbstractFloat}
     @assert T === number_type(fs) === number_type(vL) === number_type(vs)
@@ -100,8 +100,7 @@ end
 
 function energy_injection_rate(
         f::AbstractFilament, vL, vs::SingleFilamentData, p::ParamsBiotSavart{T};
-        quad = nothing,
-        inds = eachindex(f),
+        quad = p.quad, inds = eachindex(f),
     ) where {T <: AbstractFloat}
     _energy_injection_rate(quad, f, vL, vs, inds, p)
 end

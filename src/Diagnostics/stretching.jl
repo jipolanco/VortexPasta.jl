@@ -1,7 +1,7 @@
 export stretching_rate
 
 @doc raw"""
-    stretching_rate(iter::VortexFilamentSolver; quad = nothing) -> Real
+    stretching_rate(iter::VortexFilamentSolver; quad = iter.prob.p.quad) -> Real
     stretching_rate(fs, vs; quad = nothing) -> Real
 
 Compute stretching rate of one or more vortices.
@@ -28,7 +28,7 @@ In the implementation, the last expression is the one used to compute the stretc
 
 ## Optional keyword arguments
 
-- `quad = nothing`: optional quadrature rule (e.g. `quad = GaussLegendre(4)`) used to
+- `quad`: optional quadrature rule (e.g. `quad = GaussLegendre(4)`) used to
   evaluate line integrals. If `nothing`, only values at nodes are used (cheaper).
 """
 function stretching_rate end

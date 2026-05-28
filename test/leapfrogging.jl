@@ -87,7 +87,7 @@ function test_leapfrogging_rings(
 
     function callback(iter)
         local (; fs, vs, ψs, t, dt, nstep,) = iter
-        local quad = GaussLegendre(4)
+        local quad = iter.prob.p.quad
 
         if !can_compute_diagnostics(iter)
             @test_throws "ERROR: diagnostics cannot be computed at this timestep" Diagnostics.kinetic_energy(iter; quad)
@@ -103,9 +103,21 @@ function test_leapfrogging_rings(
         # end
 
         E = Diagnostics.kinetic_energy_from_streamfunction(iter; quad)
+        H = Diagnostics.helicity(iter; quad)  # should be zero...
         L = Diagnostics.filament_length(iter; quad)
         p⃗ = Diagnostics.vortex_impulse(iter; quad)
         dLdt = Diagnostics.stretching_rate(iter; quad)
+
+        if nstep == 1  # only test once
+            # Check that by default the quadrature in ParamsBiotSavart (i.e. iter.prob.p.quad) is used
+            rtol = 100 * eps(eltype(E))  # tiny differences can be expected when multiple threads are used
+            @test E ≈ Diagnostics.kinetic_energy_from_streamfunction(iter) rtol=rtol
+            @test E ≈ Diagnostics.kinetic_energy(iter) rtol=rtol
+            @test H ≈ Diagnostics.helicity(iter) rtol=rtol
+            @test L ≈ Diagnostics.filament_length(iter) rtol=rtol
+            @test p⃗ ≈ Diagnostics.vortex_impulse(iter) rtol=rtol
+            @test dLdt ≈ Diagnostics.stretching_rate(iter) rtol=rtol
+        end
 
         # R²_all = @inferred sum(vortex_ring_squared_radius, fs)  # inference randomly fails on Julia 1.10-beta1...
         R²_all = 0.0

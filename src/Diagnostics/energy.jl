@@ -5,9 +5,9 @@ using HCubature: HCubature
 export kinetic_energy_from_streamfunction, kinetic_energy_nonperiodic, kinetic_energy
 
 """
-    kinetic_energy(iter::VortexFilamentSolver; quad = nothing) -> Real
+    kinetic_energy(iter::VortexFilamentSolver; quad = iter.prob.p.quad) -> Real
+    kinetic_energy(fs, ψs, p::ParamsBiotSavart; quad = p.quad) -> Real
     kinetic_energy(fs, ψs, Γ::Real, [Ls]; quad = nothing) -> Real
-    kinetic_energy(fs, ψs, p::ParamsBiotSavart; quad = nothing) -> Real
 
 Compute kinetic energy of velocity field induced by a set of vortex filaments.
 
@@ -22,9 +22,9 @@ end
 # Periodic case
 
 @doc raw"""
-    kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; quad = nothing)
+    kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; quad = iter.prob.p.quad)
+    kinetic_energy_from_streamfunction(fs, ψs, p::ParamsBiotSavart; quad = p.quad)
     kinetic_energy_from_streamfunction(fs, ψs, Γ::Real, [Ls]; quad = nothing)
-    kinetic_energy_from_streamfunction(fs, ψs, p::ParamsBiotSavart; quad = nothing)
 
 Compute kinetic energy per unit mass (units ``L^2 T^{-2}``) from streamfunction values at
 filament nodes in a periodic domain.
@@ -85,10 +85,10 @@ function kinetic_energy_from_streamfunction end
 # Case of a set of filaments
 function kinetic_energy_from_streamfunction(
         fs::VectorOfFilaments, ψs::SetOfFilamentsData, args...;
-        quad = nothing, nthreads = Threads.nthreads()
+        nthreads = Threads.nthreads(), kwargs...,
     )
     maybe_parallelise_sum(fs, nthreads) do i, inds
-        kinetic_energy_from_streamfunction(fs[i], ψs[i], args...; quad, inds)
+        kinetic_energy_from_streamfunction(fs[i], ψs[i], args...; inds, kwargs...)
     end
 end
 
@@ -98,7 +98,7 @@ function kinetic_energy_from_streamfunction(f::AbstractFilament, ψs::SingleFila
 end
 
 function kinetic_energy_from_streamfunction(f::AbstractFilament, ψs::SingleFilamentData, p::ParamsBiotSavart; kws...)
-    kinetic_energy_from_streamfunction(f, ψs, p.Γ, p.Ls; kws...)
+    kinetic_energy_from_streamfunction(f, ψs, p.Γ, p.Ls; quad = p.quad, kws...)
 end
 
 # 1. No quadratures (cheaper)
@@ -200,9 +200,9 @@ end
 # 0 at infinity.
 
 @doc raw"""
-    kinetic_energy_nonperiodic(iter::VortexFilamentSolver; quad = nothing) -> Real
+    kinetic_energy_nonperiodic(iter::VortexFilamentSolver; quad = iter.prob.p.quad) -> Real
+    kinetic_energy_nonperiodic(fs, vs, p::ParamsBiotSavart; quad = p.quad) -> Real
     kinetic_energy_nonperiodic(fs, vs, Γ::Real; quad = nothing) -> Real
-    kinetic_energy_nonperiodic(fs, vs, p::ParamsBiotSavart; quad = nothing) -> Real
 
 Compute kinetic energy per unit density (units ``L^5 T^{-2}``) from velocity values at
 filament nodes in an open (non-periodic) domain.
@@ -273,7 +273,7 @@ function kinetic_energy_nonperiodic(fs::AbstractFilament, vs::SingleFilamentData
 end
 
 function kinetic_energy_nonperiodic(fs::AbstractFilament, vs::SingleFilamentData, p::ParamsBiotSavart; kws...)
-    kinetic_energy_nonperiodic(fs, vs, p.Γ; kws...)
+    kinetic_energy_nonperiodic(fs, vs, p.Γ; quad = p.quad, kws...)
 end
 
 # Case without quadratures
