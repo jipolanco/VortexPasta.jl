@@ -239,13 +239,30 @@ function test_filament_ring(N, method)
         end
     end
 
-    @testset "Recompute parametrisation" begin
+    @testset "Approximate arc length parametrisation" begin
         fc = copy(f)
-        Filaments.recompute_parametrisation!(fc, GaussLegendre(4))  # this function may be removed in the future...
+        quad = GaussLegendre(4)
+        Filaments.reparametrise_arclength!(fc; quad)
         L = -(-(knotlims(f)...))    # lower bound for filament length
         Lc = -(-(knotlims(fc)...))  # better estimation of filament length
         @assert L > 0 && Lc > 0
         @test Lc ≥ L  # generally, Lc will be greater than L
+
+        # Check that derivatives are closer to unitary (splines only)
+        err_before = integrate(f, quad) do f, i, ζ
+            abs2(norm(f(i, ζ, Derivative(1))) - 1)
+        end
+        err_before = sqrt(err_before / L)
+        err_after = integrate(fc, quad) do f, i, ζ
+            abs2(norm(f(i, ζ, Derivative(1))) - 1)
+        end
+        err_after = sqrt(err_after / L)
+
+        # @show N method err_before err_after
+        if (method isa CubicSplineMethod || method isa QuinticSplineMethod) && N ≥ 32
+            @test err_before > 1e-3
+            @test err_after < 1e-5
+        end
     end
 
     @testset "Fold periodic" begin

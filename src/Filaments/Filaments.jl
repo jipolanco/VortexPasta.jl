@@ -33,7 +33,8 @@ export
     close_filament!,
     redistribute_nodes!,
     normalise_derivatives,
-    normalise_derivatives!
+    normalise_derivatives!,
+    reparametrise_arclength!
 
 using ..Quadratures: Quadratures, AbstractQuadrature, GaussLegendre, NoQuadrature, quadrature
 using ..PredefinedCurves: PredefinedCurves  # just for documentation
