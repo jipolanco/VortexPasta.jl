@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.4] - 2026-06-02
+
 ### Added
 
 - Export `Filaments.reparametrise_arclength!`, which recompues the filament parametrisation
