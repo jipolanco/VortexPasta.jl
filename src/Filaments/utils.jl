@@ -212,34 +212,53 @@ eltype_nested(::Type{X}, u::Any) where {X} = eltype_nested(X, typeof(u))
 
 # ======================================================================================== #
 
-# TESTING / EXPERIMENTAL
-# This function may be removed in the future.
-# The idea is to update the parametrisation of `f` to follow more closely the
-# actual arc lengths of the filament. Not sure if it's worth it...
-function recompute_parametrisation!(f::ClosedFilament, quad::AbstractQuadrature)
+"""
+    reparametrise_arclength!(f::ClosedFilament; quad::AbstractQuadrature)
+
+Recompute filament parametrisation to get closer to arc length parametrisation.
+
+This function recomputes filament knots `ts`, leaving actual filament nodes (discretisation
+points) unmodified.
+
+As a result of this function, `ts[i]` is approximately equal to the total arc length up to
+node `i`. Moreover, the filament derivative with respect to the `t` parameter (using
+`Derivative(1)`) is closer to begin unitary, as is theoretically the case for arc length
+parametrisation.
+
+To ensure convergence, one may want to apply this function multiple times to a filament.
+However, in practice things seem to converge quite quickly and a single application seems to
+be enough (at least if `f` was created using the default [`ChordalParametrisation`](@ref)).
+"""
+function reparametrise_arclength!(f::ClosedFilament; quad::AbstractQuadrature)
     m = interpolation_method(f)
-    _recompute_parametrisation!(m, f, quad)
+    _reparametrise_arclength!(m, f, quad)
 end
 
 # In the case of straight segments (linear interpolation), the parametrisation
 # cannot be improved from its initial estimation.
-_recompute_parametrisation!(::HermiteInterpolation{0}, f::AbstractFilament, quad) = f
+_reparametrise_arclength!(::HermiteInterpolation{0}, f::AbstractFilament, quad) = f
 
-function _recompute_parametrisation!(::Any, f::AbstractFilament, quad)
+function _reparametrise_arclength!(::Any, f::AbstractFilament, quad)
     (; ts,) = f
     @assert npad(ts) ≥ 1
-    tnext = ts[begin]
-    for i ∈ eachindex(ts)
-        # Estimate arc length from ts[i] to ts[i + 1]
-        ℓ = integrate(f, i, quad) do f, i, ζ
-            norm(f(i, ζ, Derivative(1)))  # = ∂X/∂t
+    buf = Bumper.default_buffer()
+    M = npad(ts)
+    T = eltype(ts)
+    @no_escape buf begin
+        ξs_data = @alloc(T, length(ts) + 2M)
+        ξs = PaddedVector{M}(ξs_data)
+        @assert length(ξs) == length(ts) == length(f)
+        ξ = zero(T)
+        @inbounds for i ∈ eachindex(ts)
+            ξs[i] = ξ  # total arc length up to this point
+            # Estimate arc length from ts[i] to ts[i + 1]
+            ξ += integrate(f, i, quad) do f, i, ζ
+                norm(f(i, ζ, Derivative(1)))  # = ∂X/∂t
+            end
         end
-        @assert ℓ ≥ ts[i + 1] - ts[i]
-        ts[i] = tnext
-        tnext += ℓ  # this will be the new value of ts[i + 1], but we can't update it yet...
+        L = ξ  # full length of the filament (estimated using old parametrisation)
+        pad_periodic!(ξs, L)
+        update_coefficients!(f; knots = ξs)
     end
-    L = tnext - ts[begin]  # full length of the filament
-    pad_periodic!(ts, L)
-    _update_coefficients_only!(f)
     f
 end

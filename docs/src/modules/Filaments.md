@@ -102,6 +102,7 @@ CustomParametrisation
 ```@docs
 Base.getindex(f::AbstractFilament, i::Int)
 Base.setindex!(f::AbstractFilament, v, i::Int)
+reparametrise_arclength!
 normalise_derivatives
 normalise_derivatives!
 integrate
