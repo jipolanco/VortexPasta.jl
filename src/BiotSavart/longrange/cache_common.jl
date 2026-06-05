@@ -91,7 +91,6 @@ function LongRangeCacheCommon(
     vorticity_prefactor = Γ / prod(Ls)
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed
-    pointdata = 
     pointdata = if ka_backend isa CPU
         copy(pointdata_in)  # make sure pointdata and pointdata_in are not aliased!
     else
