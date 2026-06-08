@@ -69,17 +69,17 @@ vorticity instead).
 julia> function taylor_green_velocity(x⃗::Vec3)
            x, y, z = x⃗
            Vec3(
-               cos(x) * sin(y) * cos(z),
-               -sin(x) * cos(y) * cos(z),
+               sin(x) * cos(y) * cos(z),
+               -cos(x) * sin(y) * cos(z),
                0,
            )
        end
 taylor_green_velocity (generic function with 1 method)
 
 julia> ωf = Filaments.curl(taylor_green_velocity)  # vorticity field (via automatic differentiation)
-#60 (generic function with 1 method)
+#curl##0 (generic function with 1 method)
 
-julia> s⃗₀ = Vec3(0.1, 1.8, 0.42);  # starting point for creating the filament
+julia> s⃗₀ = Vec3(1.7, 0.23, 0.42);  # starting point for creating the filament
 
 julia> dτ = 0.1;  # pseudo time-step (has units of length; determines line resolution)
 
@@ -91,7 +91,7 @@ julia> summary(f)
 "29-element ClosedFilament{SVector{3, Float64}, QuinticSplineMethod}"
 
 julia> Filaments.distance_to_field(ωf, f)  # check that we're close to the actual vortex line
-3.9561046185765664e-5
+3.7610046968076476e-5
 ```
 
 ## Implementation details
