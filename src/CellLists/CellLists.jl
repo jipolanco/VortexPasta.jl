@@ -78,14 +78,12 @@ struct PeriodicCellList{
         KABackend <: KA.Backend,
         HeadArray <: PaddedArray{M, Int, N},  # array of cells, each containing a list of elements
         IndexVector <: AbstractVector{Int},
-        CellDims <: NTuple{N, Real},
         Periods <: NTuple{N, Real},
     }
     backend       :: KABackend    # CPU, CUDABackend, ROCBackend, ...
     device        :: Int          # device id (in 1:ndevices) where arrays are stored
     head_indices  :: HeadArray    # array pointing to the index of the first element in each cell (or EMPTY if no elements in that cell)
     next_index    :: IndexVector  # points from one element to the next element (or EMPTY if this is the last element) [length Np]
-    rs_cell       :: CellDims     # dimensions of a cell (can be different in each direction)
     nsubdiv       :: StaticInt{M}
     Ls            :: Periods
     # These are only used in foreach_pair, if sort_points = true (which is the default):
@@ -95,7 +93,8 @@ struct PeriodicCellList{
 end
 
 function Base.show(io::IO, cl::PeriodicCellList{N}) where {N}
-    (; backend, rs_cell, Ls, nsubdiv) = cl
+    (; backend, Ls, nsubdiv) = cl
+    rs_cell = Ls ./ size(cl)
     print(io, "PeriodicCellList{$N} with:")
     print(io, "\n - backend:         ", backend)
     print(io, "\n - number of cells: ", size(cl))
@@ -129,44 +128,38 @@ function PeriodicCellList(
 
     M = dynamic(nsubdiv)
 
-    # Determine cell sizes.
-    rs_cell = map(rs_cut, Ls) do r, L
-        r′ = r / M
-        # Increase cell size so that it exactly divides the domain size.
-        L / floor(L / r′)
-    end
-
-    # Number of cells in each direction.
-    # Using `floor` below means that, if `r_cell` doesn't exactly divide the domain size L in
-    # a given direction, then the *last* cell in that direction will be larger than `r_cell`.
-    ncells = map(rs_cell, Ls) do r_cell, L
-        floor(Int, L / r_cell)
+    # Determine number of cells in each direction (after subdivision).
+    Ns = map(rs_cut, Ls) do r, L
+        # Number of cells = floor(L / r_sub) with r_sub = r_cut / M.
+        # We use `floor` to ensure that cells are never smaller than r_cut/M (it's better if
+        # they're a bit larger, to make sure we don't miss any interactions below r_cut).
+        floor(Int, (L * M) / r)
     end
 
     # When M = 1, the number of cells in each direction should be at least 3 to avoid
     # repeating pair interactions (due to periodicity).
     # More generally, for any M, the number of cells should be at least 2M + 1.
     # In the end, this corresponds to the condition r_cut_in/L < M / (2M + 1).
-    all(≥(2M + 1), ncells) || error(
+    all(≥(2M + 1), Ns) || error(
         lazy"""cell lists: the cut-off distance r_cut is too large for periodic padding.
                It should satisfy r_cut/L ≤ nsubdiv / (2 * nsubdiv + 1) = $(M / (2M + 1));
                got rs_cut/Ls = $(rs_cut ./ Ls)."""
     )
 
     IndexType = Int
-    head_dims = ncells .+ 2M  # add 2M ghost cells in each direction
+    head_dims = Ns .+ 2M  # add 2M ghost cells in each direction
     head_raw = KA.allocate(backend, IndexType, head_dims)
     fill!(head_raw, EMPTY)
 
     head_indices = PaddedArray{M}(head_raw)
-    @assert size(head_indices) == ncells
+    @assert size(head_indices) == Ns
 
     next_index = KA.allocate(backend, IndexType, 0)
     idx_within_cell_dest = similar(next_index, 0)
     pointperm_dest = similar(next_index, 0)
     cumulative_npoints_per_cell_dest = similar(pointperm_dest)
 
-    PeriodicCellList(backend, device, head_indices, next_index, rs_cell, nsubdiv, Ls, idx_within_cell_dest, pointperm_dest, cumulative_npoints_per_cell_dest)
+    PeriodicCellList(backend, device, head_indices, next_index, nsubdiv, Ls, idx_within_cell_dest, pointperm_dest, cumulative_npoints_per_cell_dest)
 end
 
 """
@@ -185,34 +178,35 @@ function Base.sizehint!(cl::PeriodicCellList, Np)
     cl
 end
 
-# TODO: not sure this is fast on GPUs...
-@inline function determine_cell_index(x, rcut, L, N)
+# Not sure this is fast on GPUs, but this function can be skipped if we're sure the data
+# have already been folded (with folded = Val(true)).
+@inline function determine_cell_index(x, L, N)
     while x < 0
         x += L
     end
     while x ≥ L
         x -= L
     end
-    determine_cell_index_folded(x, rcut, N)
+    determine_cell_index_folded(x, L, N)
 end
 
 # Like determine_cell_index, but assumes that `x` is already in [0, L).
-@inline function determine_cell_index_folded(x, rcut, N)
+@inline function determine_cell_index_folded(x, L, N)
     # Here unsafe_trunc(Int, ⋅) is used instead of floor(Int, ⋅) because it should be faster.
     # For non-negative values, both should give the same result.
     # The unsafe_trunc function generally uses a single intrinsic CPU instruction and never
     # throws errors. It can silently give a wrong result if the values are not representable
     # by an Int, but that will never be the case in practice here (since 0 ≤ x/rcut < L/rcut
     # and L/rcut is very small compared to typemax(Int) = 2^63 - 1).
-    clamp(1 + unsafe_trunc(Int, x / rcut), 1, N)  # make sure the index is in 1:N
+    1 + unsafe_trunc(Int, (x / L) * N)  # this is always in 1:N (assuming 0 ≤ x < L)
 end
 
 @inline function get_neighbouring_cell_indices(cl::PeriodicCellList, x⃗, folded::Val = Val(false))
-    (; rs_cell, Ls) = cl
+    (; Ls) = cl
     if folded === Val(true)
-        inds_central = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(cl))
+        inds_central = map(determine_cell_index_folded, Tuple(x⃗), Ls, size(cl))
     else
-        inds_central = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
+        inds_central = map(determine_cell_index, Tuple(x⃗), Ls, size(cl))
     end
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
     get_neighbouring_cell_indices(cl, I₀)
@@ -256,7 +250,7 @@ end
 set_elements!(cl::PeriodicCellList, xp::AbstractVector; kws...) = set_elements!(identity, cl, xp; kws...)
 
 function _set_elements!(::CPU, get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector, folded::Val) where {F}
-    (; next_index, head_indices, Ls, rs_cell,) = cl
+    (; next_index, head_indices, Ls,) = cl
     head_indices_data = parent(head_indices)   # full data associated to padded array
     nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
     Threads.@threads for i in eachindex(head_indices_data)
@@ -269,9 +263,9 @@ function _set_elements!(::CPU, get_coordinate::F, cl::PeriodicCellList, xp::Abst
     @inbounds Threads.@threads for n in 1:Np
         x⃗ = @inline get_coordinate(xp[n])  # usually get_coordinate === identity
         if folded === Val(true)
-            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(cl))
+            inds = map(determine_cell_index_folded, Tuple(x⃗), Ls, size(cl))
         else
-            inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, size(cl))
+            inds = map(determine_cell_index, Tuple(x⃗), Ls, size(cl))
         end
         I = CartesianIndex(inds .+ nghosts)  # shift by number of ghost cells, since we access raw data associated to padded array
         head_old = Atomix.@atomicswap :monotonic head_indices_data[I] = n  # returns the old value
@@ -405,20 +399,20 @@ end
 
 # Note: this is adapted from the NonuniformFFTs.jl implementation.
 function _foreach_pair_sorted(backend::CPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
-    (; rs_cell, Ls, idx_within_cell_dest, pointperm_dest, cumulative_npoints_per_cell_dest) = cl
+    (; Ls, idx_within_cell_dest, pointperm_dest, cumulative_npoints_per_cell_dest) = cl
 
     @assert eachindex(pointperm_dest) == eachindex(xp_dest)
-    ncells_per_dir = size(cl)
+    Ns = size(cl)  # number of cells in each direction
 
     fill!(cumulative_npoints_per_cell_dest, 0)
     Threads.@threads for i in eachindex(xp_dest)
         @inbounds x⃗ = xp_dest[i]
         if folded === Val(true)
-            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, ncells_per_dir)
+            inds = map(determine_cell_index_folded, Tuple(x⃗), Ls, Ns)
         else
-            inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, ncells_per_dir)
+            inds = map(determine_cell_index, Tuple(x⃗), Ls, Ns)
         end
-        @inbounds n = LinearIndices(ncells_per_dir)[inds...]
+        @inbounds n = LinearIndices(Ns)[inds...]
         index_within_cell = @inbounds (Atomix.@atomic cumulative_npoints_per_cell_dest[n + 1] += 1)
         @inbounds idx_within_cell_dest[i] = index_within_cell
     end
@@ -434,11 +428,11 @@ function _foreach_pair_sorted(backend::CPU, f::F, cl, xp_dest, batch_size, folde
     Threads.@threads for i in eachindex(xp_dest)
         @inbounds x⃗ = xp_dest[i]
         if folded === Val(true)
-            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, ncells_per_dir)
+            inds = map(determine_cell_index_folded, Tuple(x⃗), Ls, Ns)
         else
-            inds = map(determine_cell_index, Tuple(x⃗), rs_cell, Ls, ncells_per_dir)
+            inds = map(determine_cell_index, Tuple(x⃗), Ls, Ns)
         end
-        @inbounds n = LinearIndices(ncells_per_dir)[inds...]
+        @inbounds n = LinearIndices(Ns)[inds...]
         @inbounds j = cumulative_npoints_per_cell_dest[n] + idx_within_cell_dest[i]
         @inbounds pointperm_dest[j] = i
     end
