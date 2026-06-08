@@ -198,7 +198,9 @@ end
     # throws errors. It can silently give a wrong result if the values are not representable
     # by an Int, but that will never be the case in practice here (since 0 ≤ x/rcut < L/rcut
     # and L/rcut is very small compared to typemax(Int) = 2^63 - 1).
-    1 + unsafe_trunc(Int, (x / L) * N)  # this is always in 1:N (assuming 0 ≤ x < L)
+    i = 1 + unsafe_trunc(Int, (x / L) * N)  # this is always in 1:N (assuming 0 ≤ x < L)
+    # @assert 1 ≤ i ≤ N
+    i
 end
 
 @inline function get_neighbouring_cell_indices(cl::PeriodicCellList, x⃗, folded::Val = Val(false))

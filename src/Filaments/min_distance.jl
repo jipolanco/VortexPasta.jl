@@ -1,14 +1,21 @@
 using ..Constants: Infinity
 using LinearAlgebra: ⋅
 
-@inline function fold_coordinates_periodic(x::Real, L::Real)
-    L = oftype(x, L)
-    while x ≥ L
-        x -= L
-    end
+# Fold x position into [0, L).
+@inline function fold_coordinates_periodic(x::T, L::T) where {T <: AbstractFloat}
+    # Note: the order of the `while` blocks should not be changed!
+    # This order ensures that, if we start from a tiny negative value x = 0 - ε (with ε < eps(L)),
+    # we don't end up returning x = L (which we don't want).
+    # Indeed, -ε + L == L up to floating point precision.
+    # With the order below, the two `while` blocks will be executed once and the end result
+    # will be zero(T), which is better than returning L.
     while x < zero(x)
         x += L
     end
+    while x ≥ L
+        x -= L
+    end
+    # @assert zero(T) ≤ x < L
     x
 end
 

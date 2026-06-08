@@ -119,8 +119,8 @@ function test_linked_rings(
     while iter.t < tmax
         step!(iter)
         local (; nstep, t, fs,) = iter
-        if nstep % 10 == 0
-            # @show nstep, t/τ, length(fs)
+        if VERBOSE && nstep % 10 == 0
+            @show nstep, t/τ, length(fs)
         end
         E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(2))
         H = Diagnostics.helicity(iter; quad = GaussLegendre(2))
@@ -164,8 +164,7 @@ function test_linked_rings(
     nothing
 end
 
-@testset "Linked rings" begin
-    T = Float32
+@testset "Linked rings ($T)" for T in (Float32, Float64)
     N = 48
     method = QuinticSplineMethod()
     R = 1.2
