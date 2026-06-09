@@ -8,12 +8,6 @@ using KernelAbstractions: @kernel, @index, @Const, @groupsize
     # avoid branches (not sure it improves much).
     r = ifelse(iszero(r), copysign(r, L), r)  # replaces -0.0 -> +0.0
     # (2) Determine associated cell index.
-    # Here unsafe_trunc(Int, ⋅) is used instead of floor(Int, ⋅) because it should be faster.
-    # For non-negative values, both should give the same result.
-    # The unsafe_trunc function generally uses a single intrinsic CPU instruction and never
-    # throws errors. It can silently give a wrong result if the values are not representable
-    # by an Int, but that will never be the case in practice here (since 0 ≤ x/rcut < L/rcut
-    # and L/rcut is very small compared to typemax(Int) = 2^63 - 1).
     determine_cell_index_folded(x, rcut, N)
 end
 
@@ -32,16 +26,16 @@ end
 end
 
 @kernel function set_elements_kernel!(
-        get_coordinate::F, head_indices::PaddedArray, next_index, @Const(xp), rs_cell, Ls, folded::Val,
+        get_coordinate::F, head_indices::PaddedArray, next_index, @Const(xp), Ls, folded::Val,
     ) where {F}
     n = @index(Global, Linear)
     x⃗ = @inline get_coordinate(@inbounds xp[n])  # usually get_coordinate === identity
     head_indices_data = parent(head_indices)   # full data associated to padded array
     nghosts = PaddedArrays.npad(head_indices)  # number of ghost cells per boundary (compile-time constant)
     if folded === Val(true)
-        inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(head_indices))
+        inds = map(determine_cell_index_folded, Tuple(x⃗), Ls, size(head_indices))
     else
-        inds = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, size(head_indices))
+        inds = map(determine_cell_index_gpu, Tuple(x⃗), Ls, size(head_indices))
     end
     I = CartesianIndex(inds .+ nghosts)  # shift by number of ghost cells, since we access raw data associated to padded array
     IndexType = eltype(head_indices_data)
@@ -52,7 +46,7 @@ end
 end
 
 function _set_elements!(backend::GPU, get_coordinate::F, cl::PeriodicCellList, xp::AbstractVector, folded::Val) where {F}
-    (; next_index, head_indices, Ls, rs_cell,) = cl
+    (; next_index, head_indices, Ls,) = cl
     head_indices_data = parent(head_indices)   # full data associated to padded array
     fill!(head_indices_data, EMPTY)
     Np = length(xp)
@@ -61,7 +55,7 @@ function _set_elements!(backend::GPU, get_coordinate::F, cl::PeriodicCellList, x
     Base.require_one_based_indexing(next_index)
     groupsize = 256
     kernel! = set_elements_kernel!(backend, groupsize)
-    kernel!(get_coordinate, head_indices, next_index, xp, rs_cell, Ls, folded; ndrange = size(xp))
+    kernel!(get_coordinate, head_indices, next_index, xp, Ls, folded; ndrange = size(xp))
     pad_periodic!(cl.head_indices)
     cl
 end
@@ -70,7 +64,7 @@ end
 
 @kernel function foreach_pair_kernel(
         f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
-        rs_cell, Ls, @Const(pointperm_dest),
+        Ls, @Const(pointperm_dest),
         ::Val{M}, folded::Val,  # = number of subdivisions (equal to number of ghost cells)
     ) where {F <: Function, M}
     i₀ = @index(Global, Linear)
@@ -81,9 +75,9 @@ end
     end
     x⃗ = @inbounds xp_dest[i]
     if folded === Val(true)
-        inds_central = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(head_indices))
+        inds_central = map(determine_cell_index_folded, Tuple(x⃗), Ls, size(head_indices))
     else
-        inds_central = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, size(head_indices))
+        inds_central = map(determine_cell_index_gpu, Tuple(x⃗), Ls, size(head_indices))
     end
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
     cell_indices = CartesianIndices(map(i -> (i - M):(i + M), Tuple(I₀)))
@@ -98,8 +92,7 @@ end
 end
 
 @kernel function foreach_pair_batched_kernel(
-        f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
-        rs_cell, Ls,
+        f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest), Ls,
         ::Val{batch_size}, @Const(pointperm_dest),
         ::Val{M}, folded::Val,  # = number of subdivisions (equal to number of ghost cells)
     ) where {F <: Function, batch_size, M}
@@ -113,9 +106,9 @@ end
     IndexType = eltype(head_indices)
     inds = MVector{batch_size, IndexType}(undef)
     if folded === Val(true)
-        inds_central = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, size(head_indices))
+        inds_central = map(determine_cell_index_folded, Tuple(x⃗), Ls, size(head_indices))
     else
-        inds_central = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, size(head_indices))
+        inds_central = map(determine_cell_index_gpu, Tuple(x⃗), Ls, size(head_indices))
     end
     I₀ = CartesianIndex(inds_central)  # index of central cell (where x⃗ is located)
     cell_indices = CartesianIndices(map(i -> (i - M):(i + M), Tuple(I₀)))
@@ -142,16 +135,16 @@ end
 end
 
 function _foreach_pair_unsorted(backend::GPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
-    (; head_indices, next_index, Ls, rs_cell,) = cl
+    (; head_indices, next_index, Ls,) = cl
     M = subdivisions(cl)
     groupsize = 256
     pointperm_dest = nothing
     if batch_size === nothing
         kernel = foreach_pair_kernel(backend, groupsize)
-        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, pointperm_dest, Val(M), folded; ndrange = size(xp_dest))
+        kernel(f, head_indices, next_index, xp_dest, Ls, pointperm_dest, Val(M), folded; ndrange = size(xp_dest))
     else
         kernel = foreach_pair_batched_kernel(backend, groupsize)
-        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, batch_size, Val(M), folded; ndrange = size(xp_dest))
+        kernel(f, head_indices, next_index, xp_dest, Ls, batch_size, Val(M), folded; ndrange = size(xp_dest))
     end
     nothing
 end
@@ -159,8 +152,7 @@ end
 # One workgroup = one cell
 # Note: this doesn't seem to be faster than foreach_pair_kernel with pointperm_dest
 # @kernel unsafe_indices=true function foreach_pair_sorted_kernel(
-#         f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
-#         rs_cell, Ls,
+#         f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest), Ls,
 #         @Const(cumulative_npoints_per_cell_dest), @Const(pointperm_dest),
 #         ::Val{M},  # = number of subdivisions (equal to number of ghost cells)
 #     ) where {F, M}
@@ -189,7 +181,7 @@ end
 # end
 
 function _foreach_pair_sorted(backend::GPU, f::F, cl, xp_dest, batch_size, folded::Val) where {F}
-    (; rs_cell, Ls, idx_within_cell_dest, pointperm_dest, cumulative_npoints_per_cell_dest) = cl
+    (; Ls, idx_within_cell_dest, pointperm_dest, cumulative_npoints_per_cell_dest) = cl
 
     @assert eachindex(pointperm_dest) == eachindex(xp_dest)
     ncells_per_dir = size(cl)
@@ -200,9 +192,9 @@ function _foreach_pair_sorted(backend::GPU, f::F, cl, xp_dest, batch_size, folde
         @inline
         @inbounds x⃗ = xp_dest[i]
         if folded === Val(true)
-            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, ncells_per_dir)
+            inds = map(determine_cell_index_folded, Tuple(x⃗), Ls, ncells_per_dir)
         else
-            inds = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, ncells_per_dir)
+            inds = map(determine_cell_index_gpu, Tuple(x⃗), Ls, ncells_per_dir)
         end
         @inbounds n = LinearIndices(ncells_per_dir)[inds...]
         index_within_cell = @inbounds (Atomix.@atomic cumulative_npoints_per_cell_dest[n + 1] += 1)
@@ -217,9 +209,9 @@ function _foreach_pair_sorted(backend::GPU, f::F, cl, xp_dest, batch_size, folde
         @inline
         @inbounds x⃗ = xp_dest[i]
         if folded === Val(true)
-            inds = map(determine_cell_index_folded, Tuple(x⃗), rs_cell, ncells_per_dir)
+            inds = map(determine_cell_index_folded, Tuple(x⃗), Ls, ncells_per_dir)
         else
-            inds = map(determine_cell_index_gpu, Tuple(x⃗), rs_cell, Ls, ncells_per_dir)
+            inds = map(determine_cell_index_gpu, Tuple(x⃗), Ls, ncells_per_dir)
         end
         @inbounds n = LinearIndices(ncells_per_dir)[inds...]
         @inbounds j = cumulative_npoints_per_cell_dest[n] + idx_within_cell_dest[i]
@@ -232,10 +224,10 @@ function _foreach_pair_sorted(backend::GPU, f::F, cl, xp_dest, batch_size, folde
 
     if batch_size === nothing
         kernel = foreach_pair_kernel(backend, groupsize)
-        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, pointperm_dest, Val(M), folded; ndrange = size(xp_dest))
+        kernel(f, head_indices, next_index, xp_dest, Ls, pointperm_dest, Val(M), folded; ndrange = size(xp_dest))
     else
         kernel = foreach_pair_batched_kernel(backend, groupsize)
-        kernel(f, head_indices, next_index, xp_dest, rs_cell, Ls, batch_size, pointperm_dest, Val(M), folded; ndrange = size(xp_dest))
+        kernel(f, head_indices, next_index, xp_dest, Ls, batch_size, pointperm_dest, Val(M), folded; ndrange = size(xp_dest))
     end
 
     # Launch main kernel
@@ -248,7 +240,7 @@ function _foreach_pair_sorted(backend::GPU, f::F, cl, xp_dest, batch_size, folde
     #     kernel = foreach_pair_sorted_kernel(backend, groupsize, ndrange)
     #     kernel(
     #         f, cl.head_indices, cl.next_index, xp_dest,
-    #         rs_cell, Ls, cumulative_npoints_per_cell_dest, pointperm_dest, Val(M),
+    #         Ls, cumulative_npoints_per_cell_dest, pointperm_dest, Val(M),
     #     )
     # else
     #     # TODO?
