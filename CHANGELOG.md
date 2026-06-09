@@ -5,6 +5,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.5] - 2026-06-09
+
+### Changed
+
+- Minor improvement to periodic folding in `Filaments.fold_coordinates_periodic`.
+  We now make sure that this function returns values in `[0, L)` with `L` strictly excluded.
+  Previously, when we tried to fold a position `x = 0 - ε`, the result was `x' = L - ε`, which
+  was actually equal to `L` when `ε` is very very tiny (`ε < eps(L)`).
+
+- Minor improvement to cell lists implementation.
+  The new implementation no longer uses `rs_cut` directly, instead using the
+  grid size (number of cells).
+  This can improve things when points are very close to the endpoint `x = L`.
+  A similar issue was fixed in NonuniformFFTs.jl v0.9.5.
+
 ## [0.34.4] - 2026-06-02
 
 ### Added
