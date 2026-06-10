@@ -87,17 +87,19 @@ Base.@propagate_inbounds function Base.setindex!(v::HostVector, x, i::Int)
     v.data[i] = x
 end
 
-# Pointer-based copyto, should work with most CPU and GPU backends.
-# OpenCL doesn't implement unsafe_copyto! for CLPtr, so we override this function in a
-# package extension.
-copyto_ptr!(dst, src, n) = unsafe_copyto!(pointer(dst), pointer(src), n)
+function unsafe_as_vector(v::HostVector{T}) where {T}
+    n = length(v)
+    p = pointer(v)
+    unsafe_wrap(Array, p, (n,); own = false)::Vector{T}
+end
 
 function Base.copyto!(v::HostVector{T}, src::DenseArray{T}) where {T}
     n = length(src)
     @assert length(v) == n  # already resized
     # This should work both when src is either a CPU or a GPU array.
-    GC.@preserve src v begin
-        copyto_ptr!(v, src, n)
+    GC.@preserve v src begin
+        copyto!(unsafe_as_vector(v), src)  # this may be asynchronous; for now we synchronise right after
+        KA.synchronize(v.backend)
     end
     v
 end
@@ -115,9 +117,10 @@ end
 function Base.copyto!(dst::DenseArray{T}, v::HostVector{T}) where {T}
     n = length(v)
     @assert length(dst) == n  # already resized
-    # This should work both when src is either a CPU or a GPU array.
-    GC.@preserve dst v begin
-        copyto_ptr!(dst, v, n)
+    # This should work both when dst is either a CPU or a GPU array.
+    GC.@preserve v dst begin
+        copyto!(dst, unsafe_as_vector(v))  # this may be asynchronous; for now we synchronise right after
+        KA.synchronize(v.backend)
     end
     dst
 end
