@@ -1,6 +1,6 @@
 using KernelAbstractions: @kernel, @index, @Const, @groupsize
 
-@inline function determine_cell_index_gpu(x, rcut, L, N)
+@inline function determine_cell_index_gpu(x::T, L::T, N) where {T <: AbstractFloat}
     # (1) Make sure x is in [0, L).
     # This is based on NonuniformFFTs.to_unit_cell_gpu.
     r = rem(x, L)   # note: rem(x, y) translates to fmodf/fmod on CUDA (see https://github.com/JuliaGPU/CUDA.jl/blob/4067511b2b472be9fb30164d1ed23caa354c1fcb/src/device/intrinsics/math.jl#L370)
@@ -8,7 +8,7 @@ using KernelAbstractions: @kernel, @index, @Const, @groupsize
     # avoid branches (not sure it improves much).
     r = ifelse(iszero(r), copysign(r, L), r)  # replaces -0.0 -> +0.0
     # (2) Determine associated cell index.
-    determine_cell_index_folded(x, rcut, N)
+    determine_cell_index_folded(r, L, N)
 end
 
 ## ========================================================================================== ##
