@@ -5,6 +5,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.7] - 2026-06-10
+
+### Fixed
+
+- Fix possible issue in CPU <-> GPU transfers in certain versions of CUDA
+  (possibly due to old CUDA drivers, not sure) ([#109](https://github.com/jipolanco/VortexPasta.jl/pull/109)).
+
+### Changed
+
+- The OpenCL package extension has been removed as it is no longer needed after
+  the fix.
+
 ## [0.34.6] - 2026-06-10
 
 ### Fixed
