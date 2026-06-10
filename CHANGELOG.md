@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.6] - 2026-06-10
+
+### Fixed
+
+- Fix compilation of GPU kernel in `CellLists` module.
+
 ## [0.34.5] - 2026-06-09
 
 ### Changed
