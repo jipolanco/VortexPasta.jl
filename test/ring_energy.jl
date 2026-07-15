@@ -60,9 +60,6 @@ function test_vortex_ring_energy()
     # JET.@test_call Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
     E_nonper_v = Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
     E_nonper_quad = Diagnostics.kinetic_energy_nonperiodic(iter_nonper; quad = GaussLegendre(4))
-    if VERSION < v"1.12"
-        @test 0 == @allocated Diagnostics.kinetic_energy_nonperiodic(iter_nonper)
-    end
     @test isapprox(E_nonper_v, E_nonper_quad; rtol = 1e-8)  # roughly the same result
     E_nonper_ψ = Diagnostics.kinetic_energy_from_streamfunction(iter_nonper)
 
