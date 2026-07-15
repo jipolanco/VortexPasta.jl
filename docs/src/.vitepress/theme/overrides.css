@@ -1,0 +1,18 @@
+/* Override default DocumenterVitepress styles here.
+   This file is loaded after style.css, so rules here take precedence. */
+
+:root {
+scroll-behavior: smooth;
+/* Typography */
+--vp-font-family-base: "IBM Plex Sans", "Fira Sans", "Barlow", "Inter var experimental", "Inter var",
+  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+  Cantarell, "Droid Sans", "Helvetica Neue", sans-serif;
+
+/* Code Snippet font */
+--vp-font-family-mono: JuliaMono-Regular, monospace;
+}
+
+.jldocstring.custom-block {
+    /* Font size in docstrings (relative to font size in "main text") */
+    font-size: 0.95em;  /* default is 14px = 0.875em (for 1em = 16px; not sure where it's defined) */
+}
