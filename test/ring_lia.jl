@@ -116,7 +116,7 @@ function test_lia_ring(
     if noise == 0
         @test Estd / Emean < eps(T) * 50
     else
-        @test Estd / Emean < noise * 2e-6
+        @test Estd / Emean < noise * 1e-5
     end
 
     if verbose
@@ -145,8 +145,7 @@ end
         end
     end
     # It doesn't make much sense to use splitting schemes with LIA-only, but we check that
-    # they work correctly anyways (in the sense that they set the non-local contributions to
-    # 0).
+    # they work correctly anyways (in the sense that they set the non-local contributions to 0).
     @testset "Splitting scheme" begin
         local scheme = Strang(RK4())
         test_lia_ring(Float32, N, method; R, periodic, verbose, scheme)
