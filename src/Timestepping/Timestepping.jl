@@ -453,8 +453,10 @@ either [`step!`](@ref) or [`solve!`](@ref).
   "fast" and "slow" dynamics. This can either be [`LocalTerm`](@ref) or [`ShortRangeTerm`](@ref).
 
 - `LIA = false`: if `true`, only use the local induction approximation (LIA) to advance
-  vortex filaments, ignoring all non-local interactions. Note that reconnections may still
-  be enabled.
+  vortex filaments, ignoring all non-local interactions. This may be optionally combined
+  with `fast_term = LocalTerm(δ)` to set a constant local segment length `δ` (so that
+  the local velocity does not depend on the spatial resolution of vortex lines).
+  Note that one can still enable reconnections when `LIA = true`.
 
 - `fold_periodic = true`: if `true` (default), vortices will be recentred onto the main unit cell
   when using periodic boundary conditions. It may be convenient to disable this for
@@ -791,8 +793,8 @@ function init(
     # It doesn't make much sense to combine the LIA and fast_term arguments, since there's
     # no RHS splitting to do when using LIA.
     # Therefore, if LIA is enabled, we only support the default fast_term = LocalTerm().
-    if LIA && fast_term !== LocalTerm()
-        throw(ArgumentError("currently, using LIA requires setting fast_term = LocalTerm()"))
+    if LIA && !(fast_term isa LocalTerm)
+        throw(ArgumentError("currently, using LIA requires setting fast_term = LocalTerm() or LocalTerm(δ)"))
     end
 
     if state === (;)  # empty state, new simulation

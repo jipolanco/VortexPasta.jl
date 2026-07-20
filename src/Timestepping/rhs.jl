@@ -73,7 +73,7 @@ end
 # This variant computes the full BS law + any added velocities.
 function _update_values_at_nodes!(
         ::Val{:full},
-        ::FastBiotSavartTerm,  # ignored in this case
+        term::FastBiotSavartTerm,  # ignored in this case
         fields::NamedTuple{Names, NTuple{N, V}},
         fs::VectorOfFilaments,
         t::Real,
@@ -81,7 +81,12 @@ function _update_values_at_nodes!(
     ) where {Names, N, V <: VectorOfVectors}
     (; to) = iter
     if iter.LIA
-        @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+        @assert term isa LocalTerm  # this is checked in init(prob, ...)
+        if term.δ === nothing
+            @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+        else
+            @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_local_vectors!(fields, iter.cache_bs, fs, term.δ)
+        end
     else
         @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
     end
@@ -149,10 +154,10 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     (; to) = iter
-    if term.δ === nothing || iter.LIA
+    if term.δ === nothing
         @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
     else  # use constant segment length in fast term
-        @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_local_velocity!(fields.velocity, iter.cache_bs, fs, term.δ)
+        @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_local_vectors!(fields, iter.cache_bs, fs, term.δ)
     end
     nothing
 end

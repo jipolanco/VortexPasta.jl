@@ -168,12 +168,17 @@ end
 ## Computation of local term (LIA) with prescribed length of local segment (independent of discretisation)
 ## This can be used to compute the "fast" term in splitting/IMEX/multirate timestepping methods (see LocalTerm in the Timestepping module)
 
-function compute_local_velocity!(vs::AllFilamentVelocities, cache::BiotSavartCache, fs::VectorOfFilaments, δ::Real)
+function compute_local_vectors!(fields::NamedTuple{Names}, cache::BiotSavartCache, fs::VectorOfFilaments, δ::Real) where {Names}
+    # This is quite similar to compute_local_term!, see there for details.
     (; Γ, a, Δ) = cache.shortrange.params.common
     T = typeof(Γ)
-    C = let δ = T(δ), a = T(a), Δ = T(Δ), fourpi = T(4π)
-        Γ / fourpi * (log(2 * δ / a) - Δ)
-    end
+    ln_v = log(2 * T(δ) / a) - Δ
+    ln_ψ = ln_v + 1
+    C_v = Γ / T(4π) * ln_v
+    C_ψ = Γ / T(2π) * ln_ψ
+    prefactors = NamedTuple{Names}((; velocity = C_v, streamfunction = C_ψ))
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
+    @assert keys(prefactors) == keys(quantities) == keys(fields)
     chunks = FilamentChunkIterator(fs)
     @sync for chunk in chunks
         Threads.@spawn for (i, inds, num_nodes_visited) in chunk
@@ -183,12 +188,19 @@ function compute_local_velocity!(vs::AllFilamentVelocities, cache::BiotSavartCac
                 s⃗″ = f[j, Derivative(2)]
                 s⃗′_norm = sqrt(sum(abs2, s⃗′))
                 b⃗ = (s⃗′ × s⃗″) / s⃗′_norm^3  # local binormal vector (properly normalised)
-                vs[i][j] = C * b⃗
+                foreach(values(fields), values(prefactors), values(quantities)) do vs, prefactor, quantity
+                    @inline
+                    dir = _local_term_vector_only(quantity, s⃗′, b⃗)
+                    @inbounds vs[i][j] = prefactor * dir  # NOTE: we replace old values!
+                end
             end
         end
     end
-    vs
 end
+
+# Returns only the vector part of the local term (no Γ/4π or Γ/2π prefactor, no log term)
+@inline _local_term_vector_only(::Velocity, s⃗′, b⃗) = b⃗
+@inline _local_term_vector_only(::Streamfunction, s⃗′, b⃗) = s⃗′
 
 ## ========================================================================================== ##
 ## Computation of local integral when lia_segment_fraction < 1

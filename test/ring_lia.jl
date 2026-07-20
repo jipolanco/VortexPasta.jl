@@ -18,20 +18,15 @@ function generate_biot_savart_parameters(::Type{T}; periodic = Val(true)) where 
     if periodic === Val(true)
         L = 2π
         Ngrid = 32
+        splitting = GaussianSplitting(; Ls = (L, L, L), Ns = (Ngrid, Ngrid, Ngrid), rtol = 1e-6)
         backend_short = CellListsBackend(2)
     else
-        L = Infinity()
-        Ngrid = 0
+        splitting = NoSplitting()
         backend_short = NaiveShortRangeBackend()
     end
-    Ls = (L, L, L)
-    Ns = (Ngrid, Ngrid, Ngrid)
-    kmax = (Ngrid ÷ 2) * 2π / L
-    α = kmax / 6
-    rcut = 5 / α
     ParamsBiotSavart(
         T;
-        Γ, α, a, Δ, rcut, Ls, Ns,
+        Γ, a, Δ, splitting,
         backend_short,
         backend_long = NonuniformFFTsBackend(σ = T(1.5), m = HalfSupport(4)),
         quadrature = GaussLegendre(2),
@@ -74,7 +69,8 @@ function test_lia_ring(
 
     δ = minimum_node_distance(fs)
     dt = BiotSavart.kelvin_wave_period(params, δ) * 1.2
-    iter = init(prob, scheme; dt, fold_periodic = false, LIA = true)
+    fast_term = LocalTerm(δ / 2)  # use constant "large" scale δ in LIA (instead of using the discretisation distance)
+    iter = init(prob, scheme; dt, fold_periodic = false, LIA = true, fast_term)
 
     # Total self-induced vortex ring velocity.
     v_ring = params.Γ / (4π * R) * (log(8R / params.a) - params.Δ)
@@ -90,7 +86,7 @@ function test_lia_ring(
         @test vz_std / vz_mean < noise * 0.02
     end
 
-    E = @inferred Diagnostics.kinetic_energy(iter; quad = GaussLegendre(2))
+    E = @inferred Diagnostics.kinetic_energy(iter)
 
     times = [iter.t]
     energy = [E]
@@ -105,7 +101,7 @@ function test_lia_ring(
             zstd = std(zs)
             @show nstep, t/τ, zmean/R, zstd/R
         end
-        E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(2))
+        E = Diagnostics.kinetic_energy(iter)
         push!(times, t)
         push!(energy, E)
         # write_vtkhdf("links_$nstep.vtkhdf", fs) do io
@@ -120,7 +116,7 @@ function test_lia_ring(
     if noise == 0
         @test Estd / Emean < eps(T) * 50
     else
-        @test Estd / Emean < noise * 0.02
+        @test Estd / Emean < noise * 2e-6
     end
 
     if verbose
