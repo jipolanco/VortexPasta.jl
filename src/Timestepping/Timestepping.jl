@@ -144,13 +144,30 @@ struct ShortRangeTerm <: FastBiotSavartTerm end
 
 """
     LocalTerm <: FastBiotSavartTerm
+    LocalTerm([δ::Float64])
 
 Identifies fast dynamics with the **local (LIA) term** associated to the desingularisation
 of the Biot–Savart integral.
 
 This is useful for split timestepping schemes like IMEX or multirate methods.
+
+By default this term estimates the contribution of the two discrete segments adjacent to
+each filament node. Therefore, the local contribution depends on the discretisation, and the
+length of the "local" segments contributing to this term may change from one filament node to the other.
+
+Alternatively, the optional `δ` parameter is optional and allows to set a local segment
+length which is the same for all filament nodes and is independent of the filament
+discretisation (even though it should be typically smaller than the discretisation).
 """
-struct LocalTerm <: FastBiotSavartTerm end
+struct LocalTerm <: FastBiotSavartTerm
+    δ::Union{Nothing, Float64}
+    function LocalTerm(δ::Union{Nothing, Real} = nothing)
+        if δ !== nothing
+            δ > 0 || throw(ArgumentError("the local distance δ should be positive (got δ = $δ)"))
+        end
+        new(δ)
+    end
+end
 
 """
     VortexFilamentSolver
@@ -436,8 +453,10 @@ either [`step!`](@ref) or [`solve!`](@ref).
   "fast" and "slow" dynamics. This can either be [`LocalTerm`](@ref) or [`ShortRangeTerm`](@ref).
 
 - `LIA = false`: if `true`, only use the local induction approximation (LIA) to advance
-  vortex filaments, ignoring all non-local interactions. Note that reconnections may still
-  be enabled.
+  vortex filaments, ignoring all non-local interactions. This may be optionally combined
+  with `fast_term = LocalTerm(δ)` to set a constant local segment length `δ` (so that
+  the local velocity does not depend on the spatial resolution of vortex lines).
+  Note that one can still enable reconnections when `LIA = true`.
 
 - `fold_periodic = true`: if `true` (default), vortices will be recentred onto the main unit cell
   when using periodic boundary conditions. It may be convenient to disable this for
@@ -774,8 +793,8 @@ function init(
     # It doesn't make much sense to combine the LIA and fast_term arguments, since there's
     # no RHS splitting to do when using LIA.
     # Therefore, if LIA is enabled, we only support the default fast_term = LocalTerm().
-    if LIA && fast_term !== LocalTerm()
-        throw(ArgumentError("currently, using LIA requires setting fast_term = LocalTerm()"))
+    if LIA && !(fast_term isa LocalTerm)
+        throw(ArgumentError("currently, using LIA requires setting fast_term = LocalTerm() or LocalTerm(δ)"))
     end
 
     if state === (;)  # empty state, new simulation

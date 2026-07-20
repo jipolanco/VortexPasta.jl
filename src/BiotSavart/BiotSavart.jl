@@ -465,7 +465,7 @@ function do_longrange!(
     nothing
 end
 
-function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu; LIA = Val(true))
+function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu; LIA = Val(true), integration_cutoff = nothing)
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -485,7 +485,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
                     copy_host_to_device!(pointdata.derivatives_on_nodes, pointdata_cpu.derivatives_on_nodes, pointdata.buf_host)  # needed for local term (LIA)
                     copy_host_to_device!(pointdata.subsegment_lengths, pointdata_cpu.subsegment_lengths, pointdata.buf_host)      # needed for local term (LIA)
                 end
-                @timeit to "Local term (LIA)" compute_local_term!(outputs, cache)  # NOTE: this function _replaces_ old values, so it must be called first
+                @timeit to "Local term (LIA)" compute_local_term!(outputs, cache; integration_cutoff)  # NOTE: this function _replaces_ old values, so it must be called first
             else
                 _reset_vectors!(outputs)  # we need to set everything to 0, since the functions below _add_ to existing values
             end
@@ -517,6 +517,7 @@ function _compute_on_nodes!(
         LIA = Val(true),
         longrange = true,
         shortrange = true,
+        integration_cutoff::Union{Nothing, Real} = nothing,
         callback_vorticity::Fvort = identity,
     ) where {Fvort}
     (; to, params, pointdata,) = cache
@@ -557,7 +558,7 @@ function _compute_on_nodes!(
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
             # Compute short-range part asynchronously (e.g. on a GPU).
             local task = Threads.@spawn :interactive try
-                do_shortrange!(cache, outputs, pointdata; LIA)
+                do_shortrange!(cache, outputs, pointdata; LIA, integration_cutoff)
             finally
                 put!(channel, :shortrange)  # this notifies that the task has completed (or failed)
             end

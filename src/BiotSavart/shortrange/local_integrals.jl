@@ -103,15 +103,31 @@ lia_integration_limits(γ::Real) = ((one(γ) - γ, one(γ)), (zero(γ), γ))
 nonlia_integration_limits(::Nothing) = (nothing, nothing)
 nonlia_integration_limits(γ::Real) = ((zero(γ), one(γ) - γ), (γ, one(γ)))
 
-function compute_local_term!(outputs::NamedTuple{Names}, cache::ShortRangeCache) where {Names}
+function compute_local_term!(outputs::NamedTuple{Names}, cache::ShortRangeCache; integration_cutoff::Union{Nothing, Real} = nothing) where {Names}
     (; pointdata, params) = cache
     (; derivatives_on_nodes, subsegment_lengths) = pointdata
     (; Γ, a, Δ) = params.common
     @assert eachindex(derivatives_on_nodes[1]) == eachindex(subsegment_lengths[1])
-
     T = typeof(Γ)
+
     prefactor = Γ / T(4π)
+
+    if integration_cutoff === nothing
+        # Integration cut-off of Biot-Savart integral associated to vortex core size and profile.
+        # Note: the exp(1) = ℯ factor between both cutoffs guarantees energy conservation (see Polanco SISC 2025).
+        r_cutoff_ψ = T(exp(Δ - 1) * a / 2)
+        r_cutoff_v = T(r_cutoff_ψ * exp(one(Δ)))  # = r_cutoff_ψ * e = exp(Δ) * a / 2
+    else
+        # We exclude local segments below the given distance.
+        # In other words, we set a different integration cut-off for the desingularisation.
+        r_cutoff_ψ = T(integration_cutoff)
+        r_cutoff_v = T(integration_cutoff)
+    end
+
+    r_cutoffs = NamedTuple{Names}((; velocity = r_cutoff_v, streamfunction = r_cutoff_ψ))
     quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
+
+    @assert keys(r_cutoffs) == keys(outputs) == keys(quantities)
 
     # This works on CPU (threaded) and GPU.
     AK.foreachindex(derivatives_on_nodes[1]; max_tasks = Threads.nthreads(), block_size = 256) do i
@@ -126,28 +142,65 @@ function compute_local_term!(outputs::NamedTuple{Names}, cache::ShortRangeCache)
         s′² = sum(abs2, s⃗′)
         assume(s′² > 0)  # tell the compiler that we're not dividing by zero
         s′_inv = 1 / sqrt(s′²)
-        foreach(values(outputs), values(quantities)) do vs, quantity
+        foreach(values(outputs), values(r_cutoffs), values(quantities)) do vs, r_cutoff, quantity
             @inline
-            @inbounds vs[i] = prefactor * _eval_local_term(quantity, δ, s⃗′, s⃗″, s′_inv, a, Δ)::Vec3  # NOTE: we replace old values!
+            v = _eval_local_term(quantity, δ, s⃗′, s⃗″, s′_inv, r_cutoff)::Vec3
+            @inbounds vs[i] = prefactor * v  # NOTE: we replace old values!
         end
     end
 
     outputs
 end
 
-@inline function _eval_local_term(::Velocity, δ, s⃗′, s⃗″, s′_inv, a, Δ)
+# Here r_cutoff is usually exp(Δ) * a / 2
+@inline function _eval_local_term(::Velocity, δ, s⃗′, s⃗″, s′_inv, r_cutoff)
     b⃗ = (s⃗′ × s⃗″) * s′_inv^3  # binormal vector (properly normalised) -- see also CurvatureBinormal
-    (log(2 * δ / a) - Δ) * b⃗
+    log(δ / r_cutoff) * b⃗
 end
 
-@inline function _eval_local_term(::Streamfunction, δ, s⃗′, s⃗″, s′_inv, a, Δ)
+# Here r_cutoff is usually exp(Δ - 1) * a / 2
+@inline function _eval_local_term(::Streamfunction, δ, s⃗′, s⃗″, s′_inv, r_cutoff)
     t̂ = s⃗′ * s′_inv  # unit tangent vector (properly normalised) -- see also UnitTangent
-    # Note: the +1 coefficient is required for energy conservation.
-    # It is required so that the resulting energy follows Hamilton's equation (at least for
-    # the case of a vortex ring), and it has been verified in many cases that it improves
-    # the effective energy conservation.
-    2 * (log(2 * δ / a) + 1 - Δ) * t̂  # note: prefactor = Γ/4π (hence the 2 in front)
+    2 * log(δ / r_cutoff) * t̂  # note: prefactor is Γ/4π (hence the 2 in front)
 end
+
+## ========================================================================================== ##
+## Computation of local term (LIA) with prescribed length of local segment (independent of discretisation)
+## This can be used to compute the "fast" term in splitting/IMEX/multirate timestepping methods (see LocalTerm in the Timestepping module)
+
+function compute_local_vectors!(fields::NamedTuple{Names}, cache::BiotSavartCache, fs::VectorOfFilaments, δ::Real) where {Names}
+    # This is quite similar to compute_local_term!, see there for details.
+    (; Γ, a, Δ) = cache.shortrange.params.common
+    T = typeof(Γ)
+    ln_v = log(2 * T(δ) / a) - Δ
+    ln_ψ = ln_v + 1
+    C_v = Γ / T(4π) * ln_v
+    C_ψ = Γ / T(2π) * ln_ψ
+    prefactors = NamedTuple{Names}((; velocity = C_v, streamfunction = C_ψ))
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
+    @assert keys(prefactors) == keys(quantities) == keys(fields)
+    chunks = FilamentChunkIterator(fs)
+    @sync for chunk in chunks
+        Threads.@spawn for (i, inds, num_nodes_visited) in chunk
+            f = fs[i]
+            @inbounds for j in inds
+                s⃗′ = f[j, Derivative(1)]
+                s⃗″ = f[j, Derivative(2)]
+                s⃗′_norm = sqrt(sum(abs2, s⃗′))
+                b⃗ = (s⃗′ × s⃗″) / s⃗′_norm^3  # local binormal vector (properly normalised)
+                foreach(values(fields), values(prefactors), values(quantities)) do vs, prefactor, quantity
+                    @inline
+                    dir = _local_term_vector_only(quantity, s⃗′, b⃗)
+                    @inbounds vs[i][j] = prefactor * dir  # NOTE: we replace old values!
+                end
+            end
+        end
+    end
+end
+
+# Returns only the vector part of the local term (no Γ/4π or Γ/2π prefactor, no log term)
+@inline _local_term_vector_only(::Velocity, s⃗′, b⃗) = b⃗
+@inline _local_term_vector_only(::Streamfunction, s⃗′, b⃗) = s⃗′
 
 ## ========================================================================================== ##
 ## Computation of local integral when lia_segment_fraction < 1

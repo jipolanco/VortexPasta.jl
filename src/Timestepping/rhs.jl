@@ -73,7 +73,7 @@ end
 # This variant computes the full BS law + any added velocities.
 function _update_values_at_nodes!(
         ::Val{:full},
-        ::FastBiotSavartTerm,  # ignored in this case
+        term::FastBiotSavartTerm,  # ignored in this case
         fields::NamedTuple{Names, NTuple{N, V}},
         fs::VectorOfFilaments,
         t::Real,
@@ -81,7 +81,12 @@ function _update_values_at_nodes!(
     ) where {Names, N, V <: VectorOfVectors}
     (; to) = iter
     if iter.LIA
-        @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+        @assert term isa LocalTerm  # this is checked in init(prob, ...)
+        if term.δ === nothing
+            @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+        else
+            @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_local_vectors!(fields, iter.cache_bs, fs, term.δ)
+        end
     else
         @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
     end
@@ -98,7 +103,7 @@ end
 # This component will be treated explicitly by IMEX schemes.
 function _update_values_at_nodes!(
         ::Val{:slow},
-        ::LocalTerm,
+        term::LocalTerm,
         fields::NamedTuple{(:velocity,)},
         fs::VectorOfFilaments,
         t::Real,
@@ -109,8 +114,11 @@ function _update_values_at_nodes!(
     @assert T <: Vec3
     if iter.LIA
         fill!(fields.velocity, zero(T))
-    else
+    elseif term.δ === nothing  # segment length in local term depends on local discretisation
         @timeit to "Biot-Savart (excluding LIA)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
+    else  # use constant segment length in fast term
+        # Compute almost full BS, but excluding the influence of local segments of fixed length δ.
+        @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; integration_cutoff = term.δ)
     end
     add_external_fields!(fields, iter, fs, t, iter.to)
     apply_forcing!(fields, iter, fs, t, iter.to)
@@ -139,14 +147,18 @@ end
 # This component will be treated implicitly by IMEX schemes.
 function _update_values_at_nodes!(
         ::Val{:fast},
-        ::LocalTerm,
+        term::LocalTerm,
         fields::NamedTuple{(:velocity,)},
         fs::VectorOfFilaments,
         t::Real,
         iter::VortexFilamentSolver,
     )
     (; to) = iter
-    @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+    if term.δ === nothing
+        @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
+    else  # use constant segment length in fast term
+        @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_local_vectors!(fields, iter.cache_bs, fs, term.δ)
+    end
     nothing
 end
 

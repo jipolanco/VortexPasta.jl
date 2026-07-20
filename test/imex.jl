@@ -64,10 +64,11 @@ end
     prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs);
 
     scheme = IMEXEuler()
+    δ = minimum(node_distance, fs_init)
 
     external_velocity(x⃗, t) = Vec3(0.1, 0.0, 0.0)  # add constant external velocity
 
-    @testset "fast_term = $fast_term" for fast_term ∈ (LocalTerm(), ShortRangeTerm())
+    @testset "fast_term = $fast_term" for fast_term ∈ (LocalTerm(), LocalTerm(δ / 10), ShortRangeTerm())
         iter = @inferred init(prob, scheme; dt = 0.025, fast_term, external_velocity)
 
         (; fs, vs, rhs!,) = iter
