@@ -5,6 +5,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.8] - 2026-07-20
+
+### Added
+
+- Timestepping: allow local term (LIA) evaluations with a fixed "outer" scale `δ`.
+
+  Previously, the outer scale was set to the local filament segment length
+  (which can vary from one filament point to the other, and can evolve in time).
+  This is still the default.
+
+  To set a fixed outer scale, pass `fast_term = LocalTerm(δ)` to `init` (see
+  `LocalTerm` for details). Then, a constant scale `δ` will be used both when
+  splitting Biot-Savart interactions into local and nonlocal for timestepping
+  (splitting or IMEX methods), and when doing LIA-only simulations (with `LIA = true`).
+
 ## [0.34.7] - 2026-06-10
 
 ### Fixed
