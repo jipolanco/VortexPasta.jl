@@ -81,9 +81,9 @@ function test_lia_ring(
     verbose && @show vz_mean/v_ring vz_std/vz_mean
     @test 0.1 * v_ring < vz_mean < 0.9 * v_ring  # since we only include the local part, vz_mean < v_ring
     if noise == 0
-        @test vz_std / vz_mean < eps(T) * 1e3
+        @test vz_std / vz_mean < eps(T) * T(1e3)
     else
-        @test vz_std / vz_mean < noise * 0.02
+        @test vz_std / vz_mean < T(noise * 1e-3)
     end
 
     E = @inferred Diagnostics.kinetic_energy(iter)
@@ -114,9 +114,9 @@ function test_lia_ring(
     Estd = std(energy)
     verbose && @show Estd / Emean
     if noise == 0
-        @test Estd / Emean < eps(T) * 50
+        @test Estd / Emean < 50 * eps(T)
     else
-        @test Estd / Emean < noise * 1e-5
+        @test Estd / Emean < max(50 * eps(T), T(noise * 1e-7))
     end
 
     if verbose

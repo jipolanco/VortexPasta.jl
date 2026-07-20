@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.9] - 2026-07-20
+
+### Fixed
+
+- Fix streamfunction (and energy) computation when `fast_term = LocalTerm(δ)` (introduced in
+  v0.34.8). The local tangent `s⃑′` is now properly normalised when computing the local
+  streamfunction.
+
 ## [0.34.8] - 2026-07-20
 
 ### Added

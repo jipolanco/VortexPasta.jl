@@ -139,12 +139,12 @@ function compute_local_term!(outputs::NamedTuple{Names}, cache::ShortRangeCache;
         # Derivatives wrt arbitrary parametrisation (=> |s⃗′| ≠ 1)
         s⃗′ = @inbounds derivatives_on_nodes[1][i]  # = Derivative(1)
         s⃗″ = @inbounds derivatives_on_nodes[2][i]  # = Derivative(2)
-        s′² = sum(abs2, s⃗′)
-        assume(s′² > 0)  # tell the compiler that we're not dividing by zero
-        s′_inv = 1 / sqrt(s′²)
+        μ² = sum(abs2, s⃗′)  # squared metric
+        assume(μ² > 0)  # tell the compiler that we're not dividing by zero
+        μ_inv = 1 / sqrt(μ²)
         foreach(values(outputs), values(r_cutoffs), values(quantities)) do vs, r_cutoff, quantity
             @inline
-            v = _eval_local_term(quantity, δ, s⃗′, s⃗″, s′_inv, r_cutoff)::Vec3
+            v = _eval_local_term(quantity, μ_inv, s⃗′, s⃗″, δ, r_cutoff)::Vec3
             @inbounds vs[i] = prefactor * v  # NOTE: we replace old values!
         end
     end
@@ -153,14 +153,14 @@ function compute_local_term!(outputs::NamedTuple{Names}, cache::ShortRangeCache;
 end
 
 # Here r_cutoff is usually exp(Δ) * a / 2
-@inline function _eval_local_term(::Velocity, δ, s⃗′, s⃗″, s′_inv, r_cutoff)
-    b⃗ = (s⃗′ × s⃗″) * s′_inv^3  # binormal vector (properly normalised) -- see also CurvatureBinormal
+@inline function _eval_local_term(::Velocity, μ_inv, s⃗′, s⃗″, δ, r_cutoff)
+    b⃗ = (s⃗′ × s⃗″) * μ_inv^3  # binormal vector (properly normalised) -- see also CurvatureBinormal
     log(δ / r_cutoff) * b⃗
 end
 
 # Here r_cutoff is usually exp(Δ - 1) * a / 2
-@inline function _eval_local_term(::Streamfunction, δ, s⃗′, s⃗″, s′_inv, r_cutoff)
-    t̂ = s⃗′ * s′_inv  # unit tangent vector (properly normalised) -- see also UnitTangent
+@inline function _eval_local_term(::Streamfunction, μ_inv, s⃗′, s⃗″, δ, r_cutoff)
+    t̂ = s⃗′ * μ_inv  # unit tangent vector (properly normalised) -- see also UnitTangent
     2 * log(δ / r_cutoff) * t̂  # note: prefactor is Γ/4π (hence the 2 in front)
 end
 
@@ -186,11 +186,12 @@ function compute_local_vectors!(fields::NamedTuple{Names}, cache::BiotSavartCach
             @inbounds for j in inds
                 s⃗′ = f[j, Derivative(1)]
                 s⃗″ = f[j, Derivative(2)]
-                s⃗′_norm = sqrt(sum(abs2, s⃗′))
-                b⃗ = (s⃗′ × s⃗″) / s⃗′_norm^3  # local binormal vector (properly normalised)
+                μ² = sum(abs2, s⃗′)  # squared metric
+                assume(μ² > 0)  # tell the compiler that we're not dividing by zero
+                μ_inv = 1 / sqrt(μ²)
                 foreach(values(fields), values(prefactors), values(quantities)) do vs, prefactor, quantity
                     @inline
-                    dir = _local_term_vector_only(quantity, s⃗′, b⃗)
+                    dir = _normalise_local_vector(quantity, μ_inv, s⃗′, s⃗″)
                     @inbounds vs[i][j] = prefactor * dir  # NOTE: we replace old values!
                 end
             end
@@ -199,8 +200,8 @@ function compute_local_vectors!(fields::NamedTuple{Names}, cache::BiotSavartCach
 end
 
 # Returns only the vector part of the local term (no Γ/4π or Γ/2π prefactor, no log term)
-@inline _local_term_vector_only(::Velocity, s⃗′, b⃗) = b⃗
-@inline _local_term_vector_only(::Streamfunction, s⃗′, b⃗) = s⃗′
+@inline _normalise_local_vector(::Velocity, μ_inv, s⃗′, s⃗″) = (s⃗′ × s⃗″) * μ_inv^3  # binormal vector (properly normalised) -- see also CurvatureBinormal
+@inline _normalise_local_vector(::Streamfunction, μ_inv, s⃗′, s⃗″) = s⃗′ * μ_inv     # unit tangent vector (properly normalised)
 
 ## ========================================================================================== ##
 ## Computation of local integral when lia_segment_fraction < 1
