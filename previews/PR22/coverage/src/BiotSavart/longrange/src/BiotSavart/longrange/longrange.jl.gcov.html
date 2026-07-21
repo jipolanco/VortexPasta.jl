@@ -1,0 +1,659 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/BiotSavart/longrange/src/BiotSavart/longrange/longrange.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">src/BiotSavart/longrange/src/BiotSavart/longrange</a> - longrange.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryMed">83.4&nbsp;%</td>
+            <td class="headerCovTableEntry">283</td>
+            <td class="headerCovTableEntry">236</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2024-11-14 10:10:01</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : mutable struct LongRangeCacheState</span>
+<span id="L2"><span class="lineNum">       2</span> <span class="tlaGNC tlaBgGNC">          87 :     quantity :: Symbol  # quantity currently held by the cache (:undef, :vorticity, :velocity, :streamfunction)</span></span>
+<span id="L3"><span class="lineNum">       3</span>              :     smoothed :: Bool    # true if Ewald's Gaussian filter has already been applied</span>
+<span id="L4"><span class="lineNum">       4</span>              : end</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span> <span class="tlaGNC">          87 : LongRangeCacheState() = LongRangeCacheState(:undef, false)</span></span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              : struct LongRangeCacheCommon{</span>
+<span id="L9"><span class="lineNum">       9</span>              :         T &lt;: AbstractFloat,</span>
+<span id="L10"><span class="lineNum">      10</span>              :         Params &lt;: ParamsLongRange,</span>
+<span id="L11"><span class="lineNum">      11</span>              :         WaveNumbers &lt;: NTuple{3, AbstractVector},</span>
+<span id="L12"><span class="lineNum">      12</span>              :         PointCharges &lt;: PointData{T},</span>
+<span id="L13"><span class="lineNum">      13</span>              :         FourierVectorField &lt;: StructArray{Vec3{Complex{T}}, 3},</span>
+<span id="L14"><span class="lineNum">      14</span>              :         RealScalarField &lt;: AbstractArray{T, 3},</span>
+<span id="L15"><span class="lineNum">      15</span>              :         Timer &lt;: TimerOutput,</span>
+<span id="L16"><span class="lineNum">      16</span>              :     }</span>
+<span id="L17"><span class="lineNum">      17</span>              :     # NOTE: the _d suffix means that data is on the device (i.e. GPU for GPU-based backends)</span>
+<span id="L18"><span class="lineNum">      18</span> <span class="tlaGNC">          87 :     params        :: Params</span></span>
+<span id="L19"><span class="lineNum">      19</span>              :     wavenumbers_d :: WaveNumbers</span>
+<span id="L20"><span class="lineNum">      20</span>              :     pointdata_d   :: PointCharges        # non-uniform data in physical space</span>
+<span id="L21"><span class="lineNum">      21</span>              :     uhat_d        :: FourierVectorField  # uniform Fourier-space data (3 × [Nx, Ny, Nz])</span>
+<span id="L22"><span class="lineNum">      22</span>              :     ewald_prefactor :: T                 # prefactor Γ/V (also included in ewald_op_d)</span>
+<span id="L23"><span class="lineNum">      23</span>              :     ewald_op_d      :: RealScalarField    # real-valued Ewald operator in Fourier space ([Nx, Ny, Nz])</span>
+<span id="L24"><span class="lineNum">      24</span>              :     state           :: LongRangeCacheState</span>
+<span id="L25"><span class="lineNum">      25</span>              :     to_d            :: Timer             # timer for operations run on the device</span>
+<span id="L26"><span class="lineNum">      26</span>              : end</span>
+<span id="L27"><span class="lineNum">      27</span>              : </span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">          87 : function LongRangeCacheCommon(</span></span>
+<span id="L29"><span class="lineNum">      29</span>              :         pcommon::ParamsCommon,</span>
+<span id="L30"><span class="lineNum">      30</span>              :         params::ParamsLongRange,</span>
+<span id="L31"><span class="lineNum">      31</span>              :         wavenumbers::NTuple{3, AbstractVector},</span>
+<span id="L32"><span class="lineNum">      32</span>              :         pointdata::PointData{T},</span>
+<span id="L33"><span class="lineNum">      33</span>              :         timer::TimerOutput,</span>
+<span id="L34"><span class="lineNum">      34</span>              :     ) where {T}</span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">          87 :     (; Γ, Ls, α,) = pcommon</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">          87 :     (; backend,) = params</span></span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">          87 :     @assert T === eltype(pcommon)</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">          87 :     @assert α !== Zero()</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">          87 :     Nks = map(length, wavenumbers)</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">          87 :     uhat_d = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">          87 :     ewald_prefactor = Γ / prod(Ls)</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">          87 :     device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">          87 :     wavenumbers_d = adapt(device, wavenumbers)  # copy wavenumbers onto device if needed</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">          87 :     pointdata_d = adapt(device, pointdata)      # create PointData replica on the device if needed</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">          87 :     ewald_op_d = init_ewald_fourier_operator(T, backend, wavenumbers_d, α, ewald_prefactor)</span></span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">          87 :     state = LongRangeCacheState()</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">          87 :     LongRangeCacheCommon(params, wavenumbers_d, pointdata_d, uhat_d, ewald_prefactor, ewald_op_d, state, timer)</span></span>
+<span id="L48"><span class="lineNum">      48</span>              : end</span>
+<span id="L49"><span class="lineNum">      49</span>              : </span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">          41 : has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)</span></span>
+<span id="L51"><span class="lineNum">      51</span>              : </span>
+<span id="L52"><span class="lineNum">      52</span>              : # Initialise Fourier vector field with the right memory layout.</span>
+<span id="L53"><span class="lineNum">      53</span>              : # This default implementation can be overridden by other backends.</span>
+<span id="L54"><span class="lineNum">      54</span>              : # That's the case of FINUFFT, which needs a specific memory layout to perform simultaneous</span>
+<span id="L55"><span class="lineNum">      55</span>              : # NUFFTs of the 3 vector field components.</span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">          70 : function init_fourier_vector_field(backend::LongRangeBackend, ::Type{T}, Nks::Dims) where {T &lt;: Real}</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">          70 :     device = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...</span></span>
+<span id="L58"><span class="lineNum">      58</span>              :     # Initialising arrays in parallel (using KA) may be good for performance;</span>
+<span id="L59"><span class="lineNum">      59</span>              :     # see https://juliagpu.github.io/KernelAbstractions.jl/dev/examples/numa_aware/.</span>
+<span id="L60"><span class="lineNum">      60</span> <span class="tlaGNC">          70 :     components = ntuple(Val(3)) do _</span></span>
+<span id="L61"><span class="lineNum">      61</span> <span class="tlaGNC">         210 :         KA.zeros(device, Complex{T}, Nks)</span></span>
+<span id="L62"><span class="lineNum">      62</span>              :     end</span>
+<span id="L63"><span class="lineNum">      63</span> <span class="tlaGNC">          70 :     StructArray{Vec3{Complex{T}}}(components)</span></span>
+<span id="L64"><span class="lineNum">      64</span>              : end</span>
+<span id="L65"><span class="lineNum">      65</span>              : </span>
+<span id="L66"><span class="lineNum">      66</span>              : &quot;&quot;&quot;</span>
+<span id="L67"><span class="lineNum">      67</span>              :     NullLongRangeCache &lt;: LongRangeCache</span>
+<span id="L68"><span class="lineNum">      68</span>              : </span>
+<span id="L69"><span class="lineNum">      69</span>              : Dummy cache type returned by [`init_cache_long`](@ref) when long-range</span>
+<span id="L70"><span class="lineNum">      70</span>              : computations are disabled.</span>
+<span id="L71"><span class="lineNum">      71</span>              : </span>
+<span id="L72"><span class="lineNum">      72</span>              : This is the case when the Ewald splitting parameter ``α`` is set to `Zero()`.</span>
+<span id="L73"><span class="lineNum">      73</span>              : &quot;&quot;&quot;</span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">       13952 : struct NullLongRangeCache &lt;: LongRangeCache end</span></span>
+<span id="L75"><span class="lineNum">      75</span>              : </span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">        1443 : backend(::NullLongRangeCache) = NullLongRangeBackend()</span></span>
+<span id="L77"><span class="lineNum">      77</span>              : </span>
+<span id="L78"><span class="lineNum">      78</span>              : &quot;&quot;&quot;</span>
+<span id="L79"><span class="lineNum">      79</span>              :     init_cache_long(p::ParamsLongRange, pointdata::PointData, [to::TimerOutput]) -&gt; LongRangeCache</span>
+<span id="L80"><span class="lineNum">      80</span>              : </span>
+<span id="L81"><span class="lineNum">      81</span>              : Initialise the cache for the long-range backend defined in `p`.</span>
+<span id="L82"><span class="lineNum">      82</span>              : </span>
+<span id="L83"><span class="lineNum">      83</span>              : Note that, if `pc.α === Zero()`, then long-range computations are disabled and</span>
+<span id="L84"><span class="lineNum">      84</span>              : this returns a [`NullLongRangeCache`](@ref).</span>
+<span id="L85"><span class="lineNum">      85</span>              : &quot;&quot;&quot;</span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">         113 : function init_cache_long(p::ParamsLongRange, pointdata::PointData, to = TimerOutput())</span></span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">         113 :     (; common, backend,)= p</span></span>
+<span id="L88"><span class="lineNum">      88</span>              :     # If long-range stuff is run on a GPU, we create a separate TimerOutput.</span>
+<span id="L89"><span class="lineNum">      89</span>              :     # This is to avoid short- and long-range parts writing asynchronously to the same timer.</span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaGNC">         109 :     to_d = KA.get_backend(backend) isa KA.CPU ? to : TimerOutput(&quot;Long range (GPU)&quot;)</span></span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaGNC">         109 :     if common.α === Zero()</span></span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">          22 :         NullLongRangeCache()  # disables Ewald method / long-range computations</span></span>
+<span id="L93"><span class="lineNum">      93</span>              :     else</span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaGNC">          87 :         init_cache_long_ewald(common, p, pointdata, to_d)</span></span>
+<span id="L95"><span class="lineNum">      95</span>              :     end</span>
+<span id="L96"><span class="lineNum">      96</span>              : end</span>
+<span id="L97"><span class="lineNum">      97</span>              : </span>
+<span id="L98"><span class="lineNum">      98</span>              : &quot;&quot;&quot;</span>
+<span id="L99"><span class="lineNum">      99</span>              :     Base.similar(cache::LongRangeCache, Ns::Dims{3}) -&gt; LongRangeCache</span>
+<span id="L100"><span class="lineNum">     100</span>              : </span>
+<span id="L101"><span class="lineNum">     101</span>              : Create a [`LongRangeCache`](@ref) similar to an existent one, but possibly holding a</span>
+<span id="L102"><span class="lineNum">     102</span>              : different amount of wavenumbers in Fourier space.</span>
+<span id="L103"><span class="lineNum">     103</span>              : </span>
+<span id="L104"><span class="lineNum">     104</span>              : In principle, the grid resolution `Ns` can be different from the original one</span>
+<span id="L105"><span class="lineNum">     105</span>              : (`cache.common.params.Ns`).</span>
+<span id="L106"><span class="lineNum">     106</span>              : This can be useful for computing high-resolution fields in Fourier space (e.g. for extending</span>
+<span id="L107"><span class="lineNum">     107</span>              : the data to higher wavenumbers than allowed by the original cache).</span>
+<span id="L108"><span class="lineNum">     108</span>              : </span>
+<span id="L109"><span class="lineNum">     109</span>              : For convenience, point data already in `cache.common.pointdata_d` is copied to the new cache.</span>
+<span id="L110"><span class="lineNum">     110</span>              : This means that, if one already filled the original cache using</span>
+<span id="L111"><span class="lineNum">     111</span>              : [`add_point_charges!`](@ref), then one can directly call [`transform_to_fourier!`](@ref)</span>
+<span id="L112"><span class="lineNum">     112</span>              : with the new cache to get the vorticity field in Fourier space at the wanted resolution `Ns`.</span>
+<span id="L113"><span class="lineNum">     113</span>              : &quot;&quot;&quot;</span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">           4 : function Base.similar(cache::LongRangeCache, Ns::Dims{3})</span></span>
+<span id="L115"><span class="lineNum">     115</span> <span class="tlaGNC">           4 :     params_old = cache.common.params :: ParamsLongRange</span></span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">           4 :     (; backend, quad, common,) = params_old</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">           4 :     params_new = ParamsLongRange(backend, quad, common, Ns, params_old.truncate_spherical)</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">           4 :     pointdata = copy(cache.common.pointdata_d)</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">           4 :     BiotSavart.init_cache_long(params_new, pointdata)</span></span>
+<span id="L120"><span class="lineNum">     120</span>              : end</span>
+<span id="L121"><span class="lineNum">     121</span>              : </span>
+<span id="L122"><span class="lineNum">     122</span>              : &quot;&quot;&quot;</span>
+<span id="L123"><span class="lineNum">     123</span>              :     transform_to_fourier!(cache::LongRangeCache)</span>
+<span id="L124"><span class="lineNum">     124</span>              : </span>
+<span id="L125"><span class="lineNum">     125</span>              : Transform stored non-uniform data to Fourier space.</span>
+<span id="L126"><span class="lineNum">     126</span>              : </span>
+<span id="L127"><span class="lineNum">     127</span>              : This usually corresponds to a type-1 NUFFT.</span>
+<span id="L128"><span class="lineNum">     128</span>              : </span>
+<span id="L129"><span class="lineNum">     129</span>              : Non-uniform data must be first added via [`add_point_charges!`](@ref).</span>
+<span id="L130"><span class="lineNum">     130</span>              : &quot;&quot;&quot;</span>
+<span id="L131"><span class="lineNum">     131</span>              : function transform_to_fourier! end</span>
+<span id="L132"><span class="lineNum">     132</span>              : </span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaUNC tlaBgUNC">           0 : @kernel function to_smoothed_streamfunction_kernel!(us::NTuple, @Const(ewald_op))</span></span>
+<span id="L134"><span class="lineNum">     134</span> <span class="tlaUNC">           0 :     I = @index(Global, Linear)</span></span>
+<span id="L135"><span class="lineNum">     135</span> <span class="tlaGNC tlaBgGNC">    35392149 :     for u ∈ us</span></span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">    96621733 :         @inbounds u[I] *= ewald_op[I]</span></span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">   124263563 :     end</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">    35516151 :     nothing</span></span>
+<span id="L139"><span class="lineNum">     139</span>              : end</span>
+<span id="L140"><span class="lineNum">     140</span>              : </span>
+<span id="L141"><span class="lineNum">     141</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L142"><span class="lineNum">     142</span>              :     to_smoothed_streamfunction!(cache::LongRangeCache)</span>
+<span id="L143"><span class="lineNum">     143</span>              : </span>
+<span id="L144"><span class="lineNum">     144</span>              : Convert Fourier-transformed vorticity field to coarse-grained streamfunction field in</span>
+<span id="L145"><span class="lineNum">     145</span>              : Fourier space.</span>
+<span id="L146"><span class="lineNum">     146</span>              : </span>
+<span id="L147"><span class="lineNum">     147</span>              : This operation can be simply written as:</span>
+<span id="L148"><span class="lineNum">     148</span>              : </span>
+<span id="L149"><span class="lineNum">     149</span>              : ```math</span>
+<span id="L150"><span class="lineNum">     150</span>              : \hat{\bm{ψ}}_{α}(\bm{k}) = ϕ_α(|\bm{k}|) \, \hat{\bm{ω}}(\bm{k})</span>
+<span id="L151"><span class="lineNum">     151</span>              : ```</span>
+<span id="L152"><span class="lineNum">     152</span>              : </span>
+<span id="L153"><span class="lineNum">     153</span>              : where</span>
+<span id="L154"><span class="lineNum">     154</span>              : </span>
+<span id="L155"><span class="lineNum">     155</span>              : ```math</span>
+<span id="L156"><span class="lineNum">     156</span>              : ϕ_α(k) = \frac{Γ}{V} \, \frac{e^{-k^2 / 4α^2}}{k^2}</span>
+<span id="L157"><span class="lineNum">     157</span>              : ```</span>
+<span id="L158"><span class="lineNum">     158</span>              : </span>
+<span id="L159"><span class="lineNum">     159</span>              : is the Ewald operator. The effect of this operator is to:</span>
+<span id="L160"><span class="lineNum">     160</span>              : </span>
+<span id="L161"><span class="lineNum">     161</span>              : 1. invert the Laplacian in ``-∇² \bm{ψ} = \bm{\omega}``;</span>
+<span id="L162"><span class="lineNum">     162</span>              : 2. smoothen the fields according to the Ewald parameter ``α`` (an inverse length scale);</span>
+<span id="L163"><span class="lineNum">     163</span>              : 3. rescale values by the vortex circulation ``Γ`` and the volume ``V`` of a periodic cell</span>
+<span id="L164"><span class="lineNum">     164</span>              :    so that the streamfunction has the right units (``L^2 T^{-1}``).</span>
+<span id="L165"><span class="lineNum">     165</span>              : </span>
+<span id="L166"><span class="lineNum">     166</span>              : This function should be called after [`compute_vorticity_fourier!`](@ref).</span>
+<span id="L167"><span class="lineNum">     167</span>              : If one only needs the velocity and not the streamfunction, one can also directly call</span>
+<span id="L168"><span class="lineNum">     168</span>              : [`to_smoothed_velocity!`](@ref).</span>
+<span id="L169"><span class="lineNum">     169</span>              : &quot;&quot;&quot;</span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">        3487 : function to_smoothed_streamfunction!(c::LongRangeCache)</span></span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">        3487 :     (; uhat_d, state, ewald_op_d,) = c.common</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">        3487 :     @assert size(uhat_d) === size(ewald_op_d)</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">        3487 :     from_vorticity = state.quantity === :vorticity &amp;&amp; !state.smoothed</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">        3487 :     @assert from_vorticity</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">        3487 :     inds = eachindex(ewald_op_d, uhat_d)</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">        3487 :     @assert inds isa AbstractUnitRange  # make sure we're using linear indexing (more efficient)</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">        3487 :     ka_backend = KA.get_backend(c)</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">        3487 :     kernel = ka_generate_kernel(to_smoothed_streamfunction_kernel!, ka_backend, uhat_d)</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">        3487 :     uhat_comps = StructArrays.components(uhat_d)</span></span>
+<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">        3487 :     kernel(uhat_comps, ewald_op_d)</span></span>
+<span id="L181"><span class="lineNum">     181</span> <span class="tlaGNC">        3487 :     state.quantity = :streamfunction</span></span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">        3487 :     state.smoothed = true</span></span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">        3487 :     uhat_d</span></span>
+<span id="L184"><span class="lineNum">     184</span>              : end</span>
+<span id="L185"><span class="lineNum">     185</span>              : </span>
+<span id="L186"><span class="lineNum">     186</span>              : # Applies Biot-Savart + Gaussian smoothing operators in Fourier space.</span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaUNC tlaBgUNC">           0 : @kernel function velocity_from_vorticity_kernel!(uhat::NTuple, @Const(ks), @Const(ewald_op))</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaUNC">           0 :     I = @index(Global, Cartesian)</span></span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC tlaBgGNC">    83724595 :     @inbounds op = ewald_op[I]</span></span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">   330092132 :     op_times_k⃗ = Vec3(map((k, i) -&gt; @inbounds(op * k[i]), ks, Tuple(I)))</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">   332418399 :     u⃗ = Vec3(map(u -&gt; @inbounds(u[I]), uhat))</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">    84242032 :     u⃗ = @inbounds im * u⃗</span></span>
+<span id="L193"><span class="lineNum">     193</span>              :     # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)</span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">    83883738 :     u⃗ = @noinline op_times_k⃗ × u⃗</span></span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">    80063755 :     for n ∈ eachindex(uhat)</span></span>
+<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">   218450588 :         @inbounds uhat[n][I] = u⃗[n]</span></span>
+<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">   409281583 :     end</span></span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">    81897740 :     nothing</span></span>
+<span id="L199"><span class="lineNum">     199</span>              : end</span>
+<span id="L200"><span class="lineNum">     200</span>              : </span>
+<span id="L201"><span class="lineNum">     201</span>              : # Applies curl operator in Fourier space.</span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaUNC tlaBgUNC">           0 : @kernel function velocity_from_streamfunction_kernel!(uhat::NTuple, @Const(ks))</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaUNC">           0 :     I = @index(Global, Cartesian)</span></span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC tlaBgGNC">   163423796 :     k⃗ = Vec3(map((k, i) -&gt; @inbounds(k[i]), ks, Tuple(I)))</span></span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">   165545234 :     u⃗ = Vec3(map(u -&gt; @inbounds(u[I]), uhat))</span></span>
+<span id="L206"><span class="lineNum">     206</span> <span class="tlaGNC">    42154752 :     u⃗ = @inbounds im * u⃗</span></span>
+<span id="L207"><span class="lineNum">     207</span>              :     # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)</span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">    42113960 :     u⃗ = @noinline k⃗ × u⃗</span></span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">    42615297 :     for n ∈ eachindex(uhat)</span></span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">   116287085 :         @inbounds uhat[n][I] = u⃗[n]</span></span>
+<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC">   209668427 :     end</span></span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">    41677605 :     nothing</span></span>
+<span id="L213"><span class="lineNum">     213</span>              : end</span>
+<span id="L214"><span class="lineNum">     214</span>              : </span>
+<span id="L215"><span class="lineNum">     215</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L216"><span class="lineNum">     216</span>              :     to_smoothed_velocity!(cache::LongRangeCache)</span>
+<span id="L217"><span class="lineNum">     217</span>              : </span>
+<span id="L218"><span class="lineNum">     218</span>              : Convert Fourier-transformed vorticity field to coarse-grained velocity field in</span>
+<span id="L219"><span class="lineNum">     219</span>              : Fourier space.</span>
+<span id="L220"><span class="lineNum">     220</span>              : </span>
+<span id="L221"><span class="lineNum">     221</span>              : If called right after [`compute_vorticity_fourier!`](@ref), this function performs the</span>
+<span id="L222"><span class="lineNum">     222</span>              : operation:</span>
+<span id="L223"><span class="lineNum">     223</span>              : </span>
+<span id="L224"><span class="lineNum">     224</span>              : ```math</span>
+<span id="L225"><span class="lineNum">     225</span>              : \hat{\bm{v}}_{α}(\bm{k}) = i \bm{k} × ϕ_α(|\bm{k}|) \, \, \hat{\bm{ω}}(\bm{k}),</span>
+<span id="L226"><span class="lineNum">     226</span>              : ```</span>
+<span id="L227"><span class="lineNum">     227</span>              : </span>
+<span id="L228"><span class="lineNum">     228</span>              : where ``ϕ_α`` is the Ewald operator defined in [`to_smoothed_streamfunction!`](@ref).</span>
+<span id="L229"><span class="lineNum">     229</span>              : </span>
+<span id="L230"><span class="lineNum">     230</span>              : Optionally, if one is also interested in the streamfunction, one can call</span>
+<span id="L231"><span class="lineNum">     231</span>              : [`to_smoothed_streamfunction!`](@ref) *before* this function.</span>
+<span id="L232"><span class="lineNum">     232</span>              : In that case, the cache already contains the smoothed streamfunction, and only the curl</span>
+<span id="L233"><span class="lineNum">     233</span>              : operator (``i \bm{k} ×``) is applied by this function.</span>
+<span id="L234"><span class="lineNum">     234</span>              : &quot;&quot;&quot;</span>
+<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">       12491 : function to_smoothed_velocity!(c::LongRangeCache)</span></span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">       12491 :     (; uhat_d, state, ewald_op_d, wavenumbers_d,) = c.common</span></span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">       12491 :     @assert size(uhat_d) === size(ewald_op_d)</span></span>
+<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">       12491 :     from_vorticity = state.quantity === :vorticity &amp;&amp; !state.smoothed</span></span>
+<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">       12491 :     from_streamfunction = state.quantity === :streamfunction &amp;&amp; state.smoothed</span></span>
+<span id="L240"><span class="lineNum">     240</span> <span class="tlaGNC">       15978 :     @assert from_vorticity || from_streamfunction</span></span>
+<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">       12491 :     ka_backend = KA.get_backend(c)</span></span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">       12491 :     uhat_comps = StructArrays.components(uhat_d)</span></span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">       12491 :     if from_vorticity</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">        9004 :         let kernel = ka_generate_kernel(velocity_from_vorticity_kernel!, ka_backend, uhat_d)</span></span>
+<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">        9004 :             kernel(uhat_comps, wavenumbers_d, ewald_op_d)</span></span>
+<span id="L246"><span class="lineNum">     246</span>              :         end</span>
+<span id="L247"><span class="lineNum">     247</span> <span class="tlaGNC">        3487 :     elseif from_streamfunction</span></span>
+<span id="L248"><span class="lineNum">     248</span> <span class="tlaGNC">        3487 :         let kernel = ka_generate_kernel(velocity_from_streamfunction_kernel!, ka_backend, uhat_d)</span></span>
+<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">        3487 :             kernel(uhat_comps, wavenumbers_d)</span></span>
+<span id="L250"><span class="lineNum">     250</span>              :         end</span>
+<span id="L251"><span class="lineNum">     251</span>              :     end</span>
+<span id="L252"><span class="lineNum">     252</span> <span class="tlaGNC">       12491 :     state.quantity = :velocity</span></span>
+<span id="L253"><span class="lineNum">     253</span> <span class="tlaGNC">       12491 :     state.smoothed = true</span></span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">       12491 :     c</span></span>
+<span id="L255"><span class="lineNum">     255</span>              : end</span>
+<span id="L256"><span class="lineNum">     256</span>              : </span>
+<span id="L257"><span class="lineNum">     257</span>              : # These can be useful for generic code dealing with velocity, streamfunction or both.</span>
+<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">       12487 : to_smoothed_field!(::Velocity, c::LongRangeCache) = to_smoothed_velocity!(c)</span></span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">        3487 : to_smoothed_field!(::Streamfunction, c::LongRangeCache) = to_smoothed_streamfunction!(c)</span></span>
+<span id="L260"><span class="lineNum">     260</span>              : </span>
+<span id="L261"><span class="lineNum">     261</span>              : &quot;&quot;&quot;</span>
+<span id="L262"><span class="lineNum">     262</span>              :     interpolate_to_physical!([output::StructVector{&lt;:Vec3},] cache::LongRangeCache)</span>
+<span id="L263"><span class="lineNum">     263</span>              : </span>
+<span id="L264"><span class="lineNum">     264</span>              : Perform type-2 NUFFT to interpolate values in `cache.common.uhat_d` to non-uniform</span>
+<span id="L265"><span class="lineNum">     265</span>              : points in physical space.</span>
+<span id="L266"><span class="lineNum">     266</span>              : </span>
+<span id="L267"><span class="lineNum">     267</span>              : Results are written to the `output` vector, which defaults to `cache.pointdata_d.charges`.</span>
+<span id="L268"><span class="lineNum">     268</span>              : &quot;&quot;&quot;</span>
+<span id="L269"><span class="lineNum">     269</span> <span class="tlaGNC">       15955 : function interpolate_to_physical!(cache::LongRangeCache)</span></span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC">       15955 :     output = cache.common.pointdata_d.charges</span></span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">       15955 :     interpolate_to_physical!(output, cache)</span></span>
+<span id="L272"><span class="lineNum">     272</span>              : end</span>
+<span id="L273"><span class="lineNum">     273</span>              : </span>
+<span id="L274"><span class="lineNum">     274</span> <span class="tlaGNC">       15978 : function interpolate_to_physical!(output, cache::LongRangeCache)</span></span>
+<span id="L275"><span class="lineNum">     275</span> <span class="tlaGNC">       15978 :     @assert typeof(output) === typeof(cache.common.pointdata_d.charges)</span></span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">       15978 :     _interpolate_to_physical!(output, cache)</span></span>
+<span id="L277"><span class="lineNum">     277</span> <span class="tlaGNC">       15978 :     output</span></span>
+<span id="L278"><span class="lineNum">     278</span>              : end</span>
+<span id="L279"><span class="lineNum">     279</span>              : </span>
+<span id="L280"><span class="lineNum">     280</span> <span class="tlaUNC tlaBgUNC">           0 : @kernel function init_ewald_fourier_operator_kernel!(</span></span>
+<span id="L281"><span class="lineNum">     281</span>              :         u::AbstractArray{T, 3} where {T},</span>
+<span id="L282"><span class="lineNum">     282</span>              :         @Const(ks),</span>
+<span id="L283"><span class="lineNum">     283</span>              :         @Const(β::Real),  # = -1/(4α²)</span>
+<span id="L284"><span class="lineNum">     284</span>              :         @Const(prefactor::Real),</span>
+<span id="L285"><span class="lineNum">     285</span>              :     )</span>
+<span id="L286"><span class="lineNum">     286</span> <span class="tlaUNC">           0 :     I = @index(Global, Cartesian)</span></span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC tlaBgGNC">    12452032 :     k⃗ = map(getindex, ks, Tuple(I))</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">    12453978 :     k² = sum(abs2, k⃗)</span></span>
+<span id="L289"><span class="lineNum">     289</span>              :     # Operator converting vorticity to coarse-grained streamfunction</span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">    12396177 :     y = prefactor * exp(β * k²) / k²</span></span>
+<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">    12554813 :     @inbounds u[I] = ifelse(iszero(k²), zero(y), y)</span></span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">    12566100 :     nothing</span></span>
+<span id="L293"><span class="lineNum">     293</span>              : end</span>
+<span id="L294"><span class="lineNum">     294</span>              : </span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">          87 : function init_ewald_fourier_operator(</span></span>
+<span id="L296"><span class="lineNum">     296</span>              :         ::Type{T}, backend::LongRangeBackend, ks, α::Real, prefactor::Real,</span>
+<span id="L297"><span class="lineNum">     297</span>              :     ) where {T &lt;: Real}</span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">          87 :     ka_backend = KA.get_backend(backend)</span></span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">          87 :     dims = map(length, ks)</span></span>
+<span id="L300"><span class="lineNum">     300</span> <span class="tlaGNC">          87 :     u = KA.zeros(ka_backend, T, dims)</span></span>
+<span id="L301"><span class="lineNum">     301</span> <span class="tlaGNC">          87 :     @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device</span></span>
+<span id="L302"><span class="lineNum">     302</span> <span class="tlaGNC">          87 :     β = -1 / (4 * α^2)</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">          87 :     kernel = ka_generate_kernel(init_ewald_fourier_operator_kernel!, ka_backend, u)</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">          87 :     kernel(u, ks, β, prefactor)</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">          87 :     u</span></span>
+<span id="L306"><span class="lineNum">     306</span>              : end</span>
+<span id="L307"><span class="lineNum">     307</span>              : </span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaGNC">       24986 : function rescale_coordinates!(c::LongRangeCache)</span></span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">       24986 :     L = expected_period(backend(c))</span></span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">       74942 :     _rescale_coordinates!(c, L)</span></span>
+<span id="L311"><span class="lineNum">     311</span>              : end</span>
+<span id="L312"><span class="lineNum">     312</span>              : </span>
+<span id="L313"><span class="lineNum">     313</span>              : # Backend doesn't define `expected_period`, so no rescaling is needed.</span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaUNC tlaBgUNC">           0 : _rescale_coordinates!(::LongRangeCache, ::Nothing) = nothing</span></span>
+<span id="L315"><span class="lineNum">     315</span>              : </span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC tlaBgGNC">       24978 : function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">       24978 :     (; Ls,) = c.common.params.common</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">       24978 :     (; points,) = c.common.pointdata_d</span></span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">       24978 :     for (xs, L) ∈ zip(StructArrays.components(points), Ls)</span></span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">       74934 :         _rescale_coordinates!(xs, L, L_expected)</span></span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">      124890 :     end</span></span>
+<span id="L322"><span class="lineNum">     322</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L323"><span class="lineNum">     323</span>              : end</span>
+<span id="L324"><span class="lineNum">     324</span>              : </span>
+<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC tlaBgGNC">       74934 : function _rescale_coordinates!(xs::AbstractVector, L::Real, L_expected)</span></span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">       74934 :     if L != L_expected</span></span>
+<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">       23032 :         xs .*= L_expected / L</span></span>
+<span id="L328"><span class="lineNum">     328</span>              :     end</span>
+<span id="L329"><span class="lineNum">     329</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L330"><span class="lineNum">     330</span>              : end</span>
+<span id="L331"><span class="lineNum">     331</span>              : </span>
+<span id="L332"><span class="lineNum">     332</span>              : # Note: This function must be called **after** `rescale_coordinates!`.</span>
+<span id="L333"><span class="lineNum">     333</span> <span class="tlaGNC tlaBgGNC">       24986 : function fold_coordinates!(c::LongRangeCache)</span></span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">       24986 :     lims = folding_limits(backend(c))</span></span>
+<span id="L335"><span class="lineNum">     335</span> <span class="tlaGNC">       24986 :     L = expected_period(backend(c))</span></span>
+<span id="L336"><span class="lineNum">     336</span> <span class="tlaGNC">       24986 :     _fold_coordinates!(c, lims, L)</span></span>
+<span id="L337"><span class="lineNum">     337</span>              : end</span>
+<span id="L338"><span class="lineNum">     338</span>              : </span>
+<span id="L339"><span class="lineNum">     339</span>              : # Backend doesn't define `folding_limits`, so no rescaling is needed.</span>
+<span id="L340"><span class="lineNum">     340</span> <span class="tlaUNC tlaBgUNC">           0 : _fold_coordinates!(::LongRangeCache, ::Nothing, ::Any) = nothing</span></span>
+<span id="L341"><span class="lineNum">     341</span>              : </span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaUNC">           0 : @kernel function fold_coordinates_kernel!(points::NTuple, @Const(lims), @Const(L))</span></span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaUNC">           0 :     i = @index(Global, Linear)</span></span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaUNC">           0 :     for x ∈ points</span></span>
+<span id="L345"><span class="lineNum">     345</span> <span class="tlaUNC">           0 :         @inbounds x[i] = _fold_coordinate(x[i], lims, L)</span></span>
+<span id="L346"><span class="lineNum">     346</span> <span class="tlaUNC">           0 :     end</span></span>
+<span id="L347"><span class="lineNum">     347</span> <span class="tlaUNC">           0 :     nothing</span></span>
+<span id="L348"><span class="lineNum">     348</span>              : end</span>
+<span id="L349"><span class="lineNum">     349</span>              : </span>
+<span id="L350"><span class="lineNum">     350</span> <span class="tlaUNC">           0 : function _fold_coordinates!(c::LongRangeCache, lims_in::NTuple{2, Real}, L_in::Real)</span></span>
+<span id="L351"><span class="lineNum">     351</span> <span class="tlaUNC">           0 :     (; points,) = c.common.pointdata_d</span></span>
+<span id="L352"><span class="lineNum">     352</span> <span class="tlaUNC">           0 :     points_comp = StructArrays.components(points) :: NTuple</span></span>
+<span id="L353"><span class="lineNum">     353</span> <span class="tlaUNC">           0 :     T = eltype(points_comp[1])</span></span>
+<span id="L354"><span class="lineNum">     354</span> <span class="tlaUNC">           0 :     @assert T &lt;: AbstractFloat</span></span>
+<span id="L355"><span class="lineNum">     355</span> <span class="tlaUNC">           0 :     lims = convert.(T, lims_in)</span></span>
+<span id="L356"><span class="lineNum">     356</span> <span class="tlaUNC">           0 :     L = convert(T, L_in)</span></span>
+<span id="L357"><span class="lineNum">     357</span> <span class="tlaUNC">           0 :     ka_backend = KA.get_backend(c)</span></span>
+<span id="L358"><span class="lineNum">     358</span> <span class="tlaUNC">           0 :     @assert length(points) &gt; 0</span></span>
+<span id="L359"><span class="lineNum">     359</span>              :     # Instead of using ka_generate_kernel, we create a kernel with dynamically sized</span>
+<span id="L360"><span class="lineNum">     360</span>              :     # ndrange, which means (I think) that the kernel won't be recompiled when length(points)</span>
+<span id="L361"><span class="lineNum">     361</span>              :     # changes (which happens all the time during a simulation).</span>
+<span id="L362"><span class="lineNum">     362</span> <span class="tlaUNC">           0 :     workgroupsize = 1024</span></span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaUNC">           0 :     kernel = fold_coordinates_kernel!(ka_backend, workgroupsize)</span></span>
+<span id="L364"><span class="lineNum">     364</span> <span class="tlaUNC">           0 :     kernel(points_comp, lims, L; ndrange = size(points))</span></span>
+<span id="L365"><span class="lineNum">     365</span> <span class="tlaUNC">           0 :     nothing</span></span>
+<span id="L366"><span class="lineNum">     366</span>              : end</span>
+<span id="L367"><span class="lineNum">     367</span>              : </span>
+<span id="L368"><span class="lineNum">     368</span>              : # We assume that L = b - a.</span>
+<span id="L369"><span class="lineNum">     369</span> <span class="tlaUNC">           0 : @inline function _fold_coordinate(x::T, (a, b)::NTuple{2, T}, L::T) where {T &lt;: AbstractFloat}</span></span>
+<span id="L370"><span class="lineNum">     370</span> <span class="tlaUNC">           0 :     while x ≥ b</span></span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaUNC">           0 :         x -= L</span></span>
+<span id="L372"><span class="lineNum">     372</span> <span class="tlaUNC">           0 :     end</span></span>
+<span id="L373"><span class="lineNum">     373</span> <span class="tlaUNC">           0 :     while x &lt; a</span></span>
+<span id="L374"><span class="lineNum">     374</span> <span class="tlaUNC">           0 :         x += L</span></span>
+<span id="L375"><span class="lineNum">     375</span> <span class="tlaUNC">           0 :     end</span></span>
+<span id="L376"><span class="lineNum">     376</span> <span class="tlaUNC">           0 :     x</span></span>
+<span id="L377"><span class="lineNum">     377</span>              : end</span>
+<span id="L378"><span class="lineNum">     378</span>              : </span>
+<span id="L379"><span class="lineNum">     379</span>              : # Determines whether the backend requires non-uniform values to be complex.</span>
+<span id="L380"><span class="lineNum">     380</span>              : # By default this is not the case, but backends needing that (such as FINUFFT) return</span>
+<span id="L381"><span class="lineNum">     381</span>              : # Complex{T} instead of T.</span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC tlaBgGNC">          88 : non_uniform_type(::Type{T}, ::LongRangeBackend) where {T &lt;: AbstractFloat} = T</span></span>
+<span id="L383"><span class="lineNum">     383</span>              : </span>
+<span id="L384"><span class="lineNum">     384</span>              : &quot;&quot;&quot;</span>
+<span id="L385"><span class="lineNum">     385</span>              :     compute_vorticity_fourier!(cache::LongRangeCache)</span>
+<span id="L386"><span class="lineNum">     386</span>              : </span>
+<span id="L387"><span class="lineNum">     387</span>              : Estimate vorticity in Fourier space.</span>
+<span id="L388"><span class="lineNum">     388</span>              : </span>
+<span id="L389"><span class="lineNum">     389</span>              : The vorticity, written to `cache.common.uhat_d`, is estimated using some variant of</span>
+<span id="L390"><span class="lineNum">     390</span>              : non-uniform Fourier transforms (depending on the chosen backend).</span>
+<span id="L391"><span class="lineNum">     391</span>              : </span>
+<span id="L392"><span class="lineNum">     392</span>              : Note that this function doesn't perform smoothing over the vorticity using the Ewald operator.</span>
+<span id="L393"><span class="lineNum">     393</span>              : Moreover, the resulting vorticity doesn't have the right dimensions, as it must be</span>
+<span id="L394"><span class="lineNum">     394</span>              : multiplied by ``Γ/V`` (where ``Γ`` is the circulation and ``V`` is the volume of a periodic</span>
+<span id="L395"><span class="lineNum">     395</span>              : cell) to have dimensions ``T^{-1}``. In fact, this factor is included in the Ewald operator</span>
+<span id="L396"><span class="lineNum">     396</span>              : (see [`to_smoothed_streamfunction!`](@ref) for details).</span>
+<span id="L397"><span class="lineNum">     397</span>              : </span>
+<span id="L398"><span class="lineNum">     398</span>              : Must be called after [`add_point_charges!`](@ref).</span>
+<span id="L399"><span class="lineNum">     399</span>              : </span>
+<span id="L400"><span class="lineNum">     400</span>              : After calling this function, one may want to use [`to_smoothed_streamfunction!`](@ref) and/or</span>
+<span id="L401"><span class="lineNum">     401</span>              : [`to_smoothed_velocity!`](@ref) to obtain the respective fields.</span>
+<span id="L402"><span class="lineNum">     402</span>              : &quot;&quot;&quot;</span>
+<span id="L403"><span class="lineNum">     403</span> <span class="tlaGNC">       12495 : function compute_vorticity_fourier!(cache::LongRangeCache)</span></span>
+<span id="L404"><span class="lineNum">     404</span> <span class="tlaGNC">       12495 :     (; uhat_d, state,) = cache.common</span></span>
+<span id="L405"><span class="lineNum">     405</span> <span class="tlaGNC">       37477 :     rescale_coordinates!(cache)  # may be needed by the backend (e.g. FINUFFT requires period L = 2π)</span></span>
+<span id="L406"><span class="lineNum">     406</span> <span class="tlaGNC">       12495 :     fold_coordinates!(cache)     # may be needed by the backend (e.g. FINUFFT requires x ∈ [-3π, 3π])</span></span>
+<span id="L407"><span class="lineNum">     407</span> <span class="tlaGNC">       12495 :     transform_to_fourier!(cache)</span></span>
+<span id="L408"><span class="lineNum">     408</span> <span class="tlaGNC">       12495 :     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)</span></span>
+<span id="L409"><span class="lineNum">     409</span> <span class="tlaGNC">       12495 :     state.quantity = :vorticity</span></span>
+<span id="L410"><span class="lineNum">     410</span> <span class="tlaGNC">       12495 :     state.smoothed = false</span></span>
+<span id="L411"><span class="lineNum">     411</span> <span class="tlaGNC">       12495 :     uhat_d</span></span>
+<span id="L412"><span class="lineNum">     412</span>              : end</span>
+<span id="L413"><span class="lineNum">     413</span>              : </span>
+<span id="L414"><span class="lineNum">     414</span> <span class="tlaUNC tlaBgUNC">           0 : @kernel function truncate_spherical_kernel!(uhat::NTuple, @Const(ks), @Const(kmax²))</span></span>
+<span id="L415"><span class="lineNum">     415</span> <span class="tlaUNC">           0 :     I = @index(Global, Cartesian)</span></span>
+<span id="L416"><span class="lineNum">     416</span> <span class="tlaGNC tlaBgGNC">     1875594 :     T = eltype(uhat[1])</span></span>
+<span id="L417"><span class="lineNum">     417</span> <span class="tlaGNC">     7502304 :     k⃗ = map((v, i) -&gt; @inbounds(v[i]), ks, Tuple(I))</span></span>
+<span id="L418"><span class="lineNum">     418</span> <span class="tlaGNC">     2029266 :     k² = sum(abs2, k⃗)</span></span>
+<span id="L419"><span class="lineNum">     419</span> <span class="tlaGNC">     1986007 :     truncate = k² &gt; kmax²</span></span>
+<span id="L420"><span class="lineNum">     420</span> <span class="tlaGNC">     2020461 :     for u ∈ uhat</span></span>
+<span id="L421"><span class="lineNum">     421</span> <span class="tlaGNC">     5561673 :         @inbounds u[I] = ifelse(truncate, zero(T), u[I])</span></span>
+<span id="L422"><span class="lineNum">     422</span> <span class="tlaGNC">     7189089 :     end</span></span>
+<span id="L423"><span class="lineNum">     423</span> <span class="tlaGNC">     1925909 :     nothing</span></span>
+<span id="L424"><span class="lineNum">     424</span>              : end</span>
+<span id="L425"><span class="lineNum">     425</span>              : </span>
+<span id="L426"><span class="lineNum">     426</span> <span class="tlaGNC">       12495 : function truncate_spherical!(cache)</span></span>
+<span id="L427"><span class="lineNum">     427</span> <span class="tlaGNC">       12495 :     (; uhat_d, params, wavenumbers_d,) = cache.common</span></span>
+<span id="L428"><span class="lineNum">     428</span> <span class="tlaGNC">       12495 :     if !params.truncate_spherical</span></span>
+<span id="L429"><span class="lineNum">     429</span> <span class="tlaGNC">       12487 :         return  # don't apply spherical truncation</span></span>
+<span id="L430"><span class="lineNum">     430</span>              :     end</span>
+<span id="L431"><span class="lineNum">     431</span> <span class="tlaGNC">           8 :     kmax = maximum_wavenumber(params)</span></span>
+<span id="L432"><span class="lineNum">     432</span> <span class="tlaGNC">           8 :     kmax² = kmax^2</span></span>
+<span id="L433"><span class="lineNum">     433</span> <span class="tlaGNC">           8 :     ka_backend = KA.get_backend(cache)</span></span>
+<span id="L434"><span class="lineNum">     434</span> <span class="tlaGNC">           8 :     uhat_comps = StructArrays.components(uhat_d)</span></span>
+<span id="L435"><span class="lineNum">     435</span> <span class="tlaGNC">           8 :     kernel = ka_generate_kernel(truncate_spherical_kernel!, ka_backend, uhat_d)</span></span>
+<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">           8 :     kernel(uhat_comps, wavenumbers_d, kmax²)</span></span>
+<span id="L437"><span class="lineNum">     437</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L438"><span class="lineNum">     438</span>              : end</span>
+<span id="L439"><span class="lineNum">     439</span>              : </span>
+<span id="L440"><span class="lineNum">     440</span>              : # Here pointdata_h is the point data on the CPU.</span>
+<span id="L441"><span class="lineNum">     441</span>              : # It is used as an intermediate buffer in the GPU implementation.</span>
+<span id="L442"><span class="lineNum">     442</span>              : # To avoid allocations, it should be passed by the caller. Its default value is mostly for</span>
+<span id="L443"><span class="lineNum">     443</span>              : # backwards compatibility, when this function only accepted 2 arguments.</span>
+<span id="L444"><span class="lineNum">     444</span> <span class="tlaGNC tlaBgGNC">       12491 : function set_interpolation_points!(</span></span>
+<span id="L445"><span class="lineNum">     445</span>              :         cache::LongRangeCache,</span>
+<span id="L446"><span class="lineNum">     446</span>              :         fs::VectorOfFilaments,</span>
+<span id="L447"><span class="lineNum">     447</span>              :     )</span>
+<span id="L448"><span class="lineNum">     448</span>              :     # Note that we only modify the `points` field of PointData. The other ones are not</span>
+<span id="L449"><span class="lineNum">     449</span>              :     # needed for interpolation.</span>
+<span id="L450"><span class="lineNum">     450</span> <span class="tlaGNC">       12491 :     (; pointdata_d,) = cache.common</span></span>
+<span id="L451"><span class="lineNum">     451</span> <span class="tlaGNC">       12491 :     (; points, charges, points_h,) = pointdata_d</span></span>
+<span id="L452"><span class="lineNum">     452</span> <span class="tlaGNC">       12491 :     Npoints = sum(length, fs)</span></span>
+<span id="L453"><span class="lineNum">     453</span> <span class="tlaGNC">       12491 :     resize_no_copy!(points, Npoints)</span></span>
+<span id="L454"><span class="lineNum">     454</span> <span class="tlaGNC">       12491 :     resize_no_copy!(charges, Npoints)  # this is the interpolation output</span></span>
+<span id="L455"><span class="lineNum">     455</span> <span class="tlaGNC">       12491 :     ka_backend = KA.get_backend(cache)</span></span>
+<span id="L456"><span class="lineNum">     456</span> <span class="tlaGNC">       12491 :     set_interpolation_points_impl!(ka_backend, fs, points, points_h)</span></span>
+<span id="L457"><span class="lineNum">     457</span> <span class="tlaGNC">       37465 :     rescale_coordinates!(cache)</span></span>
+<span id="L458"><span class="lineNum">     458</span> <span class="tlaGNC">       12491 :     fold_coordinates!(cache)</span></span>
+<span id="L459"><span class="lineNum">     459</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L460"><span class="lineNum">     460</span>              : end</span>
+<span id="L461"><span class="lineNum">     461</span>              : </span>
+<span id="L462"><span class="lineNum">     462</span>              : # CPU implementation</span>
+<span id="L463"><span class="lineNum">     463</span> <span class="tlaGNC tlaBgGNC">       12469 : function set_interpolation_points_impl!(</span></span>
+<span id="L464"><span class="lineNum">     464</span>              :         ::KA.CPU, fs, points_d, points_h,</span>
+<span id="L465"><span class="lineNum">     465</span>              :     )</span>
+<span id="L466"><span class="lineNum">     466</span> <span class="tlaGNC">       12469 :     @assert isempty(points_h)  # never used in the CPU implementation (so it should stay empty)</span></span>
+<span id="L467"><span class="lineNum">     467</span> <span class="tlaGNC">       12469 :     xs_d = StructArrays.components(points_d)  # (xs, ys, zs)</span></span>
+<span id="L468"><span class="lineNum">     468</span> <span class="tlaGNC">       12469 :     _set_interpolation_points!(xs_d, fs)</span></span>
+<span id="L469"><span class="lineNum">     469</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L470"><span class="lineNum">     470</span>              : end</span>
+<span id="L471"><span class="lineNum">     471</span>              : </span>
+<span id="L472"><span class="lineNum">     472</span>              : # GPU implementation: first write to pointdata_h (on the CPU), then copy to pointdata_d (on the GPU).</span>
+<span id="L473"><span class="lineNum">     473</span> <span class="tlaGNC tlaBgGNC">          22 : function set_interpolation_points_impl!(</span></span>
+<span id="L474"><span class="lineNum">     474</span>              :         ka_backend::KA.GPU, fs, points_d, points_h,</span>
+<span id="L475"><span class="lineNum">     475</span>              :     )</span>
+<span id="L476"><span class="lineNum">     476</span> <span class="tlaGNC">          22 :     Npoints = length(points_d)  # for now, only points_d has the right size</span></span>
+<span id="L477"><span class="lineNum">     477</span> <span class="tlaGNC">          22 :     resize_no_copy!(points_h, Npoints)  # resize temporary array (on the CPU)</span></span>
+<span id="L478"><span class="lineNum">     478</span> <span class="tlaGNC">          22 :     xs_d = StructArrays.components(points_d)  # (xs, ys, zs)</span></span>
+<span id="L479"><span class="lineNum">     479</span> <span class="tlaGNC">          22 :     xs_h = StructArrays.components(points_h)  # (xs, ys, zs)</span></span>
+<span id="L480"><span class="lineNum">     480</span> <span class="tlaGNC">          22 :     _set_interpolation_points!(xs_h, fs)  # gather points on the CPU</span></span>
+<span id="L481"><span class="lineNum">     481</span>              :     # Copy to GPU</span>
+<span id="L482"><span class="lineNum">     482</span> <span class="tlaGNC">          22 :     for i ∈ eachindex(xs_d, xs_h)</span></span>
+<span id="L483"><span class="lineNum">     483</span> <span class="tlaGNC">         132 :         KA.copyto!(ka_backend, xs_d[i], xs_h[i])</span></span>
+<span id="L484"><span class="lineNum">     484</span> <span class="tlaGNC">          66 :     end</span></span>
+<span id="L485"><span class="lineNum">     485</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L486"><span class="lineNum">     486</span>              : end</span>
+<span id="L487"><span class="lineNum">     487</span>              : </span>
+<span id="L488"><span class="lineNum">     488</span> <span class="tlaGNC tlaBgGNC">       12491 : function _set_interpolation_points!(points::NTuple, fs)</span></span>
+<span id="L489"><span class="lineNum">     489</span> <span class="tlaGNC">       12491 :     @assert KA.get_backend(points[1]) isa KA.CPU  # output is on the CPU</span></span>
+<span id="L490"><span class="lineNum">     490</span> <span class="tlaGNC">       12491 :     Npoints = length(points[1])</span></span>
+<span id="L491"><span class="lineNum">     491</span> <span class="tlaGNC">       12491 :     n = 0</span></span>
+<span id="L492"><span class="lineNum">     492</span> <span class="tlaGNC">       42073 :     for f ∈ fs, X ∈ f</span></span>
+<span id="L493"><span class="lineNum">     493</span> <span class="tlaGNC">      759124 :         n += 1</span></span>
+<span id="L494"><span class="lineNum">     494</span> <span class="tlaGNC">      759124 :         for i ∈ eachindex(X)</span></span>
+<span id="L495"><span class="lineNum">     495</span> <span class="tlaGNC">     2277372 :             @inbounds points[i][n] = X[i]</span></span>
+<span id="L496"><span class="lineNum">     496</span> <span class="tlaGNC">     3036496 :         end</span></span>
+<span id="L497"><span class="lineNum">     497</span> <span class="tlaGNC">      776124 :     end</span></span>
+<span id="L498"><span class="lineNum">     498</span> <span class="tlaGNC">       12491 :     @assert n == Npoints</span></span>
+<span id="L499"><span class="lineNum">     499</span> <span class="tlaGNC">       12491 :     points</span></span>
+<span id="L500"><span class="lineNum">     500</span>              : end</span>
+<span id="L501"><span class="lineNum">     501</span>              : </span>
+<span id="L502"><span class="lineNum">     502</span>              : # Here pointdata_h is used as a buffer in the GPU implementation.</span>
+<span id="L503"><span class="lineNum">     503</span>              : # See set_interpolation_points! for details.</span>
+<span id="L504"><span class="lineNum">     504</span> <span class="tlaGNC">       31933 : function add_long_range_output!(</span></span>
+<span id="L505"><span class="lineNum">     505</span>              :         vs::AbstractVector{&lt;:VectorOfVelocities}, cache::LongRangeCache,</span>
+<span id="L506"><span class="lineNum">     506</span>              :         charges = cache.common.pointdata_d.charges,</span>
+<span id="L507"><span class="lineNum">     507</span>              :     )</span>
+<span id="L508"><span class="lineNum">     508</span> <span class="tlaGNC">       31933 :     (; charges_h,) = cache.common.pointdata_d</span></span>
+<span id="L509"><span class="lineNum">     509</span> <span class="tlaGNC">       15978 :     nout = sum(length, vs)</span></span>
+<span id="L510"><span class="lineNum">     510</span> <span class="tlaGNC">       15978 :     nout == length(charges) || throw(DimensionMismatch(&quot;wrong length of output vector `vs`&quot;))</span></span>
+<span id="L511"><span class="lineNum">     511</span> <span class="tlaGNC">       15978 :     ka_backend = KA.get_backend(cache)</span></span>
+<span id="L512"><span class="lineNum">     512</span> <span class="tlaGNC">       15978 :     add_long_range_output_impl!(ka_backend, vs, charges, charges_h)</span></span>
+<span id="L513"><span class="lineNum">     513</span> <span class="tlaGNC">       15978 :     vs</span></span>
+<span id="L514"><span class="lineNum">     514</span>              : end</span>
+<span id="L515"><span class="lineNum">     515</span>              : </span>
+<span id="L516"><span class="lineNum">     516</span> <span class="tlaGNC">       15955 : function add_long_range_output_impl!(::KA.CPU, vs, charges_d, charges_h)</span></span>
+<span id="L517"><span class="lineNum">     517</span> <span class="tlaGNC">       15955 :     @assert isempty(charges_h)  # never used in the CPU implementation (so it should stay empty)</span></span>
+<span id="L518"><span class="lineNum">     518</span> <span class="tlaGNC">       15955 :     _add_long_range_output!(vs, charges_d)</span></span>
+<span id="L519"><span class="lineNum">     519</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L520"><span class="lineNum">     520</span>              : end</span>
+<span id="L521"><span class="lineNum">     521</span>              : </span>
+<span id="L522"><span class="lineNum">     522</span>              : # GPU implementation: first copy from charges_d (GPU) to charges_h (CPU), then add results</span>
+<span id="L523"><span class="lineNum">     523</span>              : # to `vs`.</span>
+<span id="L524"><span class="lineNum">     524</span> <span class="tlaGNC tlaBgGNC">          23 : function add_long_range_output_impl!(ka_backend::KA.GPU, vs, charges_d, charges_h)</span></span>
+<span id="L525"><span class="lineNum">     525</span>              :     # Device-to-host copy</span>
+<span id="L526"><span class="lineNum">     526</span> <span class="tlaGNC">          23 :     qs_d = StructArrays.components(charges_d)</span></span>
+<span id="L527"><span class="lineNum">     527</span> <span class="tlaGNC">          23 :     qs_h = StructArrays.components(charges_h)</span></span>
+<span id="L528"><span class="lineNum">     528</span> <span class="tlaGNC">          23 :     for i ∈ eachindex(qs_d, qs_h)</span></span>
+<span id="L529"><span class="lineNum">     529</span> <span class="tlaGNC">          69 :         resize_no_copy!(qs_h[i], length(qs_d[i]))</span></span>
+<span id="L530"><span class="lineNum">     530</span> <span class="tlaGNC">         138 :         KA.copyto!(ka_backend, qs_h[i], qs_d[i])  # device-to-host copy</span></span>
+<span id="L531"><span class="lineNum">     531</span> <span class="tlaGNC">         115 :     end</span></span>
+<span id="L532"><span class="lineNum">     532</span> <span class="tlaGNC">          23 :     KA.synchronize(ka_backend)  # make sure we're done copying data to CPU (needed on CUDA, where KA.copyto! is asynchronous)</span></span>
+<span id="L533"><span class="lineNum">     533</span>              :     # Now add long-range values to `vs` output.</span>
+<span id="L534"><span class="lineNum">     534</span> <span class="tlaGNC">          23 :     _add_long_range_output!(vs, charges_h)</span></span>
+<span id="L535"><span class="lineNum">     535</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L536"><span class="lineNum">     536</span>              : end</span>
+<span id="L537"><span class="lineNum">     537</span>              : </span>
+<span id="L538"><span class="lineNum">     538</span> <span class="tlaGNC tlaBgGNC">       15978 : function _add_long_range_output!(vs, charges::StructVector)</span></span>
+<span id="L539"><span class="lineNum">     539</span> <span class="tlaGNC">       15978 :     n = 0</span></span>
+<span id="L540"><span class="lineNum">     540</span> <span class="tlaGNC">       31850 :     @inbounds for v ∈ vs, j ∈ eachindex(v)</span></span>
+<span id="L541"><span class="lineNum">     541</span> <span class="tlaGNC">      968288 :         q = charges[n += 1]</span></span>
+<span id="L542"><span class="lineNum">     542</span> <span class="tlaGNC">      968288 :         v[j] = v[j] + real(q)</span></span>
+<span id="L543"><span class="lineNum">     543</span> <span class="tlaGNC">      989922 :     end</span></span>
+<span id="L544"><span class="lineNum">     544</span> <span class="tlaGNC">       15978 :     vs</span></span>
+<span id="L545"><span class="lineNum">     545</span>              : end</span>
+<span id="L546"><span class="lineNum">     546</span>              : </span>
+<span id="L547"><span class="lineNum">     547</span> <span class="tlaGNC">       12491 : function _ensure_hermitian_symmetry!(</span></span>
+<span id="L548"><span class="lineNum">     548</span>              :         wavenumbers::NTuple{N},</span>
+<span id="L549"><span class="lineNum">     549</span>              :         us::AbstractArray{&lt;:Any, N},  # this can be a StructVector</span>
+<span id="L550"><span class="lineNum">     550</span>              :     ) where {N}</span>
+<span id="L551"><span class="lineNum">     551</span>              :     # Ensure Hermitian symmetry one dimension at a time.</span>
+<span id="L552"><span class="lineNum">     552</span> <span class="tlaGNC">       12491 :     _ensure_hermitian_symmetry!(wavenumbers, Val(N), us)</span></span>
+<span id="L553"><span class="lineNum">     553</span>              : end</span>
+<span id="L554"><span class="lineNum">     554</span>              : </span>
+<span id="L555"><span class="lineNum">     555</span> <span class="tlaGNC">       37473 : @inline function _ensure_hermitian_symmetry!(wavenumbers, ::Val{d}, us) where {d}</span></span>
+<span id="L556"><span class="lineNum">     556</span> <span class="tlaGNC">       37473 :     N = size(us, d)</span></span>
+<span id="L557"><span class="lineNum">     557</span> <span class="tlaGNC">       37473 :     kd = wavenumbers[d]</span></span>
+<span id="L558"><span class="lineNum">     558</span> <span class="tlaGNC">       37473 :     Δk = kd[2]</span></span>
+<span id="L559"><span class="lineNum">     559</span> <span class="tlaGNC">       37473 :     is_r2c = last(kd) &gt; 0  # real-to-complex transform</span></span>
+<span id="L560"><span class="lineNum">     560</span> <span class="tlaGNC">       37473 :     T = eltype(us)</span></span>
+<span id="L561"><span class="lineNum">     561</span> <span class="tlaGNC">       37473 :     if is_r2c</span></span>
+<span id="L562"><span class="lineNum">     562</span> <span class="tlaGNC">        5090 :         @assert d == 1  # r2c transform is necessarily in the first dimension</span></span>
+<span id="L563"><span class="lineNum">     563</span> <span class="tlaGNC">       20360 :         inds = ntuple(j -&gt; j == 1 ? lastindex(kd) : Colon(), Val(ndims(us)))</span></span>
+<span id="L564"><span class="lineNum">     564</span> <span class="tlaGNC">        5090 :         @inbounds @views us[inds...] .= Ref(zero(T))  # use Ref to avoid broadcasting over zero(T) (in case T &lt;: Vec3)</span></span>
+<span id="L565"><span class="lineNum">     565</span> <span class="tlaGNC">       32383 :     elseif iseven(N)  # case of complex-to-complex transform (nothing to do if N is odd)</span></span>
+<span id="L566"><span class="lineNum">     566</span> <span class="tlaGNC">       32363 :         imin = (N ÷ 2) + 1  # asymmetric mode</span></span>
+<span id="L567"><span class="lineNum">     567</span> <span class="tlaGNC">       32363 :         @assert -kd[imin] ≈ kd[imin - 1] + Δk</span></span>
+<span id="L568"><span class="lineNum">     568</span> <span class="tlaGNC">      129452 :         inds = ntuple(j -&gt; j == d ? imin : Colon(), Val(ndims(us)))</span></span>
+<span id="L569"><span class="lineNum">     569</span> <span class="tlaGNC">       32363 :         @inbounds @views us[inds...] .= Ref(zero(T))</span></span>
+<span id="L570"><span class="lineNum">     570</span>              :     end</span>
+<span id="L571"><span class="lineNum">     571</span> <span class="tlaGNC">       37473 :     _ensure_hermitian_symmetry!(wavenumbers, Val(d - 1), us)</span></span>
+<span id="L572"><span class="lineNum">     572</span>              : end</span>
+<span id="L573"><span class="lineNum">     573</span>              : </span>
+<span id="L574"><span class="lineNum">     574</span> <span class="tlaGNC">       12491 : _ensure_hermitian_symmetry!(wavenumbers, ::Val{0}, us) = us  # we're done, do nothing</span></span>
+<span id="L575"><span class="lineNum">     575</span>              : </span>
+<span id="L576"><span class="lineNum">     576</span>              : include(&quot;ka_utils.jl&quot;)</span>
+<span id="L577"><span class="lineNum">     577</span>              : include(&quot;exact_sum.jl&quot;)</span>
+<span id="L578"><span class="lineNum">     578</span>              : include(&quot;finufft.jl&quot;)</span>
+<span id="L579"><span class="lineNum">     579</span>              : include(&quot;nonuniformffts.jl&quot;)</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

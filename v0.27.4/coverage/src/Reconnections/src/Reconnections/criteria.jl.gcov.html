@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Reconnections/src/Reconnections/criteria.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Reconnections/src/Reconnections</a> - criteria.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">92.9&nbsp;%</td>
+            <td class="headerCovTableEntry">28</td>
+            <td class="headerCovTableEntry">26</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-05-23 10:15:37</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : &quot;&quot;&quot;</span>
+<span id="L2"><span class="lineNum">       2</span>              :     ReconnectionCriterion</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : Abstract type describing a criterion for filament reconnections.</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : Implemented reconnection criteria include:</span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              : - [`NoReconnections`](@ref): disables reconnections;</span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span>              : - [`ReconnectBasedOnDistance`](@ref): reconnects filament segments which are closer than a</span>
+<span id="L11"><span class="lineNum">      11</span>              :   critical distance.</span>
+<span id="L12"><span class="lineNum">      12</span>              : &quot;&quot;&quot;</span>
+<span id="L13"><span class="lineNum">      13</span>              : abstract type ReconnectionCriterion end</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              : &quot;&quot;&quot;</span>
+<span id="L16"><span class="lineNum">      16</span>              :     should_reconnect(</span>
+<span id="L17"><span class="lineNum">      17</span>              :         c::ReconnectionCriterion,</span>
+<span id="L18"><span class="lineNum">      18</span>              :         fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;</span>
+<span id="L19"><span class="lineNum">      19</span>              :         periods,</span>
+<span id="L20"><span class="lineNum">      20</span>              :     ) -&gt; Union{Nothing, NamedTuple}</span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span>              : Check whether two filaments should reconnect according to the chosen criterion.</span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span>              : Checks for a possible reconnection between filament segments `fx[i:i+1]` and `fy[j:j+1]`.</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              : If the filament segments should reconnect, this function returns a `NamedTuple`</span>
+<span id="L27"><span class="lineNum">      27</span>              : with reconnection information, which includes in particular all the fields</span>
+<span id="L28"><span class="lineNum">      28</span>              : returned by [`find_min_distance`](@ref).</span>
+<span id="L29"><span class="lineNum">      29</span>              : </span>
+<span id="L30"><span class="lineNum">      30</span>              : Otherwise, returns `nothing` if the filament segments should not reconnect.</span>
+<span id="L31"><span class="lineNum">      31</span>              : &quot;&quot;&quot;</span>
+<span id="L32"><span class="lineNum">      32</span>              : function should_reconnect end</span>
+<span id="L33"><span class="lineNum">      33</span>              : </span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC tlaBgGNC">      190805 : should_reconnect(c::ReconnectionCriterion, candidate::ReconnectionCandidate; kws...) =</span></span>
+<span id="L35"><span class="lineNum">      35</span>              :     should_reconnect(c, candidate.a, candidate.b; kws...)</span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">      190814 : should_reconnect(c::ReconnectionCriterion, a::Segment, b::Segment; kws...) =</span></span>
+<span id="L37"><span class="lineNum">      37</span>              :     should_reconnect(c, a.f, b.f, a.i, b.i; kws...)</span>
+<span id="L38"><span class="lineNum">      38</span>              : </span>
+<span id="L39"><span class="lineNum">      39</span>              : &quot;&quot;&quot;</span>
+<span id="L40"><span class="lineNum">      40</span>              :     NoReconnections &lt;: ReconnectionCriterion</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span>              : Used to disable filament reconnections.</span>
+<span id="L43"><span class="lineNum">      43</span>              : &quot;&quot;&quot;</span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">       16104 : struct NoReconnections &lt;: ReconnectionCriterion end</span></span>
+<span id="L45"><span class="lineNum">      45</span>              : </span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaUNC tlaBgUNC">           0 : distance(::NoReconnections) = nothing</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaUNC">           0 : should_reconnect(::NoReconnections, fx, fy, i, j; kws...) = nothing</span></span>
+<span id="L48"><span class="lineNum">      48</span>              : </span>
+<span id="L49"><span class="lineNum">      49</span>              : &quot;&quot;&quot;</span>
+<span id="L50"><span class="lineNum">      50</span>              :     ReconnectBasedOnDistance &lt;: ReconnectionCriterion</span>
+<span id="L51"><span class="lineNum">      51</span>              :     ReconnectBasedOnDistance(d_crit; use_velocity = true, decrease_length = true, cos_max = 0.97)</span>
+<span id="L52"><span class="lineNum">      52</span>              : </span>
+<span id="L53"><span class="lineNum">      53</span>              : Reconnects filament segments which are at a distance `d &lt; d_crit`.</span>
+<span id="L54"><span class="lineNum">      54</span>              : </span>
+<span id="L55"><span class="lineNum">      55</span>              : # Optional keyword arguments</span>
+<span id="L56"><span class="lineNum">      56</span>              : </span>
+<span id="L57"><span class="lineNum">      57</span>              : - `use_velocity`: if `true` (default), use filament velocity information in reconnections.</span>
+<span id="L58"><span class="lineNum">      58</span>              :   For now, this is used to discard a reconnection between two points if they are</span>
+<span id="L59"><span class="lineNum">      59</span>              :   instantaneously getting away from each other.</span>
+<span id="L60"><span class="lineNum">      60</span>              : </span>
+<span id="L61"><span class="lineNum">      61</span>              : - `decrease_length`: if `true` (default), a reconnection will only be performed</span>
+<span id="L62"><span class="lineNum">      62</span>              :   if it will decrease the total filament length. Since, for vortices, the total</span>
+<span id="L63"><span class="lineNum">      63</span>              :   energy is roughly related to the vortex length, this means that reconnections</span>
+<span id="L64"><span class="lineNum">      64</span>              :   should always tend to dissipate energy.</span>
+<span id="L65"><span class="lineNum">      65</span>              : </span>
+<span id="L66"><span class="lineNum">      66</span>              : - `cos_max`: allows to disable reconnections of nearly parallel segments. Two segments</span>
+<span id="L67"><span class="lineNum">      67</span>              :   are considered to be &quot;nearly parallel&quot; if `cos(θ) &gt; cos_max`.</span>
+<span id="L68"><span class="lineNum">      68</span>              :   The default value `cos_max = 0.97` disables reconnections when the angle between lines</span>
+<span id="L69"><span class="lineNum">      69</span>              :   is ``θ &lt; \\arccos(0.97) ≈ 14°``.</span>
+<span id="L70"><span class="lineNum">      70</span>              :   Note that the angle ``θ`` is signed (it takes values in ``[-1, 1]``).</span>
+<span id="L71"><span class="lineNum">      71</span>              :   Negative angles mean that the segments are antiparallel, and in this case reconnections are always performed.</span>
+<span id="L72"><span class="lineNum">      72</span>              : &quot;&quot;&quot;</span>
+<span id="L73"><span class="lineNum">      73</span>              : struct ReconnectBasedOnDistance &lt;: ReconnectionCriterion</span>
+<span id="L74"><span class="lineNum">      74</span>              :     dist       :: Float64</span>
+<span id="L75"><span class="lineNum">      75</span>              :     dist_sq    :: Float64</span>
+<span id="L76"><span class="lineNum">      76</span>              :     cos_max    :: Float64</span>
+<span id="L77"><span class="lineNum">      77</span>              :     cos_max_sq :: Float64</span>
+<span id="L78"><span class="lineNum">      78</span>              :     use_velocity    :: Bool</span>
+<span id="L79"><span class="lineNum">      79</span>              :     decrease_length :: Bool</span>
+<span id="L80"><span class="lineNum">      80</span>              : </span>
+<span id="L81"><span class="lineNum">      81</span> <span class="tlaGNC tlaBgGNC">          40 :     function ReconnectBasedOnDistance(dist; cos_max = 0.97, use_velocity = true, decrease_length = true)</span></span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">          20 :         new(dist, dist^2, cos_max, cos_max^2, use_velocity, decrease_length)</span></span>
+<span id="L83"><span class="lineNum">      83</span>              :     end</span>
+<span id="L84"><span class="lineNum">      84</span>              : end</span>
+<span id="L85"><span class="lineNum">      85</span>              : </span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">        4496 : distance(c::ReconnectBasedOnDistance) = c.dist</span></span>
+<span id="L87"><span class="lineNum">      87</span>              : </span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">      190745 : function should_reconnect(</span></span>
+<span id="L89"><span class="lineNum">      89</span>              :         c::ReconnectBasedOnDistance, fx::AbstractFilament, fy::AbstractFilament, i::Int, j::Int;</span>
+<span id="L90"><span class="lineNum">      90</span>              :         periods,</span>
+<span id="L91"><span class="lineNum">      91</span>              :         can_return_nothing = Val(true),  # this is set to false to obtain the return type when constructing a ReconnectionCache</span>
+<span id="L92"><span class="lineNum">      92</span>              :     )</span>
+<span id="L93"><span class="lineNum">      93</span> <span class="tlaGNC">       95375 :     (; dist_sq, cos_max_sq, decrease_length,) = c</span></span>
+<span id="L94"><span class="lineNum">      94</span>              : </span>
+<span id="L95"><span class="lineNum">      95</span> <span class="tlaGNC">       95375 :     min_dist = find_min_distance(fx, fy, i, j; periods)</span></span>
+<span id="L96"><span class="lineNum">      96</span> <span class="tlaGNC">       95323 :     (; d⃗, p⃗, ζx, ζy,) = min_dist</span></span>
+<span id="L97"><span class="lineNum">      97</span> <span class="tlaGNC">       95315 :     d² = sum(abs2, d⃗)</span></span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaGNC">       95377 :     if can_return_nothing === Val(true)</span></span>
+<span id="L99"><span class="lineNum">      99</span> <span class="tlaGNC">       95348 :         d² &gt; dist_sq &amp;&amp; return nothing  # don't reconnect</span></span>
+<span id="L100"><span class="lineNum">     100</span>              :     end</span>
+<span id="L101"><span class="lineNum">     101</span>              : </span>
+<span id="L102"><span class="lineNum">     102</span>              :     # Make sure that reconnections reduce the total length (makes sense energetically for vortices).</span>
+<span id="L103"><span class="lineNum">     103</span> <span class="tlaGNC">       33975 :     length_before = norm(fx[i + 1] - fx[i]) + norm(fy[j + 1] - fy[j])</span></span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">       33992 :     length_after = norm(fy[j + 1] - fx[i] - p⃗) + norm(fx[i + 1] - fy[j] + p⃗)</span></span>
+<span id="L105"><span class="lineNum">     105</span> <span class="tlaGNC">       33953 :     if decrease_length &amp;&amp; can_return_nothing === Val(true)</span></span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC">       33934 :         length_after &gt; length_before &amp;&amp; return nothing</span></span>
+<span id="L107"><span class="lineNum">     107</span>              :     end</span>
+<span id="L108"><span class="lineNum">     108</span>              : </span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaGNC">       17739 :     X′ = fx(i, ζx, Derivative(1))</span></span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC">       17747 :     Y′ = fy(j, ζy, Derivative(1))</span></span>
+<span id="L111"><span class="lineNum">     111</span>              : </span>
+<span id="L112"><span class="lineNum">     112</span>              :     # Return the output of find_min_distance + other stuff if segments should reconnect.</span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">       10452 :     info = (;</span></span>
+<span id="L114"><span class="lineNum">     114</span>              :         min_dist...,</span>
+<span id="L115"><span class="lineNum">     115</span>              :         d², length_before, length_after,</span>
+<span id="L116"><span class="lineNum">     116</span>              :     )</span>
+<span id="L117"><span class="lineNum">     117</span>              : </span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">       10452 :     xy = X′ ⋅ Y′</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">       10453 :     xy &lt; 0 &amp;&amp; return info  # always reconnect antiparallel vortices</span></span>
+<span id="L120"><span class="lineNum">     120</span>              : </span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">        2831 :     cos² = (xy * xy) / (sum(abs2, X′) * sum(abs2, Y′))</span></span>
+<span id="L122"><span class="lineNum">     122</span>              : </span>
+<span id="L123"><span class="lineNum">     123</span> <span class="tlaGNC">        2863 :     if cos² &lt; cos_max_sq || can_return_nothing !== Val(true)</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">        2799 :         info</span></span>
+<span id="L125"><span class="lineNum">     125</span>              :     else</span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">          32 :         nothing</span></span>
+<span id="L127"><span class="lineNum">     127</span>              :     end</span>
+<span id="L128"><span class="lineNum">     128</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
