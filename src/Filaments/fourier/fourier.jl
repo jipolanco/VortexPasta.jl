@@ -186,19 +186,20 @@ _interpolate(m::FourierMethod, args...; kws...) =
 # remove nodes.
 # In the case where nodes are added, we do this using Fourier "interpolation", by
 # increasing the number of coefficients in Fourier space (i.e. padding with zeroes).
-function _refine!(method::FourierMethod, f::AbstractFilament, crit) :: NTuple{2,Int}
+function _refine!(method::FourierMethod, f::AbstractFilament, crit)
     @assert method === discretisation_method(f)
     # In FourierMethod, we just care about the overall change in the number of nodes.
     # Determine how many nodes to add or remove.
+    ℓ_lost = zero(number_type(f))  # TODO: can we estimate this?
     (; n_add, n_rem) = _nodes_to_refine!(f, crit)
-    iszero(n_add + n_rem) && return (n_add, n_rem)
+    iszero(n_add + n_rem) && return (n_add, n_rem, ℓ_lost)
     n_mod = n_add - n_rem
     if n_mod == 0
-        return (zero(n_add), zero(n_rem))
+        return (zero(n_add), zero(n_rem), ℓ_lost)
     elseif n_mod < 0
-        return _fourier_remove_nodes!(f, n_mod)
+        return (_fourier_remove_nodes!(f, n_mod)..., ℓ_lost)
     else
-        return _fourier_insert_nodes!(f, n_mod)
+        return (_fourier_insert_nodes!(f, n_mod)..., ℓ_lost)
     end
 end
 

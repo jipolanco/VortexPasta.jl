@@ -285,6 +285,7 @@ function test_trefoil_knot_reconnection(
         @test stats.reconnection_length_loss > 0   # loss of vortex length due to reconnections
         @test stats.filaments_removed_count == 0   # no filaments were removed
         @test stats.filaments_removed_length == 0  # no filaments were removed
+        @test stats.refinement_length_loss > 0     # we also lose vortex length after refinements
     end
 
     @test n_reconnect[] > 0

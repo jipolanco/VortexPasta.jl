@@ -130,14 +130,18 @@ function _nodes_to_refine!(
 end
 
 """
-    refine!(f::AbstractFilament, crit::RefinementCriterion) -> (n_added, n_removed)
+    refine!(f::AbstractFilament, crit::RefinementCriterion) -> (n_added, n_removed, ℓ_lost)
 
 Refine the filament according to a given criterion.
 
 More precisely, this function can add and remove discretisation points according to the
 chosen refinement criterion.
 
-Returns the number of added and removed nodes.
+Returns the number of added and removed nodes, as well as the total loss of filament length
+(by convention, `ℓ_lost > 0` means that filament length decreased).
+This length is roughly estimated using a straight segment approximation.
+
+Note: currently, we always return `ℓ_lost = 0.0` when using `FourierMethod`.
 
 Example usage:
 
@@ -155,6 +159,7 @@ function _refine!(method::DiscretisationMethod, f, crit)
     @assert method === discretisation_method(f)
 
     buf = Bumper.default_buffer()
+    ℓ_lost = zero(number_type(f))
 
     @no_escape buf begin
         # Determine where to add or remove nodes.
@@ -197,11 +202,18 @@ function _refine!(method::DiscretisationMethod, f, crit)
                     # (which are actually implemented), but that's probably not worth it,
                     # since in most cases we need to recompute coefficients later anyways.
                     X_new = f(i, T(0.5))  # interpolate position in the middle of the next segment
+                    X_a = f[i]
+                    X_b = f[i + 1]
+                    ℓ_lost += norm(X_b - X_a) - (norm(X_b - X_new) + norm(X_new - X_a))  # this is generally negative
                     Xs_after[i_after] = X_new
                     ts_after[i_after] = T(0.5) * (ts[i] + ts[i + 1])
                 elseif remove
                     # Skip copying node i, and decrement i_after since it will be copied in the next iteration.
                     i_after -= 1
+                    X_a = f[i - 1]
+                    X_rem = f[i]  # node to be removed
+                    X_b = f[i + 1]
+                    ℓ_lost += (norm(X_b - X_rem) + norm(X_rem - X_a)) - norm(X_b - X_a)  # this is generally positive
                 else  # if action == REFINEMENT_DO_NOTHING
                     # Simply copy node i
                     Xs_after[i_after] = Xs[i]
@@ -224,7 +236,7 @@ function _refine!(method::DiscretisationMethod, f, crit)
         end
     end
 
-    n_add, n_rem
+    n_add, n_rem, ℓ_lost
 end
 
 """

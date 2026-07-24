@@ -903,10 +903,10 @@ function check_external_streamfunction(forcing::NamedTuple, Ls)
 end
 
 function refine!(f::AbstractFilament, refinement::RefinementCriterion)
-    nref = Filaments.refine!(f, refinement)  # we assume update_coefficients! was already called
+    n_add, n_rem, ℓ_lost = Filaments.refine!(f, refinement)  # we assume update_coefficients! was already called
     n = 0
     nmax = 1  # maximum number of extra refinement iterations (to avoid infinite loop...)
-    while nref !== (0, 0) && n < nmax
+    while (n_add, n_rem) !== (0, 0) && n < nmax
         n += 1
         @debug "Added/removed $nref nodes"
         if !Filaments.check_nodes(Bool, f)
@@ -917,9 +917,10 @@ function refine!(f::AbstractFilament, refinement::RefinementCriterion)
             # The filament will be removed in finalise_step!.
             break
         end
-        nref = Filaments.refine!(f, refinement)
+        n_add, n_rem, ℓ_lost_new = Filaments.refine!(f, refinement)
+        ℓ_lost += ℓ_lost_new
     end
-    n
+    n, ℓ_lost
 end
 
 function after_advection!(iter::VortexFilamentSolver)
@@ -937,7 +938,10 @@ function after_advection!(iter::VortexFilamentSolver)
     if nstep % iter.step_refinement == 0
         L_fold = periods(prob.p)  # box size (periodicity)
         fields = fields_to_resize(iter)
-        @timeit to "Fold and refine" fold_and_refine!(fs, fields; L_fold, refinement, fold_periodic)
+        @timeit to "Fold and refine" let
+            ℓ_lost = fold_and_refine!(fs, fields; L_fold, refinement, fold_periodic)
+            stats.refinement_length_loss += ℓ_lost
+        end
     end
     nothing
 end
@@ -949,22 +953,32 @@ end
 function fold_and_refine!(fs::AbstractVector{<:AbstractFilament}, fields::Tuple; kws...)
     # In this case, it is difficult to know in advance the amount of work per filament,
     # which can be very inhomogeneous. We use the :greedy scheduler for that reason.
-    Threads.@threads :greedy for i in eachindex(fs)
-        fields_i = map(vs -> @inbounds(vs[i]), fields)  # typically this is (vs[i], ψs[i])
-        _fold_and_refine!(fs[i], fields_i; kws...)
+    chunks = FilamentChunkIterator(fs; full_vectors = true)
+    T = number_type(fs)
+    ℓ_lost = Threads.Atomic{T}(zero(T))
+    @sync for chunk in chunks
+        Threads.@spawn let
+            ℓ_lost_thread = zero(T)
+            for (i, inds, _) in chunk
+                @assert inds == eachindex(fs[i])  # we have "access" to the whole filament (due to full_vectors = true)
+                fields_i = map(vs -> @inbounds(vs[i]), fields)  # typically this is (vs[i], ψs[i])
+                ℓ_lost_thread += _fold_and_refine!(fs[i], fields_i; kws...)
+            end
+            Threads.atomic_add!(ℓ_lost, ℓ_lost_thread)
+        end
     end
-    fs
+    ℓ_lost[]
 end
 
 function _fold_and_refine!(f::AbstractFilament, fields::Tuple; L_fold, refinement, fold_periodic,)
     if fold_periodic && Filaments.fold_periodic!(f, L_fold)
         Filaments.update_coefficients!(f)  # only called if nodes were modified by fold_periodic!
     end
-    refinement_steps = refine!(f, refinement)
+    refinement_steps, ℓ_lost = refine!(f, refinement)
     if refinement_steps > 0  # refinement was performed
         map(vs -> resize!(vs, length(f)), fields)
     end
-    f
+    ℓ_lost
 end
 
 """
