@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.13] - 2026-07-24
+
+### Fixed
+
+- Fix simulations with refinement disabled (issue introduced in v0.34.12).
+
 ## [0.34.12] - 2026-07-24
 
 ### Added

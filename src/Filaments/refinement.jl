@@ -247,7 +247,7 @@ Used to disable filament refinement.
 """
 struct NoRefinement <: RefinementCriterion end
 
-refine!(::AbstractFilament, ::NoRefinement) = (0, 0)  # = (n_added, n_removed)
+refine!(f::AbstractFilament, ::NoRefinement) = (0, 0, zero(number_type(f)))  # = (n_added, n_removed)
 
 """
     RefineBasedOnCurvature <: RefinementCriterion
