@@ -302,8 +302,9 @@ function _reconnect_from_cache!(cache::ReconnectFastCache)
     end
 
     # @assert count(reconnected) == 0  # all false
-    reconnection_count = Ref(0)
-    reconnection_length_loss = Ref(zero(number_type(nodes)))
+    T = number_type(nodes)
+    reconnection_count = Threads.Atomic{Int}(0)
+    reconnection_length_loss = Threads.Atomic{T}(zero(T))
     lck = ReentrantLock()
     scheduler = DynamicScheduler(; ntasks = crit.nthreads)
 
@@ -332,8 +333,8 @@ function _reconnect_from_cache!(cache::ReconnectFastCache)
             end
         end
         skip[] && return
-        reconnection_count[] += 1
-        reconnection_length_loss[] += length_before - length_after
+        Threads.atomic_add!(reconnection_count, 1)
+        Threads.atomic_add!(reconnection_length_loss, length_before - length_after)
         # Reconnect i⁻ -> j⁺ and j⁻ -> i⁺
         @inbounds begin
             node_next[i⁻] = j⁺

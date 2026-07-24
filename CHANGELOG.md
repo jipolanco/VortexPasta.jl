@@ -5,6 +5,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.11] - 2026-07-24
+
+### Fixed
+
+- `ReconnectFast`: fix possible race condition when counting the number of reconnections and
+  the associated loss of vortex length. In principle, multiple CPU threads could concurrently update
+  these two quantities leading to wrong values. Note that the issue doesn't affect actual reconnections,
+  only reconnection statistics.
+
 ## [0.34.10] - 2026-07-21
 
 ### Added
