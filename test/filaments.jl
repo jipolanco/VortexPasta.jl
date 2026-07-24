@@ -298,10 +298,16 @@ function test_filament_ring(N, method)
                 fc = copy(f)
                 # Several iterations are needed to remove required nodes, since we never
                 # remove adjacent nodes in a single pass.
-                while true
-                    n_add, n_rem = Filaments.refine!(fc, crit)
+                niter = 0
+                while niter < 10
+                    niter += 1
+                    n_add, n_rem, ℓ_lost = Filaments.refine!(fc, crit)
                     @test n_add == 0
                     @test n_rem ≥ 0
+                    # @show method, niter, n_rem, ℓ_lost
+                    if n_rem > 0 && !(method isa FourierMethod)
+                        @test ℓ_lost > 0
+                    end
                     n_rem == 0 && break  # we're done removing nodes
                 end
                 @test length(fc) < length(f)
@@ -319,9 +325,19 @@ function test_filament_ring(N, method)
                 curv = 0.19
                 crit = RefineBasedOnCurvature(curv)
                 fc = copy(f)
-                while true
-                    ref = Filaments.refine!(fc, crit)
-                    ref == (0, 0) && break
+                niter = 0
+                while niter < 10
+                    niter += 1
+                    n_add, n_rem, ℓ_lost = Filaments.refine!(fc, crit)
+                    # @show method, niter, ℓ_lost
+                    if niter == 1 && !(method isa FourierMethod)
+                        # We gained some filament length due to refinement (only in the first iteration).
+                        # Note that this "loss" is mainly due to the straight segment
+                        # approximation used in the length estimation.
+                        @test n_add > 0 && n_rem == 0
+                        @test ℓ_lost < 0
+                    end
+                    (n_add, n_rem) == (0, 0) && break
                 end
                 @test length(fc) > length(f)
                 # Check that all ρℓ < 0.2

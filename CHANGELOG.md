@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `Filaments.refine!` now also returns an estimate of the loss of filament length
+  due to refinement (negative means that filament length increased).
+
+- Timestepping: `iter.stats` now also includes a `refinement_length_loss`
+  quantifying the accumulated loss of filament length due to refinements.
+
 ## [0.34.11] - 2026-07-24
 
 ### Fixed
