@@ -9,6 +9,7 @@ abstract type TemporalScheme end
 
 # By default, schemes allow changing the timestep.
 can_change_dt(::TemporalScheme) = true
+requires_arclength_parametrisation(c::TemporalScheme) = false
 
 """
     TemporalSchemeCache{Scheme <: TemporalScheme}

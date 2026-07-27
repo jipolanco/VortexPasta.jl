@@ -275,6 +275,7 @@ struct VortexFilamentSolver{
     fast_term         :: FastTerm
     LIA           :: Bool
     fold_periodic :: Bool
+    reparametrise_arclength :: Bool  # reparametrise filaments at the end of each timestep?
     affect!    :: Affect      # signature: affect!(iter)
     affect_t!  :: AffectTime  # signature: affect_t!(iter, t) where t is the current time
     callback :: Callback      # signature: callback(iter)
@@ -323,6 +324,7 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     print(io, "\n ├─ fast_term: ", iter.fast_term)
     print(io, "\n ├─ LIA: ", iter.LIA)
     print(io, "\n ├─ fold_periodic: ", iter.fold_periodic)
+    print(io, "\n ├─ reparametrise_arclength: ", iter.reparametrise_arclength)
     print(io, "\n ├─ cache_bs: ")
     summary(io, iter.cache_bs)
     print(io, "\n ├─ cache_timestepper: ")
@@ -463,6 +465,10 @@ either [`step!`](@ref) or [`solve!`](@ref).
   visualisation purposes. This setting doesn't affect the results (velocity of each
   filament, reconnections, …), besides possible spatial translations of the filaments
   proportional to the domain period.
+
+- `reparametrise_arclength = false`: if `true`, reparametrise all filaments at the end of each
+  timestep in order to better approach arc-length parametrisation. See
+  [`Filaments.reparametrise_arclength!`](@ref) for more details.
 
 - `filament_nderivs = Val(2)`: this allows to modify the maximum number of derivatives which
   can be computed from the filaments in `iter.fs`. It corresponds to the `nderivs` argument
@@ -697,6 +703,7 @@ function init(
         reconnect::ReconnectionCriterion = NoReconnections(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         fold_periodic::Bool = true,
+        reparametrise_arclength::Bool = false,
         LIA::Bool = false,
         callback::Callback = default_callback(),  # by default this is an empty function which just returns `nothing`
         affect!::Affect = default_callback(),
@@ -829,7 +836,7 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, affect_, affect_t_, callback_,
+        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, reparametrise_arclength, affect_, affect_t_, callback_,
         step_diagnostics, step_refinement, step_reconnect, external_fields,
         stretching_velocity, forcing, forcing_cache, dissipation, dissipation_cache,
         timer, advect!, rhs!,
@@ -1140,6 +1147,18 @@ function finalise_step!(iter::VortexFilamentSolver)
     isempty(fs) && return NO_VORTICES_LEFT
 
     iter.affect!(iter)
+
+    if requires_arclength_parametrisation(scheme(iter.cache_timestepper)) || iter.reparametrise_arclength
+        # Reparametrise filaments so that they roughly follow arc-length parametrisation.
+        let chunks = FilamentChunkIterator(fs; full_vectors = true)
+            @timeit to "Reparametrise filaments" @sync for chunk in chunks
+                Threads.@spawn for (i, inds, _) in chunk
+                    # @assert inds == eachindex(fs[i])  # we have "access" to the whole filament (due to full_vectors = true)
+                    Filaments.reparametrise_arclength!(fs[i]; quad = iter.prob.p.quad)
+                end
+            end
+        end
+    end
 
     # Update velocities (and possibly streamfunctions) to the next timestep (and first RK step).
     # Note that we only compute the streamfunction at full steps, and not in the middle of

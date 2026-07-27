@@ -224,6 +224,7 @@ function test_trefoil_knot_reconnection(
         # refinement = RefineBasedOnCurvature(0.4; ℓ_max = 1.5 * l_min, ℓ_min = 0.4 * l_min),
         reconnect,
         adaptivity = NoAdaptivity(),
+        reparametrise_arclength = (reconnect isa ReconnectFast),
         filament_nderivs = Val(3),  # for computation of torsion
         callback,
     )
