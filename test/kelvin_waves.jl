@@ -48,14 +48,15 @@ dt_factor(::KenCarp3) = 1.2
 dt_factor(::KenCarp4) = 1.5  # we could increase this but then it takes more iterations and time to solve the implicit problem!
 
 dt_factor(::MultirateMidpoint) = 4.0
-dt_factor(::SanduMRI33a) = 5.0
+dt_factor(::SanduMRI33a) = 4.5
 dt_factor(::SanduMRI45a) = 8.0
-dt_factor(::Strang{RK4}) = 2.0
+dt_factor(scheme::Strang{RK4}) = 2 * dt_factor(RK4()) * scheme.nsubsteps
+dt_factor(scheme::Strang4{RK4}) = (2^(2/3) - 1) * dt_factor(RK4()) * scheme.nsubsteps
 
 function test_kelvin_waves(
-        scheme = RK4();
-        method = QuinticSplineMethod(), Lz = 2π, A = 0.01, k = 1,
-        quad = GaussLegendre(4),
+        @nospecialize(scheme = RK4());
+        @nospecialize(method = QuinticSplineMethod()), Lz = 2π, A = 0.01, k = 1,
+        @nospecialize(quad = GaussLegendre(4)),
     )
     # test_jet = get(ENV, "JULIA_ENABLE_JET_KA_TESTS", "false") ∈ ("true", "1")  # disable JET tests involving KA kernels
 
@@ -147,11 +148,13 @@ function test_kelvin_waves(
         factor *= 0.8  # CubicSplineMethod requires slightly smaller timestep
     end
 
+    δ = minimum(node_distance, prob.fs)
+
     iter = @inferred init(
         prob, scheme;
         dtmin = factor * T_kw * 1e-4,
         dt = 1.0,  # will be changed by the adaptivity
-        fast_term = ShortRangeTerm(),  # allows to increase the timestep with splitting methods
+        fast_term = LocalTerm(δ),  # allows to increase the timestep with splitting methods
         adaptivity = AdaptBasedOnSegmentLength(factor),
         refinement = NoRefinement(),  # make sure that nodes don't "move" vertically due to refinement
         step_diagnostics = 2,
@@ -328,6 +331,8 @@ end
         SanduMRI33a(RK4(), 1),
         # SanduMRI45a(RK4(), 1),
         # Euler(),
+        Strang(RK4(); nsubsteps = 2),
+        Strang4(RK4(); nsubsteps = 6),
     )
     @testset "Scheme: $scheme" for scheme ∈ schemes
         test_kelvin_waves(scheme; method = QuinticSplineMethod())
