@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Timestepping: add `reparametrise_arclength` option.
 
+### Improved
+
+- Avoid extra velocity computation in Strang schemes.
+  The full velocity, which was always computed at the beginning of a timestep,
+  is not needed by Strang schemes, which require only the "fast" term at that point.
+
 ## [0.34.13] - 2026-07-24
 
 ### Fixed
