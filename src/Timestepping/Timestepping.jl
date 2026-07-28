@@ -466,9 +466,11 @@ either [`step!`](@ref) or [`solve!`](@ref).
   filament, reconnections, …), besides possible spatial translations of the filaments
   proportional to the domain period.
 
-- `reparametrise_arclength = false`: if `true`, reparametrise all filaments at the end of each
+- `reparametrise_arclength`: if `true`, reparametrise all filaments at the end of each
   timestep in order to better approach arc-length parametrisation. See
-  [`Filaments.reparametrise_arclength!`](@ref) for more details.
+  [`Filaments.reparametrise_arclength!`](@ref) for more details. This is `false` by default,
+  except if the timestepping scheme requires arc-length parametrisation (e.g. schemes based
+  on the Hasimoto transformation).
 
 - `filament_nderivs = Val(2)`: this allows to modify the maximum number of derivatives which
   can be computed from the filaments in `iter.fs`. It corresponds to the `nderivs` argument
@@ -703,7 +705,7 @@ function init(
         reconnect::ReconnectionCriterion = NoReconnections(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         fold_periodic::Bool = true,
-        reparametrise_arclength::Bool = false,
+        reparametrise_arclength::Bool = requires_arclength_parametrisation(scheme),
         LIA::Bool = false,
         callback::Callback = default_callback(),  # by default this is an empty function which just returns `nothing`
         affect!::Affect = default_callback(),
@@ -802,6 +804,11 @@ function init(
     # Therefore, if LIA is enabled, we only support the default fast_term = LocalTerm().
     if LIA && !(fast_term isa LocalTerm)
         throw(ArgumentError("currently, using LIA requires setting fast_term = LocalTerm() or LocalTerm(δ)"))
+    end
+
+    if requires_arclength_parametrisation(scheme) && !reparametrise_arclength
+        @warn "`reparametrise_arclength` is set to `false`, but it is needed by the scheme. Setting it to `true`." scheme requires_arclength_parametrisation(scheme)
+        reparametrise_arclength = true
     end
 
     if state === (;)  # empty state, new simulation
@@ -1148,7 +1155,7 @@ function finalise_step!(iter::VortexFilamentSolver)
 
     iter.affect!(iter)
 
-    if requires_arclength_parametrisation(scheme(iter.cache_timestepper)) || iter.reparametrise_arclength
+    if iter.reparametrise_arclength
         # Reparametrise filaments so that they roughly follow arc-length parametrisation.
         let chunks = FilamentChunkIterator(fs; full_vectors = true)
             @timeit to "Reparametrise filaments" @sync for chunk in chunks
