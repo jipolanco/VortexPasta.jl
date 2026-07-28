@@ -52,8 +52,8 @@ dt_factor(::SSPRK33) = 0.9
 dt_factor(::Midpoint) = 0.25
 dt_factor(::Euler) = 0.08
 
-dt_factor(scheme::Strang{RK4}) = 3.5 * scheme.nsubsteps
-dt_factor(scheme::Strang4{RK4}) = 3.5 * scheme.nsubsteps
+dt_factor(scheme::Strang{RK4}) = 2 * dt_factor(RK4()) * scheme.nsubsteps
+dt_factor(scheme::Strang4{RK4}) = 1 * dt_factor(RK4()) * scheme.nsubsteps
 
 dt_factor(::KenCarp4) = 2.5
 dt_factor(::KenCarp3) = 1.4
@@ -68,7 +68,7 @@ dt_factor(::SanduMRI45a) = 4.0
 dt_factor(::IMEXEuler) = 0.6
 
 function test_leapfrogging_rings(
-        prob, scheme;
+        prob, @nospecialize(scheme);
         R_init,  # initial ring radii
         refinement,
         label = string(scheme),
@@ -170,6 +170,7 @@ function test_leapfrogging_rings(
         dt = 0.025,  # will be changed by the adaptivity
         # dtmin = 0.005 * dt_factor(scheme),
         step_diagnostics = ceil(Int, 10 / factor),
+        fast_term = LocalTerm(l_min),
         adaptivity,
         refinement,
         callback,
@@ -201,8 +202,8 @@ function test_leapfrogging_rings(
         @inferred Diagnostics.stretching_rate(iter; quad = GaussLegendre(2), nthreads = 1)
         # We use BenchmarkTools.@ballocated instead of Base.@allocated since it seems to be way more
         # robust. Using gctrial=false makes things a lot faster (avoids GC.gc()).
-        @ballocated 0 == Diagnostics.stretching_rate($iter; nthreads = 1) samples=1 gctrial=false
-        @ballocated 0 == Diagnostics.stretching_rate($iter; quad = GaussLegendre(2), nthreads = 1) samples=1 gctrial=false
+        # @ballocated 0 == Diagnostics.stretching_rate($iter; nthreads = 1) samples=1 evals=1 gctrial=false
+        # @ballocated 0 == Diagnostics.stretching_rate($iter; quad = GaussLegendre(2), nthreads = 1) samples=1 evals=1 gctrial=false
     end
 
     VERBOSE && println(iter.to)
@@ -309,7 +310,7 @@ end
     # Grid-related parameters
     L = 2π
     Ls = (1, 1, 1) .* L
-    Ns = (1, 1, 1) .* 32
+    Ns = (1, 1, 1) .* 16
     splitting = KaiserBesselSplitting(; Ls, rtol = 1e-6, Ns)
 
     # Physical vortex parameters
@@ -332,13 +333,11 @@ end
     R_init = π / 3
     fs_init = init_ring_filaments(R_init; method = QuinticSplineMethod())
     tmax = R_init^2 / Γ
-    tspan_long = (0.0, tmax)
-    tspan_short = (0.0, tmax / 20)   # variant for faster tests
-    prob_long = @inferred VortexFilamentProblem(fs_init, tspan_long, params_bs)
-    prob_short = VortexFilamentProblem(fs_init, tspan_short, params_bs)
+    tspan = (0.0, tmax)
+    prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
 
     @testset "VortexFilamentSolver" begin
-        iter = init(prob_long, Midpoint(); dt = 0.01)
+        iter = init(prob, Midpoint(); dt = 0.01)
         @test iter isa VortexFilamentSolver
 
         # Check overloaded getproperty and propertynames for VortexFilamentSolver.
@@ -349,7 +348,7 @@ end
     # Test diagnostics with/out quadratures here
     @testset "Diagnostics" begin
         rtol = 2e-3
-        iter = init(prob_long, Midpoint(); dt = 0.01)
+        iter = init(prob, Midpoint(); dt = 0.01)
         @test isapprox(
             @inferred(Diagnostics.kinetic_energy_from_streamfunction(iter; quad = nothing)),
             @inferred(Diagnostics.kinetic_energy_from_streamfunction(iter; quad = GaussLegendre(2)));
@@ -393,8 +392,8 @@ end
         Ascher343(),
         # Euler(),  # too slow!
         # Midpoint(),  # too slow!
-        Strang(RK4(), Midpoint(); nsubsteps = 2),
-        Strang4(RK4(), RK4(); nsubsteps = 2),
+        Strang(RK4(), Midpoint(); nsubsteps = 4),
+        Strang4(RK4(), RK4(); nsubsteps = 14),
         MultirateMidpoint(32),
         SanduMRI33a(12),
         SanduMRI33a(CrankNicolson(), 4),
@@ -404,7 +403,7 @@ end
     ##
 
     @testset "Scheme: $scheme" for scheme ∈ schemes
-        test_leapfrogging_rings(prob_short, scheme; R_init, refinement)
+        test_leapfrogging_rings(prob, scheme; R_init, refinement)
     end
 
     methods = (
@@ -415,14 +414,14 @@ end
     @testset "$method" for method ∈ methods
         local scheme = Strang(RK4(), Midpoint())
         local fs_init = @inferred init_ring_filaments(R_init; method)
-        local prob = @inferred VortexFilamentProblem(fs_init, tspan_long, params_bs)
+        local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
         test_leapfrogging_rings(prob, scheme; R_init, refinement, label = string(method))
     end
 
     @testset "No refinement" begin
-        local scheme = Strang(RK4())
+        local scheme = Strang(RK4(); nsubsteps = 4)
         test_leapfrogging_rings(
-            prob_short, scheme;
+            prob, scheme;
             R_init, refinement = NoRefinement(), label = "NoRefinement",
         )
     end
@@ -430,7 +429,7 @@ end
     @testset "FourierMethod (with noise = 0)" begin
         local scheme = Strang(RK4())
         local fs_init = @inferred init_ring_filaments(R_init; method = FourierMethod(), noise = 0.0)
-        local prob = @inferred VortexFilamentProblem(fs_init, tspan_long, params_bs)
+        local prob = @inferred VortexFilamentProblem(fs_init, tspan, params_bs)
         test_leapfrogging_rings(prob, scheme; R_init, refinement = NoRefinement(), label = "FourierMethod")
     end
 end
