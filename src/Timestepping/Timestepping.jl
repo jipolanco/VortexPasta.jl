@@ -398,6 +398,7 @@ end
 
 get_dt(iter::VortexFilamentSolver) = iter.time.dt
 get_t(iter::VortexFilamentSolver) = iter.time.t
+scheme(iter::VortexFilamentSolver) = scheme(iter.cache_timestepper)
 
 """
     can_compute_diagnostics(iter::VortexFilamentSolver) -> Bool
@@ -1010,7 +1011,7 @@ function solve!(iter::VortexFilamentSolver)
             if isapprox(time.t, t_end; atol = time.dt / 1000)
                 break  # stop simulation if we're very close to the end time
             end
-        elseif can_change_dt(iter.cache_timestepper)
+        elseif can_change_dt(scheme(iter))
             # Try to finish exactly at t = t_end.
             # Note: we don't do this when using a constant timestep.
             time.dt = min(time.dt, t_end - time.t)
@@ -1177,7 +1178,8 @@ function finalise_step!(iter::VortexFilamentSolver)
             # This must be taken into account by scheme implementations.
             rhs!(fields, fs, time.t, iter; component = Val(:full))
         end
-    else
+    elseif requires_full_velocity(scheme(iter))
+        # The full velocity is needed by the timestepping scheme at time t (to advance from t -> t + dt).
         let fields = (; velocity = vL)
             rhs!(fields, fs, time.t, iter; component = Val(:full))
         end

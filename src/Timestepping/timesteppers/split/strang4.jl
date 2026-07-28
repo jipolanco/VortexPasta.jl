@@ -63,11 +63,6 @@ function _update_velocities!(
 
     copy!(ftmp, fs)        # initial condition for stage 1
 
-    # Note: as opposed to other schemes, here it's not a good idea to reuse the computation
-    # of the full velocity at the beginning of the timestep, since we start with the fast
-    # dynamics. This means that there's an extra computation of the "slow" velocity which
-    # could be avoided...
-
     function _advance_fast!(τ_start, c)
         local component = Val(:fast)
         local cache = cache_fast

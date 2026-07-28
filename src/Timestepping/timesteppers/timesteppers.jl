@@ -9,7 +9,14 @@ abstract type TemporalScheme end
 
 # By default, schemes allow changing the timestep.
 can_change_dt(::TemporalScheme) = true
+
+# By default, schemes don't require arc length parametrisation.
 requires_arclength_parametrisation(c::TemporalScheme) = false
+
+# By default, schemes requires the full velocity at the start of the timestep to be already
+# computed. This is the case in particular of RK schemes, which assume that the velocity at
+# stage 1 is already known.
+requires_full_velocity(c::TemporalScheme) = true
 
 """
     TemporalSchemeCache{Scheme <: TemporalScheme}
@@ -36,9 +43,7 @@ struct TemporalSchemeCache{
 end
 
 Base.summary(io::IO, c::TemporalSchemeCache) = print(io, "TemporalSchemeCache(", scheme(c), ")")
-
 scheme(c::TemporalSchemeCache) = c.scheme
-can_change_dt(c::TemporalSchemeCache) = can_change_dt(scheme(c))
 
 function init_cache(
         scheme::TemporalScheme,
