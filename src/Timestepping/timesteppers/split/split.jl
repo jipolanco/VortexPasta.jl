@@ -19,3 +19,6 @@ requires_full_velocity(::SplittingScheme) = false
 
 include("strang.jl")
 include("strang4.jl")
+
+include("hasimoto.jl")
+include("strang4_hasimoto.jl")
