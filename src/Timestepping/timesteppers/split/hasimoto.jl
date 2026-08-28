@@ -4,7 +4,12 @@ using FFTW
 using LinearAlgebra
 using .Filaments
 
-struct Hasimoto <: SplittingScheme end
+struct Hasimoto <: TemporalScheme end
+
+function _check_nsubsteps(::Hasimoto, nsubsteps)
+    nsubsteps == 1 || @warn("Splittings scheme: the `nsubsteps` parameter is ignored with Hasimoto-based timestepping for local part")
+    nothing
+end
 
 nbuf_filaments(::Hasimoto) = 0
 nbuf_velocities(::Hasimoto) = 0
@@ -182,10 +187,10 @@ end
 
 ######################################
 
-function run_hasimoto_simulation(f, β, t, Δt; threshold_ortho = 1e-8)
+function run_hasimoto_simulation_order4(f, β, t, Δt; threshold_ortho = 1e-8)
     N = length(f)
     Lη = Filaments.knotlims(f)[2]
-    Nf = nextpow(2, N)
+    Nf = nextpow(2, N) * 4
     ks = fftfreq(Nf, 2 * π * Nf / Lη)
     ψ_init, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
     ψ_init_hat = fft(ψ_init) / Nf

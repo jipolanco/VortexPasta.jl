@@ -12,6 +12,8 @@ The evolution due to both terms is approximated using some kind of Runge–Kutta
 """
 abstract type SplittingScheme <: TemporalScheme end
 
+_check_nsubsteps(fast::TemporalScheme, nsubsteps) = nothing
+
 # Splitting schemes don't need the full velocity at time t.
 # That is, the velocity passed to _update_velocities! is ignored, so we don't need to
 # precompute the velocity.
