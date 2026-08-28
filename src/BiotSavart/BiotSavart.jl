@@ -546,7 +546,7 @@ function _compute_on_nodes!(
             finally
                 put!(channel, :longrange)  # this notifies that the task has completed (or failed)
             end
-            KA.get_backend(cache) isa CPU && wait(task)  # this helps get more accurate timings for the "CPU-only" operations below
+            KA.get_backend(cache) isa CPU && wait(task)  # this helps get more accurate timings
             push!(tasks, task)
         end
     end
@@ -562,7 +562,7 @@ function _compute_on_nodes!(
             finally
                 put!(channel, :shortrange)  # this notifies that the task has completed (or failed)
             end
-            KA.get_backend(cache) isa CPU && wait(task)  # this helps get more accurate timings for the "CPU-only" operations below
+            KA.get_backend(cache) isa CPU && wait(task)  # this helps get more accurate timings
             push!(tasks, task)
         end
     end

@@ -13,7 +13,7 @@ This is particularly important on **HPC clusters**, where an internet connection
 
 To do this, one should first determine the version of the available CUDA toolkit.
 This may be obtained by running `nvcc --version` on the system where computations will be performed (e.g. from a compute node).
-Look for a line similar to `Cuda compilation tools, release 12.4, V12.4.131` (here the version is `12.4`).
+Look for a line similar to `Cuda compilation tools, release 13.2, V13.2.78` (here the version is `13.2`).
 On HPC clusters, one may first need to load a CUDA module, e.g. `module load cuda` (but this will depend on the cluster).
 
 Then, the configuration should be performed in the two steps detailed below.
@@ -32,18 +32,22 @@ julia> using Pkg; Pkg.add("CUDA")  # install CUDA.jl
 
 julia> using CUDA
 
-julia> CUDA.set_runtime_version!(v"12.4"; local_toolkit = true)
+julia> CUDA.set_runtime_version!(v"13.2"; local_toolkit = true)
 ```
 
-The `12.4` should be replaced with the CUDA version found using `nvcc --version`.
+The `13.2` should be replaced with the CUDA version found using `nvcc --version`.
 See the [CUDA.jl docs](https://cuda.juliagpu.org/dev/installation/overview/#Using-a-local-CUDA) for more details.
 
-This should generate a `LocalPreferences.toml` file under `$JULIA_DEPOT_PATH/environments/v1.11/` (replace `v1.11` with the current Julia version), which should look as follows:
+This should generate a `LocalPreferences.toml` file under `$JULIA_DEPOT_PATH/environments/v1.12/` (replace `v1.12` with the current Julia version), which should look as follows:
 
 ```toml
+[CUDA_Compiler_jll]
+local = "true"
+version = "13.2"
+
 [CUDA_Runtime_jll]
 local = "true"
-version = "12.4"
+version = "13.2"
 ```
 
 Afterwards, it may be helpful to launch `julia` again and run:
@@ -83,35 +87,44 @@ Finally, one can check the CUDA.jl configuration on a GPU-enabled node:
 julia> using CUDA
 
 julia> CUDA.versioninfo()
-CUDA runtime 12.4, local installation
-CUDA driver 12.6
-NVIDIA driver 550.90.7
+CUDA toolchain: 
+- runtime 13.2.0, local installation
+- driver 595.71.5 for 13.3
+- compiler 13.2.78, local installation
 
-CUDA libraries:
-- CUBLAS: 12.4.5
-- CURAND: 10.3.5
-- CUFFT: 11.2.1
-- CUSOLVER: 11.6.1
-- CUSPARSE: 12.3.1
-- CUPTI: 2024.1.1 (API 22.0.0)
-- NVML: 12.0.0+550.90.7
+CUDA libraries: 
+- cuBLAS: 13.4.0
+- cuSPARSE: 12.7.10
+- cuSOLVER: 12.2.0
+- cuFFT: 12.2.0
+- cuRAND: 10.4.2
+- CUPTI: 2026.1.1 (API 13.2.1)
+- NVML: 13.0.0+595.71.5
 
-Julia packages:
-- CUDA: 5.5.2
-- CUDA_Driver_jll: 0.10.4+0
-- CUDA_Runtime_jll: 0.15.5+0
-- CUDA_Runtime_Discovery: 0.3.5
+Julia packages: 
+- CUDACore: 6.3.0
+- GPUArrays: 11.5.13
+- GPUCompiler: 2.4.2
+- KernelAbstractions: 0.9.42
+- CUDA_Driver_jll: 13.3.1+0
+- CUDA_Compiler_jll: 0.5.1+0
+- CUDA_Runtime_jll: 0.24.1+0
+- CUDA_Runtime_Discovery: 2.1.0
+- NVPTX_LLVM_Backend_jll: 22.1.7+1
 
 Toolchain:
-- Julia: 1.11.2
-- LLVM: 16.0.6
+- Julia: 1.12.7
+- LLVM: 18.1.7
 
 Preferences:
-- CUDA_Runtime_jll.version: 12.4
+- CUDA_Runtime_jll.version: 13.2
 - CUDA_Runtime_jll.local: true
+- CUDA_Compiler_jll.version: 13.2
+- CUDA_Compiler_jll.local: true
 
 1 device:
-  0: NVIDIA H100 80GB HBM3 (sm_90, 79.092 GiB / 79.647 GiB available)
+  0: NVIDIA H100 80GB HBM3 (sm_90, 79.177 GiB / 79.647 GiB available)
+     compiles to sm_90a / PTX 9.2 (LLVM: sm_90a / PTX 9.0)
 ```
 
 One can verify that the `Preferences` section contains the same values as the `LocalPreferences.toml` file generated in the global environment.

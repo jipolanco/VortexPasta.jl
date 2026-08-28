@@ -1,2 +1,2 @@
 [workspace]
-projects = ["kelvin_waves", "reconnections", "vortex_ring"]
+projects = ["kelvin_waves", "reconnections", "vortex_ring", "performance"]
