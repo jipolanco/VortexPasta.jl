@@ -63,61 +63,22 @@ function _update_velocities!(
         )
     end
 
-    gen_rhs(component) = (vs, fs, t, iter) -> rhs_full!(vs, fs, t, iter; component)
-
     copy!(ftmp, fs)        # initial condition for stage 1
 
     function _advance_fast!(τ_start, c)
-        local component = Val(:fast)
-        local cache = cache_fast
-        local rhs! = gen_rhs(component)
-        local (; nsubsteps,) = scheme
-        local τ = τ_start
-        local dτ = c * dt / nsubsteps  # timestep in each substep
-        if scheme.fast isa Hasimoto
-            dτ = c * dt  # nsubsteps is ignored
-            local (; Γ, a, Δ, quad) = iter.prob.p
-            local (; δ) = iter.fast_term::LocalTerm
-            if δ === nothing
-                error("fast_term = LocalTerm(δ::Real) is needed for using the Hasimoto transformation")
-            end
-            local β = oftype(Γ, Γ / (4π) * (log(2 * δ / a) - Δ))
-            for f in ftmp
-                Filaments.reparametrise_arclength!(f; quad)
-                s, N = run_hasimoto_simulation_order4(f, β, τ, dτ)
-                pts = [Vec3(s[i,:]) for i in 1:N]
-                nodes_f = Filaments.nodes(f)
-                for j in 1:N 
-                    nodes_f[j] = pts[j]
-                end
-                Filaments.update_coefficients!(f; knots = Filaments.knots(f))
-            end
-            τ += dτ
-        else
-            for _ ∈ 1:nsubsteps
-                rhs!(vtmp, ftmp, τ, iter)
-                update_velocities!(
-                    vtmp, rhs!, advect!, cache, iter;
-                    resize_cache = false, t = τ, dt = dτ, fs = ftmp,
-                )
-                advect!(ftmp, vtmp, dτ; fbase = ftmp)
-                τ += dτ
-            end
-        end
+        τ = splitting_advance_fast!(
+            scheme.fast, ftmp, vtmp, iter, τ_start, rhs_full!, advect!, cache_fast, c * dt, scheme.nsubsteps
+        )
         @assert τ ≈ τ_start + c * dt
+        nothing
     end
 
-    function _advance_slow!(τ, c)
-        local component = Val(:slow)
-        local cache = cache_slow
-        local rhs! = gen_rhs(component)
-        local dτ = c * dt
-        rhs!(vtmp, ftmp, τ, iter)
-        update_velocities!(
-            vtmp, rhs!, advect!, cache, iter;
-            resize_cache = false, t = τ, dt = dτ, fs = ftmp,
+    function _advance_slow!(τ_start, c)
+        τ = splitting_advance_slow!(
+            scheme.slow, ftmp, vtmp, iter, τ_start, rhs_full!, advect!, cache_slow, c * dt,
         )
-        advect!(ftmp, vtmp, dτ; fbase = ftmp)
+        @assert τ ≈ τ_start + c * dt
+        nothing
     end
 
     γ1 = 1 / (2 - cbrt(2))
