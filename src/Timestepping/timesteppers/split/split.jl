@@ -50,13 +50,14 @@ function splitting_advance_fast!(fast::Hasimoto, ftmp, vtmp, iter, τ, rhs_full!
     dτ = cdt  # nsubsteps is ignored
     (; Γ, a, Δ, quad) = iter.prob.p
     (; δ) = iter.fast_term::LocalTerm
+    order = get_order(fast)
     if δ === nothing
         error("fast_term = LocalTerm(δ::Real) is needed for using the Hasimoto transformation")
     end
     β = oftype(Γ, Γ / (4π) * (log(2 * δ / a) - Δ))
     for f in ftmp
         Filaments.reparametrise_arclength!(f; quad)
-        s, N = run_hasimoto_simulation_order4(f, β, τ, dτ)
+        s, N = run_hasimoto_simulation(Val(order), f, β, τ, dτ)
         pts = [Vec3(s[i,:]) for i in 1:N]
         nodes_f = Filaments.nodes(f)
         for j in 1:N 
