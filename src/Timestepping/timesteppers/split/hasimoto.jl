@@ -4,7 +4,11 @@ using FFTW
 using LinearAlgebra
 using .Filaments
 
-struct Hasimoto <: TemporalScheme end
+struct Hasimoto{Order} <: TemporalScheme end
+@inline Hasimoto(order::Int) = Hasimoto{order}()
+Hasimoto() = Hasimoto{4}()  # order 4 by default
+
+get_order(::Hasimoto{Order}) where {Order} = Order::Int
 
 function _check_nsubsteps(::Hasimoto, nsubsteps)
     nsubsteps == 1 || @warn("Splittings scheme: the `nsubsteps` parameter is ignored with Hasimoto-based timestepping for local part")
@@ -185,9 +189,81 @@ function RK4IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, β, tn, Δt, k, Nf, ηs)
     return ϕ_hat_np1, T_np1, e1_np1, e2_np1, s0_np1
 end
 
+function RK2IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, β, tn, Δt, k, Nf, ηs)
+    # Step 1
+    ψ1, ψp1 = psi_and_derivative(ϕ_hat_n, c, β, tn, k, Nf)
+    v1 = g(ϕ_hat_n, c, β, tn, k, Nf)
+    dT_1, de1_1, de2_1, ds0_1 = h(Nf, T_n, e1_n, e2_n, ψ1, ψp1, c, ηs, β)
+
+    # Step 2
+    ϕ2 = @. ϕ_hat_n + Δt * v1 / 2
+    T_2 = @. T_n + Δt * dT_1 / 2
+    e1_2 = @. e1_n + Δt * de1_1 / 2
+    e2_2 = @. e2_n + Δt * de2_1 / 2
+    t2 = tn + Δt / 2
+    ψ2, ψp2 = psi_and_derivative(ϕ2, c, β, t2, k, Nf)
+    v2 = g(ϕ2, c, β, t2, k, Nf)
+    dT_2, de1_2, de2_2, ds0_2 = h(Nf, T_2, e1_2, e2_2, ψ2, ψp2, c, ηs, β)
+
+    # Final step
+    ϕ_hat_np1 = @. ϕ_hat_n + Δt * v2
+    T_np1 = @. T_n + Δt * dT_2
+    e1_np1 = @. e1_n + Δt * de1_2
+    e2_np1 = @. e2_n + Δt * de2_2
+    s0_np1 = @. s0_n + Δt * ds0_2
+
+    return ϕ_hat_np1, T_np1, e1_np1, e2_np1, s0_np1
+end
+
 ######################################
 
-function run_hasimoto_simulation_order4(f, β, t, Δt; threshold_ortho = 1e-8)
+# Order 2 implementation
+function run_hasimoto_simulation(order::Val{2}, f, β, t, Δt; threshold_ortho = 1e-8)
+    N = length(f)
+    Lη = Filaments.knotlims(f)[2]
+    Nf = nextpow(2, N) * 4
+    ks = fftfreq(Nf, 2 * π * Nf / Lη)
+    ψ_init, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
+    ψ_init_hat = fft(ψ_init) / Nf
+    ϕ_hat = ψ_init_hat
+    T, e1, e2, s0 = copy(T_init), copy(e1_init), copy(e2_init), copy(s0_init)
+
+    ϕ_hat, T, e1, e2, s0 = RK2IF(ϕ_hat, moy, T, e1, e2, s0, β, t, Δt, ks, Nf, ηs)
+    max_drift = maximum(abs(norm(T[i, :]) - 1) for i in 1:Nf)
+    if max_drift > threshold_ortho
+        println("Réorthonormalisation")
+        for i in 1:Nf
+            T[i, :] ./= norm(T[i, :])
+            e1[i, :] .-= dot(e1[i, :], T[i, :]) .* T[i, :] 
+            e1[i, :] ./= norm(e1[i, :])
+            e2[i, :] .= T[i, :] × e1[i, :]
+        end
+    end
+
+    ψ_per_hat_final = @. cis(-β * (ks + moy) ^ 2 * (t + Δt)) * ϕ_hat
+    ψ_per_final = bfft(ψ_per_hat_final)
+    ψ_final = @. ψ_per_final * cis(moy * ηs[1:Nf]) 
+
+    s = filament_reconstruction(T, Nf, ks, s0)
+    ξ = Filaments.knots(f)
+    Δη = Lη / Nf
+    s_ξ = zeros(N, 3)
+    for j in 1:N
+        i = mod1(floor(Int, ξ[j] / Δη) + 1, Nf)
+        ip1 = mod1(i + 1, Nf)
+        t_interp = (ξ[j] - ηs[i]) / Δη
+        Xs = (s[i, :], s[ip1, :])
+        Xsp = (T[i, :] .* Δη, T[ip1, :] .* Δη)
+        s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
+        # println("s_ξ[j] avec interpolation = ", s_ξ[j, :])
+        # s_ξ[j, :] = s[j, :]
+        # println("s_ξ[j] sans interpolation = ", s_ξ[j, :])
+    end
+    return s_ξ, N   
+end
+
+# Order 4 implementation
+function run_hasimoto_simulation(order::Val{4}, f, β, t, Δt; threshold_ortho = 1e-8)
     N = length(f)
     Lη = Filaments.knotlims(f)[2]
     Nf = nextpow(2, N) * 4
