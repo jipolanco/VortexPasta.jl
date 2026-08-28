@@ -19,6 +19,10 @@ struct Strang{FastScheme <: TemporalScheme, SlowScheme <: TemporalScheme} <: Spl
     fast :: FastScheme
     slow :: SlowScheme
     nsubsteps :: Int
+    function Strang(fast, slow, nsubsteps)
+        _check_nsubsteps(fast, nsubsteps)
+        new{typeof(fast), typeof(slow)}(fast, slow, nsubsteps)
+    end
 end
 
 Strang(fast::TemporalScheme, slow::TemporalScheme; nsubsteps::Int = 1) = Strang(fast, slow, nsubsteps)
@@ -56,40 +60,22 @@ function _update_velocities!(
         )
     end
 
-    gen_rhs(component) = (vs, fs, t, iter) -> rhs_full!(vs, fs, t, iter; component)
-
     copy!(ftmp, fs)        # initial condition for stage 1
 
     function _advance_fast!(τ_start, c)
-        local component = Val(:fast)
-        local cache = cache_fast
-        local rhs! = gen_rhs(component)
-        local (; nsubsteps,) = scheme
-        local τ = τ_start
-        local dτ = c * dt / nsubsteps  # timestep in each substep
-        for _ ∈ 1:nsubsteps
-            rhs!(vtmp, ftmp, τ, iter)
-            update_velocities!(
-                vtmp, rhs!, advect!, cache, iter;
-                resize_cache = false, t = τ, dt = dτ, fs = ftmp,
-            )
-            advect!(ftmp, vtmp, dτ; fbase = ftmp)
-            τ += dτ
-        end
+        τ = splitting_advance_fast!(
+            scheme.fast, ftmp, vtmp, iter, τ_start, rhs_full!, advect!, cache_fast, c * dt, scheme.nsubsteps
+        )
         @assert τ ≈ τ_start + c * dt
+        nothing
     end
 
-    function _advance_slow!(τ, c)
-        local component = Val(:slow)
-        local cache = cache_slow
-        local rhs! = gen_rhs(component)
-        local dτ = c * dt
-        rhs!(vtmp, ftmp, τ, iter)
-        update_velocities!(
-            vtmp, rhs!, advect!, cache, iter;
-            resize_cache = false, t = τ, dt = dτ, fs = ftmp,
+    function _advance_slow!(τ_start, c)
+        τ = splitting_advance_slow!(
+            scheme.slow, ftmp, vtmp, iter, τ_start, rhs_full!, advect!, cache_slow, c * dt,
         )
-        advect!(ftmp, vtmp, dτ; fbase = ftmp)
+        @assert τ ≈ τ_start + c * dt
+        nothing
     end
 
     # 1. Advance fast dynamics: t -> t + dt/2
