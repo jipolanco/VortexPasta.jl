@@ -309,17 +309,22 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t, Δt; threshold_ortho =
         s0 = s0_init + ds⃗
     end
 
+    Tp = real.(bfft(fft(T, 1) .* (im .* ks ./ Nf), 1))
+
     s = filament_reconstruction(T, Nf, ks, s0)
     ξ = Filaments.knots(f)
     Δη = Lη / Nf
     s_ξ = zeros(N, 3)
     for j in 1:N
-        i = mod1(floor(Int, ξ[j] / Δη) + 1, Nf)
+        # i = mod1(floor(Int, ξ[j] / Δη) + 1, Nf)
+        i = unsafe_trunc(Int, (ξ[j] / Lη) * Nf) + 1
         ip1 = mod1(i + 1, Nf)
         t_interp = (ξ[j] - ηs[i]) / Δη
-        Xs = (s[i, :], s[ip1, :])
-        Xsp = (T[i, :] .* Δη, T[ip1, :] .* Δη)
-        s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
+        Xs = @views (Vec3(s[i, 1:3]), Vec3(s[ip1, 1:3]))
+        Xsp = @views (Vec3(T[i, 1:3]) .* Δη, Vec3(T[ip1, 1:3]) .* Δη)
+        Xspp = @views (Vec3(Tp[i, 1:3]) .* Δη^2, Vec3(Tp[ip1, 1:3]) .* Δη^2)
+        # s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
+        s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{2}(), Derivative{0}(), t_interp, Xs, Xsp, Xspp)
         # println("s_ξ[j] avec interpolation = ", s_ξ[j, :])
         # s_ξ[j, :] = s[j, :]
         # println("s_ξ[j] sans interpolation = ", s_ξ[j, :])
@@ -355,17 +360,22 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t, Δt; threshold_ortho =
     ψ_per_final = bfft(ψ_per_hat_final)
     ψ_final = @. ψ_per_final * cis(moy * ηs[1:Nf])
 
+    Tp = real.(bfft(fft(T, 1) .* (im .* ks ./ Nf), 1))
+
     s = filament_reconstruction(T, Nf, ks, s0)
     ξ = Filaments.knots(f)
     Δη = Lη / Nf
     s_ξ = zeros(N, 3)
     for j in 1:N
-        i = mod1(floor(Int, ξ[j] / Δη) + 1, Nf)
+        i = unsafe_trunc(Int, (ξ[j] / Lη) * Nf) + 1
         ip1 = mod1(i + 1, Nf)
         t_interp = (ξ[j] - ηs[i]) / Δη
-        Xs = (s[i, :], s[ip1, :])
-        Xsp = (T[i, :] .* Δη, T[ip1, :] .* Δη)
-        s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
+        Xs = @views (Vec3(s[i, 1:3]), Vec3(s[ip1, 1:3]))
+        Xsp = @views (Vec3(T[i, 1:3]) .* Δη, Vec3(T[ip1, 1:3]) .* Δη)
+        Xspp = @views (Vec3(Tp[i, 1:3]) .* Δη^2, Vec3(Tp[ip1, 1:3]) .* Δη^2)
+        # s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
+        # s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
+        s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{2}(), Derivative{0}(), t_interp, Xs, Xsp, Xspp)
         # println("s_ξ[j] avec interpolation = ", s_ξ[j, :])
         # s_ξ[j, :] = s[j, :]
         # println("s_ξ[j] sans interpolation = ", s_ξ[j, :])
