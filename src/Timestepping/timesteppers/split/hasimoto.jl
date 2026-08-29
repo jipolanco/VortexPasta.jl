@@ -117,8 +117,8 @@ function construct_psi_and_frame(f, Lη, Nf, ks)
     return ψper, moy, t_hat, e1_hat, e2_hat, s0, ηs
 end
 
-function psi_and_derivative(ϕ_hat, c, β, t, k, Nf)
-    ψper_hat = @. cis(-β * (k + c)^2 * t) * ϕ_hat
+function psi_and_derivative(ϕ_hat, c, t, k, Nf)
+    ψper_hat = @. cis(-(k + c)^2 * t) * ϕ_hat
     ψper = bfft(ψper_hat)
     ψp_hat = @. 1im * (k + c) * ψper_hat
     ψp_per = bfft(ψp_hat)
@@ -127,22 +127,22 @@ end
 
 ######################################
 
-function nls_fourier_nonlinear_if(ϕ_hat, c, β, t, k, Nf)
-    ψper, ψp_per = psi_and_derivative(ϕ_hat, c, β, t, k, Nf)
-    mb_non_lin = @. 1im / 2 * β * abs2(ψper) * ψper
+function nls_fourier_nonlinear_if(ϕ_hat, c, t, k, Nf)
+    ψper, ψp_per = psi_and_derivative(ϕ_hat, c, t, k, Nf)
+    mb_non_lin = @. 1im / 2 * abs2(ψper) * ψper
     mb_non_lin_hat = fft(mb_non_lin) / Nf
-    # return @. cis(β * (k + c)^2 * t) * mb_non_lin_hat  # XXX: this is not needed, right?
+    # return @. cis((k + c)^2 * t) * mb_non_lin_hat  # XXX: this is not needed, right?
     return mb_non_lin_hat
 end
 
-function advance_frame(Nf, T, e1, e2, ψ_per, ψp_per, moy, ηs, β)
+function advance_frame(Nf, T, e1, e2, ψ_per, ψp_per, moy, ηs)
     dT = zeros(Nf, 3)
     de1 = zeros(Nf, 3)
     de2 = zeros(Nf, 3)
     ψ = @. ψ_per * cis(moy * ηs[1:Nf])
     ψp = @. ψp_per * cis(moy * ηs[1:Nf])
     for i in 1:Nf
-        a, b, c = β * real(ψp[i]), β * imag(ψp[i]), β * abs2(ψ[i]) / 2
+        a, b, c = real(ψp[i]), imag(ψp[i]), abs2(ψ[i]) / 2
         A = [0.0 -b a ; b 0.0 -c ; -a c 0.0]
         vec = [T[i, :]'; e1[i, :]'; e2[i, :]']
         d_vec = A * vec 
@@ -152,16 +152,16 @@ function advance_frame(Nf, T, e1, e2, ψ_per, ψp_per, moy, ηs, β)
         de2[i, :] = d_vec[3, :]
     end
     Tp0 = @. real(ψ[1]) * e1[1, :] + imag(ψ[1]) * e2[1, :]
-    ds0 = β .* (T[1, :] × Tp0)
+    ds0 = T[1, :] × Tp0
     return dT, de1, de2, ds0
 end
 
-function RK4IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, β, Δt, k, Nf, ηs)
+function RK4IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, Δt, k, Nf, ηs)
     # Step 1
     tn = zero(Δt)
-    ψ1, ψp1 = psi_and_derivative(ϕ_hat_n, c, β, tn, k, Nf)
-    v1 = nls_fourier_nonlinear_if(ϕ_hat_n, c, β, tn, k, Nf)
-    dT_1, de1_1, de2_1, ds0_1 = advance_frame(Nf, T_n, e1_n, e2_n, ψ1, ψp1, c, ηs, β)
+    ψ1, ψp1 = psi_and_derivative(ϕ_hat_n, c, tn, k, Nf)
+    v1 = nls_fourier_nonlinear_if(ϕ_hat_n, c, tn, k, Nf)
+    dT_1, de1_1, de2_1, ds0_1 = advance_frame(Nf, T_n, e1_n, e2_n, ψ1, ψp1, c, ηs)
 
     # Step 2
     ϕ2 = @. ϕ_hat_n + Δt * v1 / 2
@@ -169,27 +169,27 @@ function RK4IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, β, Δt, k, Nf, ηs)
     e1_2 = @. e1_n .+ Δt .* de1_1 ./ 2
     e2_2 = @. e2_n .+ Δt .* de2_1 ./ 2
     t2 = tn + Δt / 2
-    ψ2, ψp2 = psi_and_derivative(ϕ2, c, β, t2, k, Nf)
-    v2 = nls_fourier_nonlinear_if(ϕ2, c, β, t2, k, Nf)
-    dT_2, de1_2, de2_2, ds0_2 = advance_frame(Nf, T_2, e1_2, e2_2, ψ2, ψp2, c, ηs, β)
+    ψ2, ψp2 = psi_and_derivative(ϕ2, c, t2, k, Nf)
+    v2 = nls_fourier_nonlinear_if(ϕ2, c, t2, k, Nf)
+    dT_2, de1_2, de2_2, ds0_2 = advance_frame(Nf, T_2, e1_2, e2_2, ψ2, ψp2, c, ηs)
 
     # Step 3
     ϕ3 = @. ϕ_hat_n + Δt * v2 / 2
     T_3 = @. T_n + Δt * dT_2 / 2
     e1_3 = @. e1_n + Δt * de1_2 / 2
     e2_3 = @. e2_n + Δt * de2_2 / 2
-    ψ3, ψp3 = psi_and_derivative(ϕ3, c, β, t2, k, Nf)
-    v3 = nls_fourier_nonlinear_if(ϕ3, c, β, t2, k, Nf)
-    dT_3, de1_3, de2_3, ds0_3 = advance_frame(Nf, T_3, e1_3, e2_3, ψ3, ψp3, c, ηs, β)
+    ψ3, ψp3 = psi_and_derivative(ϕ3, c, t2, k, Nf)
+    v3 = nls_fourier_nonlinear_if(ϕ3, c, t2, k, Nf)
+    dT_3, de1_3, de2_3, ds0_3 = advance_frame(Nf, T_3, e1_3, e2_3, ψ3, ψp3, c, ηs)
 
     # Step 4
     ϕ4 = @. ϕ_hat_n + Δt * v3
     T_4 = @. T_n + Δt * dT_3
     e1_4 = @. e1_n + Δt * de1_3
     e2_4 = @. e2_n + Δt * de2_3
-    ψ4, ψp4 = psi_and_derivative(ϕ4, c, β, tn + Δt, k, Nf)
-    v4 = nls_fourier_nonlinear_if(ϕ4, c, β, tn + Δt, k, Nf)
-    dT_4, de1_4, de2_4, ds0_4 = advance_frame(Nf, T_4, e1_4, e2_4, ψ4, ψp4, c, ηs, β)
+    ψ4, ψp4 = psi_and_derivative(ϕ4, c, tn + Δt, k, Nf)
+    v4 = nls_fourier_nonlinear_if(ϕ4, c, tn + Δt, k, Nf)
+    dT_4, de1_4, de2_4, ds0_4 = advance_frame(Nf, T_4, e1_4, e2_4, ψ4, ψp4, c, ηs)
 
     # Final step
     ϕ_hat_np1 = @. ϕ_hat_n + Δt / 6 * (v1 + 2 * v2 + 2 * v3 + v4)
@@ -201,12 +201,12 @@ function RK4IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, β, Δt, k, Nf, ηs)
     return ϕ_hat_np1, T_np1, e1_np1, e2_np1, s0_np1
 end
 
-function RK2IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, β, Δt, k, Nf, ηs)
+function RK2IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, Δt, k, Nf, ηs)
     # Step 1
     tn = zero(Δt)
-    ψ1, ψp1 = psi_and_derivative(ϕ_hat_n, c, β, tn, k, Nf)
-    v1 = nls_fourier_nonlinear_if(ϕ_hat_n, c, β, tn, k, Nf)
-    dT_1, de1_1, de2_1, ds0_1 = advance_frame(Nf, T_n, e1_n, e2_n, ψ1, ψp1, c, ηs, β)
+    ψ1, ψp1 = psi_and_derivative(ϕ_hat_n, c, tn, k, Nf)
+    v1 = nls_fourier_nonlinear_if(ϕ_hat_n, c, tn, k, Nf)
+    dT_1, de1_1, de2_1, ds0_1 = advance_frame(Nf, T_n, e1_n, e2_n, ψ1, ψp1, c, ηs)
 
     # Step 2
     ϕ2 = @. ϕ_hat_n + Δt * v1 / 2
@@ -214,9 +214,9 @@ function RK2IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, β, Δt, k, Nf, ηs)
     e1_2 = @. e1_n + Δt * de1_1 / 2
     e2_2 = @. e2_n + Δt * de2_1 / 2
     t2 = tn + Δt / 2
-    ψ2, ψp2 = psi_and_derivative(ϕ2, c, β, t2, k, Nf)
-    v2 = nls_fourier_nonlinear_if(ϕ2, c, β, t2, k, Nf)
-    dT_2, de1_2, de2_2, ds0_2 = advance_frame(Nf, T_2, e1_2, e2_2, ψ2, ψp2, c, ηs, β)
+    ψ2, ψp2 = psi_and_derivative(ϕ2, c, t2, k, Nf)
+    v2 = nls_fourier_nonlinear_if(ϕ2, c, t2, k, Nf)
+    dT_2, de1_2, de2_2, ds0_2 = advance_frame(Nf, T_2, e1_2, e2_2, ψ2, ψp2, c, ηs)
 
     # Final step
     ϕ_hat_np1 = @. ϕ_hat_n + Δt * v2
@@ -228,23 +228,23 @@ function RK2IF(ϕ_hat_n, c, T_n, e1_n, e2_n, s0_n, β, Δt, k, Nf, ηs)
     return ϕ_hat_np1, T_np1, e1_np1, e2_np1, s0_np1
 end
 
-function NLS_RK2IF(ψ_init_hat, c, β, Δt, ks, Nf)
+function NLS_RK2IF(ψ_init_hat, c, Δt, ks, Nf)
     ϕ_hat_n = ψ_init_hat
 
     # Step 1
     tn = zero(Δt)
-    # ψ1, ψp1 = psi_and_derivative(ϕ_hat_n, c, β, tn, ks, Nf)
-    v1 = nls_fourier_nonlinear_if(ϕ_hat_n, c, β, tn, ks, Nf)
+    # ψ1, ψp1 = psi_and_derivative(ϕ_hat_n, c, tn, ks, Nf)
+    v1 = nls_fourier_nonlinear_if(ϕ_hat_n, c, tn, ks, Nf)
 
     # Step 2
     ϕ2 = @. ϕ_hat_n + Δt * v1 / 2
     t2 = tn + Δt / 2
-    # ψ2, ψp2 = psi_and_derivative(ϕ2, c, β, t2, k, Nf)
-    v2 = nls_fourier_nonlinear_if(ϕ2, c, β, t2, ks, Nf)
+    # ψ2, ψp2 = psi_and_derivative(ϕ2, c, t2, k, Nf)
+    v2 = nls_fourier_nonlinear_if(ϕ2, c, t2, ks, Nf)
 
     # Final step
     ϕ_hat_np1 = @. ϕ_hat_n + Δt * v2
-    ψ_hat_np1 = @. ϕ_hat_np1 * cis(-β * (ks + c)^2 * Δt)
+    ψ_hat_np1 = @. ϕ_hat_np1 * cis(-(ks + c)^2 * Δt)
 
     return ψ_hat_np1
 end
@@ -252,7 +252,9 @@ end
 ######################################
 
 # Order 2 implementation
-function run_hasimoto_simulation(order::Val{2}, f, β, t, Δt; threshold_ortho = 1e-8)
+function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in; threshold_ortho = 1e-8)
+    Δt = Δt_in * β  # rescale time so we no longer need β
+    t = t_in * β    # not sure we need this
     N = length(f)
     Lη = Filaments.knotlims(f)[2]
     # L_actual = integrate(f, Filaments.GaussLegendre(3)) do f, i, ζ
@@ -267,7 +269,7 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t, Δt; threshold_ortho =
     T, e1, e2, s0 = copy(T_init), copy(e1_init), copy(e2_init), copy(s0_init)
 
     # 1. Advance NLS: ψ(0) -> ψ(Δt/2)
-    ψ_hat_mid = NLS_RK2IF(ψ_init_hat, moy, β, Δt/2, ks, Nf)
+    ψ_hat_mid = NLS_RK2IF(ψ_init_hat, moy, Δt/2, ks, Nf)
     ψp_hat_mid = @. im * (ks + moy) * ψ_hat_mid
     ψ_per_mid = bfft(ψ_hat_mid)
     ψp_per_mid = bfft(ψp_hat_mid)
@@ -278,7 +280,7 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t, Δt; threshold_ortho =
     for i in eachindex(ψ_mid)
         ψ = ψ_mid[i]
         ψ′ = ψp_mid[i]
-        a, b, c = β * real(ψ′), β * imag(ψ′), β * abs2(ψ) / 2
+        a, b, c = real(ψ′), imag(ψ′), abs2(ψ) / 2
         A = @SMatrix [0 -b a; b 0 -c; -a c 0]
         Ω = A * Δt  # first term of Magnus expansion (with GL1 quadrature, i.e. evaluation at midpoint)
         R = exp(Ω)  # this is a unitary matrix (since Ω is skew-symmetric)
@@ -305,7 +307,7 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t, Δt; threshold_ortho =
         ê₁ = (e1_a + e1_b) / 2
         ê₂ = (e2_a + e2_b) / 2
         ρ⃗ = real(ψ) * ê₁ + imag(ψ) * ê₂
-        ds⃗ = Δt * β * (t̂ × ρ⃗)
+        ds⃗ = Δt * 1 * (t̂ × ρ⃗)
         s0 = s0_init + ds⃗
     end
 
@@ -334,7 +336,9 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t, Δt; threshold_ortho =
 end
 
 # Order 4 implementation
-function run_hasimoto_simulation(order::Val{4}, f, β, t, Δt; threshold_ortho = 1e-8)
+function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_ortho = 1e-8)
+    Δt = Δt_in * β  # rescale time so we no longer need β
+    t = t_in * β    # not sure we need this
     N = length(f)
     Lη = Filaments.knotlims(f)[2]
     Nf = nextpow(2, N) * 4
@@ -344,7 +348,7 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t, Δt; threshold_ortho =
     ϕ_hat = ψ_init_hat
     T, e1, e2, s0 = copy(T_init), copy(e1_init), copy(e2_init), copy(s0_init)
 
-    ϕ_hat, T, e1, e2, s0 = RK4IF(ϕ_hat, moy, T, e1, e2, s0, β, Δt, ks, Nf, ηs)
+    ϕ_hat, T, e1, e2, s0 = RK4IF(ϕ_hat, moy, T, e1, e2, s0, Δt, ks, Nf, ηs)
     max_drift = maximum(abs(norm(T[i, :]) - 1) for i in 1:Nf)
     if max_drift > threshold_ortho
         println("Réorthonormalisation")
@@ -356,7 +360,7 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t, Δt; threshold_ortho =
         end
     end
 
-    ψ_per_hat_final = @. cis(-β * (ks + moy)^2 * Δt) * ϕ_hat
+    ψ_per_hat_final = @. cis(-(ks + moy)^2 * Δt) * ϕ_hat
     ψ_per_final = bfft(ψ_per_hat_final)
     ψ_final = @. ψ_per_final * cis(moy * ηs[1:Nf])
 
