@@ -26,7 +26,7 @@ function s_derivatives(f, Lη, Nf, ks)
     for i in 1:Nf
         s_equi[i, :] = f(ηs[i])
     end
-    s_hat = fft(s_equi, 1) / Nf 
+    s_hat = fft(s_equi, 1)
     s_hat[Nf ÷ 2 + 1, :] .= 0
 
     # Calcul de ŝ', ŝ" et ŝ"'
@@ -35,9 +35,11 @@ function s_derivatives(f, Lη, Nf, ks)
     s_ter_hat = im .* ks .* s_sec_hat
 
     # Calcul de s', s" et s"'
-    s_prime = real(bfft(s_prime_hat, 1))
-    s_sec = real(bfft(s_sec_hat, 1))
-    s_ter = real(bfft(s_ter_hat, 1))
+    s_prime = real(ifft(s_prime_hat, 1))
+    # μs = @views map(i -> norm(s_prime[i, :]), axes(s_prime, 1))  # metric (~1)
+    # @show extrema(μs)
+    s_sec = real(ifft(s_sec_hat, 1))
+    s_ter = real(ifft(s_ter_hat, 1))
 
     return s_prime, s_sec, s_ter, ηs
 end
@@ -57,12 +59,12 @@ end
 
 function hasimoto_function(ρ, τ, ηs, ks, Nf)
     # Calcul de θ
-    func_hat = fft(τ) / Nf
+    func_hat = fft(τ)
     func_hat[end ÷ 2 + 1] = 0
     θ_hat = @. func_hat / (1im * ks)
     θ_hat[1] = 0.0
-    moy = real(func_hat[1]) 
-    θ_per = real(bfft(θ_hat))
+    moy = real(func_hat[1]) / length(func_hat)  # mean value (accounting for FFT normalisation factor)
+    θ_per = real(ifft(θ_hat))
     θ_per .-= θ_per[1]
     θ = @. θ_per + ηs[1:Nf] * moy
 
@@ -85,9 +87,9 @@ function hasimoto_function(ρ, τ, ηs, ks, Nf)
 end
 
 function orthonormal_frame(s_prime, θ, ks, Nf)
-    spp_fourier = fft(s_prime, 1) .* (1im .* ks ./ Nf)
+    spp_fourier = fft(s_prime, 1) .* (1im .* ks)
     spp_fourier[Nf ÷ 2 + 1, :] .= 0
-    spp = real(bfft(spp_fourier, 1))
+    spp = real(ifft(spp_fourier, 1))
 
     t_hat = zeros(Nf, 3)
     e1_hat = zeros(Nf, 3)
@@ -119,9 +121,9 @@ end
 
 function psi_and_derivative(ϕ_hat, c, t, k)
     ψper_hat = @. cis(-(k + c)^2 * t) * ϕ_hat
-    ψper = bfft(ψper_hat)
+    ψper = ifft(ψper_hat)
     ψp_hat = @. 1im * (k + c) * ψper_hat
-    ψp_per = bfft(ψp_hat)
+    ψp_per = ifft(ψp_hat)
     return ψper, ψp_per
 end
 
@@ -130,9 +132,8 @@ end
 function nls_fourier_nonlinear_if(ϕ_hat, c, t, k)
     ψper, ψp_per = psi_and_derivative(ϕ_hat, c, t, k)
     mb_non_lin = @. 1im / 2 * abs2(ψper) * ψper
-    mb_non_lin_hat = fft(mb_non_lin) / length(mb_non_lin)
-    # return @. cis((k + c)^2 * t) * mb_non_lin_hat  # XXX: this is not needed, right?
-    return mb_non_lin_hat
+    mb_non_lin_hat = fft(mb_non_lin)
+    return @. cis((k + c)^2 * t) * mb_non_lin_hat
 end
 
 function advance_frame(Nf, T, e1, e2, ψ_per, ψp_per, moy, ηs)
@@ -145,7 +146,7 @@ function advance_frame(Nf, T, e1, e2, ψ_per, ψp_per, moy, ηs)
         a, b, c = real(ψp[i]), imag(ψp[i]), abs2(ψ[i]) / 2
         A = [0.0 -b a ; b 0.0 -c ; -a c 0.0]
         vec = [T[i, :]'; e1[i, :]'; e2[i, :]']
-        d_vec = A * vec 
+        d_vec = A * vec
 
         dT[i, :] = d_vec[1, :]
         de1[i, :] = d_vec[2, :]
@@ -257,27 +258,22 @@ function NLS_RK2IF(ψ_init_hat, c, Δt, ks)
 end
 
 function NLS_Strang2(ψ_init_hat, c, Δt, ks)
-    N = length(ψ_init_hat)
     ψ = @. cis(-(ks + c)^2 * Δt/2) * ψ_init_hat  # advance linear term by Δt/2 (Fourier)
-    bfft!(ψ)  # to physical space
-    @. ψ = cis(Δt * abs2(ψ) / N / 2) * ψ  # advance nonlinear term by Δt (physical space)
+    ifft!(ψ)  # to physical space
+    @. ψ = cis(Δt * abs2(ψ) / 2) * ψ  # advance nonlinear term by Δt (physical space)
     fft!(ψ)  # back to Fourier space
-    ψ = @. cis(-(ks + c)^2 * Δt/2) * ψ / N  # advance linear term by Δt/2 (Fourier) + FFT normalisation
+    ψ = @. cis(-(ks + c)^2 * Δt/2) * ψ  # advance linear term by Δt/2 (Fourier)
     ψ
 end
 
 ######################################
 
 # Order 2 implementation
-function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in; threshold_ortho = 1e-8)
+function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
     Δt = Δt_in * β  # rescale time so we no longer need β
     t = t_in * β    # not sure we need this
     N = length(f)
     Lη = Filaments.knotlims(f)[2]
-    # L_actual = integrate(f, Filaments.GaussLegendre(3)) do f, i, ζ
-    #     norm(f(i, ζ, Derivative(1)))
-    # end
-    # @show (Lη - L_actual) / L_actual
     Nf = nextpow(2, N) * 4
     ks = fftfreq(Nf, 2 * π * Nf / Lη)
     ψ_init, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
@@ -287,7 +283,7 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in; threshold_o
 
     # 1. Advance NLS: ψ(0) -> ψ(Δt/2)
     ψ_hat_mid = NLS_RK2IF(ψ_init_hat, moy, Δt/2, ks)
-    # ψ_hat_mid_strang = NLS_Strang2(ψ_init_hat, moy, Δt/2, ks)
+    # ψ_hat_mid = NLS_Strang2(ψ_init_hat, moy, Δt/2, ks)
     # @show norm(ψ_hat_mid - ψ_hat_mid_strang) / norm(ψ_hat_mid_strang)
 
     ψp_hat_mid = @. im * (ks + moy) * ψ_hat_mid
@@ -299,9 +295,8 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in; threshold_o
     # 2. Advance orthonormal frame
     for i in eachindex(ψ_mid)
         A = construct_frame_evolution_matrix(ψ_mid[i], ψp_mid[i])
-        # A = @SMatrix [0 -b a; b 0 -c; -a c 0]
         Ω = A * Δt  # first term of Magnus expansion (with GL1 quadrature, i.e. evaluation at midpoint)
-        R = exp(Ω)  # this is a unitary matrix (since Ω is skew-symmetric)
+        R = exp(Ω)  # this is a unitary/rotation matrix (since Ω is skew-symmetric)
         t̂_a = SVector{3}(T_init[i, 1:3])
         ê1_a = SVector{3}(e1_init[i, 1:3])
         ê2_a = SVector{3}(e2_init[i, 1:3])
@@ -312,24 +307,24 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in; threshold_o
         e2[i, 1:3] .= X[3, 1:3]
     end
 
-    # 3. Advance point s0 using some kind of midpoint rule.
-    let i = 1
-        ψ = ψ_mid[i]  # at Δt/2
-        t̂_a = SVector{3}(T_init[i, 1:3])
-        t̂_b = SVector{3}(T[i, 1:3])
-        e1_a = SVector{3}(e1_init[i, 1:3])
-        e1_b = SVector{3}(e1[i, 1:3])
-        e2_a = SVector{3}(e2_init[i, 1:3])
-        e2_b = SVector{3}(e2[i, 1:3])
-        t̂ = (t̂_a + t̂_b) / 2  # estimate tangent at Δt/2
-        ê₁ = (e1_a + e1_b) / 2
-        ê₂ = (e2_a + e2_b) / 2
-        ρ⃗ = real(ψ) * ê₁ + imag(ψ) * ê₂
-        ds⃗ = Δt * 1 * (t̂ × ρ⃗)
-        s0 = s0_init + ds⃗
-    end
+    # Compute t̂′ = ρ * n̂ at Δt.
+    # We use this for filament reconstruction (Hermite interpolations) and for advancing s⃗₀.
+    Tp = real.(ifft(fft(T, 1) .* (im .* ks), 1))
 
-    Tp = real.(bfft(fft(T, 1) .* (im .* ks ./ Nf), 1))
+    # 3. Advance reference point s0 using values at times 0 and Δt (trapezoidal rule).
+    let i = 1
+        ψ_a = ψ_init[i]  # ψ = ψ_per at initial point (no need for cis(...))
+        @views begin
+            t̂_a = SVector{3}(T_init[i, 1:3])
+            t̂_b = SVector{3}(T[i, 1:3])
+            e1_a = SVector{3}(e1_init[i, 1:3])
+            e2_a = SVector{3}(e2_init[i, 1:3])
+            ρ⃗_b = SVector{3}(Tp[i, 1:3])
+        end
+        v⃗_a = t̂_a × (real(ψ_a) * e1_a + imag(ψ_a) * e2_a)
+        v⃗_b = t̂_b × ρ⃗_b
+        s0 = @. s0_init + Δt * (v⃗_a + v⃗_b) / 2
+    end
 
     s = filament_reconstruction(T, Nf, ks, s0)
     ξ = Filaments.knots(f)
@@ -340,9 +335,9 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in; threshold_o
         i = unsafe_trunc(Int, (ξ[j] / Lη) * Nf) + 1
         ip1 = mod1(i + 1, Nf)
         t_interp = (ξ[j] - ηs[i]) / Δη
-        Xs = @views (Vec3(s[i, 1:3]), Vec3(s[ip1, 1:3]))
-        Xsp = @views (Vec3(T[i, 1:3]) .* Δη, Vec3(T[ip1, 1:3]) .* Δη)
-        Xspp = @views (Vec3(Tp[i, 1:3]) .* Δη^2, Vec3(Tp[ip1, 1:3]) .* Δη^2)
+        Xs = @views (SVector{3}(s[i, 1:3]), SVector{3}(s[ip1, 1:3]))
+        Xsp = @views (SVector{3}(T[i, 1:3]) .* Δη, SVector{3}(T[ip1, 1:3]) .* Δη)
+        Xspp = @views (SVector{3}(Tp[i, 1:3]) .* Δη^2, SVector{3}(Tp[ip1, 1:3]) .* Δη^2)
         # s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
         s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{2}(), Derivative{0}(), t_interp, Xs, Xsp, Xspp)
     end
@@ -359,7 +354,7 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_o
     Nf = nextpow(2, N) * 4
     ks = fftfreq(Nf, 2 * π * Nf / Lη)
     ψ_init, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
-    ψ_init_hat = fft(ψ_init) / Nf
+    ψ_init_hat = fft(ψ_init)
     ϕ_hat = ψ_init_hat
     T, e1, e2, s0 = copy(T_init), copy(e1_init), copy(e2_init), copy(s0_init)
 
@@ -376,10 +371,10 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_o
     end
 
     ψ_per_hat_final = @. cis(-(ks + moy)^2 * Δt) * ϕ_hat
-    ψ_per_final = bfft(ψ_per_hat_final)
+    ψ_per_final = ifft(ψ_per_hat_final)
     ψ_final = @. ψ_per_final * cis(moy * ηs[1:Nf])
 
-    Tp = real.(bfft(fft(T, 1) .* (im .* ks ./ Nf), 1))
+    Tp = real.(ifft(fft(T, 1) .* (im .* ks), 1))
 
     s = filament_reconstruction(T, Nf, ks, s0)
     ξ = Filaments.knots(f)
@@ -399,10 +394,10 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_o
 end
 
 function filament_reconstruction(T, Nf, ks, s0)
-    Tf = fft(T, 1) / Nf
+    Tf = fft(T, 1)
     sf = @. Tf / (1im * ks)
     sf[1, :] .= 0
-    s_rel = real(bfft(sf, 1))
+    s_rel = real(ifft(sf, 1))
     s = @. s_rel + (s0 - s_rel[1, :])'
     return s
 end
