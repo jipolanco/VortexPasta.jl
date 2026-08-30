@@ -357,7 +357,7 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
     Nf = nextpow(2, N) * 4
     ks = fftfreq(Nf, 2 * π * Nf / Lη)
     ψ_init, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
-    ψ_init_hat = fft(ψ_init) / Nf
+    ψ_init_hat = fft(ψ_init)
 
     # ρ²_max_init = maximum(abs2, ψ_init)  # maximum squared curvature (for CFL associated to nonlinear term)
     # @show ρ²_max_init * β * Δt_in  # CFL coefficient
@@ -370,8 +370,8 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
     # @show norm(ψ_hat_mid - ψ_hat_mid_strang) / norm(ψ_hat_mid_strang)
 
     ψp_hat_mid = @. im * (ks + moy) * ψ_hat_mid
-    ψ_per_mid = bfft(ψ_hat_mid)
-    ψp_per_mid = bfft(ψp_hat_mid)
+    ψ_per_mid = ifft(ψ_hat_mid)
+    ψp_per_mid = ifft(ψp_hat_mid)
     ψ_mid = @. ψ_per_mid * cis(moy * ηs[1:Nf])
     ψp_mid = @. ψp_per_mid * cis(moy * ηs[1:Nf])
 
