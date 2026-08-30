@@ -151,10 +151,39 @@ end
 
 ######################################
 
-function nls_fourier_nonlinear_if(ϕ_hat, c, t, k)
+function dealias_twothirds!(ψs_hat::AbstractVector, ks)
+    N = length(ψs_hat)
+    if ks[end] > 0
+        # r2c transform
+        ψs_hat[((end * 2) ÷ 3):end] .= 0
+    else
+        # c2c transform
+        Nh = N ÷ 2
+        dk = ks[2]
+        kmax = ks[Nh]
+        # TODO: improve range
+        @assert ks[Nh + 1] ≈ -(kmax + dk)  # assumes N is even
+        ψs_hat[(Nh * 2 ÷ 3):Nh] .= 0
+        ψs_hat[(Nh + 1):((end * 2) ÷ 3)] .= 0
+    end
+    ψs_hat
+end
+
+function nls_fourier_nonlinear_if(ϕ_hat, c, t, k; dealias = false)
     ψper, ψp_per = psi_and_derivative(ϕ_hat, c, t, k)
-    mb_non_lin = @. 1im / 2 * abs2(ψper) * ψper
+    if dealias
+        ψ² = abs2.(ψper)
+        ψ²_hat = fft(ψ²)
+        dealias_twothirds!(ψ²_hat, k)
+        ψ²_dealiased = ifft(ψ²_hat)
+        mb_non_lin = @. 1im / 2 * ψ²_dealiased * ψper
+    else
+        mb_non_lin = @. 1im / 2 * abs2(ψper) * ψper
+    end
     mb_non_lin_hat = fft(mb_non_lin)
+    if dealias
+        dealias_twothirds!(mb_non_lin_hat, k)
+    end
     return @. cis((k + c)^2 * t) * mb_non_lin_hat
 end
 
