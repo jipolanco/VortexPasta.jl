@@ -16,6 +16,28 @@ function _check_nsubsteps(::Hasimoto, nsubsteps)
     nothing
 end
 
+function splitting_advance_fast!(fast::Hasimoto, ftmp, vtmp, iter, τ, rhs_full!::F, advect!::G, cache, cdt, nsubsteps) where {F, G}
+    dτ = cdt  # nsubsteps is ignored
+    (; Γ, a, Δ, quad) = iter.prob.p
+    (; δ) = iter.fast_term::LocalTerm
+    order = get_order(fast)
+    if δ === nothing
+        error("fast_term = LocalTerm(δ::Real) is needed for using the Hasimoto transformation")
+    end
+    β = oftype(Γ, Γ / (4π) * (log(2 * δ / a) - Δ))
+    for f in ftmp
+        Filaments.reparametrise_arclength!(f; quad)
+        s, N = run_hasimoto_simulation(Val(order), f, β, τ, dτ)
+        pts = [Vec3(s[i,:]) for i in 1:N]
+        nodes_f = Filaments.nodes(f)
+        for j in 1:N 
+            nodes_f[j] = pts[j]
+        end
+        Filaments.update_coefficients!(f; knots = Filaments.knots(f))
+    end
+    τ + dτ
+end
+
 nbuf_filaments(::Hasimoto) = 0
 nbuf_velocities(::Hasimoto) = 0
 
@@ -257,6 +279,35 @@ function NLS_RK2IF(ψ_init_hat, c, Δt, ks)
     return ψ_hat_np1
 end
 
+function NLS_RK4IF(ψ_init_hat, c, Δt, ks)
+    ϕ_hat_n = ψ_init_hat
+
+    # Step 1
+    tn = zero(Δt)
+    v1 = nls_fourier_nonlinear_if(ϕ_hat_n, c, tn, ks)
+
+    # Step 2
+    ϕ2 = @. ϕ_hat_n + Δt * v1 / 2
+    t2 = tn + Δt / 2
+    v2 = nls_fourier_nonlinear_if(ϕ2, c, t2, ks)
+
+    # Step 3
+    ϕ3 = @. ϕ_hat_n + Δt * v2 / 2
+    t3 = t2
+    v3 = nls_fourier_nonlinear_if(ϕ3, c, t3, ks)
+
+    # Step 4
+    ϕ4 = @. ϕ_hat_n + Δt * v3
+    t4 = tn + Δt
+    v4 = nls_fourier_nonlinear_if(ϕ4, c, t4, ks)
+
+    # Final step
+    ϕ_hat_np1 = @. ϕ_hat_n + Δt / 6 * (v1 + 2 * v2 + 2 * v3 + v4)
+    ψ_hat_np1 = @. ϕ_hat_np1 * cis(-(ks + c)^2 * Δt)
+
+    return ψ_hat_np1
+end
+
 function NLS_Strang2(ψ_init_hat, c, Δt, ks)
     ψ = @. cis(-(ks + c)^2 * Δt/2) * ψ_init_hat  # advance linear term by Δt/2 (Fourier)
     ifft!(ψ)  # to physical space
@@ -278,6 +329,9 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
     ks = fftfreq(Nf, 2 * π * Nf / Lη)
     ψ_init, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
     ψ_init_hat = fft(ψ_init) / Nf
+
+    # ρ²_max_init = maximum(abs2, ψ_init)  # maximum squared curvature (for CFL associated to nonlinear term)
+    # @show ρ²_max_init * β * Δt_in  # CFL coefficient
 
     T, e1, e2, s0 = copy(T_init), copy(e1_init), copy(e2_init), copy(s0_init)
 
