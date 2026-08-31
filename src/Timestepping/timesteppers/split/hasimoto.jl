@@ -210,10 +210,15 @@ end
 
 function construct_frame_evolution_matrix(ψ::Complex{T}, ψ′::Complex{T}) where {T}
     a, b, c = real(ψ′), imag(ψ′), abs2(ψ) / 2
+    # Note: this matrix is transposed compared to the one we write on paper.
+    # The idea is that we consider each basis vector (t̂, ê₁, ê₂) as a column (and not as a
+    # row) of the X matrix.
+    # As a result, we write dX/dt = X * exp(Ω) instead of dX'/dt = exp(Ω)' * X' (i.e. we
+    # multiply by the rotation matrix from the right).
     SMatrix{3, 3, T, 9}(
-        0, b, -a,  # first *column*
-        -b, 0, c,
-        a, -c, 0,
+        0, -b, a,  # first *column*
+        b, 0, -c,
+        -a, c, 0,
     )
 end
 
@@ -352,64 +357,93 @@ end
 function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
     Δt = Δt_in * β  # rescale time so we no longer need β
     t = t_in * β    # not sure we need this
+    T = typeof(Δt)
     N = length(f)
     Lη = Filaments.knotlims(f)[2]
     Nf = nextpow(2, N) * 4
     ks = fftfreq(Nf, 2 * π * Nf / Lη)
-    ψ_init, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
-    ψ_init_hat = fft(ψ_init)
+    ψ_init_per, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
+    ψ_hat_init = fft(ψ_init_per)
 
-    # ρ²_max_init = maximum(abs2, ψ_init)  # maximum squared curvature (for CFL associated to nonlinear term)
-    # @show ρ²_max_init * β * Δt_in  # CFL coefficient
+    T_end, e1_end, e2_end, s0 = copy(T_init), copy(e1_init), copy(e2_init), copy(s0_init)
 
-    T, e1, e2, s0 = copy(T_init), copy(e1_init), copy(e2_init), copy(s0_init)
+    # For order 2, we need 2 Gauss-Legendre nodes (with equal weights):
+    t_a = Δt * T(1 - 1 / sqrt(3)) / 2
+    t_b = Δt * T(1 + 1 / sqrt(3)) / 2
+    w_a = w_b = T(1 / 2) * Δt
 
-    # 1. Advance NLS: ψ(0) -> ψ(Δt/2)
-    ψ_hat_mid = NLS_RK2IF(ψ_init_hat, moy, Δt/2, ks)
-    # ψ_hat_mid = NLS_Strang2(ψ_init_hat, moy, Δt/2, ks)
-    # @show norm(ψ_hat_mid - ψ_hat_mid_strang) / norm(ψ_hat_mid_strang)
+    # 1. Advance NLS: ψ(0) -> ψ(t_a) -> ψ(t_b)
+    ψ_hat_a = NLS_RK2IF(ψ_hat_init, moy, t_a, ks)  # ψ_periodic in Fourier space
+    ψ_a = ifft(ψ_hat_a) .* cis.(moy .* ηs[1:Nf])   # ψ_total in physical space
+    ψ′_a = ifft(ψ_hat_a .* im .* ks) .* cis.(moy .* ηs[1:Nf])
 
-    ψp_hat_mid = @. im * (ks + moy) * ψ_hat_mid
-    ψ_per_mid = ifft(ψ_hat_mid)
-    ψp_per_mid = ifft(ψp_hat_mid)
-    ψ_mid = @. ψ_per_mid * cis(moy * ηs[1:Nf])
-    ψp_mid = @. ψp_per_mid * cis(moy * ηs[1:Nf])
+    ψ_hat_b = NLS_RK2IF(ψ_hat_a, moy, t_b - t_a, ks)
+    ψ_b = ifft(ψ_hat_b) .* cis.(moy .* ηs[1:Nf])   # ψ_total in physical space
+    ψ′_b = ifft(ψ_hat_b .* im .* ks) .* cis.(moy .* ηs[1:Nf])
 
     # 2. Advance orthonormal frame
-    for i in eachindex(ψ_mid)
-        A = construct_frame_evolution_matrix(ψ_mid[i], ψp_mid[i])
-        Ω = A * Δt  # first term of Magnus expansion (with GL1 quadrature, i.e. evaluation at midpoint)
+    for i in eachindex(ψ_a)
+        A_a = construct_frame_evolution_matrix(ψ_a[i], ψ′_a[i])
+        A_b = construct_frame_evolution_matrix(ψ_b[i], ψ′_b[i])
+        I₁ = @. w_a * A_a + w_b * A_b  # using the notation of Iserles et al. 2000 (section 5.1)
+        Ω = I₁
         R = exp(Ω)  # this is a unitary/rotation matrix (since Ω is skew-symmetric)
-        t̂_a = SVector{3}(T_init[i, 1:3])
-        ê1_a = SVector{3}(e1_init[i, 1:3])
-        ê2_a = SVector{3}(e2_init[i, 1:3])
-        X_init = SMatrix{3, 3}(t̂_a..., ê1_a..., ê2_a...)'  # each vector is now a _row_ of X
-        X = R * X_init  # rotate frame
-        T[i, 1:3] .= X[1, 1:3]
-        e1[i, 1:3] .= X[2, 1:3]
-        e2[i, 1:3] .= X[3, 1:3]
+        X_init = let
+            local t̂ = SVector{3}(T_init[i, 1:3])
+            local ê1 = SVector{3}(e1_init[i, 1:3])
+            local ê2 = SVector{3}(e2_init[i, 1:3])
+            SMatrix{3, 3}(t̂..., ê1..., ê2...)  # each vector is a _column_ of X (transposed wrt how we write them in paper)
+        end
+        # Note: we only need the tangents (we can drop ê₁ and ê₂)
+        t̂_end = X_init * R[:, 1]
+        T_end[i, 1:3] .= t̂_end
+    end
+
+    # 3. Advance reference point s0
+    let i = 1
+        # The local velocity is s′ × s″ = t̂ × t̂′ = ρb̂ = -Im(ψ) * ê₁ + Re(ψ) * ê₂
+        # We want to evaluate this local velocity at Gauss-Legendre nodes (tᵢ, wᵢ).
+        # We already have ψ but for now we're missing the orthonormal frame (which we only
+        # know at t = 0 and Δt).
+        # To estimate the orthonormal frame at Gauss-Legendre nodes, we use the Lagrange interpolation
+        # of A(t) using its values at GL nodes tᵢ.
+        # Note that the Magnus integrals Iₙ are obtained by analytically integrating the
+        # Lagrange polynomials (easy for 2 or 3 points).
+        X_init = let
+            local t̂ = SVector{3}(T_init[i, 1:3])
+            local ê1 = SVector{3}(e1_init[i, 1:3])
+            local ê2 = SVector{3}(e2_init[i, 1:3])
+            SMatrix{3, 3}(t̂..., ê1..., ê2...)  # each vector is a _column_ of X (transposed wrt how we write them in paper)
+        end
+        A_a = construct_frame_evolution_matrix(ψ_a[i], ψ′_a[i])
+        A_b = construct_frame_evolution_matrix(ψ_b[i], ψ′_b[i])
+        # Integral from 0 to t_a (from Lagrange interpolation of A(t))
+        X_a = let t = t_a
+            local w_a = (t^2 / 2 - t_b * t) / (t_a - t_b)  # integral of Lagrange polynomial
+            local w_b = (t^2 / 2 - t_a * t) / (t_b - t_a)
+            I₁ = @. w_a * A_a + w_b * A_b
+            Ω = I₁
+            X_init * exp(Ω)
+        end
+        # Integral from 0 to t_b
+        X_b = let t = t_b
+            local w_a = (t^2 / 2 - t_b * t) / (t_a - t_b)
+            local w_b = (t^2 / 2 - t_a * t) / (t_b - t_a)
+            I₁ = @. w_a * A_a + w_b * A_b
+            Ω = I₁
+            X_init * exp(Ω)
+        end
+        v_a = @. -imag(ψ_a[i]) * X_a[:, 2] + real(ψ_a[i]) * X_a[:, 3]
+        v_b = @. -imag(ψ_b[i]) * X_b[:, 2] + real(ψ_b[i]) * X_b[:, 3]
+        δs = @. w_a * v_a + w_b * v_b  # note: this is a Gauss-Legendre quadrature
+        s0 = @. s0_init + δs
     end
 
     # Compute t̂′ = ρ * n̂ at Δt.
-    # We use this for filament reconstruction (Hermite interpolations) and for advancing s⃗₀.
-    Tp = real.(ifft(fft(T, 1) .* (im .* ks), 1))
+    # We use this for filament reconstruction (quintic Hermite interpolations).
+    Tp = real.(ifft(fft(T_end, 1) .* (im .* ks), 1))
 
-    # 3. Advance reference point s0 using values at times 0 and Δt (trapezoidal rule).
-    let i = 1
-        ψ_a = ψ_init[i]  # ψ = ψ_per at initial point (no need for cis(...))
-        @views begin
-            t̂_a = SVector{3}(T_init[i, 1:3])
-            t̂_b = SVector{3}(T[i, 1:3])
-            e1_a = SVector{3}(e1_init[i, 1:3])
-            e2_a = SVector{3}(e2_init[i, 1:3])
-            ρ⃗_b = SVector{3}(Tp[i, 1:3])
-        end
-        v⃗_a = t̂_a × (real(ψ_a) * e1_a + imag(ψ_a) * e2_a)
-        v⃗_b = t̂_b × ρ⃗_b
-        s0 = @. s0_init + Δt * (v⃗_a + v⃗_b) / 2
-    end
-
-    s = filament_reconstruction(T, Nf, ks, s0)
+    s = filament_reconstruction(T_end, Nf, ks, s0)
     ξ = Filaments.knots(f)
     Δη = Lη / Nf
     s_ξ = zeros(N, 3)
@@ -419,7 +453,7 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
         ip1 = mod1(i + 1, Nf)
         t_interp = (ξ[j] - ηs[i]) / Δη
         Xs = @views (SVector{3}(s[i, 1:3]), SVector{3}(s[ip1, 1:3]))
-        Xsp = @views (SVector{3}(T[i, 1:3]) .* Δη, SVector{3}(T[ip1, 1:3]) .* Δη)
+        Xsp = @views (SVector{3}(T_end[i, 1:3]) .* Δη, SVector{3}(T_end[ip1, 1:3]) .* Δη)
         Xspp = @views (SVector{3}(Tp[i, 1:3]) .* Δη^2, SVector{3}(Tp[ip1, 1:3]) .* Δη^2)
         # s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
         s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{2}(), Derivative{0}(), t_interp, Xs, Xsp, Xspp)
