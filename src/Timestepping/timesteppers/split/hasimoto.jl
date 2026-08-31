@@ -365,7 +365,12 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
     ψ_init_per, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
     ψ_hat_init = fft(ψ_init_per)
 
-    T_end, e1_end, e2_end, s0 = copy(T_init), copy(e1_init), copy(e2_init), copy(s0_init)
+    # if t_in == 0
+    #     ρ²_max = maximum(abs2, ψ_init_per)
+    #     @show ρ²_max * β * Δt_in
+    # end
+
+    T_end, s0 = copy(T_init), copy(s0_init)
 
     # For order 2, we need 2 Gauss-Legendre nodes (with equal weights):
     t_a = Δt * T(1 - 1 / sqrt(3)) / 2
@@ -386,7 +391,9 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
         A_a = construct_frame_evolution_matrix(ψ_a[i], ψ′_a[i])
         A_b = construct_frame_evolution_matrix(ψ_b[i], ψ′_b[i])
         I₁ = @. w_a * A_a + w_b * A_b  # using the notation of Iserles et al. 2000 (section 5.1)
-        Ω = I₁
+        # I₂ = T(sqrt(3) / 6) * Δt^2 * (A_a * A_b - A_b * A_a)  # not sure about this
+        # I₂ = zero(I₁)
+        Ω = I₁  # + I₂ / 2
         R = exp(Ω)  # this is a unitary/rotation matrix (since Ω is skew-symmetric)
         X_init = let
             local t̂ = SVector{3}(T_init[i, 1:3])
@@ -407,8 +414,6 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
         # know at t = 0 and Δt).
         # To estimate the orthonormal frame at Gauss-Legendre nodes, we use the Lagrange interpolation
         # of A(t) using its values at GL nodes tᵢ.
-        # Note that the Magnus integrals Iₙ are obtained by analytically integrating the
-        # Lagrange polynomials (easy for 2 or 3 points).
         X_init = let
             local t̂ = SVector{3}(T_init[i, 1:3])
             local ê1 = SVector{3}(e1_init[i, 1:3])
@@ -418,18 +423,28 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
         A_a = construct_frame_evolution_matrix(ψ_a[i], ψ′_a[i])
         A_b = construct_frame_evolution_matrix(ψ_b[i], ψ′_b[i])
         # Integral from 0 to t_a (from Lagrange interpolation of A(t))
-        X_a = let t = t_a
-            local w_a = (t^2 / 2 - t_b * t) / (t_a - t_b)  # integral of Lagrange polynomial
-            local w_b = (t^2 / 2 - t_a * t) / (t_b - t_a)
-            I₁ = @. w_a * A_a + w_b * A_b
+        X_a = let tend = t_a
+            local tsubs = tend / 2 .* (T(1 - 1 / sqrt(3)), T(1 + 1 / sqrt(3)))
+            local wsubs = tend / 2 .* (1, 1)
+            local Asubs = map(tsubs) do tsub
+                # Lagrange interpolation
+                A_a * (tsub - t_b) / (t_a - t_b) +
+                A_b * (tsub - t_a) / (t_b - t_a)
+            end
+            I₁ = @. wsubs[1] * Asubs[1] + wsubs[2] * Asubs[2]
             Ω = I₁
             X_init * exp(Ω)
         end
         # Integral from 0 to t_b
-        X_b = let t = t_b
-            local w_a = (t^2 / 2 - t_b * t) / (t_a - t_b)
-            local w_b = (t^2 / 2 - t_a * t) / (t_b - t_a)
-            I₁ = @. w_a * A_a + w_b * A_b
+        X_b = let tend = t_b
+            local tsubs = tend / 2 .* (T(1 - 1 / sqrt(3)), T(1 + 1 / sqrt(3)))
+            local wsubs = tend / 2 .* (1, 1)
+            local Asubs = map(tsubs) do tsub
+                # Lagrange interpolation
+                A_a * (tsub - t_b) / (t_a - t_b) +
+                A_b * (tsub - t_a) / (t_b - t_a)
+            end
+            I₁ = @. wsubs[1] * Asubs[1] + wsubs[2] * Asubs[2]
             Ω = I₁
             X_init * exp(Ω)
         end
