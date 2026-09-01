@@ -41,18 +41,26 @@ end
 nbuf_filaments(::Hasimoto) = 0
 nbuf_velocities(::Hasimoto) = 0
 
-function s_derivatives(f, Lη, Nf, ks)
+function s_derivatives(f::AbstractFilament, Lη, Nf, ks)
+    @assert Lη == Filaments.knots(f)[end + 1]
     ηs = range(0, Lη; length = Nf+1)
+
+    # This offset is nonzero for infinite unclosed filaments (s⃗(Lη) = s⃗(0) + Δ⃗).
+    # The offset is usually proportional to the periodic domain size in each direction.
+    Δ⃗ = Filaments.end_to_end_offset(f)
+
     # Calcul du ŝ
     s_equi = zeros(Nf, 3)
     for i in 1:Nf
-        s_equi[i, :] = f(ηs[i])
+        η = ηs[i]
+        s_equi[i, :] = f(η) - Δ⃗ * η / Lη  # keep periodic part of s⃗ only (remove offset)
     end
     s_hat = fft(s_equi, 1)
     s_hat[Nf ÷ 2 + 1, :] .= 0
 
-    # Calcul de ŝ', ŝ" et ŝ"'
+    # Calcul de ŝ', ŝ" et ŝ‴
     s_prime_hat = im .* ks .* s_hat
+    s_prime_hat[1, :] = Δ⃗ * Nf / Lη  # mean value ⟨s⃗′⟩ (scaled by Nf due to FFT normalisation)
     s_sec_hat = im .* ks .* s_prime_hat
     s_ter_hat = im .* ks .* s_sec_hat
 
@@ -458,7 +466,9 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
     # We use this for filament reconstruction (quintic Hermite interpolations).
     Tp = real.(ifft(fft(T_end, 1) .* (im .* ks), 1))
 
-    s = filament_reconstruction(T_end, Nf, ks, s0)
+    Δ⃗ = Filaments.end_to_end_offset(f)  # just in case the filament is not closed
+    s = filament_reconstruction(T_end, ks, s0, ηs, Δ⃗)
+
     ξ = Filaments.knots(f)
     Δη = Lη / Nf
     s_ξ = zeros(N, 3)
@@ -508,7 +518,7 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_o
 
     Tp = real.(ifft(fft(T, 1) .* (im .* ks), 1))
 
-    s = filament_reconstruction(T, Nf, ks, s0)
+    s = filament_reconstruction(T, ks, s0, ηs, Δ⃗)
     ξ = Filaments.knots(f)
     Δη = Lη / Nf
     s_ξ = zeros(N, 3)
@@ -525,11 +535,17 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_o
     return s_ξ, N   
 end
 
-function filament_reconstruction(T, Nf, ks, s0)
-    Tf = fft(T, 1)
-    sf = @. Tf / (1im * ks)
+function filament_reconstruction(s′, ks, s0, ηs, Δ⃗)
+    s′_hat = fft(s′, 1)
+    sf = @. s′_hat / (1im * ks)
     sf[1, :] .= 0
     s_rel = real(ifft(sf, 1))
     s = @. s_rel + (s0 - s_rel[1, :])'
+    if !iszero(Δ⃗)  # if the filament is not closed
+        Lη = ηs[lastindex(s, 1) + 1]
+        for i in axes(s, 1)
+            s[i, :] .+= Δ⃗ * ηs[i] / Lη
+        end
+    end
     return s
 end
