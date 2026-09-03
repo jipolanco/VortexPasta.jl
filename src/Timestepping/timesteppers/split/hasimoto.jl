@@ -518,6 +518,7 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_o
 
     Tp = real.(ifft(fft(T, 1) .* (im .* ks), 1))
 
+    Δ⃗ = Filaments.end_to_end_offset(f)
     s = filament_reconstruction(T, ks, s0, ηs, Δ⃗)
     ξ = Filaments.knots(f)
     Δη = Lη / Nf
@@ -532,7 +533,7 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_o
         # s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
         s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{2}(), Derivative{0}(), t_interp, Xs, Xsp, Xspp)
     end
-    return s_ξ, N   
+    return s_ξ, N
 end
 
 function filament_reconstruction(s′, ks, s0, ηs, Δ⃗)
