@@ -359,6 +359,17 @@ function NLS_Strang2(ψ_init_hat, c, Δt, ks)
     ψ
 end
 
+# Exponential of a 3×3 skew-symmetric matrix based on the Rodrigues' formula.
+# https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+# Note that, in that article, K is normalised in the sense that the squared sum of its 3
+# elements is 1 (they represent a unitary rotation axis k⃗).
+@inline function skewexp_rodrigues(A::SMatrix{3, 3, <:Real})
+    α² = @inbounds A[2, 1]^2 + A[3, 1]^2 + A[3, 2]^2
+    α = sqrt(α²)
+    s, c = sincos(α)
+    one(A) + (s / α) * A + ((1 - c) / α²) * A^2  # note: K = A / α
+end
+
 ######################################
 
 # Order 2 implementation
@@ -380,7 +391,8 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
 
     T_end, s0 = copy(T_init), copy(s0_init)
 
-    # For order 2, we need 2 Gauss-Legendre nodes (with equal weights):
+    # For order 2, we need 2 Gauss-Legendre nodes (with equal weights)
+    # TODO: 1 GL node should be enough!
     t_a = Δt * T(1 - 1 / sqrt(3)) / 2
     t_b = Δt * T(1 + 1 / sqrt(3)) / 2
     w_a = w_b = T(1 / 2) * Δt
@@ -399,10 +411,8 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
         A_a = construct_frame_evolution_matrix(ψ_a[i], ψ′_a[i])
         A_b = construct_frame_evolution_matrix(ψ_b[i], ψ′_b[i])
         I₁ = @. w_a * A_a + w_b * A_b  # using the notation of Iserles et al. 2000 (section 5.1)
-        # I₂ = T(sqrt(3) / 6) * Δt^2 * (A_a * A_b - A_b * A_a)  # not sure about this
-        # I₂ = zero(I₁)
         Ω = I₁  # + I₂ / 2
-        R = exp(Ω)  # this is a unitary/rotation matrix (since Ω is skew-symmetric)
+        R = skewexp_rodrigues(Ω)  # this is a unitary/rotation matrix (since Ω is skew-symmetric)
         X_init = let
             local t̂ = SVector{3}(T_init[i, 1:3])
             local ê1 = SVector{3}(e1_init[i, 1:3])
@@ -441,7 +451,7 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
             end
             I₁ = @. wsubs[1] * Asubs[1] + wsubs[2] * Asubs[2]
             Ω = I₁
-            X_init * exp(Ω)
+            X_init * skewexp_rodrigues(Ω)
         end
         # Integral from 0 to t_b
         X_b = let tend = t_b
@@ -454,7 +464,7 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
             end
             I₁ = @. wsubs[1] * Asubs[1] + wsubs[2] * Asubs[2]
             Ω = I₁
-            X_init * exp(Ω)
+            X_init * skewexp_rodrigues(Ω)
         end
         v_a = @. -imag(ψ_a[i]) * X_a[:, 2] + real(ψ_a[i]) * X_a[:, 3]
         v_b = @. -imag(ψ_b[i]) * X_b[:, 2] + real(ψ_b[i]) * X_b[:, 3]
