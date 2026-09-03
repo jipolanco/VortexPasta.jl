@@ -400,11 +400,11 @@ function run_hasimoto_simulation(order::Val{2}, f, β, t_in, Δt_in)
     # 1. Advance NLS: ψ(0) -> ψ(t_a) -> ψ(t_b)
     ψ_hat_a = NLS_RK2IF(ψ_hat_init, moy, t_a, ks)  # ψ_periodic in Fourier space
     ψ_a = ifft(ψ_hat_a) .* cis.(moy .* ηs[1:Nf])   # ψ_total in physical space
-    ψ′_a = ifft(ψ_hat_a .* im .* ks) .* cis.(moy .* ηs[1:Nf])
+    ψ′_a = ifft(ψ_hat_a .* im .* (ks .+ moy)) .* cis.(moy .* ηs[1:Nf])
 
     ψ_hat_b = NLS_RK2IF(ψ_hat_a, moy, t_b - t_a, ks)
     ψ_b = ifft(ψ_hat_b) .* cis.(moy .* ηs[1:Nf])   # ψ_total in physical space
-    ψ′_b = ifft(ψ_hat_b .* im .* ks) .* cis.(moy .* ηs[1:Nf])
+    ψ′_b = ifft(ψ_hat_b .* im .* (ks .+ moy)) .* cis.(moy .* ηs[1:Nf])
 
     # 2. Advance orthonormal frame
     for i in eachindex(ψ_a)
@@ -505,8 +505,8 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_o
     Lη = Filaments.knotlims(f)[2]
     Nf = nextpow(2, N) * 4
     ks = fftfreq(Nf, 2 * π * Nf / Lη)
-    ψ_init, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
-    ψ_init_hat = fft(ψ_init)
+    ψ_init_per, moy, T_init, e1_init, e2_init, s0_init, ηs = construct_psi_and_frame(f, Lη, Nf, ks)
+    ψ_init_hat = fft(ψ_init_per)
     ϕ_hat = ψ_init_hat
     T, e1, e2, s0 = copy(T_init), copy(e1_init), copy(e2_init), copy(s0_init)
 
@@ -543,6 +543,7 @@ function run_hasimoto_simulation(order::Val{4}, f, β, t_in, Δt_in; threshold_o
         # s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{1}(), Derivative{0}(), t_interp, Xs, Xsp)
         s_ξ[j, :] = Filaments.interpolate(HermiteInterpolation{2}(), Derivative{0}(), t_interp, Xs, Xsp, Xspp)
     end
+
     return s_ξ, N
 end
 
