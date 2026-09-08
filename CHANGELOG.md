@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Timestepping: add `reparametrise_arclength` option.
 
+- FilamentIO: allow writing derivatives with respect to the parametrisation (e.g.
+  `Derivative(1)`) to VTKHDF files.
+
 ### Improved
 
 - Avoid extra velocity computation in Strang schemes.

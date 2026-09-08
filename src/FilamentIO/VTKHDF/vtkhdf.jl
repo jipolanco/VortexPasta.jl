@@ -376,14 +376,17 @@ the values associated to each filament.
 # Writing geometric quantities
 
 It is also possible to write geometric quantities such as unit tangents or curvature vectors
-along filaments (see [`GeometricQuantity`](@ref) for a list).
+along filaments (see [`GeometricQuantity`](@ref) for a list), as well as derivatives with
+respect to the parametrisation.
 For this, one can pass the wanted quantity as the `vs` argument.
 
 For example, one can simply do
 
     io["Curvatures"] = CurvatureVector()
+    io["Tangents"] = UnitTangent()
+    io["FirstDerivative"] = Derivative(1)  # = unnormalised tangent (norm depends on choice of parametrisation)
 
-to write curvature vectors along each filament.
+to write curvature vectors and other quantities along each filament.
 """
 function Base.setindex!(
         writer::VTKHDFFile,
@@ -393,7 +396,7 @@ function Base.setindex!(
     write_point_data(writer, vs, name)
 end
 
-function Base.setindex!(writer::VTKHDFFile, q::GeometricQuantity, name::AbstractString)
+function Base.setindex!(writer::VTKHDFFile, q::Union{GeometricQuantity, Derivative}, name::AbstractString)
     (; fs,) = writer
     buf = Bumper.default_buffer()
     @no_escape buf begin
