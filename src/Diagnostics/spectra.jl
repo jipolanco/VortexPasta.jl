@@ -65,7 +65,7 @@ end
 Initialise fields for storing an energy or helicity spectrum.
 
 Returns a wavenumber vector `ks` and an uninitialised spectrum `Ek` with the right
-dimensions, which can be then passed to [`energy_spectrum!`](@ref) or [`helicity_spectrum!](@ref).
+dimensions, which can be then passed to [`energy_spectrum!`](@ref) or [`helicity_spectrum!`](@ref).
 
 The returned arrays are always on the CPU, even when the `cache` contains GPU data.
 
