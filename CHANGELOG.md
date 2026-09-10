@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix filament plots with recent Makie versions.
 
+- Fix iteration over filaments (`for s⃑ in f`), to make sure that it stops at the last
+  _independent_ node `f[end]`. This seemed to cause issues on Julia 1.13. Fixed by
+  explicitly implementing `iterate` for `AbstractFilament`.
+
 ## [0.34.13] - 2026-07-24
 
 ### Fixed
