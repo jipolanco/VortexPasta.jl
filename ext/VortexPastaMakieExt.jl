@@ -104,7 +104,7 @@ function _refine_filament_for_plotting(
     with_periods = any(!isnothing, Ls)
     T = eltype(Xs_nodes)
     x⃗_nan = fill(NaN, T)::T
-    Xs = similar(Xs_nodes, 0)
+    Xs = Makie.Vec3f[]
     N = refinement * length(f) + 1  # the +1 is to close the loop
     sizehint!(Xs, N)  # this length estimate is only true when we don't need to insert NaNs
     subinds = range(0, 1; length = refinement + 1)[1:refinement]
