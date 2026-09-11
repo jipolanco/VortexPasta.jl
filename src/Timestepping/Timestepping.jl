@@ -279,10 +279,11 @@ struct VortexFilamentSolver{
     affect!    :: Affect      # signature: affect!(iter)
     affect_t!  :: AffectTime  # signature: affect_t!(iter, t) where t is the current time
     callback :: Callback      # signature: callback(iter)
-    step_diagnostics   :: Int
-    step_refinement    :: Int
-    step_reconnect     :: Int
-    external_fields    :: ExternalFields  # velocity and streamfunction forcing
+    step_diagnostics :: Int
+    step_adaptivity  :: Int
+    step_refinement  :: Int
+    step_reconnect   :: Int
+    external_fields  :: ExternalFields  # velocity and streamfunction forcing
     stretching_velocity :: StretchingVelocity
     forcing  :: Forcing  # forcing term added to the vortex velocity: vL = vs + vf (+ possibly other terms)
     forcing_cache  :: ForcingCache
@@ -333,6 +334,7 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     _maybe_print_function(io, "\n ├─ affect_t!:", iter.affect_t!)
     _maybe_print_function(io, "\n ├─ callback:", iter.callback)
     print(io, "\n ├─ step_diagnostics: ", iter.step_diagnostics)
+    print(io, "\n ├─ step_adaptivity: ", iter.step_adaptivity)
     print(io, "\n ├─ step_refinement: ", iter.step_refinement)
     print(io, "\n ├─ step_reconnect: ", iter.step_reconnect)
     for (name, func) ∈ pairs(iter.external_fields)
@@ -495,6 +497,12 @@ either [`step!`](@ref) or [`solve!`](@ref).
   [`Diagnostics`](@ref) module) be computed. This is used to avoid computing certain
   quantities (such as `ψs`) which are only needed for diagnostics (e.g. energy). If this option is used,
   one should call [`can_compute_diagnostics`](@ref) before computing any diagnostics.
+
+- `step_adaptivity = 1`: every how many simulation steps will we adapt the time step `Δt`
+  (see `adaptivity` option). When using splitting methods (e.g. [`Strang`](@ref)) combined
+  with [`AdaptBasedOnVelocity`](@ref), this can have an extra cost since it will force
+  computation of velocities at the start of a time step. For that reason, it can make sense
+  to set this equal to `step_diagnostics` (which also force velocity computations).
 
 - `step_refinement = 1`: every how many timesteps to perform filament refinement (see
   `refinement` option) and periodic folding (see `fold_periodic` option).
@@ -718,6 +726,7 @@ function init(
         dissipation::AbstractDissipation = NoDissipation(),
         mode::SimulationMode = DefaultMode(),
         step_diagnostics::Int = 1,
+        step_adaptivity::Int = 1,
         step_refinement::Int = 1,
         step_reconnect::Int = 1,
         timer = TimerOutput("VortexFilament"),
@@ -839,13 +848,14 @@ function init(
     dissipation_cache = Forcing.init_cache(dissipation, cache_bs)
 
     step_diagnostics > 0 || throw(ArgumentError("step_diagnostics should be positive"))
+    step_adaptivity > 0 || throw(ArgumentError("step_adaptivity should be positive"))
     step_refinement > 0 || throw(ArgumentError("step_refinement should be positive"))
     step_reconnect > 0 || throw(ArgumentError("step_reconnect should be positive"))
 
     iter = VortexFilamentSolver(
         prob, fs, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
         cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, reparametrise_arclength, affect_, affect_t_, callback_,
-        step_diagnostics, step_refinement, step_reconnect, external_fields,
+        step_diagnostics, step_adaptivity, step_refinement, step_reconnect, external_fields,
         stretching_velocity, forcing, forcing_cache, dissipation, dissipation_cache,
         timer, advect!, rhs!,
     )
@@ -855,7 +865,7 @@ function init(
     applicable(affect!, iter) || throw(ArgumentError("`affect!` function should be callable as `f(iter::VortexFilamentSolver`)"))
     applicable(affect_t!, iter, time.t) || throw(ArgumentError("`affect_t!` function should be callable as `f(iter::VortexFilamentSolver, t::Real)`"))
 
-    status = finalise_step!(iter)
+    status = finalise_step!(iter; force_computation_of_fields = true)  # make sure all fields (velocity, streamfunction) are computed at initial step
     status == SUCCESS || error("reached status = $status at initialisation")
 
     iter
@@ -1125,7 +1135,7 @@ end
 
 # Called whenever filament positions have just been initialised or updated.
 # Returns a SimulationStatus.
-function finalise_step!(iter::VortexFilamentSolver)
+function finalise_step!(iter::VortexFilamentSolver; force_computation_of_fields = false)
     (; fs, time, stats, adaptivity, rhs!, to) = iter
     (; vs, vL, ψs,) = iter.quantities
 
@@ -1168,17 +1178,21 @@ function finalise_step!(iter::VortexFilamentSolver)
         end
     end
 
+    adapt_this_timestep = iter.nstep % iter.step_adaptivity == 0
+    require_v_and_ψ = can_compute_diagnostics(iter) || force_computation_of_fields
+    require_v = require_v_and_ψ || requires_full_velocity(scheme(iter)) || (adapt_this_timestep && requires_full_velocity(iter.adaptivity))
+
     # Update velocities (and possibly streamfunctions) to the next timestep (and first RK step).
     # Note that we only compute the streamfunction at full steps, and not in the middle of
     # RK substeps. Also, we only compute it if diagnostics may be computed later (since we
     # only need it for the energy).
-    if can_compute_diagnostics(iter)
+    if require_v_and_ψ
         let fields = (; velocity = vL, streamfunction = ψs)
             # Note: here we always include the LIA terms, even when using IMEX or multirate schemes.
             # This must be taken into account by scheme implementations.
             rhs!(fields, fs, time.t, iter; component = Val(:full))
         end
-    elseif requires_full_velocity(scheme(iter))
+    elseif require_v
         # The full velocity is needed by the timestepping scheme at time t (to advance from t -> t + dt).
         let fields = (; velocity = vL)
             rhs!(fields, fs, time.t, iter; component = Val(:full))
@@ -1203,8 +1217,11 @@ function finalise_step!(iter::VortexFilamentSolver)
         end
     end
 
-    time.dt_prev = time.dt
-    time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
+    if adapt_this_timestep
+        time.dt_prev = time.dt
+        time.dt = estimate_timestep(adaptivity, iter)  # estimate dt for next timestep
+    end
+
     iter.callback(iter)
 
     SUCCESS
