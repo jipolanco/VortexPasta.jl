@@ -30,6 +30,8 @@ As expected, the timestep ``Δt`` will be chosen so that it satisfies both crite
 """
 abstract type AdaptivityCriterion end
 
+requires_full_velocity(::AdaptivityCriterion) = false
+
 """
     maximum_displacement(::AdaptivityCriterion) -> Float64
 
@@ -165,6 +167,8 @@ struct AdaptBasedOnVelocity <: AdaptivityCriterion
     end
 end
 
+requires_full_velocity(::AdaptBasedOnVelocity) = true
+
 function Base.show(io::IO, crit::AdaptBasedOnVelocity)
     (; δ, safety_factor,) = crit
     print(io, lazy"AdaptBasedOnVelocity($δ; safety_factor = $safety_factor)")
@@ -205,6 +209,7 @@ struct CombinedAdaptivityCriteria{
     criteria :: Criteria
 end
 
+requires_full_velocity(crit::CombinedAdaptivityCriteria) = any(requires_full_velocity, crit.criteria)
 maximum_displacement(crit::CombinedAdaptivityCriteria) = minimum(maximum_displacement, crit.criteria)
 
 # Pretty-printing

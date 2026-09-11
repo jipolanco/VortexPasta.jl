@@ -5,6 +5,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Timestepping: add `step_adaptivity` parameter.
+
+### Fixed
+
+- Timestepping: fix possible `dt = NaN` when using a splitting method combined
+  with `AdaptBasedOnVelocity` and with `step_diagnostics > 1`.
+  Indeed, since splitting methods don't need the velocity at the start of the
+  time step, the velocity vector may contain garbage values, especially after
+  reconnections or remeshing, leading to a garbage time step `dt`.
+  This is now fixed via the `step_adaptivity` parameter, which forces
+  evaluation of velocities every `step_adaptivity` time steps (i.e. before each
+  time adaptation) when `AdaptBasedOnVelocity` is active.
+
 ## [0.34.14] - 2026-09-10
 
 ### Added
