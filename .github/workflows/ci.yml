@@ -34,12 +34,12 @@ jobs:
           - '1.11'
           - '1.13'
         os:
-          - ubuntu-24.04
+          - ubuntu-26.04
         arch:
           - x64
         # include:
         #   - julia-version: 'pre'
-        #     os: ubuntu-24.04
+        #     os: ubuntu-26.04
         #     experimental: true
         #     arch: x64
     steps:
@@ -114,7 +114,7 @@ jobs:
       contents: write
       statuses: write
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     env:
       JULIA_VERSION: '1.13'  # julia version used to build docs
