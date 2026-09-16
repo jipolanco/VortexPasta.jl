@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>PredefinedCurves · VortexPasta</title><meta name="title" content="PredefinedCurves · VortexPasta"/><meta property="og:title" content="PredefinedCurves · VortexPasta"/><meta property="twitter:title" content="PredefinedCurves · VortexPasta"/><meta name="description" content="Documentation for VortexPasta."/><meta property="og:description" content="Documentation for VortexPasta."/><meta property="twitter:description" content="Documentation for VortexPasta."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/fonts.css" rel="stylesheet" type="text/css"/><script src="../../assets/tomate.js"></script><script src="../../assets/sa.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">VortexPasta</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">VortexPasta.jl</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../../tutorials/01-vortex_ring/">Vortex ring</a></li><li><a class="tocitem" href="../../tutorials/02-kelvin_waves/">Kelvin waves</a></li></ul></li><li><span class="tocitem">Explanations</span><ul><li><a class="tocitem" href="../../methods/VFM/">The vortex filament model</a></li><li><a class="tocitem" href="../../methods/Ewald/">Ewald summation for Biot–Savart</a></li></ul></li><li><span class="tocitem">Tips and tricks</span><ul><li><a class="tocitem" href="../../tips/parallelisation/">Parallelisation</a></li></ul></li><li><span class="tocitem">Modules</span><ul><li><a class="tocitem" href="../PaddedArrays/">PaddedArrays</a></li><li class="is-active"><a class="tocitem" href>PredefinedCurves</a><ul class="internal"><li><a class="tocitem" href="#Exported-curves"><span>Exported curves</span></a></li><li><a class="tocitem" href="#Functions"><span>Functions</span></a></li></ul></li><li><a class="tocitem" href="../CellLists/">CellLists</a></li><li><a class="tocitem" href="../BasicTypes/">BasicTypes</a></li><li><a class="tocitem" href="../Quadratures/">Quadratures</a></li><li><a class="tocitem" href="../Filaments/">Filaments</a></li><li><a class="tocitem" href="../FilamentIO/">FilamentIO</a></li><li><a class="tocitem" href="../FindNearbySegments/">FindNearbySegments</a></li><li><a class="tocitem" href="../BiotSavart/">BiotSavart</a></li><li><a class="tocitem" href="../Reconnections/">Reconnections</a></li><li><a class="tocitem" href="../Timestepping/">Timestepping</a></li><li><a class="tocitem" href="../Diagnostics/">Diagnostics</a></li></ul></li><li><a class="tocitem" href="../../references/">References</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Modules</a></li><li class="is-active"><a href>PredefinedCurves</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>PredefinedCurves</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/jipolanco/VortexPasta.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/jipolanco/VortexPasta.jl/blob/master/docs/src/modules/PredefinedCurves.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="PredefinedCurves"><a class="docs-heading-anchor" href="#PredefinedCurves">PredefinedCurves</a><a id="PredefinedCurves-1"></a><a class="docs-heading-anchor-permalink" href="#PredefinedCurves" title="Permalink"></a></h1><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="VortexPasta.PredefinedCurves" href="#VortexPasta.PredefinedCurves"><code>VortexPasta.PredefinedCurves</code></a> — <span class="docstring-category">Module</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">PredefinedCurves</code></pre><p>Module defining some commonly used parametric curves.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/jipolanco/VortexPasta.jl/blob/31feb008aa64e3eeecba8b6cb4dc87ea850e53fb/src/PredefinedCurves/PredefinedCurves.jl#L1-L5">source</a></section></article><h2 id="Exported-curves"><a class="docs-heading-anchor" href="#Exported-curves">Exported curves</a><a id="Exported-curves-1"></a><a class="docs-heading-anchor-permalink" href="#Exported-curves" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="VortexPasta.PredefinedCurves.Ring" href="#VortexPasta.PredefinedCurves.Ring"><code>VortexPasta.PredefinedCurves.Ring</code></a> — <span class="docstring-category">Type</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">Ring(; r = Returns(0), z = Returns(0))</code></pre><p>Describes a circular ring in 3D space.</p><p>By default, the ring has radius <span>$R = 1$</span>, it is defined on the XY plane, and its centre is located at <code>(0, 0, 0)</code>.</p><p>The circular ring can be optionally perturbed in the radial and orthogonal (Z) directions using user-defined functions <span>$r(t)$</span> and <span>$z(t)$</span> respectively. These functions must be periodic with period 1. For example, one can pass <code>r(t) = 0.1 * cos(2πmt)</code> for a mode <span>$m$</span> sinusoidal perturbation (associated to a wavelength <span>$λ = 2πR/m$</span>) whose amplitude is 10% of the ring radius.</p><p>Moreover, the geometry can be modified via the optional <code>transform</code> and <code>translate</code> arguments of the <a href="#VortexPasta.PredefinedCurves.define_curve"><code>define_curve</code></a> function.</p><p><strong>Definition</strong></p><p class="math-container">\[\begin{aligned}
+    x(t) &amp;= (1 + r(t)) \, \cos(2πt) \\
+    y(t) &amp;= (1 + r(t)) \, \sin(2πt) \\
+    z(t) &amp;= z(t)
+\end{aligned}\]</p><p>for <span>$t ∈ [0, 1]$</span>.</p><p><strong>Examples</strong></p><p>Define a circular ring of radius 2:</p><pre><code class="language-julia-repl hljs">julia&gt; p = Ring();
+
+julia&gt; S = define_curve(p; scale = 2);  # scale the curve by 2 (to get radius = 2)
+
+julia&gt; ts = range(0, 1; length = 16 + 1);
+
+julia&gt; S.(ts)
+17-element Vector{SVector{3, Float64}}:
+ [2.0, 0.0, 0.0]
+ [1.8477590650225735, 0.7653668647301796, 0.0]
+ [1.4142135623730951, 1.414213562373095, 0.0]
+ [0.7653668647301796, 1.8477590650225735, 0.0]
+ [0.0, 2.0, 0.0]
+ [-0.7653668647301796, 1.8477590650225735, 0.0]
+ [-1.4142135623730951, 1.414213562373095, 0.0]
+ [-1.8477590650225735, 0.7653668647301796, 0.0]
+ [-2.0, 0.0, 0.0]
+ [-1.8477590650225735, -0.7653668647301796, 0.0]
+ [-1.4142135623730951, -1.414213562373095, 0.0]
+ [-0.7653668647301796, -1.8477590650225735, 0.0]
+ [0.0, -2.0, 0.0]
+ [0.7653668647301796, -1.8477590650225735, 0.0]
+ [1.4142135623730951, -1.414213562373095, 0.0]
+ [1.8477590650225735, -0.7653668647301796, 0.0]
+ [2.0, 0.0, 0.0]</code></pre><p>Define a circular ring of radius 4 with a radial perturbation of 10%:</p><pre><code class="language-julia-repl hljs">julia&gt; rfun(t) = 0.1 * cospi(4t);  # this is a mode m = 2 perturbation with 10% amplitude
+
+julia&gt; p = Ring(r = rfun);
+
+julia&gt; S = define_curve(p; scale = 4);
+
+julia&gt; S.(ts)
+17-element Vector{SVector{3, Float64}}:
+ [4.4, 0.0, 0.0]
+ [3.9568307230204227, 1.6389729494895986, 0.0]
+ [2.8284271247461903, 2.82842712474619, 0.0]
+ [1.4224945094311199, 3.4342055370698716, 0.0]
+ [0.0, 3.6, 0.0]
+ [-1.4224945094311199, 3.4342055370698716, 0.0]
+ [-2.8284271247461903, 2.82842712474619, 0.0]
+ [-3.9568307230204227, 1.6389729494895986, 0.0]
+ [-4.4, 0.0, 0.0]
+ [-3.9568307230204227, -1.6389729494895986, 0.0]
+ [-2.8284271247461903, -2.82842712474619, 0.0]
+ [-1.4224945094311199, -3.4342055370698716, 0.0]
+ [0.0, -3.6, 0.0]
+ [1.4224945094311199, -3.4342055370698716, 0.0]
+ [2.8284271247461903, -2.82842712474619, 0.0]
+ [3.9568307230204227, -1.6389729494895986, 0.0]
+ [4.4, 0.0, 0.0]</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/jipolanco/VortexPasta.jl/blob/31feb008aa64e3eeecba8b6cb4dc87ea850e53fb/src/PredefinedCurves/ring.jl#L3-L94">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="VortexPasta.PredefinedCurves.TrefoilKnot" href="#VortexPasta.PredefinedCurves.TrefoilKnot"><code>VortexPasta.PredefinedCurves.TrefoilKnot</code></a> — <span class="docstring-category">Type</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">TrefoilKnot()</code></pre><p>Describes a <a href="https://en.wikipedia.org/wiki/Trefoil_knot">trefoil knot</a> in 3D space.</p><p><strong>Definition</strong></p><p>Before transformations, the trefoil knot is defined by:</p><p class="math-container">\[\begin{aligned}
+    x(u) &amp;= \sin u + 2 \sin 2u \\
+    y(u) &amp;= \cos u - 2 \cos 2u \\
+    z(u) &amp;= -\sin 3u
+\end{aligned}\]</p><p>for <span>$u = 2πt ∈ [0, 2π]$</span>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/jipolanco/VortexPasta.jl/blob/31feb008aa64e3eeecba8b6cb4dc87ea850e53fb/src/PredefinedCurves/trefoil.jl#L3-L21">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="VortexPasta.PredefinedCurves.Lemniscate" href="#VortexPasta.PredefinedCurves.Lemniscate"><code>VortexPasta.PredefinedCurves.Lemniscate</code></a> — <span class="docstring-category">Type</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">Lemniscate(; Az = 0,)</code></pre><p>Describes a <a href="https://en.wikipedia.org/wiki/Lemniscate">lemniscate</a> (or figure-eight curve) in 3D space.</p><p>The specific definition used here corresponds to the <a href="https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli">lemniscate of Bernoulli</a> on the XY plane. Under the normalised parametrisation <span>$x⃗(t)$</span> with <span>$t ∈ [0, 1]$</span>, the curve crosses the origin at <span>$t = 1/4$</span> and <span>$t = 3/4$</span>, intersecting itself at that point.</p><p>One can perturb the curve in the third direction by passing a non-zero value of <code>Az</code> so that the curve doesn&#39;t exactly intersect itself.</p><p><strong>Definition</strong></p><p class="math-container">\[\begin{aligned}
+    x(u) &amp;= \frac{\cos u}{1 + \sin^2 u} \\
+    y(u) &amp;= \frac{\sin u \, \cos u}{1 + \sin^2 u} \\
+    z(u) &amp;= A_z \sin u
+\end{aligned}\]</p><p>for <span>$u = 2πt ∈ [0, 2π]$</span>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/jipolanco/VortexPasta.jl/blob/31feb008aa64e3eeecba8b6cb4dc87ea850e53fb/src/PredefinedCurves/lemniscate.jl#L3-L28">source</a></section></article><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="VortexPasta.PredefinedCurves.PeriodicLine" href="#VortexPasta.PredefinedCurves.PeriodicLine"><code>VortexPasta.PredefinedCurves.PeriodicLine</code></a> — <span class="docstring-category">Type</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">PeriodicLine(; x = Returns(0), y = Returns(0), r = Returns(0))</code></pre><p>Describes an infinite (but unclosed) line which repeats itself periodically.</p><p><strong>Definition</strong></p><p>By default, this defines a straight infinite line passing through the origin and oriented in the Z direction.</p><p>The line can be perturbed along the X and/or Y directions using user-defined functions <span>$x(t)$</span> and <span>$y(t)$</span> which must be periodic with period <span>$T = 1$</span>. Alternative, one can pass a complex function <span>$r(t) = x(t) + im * y(t)$</span>, which may be more convenient in some cases.</p><p>The line is defined by:</p><p class="math-container">\[\begin{aligned}
+    x(t) &amp;= x(t) + ℜ[r(t)] \\
+    y(t) &amp;= y(t) + ℑ[r(t)] \\
+    z(t) &amp;= t - 1/2
+\end{aligned}\]</p><p>for <span>$t ∈ [0, 1]$</span>. Note that the line is &quot;centred&quot; at <span>$z = 0$</span>, in the sense that <span>$z(1/2) = 0$</span>.</p><p>Note that one can change the default period <span>$T = 1$</span> of the curve using the <code>scale</code> argument of <a href="#VortexPasta.PredefinedCurves.define_curve"><code>define_curve</code></a>. See below for some examples.</p><p><strong>Examples</strong></p><p>Define a <span>$2π$</span>-periodic curve with a sinusoidal perturbation along X:</p><pre><code class="language-julia-repl hljs">julia&gt; xfun(t) = 0.1 * sinpi(2t)  # this function satisfies having period T = 1
+xfun (generic function with 1 method)
+
+julia&gt; p = PeriodicLine(x = xfun);
+
+julia&gt; S = define_curve(p; scale = 2π);  # we scale the curve by 2π (this also scales the perturbation amplitude!)
+
+julia&gt; ts = range(0, 1; length = 16 + 1);
+
+julia&gt; S.(ts)
+17-element Vector{SVector{3, Float64}}:
+ [0.0, 0.0, -3.141592653589793]
+ [0.24044709195373853, 0.0, -2.748893571891069]
+ [0.4442882938158367, 0.0, -2.356194490192345]
+ [0.5804906304278862, 0.0, -1.9634954084936207]
+ [0.6283185307179586, 0.0, -1.5707963267948966]
+ [0.5804906304278862, 0.0, -1.1780972450961724]
+ [0.4442882938158367, 0.0, -0.7853981633974483]
+ [0.24044709195373853, 0.0, -0.39269908169872414]
+ [0.0, 0.0, 0.0]
+ [-0.24044709195373853, 0.0, 0.39269908169872414]
+ [-0.4442882938158367, 0.0, 0.7853981633974483]
+ [-0.5804906304278862, 0.0, 1.1780972450961724]
+ [-0.6283185307179586, 0.0, 1.5707963267948966]
+ [-0.5804906304278862, 0.0, 1.9634954084936207]
+ [-0.4442882938158367, 0.0, 2.356194490192345]
+ [-0.24044709195373853, 0.0, 2.748893571891069]
+ [0.0, 0.0, 3.141592653589793]</code></pre><p>Note that the amplitude of the resulting curve is not the original <span>$0.1$</span> but instead <span>$0.1 × 2π = 0.6823…$</span>. This is because passing <code>scale = 2π</code> scales the curve in all directions, including the direction of the perturbation.</p><p>Instead, if one wanted to keep the original perturbation while extending the curve period from <span>$1$</span> to <span>$2π$</span>, one would need to apply scaling only along the Z direction:</p><pre><code class="language-julia-repl hljs">julia&gt; using StaticArrays: SDiagonal
+
+julia&gt; S = define_curve(p; scale = SDiagonal(1, 1, 2π));
+
+julia&gt; S.(ts)
+17-element Vector{SVector{3, Float64}}:
+ [0.0, 0.0, -3.141592653589793]
+ [0.03826834323650898, 0.0, -2.748893571891069]
+ [0.07071067811865477, 0.0, -2.356194490192345]
+ [0.09238795325112868, 0.0, -1.9634954084936207]
+ [0.1, 0.0, -1.5707963267948966]
+ [0.09238795325112868, 0.0, -1.1780972450961724]
+ [0.07071067811865477, 0.0, -0.7853981633974483]
+ [0.03826834323650898, 0.0, -0.39269908169872414]
+ [0.0, 0.0, 0.0]
+ [-0.03826834323650898, 0.0, 0.39269908169872414]
+ [-0.07071067811865477, 0.0, 0.7853981633974483]
+ [-0.09238795325112868, 0.0, 1.1780972450961724]
+ [-0.1, 0.0, 1.5707963267948966]
+ [-0.09238795325112868, 0.0, 1.9634954084936207]
+ [-0.07071067811865477, 0.0, 2.356194490192345]
+ [-0.03826834323650898, 0.0, 2.748893571891069]
+ [0.0, 0.0, 3.141592653589793]</code></pre><p>Now the perturbation amplitude is <span>$0.1$</span> as we wanted.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/jipolanco/VortexPasta.jl/blob/31feb008aa64e3eeecba8b6cb4dc87ea850e53fb/src/PredefinedCurves/periodic_line.jl#L3-L103">source</a></section></article><h2 id="Functions"><a class="docs-heading-anchor" href="#Functions">Functions</a><a id="Functions-1"></a><a class="docs-heading-anchor-permalink" href="#Functions" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-article-toggle-button fa-solid fa-chevron-down" href="javascript:;" title="Collapse docstring"></a><a class="docstring-binding" id="VortexPasta.PredefinedCurves.define_curve" href="#VortexPasta.PredefinedCurves.define_curve"><code>VortexPasta.PredefinedCurves.define_curve</code></a> — <span class="docstring-category">Function</span><span class="is-flex-grow-1 docstring-article-toggle-button" title="Collapse docstring"></span></header><section><div><pre><code class="language-julia hljs">define_curve(
+    p::ParametricCurve;
+    scale = 1, rotate = LinearAlgebra.I, translate = 0,
+    orientation::Int = 1,
+) -&gt; Function</code></pre><p>Return the definition of the parametric curve <code>p</code> as a function.</p><p>The returned function <code>S(t)</code> returns a coordinate <span>$x⃗$</span> for any given value of the scalar parameter <span>$t ∈ [0, 1]$</span>. In particular, closed curves satisfy <code>S(0) == S(1)</code>.</p><p><strong>Optional arguments</strong></p><p><strong>Coordinate transformations</strong></p><p>The original curve can be transformed by (1) scaling, (2) rotation and (3) translation operations. Note that transformations are applied in that order.</p><ul><li><p><code>scale</code>: scales the curve by a given factor. The argument can be a scalar value for isotropic scaling (same scaling in all directions) or a <code>Tuple</code> of values for anisotropic scaling (see below for some examples).</p></li><li><p><code>rotate</code>: in 3D, this should be a 3×3 orthogonal matrix describing pure rotation. For convenience, one can use the <a href="https://github.com/JuliaGeometry/Rotations.jl">Rotations.jl</a> package for defining such rotations using different parametrisations (see below for some examples).</p></li><li><p><code>translate</code>: a scalar or a vector describing a translation operation. Note that translations are performed <em>after</em> scaling and rotation.</p></li></ul><p><strong>Curve orientation</strong></p><ul><li><code>orientation</code>: allows to set the curve orientation. In particular, this determines the orientation of the tangent vector along the curve. Should be either <code>1</code> or <code>-1</code>.</li></ul><p><strong>Extended help</strong></p><p><strong>Examples</strong></p><p><strong>Translated and scaled circular ring</strong></p><p>Define a circular ring of radius <span>$R = 2$</span> centred at <span>$x⃗₀ = (0, 0, 1)$</span> and evaluate its coordinates over equispaced points.</p><pre><code class="language-julia-repl hljs">julia&gt; S = define_curve(Ring(); translate = (0, 0, 1), scale = 2);
+
+julia&gt; ts = range(0, 1; length = 16 + 1)
+0.0:0.0625:1.0
+
+julia&gt; S.(ts)
+17-element Vector{SVector{3, Float64}}:
+ [2.0, 0.0, 1.0]
+ [1.8477590650225735, 0.7653668647301796, 1.0]
+ [1.4142135623730951, 1.4142135623730951, 1.0]
+ [0.7653668647301796, 1.8477590650225735, 1.0]
+ [0.0, 2.0, 1.0]
+ [-0.7653668647301796, 1.8477590650225735, 1.0]
+ [-1.4142135623730951, 1.4142135623730951, 1.0]
+ [-1.8477590650225735, 0.7653668647301796, 1.0]
+ [-2.0, 0.0, 1.0]
+ [-1.8477590650225735, -0.7653668647301796, 1.0]
+ [-1.4142135623730951, -1.4142135623730951, 1.0]
+ [-0.7653668647301796, -1.8477590650225735, 1.0]
+ [0.0, -2.0, 1.0]
+ [0.7653668647301796, -1.8477590650225735, 1.0]
+ [1.4142135623730951, -1.4142135623730951, 1.0]
+ [1.8477590650225735, -0.7653668647301796, 1.0]
+ [2.0, 0.0, 1.0]</code></pre><p><strong>Anisotropic scaling: ellipse from circular ring</strong></p><p>If one wants an ellipse instead of a circle, one can simply apply an anisotropic scaling transformation:</p><pre><code class="language-julia-repl hljs">julia&gt; using LinearAlgebra
+
+julia&gt; S = define_curve(Ring(); scale = (2, 1, 1));
+
+julia&gt; S.(ts)
+17-element Vector{SVector{3, Float64}}:
+ [2.0, 0.0, 0.0]
+ [1.8477590650225735, 0.3826834323650898, 0.0]
+ [1.4142135623730951, 0.7071067811865476, 0.0]
+ [0.7653668647301796, 0.9238795325112867, 0.0]
+ [0.0, 1.0, 0.0]
+ [-0.7653668647301796, 0.9238795325112867, 0.0]
+ [-1.4142135623730951, 0.7071067811865476, 0.0]
+ [-1.8477590650225735, 0.3826834323650898, 0.0]
+ [-2.0, 0.0, 0.0]
+ [-1.8477590650225735, -0.3826834323650898, 0.0]
+ [-1.4142135623730951, -0.7071067811865476, 0.0]
+ [-0.7653668647301796, -0.9238795325112867, 0.0]
+ [0.0, -1.0, 0.0]
+ [0.7653668647301796, -0.9238795325112867, 0.0]
+ [1.4142135623730951, -0.7071067811865476, 0.0]
+ [1.8477590650225735, -0.3826834323650898, 0.0]
+ [2.0, 0.0, 0.0]</code></pre><p><strong>Rotated circular ring</strong></p><p>If we wanted a circular ring defined on the YZ plane instead of the default XZ plane, we can achieve this by rotating the original curve by 90° about the Y axis.</p><pre><code class="language-julia-repl hljs">julia&gt; using Rotations: RotY  # there&#39;s also RotX and RotZ
+
+julia&gt; rot = RotY(π / 2)  # rotation of 90° about the Y axis
+3×3 RotY{Float64} with indices SOneTo(3)×SOneTo(3)(1.5708):
+  6.12323e-17  0.0  1.0
+  0.0          1.0  0.0
+ -1.0          0.0  6.12323e-17
+
+julia&gt; rot = SMatrix(replace(x -&gt; abs(x) &lt; 1e-16 ? zero(x) : x, rot))  # remove spurious near-zero values
+3×3 SMatrix{3, 3, Float64, 9} with indices SOneTo(3)×SOneTo(3):
+  0.0  0.0  1.0
+  0.0  1.0  0.0
+ -1.0  0.0  0.0
+
+julia&gt; S = define_curve(Ring(); scale = 2, rotate = rot);
+
+julia&gt; S.(ts)
+17-element Vector{SVector{3, Float64}}:
+ [0.0, 0.0, -2.0]
+ [0.0, 0.7653668647301796, -1.8477590650225735]
+ [0.0, 1.4142135623730951, -1.4142135623730951]
+ [0.0, 1.8477590650225735, -0.7653668647301796]
+ [0.0, 2.0, 0.0]
+ [0.0, 1.8477590650225735, 0.7653668647301796]
+ [0.0, 1.4142135623730951, 1.4142135623730951]
+ [0.0, 0.7653668647301796, 1.8477590650225735]
+ [0.0, 0.0, 2.0]
+ [0.0, -0.7653668647301796, 1.8477590650225735]
+ [0.0, -1.4142135623730951, 1.4142135623730951]
+ [0.0, -1.8477590650225735, 0.7653668647301796]
+ [0.0, -2.0, 0.0]
+ [0.0, -1.8477590650225735, -0.7653668647301796]
+ [0.0, -1.4142135623730951, -1.4142135623730951]
+ [0.0, -0.7653668647301796, -1.8477590650225735]
+ [0.0, 0.0, -2.0]</code></pre><p>More generally, to rotate about an arbitrary axis <code>ê = [ex, ey, ez]</code> by an angle <code>θ</code> (in radians), one can use <code>rot = AngleAxis(θ, ex, ey, ez)</code> from the Rotations.jl package.</p><p><strong>Random rotations</strong></p><p>In addition, the Rotations.jl package allows to easily generate random and uniformly distributed rotations:</p><pre><code class="language-julia-repl hljs">julia&gt; using Rotations: QuatRotation  # parametrise rotations using quaternions
+
+julia&gt; using Random: MersenneTwister
+
+julia&gt; rng = MersenneTwister(42);
+
+julia&gt; rot = rand(rng, QuatRotation)  # uniformly distributed random rotation
+3×3 QuatRotation{Float64} with indices SOneTo(3)×SOneTo(3)(QuaternionF64(-0.719586, -0.575102, 0.0351433, -0.38758)):
+ 0.697094  -0.598216    0.395218
+ 0.517372   0.0380793  -0.854913
+ 0.496373   0.80043     0.336045
+
+julia&gt; S = define_curve(Ring(); scale = 2, rotate = rot);
+
+julia&gt; S.(ts)
+17-element Vector{SVector{3, Float64}}:
+ [1.394187993157782, 1.0347441397857304, 0.9927458914111738]
+ [0.8302070621260415, 0.9851235420896431, 1.5297999348989406]
+ [0.13983463173136992, 0.7855268152775545, 1.8339558059692869]
+ [-0.5718263537403094, 0.4663407516577706, 1.8589085304315887]
+ [-1.1964319604738316, 0.07615853598753197, 1.6008592821834717]
+ [-1.6388916469079422, -0.32561812640796056, 1.0990937200484512]
+ [-1.8318449366900935, -0.6778223807935073, 0.43000110234543676]
+ [-1.7459164405768801, -0.9268343221784252, -0.3045552852199711]
+ [-1.394187993157782, -1.0347441397857304, -0.9927458914111738]
+ [-0.8302070621260415, -0.9851235420896431, -1.5297999348989406]
+ [-0.13983463173136992, -0.7855268152775545, -1.8339558059692869]
+ [0.5718263537403094, -0.4663407516577706, -1.8589085304315887]
+ [1.1964319604738316, -0.07615853598753197, -1.6008592821834717]
+ [1.6388916469079422, 0.32561812640796056, -1.0990937200484512]
+ [1.8318449366900935, 0.6778223807935073, -0.43000110234543676]
+ [1.7459164405768801, 0.9268343221784252, 0.3045552852199711]
+ [1.394187993157782, 1.0347441397857304, 0.9927458914111738]</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/jipolanco/VortexPasta.jl/blob/31feb008aa64e3eeecba8b6cb4dc87ea850e53fb/src/PredefinedCurves/PredefinedCurves.jl#L15-L204">source</a></section></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../PaddedArrays/">« PaddedArrays</a><a class="docs-footer-nextpage" href="../CellLists/">CellLists »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Friday 13 September 2024 15:01">Friday 13 September 2024</span>. Using Julia version 1.10.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body><div data-docstringscollapsed="true"></div></html>

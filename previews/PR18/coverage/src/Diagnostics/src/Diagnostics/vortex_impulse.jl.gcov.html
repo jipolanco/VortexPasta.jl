@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Diagnostics/src/Diagnostics/vortex_impulse.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Diagnostics/src/Diagnostics</a> - vortex_impulse.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntry">26</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2024-10-12 13:03:45</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : export vortex_impulse</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L4"><span class="lineNum">       4</span>              :     vortex_impulse(iter::VortexFilamentSolver; quad = nothing) -&gt; Vec3</span>
+<span id="L5"><span class="lineNum">       5</span>              :     vortex_impulse(f; quad = nothing) -&gt; Vec3</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : Estimate normalised impulse of one or more vortex filaments.</span>
+<span id="L8"><span class="lineNum">       8</span>              : </span>
+<span id="L9"><span class="lineNum">       9</span>              : The vortex impulse is defined as</span>
+<span id="L10"><span class="lineNum">      10</span>              : </span>
+<span id="L11"><span class="lineNum">      11</span>              : ```math</span>
+<span id="L12"><span class="lineNum">      12</span>              : \bm{p} = \frac{1}{2} ρ Γ ∮ \bm{s} × \mathrm{d}\bm{s}</span>
+<span id="L13"><span class="lineNum">      13</span>              : ```</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              : where ``ρ`` is the fluid density and ``Γ`` the circulation about the vortex.</span>
+<span id="L16"><span class="lineNum">      16</span>              : Note that this function returns the *normalised* impulse ``\bm{p} / ρΓ``.</span>
+<span id="L17"><span class="lineNum">      17</span>              : The returned impulse has units of ``L^2`` (an area).</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              : Note that, for a circular vortex ring of radius ``R``, its impulse is ``\bm{p} = ρΓA``</span>
+<span id="L20"><span class="lineNum">      20</span>              : where ``A = π R^2`` is the area enclosed by the ring (and the orientation is equal</span>
+<span id="L21"><span class="lineNum">      21</span>              : to its direction of propagation, i.e. normal to the plane where the ring lives).</span>
+<span id="L22"><span class="lineNum">      22</span>              : &quot;&quot;&quot;</span>
+<span id="L23"><span class="lineNum">      23</span>              : function vortex_impulse end</span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC tlaBgGNC">        1182 : function vortex_impulse(fs::VectorOfFilaments; kws...)</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">         394 :     T = eltype(eltype(fs))</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">         394 :     @assert T &lt;: Vec3</span></span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">         394 :     p⃗ = zero(T)</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">         788 :     for f ∈ fs</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">         788 :         p⃗ = p⃗ + vortex_impulse(f; kws...)</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">        1182 :     end</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">         394 :     p⃗</span></span>
+<span id="L33"><span class="lineNum">      33</span>              : end</span>
+<span id="L34"><span class="lineNum">      34</span>              : </span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">        3144 : vortex_impulse(f::AbstractFilament; quad = nothing) = _vortex_impulse(quad, f)</span></span>
+<span id="L36"><span class="lineNum">      36</span>              : </span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">        1570 : function _vortex_impulse(quad, f::AbstractFilament)</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">        1570 :     T = eltype(f)</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">        1570 :     p⃗ = zero(T)</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">        1570 :     for seg ∈ segments(f)</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">       51114 :         p⃗ = p⃗ + integrate(seg, quad) do seg, ζ</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">      204328 :             s⃗ = seg(ζ)</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">      204328 :             s⃗′ = seg(ζ, Derivative(1))</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">      204328 :             s⃗ × s⃗′</span></span>
+<span id="L45"><span class="lineNum">      45</span>              :         end</span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">       52684 :     end</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">        1570 :     p⃗ ./ 2</span></span>
+<span id="L48"><span class="lineNum">      48</span>              : end</span>
+<span id="L49"><span class="lineNum">      49</span>              : </span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">           2 : function _vortex_impulse(::Nothing, f::AbstractFilament)</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">           2 :     ts = knots(f)</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">           2 :     sum(eachindex(f)) do i</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">          64 :         s⃗ = f[i]</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">          64 :         s⃗′ = f[i, Derivative(1)]</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">          64 :         δt = (ts[i + 1] - ts[i - 1]) / 2</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">          64 :         (s⃗ × s⃗′) * δt</span></span>
+<span id="L57"><span class="lineNum">      57</span>              :     end ./ 2</span>
+<span id="L58"><span class="lineNum">      58</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
