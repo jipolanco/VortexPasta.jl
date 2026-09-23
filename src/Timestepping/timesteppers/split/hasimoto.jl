@@ -3,7 +3,8 @@ export Hasimoto
 using FFTW
 using StaticArrays: SMatrix, SVector
 using LinearAlgebra
-using .Filaments
+using ..Filaments
+using ..PaddedArrays: PaddedVector, pad_periodic!
 
 struct Hasimoto{Order} <: TemporalScheme end
 @inline Hasimoto(order::Int) = Hasimoto{order}()
@@ -368,6 +369,116 @@ end
     α = sqrt(α²)
     s, c = sincos(α)
     one(A) + (s / α) * A + ((1 - c) / α²) * A^2  # note: K = A / α
+end
+
+######################################
+
+function construct_psi_spline(f; quad)
+    ξs = knots(f)
+    _, L = knotlims(f)
+    T = typeof(L)
+    ρs = map(i -> f[i, CurvatureScalar()], eachindex(f))
+
+    # Here θs[i] contains the integral of τ in [ξs[i], ξs[i + 1]]
+    θs = map(eachindex(f)) do i
+        Filaments.integrate(f, i, quad) do f, i, ζ
+            f(i, ζ, TorsionScalar())
+        end
+    end
+
+    # Accumulated sum
+    for i in eachindex(θs)[2:end]
+        θs[i] += θs[i - 1]
+    end
+    τ_mean = θs[end] / L  # mean torsion
+
+    # Shift values to the right, so that θs[i] now contains the integral of τ in [0, ξs[i]].
+    for i in reverse(eachindex(θs)[2:end])
+        θs[i] = θs[i - 1]
+    end
+    θs[begin] = 0
+
+    # Finally, construct ψ_per
+    ψs_per = similar(ρs, Complex{T})
+    for i in eachindex(ψs_per)
+        ψs_per[i] = ρs[i] * cis(θs[i] - τ_mean * ξs[i])
+    end
+
+    ψs_per, θs, τ_mean
+end
+
+function construct_frame_spline(f, ψs_per, θs, τ_mean)
+    # TODO
+end
+
+function run_hasimoto_simulation_spline(order::Val{2}, f, β, t_in, Δt_in; quad)
+    if !(Filaments.discretisation_method(f) isa QuinticSplineMethod)
+        throw(ArgumentError("spline NLS solver requires QuinticSplineMethod"))
+    end
+    Δt = Δt_in * β  # rescale time so we no longer need β
+    t = t_in * β    # not sure we need this
+
+    k_spl = 6  # spline order
+    k_val = Val(k_spl)
+
+    ψs_per, θs, τ_mean = construct_psi_spline(f; quad)  # ψ evaluated on spline knots
+    ξs = knots(f)
+    ψ_coefs = similar(ξs, eltype(ψs_per))::PaddedVector  # spline coefficients (to be computed)
+    Filaments.solve_spline_coefficients!(k_val, ψ_coefs, ξs, ψs_per)  # compute interpolation coefficients (Val(6) -> quintic splines)
+    pad_periodic!(ψ_coefs)  # fills ghost values (e.g. ψ_coefs[end + 1] = ψ_coefs[begin])
+    D = Derivative(1) + (im * τ_mean) * Derivative(0)  # "derivative" operator (including periodisation effect)
+
+    # 1. Advance NLS to Δt/2 (using Strang2)
+    let dt = Δt / 2
+        rhs = similar(ψ_coefs)
+        L = im * (Derivative(2) + (2 * im * τ_mean) * Derivative(1) - τ_mean^2 * Derivative(0))  # linear NLS operator (= im * D^2)
+        # 1. Linear term (dt/2)
+        let cdt = dt / 2
+            # Perform Crank-Nicolson step (order 2, semi-implicit)
+            # TODO: factorise operators? (Derivative(0) appears twice in each op, which means more bspline evaluations)
+            op_rhs = Derivative(0) + (cdt / 2) * L
+            op_lhs = Derivative(0) - (cdt / 2) * L
+            Filaments.apply_at_knots!(rhs, op_rhs, ψ_coefs, ξs, k_val)  # compute RHS
+            Filaments.solve_spline_coefficients!(k_val, ψ_coefs, ξs, rhs; op = op_lhs)  # update coefficients
+            pad_periodic!(ψ_coefs)
+        end
+        # 2. Nonlinear term (dt)
+        let cdt = dt, ψs = rhs
+            # Advance exactly (simple ODE, no spatial dependence)
+            Filaments.apply_at_knots!(ψs, Derivative(0), ψ_coefs, ξs, k_val)  # evaluate ψ at knots
+            @. ψs = cis(abs2(ψs) * cdt / 2) * ψs  # advance in time
+            Filaments.solve_spline_coefficients!(k_val, ψ_coefs, ξs, ψs)  # compute new spline coefficients
+            pad_periodic!(ψ_coefs)
+        end
+        # 3. Linear term (dt/2)
+        let cdt = dt / 2
+            # Perform Crank-Nicolson step (order 2, semi-implicit)
+            op_rhs = Derivative(0) + (cdt / 2) * L
+            op_lhs = Derivative(0) - (cdt / 2) * L
+            Filaments.apply_at_knots!(rhs, op_rhs, ψ_coefs, ξs, k_val)  # compute RHS
+            Filaments.solve_spline_coefficients!(k_val, ψ_coefs, ξs, rhs; op = op_lhs)  # update coefficients
+            pad_periodic!(ψ_coefs)
+        end
+    end
+
+    # Compute ψs_per and ψs′_per on knots at time Δt/2
+    Filaments.apply_at_knots!(ψs_per, Derivative(0), ψ_coefs, ξs, k_val)  # evaluate ψ at knots
+    ψs′_per = similar(ψs_per)
+    Filaments.apply_at_knots!(ψs′_per, D, ψ_coefs, ξs, k_val)  # evaluate ψ′ at knots
+
+    # 2. Advance orthonormal frame using Magnus expansion
+    for i in eachindex(ψs_per)
+        ct = cis(τ_mean * ξs[i])
+        ψ = ψs_per[i] * ct    # total ψ
+        ψ′ = ψs′_per[i] * ct  # total ψ'
+        A = construct_frame_evolution_matrix(ψ, ψ′)  # A at t = Δt/2
+        I₁ = A * Δt
+        Ω = I₁  # we only need the first term for order 2
+        R = skewexp_rodrigues(Ω)
+        # TODO: generate initial frame + update it
+    end
+
+    nothing
 end
 
 ######################################
