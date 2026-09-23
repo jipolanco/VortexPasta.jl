@@ -144,18 +144,31 @@ end
 # The `ileft` index must be such that ts[ileft] ≤ x < ts[ileft + 1].
 # Note that the returned B-splines are in reversed order.
 # For example, for cubic splines: (b_{i + 2}, b_{i + 1}, b_{i}, b_{i - 1}), where i = ileft.
-function eval_bsplines(order::Val, ts::AbstractVector, x::Number, ileft::Int)
-    T = promote_type(eltype(ts), typeof(x))
-    _evaluate_all(ts, x, order, ileft, T)
+@inline function eval_bsplines(order::Val, ts::AbstractVector, x::Number, ileft::Int, op::AbstractDifferentialOp)
+    _eval_bsplines(op, order, ts, x, ileft)
 end
+
+@inline function _eval_bsplines(op::Derivative, order, ts, x, ileft)
+    T = promote_type(eltype(ts), typeof(x))
+    @inline _evaluate_all(op, ts, x, order, ileft, T)
+end
+
+# Evaluation of a ScaledDifferentialOp
+@inline _eval_bsplines(op::ScaledDifferentialOp, args...) = op.α .* _eval_bsplines(op.D, args...)
+
+# Evaluation of a DifferentialOpSum
+@inline _eval_bsplines(op::DifferentialOpSum, args...) = _eval_bsplines(op.a, args...) .+ _eval_bsplines(op.b, args...)
 
 # TODO maybe the evaluation can be further optimised knowing that we're
 # evaluating right on a knot? (but it's already very fast...)
 # Evaluate B-splines at ts[i].
-Base.@propagate_inbounds function eval_bsplines(order::Val{k}, ts::AbstractVector, i::Int) where {k}
+Base.@propagate_inbounds function eval_bsplines(order::Val{k}, ts::AbstractVector, i::Int, op::AbstractDifferentialOp = Derivative(0)) where {k}
     x = ts[i]
-    bs = eval_bsplines(order, ts, x, i) :: NTuple{k}
-    @assert iszero(first(bs))  # because we're evaluating right on the knot
+    bs = eval_bsplines(order, ts, x, i, op) :: NTuple{k}
+    # Since we're evaluating right on a knot, bs[1] is expected to be 0.
+    # However, that might be untrue if knots are badly defined.
+    # We don't check that here since it can considerably increase computation cost.
+    # @assert iszero(first(bs))  # this assertion costs a lot!!
     Base.tail(bs)  # return only non-zero B-splines (b_{i + 1}, b_{i}, b_{i - 1})
 end
 
@@ -192,11 +205,37 @@ _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val{0}) where {T} = y + (t / Tpe
 _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val{1}) where {T} = y + (1 / Tper) * Xoffset  # first derivative
 _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val)    where {T} = y  # higher-order derivatives
 
+## ================================================================================ ##
+
+## Apply linear operator at knots
+## This may be used to evaluate derivatives at knots once the spline coefficients are known.
+function apply_at_knots!(
+        ys::AbstractVector{V}, op::AbstractDifferentialOp, cs::PaddedVector{M, V}, ts::AbstractVector{T},
+        order::Val{k},
+    ) where {V, T, M, k}
+    # For convenience, we require the coefficients cs to be padded, and we assume that
+    # pad_periodic! has already been called (so that e.g. cs[1] == cs[end + 1]).
+    @assert iseven(k)
+    h = k ÷ 2
+    @assert M >= h - 1  "the minimum required padding is (k - 2)/2 (for example M ≥ 2 for quintic splines, k = 6)"
+    @assert cs[begin] == cs[end + 1]
+    @assert cs[begin - 1] == cs[end]
+    @assert length(ys) == length(cs) == length(ts)
+    @inbounds for i in eachindex(ys, cs, ts)
+        bs = eval_bsplines(order, ts, i, op)  # this is a tuple of k - 1 values
+        ys[i] = sum(eachindex(bs)) do j
+            @inbounds cs[i - h + j] * bs[end + 1 - j]
+        end
+    end
+    ys
+end
+
 # ============================================================================ #
 # B-spline and spline evaluation code below adapted from BSplineKit.jl
 # ============================================================================ #
 
 @generated function _evaluate_all(
+        ::Derivative{0},
         ts::AbstractVector, x::Number, ::Val{k},
         ileft::Int, ::Type{T};
     ) where {k, T}
@@ -214,6 +253,38 @@ _deperiodise_curve(y::T, Xoffset::T, Tper, t, ::Val)    where {T} = y  # higher-
                 j -> @inbounds($T(_knotdiff(x, ts, ileft - j + 1, $q - 1))),
             )
             $bq = _evaluate_step(Δs, $bp, Val($q))
+        end
+    end
+    bk = Symbol(:bs_, k)
+    quote
+        $ex
+        return $bk
+    end
+end
+
+# Derivatives
+@generated function _evaluate_all(
+        ::Derivative{n},
+        ts::AbstractVector, x::Number, ::Val{k},
+        ileft::Int, ::Type{T};
+    ) where {k, n, T}
+    @assert n ≥ 1
+    # We first need to evaluate the B-splines of order p.
+    p = k - n
+    if p < 1
+        # Derivatives are zero. The returned index is arbitrary...
+        return :(firstindex(ts), ntuple(_ -> zero($T), Val($k)))
+    end
+    bp = Symbol(:bs_, p)
+    ex = quote
+        $bp = _evaluate_all(Derivative(0), ts, x, Val($p), ileft, $T)
+    end
+    for q in (p + 1):k
+        bp = Symbol(:bs_, q - 1)
+        bq = Symbol(:bs_, q)
+        ex = quote
+            $ex
+            $bq = _evaluate_step_deriv(ts, ileft, $bp, Val($q), $T)
         end
     end
     bk = Symbol(:bs_, k)
@@ -248,6 +319,32 @@ end
     quote
         $ex
         @inbounds $b_last = (1 - Δs[$k - 1]) * bp[$k - 1]
+        @ntuple $k b
+    end
+end
+
+@inline @generated function _evaluate_step_deriv(
+        ts, i::Int, bp, ::Val{k}, ::Type{T},
+    ) where {k, T}
+    p = k - 1
+    ex = quote
+        us = @ntuple(
+            $p,
+            δj -> @inbounds($T(bp[δj] / (ts[i + $k - δj] - ts[i + 1 - δj]))),
+        )
+        @inbounds b_1 = $p * us[1]
+    end
+    for j = 2:(k - 1)
+        bj = Symbol(:b_, j)
+        ex = quote
+            $ex
+            @inbounds $bj = $p * (-us[$j - 1] + us[$j])
+        end
+    end
+    b_last = Symbol(:b_, k)
+    quote
+        $ex
+        @inbounds $b_last = -$p * us[$p]
         @ntuple $k b
     end
 end

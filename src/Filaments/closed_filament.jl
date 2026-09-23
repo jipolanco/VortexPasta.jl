@@ -169,7 +169,7 @@ function init(
         τs::AbstractVector, method::DiscretisationMethod;
         kws...,
     ) where {Func <: Function, T}
-    offset = S(1) .- S(0)
+    offset = S(T(1)) .- S(T(0))
     f = init(ClosedFilament{T}, length(τs), method; offset, kws...)
     @assert eachindex(f) == eachindex(τs)
     for (i, τ) ∈ pairs(τs)

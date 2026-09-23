@@ -8,11 +8,12 @@ using StaticArrays: SVector, SMatrix
 # Specialisation for quintic splines.
 function solve_spline_coefficients!(
         ::Val{6}, cs::PaddedVector{M}, ts::PaddedVector{M}, Xs::AbstractVector;
+        op::AbstractDifferentialOp = Derivative(0),
         Xoffset = zero(eltype(Xs)),
         buf = Bumper.default_buffer(),
     ) where {M}
     periodise_coordinates!(cs, Xs, ts, Xoffset)  # useful if Xoffset ≠ 0
-    _solve_quintic_spline_coefficients!(cs, ts, buf)
+    _solve_quintic_spline_coefficients!(cs, ts, buf, op)
     pad_periodic!(cs)
     cs
 end
@@ -25,20 +26,21 @@ function lmul_utranspose(Uᵀ_left::SMatrix{2, 2}, Uᵀ_right::SMatrix{2, 2}, y:
     Uᵀ_left * y_hi + Uᵀ_right * y_lo
 end
 
-function _solve_quintic_spline_coefficients!(cs::AbstractVector, ts, buf)
+function _solve_quintic_spline_coefficients!(cs::AbstractVector, ts, buf, op)
     n = length(ts)
     if n < 7
-        _solve_quintic_spline_coefficients_small!(cs, ts)
+        _solve_quintic_spline_coefficients_small!(cs, ts, op)
         return cs
     end
     m = n - 2
     kl, ku = 2, 2  # lower and upper band sizes
     T = eltype(ts)
+    Z = output_type(op, T)  # this may be Complex{T} (if `op` has things like im * Derivative(1))
     @no_escape buf begin
-        V = @alloc(SVector{2, T}, m)
-        AB = @alloc(T, kl + ku + 1, m)
+        V = @alloc(SVector{2, Z}, m)
+        AB = @alloc(Z, kl + ku + 1, m)
         buffers = (; AB, V,)
-        _solve_quintic_spline_coefficients_impl!(buffers, cs, ts)
+        _solve_quintic_spline_coefficients_impl!(buffers, cs, ts, op)
     end
     cs
 end
@@ -49,7 +51,7 @@ hcat_transpose(u::T, v::T) where {T <: Number} = SVector{2}(u, v)  # scalar case
 quintic_ldiv_terms(ys::SMatrix{2}) = (ys[1, :], ys[2, :])
 quintic_ldiv_terms(ys::SVector{2}) = ys
 
-function _solve_quintic_spline_coefficients_impl!(buffers::NamedTuple, cs::AbstractVector, ts)
+function _solve_quintic_spline_coefficients_impl!(buffers::NamedTuple, cs::AbstractVector, ts, op)
     (; AB, V,) = buffers
     n = length(ts)
     m = n - 2
@@ -58,7 +60,7 @@ function _solve_quintic_spline_coefficients_impl!(buffers::NamedTuple, cs::Abstr
     fs = @view cs[begin:end - 2]
     fs_tilde = hcat_transpose(cs[end - 1], cs[end])
 
-    (; A₂, Uᵀ_left, Uᵀ_right,) = _construct_quintic_spline_matrices!(AB, V, ts)
+    (; A₂, Uᵀ_left, Uᵀ_right,) = _construct_quintic_spline_matrices!(AB, V, ts, op)
 
     Aband = SplineBandedMatrix(AB, m, kl, ku)
     banded_lu!(Aband)
@@ -101,6 +103,7 @@ end
 
 function _construct_quintic_spline_matrices!(
         A::AbstractMatrix{T}, V::AbstractVector{<:SVector{2, T}}, ts,
+        op::AbstractDifferentialOp = Derivative(0),
     ) where {T}
     @assert size(A, 1) == 5  # = kl + ku + 1
     D = 3  # = ku + 1
@@ -119,7 +122,7 @@ function _construct_quintic_spline_matrices!(
     let i = 1
         # Note: B-splines are returned in reverse order!!
         # In this case: (b[5], b[4], ..., b[1]).
-        bs = eval_bsplines(order, ts, i) :: NTuple{5}
+        bs = eval_bsplines(order, ts, i, op)::NTuple{5}
         V[i] = (bs[5], bs[4])
         for j ∈ 1:3
             @inbounds A[D + i - j, j] = bs[4 - j]
@@ -128,7 +131,7 @@ function _construct_quintic_spline_matrices!(
 
     # Second row
     let i = 2
-        bs = eval_bsplines(order, ts, i)
+        bs = eval_bsplines(order, ts, i, op)
         V[i] = (zero(T), bs[5])
         for j ∈ 1:4
             @inbounds A[D + i - j, j] = bs[5 - j]
@@ -137,7 +140,7 @@ function _construct_quintic_spline_matrices!(
 
     # Rows 3:(n - 4)
     for i ∈ 3:(n - 4)
-        bs = eval_bsplines(order, ts, i)
+        bs = eval_bsplines(order, ts, i, op)
         for l ∈ eachindex(bs)
             j = i + 3 - l
             @inbounds A[D - 3 + l, j] = bs[l]
@@ -146,7 +149,7 @@ function _construct_quintic_spline_matrices!(
 
     # Row n - 3
     let i = n - 3
-        bs = eval_bsplines(order, ts, i)
+        bs = eval_bsplines(order, ts, i, op)
         V[i] = (bs[1], zero(T))
         for l ∈ 2:5
             j = i + 3 - l
@@ -156,7 +159,7 @@ function _construct_quintic_spline_matrices!(
 
     # Row n - 2
     let i = n - 2
-        bs = eval_bsplines(order, ts, i)
+        bs = eval_bsplines(order, ts, i, op)
         V[i] = (bs[2], bs[1])
         for l ∈ 3:5
             j = i + 3 - l
@@ -165,8 +168,8 @@ function _construct_quintic_spline_matrices!(
     end
 
     # Rows (n - 1):n
-    bsₙ₋₁ = eval_bsplines(order, ts, n - 1)
-    bsₙ = eval_bsplines(order, ts, n)
+    bsₙ₋₁ = eval_bsplines(order, ts, n - 1, op)
+    bsₙ = eval_bsplines(order, ts, n, op)
 
     A₂ = SMatrix{2, 2}(
         bsₙ₋₁[3], bsₙ[4],  # first column
@@ -193,33 +196,34 @@ end
 # We directly solve the linear system. Note that a cyclic pentadiagonal matrix is basically
 # a full matrix for these sizes, so we can use generic solvers.
 
-function _solve_quintic_spline_coefficients_small!(cs, ts)
+function _solve_quintic_spline_coefficients_small!(cs, ts, op)
     n = length(cs)
     @assert 5 ≤ n ≤ 6
     if n == 6
-        _solve_quintic_spline_coefficients_small!(cs, ts, Val(6))
+        _solve_quintic_spline_coefficients_small!(cs, ts, Val(6), op)
     elseif n == 5
-        _solve_quintic_spline_coefficients_small!(cs, ts, Val(5))
+        _solve_quintic_spline_coefficients_small!(cs, ts, Val(5), op)
     end
     nothing
 end
 
-function _solve_quintic_spline_coefficients_small!(cs, ts, ::Val{n}) where {n}
-    A = _construct_quintic_spline_matrix_small(ts, Val(n))
+function _solve_quintic_spline_coefficients_small!(cs, ts, ::Val{n}, op) where {n}
+    A = _construct_quintic_spline_matrix_small(ts, Val(n), op)
     ys = SVector{n}(cs)
     xs = A \ ys
     copyto!(cs, xs)
 end
 
-function _construct_quintic_spline_matrix_small(ts, ::Val{n}) where {n}
+function _construct_quintic_spline_matrix_small(ts, ::Val{n}, op) where {n}
     @assert n == length(ts)
     @assert n ≥ 5
     n² = n * n
     T = eltype(ts)
-    A = zero(MMatrix{n, n, T, n²})
+    Z = output_type(op, T)  # this may be Complex{T} (if `op` has things like im * Derivative(1))
+    A = zero(MMatrix{n, n, Z, n²})
     order = Val(6)
     for i ∈ 1:n
-        bs = eval_bsplines(order, ts, i) :: NTuple{5}
+        bs = eval_bsplines(order, ts, i, op)::NTuple{5}
         for (ib, b) ∈ pairs(bs)
             j = i + 3 - ib
             if j < 1
