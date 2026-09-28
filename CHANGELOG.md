@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.16] - 2026-09-28
+
+### Fixed
+
+- Fix iteration over `PaddedVector` on Julia 1.13. This completes the fix in v0.34.14.
+
 ## [0.34.15] - 2026-09-11
 
 ### Added

@@ -185,13 +185,8 @@ function Base.sizehint!(f::AbstractFilament, n::Integer)
     f
 end
 
-# Make sure iteration stops at the last "independent" node f[end], and it does not spill to
-# "ghost" nodes f[end + 1], f[end + 2], ....
-@inline Base.iterate(f::AbstractFilament) = iterate(f, firstindex(f))
-@inline function Base.iterate(f::AbstractFilament, i::Int)
-    i > lastindex(f) && return nothing
-    @inbounds f[i], i + 1
-end
+# This reuses the implementation of iterate for PaddedVector.
+@inline Base.iterate(f::AbstractFilament, args...) = iterate(nodes(f), args...)
 
 """
     discretisation_method(f::AbstractFilament) -> DiscretisationMethod

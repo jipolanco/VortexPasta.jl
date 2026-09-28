@@ -202,6 +202,14 @@ const PaddedVector{M, T, V} = PaddedArray{M, T, 1, V}
 
 PaddedVector{M}(data::AbstractVector) where {M} = PaddedArray{M}(data)
 
+# Make sure iteration stops at v[end], and it does not spill to "ghost" values v[end + 1],
+# v[end + 2], ....
+@inline Base.iterate(v::PaddedVector) = iterate(v, firstindex(v))
+@inline function Base.iterate(v::PaddedVector, i::Int)
+    i > lastindex(v) && return nothing
+    @inbounds v[i], i + 1
+end
+
 function Base.resize!(v::PaddedVector, n::Integer)
     resize!(parent(v), n + 2 * npad(v))
     v
