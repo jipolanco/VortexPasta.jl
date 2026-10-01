@@ -5,11 +5,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.18] - 2026-10-01
+
+### Fixed
+
+- Make things work with AcceleratedKernels.jl v0.5 (`reduce` no longer accepts `block_size`
+  on the CPU).
+
 ## [0.34.17] - 2026-10-01
 
 ### Added
 
-- Accept AcceleratedKernels.jl 0.5.
+- Accept AcceleratedKernels.jl v0.5.
 
 ## [0.34.16] - 2026-09-28
 

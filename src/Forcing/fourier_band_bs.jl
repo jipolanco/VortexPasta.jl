@@ -373,7 +373,7 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
     # Note: integration_weights now contains local contributions to energy injection rate.
     # TODO: pass temporary GPU array to avoid allocations? (see docs for AK.reduce)
     T = eltype(integration_weights)
-    ε_total = prefactor * AK.reduce(+, integration_weights; block_size = 256, init = zero(T))
+    ε_total = prefactor * AK.reduce(+, integration_weights; init = zero(T))
 
     # If targeting a value of ε, adjust forcing amplitude.
     if ε_total == 0  # just in case; this should never happen in practice
