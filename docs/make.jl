@@ -104,6 +104,9 @@ function make_all(; draft = false,)
     bib = CitationBibliography(
         joinpath(@__DIR__, "src", "biblio.bib");
         style = :authoryear,
+        # Workaround issue with DocumenterCitations 1.5.0 + DocumenterVitepress 0.3.6
+        # https://github.com/LuxDL/DocumenterVitepress.jl/issues/391#issuecomment-5523976302
+        show_backlinks = false,
     )
 
     tutorials = String[
