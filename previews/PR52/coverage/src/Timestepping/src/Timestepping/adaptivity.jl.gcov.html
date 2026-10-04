@@ -1,0 +1,313 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Timestepping/src/Timestepping/adaptivity.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Timestepping/src/Timestepping</a> - adaptivity.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">46</td>
+            <td class="headerCovTableEntry">46</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-07-04 11:47:50</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : export NoAdaptivity,</span>
+<span id="L2"><span class="lineNum">       2</span>              :        AdaptBasedOnSegmentLength,</span>
+<span id="L3"><span class="lineNum">       3</span>              :        AdaptBasedOnVelocity,</span>
+<span id="L4"><span class="lineNum">       4</span>              :        MaximumTimestep</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : using ..BiotSavart: kelvin_wave_period</span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              : &quot;&quot;&quot;</span>
+<span id="L9"><span class="lineNum">       9</span>              :     AdaptivityCriterion</span>
+<span id="L10"><span class="lineNum">      10</span>              : </span>
+<span id="L11"><span class="lineNum">      11</span>              : Abstract type representing a temporal adaptivity criterion.</span>
+<span id="L12"><span class="lineNum">      12</span>              : </span>
+<span id="L13"><span class="lineNum">      13</span>              : Implemented adaptivity criteria are:</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              : - [`NoAdaptivity`](@ref): disables time adaptivity;</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : - [`AdaptBasedOnSegmentLength`](@ref): determines the timestep ``Δt`` based on the minimum</span>
+<span id="L18"><span class="lineNum">      18</span>              :   distance ``ℓ_{\\min}`` between two filament nodes (``Δt ∝ ℓ_{\\min}^{-2}``);</span>
+<span id="L19"><span class="lineNum">      19</span>              : </span>
+<span id="L20"><span class="lineNum">      20</span>              : - [`AdaptBasedOnVelocity`](@ref): determines the timestep ``Δt`` based on the maximum velocity</span>
+<span id="L21"><span class="lineNum">      21</span>              :   ``v_{\\max}`` of filament nodes and on a predefined distance ``δ`` (``Δt = δ / v_{\\max}``).</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span>              : ## Combining multiple criteria</span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span>              : Adaptivity criteria can be combined using `|`. Example:</span>
+<span id="L26"><span class="lineNum">      26</span>              : </span>
+<span id="L27"><span class="lineNum">      27</span>              :     adaptivity = AdaptBasedOnSegmentLength(1.4) | AdaptBasedOnVelocity(0.01)</span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span>              : As expected, the timestep ``Δt`` will be chosen so that it satisfies both criteria.</span>
+<span id="L30"><span class="lineNum">      30</span>              : &quot;&quot;&quot;</span>
+<span id="L31"><span class="lineNum">      31</span>              : abstract type AdaptivityCriterion end</span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span>              : &quot;&quot;&quot;</span>
+<span id="L34"><span class="lineNum">      34</span>              :     maximum_displacement(::AdaptivityCriterion) -&gt; Float64</span>
+<span id="L35"><span class="lineNum">      35</span>              : </span>
+<span id="L36"><span class="lineNum">      36</span>              : Return the maximum node displacement ``δ_{\\text{crit}}`` allowed by the adaptivity criterion.</span>
+<span id="L37"><span class="lineNum">      37</span>              : </span>
+<span id="L38"><span class="lineNum">      38</span>              : More precisely, ``δ_{\\text{crit}}`` controls the maximum displacement of a filament node</span>
+<span id="L39"><span class="lineNum">      39</span>              : during a single timestep of duration ``Δt``.</span>
+<span id="L40"><span class="lineNum">      40</span>              : </span>
+<span id="L41"><span class="lineNum">      41</span>              : This function is mainly relevant when using the [`AdaptBasedOnVelocity`](@ref) criterion.</span>
+<span id="L42"><span class="lineNum">      42</span>              : For other criteria this returns `Inf`, meaning that they don't limit the maximum allowed</span>
+<span id="L43"><span class="lineNum">      43</span>              : displacement.</span>
+<span id="L44"><span class="lineNum">      44</span>              : &quot;&quot;&quot;</span>
+<span id="L45"><span class="lineNum">      45</span>              : function maximum_displacement end</span>
+<span id="L46"><span class="lineNum">      46</span>              : </span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC tlaBgGNC">       10847 : maximum_displacement(::AdaptivityCriterion) = Inf</span></span>
+<span id="L48"><span class="lineNum">      48</span>              : </span>
+<span id="L49"><span class="lineNum">      49</span>              : &quot;&quot;&quot;</span>
+<span id="L50"><span class="lineNum">      50</span>              :     NoAdaptivity &lt;: AdaptivityCriterion</span>
+<span id="L51"><span class="lineNum">      51</span>              :     NoAdaptivity()</span>
+<span id="L52"><span class="lineNum">      52</span>              : </span>
+<span id="L53"><span class="lineNum">      53</span>              : Disable temporal adaptivity, leaving the timestep ``Δt`` constant.</span>
+<span id="L54"><span class="lineNum">      54</span>              : &quot;&quot;&quot;</span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">          90 : struct NoAdaptivity &lt;: AdaptivityCriterion end</span></span>
+<span id="L56"><span class="lineNum">      56</span>              : </span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">        5345 : estimate_timestep(::NoAdaptivity, iter::AbstractSolver) = get_dt(iter)  # don't change current dt</span></span>
+<span id="L58"><span class="lineNum">      58</span>              : </span>
+<span id="L59"><span class="lineNum">      59</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L60"><span class="lineNum">      60</span>              :     AdaptBasedOnSegmentLength &lt;: AdaptivityCriterion</span>
+<span id="L61"><span class="lineNum">      61</span>              :     AdaptBasedOnSegmentLength(γ::Float64)</span>
+<span id="L62"><span class="lineNum">      62</span>              : </span>
+<span id="L63"><span class="lineNum">      63</span>              : Adapt timestep ``Δt`` based on the minimum distance ``δ`` between two filament nodes.</span>
+<span id="L64"><span class="lineNum">      64</span>              : </span>
+<span id="L65"><span class="lineNum">      65</span>              : More precisely, the timestep is set to ``Δt = γ \, T_{\text{KW}}(δ)``, where ``γ`` is a</span>
+<span id="L66"><span class="lineNum">      66</span>              : dimensionless factor to be chosen, and:</span>
+<span id="L67"><span class="lineNum">      67</span>              : </span>
+<span id="L68"><span class="lineNum">      68</span>              : ```math</span>
+<span id="L69"><span class="lineNum">      69</span>              : T_{\text{KW}}(λ) = \frac{2 λ^2}{Γ} {\left[</span>
+<span id="L70"><span class="lineNum">      70</span>              :     \ln\left( \frac{λ}{πa} \right) + \frac{1}{2} - (Δ + γ)</span>
+<span id="L71"><span class="lineNum">      71</span>              : \right]}^{-1}</span>
+<span id="L72"><span class="lineNum">      72</span>              : ```</span>
+<span id="L73"><span class="lineNum">      73</span>              : </span>
+<span id="L74"><span class="lineNum">      74</span>              : is the period of a Kelvin wave of wavelength ``λ``.</span>
+<span id="L75"><span class="lineNum">      75</span>              : See [`ParamsBiotSavart`](@ref) for the definitions of the vortex parameters ``Γ``, ``a`` and</span>
+<span id="L76"><span class="lineNum">      76</span>              : ``Δ``.</span>
+<span id="L77"><span class="lineNum">      77</span>              : </span>
+<span id="L78"><span class="lineNum">      78</span>              : This criterion is somewhat analogous to the CFL condition in grid-based</span>
+<span id="L79"><span class="lineNum">      79</span>              : computations, and ``γ`` is the analogous of the maximum CFL number to be allowed.</span>
+<span id="L80"><span class="lineNum">      80</span>              : As such, the right value of ``γ`` will depend on the chosen temporal scheme.</span>
+<span id="L81"><span class="lineNum">      81</span>              : </span>
+<span id="L82"><span class="lineNum">      82</span>              : For example, the [`RK4`](@ref) scheme seems to require ``γ ≈ 1`` to remain stable.</span>
+<span id="L83"><span class="lineNum">      83</span>              : &quot;&quot;&quot;</span>
+<span id="L84"><span class="lineNum">      84</span>              : struct AdaptBasedOnSegmentLength &lt;: AdaptivityCriterion</span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">          40 :     γ :: Float64</span></span>
+<span id="L86"><span class="lineNum">      86</span>              : end</span>
+<span id="L87"><span class="lineNum">      87</span>              : </span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">        3155 : function estimate_timestep(crit::AdaptBasedOnSegmentLength, iter::AbstractSolver)</span></span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">        3155 :     (; γ,) = crit</span></span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaGNC">        3155 :     (; prob, fs,)  = iter</span></span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaGNC">        3155 :     p = prob.p :: ParamsBiotSavart</span></span>
+<span id="L92"><span class="lineNum">      92</span>              : </span>
+<span id="L93"><span class="lineNum">      93</span>              :     # 1. Determine minimum distance.</span>
+<span id="L94"><span class="lineNum">      94</span>              :     # If we're using the chordal filament parametrisation, then the knot increments are</span>
+<span id="L95"><span class="lineNum">      95</span>              :     # equal to the node distances (assuming knots were recently recomputed).</span>
+<span id="L96"><span class="lineNum">      96</span> <span class="tlaGNC">        3155 :     parametrisation = Filaments.parametrisation(fs)</span></span>
+<span id="L97"><span class="lineNum">      97</span> <span class="tlaGNC">        3155 :     δ = if parametrisation === Filaments.ChordalParametrisation()</span></span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaGNC">        2883 :         Filaments.minimum_knot_increment(fs)  # faster to evaluate</span></span>
+<span id="L99"><span class="lineNum">      99</span>              :     else</span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">         272 :         Filaments.minimum_node_distance(fs)</span></span>
+<span id="L101"><span class="lineNum">     101</span>              :     end</span>
+<span id="L102"><span class="lineNum">     102</span>              : </span>
+<span id="L103"><span class="lineNum">     103</span>              :     # 2. Determine timestep.</span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">        3155 :     dt = γ * kelvin_wave_period(p, δ)</span></span>
+<span id="L105"><span class="lineNum">     105</span>              : </span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC">        3155 :     dt</span></span>
+<span id="L107"><span class="lineNum">     107</span>              : end</span>
+<span id="L108"><span class="lineNum">     108</span>              : </span>
+<span id="L109"><span class="lineNum">     109</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L110"><span class="lineNum">     110</span>              :     AdaptBasedOnVelocity &lt;: AdaptivityCriterion</span>
+<span id="L111"><span class="lineNum">     111</span>              :     AdaptBasedOnVelocity(δ_crit::Float64; safety_factor = 0.8)</span>
+<span id="L112"><span class="lineNum">     112</span>              : </span>
+<span id="L113"><span class="lineNum">     113</span>              : Adapt timestep ``Δt`` based on the maximum velocity ``v_{\max}`` of filament nodes.</span>
+<span id="L114"><span class="lineNum">     114</span>              : </span>
+<span id="L115"><span class="lineNum">     115</span>              : The objective is that the resulting maximum displacement ``δ_{\max} = v_{\max} Δt`` stays</span>
+<span id="L116"><span class="lineNum">     116</span>              : below the given critical displacement `δ_crit`.</span>
+<span id="L117"><span class="lineNum">     117</span>              : </span>
+<span id="L118"><span class="lineNum">     118</span>              : One application of this criterion is to ensure that reconnections happen in-between two</span>
+<span id="L119"><span class="lineNum">     119</span>              : solver iterations (that is, to avoid that two filaments cross each other without</span>
+<span id="L120"><span class="lineNum">     120</span>              : reconnecting). In this case, ``δ`` should be proportional to the chosen distance below</span>
+<span id="L121"><span class="lineNum">     121</span>              : which reconnections are performed.</span>
+<span id="L122"><span class="lineNum">     122</span>              : </span>
+<span id="L123"><span class="lineNum">     123</span>              : # Implementation details</span>
+<span id="L124"><span class="lineNum">     124</span>              : </span>
+<span id="L125"><span class="lineNum">     125</span>              : This criterion is used in two ways:</span>
+<span id="L126"><span class="lineNum">     126</span>              : </span>
+<span id="L127"><span class="lineNum">     127</span>              : 1. A priori, to decide the ``Δt`` to be used in the next iteration given the velocities of</span>
+<span id="L128"><span class="lineNum">     128</span>              :    filament nodes at the start of the iteration (at time ``t``).</span>
+<span id="L129"><span class="lineNum">     129</span>              :    This ensures ``Δt ≤ δ_{\text{crit}} / v_{\max}`` where ``v_{\max}`` is computed at the</span>
+<span id="L130"><span class="lineNum">     130</span>              :    start of the iteration.</span>
+<span id="L131"><span class="lineNum">     131</span>              : </span>
+<span id="L132"><span class="lineNum">     132</span>              : 2. A posteriori, after the actual node displacements ``δ`` from time ``t`` to time</span>
+<span id="L133"><span class="lineNum">     133</span>              :    ``t + Δt`` have been computed (e.g. using some Runge--Kutta scheme).</span>
+<span id="L134"><span class="lineNum">     134</span>              :    If some ``δ`` is larger than ``δ_{\text{crit}}``, then the iteration is recomputed after</span>
+<span id="L135"><span class="lineNum">     135</span>              :    halving the timestep (``Δt → Δt/2``).</span>
+<span id="L136"><span class="lineNum">     136</span>              :    In this case, the original displacements are thrown away (rejected).</span>
+<span id="L137"><span class="lineNum">     137</span>              :    This process can be eventually repeated until the criterion is satisfied.</span>
+<span id="L138"><span class="lineNum">     138</span>              : </span>
+<span id="L139"><span class="lineNum">     139</span>              : # Optional safety factor</span>
+<span id="L140"><span class="lineNum">     140</span>              : </span>
+<span id="L141"><span class="lineNum">     141</span>              : The optional `safety_factor` should be `≤1`, which will further reduce the timestep</span>
+<span id="L142"><span class="lineNum">     142</span>              : chosen a priori in step 1. This is to try to avoid too many rejected timesteps in step 2,</span>
+<span id="L143"><span class="lineNum">     143</span>              : e.g. in case the actual advection velocity is larger than the velocity at the beginning of the</span>
+<span id="L144"><span class="lineNum">     144</span>              : timestep.</span>
+<span id="L145"><span class="lineNum">     145</span>              : </span>
+<span id="L146"><span class="lineNum">     146</span>              : # In combination with other criteria</span>
+<span id="L147"><span class="lineNum">     147</span>              : </span>
+<span id="L148"><span class="lineNum">     148</span>              : In principle, using this criterion can lead to an infinite timestep when the velocities are</span>
+<span id="L149"><span class="lineNum">     149</span>              : zero. For this reason, it's a good idea to combine this criterion with the</span>
+<span id="L150"><span class="lineNum">     150</span>              : [`AdaptBasedOnSegmentLength`](@ref) or the [`MaximumTimestep`](@ref) criterion. For example:</span>
+<span id="L151"><span class="lineNum">     151</span>              : </span>
+<span id="L152"><span class="lineNum">     152</span>              :     adaptivity = AdaptBasedOnVelocity(2.0) | AdaptBasedOnSegmentLength(0.9)</span>
+<span id="L153"><span class="lineNum">     153</span>              :     adaptivity = AdaptBasedOnVelocity(2.0) | MaximumTimestep(0.01)</span>
+<span id="L154"><span class="lineNum">     154</span>              : </span>
+<span id="L155"><span class="lineNum">     155</span>              : In fact, the second option is done automatically in [`init`](@ref) if only an</span>
+<span id="L156"><span class="lineNum">     156</span>              : `AdaptBasedOnVelocity` is passed.</span>
+<span id="L157"><span class="lineNum">     157</span>              : In that case, the maximum timestep is taken to be the `dt` passed to `init`.</span>
+<span id="L158"><span class="lineNum">     158</span>              : &quot;&quot;&quot;</span>
+<span id="L159"><span class="lineNum">     159</span>              : struct AdaptBasedOnVelocity &lt;: AdaptivityCriterion</span>
+<span id="L160"><span class="lineNum">     160</span>              :     δ :: Float64</span>
+<span id="L161"><span class="lineNum">     161</span>              :     safety_factor :: Float64</span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">         100 :     function AdaptBasedOnVelocity(δ; safety_factor = 0.8)</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">          50 :         safety_factor ≤ 1 || throw(ArgumentError(lazy&quot;safety_factor should be ≤ 1; got safety_factor = $safety_factor&quot;))</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">          50 :         new(δ, safety_factor)</span></span>
+<span id="L165"><span class="lineNum">     165</span>              :     end</span>
+<span id="L166"><span class="lineNum">     166</span>              : end</span>
+<span id="L167"><span class="lineNum">     167</span>              : </span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">          43 : function Base.show(io::IO, crit::AdaptBasedOnVelocity)</span></span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">          43 :     (; δ, safety_factor,) = crit</span></span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">          43 :     print(io, lazy&quot;AdaptBasedOnVelocity($δ; safety_factor = $safety_factor)&quot;)</span></span>
+<span id="L171"><span class="lineNum">     171</span>              : end</span>
+<span id="L172"><span class="lineNum">     172</span>              : </span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">        4256 : maximum_displacement(crit::AdaptBasedOnVelocity) = crit.δ</span></span>
+<span id="L174"><span class="lineNum">     174</span>              : </span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">        4307 : function estimate_timestep(crit::AdaptBasedOnVelocity, iter::AbstractSolver)</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">        4307 :     (; dt_prev,) = iter  # dt_prev is the latest used timestep</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">        4307 :     T = typeof(dt_prev)</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">        4307 :     v_max = maximum_vector_norm(iter.quantities.vL)</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">        4307 :     dt_estimate::T = crit.safety_factor * crit.δ / v_max</span></span>
+<span id="L180"><span class="lineNum">     180</span>              :     # Avoid increasing the dt too abruptly compared to the previous timestep.</span>
+<span id="L181"><span class="lineNum">     181</span>              :     # This seems to help reduce the number of rejected timesteps, in case the dt was reduced</span>
+<span id="L182"><span class="lineNum">     182</span>              :     # in the previous iteration due to the a posteriori displacements.</span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">        4307 :     min(dt_estimate, 2 * dt_prev)::T</span></span>
+<span id="L184"><span class="lineNum">     184</span>              : end</span>
+<span id="L185"><span class="lineNum">     185</span>              : </span>
+<span id="L186"><span class="lineNum">     186</span>              : &quot;&quot;&quot;</span>
+<span id="L187"><span class="lineNum">     187</span>              :     MaximumTimestep &lt;: AdaptivityCriterion</span>
+<span id="L188"><span class="lineNum">     188</span>              :     MaximumTimestep(Δt_max::Float64)</span>
+<span id="L189"><span class="lineNum">     189</span>              : </span>
+<span id="L190"><span class="lineNum">     190</span>              : Criterion ensuring that the timestep will be kept below a maximal value `Δt_max`.</span>
+<span id="L191"><span class="lineNum">     191</span>              : &quot;&quot;&quot;</span>
+<span id="L192"><span class="lineNum">     192</span>              : struct MaximumTimestep &lt;: AdaptivityCriterion</span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">           5 :     Δt :: Float64</span></span>
+<span id="L194"><span class="lineNum">     194</span>              : end</span>
+<span id="L195"><span class="lineNum">     195</span>              : </span>
+<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">        2413 : estimate_timestep(crit::MaximumTimestep, iter::AbstractSolver) = crit.Δt</span></span>
+<span id="L197"><span class="lineNum">     197</span>              : </span>
+<span id="L198"><span class="lineNum">     198</span>              : struct CombinedAdaptivityCriteria{</span>
+<span id="L199"><span class="lineNum">     199</span>              :         Criteria &lt;: Tuple{Vararg{AdaptivityCriterion}}</span>
+<span id="L200"><span class="lineNum">     200</span>              :     } &lt;: AdaptivityCriterion</span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">          52 :     criteria :: Criteria</span></span>
+<span id="L202"><span class="lineNum">     202</span>              : end</span>
+<span id="L203"><span class="lineNum">     203</span>              : </span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC">        3880 : maximum_displacement(crit::CombinedAdaptivityCriteria) = minimum(maximum_displacement, crit.criteria)</span></span>
+<span id="L205"><span class="lineNum">     205</span>              : </span>
+<span id="L206"><span class="lineNum">     206</span>              : # Pretty-printing</span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">          27 : Base.show(io::IO, crit::CombinedAdaptivityCriteria) = _show_combined(io, crit.criteria...)</span></span>
+<span id="L208"><span class="lineNum">     208</span>              : </span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">          43 : function _show_combined(io, c::AdaptivityCriterion, next...)</span></span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">          43 :     print(io, c, &quot; | &quot;)</span></span>
+<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC">          43 :     _show_combined(io, next...)</span></span>
+<span id="L212"><span class="lineNum">     212</span>              : end</span>
+<span id="L213"><span class="lineNum">     213</span>              : </span>
+<span id="L214"><span class="lineNum">     214</span> <span class="tlaGNC">          27 : _show_combined(io, c::AdaptivityCriterion) = show(io, c)</span></span>
+<span id="L215"><span class="lineNum">     215</span>              : </span>
+<span id="L216"><span class="lineNum">     216</span> <span class="tlaGNC">          52 : CombinedAdaptivityCriteria(args...) = CombinedAdaptivityCriteria(args)</span></span>
+<span id="L217"><span class="lineNum">     217</span>              : </span>
+<span id="L218"><span class="lineNum">     218</span> <span class="tlaGNC">          36 : Base.:|(a::AdaptivityCriterion, b::AdaptivityCriterion) =</span></span>
+<span id="L219"><span class="lineNum">     219</span>              :     CombinedAdaptivityCriteria(a, b)</span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">          16 : Base.:|(a::CombinedAdaptivityCriteria, b::AdaptivityCriterion) =</span></span>
+<span id="L221"><span class="lineNum">     221</span>              :     CombinedAdaptivityCriteria(a.criteria..., b)</span>
+<span id="L222"><span class="lineNum">     222</span>              : </span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">        3915 : function estimate_timestep(crit::CombinedAdaptivityCriteria, iter::AbstractSolver)</span></span>
+<span id="L224"><span class="lineNum">     224</span> <span class="tlaGNC">        3915 :     (; criteria,) = crit</span></span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">       12137 :     dts = map(c -&gt; estimate_timestep(c, iter), criteria)</span></span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">        3915 :     @debug lazy&quot;Estimated timesteps: $dts&quot;</span></span>
+<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">        3915 :     min(dts...)  # choose the smallest estimated timestep</span></span>
+<span id="L228"><span class="lineNum">     228</span>              : end</span>
+<span id="L229"><span class="lineNum">     229</span>              : </span>
+<span id="L230"><span class="lineNum">     230</span>              : # If only the AdaptBasedOnVelocity criterion is passed to `init`, then combine it with a</span>
+<span id="L231"><span class="lineNum">     231</span>              : # MaximumTimestep criterion. Otherwise, the dt can indefinitely increase when velocities are small.</span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">           4 : possibly_add_max_timestep(crit::AdaptBasedOnVelocity, dt) = crit | MaximumTimestep(dt)</span></span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">          63 : possibly_add_max_timestep(crit::AdaptivityCriterion, dt) = crit</span></span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
