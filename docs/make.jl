@@ -64,7 +64,7 @@ DocMeta.setdocmeta!(
 # Adapted from https://github.com/Ferrite-FEM/Ferrite.jl/blob/master/docs/make.jl
 const with_liveserver = "liveserver" ∈ ARGS
 
-if with_liveserver
+@static if with_liveserver
     using Revise
     Revise.revise()
 end
@@ -104,9 +104,7 @@ function make_all(; draft = false,)
     bib = CitationBibliography(
         joinpath(@__DIR__, "src", "biblio.bib");
         style = :authoryear,
-        # Workaround issue with DocumenterCitations 1.5.0 + DocumenterVitepress 0.3.6
-        # https://github.com/LuxDL/DocumenterVitepress.jl/issues/391#issuecomment-5523976302
-        show_backlinks = false,
+        show_backlinks = true,
     )
 
     tutorials = String[
