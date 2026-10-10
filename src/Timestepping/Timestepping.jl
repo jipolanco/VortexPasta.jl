@@ -683,17 +683,18 @@ Another way of injecting energy is simply by adding vortices to the simulation f
 time. This can be achieved by using an `affect!` function. See [`inject_filament!`](@ref) for
 some more details.
 
-## Energy minimisation mode
+## Energy minimisation mode (a.k.a. imaginary-time evolution)
 
 It is also possible to run the simulation in "energy minimisation" mode, which can be useful
 for finding a minimal energy state from a given initial condition. In this mode, filaments
-will be advected not using the Biot–Savart velocity ``\bm{v}_{\text{s}}``, but using the velocity
-``-\bm{s}' × \bm{v}_{\text{s}}`` where ``\bm{s}'`` is the local unit tangent vector.
+will be advected not using the Biot–Savart velocity ``\bm{v}_{\text{L}} = \bm{v}_{\text{s}}``, but instead using
+``\bm{v}_{\text{L}} = -\bm{s}' × \bm{v}_{\text{s}}`` where ``\bm{s}'`` is the local unit tangent vector.
 
-This is because the functional derivative of the energy (per unit mass) with respect to the
-vortex positions is:
+This reduces the total energy of the self-induced velocity field, as can be seen by
+considering the functional derivative of the energy (per unit mass) with respect to the
+vortex positions:
 
-```julia
+```math
 \frac{δE}{δ\bm{s}} = Γ \bm{s}' × \bm{v}_{\text{s}}
 ```
 
