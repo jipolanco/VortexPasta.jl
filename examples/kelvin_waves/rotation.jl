@@ -180,12 +180,13 @@ function find_stable_equilibrium!(xs::AbstractVector{T}, ys::AbstractVector{T}; 
             Vec3(x, y, z)
         end
     end
-    rcut = min(Ls...) / 2
+    rcut = min(Ls...) / 3
     Γ = one(T)
     params = ParamsBiotSavart(;
         Γ, a = T(1e-7), Δ = T(1/2),
-        splitting = KaiserBesselSplitting(; Ls, β = 18.0, rcut),
-        backend_short = NaiveShortRangeBackend(),
+        splitting = KaiserBesselSplitting(; Ls, β = 14.0, rcut),
+        # backend_short = NaiveShortRangeBackend(),
+        backend_short = CellListsBackend(),
         backend_long = NonuniformFFTsBackend(m = HalfSupport(4)),
         quadrature = GaussLegendre(3),
     )
@@ -194,12 +195,15 @@ function find_stable_equilibrium!(xs::AbstractVector{T}, ys::AbstractVector{T}; 
     end
     tsim = one(T)  # ignored
     prob = VortexFilamentProblem(fs, tsim, params)
-    iter = init(prob, RK4(); dt = one(T), adaptivity = AdaptBasedOnSegmentLength(0.5) | AdaptBasedOnVelocity(0.1), mode = MinimalEnergy())
+    println(prob)
+    scheme = Strang(RK4(), RK4(); nsubsteps = 4)
+    # scheme = RK4()
+    iter = init(prob, scheme; dt = one(T), adaptivity = AdaptBasedOnSegmentLength(2.0) | AdaptBasedOnVelocity(0.1), mode = MinimalEnergy())
     atol = rtol * Γ / ℓ  # maximum allowed velocity
     atol² = atol^2
     max_squared_velocity(iter) = maximum(vs -> maximum(v⃑ -> sum(abs2, v⃑), vs), iter.vs)
     v²_max = max_squared_velocity(iter)
-    E = Diagnostics.kinetic_energy(iter; quad = GaussLegendre(3))
+    E = Diagnostics.kinetic_energy(iter)
     E_initial = E
     if verbose
         @show iter.nstep, iter.t, iter.dt, E, v²_max/atol²
@@ -220,12 +224,23 @@ function find_stable_equilibrium!(xs::AbstractVector{T}, ys::AbstractVector{T}; 
         end
         ok
     end
+    stats_file = "imaginary_time_stats.dat"
+    open(stats_file, "w") do io
+        println(io, "# (1) Time  (2) Energy  (3) vL_max")
+        println(io, iter.t, '\t', E, '\t', sqrt(v²_max))
+    end
     while v²_max > atol²
         step!(iter)
         if !all(f -> check_straight(f; atol = ℓ * rtol), iter.fs)
             error("vortices did not remain straight during imaginary time evolution. Try reducing point spacing δ (by changing Lz or N).")
         end
         v²_max = max_squared_velocity(iter)
+        E = Diagnostics.kinetic_energy(iter)
+        if iter.nstep % 10 == 0
+            open(stats_file, "a") do io
+                println(io, iter.t, '\t', E, '\t', sqrt(v²_max))
+            end
+        end
         if iter.nstep % 100 == 0
             if verbose
                 @show iter.nstep, iter.t, iter.dt, E, v²_max/atol²
@@ -255,16 +270,16 @@ function find_stable_equilibrium!(xs::AbstractVector{T}, ys::AbstractVector{T}; 
 end
 
 function run_simulation(;
-        lattice::Symbol = :hexagonal,   # :square or :hexagonal
-        Lz = 2π,             # domain period (vertical)
-        Lx = Lz,             # domain period (horizontal) -- proportional to inter-vortex distance
+        nvortices = 4,       # number of vortices (typically multiple of 4)
+        Ls = (2π, 2π, 2π),   # domain period
         N = 64,              # number of points per vortex (= line resolution)
+        Γ = 1.0, a = 1e-7, Δ = 0,
         in_phase_perturbation = true,  # perturbations of all vortices are in phase?
-        nvort_x = 2,   # number of vortices along X direction (should be even; number of vortices along Y depends on `lattice` value)
         Az_rms = 1e-5 * Lz,   # amplitude of random perturbation varying in Z (rms value)
         Ax = 0 * Lx,      # amplitude of perturbation varying in X
         Ay = Ax,          # amplitude of perturbation varying in Y
         kx = 0, ky = 0,       # mode of horizontal perturbations
+        Axy_rms = 0 * Lx,  # amplitude of random perturbation in the horizontal directions
         method = QuinticSplineMethod(),  # filament discretisation method
         rcut_factor = 2/5,
         dt_factor = 1.0,
@@ -272,23 +287,11 @@ function run_simulation(;
         nsave = 100,     # number of checkpoints to save
     )
     #== Biot-Savart parameters ==#
-    # Domain size in y direction
-    if lattice == :square
-        nvort_y = nvort_x
-        Ly = Lx
-    elseif lattice == :hexagonal
-        @assert iseven(nvort_x)
-        nvort_y = nvort_x ÷ 2
-        Ly = Lx * sqrt(3) / 2  # we divide by 2 so that Ly is "close" to Lx, but this requires even nvort_x
-    else
-        throw(ArgumentError("`lattice` parameter should be :square or :hexagonal"))
-    end
-    Ls = (Lx, Ly, Lz)
     rcut = min(Ls...) * rcut_factor
     params = ParamsBiotSavart(;
-        Γ = 0.1, a = π * 1e-8, Δ = 1/2,
+        Γ, a, Δ,
         # splitting = GaussianSplitting(; Ls, β = 3.5, rcut),
-        splitting = KaiserBesselSplitting(; Ls, β = 18.0, rcut),
+        splitting = KaiserBesselSplitting(; Ls, β = 14.0, rcut),
         quadrature = GaussLegendre(3),        # quadrature for integrals over filament segments
         quadrature_near_singularity = GaussLegendre(3),
         backend_long = NonuniformFFTsBackend(m = HalfSupport(4)),
@@ -307,29 +310,21 @@ function run_simulation(;
 
     # Create actual vortices, including random perturbation
     fs = [f_base]; empty!(fs)  # creates empty vector with the right element type
-    w_equilibrium = ComplexF64[]  # equilibrium position (x + iy) of each filament
     ws = zeros(ComplexF64, N)  # this will be used to store random perturbations
     rng = StableRNG(42)        # initialise random number generator (RNG)
 
-    # Relative position of one or more vortices in cell (same for x and y coordinates)
-    cell_positions = if lattice == :square
-        [1/2]       # 1 vortex in the middle of the cell
-    elseif lattice == :hexagonal
-        [1/4, 3/4]  # 2 vortices in a minimal periodic unit cell
-    end
+    # Determine stable equilibrium positions using imaginary-time evolution.
+    # We start from random vortex positions.
+    xs_base = Ls[1] * rand(rng, nvortices)
+    ys_base = Ls[2] * rand(rng, nvortices)
+    find_stable_equilibrium!(xs_base, ys_base; Ls, verbose = true, checkpoints = true)
+    w_equilibrium = complex.(xs_base, ys_base)  # equilibrium position (x + iy) of each filament
 
-    # Set base XY positions of the vortices (ideally these are equilibrium positions
-    # associated to minimum energy configurations).
-    xs_base = zeros(nvort_x, nvort_y, length(cell_positions))
-    ys_base = copy(xs_base)
-    for k in eachindex(cell_positions), j in 1:nvort_y, i in 1:nvort_x
-        pos = cell_positions[k]
-        xs_base[i, j, k] = (i - 1 + pos) * Lx / nvort_x
-        ys_base[i, j, k] = (j - 1 + pos) * Ly / nvort_y
+    # Apply random perturbations in XY plane
+    if Axy_rms > 0
+        xs_base .+= Axy_rms * randn(rng, nvortices)
+        ys_base .+= Axy_rms * randn(rng, nvortices)
     end
-
-    # Make sure we're starting from a stable equilibrium configuration.
-    find_stable_equilibrium!(vec(xs_base), vec(ys_base); Ls, verbose = true)
 
     for i in eachindex(xs_base, ys_base)
         f = similar(f_base)
@@ -337,8 +332,8 @@ function run_simulation(;
             # Don't update ws if in_phase_perturbation == true and this is not the first vortex.
             random_perturbation!(rng, ws; Lz, Az_rms)  # compute random perturbation, modifying ws
         end
-        x₀ = xs_base[i]  # x position of vortex (before perturbation)
-        y₀ = ys_base[i]  # y position of vortex (before perturbation)
+        x₀ = xs_base[i]  # x position of vortex (before perturbation in Z)
+        y₀ = ys_base[i]  # y position of vortex (before perturbation in Z)
         dx = Ax * sinpi(2 * kx * x₀ / Lx)
         dy = Ay * sinpi(2 * ky * y₀ / Ly)
         for n in eachindex(f, f_base)
@@ -349,7 +344,6 @@ function run_simulation(;
         end
         update_coefficients!(f)  # needed before any interpolations, plotting, ...
         push!(fs, f)  # add new vortex to list
-        push!(w_equilibrium, x₀ + im * y₀)
     end
 
     # plot_filaments(fs, params.Ls)
@@ -439,176 +433,196 @@ function run_simulation(;
     )
 end
 
+function analyse_kelvin_waves(results)
+    (; N, positions, times, params, Ω, ℓ, w_equilibrium) = results
+
+    ws_mat = reshape(positions, N, :)  # reinterpret 1D vector as a 2D matrix: ws_mat[i, j] = w(z_i, t_j)
+
+    t_inds = eachindex(times)[begin:end]  # this may be modified to use a subset of the simulation time
+    Nt = length(t_inds)       # number of timesteps to analyse
+    ws_h = ws_mat[:, t_inds]  # create copy of positions to avoid modifying the simulation output
+
+    # Remove equilibrium position
+    # ws_h .-= w_equilibrium[1]  # 1 = index of vortex
+
+    # Apply window function over temporal dimension
+    window = DSP.Windows.hanning(Nt)
+    for i in axes(ws_h, 1)
+        @. @views ws_h[i, :] *= window
+    end
+
+    # Perform a 2D FFT and plot the results
+    # fft!(ws_h, (1, 2))
+    fft!(ws_h, (1,))  # spatial FFT
+    ws_h[1, :] .= 0   # remove spatial mean
+    fft!(ws_h, (2,))  # temporal FFT
+    ws_h ./= length(ws_h)  # normalise FFT
+
+    # Combine +k and -k wavenumbers and plot as a function of |k| (results should be symmetric anyways)
+    ws_abs2 = @views abs2.(ws_h[1:((end + 1) ÷ 2), :])  # from k = 0 to k = +kmax
+    @views ws_abs2[2:end, :] .+= abs2.(ws_h[end:-1:(end ÷ 2 + 2), :])  # from -kmax to -1
+
+    Δt = times[t_inds[2]] - times[t_inds[1]]      # timestep
+    ks = fftfreq(N, 2π * N / Lz)[1:((end + 1) ÷ 2)]  # wavenumbers (≥ 0 only)
+    ωs = fftfreq(Nt, 2π / Δt)     # frequencies
+    ωs_shift = fftshift(ωs)
+    w_plot = fftshift(log10.(ws_abs2), (2,))  # FFT shift along second dimension (frequencies)
+
+    wplot_max = ceil(Int, maximum(@view w_plot[2:end, :]))
+
+    k_max = ks[end]           # maximum wavenumber
+    ω_max = -ωs_shift[begin]  # maximum frequency
+
+    # Analytical dispersion relation according to Raja Gopal (1964) for comparison.
+    # This comes from Donnelly 1991, eqs. (6.4)-(6.5).
+    ks_fine = range(0, k_max; step = ks[2] / 4)
+
+    # Estimate J(kℓ) = ∫_{0}^{kℓ} K₀(s) s ds = ℓ² ∫_{0}^{k} K₀(qℓ) q dq for each k ∈ ks_fine.
+    Js = let
+        Js = similar(ks_fine)
+        @assert ks_fine[begin] == 0
+        integrate_incremental!(Js, ks_fine; quad = GaussLegendre(4)) do q
+            qℓ = q * ℓ
+            iszero(qℓ) ? qℓ : ℓ^2 * besselk0(qℓ) * q  # avoid fake divergence at qℓ = 0 (the function is actually well defined)
+        end
+        Js
+    end
+
+    ωs_rajagopal = let
+        local (; Γ, a, Δ) = params
+        local γ = MathConstants.eulergamma
+        @. -(2 - Js) * Ω - Γ * ks_fine^2 / (4 * π) * (
+            # log(2 / (abs(ks_fine) * a)) - γ + 1/2 - Δ
+            log(2 / (abs(ks_fine) * a)) + 1 / 2 - Δ
+        )
+    end
+
+    # Small kℓ limit -> J = 0
+    ωs_small_k = let
+        local (; Γ, a, Δ) = params
+        local γ = MathConstants.eulergamma
+        @. -2Ω - Γ * ks_fine^2 / (4 * π) * (
+            # log(2 / (abs(ks_fine) * a)) - γ + 1/2 - Δ
+            log(2π / (abs(ks_fine) * a)) + 1 / 2 - Δ
+        )
+    end
+
+    # Small kℓ: 2π/k is replaced by ℓ in the logarithm.
+    ωs_ℓ = let
+        local (; Γ, a, Δ) = params
+        @. -2Ω - Γ * ks_fine^2 / (4 * π) * (log(ℓ / a) + 1 / 2 - Δ)
+    end
+
+    k_ℓ = 2π / ℓ  # wavenumber associated to inter-vortex distance
+
+    fontsize = 14
+    fig = Figure(; size = (400, 300), fontsize)
+    ax = Axis(fig[1, 1]; xlabel = L"kℓ", ylabel = L"ω(k)/Ω")
+    ax.xgridvisible = ax.ygridvisible = false
+    ax.xlabelpadding = 4
+    ax.ylabelpadding = 0
+    xlims!(ax, 0.9 * k_max .* (0, 1))
+    # ylims!(ax, 0.6 * ω_max .* (-1, 0))
+    ylims!(ax, (-4, 0))
+    hm = @views heatmap!(
+        ax, ks[2:end] .* ℓ, ωs_shift ./ Ω, w_plot[2:end, :];
+        rasterize = 8,
+        # colormap = Reverse(:deep),
+        # colormap = :OrRd,
+        colormap = Reverse(:oslo),
+        # colormap = Reverse(:afmhot),
+        # colorrange = round.(Int, extrema(w_plot[2:end, :])) .+ (3, 0),
+        colorrange = (-16, -2),
+        # colorrange = (wplot_max - 3, wplot_max - 2),
+        # colorrange = (wplot_max - 3, wplot_max - 2),
+    )
+    Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}|^2")
+    hlines!(ax, 0; color = :black, linestyle = :dash, linewidth = 1)
+    xright = rel2data(ax, :x, 1.0)  # rightmost coordinate (in data space)
+    ybottom = rel2data(ax, :y, 0.0)
+    text!(ax, L"0"; position = @lift(($xright, 0)), offset = (-4, +2), align = (:right, :bottom), color = :white)
+    let color = :chartreuse3
+        hlines!(ax, -2; color, linestyle = :dash, linewidth = 2)
+        text!(ax, L"-2Ω"; position = @lift(($xright, -2)), offset = (-4, -4), align = (:right, :top), color, fontsize = fontsize + 2)
+    end
+    # let color = :lightblue
+    #     vlines!(ax, k_ℓ; color, linestyle = :dot)
+    #     text!(ax, L"\frac{2π}{ℓ}"; position = @lift((k_ℓ, $ybottom)), offset = (6, 4), align = (:left, :bottom), color)
+    # end
+    # lines!(ax, ks_fine, ωs_small_k; color = :orangered, linestyle = :dash, linewidth = 1.5)
+    # lines!(ax, ks_fine, ωs_rajagopal; color = (:lightgreen, 0.8), linestyle = :dash, linewidth = 1.5, label = L"(2 - J) Ω + \frac{κ}{4π} \ln(2π/ka)")
+    let color = :chocolate, n = searchsortedlast(ks_fine, 6.0)
+        lines!(ax, ks_fine .* ℓ, ωs_ℓ ./ Ω; color, linestyle = :dash, linewidth = 2.0, label = L"2Ω + \frac{κ k^2}{4π} \ln(ℓ/a)")
+        annotation!(
+            ax,
+            2 * ks_fine[n] * ℓ, -3.5,     # label position
+            ks_fine[n] * ℓ, ωs_ℓ[n] / Ω;  # target position
+            labelspace = :data,
+            color, text = L"-2Ω - \frac{κ k^2}{4π} \ln(ℓ/a)", fontsize = fontsize + 2,
+            style = Ann.Styles.LineArrow(),
+        )
+    end
+    # axislegend(ax; position = (0, 0), framevisible = false, labelcolor = :white, labelsize = 16)
+    # DataInspector(fig)
+    xlims!(ax, 0, 1.25)
+    ax.xticks = range(0, 1.2; step = 0.2)
+    # ylims!(ax, -120, 0)
+    let bg = fig.scene.backgroundcolor[]
+        fig.scene.backgroundcolor[] = RGBAf(0, 0, 0, 0)
+        # save("rotation_dispersion.svg", fig; backend = CairoMakie)
+        fig.scene.backgroundcolor[] = bg
+    end
+    fig
+end
+
 ## Run simulation
 
-# lattice = :square  # note: the square lattice is unstable, and becomes a triangular lattice after "imaginary time" evolution
-lattice = :hexagonal
-Lz = 2π        # domain period (vertical)
-Lx = Lz / 32   # domain period (horizontal) -- this is proportional to the inter-vortex distance
+Lz = 2π / 1   # domain period (vertical)
+Lx = 2π / 32  # domain period (horizontal) -- this is proportional to the inter-vortex distance
+
+Ly = Lx * sqrt(3) / 2  # hexagonal lattice (this reduces aspect ratio Lx:Ly)
+nvortices = (2 * 1)^2  # must be (2n)² for aspect ratio 2:√3
+
+Γ = 1.0   # circulation
+a = 1e-7  # vortex core size
+ℓ = sqrt(Lx * Ly / nvortices)
+Ω = Γ / (2 * ℓ^2)
+kz_min = 2π / Lz
+(Γ / 4π) * kz_min^2 * log(ℓ / a)
 
 # Initial vortices
-N = 64             # number of discretisation points per line
+N = 64            # number of discretisation points per line
+δ = Lz / N
+@show δ / ℓ
+
 in_phase_perturbation = true  # perturbations of all vortices are in phase?
-nvort_x = 4    # number of vortices along x direction (should be even)
-Az_rms = 1e-5 * Lz   # amplitude of random perturbation (rms value)
+Az_rms = 1e-4 * Lz   # amplitude of random perturbation (rms value)
 Ax = 0e-2 * Lx
 Ay = Ax
+Axy_rms = 0 * ℓ / 100  # amplitude of random horizontal perturbation
 kx = 1; ky = 1
-nrotations = 32
+nrotations = 4
 nsave = 100 * nrotations
-rcut_factor = 2/5  # for performance: balance between short and long-range (max 2/5)
-dt_factor = 0.25   # small dt probably needed for strong rotations
+rcut_factor = 0.4  # for performance: balance between short and long-range (max 2/5)
+dt_factor = 0.5    # small dt probably needed for strong rotations
 
 # Test imaginary time evolution
-# let Ly = Lx * sqrt(3), rng = StableRNG(55), Nvort = 10 * nvort_x^2
+# let Ly = Lx * sqrt(3), rng = StableRNG(55), Nvort = 64
 #     local xs = Lx * rand(rng, Nvort)
 #     local ys = Ly * rand(rng, Nvort)
 #     find_stable_equilibrium!(xs, ys; Ls = (Lx, Ly, Lz), verbose = true, checkpoints = true)
 # end
 
-method = FourierMethod()  # filament discretisation method
+method = QuinticSplineMethod()  # filament discretisation method
 
 results = run_simulation(;
-    lattice, Lz, Lx, N, in_phase_perturbation,
-    nvort_x, Az_rms, method,
+    nvortices, Γ, a, Ls = (Lx, Ly, Lz), N, in_phase_perturbation,
+    Az_rms, method,
     Ax, Ay, kx, ky, nrotations,
+    Axy_rms,
     rcut_factor, dt_factor,
 )
 
 ## Spatiotemporal analysis
 
-(; N, positions, times, params, Ω, ℓ, w_equilibrium,) = results
-
-ws_mat = reshape(positions, N, :)  # reinterpret 1D vector as a 2D matrix: ws_mat[i, j] = w(z_i, t_j)
-
-t_inds = eachindex(times)[begin:end]  # this may be modified to use a subset of the simulation time
-Nt = length(t_inds)       # number of timesteps to analyse
-ws_h = ws_mat[:, t_inds]  # create copy of positions to avoid modifying the simulation output
-
-# Remove equilibrium position
-# ws_h .-= w_equilibrium[1]  # 1 = index of vortex
-
-# Apply window function over temporal dimension
-window = DSP.Windows.hanning(Nt)
-for i ∈ axes(ws_h, 1)
-    @. @views ws_h[i, :] *= window
-end
-
-# Perform a 2D FFT and plot the results
-# fft!(ws_h, (1, 2))
-fft!(ws_h, (1,))  # spatial FFT
-ws_h[1, :] .= 0   # remove spatial mean
-fft!(ws_h, (2,))  # temporal FFT
-ws_h ./= length(ws_h)  # normalise FFT
-
-# Combine +k and -k wavenumbers and plot as a function of |k| (results should be symmetric anyways)
-ws_abs2 = @views abs2.(ws_h[1:((end + 1)÷2), :])  # from k = 0 to k = +kmax
-@views ws_abs2[2:end, :] .+= abs2.(ws_h[end:-1:(end÷2 + 2), :])  # from -kmax to -1
-
-Δt = times[t_inds[2]] - times[t_inds[1]]      # timestep
-ks = fftfreq(N, 2π * N / Lz)[1:(end + 1)÷2]  # wavenumbers (≥ 0 only)
-ωs = fftfreq(Nt, 2π / Δt)     # frequencies
-ωs_shift = fftshift(ωs)
-w_plot = fftshift(log10.(ws_abs2), (2,))  # FFT shift along second dimension (frequencies)
-
-wplot_max = ceil(Int, maximum(@view w_plot[2:end, :]))
-
-k_max = ks[end]           # maximum wavenumber
-ω_max = -ωs_shift[begin]  # maximum frequency
-
-# Analytical dispersion relation according to Raja Gopal (1964) for comparison.
-# This comes from Donnelly 1991, eqs. (6.4)-(6.5).
-ks_fine = range(0, k_max; step = ks[2] / 4)
-
-# Estimate J(kℓ) = ∫_{0}^{kℓ} K₀(s) s ds = ℓ² ∫_{0}^{k} K₀(qℓ) q dq for each k ∈ ks_fine.
-Js = let
-    Js = similar(ks_fine)
-    @assert ks_fine[begin] == 0
-    integrate_incremental!(Js, ks_fine; quad = GaussLegendre(4)) do q
-        qℓ = q * ℓ
-        iszero(qℓ) ? qℓ : ℓ^2 * besselk0(qℓ) * q  # avoid fake divergence at qℓ = 0 (the function is actually well defined)
-    end
-    Js
-end
-
-ωs_rajagopal = let
-    local (; Γ, a, Δ,) = params
-    local γ = MathConstants.eulergamma
-    @. -(2 - Js) * Ω - Γ * ks_fine^2 / (4 * π) * (
-        # log(2 / (abs(ks_fine) * a)) - γ + 1/2 - Δ
-        log(2 / (abs(ks_fine) * a)) + 1/2 - Δ
-    )
-end
-
-# Small kℓ limit -> J = 0
-ωs_small_k = let
-    local (; Γ, a, Δ,) = params
-    local γ = MathConstants.eulergamma
-    @. -2Ω - Γ * ks_fine^2 / (4 * π) * (
-        # log(2 / (abs(ks_fine) * a)) - γ + 1/2 - Δ
-        log(2π / (abs(ks_fine) * a)) + 1/2 - Δ
-    )
-end
-
-# Small kℓ: 2π/k is replaced by ℓ in the logarithm.
-ωs_ℓ = let
-    local (; Γ, a, Δ,) = params
-    @. -2Ω - Γ * ks_fine^2 / (4 * π) * (log(ℓ / a) + 1/2 - Δ)
-end
-
-k_ℓ = 2π / ℓ  # wavenumber associated to inter-vortex distance
-
-fontsize = 14
-fig = Figure(; size = (400, 300), fontsize)
-ax = Axis(fig[1, 1]; xlabel = L"kℓ", ylabel = L"ω(k)")
-ax.xgridvisible = ax.ygridvisible = false
-ax.xlabelpadding = 4
-ax.ylabelpadding = 0
-xlims!(ax, 0.9 * k_max .* (0, 1))
-ylims!(ax, 0.6 * ω_max .* (-1, 0))
-hm = @views heatmap!(
-    ax, ks[2:end] .* ℓ, ωs_shift, w_plot[2:end, :];
-    rasterize = 8,
-    # colormap = Reverse(:deep),
-    # colormap = :OrRd,
-    colormap = Reverse(:oslo),
-    # colormap = Reverse(:afmhot),
-    # colorrange = round.(Int, extrema(w_plot[2:end, :])) .+ (3, 0),
-    colorrange = (-20, -10),
-    # colorrange = (wplot_max - 3, wplot_max - 2),
-    # colorrange = (wplot_max - 3, wplot_max - 2),
-)
-Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}|^2")
-hlines!(ax, 0; color = :black, linestyle = :dash, linewidth = 1)
-xright = rel2data(ax, :x, 1.0)  # rightmost coordinate (in data space)
-ybottom = rel2data(ax, :y, 0.0)
-text!(ax, L"0"; position = @lift(($xright, 0)), offset = (-4, +2), align = (:right, :bottom), color = :white)
-let color = :chartreuse3
-    hlines!(ax, -2 * Ω; color, linestyle = :dash, linewidth = 2)
-    text!(ax, L"-2Ω"; position = @lift(($xright, -2 * Ω)), offset = (-4, -4), align = (:right, :top), color, fontsize = fontsize + 2)
-end
-# let color = :lightblue
-#     vlines!(ax, k_ℓ; color, linestyle = :dot)
-#     text!(ax, L"\frac{2π}{ℓ}"; position = @lift((k_ℓ, $ybottom)), offset = (6, 4), align = (:left, :bottom), color)
-# end
-# lines!(ax, ks_fine, ωs_small_k; color = :orangered, linestyle = :dash, linewidth = 1.5)
-# lines!(ax, ks_fine, ωs_rajagopal; color = (:lightgreen, 0.8), linestyle = :dash, linewidth = 1.5, label = L"(2 - J) Ω + \frac{κ}{4π} \ln(2π/ka)")
-let color = :chocolate, n = searchsortedlast(ks_fine, 6.0)
-    lines!(ax, ks_fine .* ℓ, ωs_ℓ; color, linestyle = :dash, linewidth = 2.0, label = L"2Ω + \frac{κ k^2}{4π} \ln(ℓ/a)")
-    annotation!(
-        ax, 20 + ks_fine[n] * ℓ, 2.0 * ωs_ℓ[n], ks_fine[n] * ℓ, ωs_ℓ[n];
-        color, text = L"-2Ω - \frac{κ k^2}{4π} \ln(ℓ/a)", fontsize = fontsize + 2,
-        style = Ann.Styles.LineArrow(),
-    )
-end
-# axislegend(ax; position = (0, 0), framevisible = false, labelcolor = :white, labelsize = 16)
-# DataInspector(fig)
-xlims!(ax, 0, 1.25)
-ax.xticks = range(0, 1.2; step = 0.2)
-ylims!(ax, -120, 0)
-let bg = fig.scene.backgroundcolor[]
-    fig.scene.backgroundcolor[] = RGBAf(0, 0, 0, 0)
-    save("rotation_dispersion.svg", fig; backend = CairoMakie)
-    fig.scene.backgroundcolor[] = bg
-end
-fig
+analyse_kelvin_waves(results)

@@ -70,46 +70,20 @@ function filaments_from_functions(funcs::NTuple{N, F}, args...) where {N, F <: F
     (f, f_next...)
 end
 
-function generate_straight_lines(::Type{T}, L, N, method; p::PeriodicLine = PeriodicLine()) where {T}
-    funcs = let L = L
+function generate_straight_lines(::Type{T}, Ls, N, method; p::PeriodicLine = PeriodicLine()) where {T}
+    funcs = let Ls = Ls
+        Lx, Ly, Lz = Ls
         (
-            define_curve(p; scale = (+1, +1, +L), translate = (1L/4, 1L/4, L/2), orientation = +1),
-            define_curve(p; scale = (-1, +1, +L), translate = (3L/4, 1L/4, L/2), orientation = -1),
-            define_curve(p; scale = (+1, -1, +L), translate = (1L/4, 3L/4, L/2), orientation = -1),
-            define_curve(p; scale = (-1, -1, +L), translate = (3L/4, 3L/4, L/2), orientation = +1),
+            define_curve(p; scale = (+1, +1, +Lz), translate = (1Lx/4, 1Ly/4, Lz/2), orientation = +1),
+            define_curve(p; scale = (-1, +1, +Lz), translate = (3Lx/4, 1Ly/4, Lz/2), orientation = -1),
+            define_curve(p; scale = (+1, -1, +Lz), translate = (1Lx/4, 3Ly/4, Lz/2), orientation = -1),
+            define_curve(p; scale = (-1, -1, +Lz), translate = (3Lx/4, 3Ly/4, Lz/2), orientation = +1),
         )
     end
     collect(filaments_from_functions(funcs, ClosedFilament{T}, N, method))
 end
 
-function generate_biot_savart_parameters(::Type{T}) where {T}
-    # Parameters are relevant for HeII if we interpret dimensions in cm and s.
-    cm = 1.0    # one cm = 1 length unit
-    sec = 1.0   # one second = 1 time unit
-    L = 2π      # period in length units
-    Γ = 9.97e-4 * cm^2/sec
-    a = 1e-8 * cm
-    Δ = 1/4
-    Ngrid = floor(Int, 32)
-    Ns = (Ngrid, Ngrid, Ngrid)
-    kmax = (Ngrid ÷ 2) * 2π / L
-    Ls = (L, L, L)
-    β = 4.5
-    α = kmax / 2β
-    rcut = β / α
-    ParamsBiotSavart(
-        T;
-        Γ, α, a, Δ, rcut, Ls, Ns,
-        # backend_short = CellListsBackend(2),
-        backend_short = NaiveShortRangeBackend(),  # needed when rcut ≈ L/2 (which is the case here, since Ngrid is small)
-        backend_long = NonuniformFFTsBackend(; σ = 1.5, m = HalfSupport(8)),
-        # backend_long = FINUFFTBackend(tol = 1e-8),
-        # backend_long = ExactSumBackend(),
-        quadrature = GaussLegendre(4),
-    )
-end
-
-function run_unforced_lines(
+function run_simulation(
         params::ParamsBiotSavart;
         N = 128,
         tend = 10.0,  # final time
@@ -121,19 +95,20 @@ function run_unforced_lines(
     )
     all(>(0), ks_init) || throw(ArgumentError("ks_init can only contain positive values"))
     T = eltype(params)  # numerical precision (e.g. Float64)
-    L = params.Ls[3]  # = Lz
+    (; Ls,) = params
+    Lz = Ls[3]
     println(params)
 
     # Generate perturbed lines
-    rng = Random.Xoshiro(42)
+    rng = Random.Xoshiro(43)
     ks_init_all = let kf = convert(Vector{T}, ks_init)  # initialised wavenumbers (in the z direction)
         append!(kf, -kf)  # also initialise negative wavenumbers
         kf
     end
     filaments = let ks = ks_init_all
-        # α = -2
+        α = -2
         # α = -11/3
-        α = -5
+        # α = -5
         ws = randn(rng, Complex{T}, length(ks))  # random complex perturbation (includes random amplitudes + phases)
         for i ∈ eachindex(ks, ws)
             ws[i] *= abs(ks[i])^(α/2)
@@ -143,11 +118,11 @@ function run_unforced_lines(
         r_pert(t) = sum(eachindex(ks)) do i
             ws[i] * cispi(2 * ks[i] * t)
         end
-        generate_straight_lines(T, L, N, method; p = PeriodicLine(r = r_pert))
+        generate_straight_lines(T, Ls, N, method; p = PeriodicLine(r = r_pert))
     end
 
     # Simulation timestep
-    dt_kw = BiotSavart.kelvin_wave_period(params, L/N)  # period of smallest resolved KWs
+    dt_kw = BiotSavart.kelvin_wave_period(params, Lz/N)  # period of smallest resolved KWs
     dt = dt_kw * dt_factor
 
     # Callback function to be called after each timestep
@@ -159,27 +134,30 @@ function run_unforced_lines(
     ws_time = Complex{T}[]
 
     function affect!(iter)
-        for f ∈ iter.fs
-            redistribute_along_z!(f)  # make sure nodes are uniformly distributed in z
-        end
+        local (; Ls) = iter.prob.p
+        # for f ∈ iter.fs
+        #     redistribute_along_z!(f)  # make sure nodes are uniformly distributed in z
+        # end
         nothing
     end
 
+    tsf = TimeSeriesFile()
+
     function callback(iter)
-        (; nstep, t,) = iter
+        local (; nstep, t,) = iter
         Tend = iter.prob.tspan[2]
         if nstep == 0  # make sure vectors are empty at the beginning of the simulation
             empty!(times)
             empty!(energy)
             empty!(line_length)
         end
-        E = Diagnostics.kinetic_energy_from_streamfunction(iter)
+        E = Diagnostics.kinetic_energy(iter)
         Lvort = Diagnostics.filament_length(iter)
         push!(times, t)
         push!(energy, E)
         push!(line_length, Lvort)
-        local L_growth = Lvort/4L - 1  # relative growth of vortex lines
-        let f = iter.fs[2]
+        local L_growth = Lvort / (length(iter.fs) * L) - 1  # relative growth of vortex lines
+        let f = iter.fs[1]
             local N = length(f)
             sizehint!(ws_time, length(ws_time) + N)
             for s⃗ ∈ nodes(f)
@@ -188,9 +166,15 @@ function run_unforced_lines(
         end
         if nstep % 100 == 0
             @show nstep, t/Tend, E, L_growth
-            # write_vtkhdf("vtk/kws_$nstep.vtkhdf", iter.fs) do vtk
-            #     vtk["velocity"] = iter.vs
-            # end
+            mkpath("checkpoints")
+            local fname = "kws_$nstep.vtkhdf"
+            cd("checkpoints") do
+                save_checkpoint(fname, iter) do vtk
+                    vtk["velocity"] = iter.vs
+                end
+                tsf[t] = fname
+                save("kws.vtkhdf.series", tsf)
+            end
         end
         nothing
     end
@@ -202,8 +186,8 @@ function run_unforced_lines(
 
     iter = init(
         prob, scheme;
-        dt,
-        callback, affect!,
+        dt, callback,
+        affect!,
     )
     @time solve!(iter)
     println(iter.to)
@@ -228,30 +212,35 @@ end
 
 ##
 
-params = generate_biot_savart_parameters(Float64)
+L = 2π
+Ls = (L, L, L)
+rcut = L / 3
+params = ParamsBiotSavart(;
+    Γ = 1.0, a = 1e-7, Δ = 1/2,
+    splitting = KaiserBesselSplitting(; Ls, rtol = 1e-6, rcut),
+    quadrature = GaussLegendre(3),        # quadrature for integrals over filament segments
+    quadrature_near_singularity = GaussLegendre(3),
+    backend_long = NonuniformFFTsBackend(m = HalfSupport(4)),
+    backend_short = CellListsBackend(1),
+)
+println('\n', params)
 
-# This roughly corresponds to the initial perturbation used by Krstulovic (PRE 2012) in GP
-# simulations (runs II, III).
-# In the paper, the first two modes are forced. The perturbation amplitude is A = 4ξ (with
-# ξ the healing length), and ξ = Δx = L/N⟂ ≈ 0.025, where L = 2π, and N⟂ = 256 is the resolution in
-# the perpendicular directions. So, in terms of the wavelength λ_max of the largest initialised
-# KW, the amplitude is A = 4 * λ_max / 256.
-ks_init = [1, 2]
+ks_init = 1:5
 Lz = params.Ls[3]
-λ_max = Lz / maximum(ks_init)
-A = 4 * λ_max / 256
+λ_max = Lz / minimum(ks_init)
+# A = 0.01 * λ_max
+A = 0.02 * λ_max
 
 T_kw = BiotSavart.kelvin_wave_period(params, λ_max)  # period of slowest Kelvin waves
-tend = 1.0 * T_kw  # simulation time
+tend = 0.5 * T_kw  # simulation time
 
-results = run_unforced_lines(
+results = run_simulation(
     params;
     N = 128, tend, A,
     ks_init,
-    method = FourierMethod(),
-    # scheme = Strang(RK4(); nsubsteps = 1),
+    method = QuinticSplineMethod(),
     scheme = RK4(),
-    dt_factor = 1.0,
+    dt_factor = 0.5,
 );
 
 ## Plot spatiotemporal spectrum of filament fluctuations (dispersion relation)
@@ -302,9 +291,10 @@ fig = Figure()
 ax = Axis(fig[1, 1]; xlabel = L"k", ylabel = L"ω")
 hm = heatmap!(
     ax, ks_shift, ωs_shift, amplitudes;
-    colorrange = (-40, -10),
+    colorrange = (-30, -10),
 )
-lines!(ax, ks_pos, ωs_kw; color = (:white, 0.2), linestyle = :dash)
+lines!(ax, ks_pos, -ωs_kw; color = (:black, 0.5), linestyle = :dash)
+lines!(ax, -ks_pos, -ωs_kw; color = (:black, 0.5), linestyle = :dash)
 Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}(k,\,ω)|^2", labelsize = 20)
 DataInspector(fig)
 fig
