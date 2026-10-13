@@ -132,33 +132,6 @@ function integrate_incremental!(f::F, ys, xs; quad) where {F}
     ys
 end
 
-# Adapted from MakieExtra.jl: transform between :data and :relative spaces in Makie plots.
-data2rel(ax::Axis, which::Symbol, orig) = transform_val_space(ax, which, :data => :relative, orig)
-rel2data(ax::Axis, which::Symbol, orig) = transform_val_space(ax, which, :relative => :data, orig)
-
-transform_val_space(ax, which::Symbol, args...) = transform_val_space(ax, Dict(:x=>1, :y=>2)[which], args...)
-
-function transform_val_space(ax::Axis, which::Int, spaces::Pair{Symbol,Symbol}, orig::Union{Tuple,AbstractVector})
-    scene = Makie.get_scene(ax)
-    lift(scene.camera.projectionview, Makie.plots(ax)[1].model, Makie.transform_func(ax), scene.viewport, orig) do _, _, tf, _, orig
-        tf_cur = Base.setindex(tf, identity, 3 - which)
-        if spaces[1] == :data
-            # orig = map(|>, orig, tf_cur)
-            orig = map((f, x) -> f(x), tf_cur, orig)
-        end
-        new = Makie.project(scene.camera, spaces..., Point2(orig))
-        if spaces[2] == :data
-            new = Point2(map((f, x) -> InverseFunctions.inverse(f)(x), tf_cur, new))
-        end
-        Base.setindex(orig, new[which], which)
-    end
-end
-
-function transform_val_space(ax::Axis, which::Int, spaces::Pair{Symbol,Symbol}, orig::Number)
-    new = transform_val_space(ax, which, spaces, Base.setindex((1, 1), orig, which))
-    @lift $new[which]
-end
-
 # Perform "imaginary-time" evolution to find a stable equilibrium (minimal energy) configuration.
 function find_stable_equilibrium!(xs::AbstractVector{T}, ys::AbstractVector{T}; Ls, rtol = T(1e-6), verbose = false, checkpoints = false) where {T}
     # We perform a pseudo-2D simulation with very few points in z.
@@ -288,7 +261,9 @@ function run_simulation(;
     )
     #== Biot-Savart parameters ==#
     rcut = min(Ls...) * rcut_factor
-    params = ParamsBiotSavart(;
+    T = typeof(Γ)  # usually Float64
+    params = ParamsBiotSavart(
+        T;
         Γ, a, Δ,
         # splitting = GaussianSplitting(; Ls, β = 3.5, rcut),
         splitting = KaiserBesselSplitting(; Ls, β = 14.0, rcut),
@@ -538,16 +513,14 @@ function analyse_kelvin_waves(results)
     )
     Colorbar(fig[1, 2], hm; label = L"\log \, |\hat{w}|^2")
     hlines!(ax, 0; color = :black, linestyle = :dash, linewidth = 1)
-    xright = rel2data(ax, :x, 1.0)  # rightmost coordinate (in data space)
-    ybottom = rel2data(ax, :y, 0.0)
-    text!(ax, L"0"; position = @lift(($xright, 0)), offset = (-4, +2), align = (:right, :bottom), color = :white)
     let color = :chartreuse3
-        hlines!(ax, -2; color, linestyle = :dash, linewidth = 2)
-        text!(ax, L"-2Ω"; position = @lift(($xright, -2)), offset = (-4, -4), align = (:right, :top), color, fontsize = fontsize + 2)
+        ls = hlines!(ax, -2; color, linestyle = :dash, linewidth = 2)
+        pos_end = @lift($(ls.points)[2])  # the hline connects two points: [start, end] (in data coordinates)
+        text!(ax, pos_end; text = L"-2Ω", offset = (-4, -4), align = (:right, :top), color, fontsize = fontsize + 2)
     end
     # let color = :lightblue
     #     vlines!(ax, k_ℓ; color, linestyle = :dot)
-    #     text!(ax, L"\frac{2π}{ℓ}"; position = @lift((k_ℓ, $ybottom)), offset = (6, 4), align = (:left, :bottom), color)
+    #     text!(ax, @lift((k_ℓ, $ybottom)); text = L"\frac{2π}{ℓ}", offset = (6, 4), align = (:left, :bottom), color)
     # end
     # lines!(ax, ks_fine, ωs_small_k; color = :orangered, linestyle = :dash, linewidth = 1.5)
     # lines!(ax, ks_fine, ωs_rajagopal; color = (:lightgreen, 0.8), linestyle = :dash, linewidth = 1.5, label = L"(2 - J) Ω + \frac{κ}{4π} \ln(2π/ka)")
