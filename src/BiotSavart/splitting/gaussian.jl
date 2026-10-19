@@ -270,7 +270,7 @@ using .SIMDFunctions: SIMDFunctions
     a, b
 end
 
-@inline function weights_shortrange_nosimd(backend::KA.Backend, g::GaussianSplitting, r)
+@inline function weights_shortrange_nosimd(backend::DeviceType, g::GaussianSplitting, r)
     (; α,) = g
     αr = α * r
     a = erfc_nosimd(backend, αr)
@@ -287,7 +287,7 @@ end
 #     a, b
 # end
 
-@inline function weights_longrange_nosimd(backend::KA.Backend, g::GaussianSplitting, r)
+@inline function weights_longrange_nosimd(backend::DeviceType, g::GaussianSplitting, r)
     (; α,) = g
     αr = α * r
     a = erf_nosimd(backend, αr)
