@@ -26,5 +26,8 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 VortexPasta = "3d0f1e53-df37-477e-a492-0d33e6039c24"
 
+[compat]
+KernelAbstractions = "0.10"
+
 [sources]
 VortexPasta = {path = ".."}
