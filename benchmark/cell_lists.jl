@@ -1,7 +1,7 @@
 module CellListsBenchmarks
 
-# ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
-# ENV["POCL_CPU_MAX_CU_COUNT"] = Threads.nthreads()  # limit number of CPU threads used by OpenCLBackend (based on POCL)
+ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
+ENV["POCL_CPU_MAX_CU_COUNT"] = Threads.nthreads()  # limit number of CPU threads used by POCLBackend
 # ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
 
 using VortexPasta.CellLists

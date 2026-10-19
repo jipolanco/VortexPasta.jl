@@ -14,6 +14,10 @@
 using Test
 using InteractiveUtils: versioninfo
 
+ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
+ENV["POCL_CPU_MAX_CU_COUNT"] = Threads.nthreads()  # limit number of CPU threads used by POCLBackend
+# ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
+
 # Wraps each test file in a separate module, to avoid definition clashes and to make sure
 # that each file can also be run as a standalone script.
 macro includetest(testname::String, path::String)
