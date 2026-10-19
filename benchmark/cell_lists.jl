@@ -5,22 +5,17 @@ module CellListsBenchmarks
 # ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
 
 using VortexPasta.CellLists
+using VortexPasta.CellLists: CPU
 using StaticArrays: SVector
 using StableRNGs: StableRNG
-using KernelAbstractions: KernelAbstractions as KA, CPU
+using KernelAbstractions: KernelAbstractions as KA, POCLBackend
 using SIMD: SIMD
 using BenchmarkTools
 using Adapt: adapt
-# using OpenCL, pocl_jll
 
 using ThreadPinning
 pinthreads(:cores)
 threadinfo()
-
-# Print OpenCL information
-# OpenCL.versioninfo()
-# @show cl.platform()
-# @show cl.device()
 
 @inline function deperiodise_separation_folded(r⃗::Vec, Ls, Ls_half) where {Vec}
     map(deperiodise_separation_folded, r⃗, Vec(Ls), Vec(Ls_half))::typeof(r⃗)
@@ -174,7 +169,7 @@ function main()
 
     backends = [
         "CPU" => CPU(),
-        # "OpenCLBackend" => OpenCLBackend(),
+        "POCLBackend" => POCLBackend(),
     ]
 
     for (backend_name, backend) in backends, nsubdiv in 1:2
