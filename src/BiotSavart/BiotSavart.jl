@@ -428,6 +428,7 @@ function do_longrange!(
                 copy_host_to_device!(pointdata.points, pointdata_cpu.points, pointdata.buf_host)
                 copy_host_to_device!(pointdata.charges, pointdata_cpu.charges, pointdata.buf_host)
             end
+            @assert pointdata.points !== pointdata_cpu.points  # we don't want to modify `pointdata_cpu`!
             @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
 
             # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
@@ -554,7 +555,7 @@ function _compute_on_nodes!(
     if with_shortrange
         @debug "Computing short-range interactions asynchronously" KA.get_backend(cache.shortrange)
         let cache = cache.shortrange
-        # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
+            # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
             # Compute short-range part asynchronously (e.g. on a GPU).
             local task = Threads.@spawn :interactive try

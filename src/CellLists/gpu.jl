@@ -65,7 +65,8 @@ end
 @kernel function foreach_pair_kernel(
         f::F, @Const(head_indices::PaddedArray{M}), @Const(next_index), @Const(xp_dest),
         Ls, @Const(pointperm_dest),
-        ::Val{M}, folded::Val,  # = number of subdivisions (equal to number of ghost cells)
+        ::Val{M},  # = number of subdivisions (equal to number of ghost cells)
+        folded::Val,
     ) where {F <: Function, M}
     i₀ = @index(Global, Linear)
     i = if pointperm_dest === nothing

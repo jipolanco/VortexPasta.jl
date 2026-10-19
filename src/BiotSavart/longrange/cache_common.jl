@@ -92,7 +92,7 @@ function LongRangeCacheCommon(
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed
     pointdata = adapt(ka_backend, pointdata_in)   # create PointData replica on the device
-    if pointdata === pointdata_in    # if they are aliased (typically the case with CPU or POCLBackend)
+    if pointdata.points === pointdata_in.points   # if they are aliased (typically the case with CPU or POCLBackend)
         pointdata = copy(pointdata)  # make sure pointdata and pointdata_in are not aliased!
     end
     outputs = (;
