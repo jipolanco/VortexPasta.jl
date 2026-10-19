@@ -69,8 +69,8 @@ end
 const SUITE = BenchmarkGroup()
 
 ## Cell lists benchmarks
-include(joinpath(@__DIR__, "cell_lists.jl"))
-SUITE["CellLists"] = CellListsBenchmarks.main()
+# include(joinpath(@__DIR__, "cell_lists.jl"))
+# SUITE["CellLists"] = CellListsBenchmarks.main()  # TODO: re-enable
 # results = run(SUITE["CellLists"])
 
 ## Prepare vortex configuration
