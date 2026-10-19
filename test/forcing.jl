@@ -7,15 +7,12 @@ using VortexPasta.FilamentIO
 using VortexPasta.SyntheticFields
 using VortexPasta.Timestepping
 using VortexPasta.Diagnostics
-using OpenCL, pocl_jll
-using KernelAbstractions: KernelAbstractions as KA
+using KernelAbstractions: KernelAbstractions as KA, POCLBackend
 using LinearAlgebra: ×, norm
 using UnicodePlots
 using Random
 using StableRNGs
 using Test
-
-DISABLE_OPENCL_TESTS::Bool = get(ENV, "JULIA_DISABLE_OPENCL_TESTS", "false") == "true"
 
 function generate_biot_savart_parameters(::Type{T}; aspect, L = 2π, rcut = L / 3, kws...) where {T}
     Γ = 1.0
@@ -68,20 +65,11 @@ function simulate(
     reconnect = ReconnectBasedOnDistance(δ / 2)
     refinement = RefineBasedOnSegmentLength(0.8 * δ)
     adaptivity = AdaptBasedOnSegmentLength(dt_factor) | AdaptBasedOnVelocity(δ / 2)
-    iter = if KA.get_backend(prob.p.longrange.backend) isa OpenCLBackend || KA.get_backend(prob.p.shortrange.backend) isa OpenCLBackend
-        # Things are not fully inferred when using OpenCLBackend
-        init(
-            prob, RK4();
-            forcing, dissipation, affect_t!, callback,
-            dt, reconnect, refinement, adaptivity,
-        )
-    else
-        @inferred init(
-            prob, RK4();
-            forcing, dissipation, affect_t!, callback,
-            dt, reconnect, refinement, adaptivity,
-        )
-    end
+    iter = @inferred init(
+        prob, RK4();
+        forcing, dissipation, affect_t!, callback,
+        dt, reconnect, refinement, adaptivity,
+    )
     if affect_t! !== Returns(nothing)
         @test match(r"affect_t\!: Function", repr(iter)) !== nothing  # check that affect_t! appears in println(iter)
     end
@@ -529,10 +517,7 @@ end
             plots && plot_spectra(spectra; title = "Forcing + dissipation")
         end
 
-        # OpenCLBackend only works correctly starting from v1.12.
-        # On v1.11: "ERROR: Your device does not support SPIR-V, which is currently required for native execution."
-        if VERSION ≥ v"1.12" && !DISABLE_OPENCL_TESTS
-            backend_gpu = OpenCLBackend()
+        let backend_gpu = POCLBackend()
             @testset "Forcing + dissipation ($backend_gpu, SmallScaleDissipationBS)" begin
                 backend_long = NonuniformFFTsBackend(backend_gpu; σ = 1.5, m = HalfSupport(4))
                 backend_short = CellListsBackend(backend_gpu)
