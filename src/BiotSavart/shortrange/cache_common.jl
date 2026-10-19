@@ -20,10 +20,9 @@ function ShortRangeCacheCommon(params::ParamsShortRange, pointdata_in::PointData
     # be performed. We need arrays to be allocated in that device.
     expected_device = KA.device(backend)  # 1, 2, ...
     @assert KA.device(ka_backend) == expected_device
-    pointdata = if ka_backend isa CPU
-        copy(pointdata_in)  # make sure pointdata and pointdata_in are not aliased!
-    else
-        adapt(ka_backend, pointdata_in)  # create PointData replica on the device
+    pointdata = adapt(ka_backend, pointdata_in)   # create PointData replica on the device
+    if pointdata === pointdata_in    # if they are aliased (typically the case with CPU or POCLBackend)
+        pointdata = copy(pointdata)  # make sure pointdata and pointdata_in are not aliased!
     end
     splitting_d = adapt(ka_backend, splitting)  # splitting
     outputs = (;
