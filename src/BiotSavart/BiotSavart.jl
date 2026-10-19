@@ -22,6 +22,7 @@ export
 public init_cache
 
 using ..Constants: Zero, One, Infinity, ∞
+using ..Devices: Devices, CPU, GPU, DeviceType
 
 using ..Quadratures:
     Quadratures, quadrature, NoQuadrature, GaussLegendre,
@@ -41,8 +42,7 @@ using SpecialFunctions: SpecialFunctions  # erf, erfc, besseli, ...
 
 using KernelAbstractions:
     KernelAbstractions,  # importing this avoids docs failure
-    KernelAbstractions as KA, @kernel, @index, @Const,
-    CPU, GPU
+    KernelAbstractions as KA, @kernel, @index, @Const
 using AcceleratedKernels: AcceleratedKernels as AK
 
 using StructArrays: StructArrays, StructVector, StructArray
@@ -69,7 +69,7 @@ const VectorOfPositions = VectorOfVec
 const VectorOfVelocities = VectorOfVec
 const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
 
-include("ka_utils.jl")
+include("devices.jl")
 include("host_device_transfers.jl")
 include("pointdata.jl")
 include("splitting/splitting.jl")
@@ -649,10 +649,10 @@ Copy computed values onto a vector of vectors.
 function copy_output_values_on_nodes!(
         op::F, vs::AbstractVector, vs_d::AbstractVector, buf::Union{Nothing, HostVector} = nothing,
     ) where {F <: Function}
-    backend = KA.get_backend(vs_d)
+    backend = KA.get_backend(something(buf, vs_d))
     T = Filaments.number_type(vs_d)
     n = length(vs_d)
-    buf_host = if backend isa CPU
+    buf_host = if backend isa CPU  # if vs_d is on the CPU
         nothing  # we don't need a buffer if doing CPU -> CPU copy
     elseif buf === nothing
         HostVector{T}(undef, backend, n)
@@ -684,7 +684,7 @@ function _copy_output_values_on_nodes!(backend::GPU, op::F, vs::AllFilamentVeloc
     _copy_output_values_on_nodes!(CPU(), op, vs, i, buf_host)  # finally, perform CPU -> CPU copy
 end
 
-# CPU -> CPU copy (change of vector "format")
+# CPU -> CPU copy (change of vector "format", no intermediate buffer needed)
 function _copy_output_values_on_nodes!(::CPU, op::F, vs::AllFilamentVelocities, vs_h::AbstractVector, ignored = nothing) where {F}
     @sync for chunk in FilamentChunkIterator(vs)
         Threads.@spawn for (i, inds, n) in chunk

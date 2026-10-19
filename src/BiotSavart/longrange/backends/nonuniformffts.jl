@@ -4,6 +4,9 @@ using NonuniformFFTs: NonuniformFFTs, HalfSupport
 using AbstractFFTs: rfftfreq, fftfreq
 using FFTW: FFTW
 
+to_nonuniformffts_backend(::CPU) = NonuniformFFTs.CPU()
+to_nonuniformffts_backend(backend::GPU) = backend
+
 """
     NonuniformFFTsBackend <: LongRangeBackend
 
@@ -96,7 +99,7 @@ splitting based on Gaussian smoothing (see [`GaussianSplitting`](@ref)).
 """
 struct NonuniformFFTsBackend{
         HS <: HalfSupport, OversamplingFactor <: Real,
-        BackendKA <: KA.Backend,
+        BackendKA <: DeviceType,
         KwArgs <: NamedTuple,
     } <: LongRangeBackend
     m :: HS
@@ -105,7 +108,7 @@ struct NonuniformFFTsBackend{
     ka_device  :: Int
     kws :: KwArgs
     function NonuniformFFTsBackend(
-            backend::KA.Backend = ka_default_cpu_backend();
+            backend::DeviceType = CPU();
             device::Integer = 1,
             σ = 1.5,
             m = HalfSupport(4),
@@ -113,7 +116,10 @@ struct NonuniformFFTsBackend{
             use_atomics = Threads.nthreads() > 4,
             other...,
         )
-        kws = (; backend, fftw_flags, use_atomics, other...,)
+        kws = (;
+            backend = to_nonuniformffts_backend(backend), fftw_flags, use_atomics,
+            other...,
+        )
         hs = to_halfsupport(m)
         KA.device!(backend, device)  # this will fail if `device` is an invalid device id
         new{typeof(hs), typeof(σ), typeof(backend), typeof(kws)}(hs, σ, backend, device, kws)

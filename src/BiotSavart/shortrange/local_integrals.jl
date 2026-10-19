@@ -11,7 +11,7 @@ function remove_self_interaction!(outputs::NamedTuple, cache::ShortRangeCache)
     outputs
 end
 
-function _remove_self_interaction!(ka_backend::KA.Backend, avoid_explicit_erf::Val, outputs::NamedTuple{Names}, cache) where {Names}
+function _remove_self_interaction!(ka_backend::DeviceType, avoid_explicit_erf::Val, outputs::NamedTuple{Names}, cache) where {Names}
     (; splitting, pointdata, params) = cache
     (; nodes, node_idx_prev, points, charges,) = pointdata
     (; Ls, Γ, quad) = params.common

@@ -1,7 +1,7 @@
 ## ========================================================================================== ##
 
 """
-    HostVector{T, Backend <: KA.Backend} <: DenseVector{T}
+    HostVector{T, Backend <: DeviceType} <: DenseVector{T}
 
 CPU vector involved in host-device transfers.
 
@@ -11,21 +11,21 @@ The vector is always pagelocked (pinned) for efficient transfers.
 
 # Construction
 
-    HostVector{T}(undef, backend::KA.Backend, n::Int)
+    HostVector{T}(undef, backend::DeviceType, n::Int)
 
 where:
 
 - `T` is the element type (e.g. `Float64`);
-- `backend` is a KernelAbstractions backend (such as `CUDABackend` or `ROCBackend`);
+- `backend` is either `BiotSavart.CPU()` or a KernelAbstractions backend (such as `CUDABackend` or `ROCBackend`);
 - `n` is the vector length.
 """
-mutable struct HostVector{T, Backend <: KA.Backend} <: DenseVector{T}
+mutable struct HostVector{T, Backend <: DeviceType} <: DenseVector{T}
     data::Memory{T}  # length ≥ n
     n::Int  # logical length (exposed to the user)
     backend::Backend
 end
 
-function HostVector{T}(::UndefInitializer, backend::KA.Backend, n::Int) where {T}
+function HostVector{T}(::UndefInitializer, backend::DeviceType, n::Int) where {T}
     data = Memory{T}(undef, n)
     v = HostVector(data, n, backend)
     pagelock!(v)
@@ -33,7 +33,7 @@ function HostVector{T}(::UndefInitializer, backend::KA.Backend, n::Int) where {T
     v
 end
 
-function Adapt.adapt_structure(backend::KA.Backend, v::HostVector{T}) where {T}
+function Adapt.adapt_structure(backend::DeviceType, v::HostVector{T}) where {T}
     HostVector{T}(undef, backend, length(v))
 end
 
@@ -50,8 +50,8 @@ Base.IndexStyle(::Type{<:HostVector}) = IndexLinear()
 # Moreover, KA doesn't provide the flexibility we need. For example, on CUDA we want to set
 # the CU_MEMHOSTREGISTER_PORTABLE flag so that memory is considered to be pinned by all
 # available GPUs (useful if we're doing multi-GPU).
-pagelock!(backend::KA.Backend, A::DenseArray) = nothing
-unpagelock!(backend::KA.Backend, A::DenseArray) = nothing
+pagelock!(backend::DeviceType, A::DenseArray) = nothing
+unpagelock!(backend::DeviceType, A::DenseArray) = nothing
 
 pagelock!(v::HostVector) = pagelock!(v.backend, v.data)
 unpagelock!(v::HostVector) = unpagelock!(v.backend, v.data)

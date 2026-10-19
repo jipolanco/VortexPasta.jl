@@ -16,9 +16,11 @@ export PeriodicCellList, static, nearby_elements
 public set_elements!, foreach_pair, foreach_source
 
 using ..PaddedArrays: PaddedArrays, PaddedArray, pad_periodic!
+using ..Devices: CPU, GPU, DeviceType
+
 using AcceleratedKernels: AcceleratedKernels as AK
 using Atomix: Atomix
-using KernelAbstractions: KernelAbstractions as KA, CPU, GPU
+using KernelAbstractions: KernelAbstractions as KA
 using Static: StaticInt, static, dynamic
 using StaticArrays: MVector
 
@@ -75,7 +77,7 @@ cl = PeriodicCellList(backend, ...)
 struct PeriodicCellList{
         N,  # spatial dimension
         M,  # number of cell subdivisions (≥ 1)
-        KABackend <: KA.Backend,
+        KABackend <: DeviceType,
         HeadArray <: PaddedArray{M, Int, N},  # array of cells, each containing a list of elements
         IndexVector <: AbstractVector{Int},
         Periods <: NTuple{N, Real},
@@ -115,7 +117,7 @@ subdivisions(::PeriodicCellList{N, M}) where {N, M} = M
 max_cutoff_distance(M::Integer, L::AbstractFloat) = oftype(L, M / (2M + 1)) * L
 
 function PeriodicCellList(
-        backend::KA.Backend,
+        backend::DeviceType,
         rs_cut::NTuple{N, Real},
         Ls::NTuple{N, Real},
         nsubdiv::StaticInt = static(1),

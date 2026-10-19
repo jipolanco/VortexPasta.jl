@@ -1,20 +1,20 @@
-# KernelAbstractions utils (CPU/GPU kernels)
+# Tools for working with CPU and GPU devices (via KernelAbstractions.jl)
 
 """
-    KernelAbstractions.get_backend(backend::AbstractBackend) -> KernelAbstractions.Backend
-    KernelAbstractions.get_backend(cache::ShortRangeCache) -> KernelAbstractions.Backend
-    KernelAbstractions.get_backend(cache::LongRangeCache) -> KernelAbstractions.Backend
+    KernelAbstractions.get_backend(backend::AbstractBackend) -> Union{CPU, KA.Backend}
+    KernelAbstractions.get_backend(cache::ShortRangeCache) -> Union{CPU, KA.Backend}
+    KernelAbstractions.get_backend(cache::LongRangeCache) -> Union{CPU, KA.Backend}
 
-Get KernelAbstractions (KA) backend associated to a given short-range or long-range backend.
+Get device type (CPU or KernelAbstractions GPU backend) associated to a given short-range or long-range backend.
 
 !!! note
 
     The word "backend" means two different things here!
-    For KA, it refers to the type of device where kernels are executed (e.g. `CPU`, `CUDABackend`, ...).
+    For KA, it refers to the type of device where kernels are executed (e.g. `CUDABackend`, `POCLBackend`, ...).
 
-By default this returns `KA.CPU()`, meaning that things are run on the CPU using threads.
+By default this returns `BiotSavart.CPU()`, meaning that things are run on the CPU using threads.
 """
-KA.get_backend(::AbstractBackend) = ka_default_cpu_backend()
+KA.get_backend(::AbstractBackend) = CPU()
 
 """
     KernelAbstractions.device(backend::AbstractBackend) -> Int
@@ -41,21 +41,17 @@ function activate_device!(cache)
     KA.device!(backend, device)
 end
 
-ka_default_cpu_backend() = KA.CPU()
-
-# Default workgroup size used for running KA kernels.
-function ka_default_workgroupsize(::KA.CPU, dims::Dims)
-    # On the CPU, use KA's default, which currently tries to creates blocks of 1024 work
-    # items. Note that we're calling an internal function which may change in the future!
-    KA.default_cpu_workgroupsize(dims)
+@inline function default_workgroupsize(ndrange::Dims, max_items::Int = 512)
+    n = min(max_items, ndrange[1])
+    (n, default_workgroupsize(Base.tail(ndrange), max_items ÷ n)...)
 end
 
-function ka_default_workgroupsize(::KA.GPU, dims::Dims)
-    # On the GPU, we divide the work across the first dimension and try to use 512 GPU
-    # threads per workgroup.
-    wgsize_wanted = 512
-    x = map(one, dims)  # = (1, 1, 1) in 3D
-    Base.setindex(x, min(dims[1], wgsize_wanted), 1)  # usually (wgsize_wanted, 1, 1)
+@inline default_workgroupsize(::Tuple{}, max_items::Int) = ()
+
+# Default workgroup size used for running KA kernels.
+function ka_default_workgroupsize(::DeviceType, ndrange::Dims)
+    # Try to use up to 512 work items (GPU threads) per workgroup.
+    default_workgroupsize(ndrange, 512)
 end
 
 """
@@ -73,11 +69,12 @@ By default, the workgroupsize is determined automatically and may depend on the 
 backend (CPU, GPU) and on the array dimensions `ndrange = size(x)`.
 """
 function ka_generate_kernel(
-        kernel::F, backend::KA.Backend, u::AbstractArray;
+        kernel::F, backend::DeviceType, u::AbstractArray;
         workgroupsize = ka_default_workgroupsize(backend, size(u)),
     ) where {F <: Function}
     ndrange = size(u)
-    kernel(backend, workgroupsize, ndrange)
+    backend_ka = Devices.to_ka_backend(backend)  # converts CPU() -> POCLBackend()
+    kernel(backend_ka, workgroupsize, ndrange)
 end
 
 # Resize vector trying to avoid copy when N is larger than the original length.
