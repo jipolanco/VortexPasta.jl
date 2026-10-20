@@ -34,7 +34,8 @@ Base.show(io::IO, ::NoSplitting) = print(io, "NoSplitting()")
 Base.summary(io::IO, g::NoSplitting) = show(io, g)
 
 @inline weights_shortrange_simd(::NoSplitting, r) = one(r), zero(r)
-@inline weights_shortrange_nosimd(::KA.Backend, ::NoSplitting, r) = one(r), zero(r)
+@inline weights_shortrange_nosimd(::DeviceType, ::NoSplitting, r) = one(r), zero(r)
+@inline weights_longrange_nosimd(::DeviceType, ::NoSplitting, r) = zero(r), zero(r)
 
 # There's no long-range when splitting is disabled.
 # @inline weights_longrange_simd(g::NoSplitting, r) = zero(r), zero(r)

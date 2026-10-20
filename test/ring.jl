@@ -216,10 +216,14 @@ function test_local_induced_approximation(ring)
 end
 
 function biot_savart_parameters(::Type{T}; splitting = NoSplitting(), kws...) where {T}
-    ParamsBiotSavart(T; Γ = 1.0, splitting, a = 1e-8, Δ = 1/4, kws...)
+    ParamsBiotSavart(
+        T; Γ = 1.0, splitting, a = 1.0e-8, Δ = 1 / 4,
+        use_simd = false, avoid_explicit_erf = false,
+        kws...
+    )
 end
 
-function test_lia_segment_fraction()
+function test_lia_segment_fraction(; kws...)
     N = 64 * 1
     method = QuinticSplineMethod()
     ring = init_ring_filament(N; method)
@@ -231,6 +235,7 @@ function test_lia_segment_fraction()
         T;
         splitting, lia_segment_fraction = 0.2,
         quadrature_near_singularity = GaussLegendre(8),
+        kws...,
     )
     # println(params)
     cache = BiotSavart.init_cache(params)
@@ -290,7 +295,11 @@ end
             test_local_induced_approximation(ring)
         end
     end
-    @testset "LIA segment fraction" begin
-        test_lia_segment_fraction()
+    @testset "LIA segment fraction (with NoSplitting)" begin
+        @testset "use_simd = $use_simd" for use_simd in (false, true)
+            @testset "avoid_explicit_erf = $avoid_explicit_erf" for avoid_explicit_erf in (false, true)
+                test_lia_segment_fraction(; use_simd, avoid_explicit_erf)
+            end
+        end
     end
 end
