@@ -211,10 +211,11 @@ end
 @inline has_implicit_conjugate(k⃗) = _discard_wavevector(Tuple(k⃗), Val(-1))
 
 function FourierBandVectorField(
-        ::UndefInitializer, Ls::NTuple{N, T};
+        ::UndefInitializer, Ls::NTuple{N};
         kmin = nothing, kmax = nothing,
-    ) where {T, N}
+    ) where {N}
     # Notation: "q" represents a normalised wavenumber, q = k / Δk (takes integer values)
+    T = eltype(Ls)
     qs = NTuple{N, Int}[]  # normalised forced wave vectors (negative indices represent negative k's)
     cs = SVector{N, Complex{T}}[]  # Fourier coefficients of vector field
     Δks = T(2π) ./ Ls

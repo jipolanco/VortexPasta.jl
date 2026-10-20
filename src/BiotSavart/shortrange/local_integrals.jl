@@ -240,7 +240,12 @@ end
     s⃗_quad, qs⃗′_quad
 end
 
-@inline function _transpose_tuples(xs::NTuple{N, NTuple{M, T}}) where {N, M, T}
+# This is just to make Aqua.test_unbound_args() happy
+@inline _transpose_tuples(xs::Tuple) = _transpose_tuples_impl(xs...)
+
+@inline _transpose_tuples_impl() = ()
+
+@inline function _transpose_tuples_impl(xs::Vararg{NTuple{M, T}, N}) where {N, M, T}
     ntuple(Val(M)) do m
         @inline
         ntuple(n -> @inbounds(xs[n][m]), Val(N))::NTuple{N, T}

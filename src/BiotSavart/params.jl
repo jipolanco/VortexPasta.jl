@@ -159,10 +159,10 @@ function kmax_to_gridsize(kmax::T, L::T) where {T}
     2m + 2
 end
 
-function maximum_wavenumber(Ns::NTuple{N}, Ls::NTuple{N, T}) where {N, T <: AbstractFloat}
+function maximum_wavenumber(Ns::NTuple{N}, Ls::NTuple{N}) where {N}
     minimum(zip(Ns, Ls)) do (M, L)
         local m = (M - 1) ÷ 2
-        convert(T, 2π * m / L)
+        convert(typeof(L), 2π * m / L)
     end
 end
 

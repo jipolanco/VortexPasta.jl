@@ -142,7 +142,8 @@ struct KaiserBesselSplitting{
     F::ChebOdd   # integral of KB kernel
 end
 
-function KaiserBesselSplitting(; Ls::NTuple{N, T}, β = nothing, rcut = nothing, Ns = nothing, rtol = nothing) where {N, T}
+function KaiserBesselSplitting(; Ls::NTuple{N}, β = nothing, rcut = nothing, Ns = nothing, rtol = nothing) where {N}
+    T = eltype(Ls)
     let (β, rcut, Ns, rtol) = _kb_splitting_params(Ls, β, rcut, Ns, rtol)
         C = β / (rcut * sinh(β))
         f_actual(r) = C * besseli(0, β * sqrt(1 - (r / rcut)^2))
@@ -184,37 +185,41 @@ cutoff_distance(g::KaiserBesselSplitting) = g.rcut
 fourier_grid_size(g::KaiserBesselSplitting) = g.Ns
 
 # β and rcut given
-function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Real, Ns::Nothing, rtol::Nothing) where {N, T}
+function _kb_splitting_params(Ls::NTuple{N}, β::Real, rcut::Real, Ns::Nothing, rtol::Nothing) where {N}
+    T = eltype(Ls)
     kmax = β / rcut
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
     end
-    C = 10^(-0.2)
+    C = exp10(-0.2)
     rtol = C * exp(-β)
     T(β), T(rcut), Ns, T(rtol)
 end
 
 # rcut and Ns given
-function _kb_splitting_params(Ls::NTuple{N, T}, β::Nothing, rcut::Real, Ns::Dims{N}, rtol::Nothing) where {N, T}
+function _kb_splitting_params(Ls::NTuple{N}, β::Nothing, rcut::Real, Ns::Dims{N}, rtol::Nothing) where {N}
+    T = eltype(Ls)
     kmax = maximum_wavenumber(Ns, Ls)
     β = rcut * kmax
-    C = 10^(-0.2)
+    C = exp10(-0.2)
     rtol = C * exp(-β)
     T(β), T(rcut), Ns, T(rtol)
 end
 
 # β and Ns given
-function _kb_splitting_params(Ls::NTuple{N, T}, β::Real, rcut::Nothing, Ns::Dims{N}, rtol::Nothing) where {N, T}
+function _kb_splitting_params(Ls::NTuple{N}, β::Real, rcut::Nothing, Ns::Dims{N}, rtol::Nothing) where {N}
+    T = eltype(Ls)
     kmax = maximum_wavenumber(Ns, Ls)
     rcut = β / kmax
-    C = 10^(-0.2)
+    C = exp10(-0.2)
     rtol = C * exp(-β)
     T(β), T(rcut), Ns, T(rtol)
 end
 
 # rtol and rcut given
-function _kb_splitting_params(Ls::NTuple{N,T}, β::Nothing, rcut::Real, Ns::Nothing, rtol::Real) where {N, T}
-    C = 10^(-0.2)
+function _kb_splitting_params(Ls::NTuple{N}, β::Nothing, rcut::Real, Ns::Nothing, rtol::Real) where {N}
+    T = eltype(Ls)
+    C = exp10(-0.2)
     β = -log(rtol / C)
     kmax = β / rcut
     Ns = map(Ls) do L
@@ -224,8 +229,9 @@ function _kb_splitting_params(Ls::NTuple{N,T}, β::Nothing, rcut::Real, Ns::Noth
 end
 
 # rtol and Ns given
-function _kb_splitting_params(Ls::NTuple{N,T}, β::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Real) where {N, T}
-    C = 10^(-0.2)
+function _kb_splitting_params(Ls::NTuple{N}, β::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Real) where {N}
+    T = eltype(Ls)
+    C = exp10(-0.2)
     β = -log(rtol / C)
     kmax = maximum_wavenumber(Ns, Ls)
     rcut = β / kmax 

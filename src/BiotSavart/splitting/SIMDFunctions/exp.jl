@@ -79,7 +79,10 @@ end
     llvm_unsafe_trunc(S, x)
 end
 
-@inline function ldexp2k(x, e::Union{Int, Vec{W, Int}}) where {W}
+@inline ldexp2k(x, e::Int) = _ldexp2k(x, e)
+@inline ldexp2k(x, e::Vec{W, Int}) where {W} = _ldexp2k(x, e)
+
+@inline function _ldexp2k(x, e)
     T = ftype(x)
     a = pow2i(T, e >> 1)
     b = pow2i(T, e - (e >> 1))
