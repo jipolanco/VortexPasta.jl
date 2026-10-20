@@ -18,24 +18,18 @@ function generate_biot_savart_parameters(::Type{T}; periodic = Val(true)) where 
         L = 2π
         Ngrid = 32
         backend_short = CellListsBackend(2)
+        splitting = GaussianSplitting(; Ls = (L, L, L), Ns = (Ngrid, Ngrid, Ngrid), β = 3.5)
     else
-        L = Infinity()
-        Ngrid = 0
         backend_short = NaiveShortRangeBackend()
+        splitting = NoSplitting()
     end
-    Ls = (L, L, L)
-    Ns = (Ngrid, Ngrid, Ngrid)
-    kmax = (Ngrid ÷ 2) * 2π / L
-    β = 3.5
-    α = kmax / 2β
-    rcut = β / α
     backend_long = NonuniformFFTsBackend(σ = T(1.5), m = HalfSupport(4))
     # Test unexported functions
     @test BiotSavart.oversampling_factor(backend_long) == 1.5
     @test BiotSavart.half_support(backend_long) == 4
     ParamsBiotSavart(
         T;
-        Γ, α, a, Δ, rcut, Ls, Ns,
+        Γ, a, Δ, splitting,
         backend_short,
         backend_long,
         quadrature = GaussLegendre(2),

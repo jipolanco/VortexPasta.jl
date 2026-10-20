@@ -53,7 +53,7 @@ function test_vortex_ring_energy()
     )
 
     # Non-periodic case
-    params_nonper = ParamsBiotSavart(; params_common..., Ls = Infinity(), α = Zero())
+    params_nonper = ParamsBiotSavart(; params_common..., splitting = NoSplitting())
     prob_nonper = VortexFilamentProblem(fs, tspan, params_nonper)
     iter_nonper = init(prob_nonper, RK4(); dt = 0.1)
     # JET.@test_opt ignored_modules=(Base,) Diagnostics.kinetic_energy_nonperiodic(iter_nonper)

@@ -45,10 +45,10 @@ function test_vortex_ring_nonperiodic(ring; quad = GaussLegendre(4))
     Γ = 2.4
     a = 1e-6
     Δ = 1/4
+    splitting = NoSplitting()  # disables periodicity
     ps = (;
         Γ, a, Δ,
-        Ls = Infinity(),
-        α = Zero(),
+        splitting,
         backend_short = NaiveShortRangeBackend(),
         quadrature = quad,
         quadrature_near_singularity = quad === NoQuadrature() ? GaussLegendre(1) : quad,  # avoid using NoQuadrature() here
@@ -175,9 +175,10 @@ function test_local_induced_approximation(ring)
     v_expected = vortex_ring_velocity(ps.Γ, R, ps.a; ps.Δ) - vortex_ring_nonlocal_velocity(ps.Γ, R, ℓ)
 
     v_base = let
+        splitting = NoSplitting()  # disables periodicity
         params = biot_savart_parameters(
             Float64;
-            L = Infinity(), α = Zero(), quadrature = NoQuadrature(), quadrature_near_singularity = GaussLegendre(1), ps...,
+            splitting, quadrature = NoQuadrature(), quadrature_near_singularity = GaussLegendre(1), ps...,
         )
         cache = BiotSavart.init_cache(params)
         norm(BiotSavart.velocity_on_nodes(cache, [f]; LIA = Val(:only))[1][i])
@@ -185,7 +186,8 @@ function test_local_induced_approximation(ring)
 
     v_quad = map(1:8) do n
         quad = GaussLegendre(n)
-        params = biot_savart_parameters(Float64; L = Infinity(), α = Zero(), quadrature = quad, ps...)
+        splitting = NoSplitting()  # disables periodicity
+        params = biot_savart_parameters(Float64; splitting, quadrature = quad, ps...)
         cache = BiotSavart.init_cache(params)
         norm(BiotSavart.velocity_on_nodes(cache, [f]; LIA = Val(:only))[1][i])
     end
@@ -213,24 +215,8 @@ function test_local_induced_approximation(ring)
     nothing
 end
 
-function biot_savart_parameters(::Type{T}; L, β = 4, α = 24/L, kws...) where {T}
-    rcut = β / α
-    if L === Infinity()
-        M = Zero()
-    else
-        kmax_wanted = β * 2α
-        M = nextprod((2, 3), (L / π) * kmax_wanted)
-    end
-    ParamsBiotSavart(
-        T;
-        Γ = 1.0,
-        α,
-        Ls = (L, L, L),
-        Ns = (M, M, M),
-        rcut,
-        a = 1e-8, Δ = 1/4,
-        kws...
-    )
+function biot_savart_parameters(::Type{T}; splitting = NoSplitting(), kws...) where {T}
+    ParamsBiotSavart(T; Γ = 1.0, splitting, a = 1e-8, Δ = 1/4, kws...)
 end
 
 function test_lia_segment_fraction()
@@ -239,11 +225,11 @@ function test_lia_segment_fraction()
     ring = init_ring_filament(N; method)
     fs = [ring.f]
 
-    L = Infinity()
+    splitting = NoSplitting()  # disables periodicity
     T = eltype(eltype(ring.f))
     params = biot_savart_parameters(
         T;
-        L, lia_segment_fraction = 0.2,
+        splitting, lia_segment_fraction = 0.2,
         quadrature_near_singularity = GaussLegendre(8),
     )
     # println(params)
