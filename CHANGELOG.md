@@ -5,6 +5,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.34.20] - 2026-10-20
+
+### Added
+
+- Add support for KernelAbstraction.jl 0.10, where the `CPU` backend now refers
+  to the new `POCLBackend` based on OpenCL/POCL.
+  This backend allows to run KernelAbstractions GPU kernels on the CPU, which
+  is really convenient for testing.
+
+- Add new `VortexPasta.Devices` module which defines `CPU` and `GPU` types.
+  Note that `CPU` is now a custom "backend" which ensures that CPU code is called,
+  while `GPU` is defined as `KA.Backend`, and therefore includes `POCLBackend` on KA 0.10.
+  Previously, `CPU` used to be `KA.CPU`.
+
 ## [0.34.18] - 2026-10-01
 
 ### Fixed
