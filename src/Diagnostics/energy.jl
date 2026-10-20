@@ -93,7 +93,10 @@ function kinetic_energy_from_streamfunction(
 end
 
 # Case of a single filament
-function kinetic_energy_from_streamfunction(f::AbstractFilament, ψs::SingleFilamentData, Γ::Real, Ls = (∞, ∞, ∞); quad = nothing, inds = eachindex(f))
+function kinetic_energy_from_streamfunction(
+        f::AbstractFilament, ψs::SingleFilamentData, Γ::Real, Ls = (Infinity(), Infinity(), Infinity());
+        quad = nothing, inds = eachindex(f)
+    )
     _kinetic_energy_from_streamfunction(quad, f, ψs, inds, Γ, Ls)
 end
 

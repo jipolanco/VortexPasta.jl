@@ -11,11 +11,8 @@ Constants
 
 ## Defined constants
 
-These are useful for preparing non-periodic problems (``α = 0``, ``L = ∞``).
+These are useful for preparing non-periodic problems (``L = ∞``).
 
 ```@docs
-Zero
-One
 Infinity
-∞
 ```

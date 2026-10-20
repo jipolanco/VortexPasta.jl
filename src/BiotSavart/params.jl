@@ -22,15 +22,18 @@ struct ParamsCommon{
     avoid_explicit_erf :: Bool
     function ParamsCommon{T}(Γ, a, Δ, splitting_in, Ls_in, quad, quad_near_singularity, avoid_explicit_erf) where {T}
         splitting = convert_floats(T, splitting_in)
-        Ls = map(L -> maybe_convert(T, L), Ls_in)
+        Ls = map(Ls_in) do L
+            if L === Infinity()
+                L
+            else
+                convert(T, L)
+            end
+        end
         new{T, typeof(splitting), typeof(Ls), typeof(quad), typeof(quad_near_singularity)}(
             Γ, a, Δ, splitting, Ls, quad, quad_near_singularity, avoid_explicit_erf,
         )
     end
 end
-
-maybe_convert(::Type{T}, x::Real) where {T <: AbstractFloat} = convert(T, x)
-maybe_convert(::Type{T}, x::RealConst) where {T <: AbstractFloat} = x  # don't convert constants (Zero, Infinity)
 
 function Base.show(io::IO, p::ParamsCommon)
     (; Γ, a, Δ,) = p
@@ -94,17 +97,23 @@ struct ParamsShortRange{
             use_simd::Bool,
         ) where {T}
         (; Ls,) = common
-        rcut = maybe_convert(T, rcut_)
         lia_segment_fraction = lia_segment_fraction_in === nothing ? nothing : convert(T, lia_segment_fraction_in)
-        rcut_max = max_cutoff_distance(backend, Ls)
-        rcut > rcut_max && error(
-            lazy"""cutoff distance `rcut = $rcut` is larger than that allowed by the $(typeof(backend)) backend.
-            See docs for $(typeof(backend)) for more details.
-            """,
-        )
-        2 * rcut ≤ min(Ls...) ||
-            error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
-        rcut_sq = rcut * rcut
+        if rcut_ === Infinity()
+            @assert all(Ls .=== Infinity())  # Ls = (Infinity(), Infinity(), Infinity())
+            rcut = Infinity()
+            rcut_sq = Infinity()
+        else
+            rcut = convert(T, rcut_)
+            rcut_max = max_cutoff_distance(backend, Ls)
+            rcut > rcut_max && error(
+                lazy"""cutoff distance `rcut = $rcut` is larger than that allowed by the $(typeof(backend)) backend.
+                See docs for $(typeof(backend)) for more details.
+                """,
+            )
+            2 * rcut ≤ min(Ls...) ||
+                error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
+            rcut_sq = rcut * rcut
+        end
         new{
             T, typeof(backend), typeof(quad), typeof(common), typeof(rcut),
             typeof(lia_segment_fraction)
@@ -158,10 +167,10 @@ function kmax_to_gridsize(kmax::T, L::T) where {T}
     2m + 2
 end
 
-function maximum_wavenumber(Ns::NTuple{N}, Ls::NTuple{N, T}) where {N, T}
+function maximum_wavenumber(Ns::NTuple{N}, Ls::NTuple{N, T}) where {N, T <: AbstractFloat}
     minimum(zip(Ns, Ls)) do (M, L)
         local m = (M - 1) ÷ 2
-        convert(T, 2π * m / L)  # convert in case m/L = Zero()
+        convert(T, 2π * m / L)
     end
 end
 

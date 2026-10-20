@@ -9,7 +9,6 @@ module BiotSavart
 export
     ParamsBiotSavart,
     GaussLegendre, NoQuadrature,
-    Zero, Infinity, ∞,
     Velocity, Streamfunction,
     LongRangeCache, ShortRangeCache,
     has_real_to_complex,
@@ -21,7 +20,7 @@ export
 
 public init_cache
 
-using ..Constants: Zero, One, Infinity, ∞
+using ..Constants: Infinity
 using ..Devices: Devices, CPU, GPU, DeviceType
 
 using ..Quadratures:
