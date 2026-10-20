@@ -256,6 +256,10 @@ for (fun, op) ∈ [(:minimum, :min), (:maximum, :max)]
         @eval function Base.$(fun)(::typeof($g), fs::AbstractVector{<:AbstractFilament})
             $(fun)(f -> $(fun)($g, f), fs)
         end
+        # This is to avoid potential method ambiguity with StaticArrays (detected by Aqua).
+        @eval function Base.$(fun)(::typeof($g), fs::StaticArray{Size, <:AbstractFilament}) where {Size <: Tuple}
+            $(fun)(f -> $(fun)($g, f), fs)
+        end
     end
 end
 
@@ -316,7 +320,7 @@ Return limits within which the filament can be evaluated.
 """
 function knotlims end
 
-Base.checkbounds(::Type{Bool}, f::AbstractFilament, I...) = checkbounds(Bool, nodes(f), I...)
+Base.checkbounds(::Type{Bool}, f::AbstractFilament, i::Int) = checkbounds(Bool, nodes(f), i)
 
 """
     Base.setindex!(f::AbstractFilament{T}, v, i::Int) -> Vec3{T}

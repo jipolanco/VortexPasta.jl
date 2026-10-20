@@ -8,6 +8,7 @@ module VectorsOfVectors
 export VectorOfVectors
 
 using Base: @propagate_inbounds
+using StaticArrays: StaticArray  # to avoid potential method ambiguity
 
 """
     VectorOfVectors{T, V <: AbstractVector{T}} <: AbstractVector{V <: AbstractVector}
@@ -117,7 +118,12 @@ Base.empty!(vs::VectorOfVectors) = resize!(vs, 0)
 
 # When generating a vector of vectors, make sure `map` returns a VectorOfVectors instead of
 # a standard Vector.
-function Base.map(f::F, vs::VectorOfVectors, args...) where {F}
+Base.map(f::F, vs::VectorOfVectors, args...) where {F} = _map(f, vs, args...)
+
+# Avoid potential ambiguity with StaticArrays (detected by Aqua).
+Base.map(f::F, vs::VectorOfVectors, u::StaticArray, args::Vararg{AbstractArray}) where {F} = _map(f, vs, u, args...)
+
+function _map(f::F, vs::VectorOfVectors, args...) where {F}
     ys = map(f, vs.u, args...)
     _maybe_wrap(ys)
 end

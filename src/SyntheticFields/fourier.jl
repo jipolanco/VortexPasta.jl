@@ -363,7 +363,7 @@ and then subtracted from previously existent ones. The result is then written on
 function from_fourier_grid!(
         op::F, field::FourierBandVectorField{T, N},
         ûs_grid::NTuple{N, AbstractArray}, ks_grid::NTuple{N, AbstractVector}
-    ) where {F, T, N}
+    ) where {F <: Function, T, N}
     (; qs, cs, Δks) = field
     Base.require_one_based_indexing(ûs_grid...)  # assumed in GPU kernel
     dims_u = size(ûs_grid[1])
@@ -392,7 +392,10 @@ function from_fourier_grid!(
 end
 
 from_fourier_grid_default_op(old, new, k⃗) = new  # replace old values with new ones from Fourier-space fields
-from_fourier_grid!(field::FourierBandVectorField, args...) = from_fourier_grid!(from_fourier_grid_default_op, field, args...)
+from_fourier_grid!(
+    field::FourierBandVectorField{T, N},
+    ûs_grid::NTuple{N, AbstractArray}, ks_grid::NTuple{N, AbstractVector}
+) where {T, N} = from_fourier_grid!(from_fourier_grid_default_op, field, ûs_grid, ks_grid)
 
 # Copy coefficients to regular tuple of arrays (one array = one vector component), which can
 # be used for FFTs or other verifications.

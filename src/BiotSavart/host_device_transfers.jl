@@ -1,7 +1,5 @@
-## ========================================================================================== ##
-
 """
-    HostVector{T, Backend <: DeviceType} <: DenseVector{T}
+    HostVector{T, Backend <: DeviceType} <: AbstractVector{T}
 
 CPU vector involved in host-device transfers.
 
@@ -19,7 +17,7 @@ where:
 - `backend` is either `BiotSavart.CPU()` or a KernelAbstractions backend (such as `CUDABackend` or `ROCBackend`);
 - `n` is the vector length.
 """
-mutable struct HostVector{T, Backend <: DeviceType} <: DenseVector{T}
+mutable struct HostVector{T, Backend <: DeviceType} <: AbstractVector{T}
     data::Memory{T}  # length ≥ n
     n::Int  # logical length (exposed to the user)
     backend::Backend
