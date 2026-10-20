@@ -5,6 +5,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Simplified `VortexPasta.Constants` to a minimum: `Zeros` and `Ones` have been removed, and
+  `Infinity` has been greatly simplified. Now `Infinity` is only used internally to deal
+  with "infinite" periodicity (i.e. open boundary conditions).
+
+- In `BiotSavart`, the short-range cut-off distance `rcut` is now always a float.
+  For open BCs, its value is now `Inf` (used to be `Infinity()`).
+  Only the periods `Ls` are allowed to be `Infinity()`, which is convenient for implementing
+  efficient periodic folding which also works in non-periodic domains (we don't want a
+  dynamic `isinf` check every time we're folding filament points).
+
+- One can no longer pass `L = Infinity` to set open boundary conditions; now the only way is
+  by doing `splitting = NoSplitting`.
+
+### Added
+
+- We now use Aqua.jl in tests to check code quality.
+  Code has been modified to make Aqua tests pass.
+
 ## [0.34.20] - 2026-10-20
 
 ### Added
