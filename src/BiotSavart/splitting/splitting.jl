@@ -25,7 +25,7 @@ of dense vortex systems.
 struct NoSplitting <: AbstractEwaldSplitting end
 
 periods(g::NoSplitting) = (Infinity(), Infinity(), Infinity())
-cutoff_distance(g::NoSplitting) = Infinity()
+cutoff_distance(g::NoSplitting) = Inf  # this is considered as a float for simplicity
 fourier_grid_size(g::NoSplitting) = (0, 0, 0)
 
 convert_floats(::Type{T}, g::NoSplitting) where {T} = g

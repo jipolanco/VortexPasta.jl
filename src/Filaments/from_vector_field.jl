@@ -1,8 +1,6 @@
 using LinearAlgebra: normalize, norm
 using ForwardDiff: ForwardDiff
 
-using ..Constants: Infinity
-
 @doc raw"""
     Filaments.from_vector_field(
         ClosedFilament, ωf::Function, s⃗₀, dτ, method::DiscretisationMethod;
@@ -137,7 +135,8 @@ function _from_vector_field!(
     ) where {F <: Function}
     f(x) = normalize(vecfield(x))
     xinit = first(xs)
-    Ls = periods === nothing ? ntuple(_ -> Infinity(), Val(length(xinit))) : periods
+    T = number_type(xs)
+    Ls = periods === nothing ? ntuple(_ -> T(Inf), Val(length(xinit))) : periods
     Lhs = map(L -> L / 2, Ls)  # half periods
     r²_crit = (dτ / 2)^2  # squared end-to-end critical distance to stop iterating
     r²_prev = zero(eltype(xinit))

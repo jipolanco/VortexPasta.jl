@@ -65,7 +65,7 @@ of a periodic cell in periodic domains).
 
 # Non-periodic domains
 
-If the domain is not periodic, that is, if one or more values in `Ls` is [`Infinity`](@ref), then
+If the domain is not periodic, that is, if one or more values in `Ls` is [`Inf`], then
 the domain volume ``V`` in the expression above will be set to 1.
 This corresponds to computing an energy *per unit density* (units ``L^5 T^{-2}``) instead of
 per unit mass, meaning that one should multiply by the fluid density ``ρ`` (``M L^{-3}``) to
@@ -94,9 +94,9 @@ end
 
 # Case of a single filament
 function kinetic_energy_from_streamfunction(
-        f::AbstractFilament, ψs::SingleFilamentData, Γ::Real, Ls = (Infinity(), Infinity(), Infinity());
+        f::AbstractFilament, ψs::SingleFilamentData, Γ::T, Ls = (T(Inf), T(Inf), T(Inf));
         quad = nothing, inds = eachindex(f)
-    )
+    ) where {T <: AbstractFloat}
     _kinetic_energy_from_streamfunction(quad, f, ψs, inds, Γ, Ls)
 end
 

@@ -1,14 +1,10 @@
-using ..Constants: RealConst
-
-const MaybeConst{T} = Union{RealConst, T}
-
 # Common parameters to short- and long-range computations.
 # Note: it would be nice to further constrain the Alpha parameter (commented code below),
 # but then precompilation fails (enters an infinite loop?). Tested on Julia 1.10-rc1.
 struct ParamsCommon{
         T <: AbstractFloat,
         Splitting <: AbstractEwaldSplitting,
-        Periods <: NTuple{3, MaybeConst{T}},
+        Periods <: NTuple{3, Union{T, Infinity}},
         Quad <: StaticSizeQuadrature,
         QuadNearSingularity <: StaticSizeQuadrature,
     }
@@ -79,14 +75,13 @@ struct ParamsShortRange{
         Backend <: ShortRangeBackend,
         Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
-        CutoffDist <: MaybeConst{T},
         LIASegmentFraction <: Union{Nothing, T},
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, splitting, Ls)
-    rcut    :: CutoffDist  # cutoff distance
-    rcut_sq :: CutoffDist  # squared cutoff distance
+    rcut    :: T           # cutoff distance (can be Inf)
+    rcut_sq :: T           # squared cutoff distance (can be Inf)
     lia_segment_fraction :: LIASegmentFraction
     use_simd :: Bool
 
@@ -98,12 +93,10 @@ struct ParamsShortRange{
         ) where {T}
         (; Ls,) = common
         lia_segment_fraction = lia_segment_fraction_in === nothing ? nothing : convert(T, lia_segment_fraction_in)
-        if rcut_ === Infinity()
-            @assert all(Ls .=== Infinity())  # Ls = (Infinity(), Infinity(), Infinity())
-            rcut = Infinity()
-            rcut_sq = Infinity()
+        rcut = convert(T, rcut_)  # note: this is allowed to be Inf (for nonperiodic BCs, i.e. if splitting = NoSplitting())
+        if is_open_domain(Ls)
+            @assert isinf(rcut)
         else
-            rcut = convert(T, rcut_)
             rcut_max = max_cutoff_distance(backend, Ls)
             rcut > rcut_max && error(
                 lazy"""cutoff distance `rcut = $rcut` is larger than that allowed by the $(typeof(backend)) backend.
@@ -112,11 +105,10 @@ struct ParamsShortRange{
             )
             2 * rcut ≤ min(Ls...) ||
                 error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
-            rcut_sq = rcut * rcut
         end
+        rcut_sq = rcut * rcut
         new{
-            T, typeof(backend), typeof(quad), typeof(common), typeof(rcut),
-            typeof(lia_segment_fraction)
+            T, typeof(backend), typeof(quad), typeof(common), typeof(lia_segment_fraction)
         }(
             backend, quad, common, rcut, rcut_sq, lia_segment_fraction, use_simd,
         )
@@ -365,11 +357,8 @@ function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T <: AbstractFloat}
     ParamsBiotSavart(common, shortrange, longrange)
 end
 
-# Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.
-is_open_domain(Ls::Tuple) = is_open_domain(Ls...)
-is_open_domain(::Infinity, etc...) = true
-is_open_domain(::Real, etc...) = is_open_domain(etc...)
-is_open_domain() = false
+# Returns `true` if `Ls` contains `Inf` (one or more times), `false` otherwise.
+is_open_domain(Ls::Tuple) = any(isinf, Ls)
 
 default_short_range_backend(::NoSplitting) = NaiveShortRangeBackend()  # cell lists not implemented for open boundary conditions
 default_short_range_backend(::AbstractEwaldSplitting) = CellListsBackend(2)  # use 2 subdivisions by default (generally faster)

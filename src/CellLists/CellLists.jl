@@ -56,7 +56,7 @@ spurious pair interactions (i.e. beyond the chosen cutoff radius) as described
 `2` or `3` can significantly improve performance compared to no subdivision (`1`).
 For convenience, it can be passed as `nsubdiv = Val(M)` or as `nsubdiv = static(M)`.
 
-Infinite non-periodic domains (in the sense of `period = Infinity()`) are not supported.
+Infinite non-periodic domains (in the sense of `period = Inf`) are not supported.
 
 ## GPU usage
 

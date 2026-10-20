@@ -11,15 +11,14 @@ module Constants
 
 export Infinity
 
-abstract type RealConst end
-
 """
-    Infinity <: RealConst
+    Infinity
 
 Singleton type representing infinity.
 """
-struct Infinity <: RealConst end
+struct Infinity end
 
+Base.isinf(::Infinity) = true
 Base.:(/)(::Infinity, ::Real) = Infinity()
 Base.:(*)(::Infinity, ::Infinity) = Infinity()
 
