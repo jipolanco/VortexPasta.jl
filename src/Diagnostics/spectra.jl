@@ -123,7 +123,7 @@ function _compute_spectrum!(
     _compute_spectrum_impl!(f, backend, Ek, ks, cache)
 end
 
-function _compute_spectrum_impl!(f::F, backend::KA.CPU, Ek, ks, cache) where {F <: Function}
+function _compute_spectrum_impl!(f::F, backend::CPU, Ek, ks, cache) where {F <: Function}
     (; field, wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
     uhat = field::NTuple  # = (ux, uy, uz)
     Δk = ks[begin + 1] - ks[begin]  # we assume this is constant
@@ -195,7 +195,7 @@ function _compute_spectrum_impl_cpu_threads!(
     Ek_threads
 end
 
-function _compute_spectrum_impl!(f::F, backend::KA.GPU, Ek, ks, cache) where {F <: Function}
+function _compute_spectrum_impl!(f::F, backend::GPU, Ek, ks, cache) where {F <: Function}
     (; field, wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
     uhat_comps = field::NTuple  # = (ux, uy, uz)
     Δk = ks[begin + 1] - ks[begin]  # we assume this is constant
@@ -232,7 +232,7 @@ end
 # Computes one partial energy spectrum per workgroup.
 # Here Ek_blocks is an array of dimensions (Nk, number_of_workgroups...).
 # Note that `uhat` must be passed as a tuple of arrays (u, v, w).
-@kernel unsafe_indices=true cpu=false function compute_spectrum_kernel_gpu!(
+@kernel unsafe_indices=true function compute_spectrum_kernel_gpu!(
         f::F,
         Ek_blocks::AbstractArray, @Const(uhat::Tuple),
         @Const(wavenumbers::Tuple),

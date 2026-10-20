@@ -377,32 +377,27 @@ function interpolate_to_physical!(callback::F, output::StructVector, cache::Long
     output
 end
 
-@kernel function init_ewald_operator_kernel!(
-        f::F,
-        u::AbstractArray{T, N},
-        @Const(ks),
-    ) where {F <: Function, T, N}
-    I = @index(Global, Cartesian)
-    k⃗ = ntuple(Val(N)) do d
-        @inline
-        @inbounds ks[d][I[d]]
-    end
-    k² = sum(abs2, k⃗)
-    # This is simply a Gaussian smoothing operator in Fourier space (note: β = -1/4α²).
-    @inbounds u[I] = @inline f(k²)
-    nothing
-end
-
 function init_ewald_operator_fourier(
         ::Type{T}, backend::LongRangeBackend, ks, splitting::AbstractEwaldSplitting,
     ) where {T <: Real}
-    ka_backend = KA.get_backend(backend)
+    device_type = KA.get_backend(backend)::DeviceType
+    ka_backend = Devices.to_ka_backend(device_type)::KA.Backend  # replaces CPU() -> POCLBackend()
     dims = map(length, ks)
     u = KA.zeros(ka_backend, T, dims)
-    @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already on the device
+    @assert adapt(ka_backend, ks) === ks  # check that `ks` vectors are already usable on the device
     f = splitting_kernel_fourier(splitting)::Function
-    kernel = ka_generate_kernel(init_ewald_operator_kernel!, ka_backend, u)
-    kernel(f, u, ks)
+    # Note: when passing backend = POCLBackend(), AcceleratedKernels doesn't call a GPU
+    # kernel (as in KernelAbstractions) but instead runs the function using CPU threads.
+    N = length(dims)
+    AK.foreachindex(eachindex(IndexCartesian(), u); backend = ka_backend) do I
+        k⃗ = ntuple(Val(N)) do d
+            @inline
+            @inbounds ks[d][I[d]]
+        end
+        k² = sum(abs2, k⃗)
+        # This is simply a Gaussian smoothing operator in Fourier space (note: β = -1/4α²).
+        @inbounds u[I] = @inline f(k²)
+    end
     u
 end
 

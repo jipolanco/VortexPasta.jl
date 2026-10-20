@@ -1,17 +1,14 @@
 # This tests a simple case with more than one vortex filament.
 
-ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
-ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
-ENV["POCL_CPU_MAX_CU_COUNT"] = Threads.nthreads()
-
-DISABLE_OPENCL_TESTS::Bool = get(ENV, "JULIA_DISABLE_OPENCL_TESTS", "false") == "true"
+# ENV["POCL_AFFINITY"] = 1  # not sure if this is useful
+# ENV["POCL_WORK_GROUP_METHOD"] = "cbs"  # might help avoid crashes (https://github.com/pocl/pocl/issues/1971#issuecomment-3062532073)
+# ENV["POCL_CPU_MAX_CU_COUNT"] = Threads.nthreads()
 
 using Test
 using LinearAlgebra: norm, normalize, ⋅
 using StaticArrays
 using Statistics: mean, std
-using KernelAbstractions: KernelAbstractions as KA
-using OpenCL, pocl_jll
+using KernelAbstractions: KernelAbstractions as KA, POCLBackend
 # using JET: JET  # JET doesn't support Julia 1.13 yet (04/2026)
 using VortexPasta.Filaments
 using VortexPasta.BiotSavart
@@ -64,6 +61,7 @@ function test_ring_collision(
     # println(params)
 
     cache = BiotSavart.init_cache(params)
+
     vs = map(f -> similar(nodes(f)), filaments)
     ψs = map(similar, vs)
     fields = (velocity = vs, streamfunction = ψs)
@@ -140,10 +138,7 @@ end
             backend_long = NonuniformFFTsBackend(CPU()),
             backend_short = CellListsBackend(CPU()),
         )
-        # OpenCLBackend only works correctly starting from v1.12.
-        # On v1.11: "ERROR: Your device does not support SPIR-V, which is currently required for native execution."
-        if VERSION ≥ v"1.12" && !DISABLE_OPENCL_TESTS
-            backend = OpenCLBackend()
+        let backend = POCLBackend()  # test GPU code using CPU-based POCLBackend
             gpu = test_ring_collision(
                 Splitting;
                 backend_long = NonuniformFFTsBackend(backend),

@@ -285,7 +285,7 @@ background_vorticity_correction_factor(g::KaiserBesselSplitting) = g.C_backgroun
     a, b
 end
 
-@inline function weights_shortrange_nosimd(backend::KA.Backend, g::KaiserBesselSplitting, r)
+@inline function weights_shortrange_nosimd(backend::DeviceType, g::KaiserBesselSplitting, r)
     a = one(r) - @inline g.F(r)
     b = r * @inline g.f(r)  # TODO: include r in f(r)?
     a, b
@@ -293,7 +293,7 @@ end
 
 # Note: this function may be evaluated in r > rcut, outside the domain of the Chebyshev
 # approximations.
-@inline function weights_longrange_nosimd(backend::KA.Backend, g::KaiserBesselSplitting, r)
+@inline function weights_longrange_nosimd(backend::DeviceType, g::KaiserBesselSplitting, r)
     (; rcut) = g
     a = ifelse(r ≥ rcut, one(r), @inline(g.F(r)))
     b = ifelse(r ≥ rcut, zero(r), r * @inline(g.f(r)))

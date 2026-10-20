@@ -260,11 +260,14 @@ function _add_pair_interactions_nosimd!(
             r_inv = 1 / r
             a, b = weights_shortrange_nosimd(ka_backend, splitting, r)
             args = (a, b, r_inv, qs⃗′, r⃗)
-            foreach(values(outputs), values(quantities)) do vs, quantity
+            # Note: using `foreach` doesn't compile on Julia 1.11 with POCLBackend (but it works on Julia 1.13).
+            # Therefore we use `map` and return `nothing` as we don't need the result.
+            map(values(outputs), values(quantities)) do vs, quantity
                 @inline
                 # Note: we can safely sum at index `i` without atomics, since the implementation
                 # ensures that only one thread has that index.
                 @inbounds vs[i] += prefactor * Vec3(short_range_integrand(quantity, args...))
+                nothing
             end
         end
     end

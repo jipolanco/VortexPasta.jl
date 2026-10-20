@@ -4,7 +4,7 @@ using ..CellLists: CellLists, PeriodicCellList
 
 # By default use device 2 if there are ≥ 2 available devices.
 # (assuming that the long-range backend, usually NonuniformFFTsBackend, uses device 1).
-shortrange_default_device(backend::KA.Backend) = min(2, KA.ndevices(backend))
+shortrange_default_device(backend::DeviceType) = min(2, KA.ndevices(backend))
 
 @doc raw"""
     CellListsBackend <: ShortRangeBackend
@@ -63,12 +63,12 @@ where ``M`` is equal to the `nsubdiv` parameter. If this is a limitation, one ca
 """
 struct CellListsBackend{
         M,
-        BackendKA <: KA.Backend,
+        BackendKA <: DeviceType,
     } <: ShortRangeBackend
     ka_backend :: BackendKA
     ka_device  :: Int
 
-    @inline function CellListsBackend{M}(backend::KA.Backend; device::Int) where {M}
+    @inline function CellListsBackend{M}(backend::DeviceType; device::Int) where {M}
         new{M, typeof(backend)}(backend, device)
     end
 end
@@ -77,7 +77,7 @@ Base.show(io::IO, b::CellListsBackend{M}) where {M} =
     print(io, "CellListsBackend{$M}($(b.ka_backend); device = $(b.ka_device))")
 
 @inline Base.@constprop :aggressive function CellListsBackend(
-        backend::KA.Backend, n::Int = 1;
+        backend::DeviceType, n::Int = 1;
         device::Int = shortrange_default_device(backend),
     )
     CellListsBackend{n}(backend; device)

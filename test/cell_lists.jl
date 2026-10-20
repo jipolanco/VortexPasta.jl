@@ -1,6 +1,6 @@
 using VortexPasta.CellLists
 using VortexPasta.BiotSavart: Vec3, CPU
-using OpenCL, pocl_jll
+using KernelAbstractions: KernelAbstractions as KA
 using Adapt: adapt
 using StaticArrays: SVector
 using StructArrays
@@ -8,8 +8,6 @@ using StableRNGs: StableRNG
 using SIMD: SIMD
 using Random
 using Test
-
-DISABLE_OPENCL_TESTS::Bool = get(ENV, "JULIA_DISABLE_OPENCL_TESTS", "false") == "true"
 
 @inline function deperiodise_separation(r⃗::Vec3, Ls, Ls_half)
     map(deperiodise_separation, r⃗, Vec3(Ls), Vec3(Ls_half))::typeof(r⃗)
@@ -61,11 +59,7 @@ end
 
 function construct_cell_list(r_cut, Ls; backend = CPU(), nsubdiv = Val(1))
     rs_cut = map(_ -> r_cut, Ls)
-    if backend isa OpenCLBackend
-        PeriodicCellList(backend, rs_cut, Ls, nsubdiv)  # not completely inferred
-    else
-        @inferred PeriodicCellList(backend, rs_cut, Ls, nsubdiv)
-    end
+    @inferred PeriodicCellList(backend, rs_cut, Ls, nsubdiv)
 end
 
 function compute_interaction_nearby_elements(f::F, cl::PeriodicCellList, xp, vp, r_cut) where {F}
@@ -238,13 +232,10 @@ function test_cell_lists()
             @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result
         end
 
-        # OpenCLBackend only works correctly starting from v1.12.
-        # On v1.11: "ERROR: Your device does not support SPIR-V, which is currently required for native execution."
-        if VERSION ≥ v"1.12" && !DISABLE_OPENCL_TESTS
-            backend_gpu = OpenCLBackend()
+        let backend_gpu = KA.POCLBackend()  # use KA's POCLBackend (OpenCL, CPU) to test GPU kernels
             @testset "Using foreach_pair ($backend_gpu)" begin
                 cl_gpu = construct_cell_list(r_cut, Ls; backend = backend_gpu, nsubdiv = Val(nsubdiv))
-                xp_gpu = adapt(backend_gpu, xp)
+                xp_gpu = adapt(backend_gpu, xp)  # note that these are regular CPU Arrays when using POCLBackend
                 vp_gpu = adapt(backend_gpu, vp)
                 run_cl = compute_interaction_foreach_pair(f_interaction, cl_gpu, xp_gpu, vp_gpu, r_cut)
                 @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
@@ -255,7 +246,7 @@ function test_cell_lists()
                 cl_gpu = construct_cell_list(r_cut, Ls; backend = backend_gpu, nsubdiv = Val(nsubdiv))
                 xp_gpu = adapt(backend_gpu, xp)
                 vp_gpu = adapt(backend_gpu, vp)
-                # This currently fails with OpenCL: "Intrinsic has incorrect return type!"
+                # This currently fails with POCLBackend: "Reason: unsupported call to an unknown function (call to _Z4sqrtDv4_d)"
                 # run_cl = compute_interaction_foreach_pair(f_interaction, cl_gpu, xp_gpu, vp_gpu, r_cut; batch_size = Val(4))
                 # @test run_naive.n_interactions == run_cl.n_interactions      # same number of considered interactions
                 # @test run_naive.interaction ≈ run_cl.interaction rtol=1e-13  # basically the same result

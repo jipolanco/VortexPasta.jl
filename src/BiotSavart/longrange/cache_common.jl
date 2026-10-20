@@ -91,15 +91,14 @@ function LongRangeCacheCommon(
     vorticity_prefactor = Γ / prod(Ls)
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed
-    pointdata = if ka_backend isa CPU
-        copy(pointdata_in)  # make sure pointdata and pointdata_in are not aliased!
-    else
-        adapt(ka_backend, pointdata_in)  # create PointData replica on the device
+    pointdata = adapt(ka_backend, pointdata_in)   # create PointData replica on the device
+    if pointdata.points === pointdata_in.points   # if they are aliased (typically the case with CPU or POCLBackend)
+        pointdata = copy(pointdata)  # make sure pointdata and pointdata_in are not aliased!
     end
     outputs = (;
-        velocity = similar(pointdata.charges),
-        streamfunction = similar(pointdata.charges),
-        default = similar(pointdata.charges),  # this is the "default" output when no output has been selected
+        velocity = copy(pointdata.charges),
+        streamfunction = copy(pointdata.charges),
+        default = copy(pointdata.charges),  # this is the "default" output when no output has been selected
     )
     ewald_op_fourier = init_ewald_operator_fourier(T, backend, wavenumbers, splitting)
     state = LongRangeCacheState()

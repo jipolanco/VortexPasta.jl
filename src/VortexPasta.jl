@@ -5,7 +5,8 @@ version() = pkgversion(@__MODULE__)::VersionNumber
 include("PaddedArrays/PaddedArrays.jl")  # completely independent of other modules
 include("PredefinedCurves/PredefinedCurves.jl")  # completely independent of other modules
 
-include("CellLists/CellLists.jl")        # requires PaddedArrays only
+include("Devices/Devices.jl")
+include("CellLists/CellLists.jl")  # requires PaddedArrays and Devices only
 
 include("Quadratures/Quadratures.jl")
 using .Quadratures

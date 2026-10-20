@@ -16,6 +16,7 @@ using ..Filaments:
     number_type
 
 using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, ParamsBiotSavart, Infinity, ∞
+using ..Devices: Devices, CPU, GPU
 
 using Bumper: Bumper, @no_escape, @alloc
 using Adapt: adapt
