@@ -20,17 +20,17 @@ Singleton type representing zero.
 """
 struct Zero <: RealConst end
 
-Base.convert(::Type{T}, ::Zero) where {T <: Number} = zero(T)
+Base.convert(::Type{T}, ::Zero) where {T <: Real} = zero(T)
 Base.convert(::Type{Zero}, ::Zero) = Zero()
 
-Base.:(*)(::Zero, ::Number) = Zero()
-Base.:(*)(::Number, ::Zero) = Zero()
+Base.:(*)(::Zero, ::Real) = Zero()
+Base.:(*)(::Real, ::Zero) = Zero()
 Base.:(*)(::Zero, ::Zero) = Zero()
-Base.:(+)(x::Number, ::Zero) = x
-Base.:(-)(x::Number, ::Zero) = x
+Base.:(+)(x::Real, ::Zero) = x
+Base.:(-)(x::Real, ::Zero) = x
 Base.:(+)(::Zero, ::Zero) = Zero()
-Base.:(/)(::Zero, ::Number) = Zero()
-Base.:(÷)(::Zero, ::Number) = Zero()
+Base.:(/)(::Zero, ::Real) = Zero()
+Base.:(÷)(::Zero, ::Real) = Zero()
 Base.:(-)(::Zero) = Zero()
 
 Base.exp(::Zero) = true  # in the sense of the multiplicative identity (= 1)
@@ -42,7 +42,8 @@ Singleton type representing the number one.
 """
 struct One <: RealConst end
 
-Base.:(*)(::One, x::Number) = x
+Base.:(*)(::One, x::Real) = x
+Base.:(*)(::One, ::Zero) = Zero()
 
 """
     Infinity <: RealConst <: Real
@@ -63,16 +64,19 @@ Base.convert(::Type{T}, ::Infinity) where {T <: AbstractFloat} = T(Inf)
 Base.isinf(::Infinity) = true
 
 # Here we assume that Number > 0, which is the case in our application.
-Base.:(*)(::Number, ::Infinity) = Infinity()
-Base.:(*)(::Infinity, ::Number) = Infinity()
-Base.:(+)(::Number, ::Infinity) = Infinity()
-Base.:(+)(::Infinity, ::Number) = Infinity()
-Base.:(-)(::Infinity, ::Number) = Infinity()
+Base.:(*)(::Real, ::Infinity) = Infinity()
+Base.:(*)(::Infinity, ::Real) = Infinity()
+Base.:(+)(::Real, ::Infinity) = Infinity()
+Base.:(+)(::Infinity, ::Real) = Infinity()
+Base.:(-)(::Infinity, ::Real) = Infinity()
+Base.:(-)(::Infinity, ::Zero) = Infinity()
 Base.:(+)(::Infinity, ::Infinity) = Infinity()
+Base.:(+)(::Infinity, ::Zero) = Infinity()
 Base.:(*)(::Infinity, ::Infinity) = Infinity()
-Base.:(/)(::Infinity, ::Number) = Infinity()
-Base.:(÷)(::Infinity, ::Number) = Infinity()
-Base.:(/)(::Number, ::Infinity) = Zero()
+Base.:(*)(::One, ::Infinity) = Infinity()
+Base.:(/)(::Infinity, ::Real) = Infinity()
+Base.:(÷)(::Infinity, ::Real) = Infinity()
+Base.:(/)(::Real, ::Infinity) = Zero()
 
 Base.:(<)(::Real, ::Infinity) = true
 Base.:(≤)(::Real, ::Infinity) = true
@@ -82,7 +86,14 @@ Base.:(<)(::Infinity, ::Real) = false   # needs to be Real to disambiguate
 Base.:(<)(::Infinity, ::Infinity) = false
 Base.:(>)(::Infinity, ::Infinity) = false
 
-Base.:(/)(::Number, ::Zero) = Infinity()
+Base.:(/)(::Real, ::Zero) = Infinity()
+Base.:(/)(::Infinity, ::Zero) = Infinity()
+Base.:(/)(::Zero, ::Infinity) = Zero()
+
+Base.:(/)(::Zero, ::Zero) = error("got Zero() / Zero()")
+Base.:(/)(::Infinity, ::Infinity) = error("got Infinity() / Infinity()")
+Base.:(*)(::Infinity, ::Zero) = error("got Infinity() * Zero()")
+Base.:(*)(::Zero, ::Infinity) = error("got Infinity() * Zero()")
 
 Base.:(≤)(::Vec{N, <:AbstractFloat}, ::Infinity) where {N} = one(Vec{N, Bool})  # true
 Base.:(*)(::Zero, ::Vec) = Zero()
