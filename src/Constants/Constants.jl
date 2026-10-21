@@ -12,14 +12,14 @@ module Constants
 export Infinity
 
 """
-    Infinity
+    Infinity <: Real
 
-Singleton type representing infinity.
+Singleton type representing (positive) infinity.
 """
-struct Infinity end
+struct Infinity <: Real end
 
 Base.isinf(::Infinity) = true
-Base.:(/)(::Infinity, ::Real) = Infinity()
+Base.:(/)(::Infinity, ::Union{Integer, AbstractFloat}) = Infinity()  # we could put Real, but this leads to ambiguity with ForwardDiff.Dual
 Base.:(*)(::Infinity, ::Infinity) = Infinity()
 
 end
