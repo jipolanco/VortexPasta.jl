@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.35.0] - 2026-10-21
+
 ### Changed
 
 - Simplified `VortexPasta.Constants` to a minimum: `Zeros` and `Ones` have been removed, and
