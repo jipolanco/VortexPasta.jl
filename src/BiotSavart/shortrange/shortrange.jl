@@ -140,7 +140,7 @@ end
     # - their distance is beyond rcut
     # - their index in 1:W is in (m + 1):W
     one_to_W = Vec(ntuple(identity, Val(W)))
-    mask_simd = (r²s_simd ≤ rcut²) & (one_to_W ≤ m)
+    mask_simd = (r²s_simd ≤ rcut²) & (one_to_W ≤ m)  # note: rcut² may be Inf (but that's ok)
 
     (; mask_simd, r²s_simd, q⃗s_simd, r⃗s_simd)
 end
@@ -253,7 +253,7 @@ function _add_pair_interactions_nosimd!(
             r
         end
         r² = sum(abs2, r⃗)
-        if r² ≤ rcut²
+        if r² ≤ rcut²  # note: rcut² may be Inf (but that's ok)
             assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
             r = sqrt(r²)
             assume(r > 0)   # tell the compiler that we're not dividing by zero

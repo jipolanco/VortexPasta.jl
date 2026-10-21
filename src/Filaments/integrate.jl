@@ -145,9 +145,9 @@ end
 end
 
 # Not sure if this is used...
-@propagate_inbounds function (u::NoQuadFilament)(i, ζ::Number, d)
-    (1 - ζ) * u.f[i, d] + ζ * u.f[i + 1, d]
-end
+# @propagate_inbounds function (u::NoQuadFilament)(i::Int, ζ::Number, d)
+#     (1 - ζ) * u.f[i, d] + ζ * u.f[i + 1, d]
+# end
 
 function integrate(
         integrand::F, f::AbstractFilament, i::Int, quad::NoQuadrature;
@@ -169,4 +169,4 @@ end
 
 # These are the only 2 possible options for _args:
 _noquad_replace_args(f::NoQuadFilament, i::Int) = (f, i)
-_noquad_replace_args(s::Segment) = (Segment(NoQuadFilament(s.f), s.i),)  # replace AbstractFilament by NoQuadFilament
+# _noquad_replace_args(s::Segment) = (Segment(NoQuadFilament(s.f), s.i),)  # replace AbstractFilament by NoQuadFilament

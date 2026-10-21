@@ -9,7 +9,6 @@ module BiotSavart
 export
     ParamsBiotSavart,
     GaussLegendre, NoQuadrature,
-    Zero, Infinity, ∞,
     Velocity, Streamfunction,
     LongRangeCache, ShortRangeCache,
     has_real_to_complex,
@@ -21,7 +20,7 @@ export
 
 public init_cache
 
-using ..Constants: Zero, One, Infinity, ∞
+using ..Constants: Infinity
 using ..Devices: Devices, CPU, GPU, DeviceType
 
 using ..Quadratures:
@@ -392,13 +391,7 @@ compute_on_nodes!(...; callback_vorticity)
 ```
 
 """
-function compute_on_nodes!(
-        fields::NamedTuple{Names, NTuple{N, V}},
-        cache::BiotSavartCache,
-        fs::VectorOfFilaments;
-        LIA = Val(true),
-        kws...,
-    ) where {Names, N, V <: AbstractVector{<:VectorOfVec}}
+function compute_on_nodes!(fields::NamedTuple, cache::BiotSavartCache, fs::VectorOfFilaments; LIA = Val(true), kws...)
     _compute_on_nodes!(fields, cache, fs; LIA, kws...)
     fields
 end

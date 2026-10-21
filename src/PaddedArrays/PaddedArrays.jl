@@ -127,11 +127,9 @@ Base.@propagate_inbounds function Base.setindex!(
     parent(v)[J...] = val
 end
 
-Base.checkbounds(::Type{Bool}, v::PaddedArray, I...) = _checkbounds(v, I...)
+Base.checkbounds(::Type{Bool}, v::PaddedArray, I::CartesianIndex) = checkbounds(Bool, v, Tuple(I)...)
 
-_checkbounds(v::PaddedArray, I::CartesianIndex) = _checkbounds(v, Tuple(I)...)
-
-function _checkbounds(v::PaddedArray, Is...)
+function Base.checkbounds(::Type{Bool}, v::PaddedArray, Is::Vararg{Integer})
     M = npad(v)
     N = ndims(v)
     P = length(Is)

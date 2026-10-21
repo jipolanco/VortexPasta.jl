@@ -1,14 +1,10 @@
-using ..Constants: RealConst
-
-const MaybeConst{T} = Union{RealConst, T}
-
 # Common parameters to short- and long-range computations.
 # Note: it would be nice to further constrain the Alpha parameter (commented code below),
 # but then precompilation fails (enters an infinite loop?). Tested on Julia 1.10-rc1.
 struct ParamsCommon{
         T <: AbstractFloat,
         Splitting <: AbstractEwaldSplitting,
-        Periods <: NTuple{3, MaybeConst{T}},
+        Periods <: NTuple{3, Union{T, Infinity}},
         Quad <: StaticSizeQuadrature,
         QuadNearSingularity <: StaticSizeQuadrature,
     }
@@ -22,15 +18,18 @@ struct ParamsCommon{
     avoid_explicit_erf :: Bool
     function ParamsCommon{T}(Γ, a, Δ, splitting_in, Ls_in, quad, quad_near_singularity, avoid_explicit_erf) where {T}
         splitting = convert_floats(T, splitting_in)
-        Ls = map(L -> maybe_convert(T, L), Ls_in)
+        Ls = map(Ls_in) do L
+            if L === Infinity()
+                L
+            else
+                convert(T, L)
+            end
+        end
         new{T, typeof(splitting), typeof(Ls), typeof(quad), typeof(quad_near_singularity)}(
             Γ, a, Δ, splitting, Ls, quad, quad_near_singularity, avoid_explicit_erf,
         )
     end
 end
-
-maybe_convert(::Type{T}, x::Real) where {T <: AbstractFloat} = convert(T, x)
-maybe_convert(::Type{T}, x::RealConst) where {T <: AbstractFloat} = x  # don't convert constants (Zero, Infinity)
 
 function Base.show(io::IO, p::ParamsCommon)
     (; Γ, a, Δ,) = p
@@ -76,14 +75,13 @@ struct ParamsShortRange{
         Backend <: ShortRangeBackend,
         Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
-        CutoffDist <: MaybeConst{T},
         LIASegmentFraction <: Union{Nothing, T},
     }
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, splitting, Ls)
-    rcut    :: CutoffDist  # cutoff distance
-    rcut_sq :: CutoffDist  # squared cutoff distance
+    rcut    :: T           # cutoff distance (can be Inf)
+    rcut_sq :: T           # squared cutoff distance (can be Inf)
     lia_segment_fraction :: LIASegmentFraction
     use_simd :: Bool
 
@@ -94,20 +92,23 @@ struct ParamsShortRange{
             use_simd::Bool,
         ) where {T}
         (; Ls,) = common
-        rcut = maybe_convert(T, rcut_)
         lia_segment_fraction = lia_segment_fraction_in === nothing ? nothing : convert(T, lia_segment_fraction_in)
-        rcut_max = max_cutoff_distance(backend, Ls)
-        rcut > rcut_max && error(
-            lazy"""cutoff distance `rcut = $rcut` is larger than that allowed by the $(typeof(backend)) backend.
-            See docs for $(typeof(backend)) for more details.
-            """,
-        )
-        2 * rcut ≤ min(Ls...) ||
-            error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
+        rcut = convert(T, rcut_)  # note: this is allowed to be Inf (for nonperiodic BCs, i.e. if splitting = NoSplitting())
+        if is_open_domain(Ls)
+            @assert isinf(rcut)
+        else
+            rcut_max = max_cutoff_distance(backend, Ls)
+            rcut > rcut_max && error(
+                lazy"""cutoff distance `rcut = $rcut` is larger than that allowed by the $(typeof(backend)) backend.
+                See docs for $(typeof(backend)) for more details.
+                """,
+            )
+            2 * rcut ≤ min(Ls...) ||
+                error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
+        end
         rcut_sq = rcut * rcut
         new{
-            T, typeof(backend), typeof(quad), typeof(common), typeof(rcut),
-            typeof(lia_segment_fraction)
+            T, typeof(backend), typeof(quad), typeof(common), typeof(lia_segment_fraction)
         }(
             backend, quad, common, rcut, rcut_sq, lia_segment_fraction, use_simd,
         )
@@ -158,10 +159,10 @@ function kmax_to_gridsize(kmax::T, L::T) where {T}
     2m + 2
 end
 
-function maximum_wavenumber(Ns::NTuple{N}, Ls::NTuple{N, T}) where {N, T}
+function maximum_wavenumber(Ns::NTuple{N}, Ls::NTuple{N}) where {N}
     minimum(zip(Ns, Ls)) do (M, L)
         local m = (M - 1) ÷ 2
-        convert(T, 2π * m / L)  # convert in case m/L = Zero()
+        convert(typeof(L), 2π * m / L)
     end
 end
 
@@ -296,32 +297,6 @@ Mandatory and optional keyword arguments are detailed in the extended help below
   especially when working in single precision (`T = Float32`).
   Note that this also applies to Ewald splitting kernels other than
   [`GaussianSplitting`](@ref) using functions different from `erf`.
-
-## Deprecated keyword arguments
-
-Instead of the `splitting` parameter, one can pass the following parameters:
-
-- `α::Real`: Ewald splitting parameter (inverse length scale). One can set
-  `α = Zero()` to efficiently disable long-range computations.
-
-- `Ns::Dims{3}`: dimensions of physical grid used for long-range interactions.
-  This parameter is not required if `α = Zero()`.
-
-- `rcut`: cutoff distance for computation of short-range interactions.
-  For performance and practical reasons, the cutoff distance must be less than half the cell
-  unit size in each direction, i.e. `rcut < minimum(Ls) / 2`.
-  This parameter is not required if `α = Zero()`.
-
-- `Ls::Union{Real, NTuple{3, Real}}`: domain period in each Cartesian direction.
-  If a single value is passed (e.g. `Ls = 2π`), it is assumed that periods are
-  the same in all directions.
-
-  This option is ignored when `splitting = NoSplitting()`, in which case periodic boundary
-  conditions are disabled (see [`NoSplitting`](@ref)).
-
-Depending on the value of `α`, this corresponds to passing `splitting = GaussianSplitting(…)` or `splitting = NoSplitting()`.
-
-These arguments are kept for backwards compatibility and may dissappear in the future.
 """
 struct ParamsBiotSavart{
         T,
@@ -364,8 +339,8 @@ end
 function ParamsBiotSavart(
         Γ::T;
         a::Real,
-        α = nothing, Ls = nothing,  # these are now optional, since they can be passed via `splitting`
-        Ns = nothing, rcut = nothing, splitting = nothing,
+        α = nothing, Ls = nothing, Ns = nothing, rcut = nothing,  # these are now deprecated, they should be passed via `splitting`
+        splitting = nothing,
         kws...,
     ) where {T <: AbstractFloat}
     splitting_actual = _which_splitting(splitting, Ls, α, Ns, rcut)
@@ -382,11 +357,8 @@ function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T <: AbstractFloat}
     ParamsBiotSavart(common, shortrange, longrange)
 end
 
-# Returns `true` if `Ls` contains `Infinity` (one or more times), `false` otherwise.
-is_open_domain(Ls::Tuple) = is_open_domain(Ls...)
-is_open_domain(::Infinity, etc...) = true
-is_open_domain(::Real, etc...) = is_open_domain(etc...)
-is_open_domain() = false
+# Returns `true` if `Ls` contains `Inf` (one or more times), `false` otherwise.
+is_open_domain(Ls::Tuple) = any(isinf, Ls)
 
 default_short_range_backend(::NoSplitting) = NaiveShortRangeBackend()  # cell lists not implemented for open boundary conditions
 default_short_range_backend(::AbstractEwaldSplitting) = CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
@@ -433,7 +405,6 @@ domain_is_periodic(Ls::NTuple) = !is_open_domain(Ls)
 _which_splitting(splitting::AbstractEwaldSplitting, args...) = splitting
 
 # If splitting was not passed
-_which_splitting(::Nothing, Ls, α::Zero, Ns = nothing, rcut = Infinity()) = NoSplitting()
 _which_splitting(::Nothing, Ls, α::Real, Ns, rcut) = GaussianSplitting(; Ls, α, Ns, rcut)
 
 # This is for convenience: doing p.splitting is equivalent to p.common.splitting.

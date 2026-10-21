@@ -56,7 +56,7 @@ spurious pair interactions (i.e. beyond the chosen cutoff radius) as described
 `2` or `3` can significantly improve performance compared to no subdivision (`1`).
 For convenience, it can be passed as `nsubdiv = Val(M)` or as `nsubdiv = static(M)`.
 
-Infinite non-periodic domains (in the sense of `period = Infinity()`) are not supported.
+Infinite non-periodic domains (in the sense of `period = Inf`) are not supported.
 
 ## GPU usage
 
@@ -110,8 +110,10 @@ end
 Base.size(cl::PeriodicCellList) = size(cl.head_indices)
 subdivisions(::PeriodicCellList{N, M}) where {N, M} = M
 
-@inline PeriodicCellList(rs_cut::NTuple{N, Real}, args...; kws...) where {N} = PeriodicCellList(CPU(), rs_cut, args...; kws...)
-@inline PeriodicCellList(backend, rs, Ls, nsubdiv::Val{M}; kws...) where {M} = PeriodicCellList(backend, rs, Ls, static(M); kws...)
+@inline PeriodicCellList(rs_cut::NTuple{N, Real}, args...; kws...) where {N} =
+    PeriodicCellList(CPU(), rs_cut, args...; kws...)
+@inline PeriodicCellList(backend::DeviceType, rs, Ls, nsubdiv::Val{M}; kws...) where {M} =
+    PeriodicCellList(backend, rs, Ls, static(M); kws...)
 
 # Returns maximum possible cut-off distance r_cut for M subdivisions and a domain of period L.
 max_cutoff_distance(M::Integer, L::AbstractFloat) = oftype(L, M / (2M + 1)) * L

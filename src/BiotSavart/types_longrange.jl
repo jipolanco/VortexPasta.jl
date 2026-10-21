@@ -74,7 +74,7 @@ expected_period(::LongRangeBackend) = nothing
 Abstract type describing the storage of data required to compute long-range interactions.
 
 The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRangeCache`
-(or `NullLongRangeCache()`, if long-range computations were disabled by setting `α = Zero()`).
+(or `NullLongRangeCache()`, if long-range computations were disabled by setting `splitting = NoSplitting()`).
 
 # Useful fields
 

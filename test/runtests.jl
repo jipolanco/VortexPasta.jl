@@ -47,9 +47,9 @@ println()
 @info "Running tests with $(Threads.nthreads()) threads"
 
 @testset "VortexPasta.jl" verbose=true begin
+    @includetest("Aqua", "aqua.jl")
     @includetest("Plots", "plots.jl")
     @includetest("Synthetic fields", "synthetic_fields.jl")
-    @includetest("Constants", "constants.jl")
     @includetest("Special functions", "special_functions.jl")
     @includetest("VectorOfVector", "vector_of_vector.jl")
     @includetest("Padded arrays", "padded_arrays.jl")

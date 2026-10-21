@@ -21,7 +21,7 @@ advect_filaments!(fs, vL, dt; fbase = nothing, kws...) =
     _advect_filaments!(fs, fbase, vL, dt; kws...)
 
 # Variant called at the end of a timestep (case 1)
-function _advect_filaments!(fs, fbase::Nothing, vL, dt)
+function _advect_filaments!(fs::AbstractVector, fbase::Nothing, vL, dt)
     @sync for chunk in FilamentChunkIterator(fs)
         Threads.@spawn for (i, inds, _) in chunk
             @inbounds _advect_filament!(fs[i], nothing, vL[i], inds, dt)
@@ -37,7 +37,7 @@ function _advect_filaments!(fs, fbase::Nothing, vL, dt)
 end
 
 # Variant called from within RK stages (case 2)
-function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T}
+function _advect_filaments!(fs::T, fbase::T, vL, dt) where {T <: AbstractVector}
     @sync for chunk in FilamentChunkIterator(fs)
         Threads.@spawn for (i, inds, _) in chunk
             @inbounds _advect_filament!(fs[i], fbase[i], vL[i], inds, dt)

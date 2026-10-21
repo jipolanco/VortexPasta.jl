@@ -114,7 +114,7 @@ struct GaussianSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting
     rtol::T
 end
 
-function GaussianSplitting(; Ls::NTuple{N, T}, β = nothing, α = nothing, rcut = nothing, Ns = nothing, rtol = nothing) where {N, T}
+function GaussianSplitting(; Ls::NTuple{N}, β = nothing, α = nothing, rcut = nothing, Ns = nothing, rtol = nothing) where {N}
     GaussianSplitting(Ls, _gaussian_splitting_params(Ls, β, α, rcut, Ns, rtol)...)
 end
 
@@ -130,46 +130,51 @@ periods(g::GaussianSplitting) = g.Ls
 cutoff_distance(g::GaussianSplitting) = g.rcut
 fourier_grid_size(g::GaussianSplitting) = g.Ns
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Real, rcut::Nothing, Ns::Nothing, rtol::Nothing) where {N, T}
+function _gaussian_splitting_params(Ls::NTuple{N}, β::Real, α::Real, rcut::Nothing, Ns::Nothing, rtol::Nothing) where {N}
+    T = eltype(Ls)
     rcut = β / α
     kmax = 2 * α * β
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
     end
-    C = 10^(-1.3)
+    C = exp10(-1.3)
     rtol = C * exp(-β^2)
     T(α), T(rcut), Ns, T(rtol)
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Nothing, rcut::Real, Ns::Nothing, rtol::Nothing) where {N, T}
+function _gaussian_splitting_params(Ls::NTuple{N}, β::Real, α::Nothing, rcut::Real, Ns::Nothing, rtol::Nothing) where {N}
+    T = eltype(Ls)
     α = β / rcut
     kmax = 2 * α * β
     Ns = map(Ls) do L
         kmax_to_gridsize(kmax, L)
     end
-    C = 10^(-1.3)
+    C = exp10(-1.3)
     rtol = C * exp(-β^2)
     T(α), T(rcut), Ns, T(rtol)
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Real, α::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Nothing) where {N, T}
+function _gaussian_splitting_params(Ls::NTuple{N}, β::Real, α::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Nothing) where {N}
+    T = eltype(Ls)
     kmax = maximum_wavenumber(Ns, Ls)
     α = kmax / (2 * β)
     rcut = β / α
-    C = 10^(-1.3)
+    C = exp10(-1.3)
     rtol = C * exp(-β^2)
     T(α), T(rcut), Ns, T(rtol)
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Real, rcut::Real, Ns::Dims{N}, rtol::Nothing) where {N, T}
+function _gaussian_splitting_params(Ls::NTuple{N}, β::Nothing, α::Real, rcut::Real, Ns::Dims{N}, rtol::Nothing) where {N}
+    T = eltype(Ls)
     β = α* rcut
-    C = 10^(-1.3)
+    C = exp10(-1.3)
     rtol = C * exp(-β^2)
     T(α), T(rcut), Ns, T(rtol)
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Real, rcut::Nothing, Ns::Nothing, rtol::Real) where {N, T}
-    C = 10^(-1.3)
+function _gaussian_splitting_params(Ls::NTuple{N}, β::Nothing, α::Real, rcut::Nothing, Ns::Nothing, rtol::Real) where {N}
+    T = eltype(Ls)
+    C = exp10(-1.3)
     β = sqrt(-log(rtol / C))
     rcut = β / α
     kmax = 2 * α * β
@@ -179,8 +184,9 @@ function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Real, rcu
     T(α), T(rcut), Ns, T(rtol)
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Nothing, rcut::Real, Ns::Nothing, rtol::Real) where {N, T}
-    C = 10^(-1.3)
+function _gaussian_splitting_params(Ls::NTuple{N}, β::Nothing, α::Nothing, rcut::Real, Ns::Nothing, rtol::Real) where {N}
+    T = eltype(Ls)
+    C = exp10(-1.3)
     β = sqrt(-log(rtol / C))
     α = β / rcut
     kmax = 2 * α * β
@@ -190,8 +196,9 @@ function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Nothing, 
     T(α), T(rcut), Ns, T(rtol)
 end
 
-function _gaussian_splitting_params(Ls::NTuple{N, T}, β::Nothing, α::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Real) where {N, T}
-    C = 10^(-1.3)
+function _gaussian_splitting_params(Ls::NTuple{N}, β::Nothing, α::Nothing, rcut::Nothing, Ns::Dims{N}, rtol::Real) where {N}
+    T = eltype(Ls)
+    C = exp10(-1.3)
     β = sqrt(-log(rtol / C))
     kmax = maximum_wavenumber(Ns, Ls)
     α = kmax / (2 * β)

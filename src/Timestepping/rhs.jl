@@ -74,11 +74,11 @@ end
 function _update_values_at_nodes!(
         ::Val{:full},
         term::FastBiotSavartTerm,  # ignored in this case
-        fields::NamedTuple{Names, NTuple{N, V}},
+        fields::NamedTuple,
         fs::VectorOfFilaments,
         t::Real,
         iter::VortexFilamentSolver,
-    ) where {Names, N, V <: VectorOfVectors}
+    )
     (; to) = iter
     if iter.LIA
         @assert term isa LocalTerm  # this is checked in init(prob, ...)
