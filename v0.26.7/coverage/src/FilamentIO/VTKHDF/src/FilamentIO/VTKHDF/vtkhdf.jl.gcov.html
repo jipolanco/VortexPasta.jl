@@ -1,0 +1,1016 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/FilamentIO/VTKHDF/src/FilamentIO/VTKHDF/vtkhdf.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">src/FilamentIO/VTKHDF/src/FilamentIO/VTKHDF</a> - vtkhdf.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">99.8&nbsp;%</td>
+            <td class="headerCovTableEntry">420</td>
+            <td class="headerCovTableEntry">419</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-03-07 09:19:40</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : export write_vtkhdf, read_vtkhdf, PointData, FieldData</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : using HDF5: HDF5</span>
+<span id="L4"><span class="lineNum">       4</span>              : using Bumper: Bumper, @no_escape, @alloc</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : ## ================================================================================ ##</span>
+<span id="L7"><span class="lineNum">       7</span>              : ## 1. Writing filament HDF5 files</span>
+<span id="L8"><span class="lineNum">       8</span>              : ## ================================================================================ ##</span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span>              : struct VTKHDFFile{</span>
+<span id="L11"><span class="lineNum">      11</span>              :         Group     &lt;: HDF5.Group,</span>
+<span id="L12"><span class="lineNum">      12</span>              :         Filaments &lt;: AbstractVector{&lt;:AbstractFilament},</span>
+<span id="L13"><span class="lineNum">      13</span>              :     }</span>
+<span id="L14"><span class="lineNum">      14</span> <span class="tlaGNC tlaBgGNC">          86 :     gtop       :: Group  # &quot;/VTKHDF&quot; group</span></span>
+<span id="L15"><span class="lineNum">      15</span>              :     fs         :: Filaments</span>
+<span id="L16"><span class="lineNum">      16</span>              :     refinement :: Int</span>
+<span id="L17"><span class="lineNum">      17</span>              : end</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              : const FilamentId = Int32</span>
+<span id="L20"><span class="lineNum">      20</span>              : const FilamentPeriodicOffset = Int32</span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">          56 : struct PointData end</span></span>
+<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">          24 : struct FieldData end</span></span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span>              : include(&quot;json_vtk_series.jl&quot;)</span>
+<span id="L26"><span class="lineNum">      26</span>              : include(&quot;write_points.jl&quot;)</span>
+<span id="L27"><span class="lineNum">      27</span>              : include(&quot;write_parametrisation.jl&quot;)</span>
+<span id="L28"><span class="lineNum">      28</span>              : include(&quot;write_data.jl&quot;)</span>
+<span id="L29"><span class="lineNum">      29</span>              : </span>
+<span id="L30"><span class="lineNum">      30</span>              : # Here &quot;padded&quot; means that Xs[end] corresponds the endpoint (which is equal to the start</span>
+<span id="L31"><span class="lineNum">      31</span>              : # point for closed curves).</span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">         203 : function write_padded_data_to_hdf5(points, Xs, n, ldims, Np)</span></span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">         203 :     (; dset, dspace, dtype,) = points</span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">         293 :     memspace = HDF5.dataspace((ldims..., Np))</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">         203 :     memtype = dtype</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">         293 :     lranges = map(N -&gt; 1:N, ldims)</span></span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">         203 :     HDF5.select_hyperslab!(dspace, (lranges..., (n + 1):(n + Np)))</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">         203 :     HDF5.API.h5d_write(dset.id, memtype.id, memspace.id, dspace.id, dset.xfer, Xs)</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">         203 :     close(memspace)</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">         203 :     nothing</span></span>
+<span id="L41"><span class="lineNum">      41</span>              : end</span>
+<span id="L42"><span class="lineNum">      42</span>              : </span>
+<span id="L43"><span class="lineNum">      43</span>              : &quot;&quot;&quot;</span>
+<span id="L44"><span class="lineNum">      44</span>              :     write_vtkhdf(</span>
+<span id="L45"><span class="lineNum">      45</span>              :         [func::Function],</span>
+<span id="L46"><span class="lineNum">      46</span>              :         filename::AbstractString,</span>
+<span id="L47"><span class="lineNum">      47</span>              :         fs::AbstractVector{&lt;:AbstractFilament};</span>
+<span id="L48"><span class="lineNum">      48</span>              :         refinement = 1,</span>
+<span id="L49"><span class="lineNum">      49</span>              :         dataset_type = :PolyData,</span>
+<span id="L50"><span class="lineNum">      50</span>              :         parametrisation = true,</span>
+<span id="L51"><span class="lineNum">      51</span>              :         periods = (nothing, nothing, nothing),</span>
+<span id="L52"><span class="lineNum">      52</span>              :     )</span>
+<span id="L53"><span class="lineNum">      53</span>              : </span>
+<span id="L54"><span class="lineNum">      54</span>              : Write new VTK HDF file containing a list of filaments.</span>
+<span id="L55"><span class="lineNum">      55</span>              : </span>
+<span id="L56"><span class="lineNum">      56</span>              : A VTK HDF file is an HDF5 file organised in such a way that it can be readily visualised in</span>
+<span id="L57"><span class="lineNum">      57</span>              : tools such as ParaView.</span>
+<span id="L58"><span class="lineNum">      58</span>              : Data in the file can be readily accessed using HDF5 tools and libraries.</span>
+<span id="L59"><span class="lineNum">      59</span>              : </span>
+<span id="L60"><span class="lineNum">      60</span>              : Following the VTK HDF specification, this function creates a &quot;VTKHDF&quot; group on top of the</span>
+<span id="L61"><span class="lineNum">      61</span>              : HDF5 file. Then, it creates the datasets allowing to describe the filaments as an</span>
+<span id="L62"><span class="lineNum">      62</span>              : unstructured grid.</span>
+<span id="L63"><span class="lineNum">      63</span>              : </span>
+<span id="L64"><span class="lineNum">      64</span>              : See also the [VTK documentation](https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#vtkhdf-file-format)</span>
+<span id="L65"><span class="lineNum">      65</span>              : for details on the VTK HDF format.</span>
+<span id="L66"><span class="lineNum">      66</span>              : </span>
+<span id="L67"><span class="lineNum">      67</span>              : # Extended help</span>
+<span id="L68"><span class="lineNum">      68</span>              : </span>
+<span id="L69"><span class="lineNum">      69</span>              : ## Relevant datasets</span>
+<span id="L70"><span class="lineNum">      70</span>              : </span>
+<span id="L71"><span class="lineNum">      71</span>              : Some relevant datasets which are written are:</span>
+<span id="L72"><span class="lineNum">      72</span>              : </span>
+<span id="L73"><span class="lineNum">      73</span>              : - `/VTKHDF/Points`: contains the coordinates of all filament nodes. Points are represented as</span>
+<span id="L74"><span class="lineNum">      74</span>              :   an array of dimensions `(3, Np)` where `Np` is the total number of nodes. Note that the</span>
+<span id="L75"><span class="lineNum">      75</span>              :   points *include the endpoint*, meaning that for a closed filament the initial coordinate</span>
+<span id="L76"><span class="lineNum">      76</span>              :   appears twice in the file. This is done to disambiguate between *closed* and *infinite but</span>
+<span id="L77"><span class="lineNum">      77</span>              :   unclosed* filaments (see [`end_to_end_offset`](@ref)).</span>
+<span id="L78"><span class="lineNum">      78</span>              : </span>
+<span id="L79"><span class="lineNum">      79</span>              : - `/VTKHDF/CellData/FilamentIds`: contains the filament id associated to each VTK cell. It is</span>
+<span id="L80"><span class="lineNum">      80</span>              :   a dataset of length `Nc`, where `Nc` is the number of cells.</span>
+<span id="L81"><span class="lineNum">      81</span>              :   In our case a cell is a spatial curve made of discrete points.</span>
+<span id="L82"><span class="lineNum">      82</span>              :   The ids are `$FilamentId` values from `1` to `Nf`, where `Nf` is the number of filaments.</span>
+<span id="L83"><span class="lineNum">      83</span>              :   The values are always sorted increasingly (`FilamentIds[i + 1] ≥ FilamentIds[i]` for all `i`).</span>
+<span id="L84"><span class="lineNum">      84</span>              :   Note that, in general, one cell corresponds to one filament (so that `Nc == Nf`), but this</span>
+<span id="L85"><span class="lineNum">      85</span>              :   may not be the case when the `periods` argument is used and a filament is broken onto</span>
+<span id="L86"><span class="lineNum">      86</span>              :   multiple curves (see **Periodic wrapping of filaments** below for details).</span>
+<span id="L87"><span class="lineNum">      87</span>              : </span>
+<span id="L88"><span class="lineNum">      88</span>              : ## Attaching extra data</span>
+<span id="L89"><span class="lineNum">      89</span>              : </span>
+<span id="L90"><span class="lineNum">      90</span>              : The optional `func` argument can be used to attach other data (such as velocity vectors or</span>
+<span id="L91"><span class="lineNum">      91</span>              : the current time) to the generated file. This is most conveniently done using the `do` block</span>
+<span id="L92"><span class="lineNum">      92</span>              : syntax. See further below for some examples.</span>
+<span id="L93"><span class="lineNum">      93</span>              : </span>
+<span id="L94"><span class="lineNum">      94</span>              : ## Optional keyword arguments</span>
+<span id="L95"><span class="lineNum">      95</span>              : </span>
+<span id="L96"><span class="lineNum">      96</span>              : - `refinement::Int = 1`: allows to output more than 1 point for each filament segment. This</span>
+<span id="L97"><span class="lineNum">      97</span>              :   is mostly useful for producing nice visualisations. The level of refinement is written to</span>
+<span id="L98"><span class="lineNum">      98</span>              :   the `/VTKHDF/RefinementLevel` dataset, which allows to read back the data skipping</span>
+<span id="L99"><span class="lineNum">      99</span>              :   intra-segment nodes.</span>
+<span id="L100"><span class="lineNum">     100</span>              : </span>
+<span id="L101"><span class="lineNum">     101</span>              : - `parametrisation::Bool = true`: if `true` (default), write curve parametrisation values.</span>
+<span id="L102"><span class="lineNum">     102</span>              :   This allows `read_vtkhdf` to reconstruct the exact same curve that was written (assuming</span>
+<span id="L103"><span class="lineNum">     103</span>              :   the same discretisation method is used, e.g. cubic splines), even if the curve used some</span>
+<span id="L104"><span class="lineNum">     104</span>              :   non-default curve parametrisation.</span>
+<span id="L105"><span class="lineNum">     105</span>              :   Values are written to the `/VTKHDF/PointData/Parametrisation` dataset.</span>
+<span id="L106"><span class="lineNum">     106</span>              : </span>
+<span id="L107"><span class="lineNum">     107</span>              : - `dataset_type::Symbol`: can be either `:PolyData` (default) or `:UnstructuredGrid`.</span>
+<span id="L108"><span class="lineNum">     108</span>              :   There's usually no reason to change this.</span>
+<span id="L109"><span class="lineNum">     109</span>              : </span>
+<span id="L110"><span class="lineNum">     110</span>              : ## Periodic wrapping of filaments</span>
+<span id="L111"><span class="lineNum">     111</span>              : </span>
+<span id="L112"><span class="lineNum">     112</span>              : When using periodic boundary conditions, one can use the optional `periods` argument to</span>
+<span id="L113"><span class="lineNum">     113</span>              : periodically wrap the filaments. In this case, one should pass a tuple `periods = (Lx, Ly,</span>
+<span id="L114"><span class="lineNum">     114</span>              : Lz)` with the period in each direction (one can pass `nothing` if there are non-periodic</span>
+<span id="L115"><span class="lineNum">     115</span>              : directions).</span>
+<span id="L116"><span class="lineNum">     116</span>              : </span>
+<span id="L117"><span class="lineNum">     117</span>              : In this case, filaments outside the main periodic box will be translated to fit in the</span>
+<span id="L118"><span class="lineNum">     118</span>              : periodic box. Moreover, if a filament locally goes out of the periodic box, it will be</span>
+<span id="L119"><span class="lineNum">     119</span>              : broken onto multiple curves so that they all fit within the domain. One can then look at the</span>
+<span id="L120"><span class="lineNum">     120</span>              : `/VTKHDF/CellData/FilamentIds` dataset to determine which curves belong to the same</span>
+<span id="L121"><span class="lineNum">     121</span>              : filament.</span>
+<span id="L122"><span class="lineNum">     122</span>              : </span>
+<span id="L123"><span class="lineNum">     123</span>              : ## Typical usage</span>
+<span id="L124"><span class="lineNum">     124</span>              : </span>
+<span id="L125"><span class="lineNum">     125</span>              : ```julia</span>
+<span id="L126"><span class="lineNum">     126</span>              : # Note: the file extension is arbitrary, but ParaView prefers &quot;.vtkhdf&quot; (or &quot;.hdf&quot;) if one</span>
+<span id="L127"><span class="lineNum">     127</span>              : # wants to use the files for visualisation.</span>
+<span id="L128"><span class="lineNum">     128</span>              : write_vtkhdf(&quot;filaments.vtkhdf&quot;, fs; refinement = 2, periods = (2π, 2π, 2π)) do io</span>
+<span id="L129"><span class="lineNum">     129</span>              :     io[&quot;Velocity&quot;] = vs  # adds velocity as VTK point data, assuming vs is a VectorOfVectors</span>
+<span id="L130"><span class="lineNum">     130</span>              :     io[&quot;Curvatures&quot;] = CurvatureVector()  # convenient syntax for writing geometric quantities along filaments</span>
+<span id="L131"><span class="lineNum">     131</span>              :     io[&quot;Time&quot;] = 0.3     # adds time as VTK field data, since it's a scalar</span>
+<span id="L132"><span class="lineNum">     132</span>              :     # one can add other fields here...</span>
+<span id="L133"><span class="lineNum">     133</span>              : end</span>
+<span id="L134"><span class="lineNum">     134</span>              : ```</span>
+<span id="L135"><span class="lineNum">     135</span>              : &quot;&quot;&quot;</span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">          92 : function write_vtkhdf(</span></span>
+<span id="L137"><span class="lineNum">     137</span>              :         func::Func,</span>
+<span id="L138"><span class="lineNum">     138</span>              :         filename::AbstractString,</span>
+<span id="L139"><span class="lineNum">     139</span>              :         fs::AbstractVector{&lt;:AbstractFilament};</span>
+<span id="L140"><span class="lineNum">     140</span>              :         kwargs...</span>
+<span id="L141"><span class="lineNum">     141</span>              :     ) where {Func &lt;: Function}</span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">          46 :     HDF5.h5open(filename, &quot;w&quot;) do io</span></span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">          46 :         writer = init_vtkhdf(io, fs; kwargs...)</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">          42 :         func(writer)</span></span>
+<span id="L145"><span class="lineNum">     145</span>              :     end</span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">          42 :     nothing</span></span>
+<span id="L147"><span class="lineNum">     147</span>              : end</span>
+<span id="L148"><span class="lineNum">     148</span>              : </span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">          42 : write_vtkhdf(filename::AbstractString, args...; kws...) =</span></span>
+<span id="L150"><span class="lineNum">     150</span>              :     write_vtkhdf(Returns(nothing), filename, args...; kws...)</span>
+<span id="L151"><span class="lineNum">     151</span>              : </span>
+<span id="L152"><span class="lineNum">     152</span>              : # This is to make sure we write the dataset type (&quot;UnstructuredGrid&quot;) as ASCII.</span>
+<span id="L153"><span class="lineNum">     153</span>              : # This is required by VTK/ParaView.</span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">          42 : function datatype_ascii(s::AbstractString)</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">          42 :     dtype = HDF5.datatype(s)</span></span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">          42 :     HDF5.API.h5t_set_cset(dtype.id, HDF5.API.H5T_CSET_ASCII)</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">          42 :     dtype</span></span>
+<span id="L158"><span class="lineNum">     158</span>              : end</span>
+<span id="L159"><span class="lineNum">     159</span>              : </span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">          24 : function open_or_create_group(parent, name)</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">          24 :     if haskey(parent, name)</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">          12 :         HDF5.open_group(parent, name)</span></span>
+<span id="L163"><span class="lineNum">     163</span>              :     else</span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">          12 :         HDF5.create_group(parent, name)</span></span>
+<span id="L165"><span class="lineNum">     165</span>              :     end</span>
+<span id="L166"><span class="lineNum">     166</span>              : end</span>
+<span id="L167"><span class="lineNum">     167</span>              : </span>
+<span id="L168"><span class="lineNum">     168</span>              : # Some internal (undocumented) arguments:</span>
+<span id="L169"><span class="lineNum">     169</span>              : #</span>
+<span id="L170"><span class="lineNum">     170</span>              : # - _allow_breaking_filaments: can be set to false to generate files as in old VortexPasta</span>
+<span id="L171"><span class="lineNum">     171</span>              : #   versions (&lt; 0.18). Used in tests only, to check that we're still able to read old VTKHDF</span>
+<span id="L172"><span class="lineNum">     172</span>              : #   files.</span>
+<span id="L173"><span class="lineNum">     173</span>              : #</span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">          92 : function init_vtkhdf(</span></span>
+<span id="L175"><span class="lineNum">     175</span>              :         io::HDF5.File,</span>
+<span id="L176"><span class="lineNum">     176</span>              :         fs::AbstractVector{&lt;:AbstractFilament};</span>
+<span id="L177"><span class="lineNum">     177</span>              :         refinement::Int = 1,</span>
+<span id="L178"><span class="lineNum">     178</span>              :         parametrisation = true,</span>
+<span id="L179"><span class="lineNum">     179</span>              :         dataset_type::Symbol = :PolyData,  # either :UnstructuredGrid (old default) or :PolyData</span>
+<span id="L180"><span class="lineNum">     180</span>              :         periods::Tuple = (nothing, nothing, nothing),</span>
+<span id="L181"><span class="lineNum">     181</span>              :         _allow_breaking_filaments = true,</span>
+<span id="L182"><span class="lineNum">     182</span>              :     )</span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">          46 :     gtop = HDF5.create_group(io, &quot;VTKHDF&quot;)</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">          92 :     HDF5.attrs(gtop)[&quot;Version&quot;] = [2, 1]</span></span>
+<span id="L185"><span class="lineNum">     185</span>              : </span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">          46 :     with_periods = any(!isnothing, periods)</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">          46 :     if with_periods &amp;&amp; !_allow_breaking_filaments</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">           4 :         throw(ArgumentError(&quot;the `periods` argument requires `_allow_breaking_filaments = true`&quot;))</span></span>
+<span id="L189"><span class="lineNum">     189</span>              :     end</span>
+<span id="L190"><span class="lineNum">     190</span>              : </span>
+<span id="L191"><span class="lineNum">     191</span>              :     # This is the first VortexPasta version needed to read back the files.</span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">          42 :     HDF5.attrs(gtop)[&quot;VortexPasta minimum version&quot;] = if with_periods</span></span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">          39 :         [0, 18, 0]</span></span>
+<span id="L194"><span class="lineNum">     194</span>              :     else</span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">         100 :         [0, 14, 0]</span></span>
+<span id="L196"><span class="lineNum">     196</span>              :     end</span>
+<span id="L197"><span class="lineNum">     197</span>              : </span>
+<span id="L198"><span class="lineNum">     198</span>              :     # This attribute *must* be written as ASCII instead of UTF8, or ParaView will fail to</span>
+<span id="L199"><span class="lineNum">     199</span>              :     # open the file.</span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">          42 :     let s = string(dataset_type)</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">          42 :         dtype = datatype_ascii(s)</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">          42 :         dspace = HDF5.dataspace(s)</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">          42 :         attr = HDF5.create_attribute(gtop, &quot;Type&quot;, dtype, dspace)</span></span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC">          42 :         HDF5.write_attribute(attr, dtype, s)</span></span>
+<span id="L205"><span class="lineNum">     205</span>              :     end</span>
+<span id="L206"><span class="lineNum">     206</span>              : </span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">          42 :     V = eltype(eltype(fs))  # usually V == SVector{3, T}</span></span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">          42 :     T = eltype(V)</span></span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">          42 :     N = length(V)  # usually == 3</span></span>
+<span id="L210"><span class="lineNum">     210</span>              : </span>
+<span id="L211"><span class="lineNum">     211</span>              :     # Add empty categories</span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">          42 :     if dataset_type == :PolyData</span></span>
+<span id="L213"><span class="lineNum">     213</span> <span class="tlaGNC">          36 :         for type ∈ (&quot;Vertices&quot;, &quot;Polygons&quot;, &quot;Strips&quot;)</span></span>
+<span id="L214"><span class="lineNum">     214</span> <span class="tlaGNC">         108 :             gempty = HDF5.create_group(gtop, type)</span></span>
+<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">         108 :             gempty[&quot;NumberOfCells&quot;] = [0]</span></span>
+<span id="L216"><span class="lineNum">     216</span> <span class="tlaGNC">         108 :             gempty[&quot;NumberOfConnectivityIds&quot;] = [0]</span></span>
+<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">         108 :             gempty[&quot;Connectivity&quot;] = Int[]</span></span>
+<span id="L218"><span class="lineNum">     218</span> <span class="tlaGNC">         108 :             gempty[&quot;Offsets&quot;] = [0]</span></span>
+<span id="L219"><span class="lineNum">     219</span> <span class="tlaGNC">         108 :             close(gempty)</span></span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">         144 :         end</span></span>
+<span id="L221"><span class="lineNum">     221</span>              :     end</span>
+<span id="L222"><span class="lineNum">     222</span>              : </span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">         138 :     num_points = sum(f -&gt; refinement * length(nodes(f)) + 1, fs)  # the +1 is to include the endpoint</span></span>
+<span id="L224"><span class="lineNum">     224</span>              : </span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">          42 :     g_pointdata = HDF5.create_group(gtop, &quot;PointData&quot;)</span></span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">          42 :     g_celldata = HDF5.create_group(gtop, &quot;CellData&quot;)</span></span>
+<span id="L227"><span class="lineNum">     227</span>              : </span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">          42 :     if dataset_type == :PolyData</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">          36 :         gcells = HDF5.create_group(gtop, &quot;Lines&quot;)  # write cell info to /VTKHDF/Lines</span></span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">           6 :     elseif dataset_type == :UnstructuredGrid</span></span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">           6 :         gcells = gtop  # write cell info directly to /VTKHDF</span></span>
+<span id="L232"><span class="lineNum">     232</span>              :     else</span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaUNC tlaBgUNC">           0 :         throw(ArgumentError(&quot;dataset_type must be either :PolyData (default) or :UnstructuredGrid&quot;))</span></span>
+<span id="L234"><span class="lineNum">     234</span>              :     end</span>
+<span id="L235"><span class="lineNum">     235</span>              : </span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC tlaBgGNC">          42 :     gtop[&quot;NumberOfPoints&quot;] = [num_points]</span></span>
+<span id="L237"><span class="lineNum">     237</span>              : </span>
+<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">          42 :     buf = Bumper.default_buffer()</span></span>
+<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">          42 :     @no_escape buf let</span></span>
+<span id="L240"><span class="lineNum">     240</span>              :         # These are not VTK attributes, it's just for our own use</span>
+<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">          42 :         gtop[&quot;RefinementLevel&quot;] = refinement</span></span>
+<span id="L242"><span class="lineNum">     242</span>              : </span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">          42 :         if _allow_breaking_filaments</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">          38 :             gtop[&quot;Periods&quot;] = let</span></span>
+<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">          76 :                 local Ls = @alloc(T, length(periods))</span></span>
+<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">          38 :                 for (i, L) ∈ pairs(periods)</span></span>
+<span id="L247"><span class="lineNum">     247</span>              :                     # We write a zero in &quot;non-periodic&quot; dimensions.</span>
+<span id="L248"><span class="lineNum">     248</span> <span class="tlaGNC">         114 :                     Ls[i] = L === nothing ? zero(T) : T(L)</span></span>
+<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">         190 :                 end</span></span>
+<span id="L250"><span class="lineNum">     250</span> <span class="tlaGNC">          38 :                 Ls</span></span>
+<span id="L251"><span class="lineNum">     251</span>              :             end</span>
+<span id="L252"><span class="lineNum">     252</span>              :         end</span>
+<span id="L253"><span class="lineNum">     253</span>              : </span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">          42 :         num_filaments = length(fs)</span></span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">          42 :         gtop[&quot;NumberOfFilaments&quot;] = [num_filaments]</span></span>
+<span id="L256"><span class="lineNum">     256</span>              : </span>
+<span id="L257"><span class="lineNum">     257</span>              :         # Integer periodic offset applied to the first point of the filament.</span>
+<span id="L258"><span class="lineNum">     258</span>              :         # This is just to be able to reconstruct the filaments with their original periodic</span>
+<span id="L259"><span class="lineNum">     259</span>              :         # offset.</span>
+<span id="L260"><span class="lineNum">     260</span> <span class="tlaGNC">          84 :         offsets = @alloc(FilamentPeriodicOffset, N, num_filaments)</span></span>
+<span id="L261"><span class="lineNum">     261</span>              : </span>
+<span id="L262"><span class="lineNum">     262</span>              :         # Points to be written.</span>
+<span id="L263"><span class="lineNum">     263</span> <span class="tlaGNC">          84 :         Xs_all = @alloc(V, num_points)</span></span>
+<span id="L264"><span class="lineNum">     264</span>              : </span>
+<span id="L265"><span class="lineNum">     265</span>              :         # This determines whether the endpoint f[end + 1] of a filament `f` should be</span>
+<span id="L266"><span class="lineNum">     266</span>              :         # included in the cell connectivity arrays. This is only useful for visualisations,</span>
+<span id="L267"><span class="lineNum">     267</span>              :         # to avoid ugly &quot;jumps&quot; between points f[end] and f[end + 1] of a filament if they</span>
+<span id="L268"><span class="lineNum">     268</span>              :         # are &quot;far&quot; after periodic wrapping.</span>
+<span id="L269"><span class="lineNum">     269</span> <span class="tlaGNC">          84 :         include_endpoint_in_connectivity = @alloc(Bool, num_filaments)</span></span>
+<span id="L270"><span class="lineNum">     270</span>              : </span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">          42 :         (; filament_ids, cell_offsets,) = set_points!(</span></span>
+<span id="L272"><span class="lineNum">     272</span>              :             Xs_all, offsets, include_endpoint_in_connectivity, fs, refinement, periods,</span>
+<span id="L273"><span class="lineNum">     273</span>              :         )</span>
+<span id="L274"><span class="lineNum">     274</span>              : </span>
+<span id="L275"><span class="lineNum">     275</span> <span class="tlaGNC">          42 :         num_cells = length(filament_ids)</span></span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">          42 :         @assert length(cell_offsets) == num_cells + 1</span></span>
+<span id="L277"><span class="lineNum">     277</span>              : </span>
+<span id="L278"><span class="lineNum">     278</span>              :         # Write full Points dataset.</span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">          42 :         points_to_vtkhdf_dataset(gtop, Xs_all)</span></span>
+<span id="L280"><span class="lineNum">     280</span>              : </span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">          42 :         gcells[&quot;Offsets&quot;] = cell_offsets</span></span>
+<span id="L282"><span class="lineNum">     282</span>              : </span>
+<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">          42 :         if _allow_breaking_filaments</span></span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">          38 :             g_celldata[&quot;FilamentIds&quot;] = filament_ids</span></span>
+<span id="L285"><span class="lineNum">     285</span> <span class="tlaGNC">          38 :             gtop[&quot;FilamentPeriodicOffsets&quot;] = offsets</span></span>
+<span id="L286"><span class="lineNum">     286</span>              :         end</span>
+<span id="L287"><span class="lineNum">     287</span>              : </span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">          42 :         gcells[&quot;NumberOfCells&quot;] = [num_cells]</span></span>
+<span id="L289"><span class="lineNum">     289</span>              : </span>
+<span id="L290"><span class="lineNum">     290</span>              :         # Number of points included in the connectivity vector.</span>
+<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">          84 :         num_points_connectivity =</span></span>
+<span id="L292"><span class="lineNum">     292</span>              :             num_points - (num_filaments - sum(include_endpoint_in_connectivity))</span>
+<span id="L293"><span class="lineNum">     293</span> <span class="tlaGNC">          42 :         gcells[&quot;NumberOfConnectivityIds&quot;] = [num_points_connectivity]</span></span>
+<span id="L294"><span class="lineNum">     294</span>              : </span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">          42 :         gcells[&quot;Connectivity&quot;] = let</span></span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">          84 :             connectivity = @alloc(Int, num_points_connectivity)</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">          42 :             local n = 0</span></span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">          42 :             local m = -1  # VTK uses zero-based indexing (we start at m = 0)</span></span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">          47 :             for (i, f) ∈ enumerate(fs)</span></span>
+<span id="L300"><span class="lineNum">     300</span> <span class="tlaGNC">          96 :                 Np = length(nodes(f)) * refinement</span></span>
+<span id="L301"><span class="lineNum">     301</span> <span class="tlaGNC">          96 :                 Np_cells = Np + include_endpoint_in_connectivity[i]</span></span>
+<span id="L302"><span class="lineNum">     302</span> <span class="tlaGNC">          96 :                 inds = (n + 1):(n + Np_cells)</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">          96 :                 connect = (m + 1):(m + Np_cells)</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">         192 :                 @views copyto!(connectivity[inds], connect)</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">          96 :                 n += Np_cells</span></span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaGNC">          96 :                 m += Np + 1  # always includes endpoint</span></span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaGNC">         150 :             end</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaGNC">          42 :             @assert n == num_points_connectivity</span></span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">          42 :             @assert m == num_points - 1</span></span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">          42 :             connectivity</span></span>
+<span id="L311"><span class="lineNum">     311</span>              :         end</span>
+<span id="L312"><span class="lineNum">     312</span>              : </span>
+<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">          42 :         if dataset_type == :UnstructuredGrid</span></span>
+<span id="L314"><span class="lineNum">     314</span>              :             # Write cell types, `4` corresponds to VTK_POLY_LINE</span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">           6 :             let dset = HDF5.create_dataset(gtop, &quot;Types&quot;, UInt8, (num_cells,))</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">          12 :                 local data = @alloc(UInt8, num_cells)</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">          26 :                 fill!(data, UInt8(4))</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">           6 :                 HDF5.write_dataset(dset, HDF5.datatype(data), data)</span></span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">           6 :                 close(dset)</span></span>
+<span id="L320"><span class="lineNum">     320</span>              :             end</span>
+<span id="L321"><span class="lineNum">     321</span>              :         end</span>
+<span id="L322"><span class="lineNum">     322</span>              : </span>
+<span id="L323"><span class="lineNum">     323</span> <span class="tlaGNC">          42 :         if parametrisation</span></span>
+<span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">          30 :             info_param = let dtype = HDF5.datatype(T)</span></span>
+<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">          30 :                 dspace = HDF5.dataspace((num_points,))</span></span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">          30 :                 (;</span></span>
+<span id="L327"><span class="lineNum">     327</span>              :                     dtype, dspace,</span>
+<span id="L328"><span class="lineNum">     328</span>              :                     dset = HDF5.create_dataset(g_pointdata, &quot;Parametrisation&quot;, dtype, dspace),</span>
+<span id="L329"><span class="lineNum">     329</span>              :                 )</span>
+<span id="L330"><span class="lineNum">     330</span>              :             end</span>
+<span id="L331"><span class="lineNum">     331</span> <span class="tlaGNC">          30 :             let n = write_parametrisation(info_param, fs, refinement)</span></span>
+<span id="L332"><span class="lineNum">     332</span> <span class="tlaGNC">          30 :                 @assert n == num_points</span></span>
+<span id="L333"><span class="lineNum">     333</span>              :             end</span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">          30 :             foreach(close, info_param)  # close dataset + dataspace + datatype</span></span>
+<span id="L335"><span class="lineNum">     335</span>              :         end</span>
+<span id="L336"><span class="lineNum">     336</span>              :     end  # @no_escape</span>
+<span id="L337"><span class="lineNum">     337</span>              : </span>
+<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">          42 :     close(g_celldata)</span></span>
+<span id="L339"><span class="lineNum">     339</span> <span class="tlaGNC">          42 :     close(g_pointdata)</span></span>
+<span id="L340"><span class="lineNum">     340</span>              : </span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">          42 :     VTKHDFFile(gtop, fs, refinement)</span></span>
+<span id="L342"><span class="lineNum">     342</span>              : end</span>
+<span id="L343"><span class="lineNum">     343</span>              : </span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">          41 : vtk_attribute_type(::Type{&lt;:Number}) = &quot;Scalars&quot;          # usually &lt;:AbstractFloat</span></span>
+<span id="L345"><span class="lineNum">     345</span> <span class="tlaGNC">          66 : vtk_attribute_type(::Type{&lt;:AbstractVector}) = &quot;Vectors&quot;  # usually Vec3</span></span>
+<span id="L346"><span class="lineNum">     346</span>              : </span>
+<span id="L347"><span class="lineNum">     347</span>              : &quot;&quot;&quot;</span>
+<span id="L348"><span class="lineNum">     348</span>              :     Base.setindex!(io::VTKHDFFile, vs::AbstractVector{&lt;:AbstractVector}, name::AbstractString)</span>
+<span id="L349"><span class="lineNum">     349</span>              : </span>
+<span id="L350"><span class="lineNum">     350</span>              : Attach data to filament nodes.</span>
+<span id="L351"><span class="lineNum">     351</span>              : </span>
+<span id="L352"><span class="lineNum">     352</span>              : One generally wants to use the syntax `io[name] = vs` which calls this function.</span>
+<span id="L353"><span class="lineNum">     353</span>              : </span>
+<span id="L354"><span class="lineNum">     354</span>              : This can be used to write fields defined at filament nodes (for instance, the velocity of</span>
+<span id="L355"><span class="lineNum">     355</span>              : each node).</span>
+<span id="L356"><span class="lineNum">     356</span>              : </span>
+<span id="L357"><span class="lineNum">     357</span>              : The data is written to the dataset `/VTKHDF/PointData/\$name`.</span>
+<span id="L358"><span class="lineNum">     358</span>              : </span>
+<span id="L359"><span class="lineNum">     359</span>              : For vector fields (such as velocity), the written dataset has dimensions `(3, Np)` where</span>
+<span id="L360"><span class="lineNum">     360</span>              : `Np` is the total number of filament nodes (including endpoints).</span>
+<span id="L361"><span class="lineNum">     361</span>              : The format is exactly the same as for the `Points` dataset as detailed in</span>
+<span id="L362"><span class="lineNum">     362</span>              : [`write_vtkhdf`](@ref). As also explained there, the `Offsets` dataset can be used to recover</span>
+<span id="L363"><span class="lineNum">     363</span>              : the values associated to each filament.</span>
+<span id="L364"><span class="lineNum">     364</span>              : </span>
+<span id="L365"><span class="lineNum">     365</span>              : # Writing geometric quantities</span>
+<span id="L366"><span class="lineNum">     366</span>              : </span>
+<span id="L367"><span class="lineNum">     367</span>              : It is also possible to write geometric quantities such as unit tangents or curvature vectors</span>
+<span id="L368"><span class="lineNum">     368</span>              : along filaments (see [`GeometricQuantity`](@ref) for a list).</span>
+<span id="L369"><span class="lineNum">     369</span>              : For this, one can pass the wanted quantity as the `vs` argument.</span>
+<span id="L370"><span class="lineNum">     370</span>              : </span>
+<span id="L371"><span class="lineNum">     371</span>              : For example, one can simply do</span>
+<span id="L372"><span class="lineNum">     372</span>              : </span>
+<span id="L373"><span class="lineNum">     373</span>              :     io[&quot;Curvatures&quot;] = CurvatureVector()</span>
+<span id="L374"><span class="lineNum">     374</span>              : </span>
+<span id="L375"><span class="lineNum">     375</span>              : to write curvature vectors along each filament.</span>
+<span id="L376"><span class="lineNum">     376</span>              : &quot;&quot;&quot;</span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">          83 : function Base.setindex!(</span></span>
+<span id="L378"><span class="lineNum">     378</span>              :         writer::VTKHDFFile,</span>
+<span id="L379"><span class="lineNum">     379</span>              :         vs::AbstractVector{&lt;:AbstractVector},</span>
+<span id="L380"><span class="lineNum">     380</span>              :         name::AbstractString,</span>
+<span id="L381"><span class="lineNum">     381</span>              :     )</span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">          83 :     write_point_data(writer, vs, name)</span></span>
+<span id="L383"><span class="lineNum">     383</span>              : end</span>
+<span id="L384"><span class="lineNum">     384</span>              : </span>
+<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">          24 : function Base.setindex!(writer::VTKHDFFile, q::GeometricQuantity, name::AbstractString)</span></span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">          24 :     (; fs,) = writer</span></span>
+<span id="L387"><span class="lineNum">     387</span> <span class="tlaGNC">          24 :     buf = Bumper.default_buffer()</span></span>
+<span id="L388"><span class="lineNum">     388</span> <span class="tlaGNC">          24 :     @no_escape buf begin</span></span>
+<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">          24 :         vs = map(fs) do f</span></span>
+<span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">          48 :             v1 = f[begin, q]</span></span>
+<span id="L391"><span class="lineNum">     391</span> <span class="tlaGNC">          48 :             T = typeof(v1)</span></span>
+<span id="L392"><span class="lineNum">     392</span> <span class="tlaGNC">          96 :             v = @alloc(T, length(f))</span></span>
+<span id="L393"><span class="lineNum">     393</span> <span class="tlaGNC">          48 :             v[begin] = v1</span></span>
+<span id="L394"><span class="lineNum">     394</span> <span class="tlaGNC">          48 :             for i ∈ eachindex(v)[2:end]</span></span>
+<span id="L395"><span class="lineNum">     395</span> <span class="tlaGNC">        3024 :                 v[i] = f[i, q]</span></span>
+<span id="L396"><span class="lineNum">     396</span> <span class="tlaGNC">        6000 :             end</span></span>
+<span id="L397"><span class="lineNum">     397</span> <span class="tlaGNC">          48 :             v</span></span>
+<span id="L398"><span class="lineNum">     398</span>              :         end</span>
+<span id="L399"><span class="lineNum">     399</span> <span class="tlaGNC">          24 :         write_point_data(writer, vs, name)</span></span>
+<span id="L400"><span class="lineNum">     400</span>              :     end</span>
+<span id="L401"><span class="lineNum">     401</span> <span class="tlaGNC">          24 :     nothing</span></span>
+<span id="L402"><span class="lineNum">     402</span>              : end</span>
+<span id="L403"><span class="lineNum">     403</span>              : </span>
+<span id="L404"><span class="lineNum">     404</span> <span class="tlaGNC">         107 : function write_point_data(writer, vs, name)</span></span>
+<span id="L405"><span class="lineNum">     405</span> <span class="tlaGNC">         107 :     (; gtop,) = writer</span></span>
+<span id="L406"><span class="lineNum">     406</span> <span class="tlaGNC">         107 :     gdata = HDF5.open_group(gtop, &quot;PointData&quot;)</span></span>
+<span id="L407"><span class="lineNum">     407</span> <span class="tlaGNC">         107 :     T = eltype(eltype(vs))  # usually &lt;:Real or Vec3{&lt;:Real}</span></span>
+<span id="L408"><span class="lineNum">     408</span> <span class="tlaGNC">         107 :     attrname = vtk_attribute_type(T)  # &quot;Scalars&quot;, &quot;Vectors&quot;, ...</span></span>
+<span id="L409"><span class="lineNum">     409</span> <span class="tlaGNC">         107 :     names = if haskey(HDF5.attrs(gdata), attrname)</span></span>
+<span id="L410"><span class="lineNum">     410</span> <span class="tlaGNC">          65 :         names_prev = HDF5.attrs(gdata)[attrname] :: Vector{String}</span></span>
+<span id="L411"><span class="lineNum">     411</span> <span class="tlaGNC">          65 :         vcat(names_prev, name) :: Vector{String}</span></span>
+<span id="L412"><span class="lineNum">     412</span>              :     else</span>
+<span id="L413"><span class="lineNum">     413</span> <span class="tlaGNC">         149 :         String[name]</span></span>
+<span id="L414"><span class="lineNum">     414</span>              :     end</span>
+<span id="L415"><span class="lineNum">     415</span> <span class="tlaGNC">         107 :     HDF5.attrs(gdata)[attrname] = names  # overwrite attribute if it already existed</span></span>
+<span id="L416"><span class="lineNum">     416</span> <span class="tlaGNC">         107 :     write_data_on_filaments(T, writer, gdata, vs, name)</span></span>
+<span id="L417"><span class="lineNum">     417</span> <span class="tlaGNC">         107 :     close(gdata)</span></span>
+<span id="L418"><span class="lineNum">     418</span> <span class="tlaGNC">         107 :     nothing</span></span>
+<span id="L419"><span class="lineNum">     419</span>              : end</span>
+<span id="L420"><span class="lineNum">     420</span>              : </span>
+<span id="L421"><span class="lineNum">     421</span>              : &quot;&quot;&quot;</span>
+<span id="L422"><span class="lineNum">     422</span>              :     Base.setindex!(io::VTKHDFFile, data, name::AbstractString)</span>
+<span id="L423"><span class="lineNum">     423</span>              : </span>
+<span id="L424"><span class="lineNum">     424</span>              : Write data as VTK field data to VTK HDF file.</span>
+<span id="L425"><span class="lineNum">     425</span>              : </span>
+<span id="L426"><span class="lineNum">     426</span>              : In VTK, *field data* refers to data which is not directly attached to the geometry.</span>
+<span id="L427"><span class="lineNum">     427</span>              : This is typically small datasets or simple values, such as the current time or simulation</span>
+<span id="L428"><span class="lineNum">     428</span>              : parameters.</span>
+<span id="L429"><span class="lineNum">     429</span>              : </span>
+<span id="L430"><span class="lineNum">     430</span>              : Note that scalar data (such as time) is always written as a single-element vector, since</span>
+<span id="L431"><span class="lineNum">     431</span>              : otherwise it cannot be parsed by VTK.</span>
+<span id="L432"><span class="lineNum">     432</span>              : </span>
+<span id="L433"><span class="lineNum">     433</span>              : This function interprets everything that is not a vector of vectors as field data.</span>
+<span id="L434"><span class="lineNum">     434</span>              : &quot;&quot;&quot;</span>
+<span id="L435"><span class="lineNum">     435</span> <span class="tlaGNC">          24 : function Base.setindex!(writer::VTKHDFFile, data, name::AbstractString)</span></span>
+<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">          24 :     (; gtop,) = writer</span></span>
+<span id="L437"><span class="lineNum">     437</span> <span class="tlaGNC">          24 :     gdata = open_or_create_group(gtop, &quot;FieldData&quot;)</span></span>
+<span id="L438"><span class="lineNum">     438</span> <span class="tlaGNC">          24 :     _write_field_data(gdata, name, data)</span></span>
+<span id="L439"><span class="lineNum">     439</span> <span class="tlaGNC">          24 :     close(gdata)</span></span>
+<span id="L440"><span class="lineNum">     440</span> <span class="tlaGNC">          24 :     nothing</span></span>
+<span id="L441"><span class="lineNum">     441</span>              : end</span>
+<span id="L442"><span class="lineNum">     442</span>              : </span>
+<span id="L443"><span class="lineNum">     443</span>              : # General arrays of data (this actually will only work with regular `Array`s I think...)</span>
+<span id="L444"><span class="lineNum">     444</span> <span class="tlaGNC">          12 : function _write_field_data(g, name, data::AbstractArray)</span></span>
+<span id="L445"><span class="lineNum">     445</span> <span class="tlaGNC">          12 :     g[name] = data</span></span>
+<span id="L446"><span class="lineNum">     446</span>              : end</span>
+<span id="L447"><span class="lineNum">     447</span>              : </span>
+<span id="L448"><span class="lineNum">     448</span>              : # Strings as VTK field data require special handling:</span>
+<span id="L449"><span class="lineNum">     449</span>              : # - they must be encoded in ASCII</span>
+<span id="L450"><span class="lineNum">     450</span>              : # - they must be variable-length strings</span>
+<span id="L451"><span class="lineNum">     451</span> <span class="tlaGNC">          12 : function _write_field_data(g, name, data::AbstractArray{&lt;:AbstractString})</span></span>
+<span id="L452"><span class="lineNum">     452</span>              :     # This is adapted from the code for HDF5.datatype(data), but making sure we use ASCII.</span>
+<span id="L453"><span class="lineNum">     453</span> <span class="tlaGNC">          12 :     S = eltype(data)</span></span>
+<span id="L454"><span class="lineNum">     454</span> <span class="tlaGNC">          12 :     type_id = HDF5.API.h5t_copy(HDF5.hdf5_type_id(S))</span></span>
+<span id="L455"><span class="lineNum">     455</span> <span class="tlaGNC">          12 :     HDF5.API.h5t_set_size(type_id, HDF5.API.H5T_VARIABLE)</span></span>
+<span id="L456"><span class="lineNum">     456</span> <span class="tlaGNC">          12 :     HDF5.API.h5t_set_cset(type_id, HDF5.API.H5T_CSET_ASCII)</span></span>
+<span id="L457"><span class="lineNum">     457</span> <span class="tlaGNC">          12 :     dtype = HDF5.Datatype(type_id)</span></span>
+<span id="L458"><span class="lineNum">     458</span> <span class="tlaGNC">          12 :     dspace = HDF5.dataspace(data)</span></span>
+<span id="L459"><span class="lineNum">     459</span> <span class="tlaGNC">          12 :     dset = HDF5.create_dataset(g, name, dtype, dspace)</span></span>
+<span id="L460"><span class="lineNum">     460</span> <span class="tlaGNC">          12 :     HDF5.write_dataset(dset, dtype, data)</span></span>
+<span id="L461"><span class="lineNum">     461</span>              : end</span>
+<span id="L462"><span class="lineNum">     462</span>              : </span>
+<span id="L463"><span class="lineNum">     463</span>              : # Otherwise, assume scalar data (numbers, strings)</span>
+<span id="L464"><span class="lineNum">     464</span> <span class="tlaGNC">          12 : function _write_field_data(g, name, data)</span></span>
+<span id="L465"><span class="lineNum">     465</span> <span class="tlaGNC">          12 :     _write_field_data(g, name, [data])</span></span>
+<span id="L466"><span class="lineNum">     466</span>              : end</span>
+<span id="L467"><span class="lineNum">     467</span>              : </span>
+<span id="L468"><span class="lineNum">     468</span>              : ## ================================================================================ ##</span>
+<span id="L469"><span class="lineNum">     469</span>              : ## 2. Reading filament HDF5 files</span>
+<span id="L470"><span class="lineNum">     470</span>              : ## ================================================================================ ##</span>
+<span id="L471"><span class="lineNum">     471</span>              : </span>
+<span id="L472"><span class="lineNum">     472</span>              : &quot;&quot;&quot;</span>
+<span id="L473"><span class="lineNum">     473</span>              :     read_vtkhdf(</span>
+<span id="L474"><span class="lineNum">     474</span>              :         [func::Function],</span>
+<span id="L475"><span class="lineNum">     475</span>              :         filename::AbstractString,</span>
+<span id="L476"><span class="lineNum">     476</span>              :         ::Type{T},</span>
+<span id="L477"><span class="lineNum">     477</span>              :         method::DiscretisationMethod,</span>
+<span id="L478"><span class="lineNum">     478</span>              :     ) where {T}</span>
+<span id="L479"><span class="lineNum">     479</span>              : </span>
+<span id="L480"><span class="lineNum">     480</span>              : Read filament locations from VTK HDF file.</span>
+<span id="L481"><span class="lineNum">     481</span>              : </span>
+<span id="L482"><span class="lineNum">     482</span>              : This function loads filaments based on the datasets `/VTKHDF/Points` and `/VTKHDF/Offsets`</span>
+<span id="L483"><span class="lineNum">     483</span>              : as written by the [`write_vtkhdf`](@ref) function.</span>
+<span id="L484"><span class="lineNum">     484</span>              : </span>
+<span id="L485"><span class="lineNum">     485</span>              : Returns a vector of filaments, where each filament is discretised according to the chosen `method`.</span>
+<span id="L486"><span class="lineNum">     486</span>              : See [`Filaments.init`](@ref) for possible options.</span>
+<span id="L487"><span class="lineNum">     487</span>              : </span>
+<span id="L488"><span class="lineNum">     488</span>              : One can also read other datasets using `read` and `read!`, as shown and explained below.</span>
+<span id="L489"><span class="lineNum">     489</span>              : </span>
+<span id="L490"><span class="lineNum">     490</span>              : # Extended help</span>
+<span id="L491"><span class="lineNum">     491</span>              : </span>
+<span id="L492"><span class="lineNum">     492</span>              : ## Typical usage</span>
+<span id="L493"><span class="lineNum">     493</span>              : </span>
+<span id="L494"><span class="lineNum">     494</span>              : ```julia</span>
+<span id="L495"><span class="lineNum">     495</span>              : local vs, t  # make sure these variables still exist after the `do` block</span>
+<span id="L496"><span class="lineNum">     496</span>              : </span>
+<span id="L497"><span class="lineNum">     497</span>              : # The returned `fs` is a list of filaments.</span>
+<span id="L498"><span class="lineNum">     498</span>              : fs = read_vtkhdf(&quot;filaments.vtkhdf&quot;, Float64, CubicSplineMethod()) do io</span>
+<span id="L499"><span class="lineNum">     499</span>              :     vs = read(io, &quot;Velocity&quot;, PointData())            # here `vs` contains one velocity vector per filament node</span>
+<span id="L500"><span class="lineNum">     500</span>              :     t = only(read(io, &quot;Time&quot;, FieldData(), Float64))  # note: field data is always written as an array</span>
+<span id="L501"><span class="lineNum">     501</span>              :     # one can read other fields here...</span>
+<span id="L502"><span class="lineNum">     502</span>              : end</span>
+<span id="L503"><span class="lineNum">     503</span>              : ```</span>
+<span id="L504"><span class="lineNum">     504</span>              : </span>
+<span id="L505"><span class="lineNum">     505</span>              : The available reading functions are:</span>
+<span id="L506"><span class="lineNum">     506</span>              : </span>
+<span id="L507"><span class="lineNum">     507</span>              : - `read(io, name::AbstractString, ::PointData)` for reading point data (e.g. a velocity field);</span>
+<span id="L508"><span class="lineNum">     508</span>              : </span>
+<span id="L509"><span class="lineNum">     509</span>              : - `read(io, name::AbstractString, ::FieldData, ::Type{T})` for reading field data (i.e. data</span>
+<span id="L510"><span class="lineNum">     510</span>              :   not attached to filament nodes, such as the current time);</span>
+<span id="L511"><span class="lineNum">     511</span>              : </span>
+<span id="L512"><span class="lineNum">     512</span>              : - `read!(io, vs::AbstractVector{&lt;:AbstractVector}, name::AbstractString)` for reading point</span>
+<span id="L513"><span class="lineNum">     513</span>              :   data onto a preallocated vector of vectors.</span>
+<span id="L514"><span class="lineNum">     514</span>              : </span>
+<span id="L515"><span class="lineNum">     515</span>              : ## Accessing filament data in `do` block</span>
+<span id="L516"><span class="lineNum">     516</span>              : </span>
+<span id="L517"><span class="lineNum">     517</span>              : When using the `do` block syntax as in the above example, one may want to have access to the</span>
+<span id="L518"><span class="lineNum">     518</span>              : filament locations `fs` from within the `do` block. For instance, this can be useful if one</span>
+<span id="L519"><span class="lineNum">     519</span>              : has a preallocated vector of velocities `vs` which needs to be resized to match the number</span>
+<span id="L520"><span class="lineNum">     520</span>              : of filaments and filament nodes, before reading values using `read!`.</span>
+<span id="L521"><span class="lineNum">     521</span>              : </span>
+<span id="L522"><span class="lineNum">     522</span>              : In fact, `fs` can be easily obtained from the `io` object:</span>
+<span id="L523"><span class="lineNum">     523</span>              : </span>
+<span id="L524"><span class="lineNum">     524</span>              : ```julia</span>
+<span id="L525"><span class="lineNum">     525</span>              : read_vtkhdf(&quot;filaments.vtkhdf&quot;, Float64, CubicSplineMethod()) do io</span>
+<span id="L526"><span class="lineNum">     526</span>              :     fs = io.fs  # this is the vector of filaments</span>
+<span id="L527"><span class="lineNum">     527</span>              :     # Say we want to resize an existent vector of velocities (must have the right type...):</span>
+<span id="L528"><span class="lineNum">     528</span>              :     resize!(vs, length(fs))</span>
+<span id="L529"><span class="lineNum">     529</span>              :     for (v, f) ∈ zip(vs, fs)</span>
+<span id="L530"><span class="lineNum">     530</span>              :         resize!(v, length(nodes(f)))  # resize velocities of a single filament</span>
+<span id="L531"><span class="lineNum">     531</span>              :     end</span>
+<span id="L532"><span class="lineNum">     532</span>              :     # Now we can read the velocities</span>
+<span id="L533"><span class="lineNum">     533</span>              :     read!(io, vs, &quot;Velocity&quot;)</span>
+<span id="L534"><span class="lineNum">     534</span>              : end</span>
+<span id="L535"><span class="lineNum">     535</span>              : ```</span>
+<span id="L536"><span class="lineNum">     536</span>              : </span>
+<span id="L537"><span class="lineNum">     537</span>              : &quot;&quot;&quot;</span>
+<span id="L538"><span class="lineNum">     538</span> <span class="tlaGNC">          44 : function read_vtkhdf(</span></span>
+<span id="L539"><span class="lineNum">     539</span>              :         func::Func, filename::AbstractString, ::Type{T},</span>
+<span id="L540"><span class="lineNum">     540</span>              :         method::DiscretisationMethod,</span>
+<span id="L541"><span class="lineNum">     541</span>              :     ) where {Func &lt;: Function, T}</span>
+<span id="L542"><span class="lineNum">     542</span> <span class="tlaGNC">          44 :     HDF5.h5open(filename, &quot;r&quot;) do io</span></span>
+<span id="L543"><span class="lineNum">     543</span> <span class="tlaGNC">          44 :         reader = read_filaments(io, T, method)</span></span>
+<span id="L544"><span class="lineNum">     544</span> <span class="tlaGNC">          44 :         func(reader)</span></span>
+<span id="L545"><span class="lineNum">     545</span> <span class="tlaGNC">          44 :         reader.fs</span></span>
+<span id="L546"><span class="lineNum">     546</span>              :     end</span>
+<span id="L547"><span class="lineNum">     547</span>              : end</span>
+<span id="L548"><span class="lineNum">     548</span>              : </span>
+<span id="L549"><span class="lineNum">     549</span> <span class="tlaGNC">          48 : read_vtkhdf(filename::AbstractString, args...; kws...) =</span></span>
+<span id="L550"><span class="lineNum">     550</span>              :     read_vtkhdf(Returns(nothing), filename, args...; kws...)</span>
+<span id="L551"><span class="lineNum">     551</span>              : </span>
+<span id="L552"><span class="lineNum">     552</span> <span class="tlaGNC">          44 : function read_filaments(</span></span>
+<span id="L553"><span class="lineNum">     553</span>              :         io::HDF5.File,</span>
+<span id="L554"><span class="lineNum">     554</span>              :         ::Type{T},</span>
+<span id="L555"><span class="lineNum">     555</span>              :         method::DiscretisationMethod,</span>
+<span id="L556"><span class="lineNum">     556</span>              :     ) where {T &lt;: AbstractFloat}</span>
+<span id="L557"><span class="lineNum">     557</span> <span class="tlaGNC">          44 :     haskey(io, &quot;VTKHDF&quot;) || error(&quot;expected a `VTKHDF` group at the top of the file&quot;)</span></span>
+<span id="L558"><span class="lineNum">     558</span> <span class="tlaGNC">          44 :     gtop = HDF5.open_group(io, &quot;VTKHDF&quot;)</span></span>
+<span id="L559"><span class="lineNum">     559</span>              : </span>
+<span id="L560"><span class="lineNum">     560</span> <span class="tlaGNC">          44 :     refinement = HDF5.read_dataset(gtop, &quot;RefinementLevel&quot;) :: Int</span></span>
+<span id="L561"><span class="lineNum">     561</span>              : </span>
+<span id="L562"><span class="lineNum">     562</span> <span class="tlaGNC">          44 :     dataset_type = if haskey(gtop, &quot;Lines&quot;)</span></span>
+<span id="L563"><span class="lineNum">     563</span> <span class="tlaGNC">          32 :         :PolyData</span></span>
+<span id="L564"><span class="lineNum">     564</span> <span class="tlaGNC">          12 :     elseif haskey(gtop, &quot;Types&quot;)</span></span>
+<span id="L565"><span class="lineNum">     565</span> <span class="tlaGNC">          12 :         :UnstructuredGrid</span></span>
+<span id="L566"><span class="lineNum">     566</span>              :     else</span>
+<span id="L567"><span class="lineNum">     567</span> <span class="tlaGNC">          44 :         error(&quot;couldn't detect the type of dataset (PolyData or UnstructuredGrid)&quot;)</span></span>
+<span id="L568"><span class="lineNum">     568</span>              :     end</span>
+<span id="L569"><span class="lineNum">     569</span>              : </span>
+<span id="L570"><span class="lineNum">     570</span> <span class="tlaGNC">          44 :     gcells = if dataset_type == :PolyData</span></span>
+<span id="L571"><span class="lineNum">     571</span> <span class="tlaGNC">          32 :         gcells = HDF5.open_group(gtop, &quot;Lines&quot;)  # cell info is in /VTKHDF/Lines</span></span>
+<span id="L572"><span class="lineNum">     572</span> <span class="tlaGNC">          12 :     elseif dataset_type == :UnstructuredGrid</span></span>
+<span id="L573"><span class="lineNum">     573</span> <span class="tlaGNC">          56 :         gcells = gtop  # cell info is in /VTKHDF</span></span>
+<span id="L574"><span class="lineNum">     574</span>              :     end</span>
+<span id="L575"><span class="lineNum">     575</span>              : </span>
+<span id="L576"><span class="lineNum">     576</span> <span class="tlaGNC">          44 :     periods = let Ls = Vector{T}(undef, 3)</span></span>
+<span id="L577"><span class="lineNum">     577</span> <span class="tlaGNC">          44 :         if haskey(gtop, &quot;Periods&quot;)</span></span>
+<span id="L578"><span class="lineNum">     578</span>              :             # Files generated by VortexPasta ≥ 0.18.</span>
+<span id="L579"><span class="lineNum">     579</span> <span class="tlaGNC">          36 :             let dset = HDF5.open_dataset(gtop, &quot;Periods&quot;)</span></span>
+<span id="L580"><span class="lineNum">     580</span> <span class="tlaGNC">          36 :                 @assert length(dset) == length(Ls)</span></span>
+<span id="L581"><span class="lineNum">     581</span> <span class="tlaGNC">          36 :                 read_dataset!(Ls, dset)</span></span>
+<span id="L582"><span class="lineNum">     582</span> <span class="tlaGNC">          36 :                 close(dset)</span></span>
+<span id="L583"><span class="lineNum">     583</span>              :             end</span>
+<span id="L584"><span class="lineNum">     584</span>              :         else</span>
+<span id="L585"><span class="lineNum">     585</span>              :             # Old versions (before VortexPasta 0.18)</span>
+<span id="L586"><span class="lineNum">     586</span> <span class="tlaGNC">           8 :             fill!(Ls, 0)  # 0 means no periodicity</span></span>
+<span id="L587"><span class="lineNum">     587</span>              :         end</span>
+<span id="L588"><span class="lineNum">     588</span> <span class="tlaGNC">         176 :         ntuple(i -&gt; Ls[i], Val(3))</span></span>
+<span id="L589"><span class="lineNum">     589</span>              :     end</span>
+<span id="L590"><span class="lineNum">     590</span>              : </span>
+<span id="L591"><span class="lineNum">     591</span> <span class="tlaGNC">         140 :     with_periods = any(!iszero, periods)</span></span>
+<span id="L592"><span class="lineNum">     592</span>              : </span>
+<span id="L593"><span class="lineNum">     593</span> <span class="tlaGNC">          44 :     dset_points = HDF5.open_dataset(gtop, &quot;Points&quot;)</span></span>
+<span id="L594"><span class="lineNum">     594</span> <span class="tlaGNC">          44 :     dset_offset = HDF5.open_dataset(gcells, &quot;Offsets&quot;)</span></span>
+<span id="L595"><span class="lineNum">     595</span>              : </span>
+<span id="L596"><span class="lineNum">     596</span> <span class="tlaGNC">          44 :     Ñ, num_points_refined = size(dset_points) :: Dims{2}</span></span>
+<span id="L597"><span class="lineNum">     597</span> <span class="tlaGNC">          44 :     @assert Ñ == 3</span></span>
+<span id="L598"><span class="lineNum">     598</span> <span class="tlaGNC">          44 :     num_cells = length(dset_offset) - 1</span></span>
+<span id="L599"><span class="lineNum">     599</span> <span class="tlaGNC">          44 :     num_cells &gt; 0 || error(&quot;expected at least one filament in the file&quot;)</span></span>
+<span id="L600"><span class="lineNum">     600</span>              : </span>
+<span id="L601"><span class="lineNum">     601</span> <span class="tlaGNC">          44 :     if with_periods</span></span>
+<span id="L602"><span class="lineNum">     602</span> <span class="tlaGNC">          24 :         filament_ids = Vector{FilamentId}(undef, num_cells)</span></span>
+<span id="L603"><span class="lineNum">     603</span> <span class="tlaGNC">          12 :         let dset = HDF5.open_dataset(gtop, &quot;CellData/FilamentIds&quot;)</span></span>
+<span id="L604"><span class="lineNum">     604</span> <span class="tlaGNC">          12 :             @assert length(dset) == num_cells</span></span>
+<span id="L605"><span class="lineNum">     605</span> <span class="tlaGNC">          12 :             read_dataset!(filament_ids, dset)</span></span>
+<span id="L606"><span class="lineNum">     606</span> <span class="tlaGNC">          12 :             close(dset)</span></span>
+<span id="L607"><span class="lineNum">     607</span>              :         end</span>
+<span id="L608"><span class="lineNum">     608</span>              :     else</span>
+<span id="L609"><span class="lineNum">     609</span> <span class="tlaGNC">          32 :         filament_ids = collect(FilamentId(1):FilamentId(num_cells)) :: Vector{FilamentId}</span></span>
+<span id="L610"><span class="lineNum">     610</span>              :     end</span>
+<span id="L611"><span class="lineNum">     611</span>              : </span>
+<span id="L612"><span class="lineNum">     612</span>              :     # Determine number of actual filaments from filament ids.</span>
+<span id="L613"><span class="lineNum">     613</span> <span class="tlaGNC">          44 :     num_filaments = filament_ids[end] - filament_ids[begin] + 1</span></span>
+<span id="L614"><span class="lineNum">     614</span> <span class="tlaGNC">          44 :     @assert num_cells ≥ num_filaments</span></span>
+<span id="L615"><span class="lineNum">     615</span>              : </span>
+<span id="L616"><span class="lineNum">     616</span> <span class="tlaGNC">          44 :     if refinement == 1</span></span>
+<span id="L617"><span class="lineNum">     617</span> <span class="tlaGNC">          18 :         num_points = num_points_refined</span></span>
+<span id="L618"><span class="lineNum">     618</span>              :     else</span>
+<span id="L619"><span class="lineNum">     619</span>              :         # We subtract endpoint from each cell before dividing by refinement level</span>
+<span id="L620"><span class="lineNum">     620</span> <span class="tlaGNC">          26 :         num_points, _remainder = divrem(num_points_refined - num_filaments, refinement)</span></span>
+<span id="L621"><span class="lineNum">     621</span> <span class="tlaGNC">          26 :         @assert _remainder == 0      # the division is exact</span></span>
+<span id="L622"><span class="lineNum">     622</span> <span class="tlaGNC">          26 :         num_points += num_filaments  # reinclude the endpoints in final count</span></span>
+<span id="L623"><span class="lineNum">     623</span>              :     end</span>
+<span id="L624"><span class="lineNum">     624</span>              : </span>
+<span id="L625"><span class="lineNum">     625</span> <span class="tlaGNC">          44 :     buf = Bumper.default_buffer()</span></span>
+<span id="L626"><span class="lineNum">     626</span> <span class="tlaGNC">          44 :     fs = @no_escape buf let</span></span>
+<span id="L627"><span class="lineNum">     627</span>              :         # Read points as an AbstractArray{T} even if it was written as an AbstractArray{S} with S ≠ T</span>
+<span id="L628"><span class="lineNum">     628</span>              :         # (for instance, if data was written as S = Float64 and we want to read it as T = Float32).</span>
+<span id="L629"><span class="lineNum">     629</span>              :         # Similar thing for offsets. This ensures type stability...</span>
+<span id="L630"><span class="lineNum">     630</span> <span class="tlaGNC">          88 :         points = @alloc(Vec3{T}, num_points)</span></span>
+<span id="L631"><span class="lineNum">     631</span> <span class="tlaGNC">          88 :         cell_offsets = @alloc(Int, num_cells + 1)</span></span>
+<span id="L632"><span class="lineNum">     632</span> <span class="tlaGNC">          88 :         filament_offsets = @alloc(Int, num_filaments + 1)</span></span>
+<span id="L633"><span class="lineNum">     633</span> <span class="tlaGNC">          88 :         periodic_offsets = @alloc(Vec3{FilamentPeriodicOffset}, num_filaments)</span></span>
+<span id="L634"><span class="lineNum">     634</span>              : </span>
+<span id="L635"><span class="lineNum">     635</span> <span class="tlaGNC">          44 :         num_points_connectivity =</span></span>
+<span id="L636"><span class="lineNum">     636</span>              :             only(HDF5.read_dataset(gcells, &quot;NumberOfConnectivityIds&quot;)::Vector{Int})</span>
+<span id="L637"><span class="lineNum">     637</span> <span class="tlaGNC">          88 :         connectivity = @alloc(Int, num_points_connectivity)</span></span>
+<span id="L638"><span class="lineNum">     638</span> <span class="tlaGNC">          44 :         let dset = HDF5.open_dataset(gcells, &quot;Connectivity&quot;)</span></span>
+<span id="L639"><span class="lineNum">     639</span> <span class="tlaGNC">          44 :             read_dataset!(connectivity, dset)</span></span>
+<span id="L640"><span class="lineNum">     640</span>              :         end</span>
+<span id="L641"><span class="lineNum">     641</span>              : </span>
+<span id="L642"><span class="lineNum">     642</span> <span class="tlaGNC">          44 :         if with_periods</span></span>
+<span id="L643"><span class="lineNum">     643</span> <span class="tlaGNC">          12 :             let dset = HDF5.open_dataset(gtop, &quot;FilamentPeriodicOffsets&quot;)</span></span>
+<span id="L644"><span class="lineNum">     644</span> <span class="tlaGNC">          12 :                 memspace = HDF5.dataspace(dset)</span></span>
+<span id="L645"><span class="lineNum">     645</span> <span class="tlaGNC">          12 :                 memtype = HDF5.datatype(FilamentPeriodicOffset)</span></span>
+<span id="L646"><span class="lineNum">     646</span> <span class="tlaGNC">          12 :                 read_dataset!(periodic_offsets, dset; memspace, memtype)</span></span>
+<span id="L647"><span class="lineNum">     647</span> <span class="tlaGNC">          12 :                 close(memspace)</span></span>
+<span id="L648"><span class="lineNum">     648</span> <span class="tlaGNC">          12 :                 close(memtype)</span></span>
+<span id="L649"><span class="lineNum">     649</span> <span class="tlaGNC">          12 :                 close(dset)</span></span>
+<span id="L650"><span class="lineNum">     650</span>              :             end</span>
+<span id="L651"><span class="lineNum">     651</span>              :         else</span>
+<span id="L652"><span class="lineNum">     652</span> <span class="tlaGNC">          32 :             fill!(periodic_offsets, zero(eltype(periodic_offsets)))</span></span>
+<span id="L653"><span class="lineNum">     653</span>              :         end</span>
+<span id="L654"><span class="lineNum">     654</span>              : </span>
+<span id="L655"><span class="lineNum">     655</span> <span class="tlaGNC">          44 :         read_dataset!(cell_offsets, dset_offset)</span></span>
+<span id="L656"><span class="lineNum">     656</span>              : </span>
+<span id="L657"><span class="lineNum">     657</span>              :         # Modify cell_offsets if there are gaps in the connectivity vector.</span>
+<span id="L658"><span class="lineNum">     658</span>              :         # This corresponds to locations where the endpoint of a filament was not included in</span>
+<span id="L659"><span class="lineNum">     659</span>              :         # the connectivity vector (to avoid ugly jumps in visualisations).</span>
+<span id="L660"><span class="lineNum">     660</span>              :         # This must be done before compute_filament_offsets!.</span>
+<span id="L661"><span class="lineNum">     661</span>              :         # We can ignore this if periodic wrapping was not performed in the VTKHDF file.</span>
+<span id="L662"><span class="lineNum">     662</span> <span class="tlaGNC">          44 :         if with_periods</span></span>
+<span id="L663"><span class="lineNum">     663</span> <span class="tlaGNC">          12 :             ngaps = 0</span></span>
+<span id="L664"><span class="lineNum">     664</span> <span class="tlaGNC">          12 :             for i ∈ eachindex(cell_offsets)[2:end-1]</span></span>
+<span id="L665"><span class="lineNum">     665</span> <span class="tlaGNC">          84 :                 off = cell_offsets[i]</span></span>
+<span id="L666"><span class="lineNum">     666</span> <span class="tlaGNC">          84 :                 a = connectivity[off]      # last index of cell i - 1</span></span>
+<span id="L667"><span class="lineNum">     667</span> <span class="tlaGNC">          84 :                 b = connectivity[off + 1]  # first index of cell i</span></span>
+<span id="L668"><span class="lineNum">     668</span> <span class="tlaGNC">          84 :                 Δ = b - a - 1</span></span>
+<span id="L669"><span class="lineNum">     669</span> <span class="tlaGNC">          84 :                 @assert Δ ∈ (0, 1)</span></span>
+<span id="L670"><span class="lineNum">     670</span> <span class="tlaGNC">          84 :                 if Δ == 1  # there's a gap! (endpoint was excluded from connectivity)</span></span>
+<span id="L671"><span class="lineNum">     671</span> <span class="tlaGNC">          12 :                     ngaps += 1</span></span>
+<span id="L672"><span class="lineNum">     672</span>              :                 end</span>
+<span id="L673"><span class="lineNum">     673</span> <span class="tlaGNC">          84 :                 cell_offsets[i] += ngaps</span></span>
+<span id="L674"><span class="lineNum">     674</span> <span class="tlaGNC">         156 :             end</span></span>
+<span id="L675"><span class="lineNum">     675</span>              :             # Check for gap after the last cell.</span>
+<span id="L676"><span class="lineNum">     676</span>              :             # If there is no gap, then (cell_offsets[end] + ngaps) == num_points_refined.</span>
+<span id="L677"><span class="lineNum">     677</span> <span class="tlaGNC">          12 :             let off = cell_offsets[end]</span></span>
+<span id="L678"><span class="lineNum">     678</span> <span class="tlaGNC">          12 :                 Δ = num_points_refined - (off + ngaps)</span></span>
+<span id="L679"><span class="lineNum">     679</span> <span class="tlaGNC">          12 :                 @assert Δ ∈ (0, 1)</span></span>
+<span id="L680"><span class="lineNum">     680</span> <span class="tlaGNC">          12 :                 if Δ == 1  # there's a gap!</span></span>
+<span id="L681"><span class="lineNum">     681</span> <span class="tlaGNC">           4 :                     ngaps += 1</span></span>
+<span id="L682"><span class="lineNum">     682</span>              :                 end</span>
+<span id="L683"><span class="lineNum">     683</span> <span class="tlaGNC">          12 :                 cell_offsets[end] += ngaps</span></span>
+<span id="L684"><span class="lineNum">     684</span>              :             end</span>
+<span id="L685"><span class="lineNum">     685</span>              :         end</span>
+<span id="L686"><span class="lineNum">     686</span>              : </span>
+<span id="L687"><span class="lineNum">     687</span> <span class="tlaGNC">          44 :         compute_filament_offsets!(filament_offsets, cell_offsets, filament_ids, refinement)</span></span>
+<span id="L688"><span class="lineNum">     688</span> <span class="tlaGNC">          44 :         @assert last(filament_offsets) == num_points</span></span>
+<span id="L689"><span class="lineNum">     689</span>              : </span>
+<span id="L690"><span class="lineNum">     690</span>              :         # Read locations in file, skipping interpolated points if refinement &gt; 1.</span>
+<span id="L691"><span class="lineNum">     691</span> <span class="tlaGNC">          44 :         if refinement == 1</span></span>
+<span id="L692"><span class="lineNum">     692</span> <span class="tlaGNC">          36 :             memspace = HDF5.dataspace((Ñ, num_points))</span></span>
+<span id="L693"><span class="lineNum">     693</span> <span class="tlaGNC">          18 :             memtype = HDF5.datatype(T)</span></span>
+<span id="L694"><span class="lineNum">     694</span> <span class="tlaGNC">          18 :             read_dataset!(points, dset_points; memspace, memtype)</span></span>
+<span id="L695"><span class="lineNum">     695</span> <span class="tlaGNC">          18 :             close(memspace)</span></span>
+<span id="L696"><span class="lineNum">     696</span> <span class="tlaGNC">          18 :             close(memtype)</span></span>
+<span id="L697"><span class="lineNum">     697</span>              :         else</span>
+<span id="L698"><span class="lineNum">     698</span> <span class="tlaGNC">          26 :             dspace = HDF5.dataspace(dset_points)</span></span>
+<span id="L699"><span class="lineNum">     699</span> <span class="tlaGNC">          26 :             n = 0</span></span>
+<span id="L700"><span class="lineNum">     700</span> <span class="tlaGNC">          26 :             for i ∈ 1:num_filaments</span></span>
+<span id="L701"><span class="lineNum">     701</span> <span class="tlaGNC">          68 :                 a = filament_offsets[i] + 1</span></span>
+<span id="L702"><span class="lineNum">     702</span> <span class="tlaGNC">          68 :                 b = filament_offsets[i + 1]</span></span>
+<span id="L703"><span class="lineNum">     703</span> <span class="tlaGNC">          68 :                 out = @view points[a:b]</span></span>
+<span id="L704"><span class="lineNum">     704</span> <span class="tlaGNC">          68 :                 Np = length(out)</span></span>
+<span id="L705"><span class="lineNum">     705</span> <span class="tlaGNC">         136 :                 inds_file = range(n + 1; length = Np, step = refinement)</span></span>
+<span id="L706"><span class="lineNum">     706</span> <span class="tlaGNC">          68 :                 HDF5.select_hyperslab!(dspace, (1:Ñ, inds_file))</span></span>
+<span id="L707"><span class="lineNum">     707</span> <span class="tlaGNC">         136 :                 memspace = HDF5.dataspace((Ñ, Np))</span></span>
+<span id="L708"><span class="lineNum">     708</span> <span class="tlaGNC">          68 :                 memtype = HDF5.datatype(T)</span></span>
+<span id="L709"><span class="lineNum">     709</span> <span class="tlaGNC">          68 :                 read_dataset!(out, dset_points, dspace; memspace, memtype)</span></span>
+<span id="L710"><span class="lineNum">     710</span> <span class="tlaGNC">          68 :                 close(memtype)</span></span>
+<span id="L711"><span class="lineNum">     711</span> <span class="tlaGNC">          68 :                 close(memspace)</span></span>
+<span id="L712"><span class="lineNum">     712</span> <span class="tlaGNC">          68 :                 n = last(inds_file)</span></span>
+<span id="L713"><span class="lineNum">     713</span> <span class="tlaGNC">         110 :             end</span></span>
+<span id="L714"><span class="lineNum">     714</span> <span class="tlaGNC">          26 :             close(dspace)</span></span>
+<span id="L715"><span class="lineNum">     715</span>              :         end</span>
+<span id="L716"><span class="lineNum">     716</span>              : </span>
+<span id="L717"><span class="lineNum">     717</span>              :         # Reconstruct all filaments</span>
+<span id="L718"><span class="lineNum">     718</span> <span class="tlaGNC">          44 :         map(eachindex(periodic_offsets)) do i</span></span>
+<span id="L719"><span class="lineNum">     719</span> <span class="tlaGNC">         104 :             periodic_offset = periodic_offsets[i]</span></span>
+<span id="L720"><span class="lineNum">     720</span> <span class="tlaGNC">         104 :             _load_filament(points, filament_offsets, method, i, periodic_offset, periods)</span></span>
+<span id="L721"><span class="lineNum">     721</span>              :         end</span>
+<span id="L722"><span class="lineNum">     722</span>              :     end  # @no_escape</span>
+<span id="L723"><span class="lineNum">     723</span>              : </span>
+<span id="L724"><span class="lineNum">     724</span> <span class="tlaGNC">          44 :     close(dset_points)</span></span>
+<span id="L725"><span class="lineNum">     725</span> <span class="tlaGNC">          44 :     close(dset_offset)</span></span>
+<span id="L726"><span class="lineNum">     726</span>              : </span>
+<span id="L727"><span class="lineNum">     727</span>              :     # Load and use parametrisation values (knots `ts`) if they are included in the file.</span>
+<span id="L728"><span class="lineNum">     728</span> <span class="tlaGNC">          44 :     if haskey(gtop, &quot;PointData/Parametrisation&quot;)</span></span>
+<span id="L729"><span class="lineNum">     729</span>              :         # Read parametrisation values ts[begin:(end + 1)] for each filament.</span>
+<span id="L730"><span class="lineNum">     730</span> <span class="tlaGNC">          20 :         ts_all = map(fs) do f</span></span>
+<span id="L731"><span class="lineNum">     731</span> <span class="tlaGNC">          56 :             ts = knots(f)</span></span>
+<span id="L732"><span class="lineNum">     732</span> <span class="tlaGNC">          56 :             @view ts[begin:(end + 1)]</span></span>
+<span id="L733"><span class="lineNum">     733</span>              :         end</span>
+<span id="L734"><span class="lineNum">     734</span> <span class="tlaGNC">          20 :         let dset = HDF5.open_dataset(gtop, &quot;PointData/Parametrisation&quot;)</span></span>
+<span id="L735"><span class="lineNum">     735</span> <span class="tlaGNC">          20 :             _read_data_on_filaments!(T, dset, ts_all, refinement; endpoint = true)</span></span>
+<span id="L736"><span class="lineNum">     736</span> <span class="tlaGNC">          20 :             close(dset)</span></span>
+<span id="L737"><span class="lineNum">     737</span>              :         end</span>
+<span id="L738"><span class="lineNum">     738</span>              :         # Compute interpolation and derivative coefficients, but preserving the input knots.</span>
+<span id="L739"><span class="lineNum">     739</span> <span class="tlaGNC">          20 :         foreach(fs) do f</span></span>
+<span id="L740"><span class="lineNum">     740</span> <span class="tlaGNC">          56 :             ts = knots(f)</span></span>
+<span id="L741"><span class="lineNum">     741</span> <span class="tlaGNC">          56 :             Tper = ts[end + 1] - ts[begin]</span></span>
+<span id="L742"><span class="lineNum">     742</span> <span class="tlaGNC">         144 :             pad_periodic!(ts, Tper)  # apply padding to remaining parametrisation values</span></span>
+<span id="L743"><span class="lineNum">     743</span> <span class="tlaGNC">          56 :             update_coefficients!(f; knots = ts)</span></span>
+<span id="L744"><span class="lineNum">     744</span>              :         end</span>
+<span id="L745"><span class="lineNum">     745</span>              :     else</span>
+<span id="L746"><span class="lineNum">     746</span>              :         # Compute interpolation and derivative coefficients, also recomputing knots.</span>
+<span id="L747"><span class="lineNum">     747</span> <span class="tlaGNC">          24 :         foreach(fs) do f</span></span>
+<span id="L748"><span class="lineNum">     748</span> <span class="tlaGNC">          48 :             update_coefficients!(f)</span></span>
+<span id="L749"><span class="lineNum">     749</span>              :         end</span>
+<span id="L750"><span class="lineNum">     750</span>              :     end</span>
+<span id="L751"><span class="lineNum">     751</span>              : </span>
+<span id="L752"><span class="lineNum">     752</span> <span class="tlaGNC">          44 :     VTKHDFFile(gtop, fs, refinement)</span></span>
+<span id="L753"><span class="lineNum">     753</span>              : end</span>
+<span id="L754"><span class="lineNum">     754</span>              : </span>
+<span id="L755"><span class="lineNum">     755</span> <span class="tlaGNC">          44 : function compute_filament_offsets!(filament_offsets, cell_offsets, filament_ids, refinement)</span></span>
+<span id="L756"><span class="lineNum">     756</span> <span class="tlaGNC">          44 :     Base.require_one_based_indexing(cell_offsets)</span></span>
+<span id="L757"><span class="lineNum">     757</span> <span class="tlaGNC">          44 :     Base.require_one_based_indexing(filament_ids)</span></span>
+<span id="L758"><span class="lineNum">     758</span> <span class="tlaGNC">          44 :     num_filaments = filament_ids[end] - filament_ids[begin] + 1</span></span>
+<span id="L759"><span class="lineNum">     759</span> <span class="tlaGNC">          44 :     num_cells = length(cell_offsets) - 1</span></span>
+<span id="L760"><span class="lineNum">     760</span> <span class="tlaGNC">          44 :     @assert length(filament_ids) == num_cells ≥ num_filaments</span></span>
+<span id="L761"><span class="lineNum">     761</span> <span class="tlaGNC">          44 :     @assert length(filament_offsets) == num_filaments + 1</span></span>
+<span id="L762"><span class="lineNum">     762</span> <span class="tlaGNC">          44 :     filament_offsets[begin] = 0</span></span>
+<span id="L763"><span class="lineNum">     763</span> <span class="tlaGNC">          44 :     icell = firstindex(cell_offsets)</span></span>
+<span id="L764"><span class="lineNum">     764</span> <span class="tlaGNC">          44 :     off_i = cell_offsets[icell]  # offset of previous cell</span></span>
+<span id="L765"><span class="lineNum">     765</span> <span class="tlaGNC">          44 :     for i ∈ eachindex(filament_offsets)[1:end-1]</span></span>
+<span id="L766"><span class="lineNum">     766</span>              :         # Count the number of *refined* points in the filament i.</span>
+<span id="L767"><span class="lineNum">     767</span> <span class="tlaGNC">         104 :         id = filament_ids[icell]  # id of the current filament</span></span>
+<span id="L768"><span class="lineNum">     768</span> <span class="tlaGNC">         104 :         icell += 1</span></span>
+<span id="L769"><span class="lineNum">     769</span> <span class="tlaGNC">         104 :         off = cell_offsets[icell]</span></span>
+<span id="L770"><span class="lineNum">     770</span> <span class="tlaGNC">         104 :         Np_refined = off - off_i</span></span>
+<span id="L771"><span class="lineNum">     771</span> <span class="tlaGNC">         104 :         off_i = off</span></span>
+<span id="L772"><span class="lineNum">     772</span>              :         # If the filament was broken into multiple cells, we iterate through the other cells</span>
+<span id="L773"><span class="lineNum">     773</span>              :         # as well (which have the same filament id).</span>
+<span id="L774"><span class="lineNum">     774</span> <span class="tlaGNC">         168 :         while icell ≤ lastindex(filament_ids) &amp;&amp; filament_ids[icell] == id</span></span>
+<span id="L775"><span class="lineNum">     775</span> <span class="tlaGNC">          64 :             icell += 1</span></span>
+<span id="L776"><span class="lineNum">     776</span> <span class="tlaGNC">          64 :             off = cell_offsets[icell]</span></span>
+<span id="L777"><span class="lineNum">     777</span> <span class="tlaGNC">          64 :             Np_refined += off - off_i</span></span>
+<span id="L778"><span class="lineNum">     778</span> <span class="tlaGNC">          64 :             off_i = off</span></span>
+<span id="L779"><span class="lineNum">     779</span> <span class="tlaGNC">          64 :         end</span></span>
+<span id="L780"><span class="lineNum">     780</span> <span class="tlaGNC">         104 :         Np, _remainder = divrem(Np_refined - 1, refinement)</span></span>
+<span id="L781"><span class="lineNum">     781</span> <span class="tlaGNC">         104 :         @assert _remainder == 0</span></span>
+<span id="L782"><span class="lineNum">     782</span> <span class="tlaGNC">         104 :         Np += 1  # reinclude the endpoint in final count</span></span>
+<span id="L783"><span class="lineNum">     783</span> <span class="tlaGNC">         104 :         filament_offsets[i + 1] = filament_offsets[i] + Np</span></span>
+<span id="L784"><span class="lineNum">     784</span> <span class="tlaGNC">         164 :     end</span></span>
+<span id="L785"><span class="lineNum">     785</span> <span class="tlaGNC">          44 :     @assert icell == lastindex(cell_offsets)  # we reached the last cell</span></span>
+<span id="L786"><span class="lineNum">     786</span> <span class="tlaGNC">          44 :     filament_offsets</span></span>
+<span id="L787"><span class="lineNum">     787</span>              : end</span>
+<span id="L788"><span class="lineNum">     788</span>              : </span>
+<span id="L789"><span class="lineNum">     789</span> <span class="tlaGNC">        5736 : periodic_offset_to_apply(x⃗, x⃗_prev, Ls::Tuple, Lhs::Tuple) =</span></span>
+<span id="L790"><span class="lineNum">     790</span>              :     oftype(x⃗, map(periodic_offset_to_apply, x⃗, x⃗_prev, Ls, Lhs))</span>
+<span id="L791"><span class="lineNum">     791</span>              : </span>
+<span id="L792"><span class="lineNum">     792</span> <span class="tlaGNC">       17208 : function periodic_offset_to_apply(x, x_prev, L::Real, Lh::Real)</span></span>
+<span id="L793"><span class="lineNum">     793</span> <span class="tlaGNC">       17208 :     iszero(L) &amp;&amp; return zero(L)  # no offset if the period is &quot;zero&quot; (meaning no periodicity here)</span></span>
+<span id="L794"><span class="lineNum">     794</span> <span class="tlaGNC">        4704 :     δx = x - x_prev  # we assume |δx| &lt; L = 2 * Lh</span></span>
+<span id="L795"><span class="lineNum">     795</span> <span class="tlaGNC">        4704 :     if δx ≥ Lh</span></span>
+<span id="L796"><span class="lineNum">     796</span> <span class="tlaGNC">          40 :         -L</span></span>
+<span id="L797"><span class="lineNum">     797</span> <span class="tlaGNC">        4664 :     elseif δx ≤ -Lh</span></span>
+<span id="L798"><span class="lineNum">     798</span> <span class="tlaGNC">          40 :         +L</span></span>
+<span id="L799"><span class="lineNum">     799</span>              :     else</span>
+<span id="L800"><span class="lineNum">     800</span> <span class="tlaGNC">        4624 :         zero(L)</span></span>
+<span id="L801"><span class="lineNum">     801</span>              :     end</span>
+<span id="L802"><span class="lineNum">     802</span>              : end</span>
+<span id="L803"><span class="lineNum">     803</span>              : </span>
+<span id="L804"><span class="lineNum">     804</span>              : # Load filament from the list of points using the given offsets.</span>
+<span id="L805"><span class="lineNum">     805</span>              : # TODO reuse VTK cell information to detect jumps? (should be slightly faster)</span>
+<span id="L806"><span class="lineNum">     806</span> <span class="tlaGNC">         104 : function _load_filament(</span></span>
+<span id="L807"><span class="lineNum">     807</span>              :         Xs::AbstractVector{Vec3{T}},</span>
+<span id="L808"><span class="lineNum">     808</span>              :         filament_offsets::AbstractVector{&lt;:Integer},</span>
+<span id="L809"><span class="lineNum">     809</span>              :         method,</span>
+<span id="L810"><span class="lineNum">     810</span>              :         i::Integer,                        # filament index</span>
+<span id="L811"><span class="lineNum">     811</span>              :         periodic_offset::Vec3{&lt;:Integer},  # periodic offset of first point (integer value)</span>
+<span id="L812"><span class="lineNum">     812</span>              :         periods::NTuple{3},                # real values (0 for no periodicity)</span>
+<span id="L813"><span class="lineNum">     813</span>              :     ) where {T}</span>
+<span id="L814"><span class="lineNum">     814</span> <span class="tlaGNC">         104 :     a = filament_offsets[i]      # Xs[a + 1] is the first point of this filament</span></span>
+<span id="L815"><span class="lineNum">     815</span> <span class="tlaGNC">         104 :     b = filament_offsets[i + 1]  # Xs[b] is the filament endpoint</span></span>
+<span id="L816"><span class="lineNum">     816</span> <span class="tlaGNC">         104 :     num_nodes = b - a - 1        # not counting the endpoint</span></span>
+<span id="L817"><span class="lineNum">     817</span> <span class="tlaGNC">         208 :     f = Filaments.init(ClosedFilament{T}, num_nodes, method)</span></span>
+<span id="L818"><span class="lineNum">     818</span> <span class="tlaGNC">         104 :     Xoffset = zero(eltype(Xs))</span></span>
+<span id="L819"><span class="lineNum">     819</span> <span class="tlaGNC">         104 :     current_offset = periodic_offset .* Vec3(periods)  # offset in distance units</span></span>
+<span id="L820"><span class="lineNum">     820</span> <span class="tlaGNC">         104 :     s⃗_prev = Xs[a + 1]</span></span>
+<span id="L821"><span class="lineNum">     821</span> <span class="tlaGNC">         416 :     Lhs = map(L -&gt; L / 2, periods)</span></span>
+<span id="L822"><span class="lineNum">     822</span> <span class="tlaGNC">         104 :     @inbounds for j ∈ eachindex(f)</span></span>
+<span id="L823"><span class="lineNum">     823</span> <span class="tlaGNC">        5632 :         s⃗ = Xs[a + j]  # this point is always inside the main periodic box</span></span>
+<span id="L824"><span class="lineNum">     824</span> <span class="tlaGNC">        5632 :         p⃗ = periodic_offset_to_apply(s⃗, s⃗_prev, periods, Lhs)  # relative offset wrt previous point</span></span>
+<span id="L825"><span class="lineNum">     825</span> <span class="tlaGNC">        5632 :         current_offset = current_offset + p⃗</span></span>
+<span id="L826"><span class="lineNum">     826</span> <span class="tlaGNC">        5632 :         s⃗_prev = s⃗</span></span>
+<span id="L827"><span class="lineNum">     827</span> <span class="tlaGNC">        5632 :         f[j] = s⃗ + current_offset</span></span>
+<span id="L828"><span class="lineNum">     828</span> <span class="tlaGNC">       11160 :     end</span></span>
+<span id="L829"><span class="lineNum">     829</span>              :     # Determine end-to-end offset from the endpoint.</span>
+<span id="L830"><span class="lineNum">     830</span> <span class="tlaGNC">         104 :     s⃗ = Xs[b]</span></span>
+<span id="L831"><span class="lineNum">     831</span> <span class="tlaGNC">         104 :     current_offset = current_offset + periodic_offset_to_apply(s⃗, s⃗_prev, periods, Lhs)</span></span>
+<span id="L832"><span class="lineNum">     832</span> <span class="tlaGNC">         104 :     x⃗_end = s⃗ + current_offset</span></span>
+<span id="L833"><span class="lineNum">     833</span> <span class="tlaGNC">         104 :     Xoffset = x⃗_end - f[begin]</span></span>
+<span id="L834"><span class="lineNum">     834</span> <span class="tlaGNC">         104 :     Filaments.change_offset(f, Xoffset)</span></span>
+<span id="L835"><span class="lineNum">     835</span>              : end</span>
+<span id="L836"><span class="lineNum">     836</span>              : </span>
+<span id="L837"><span class="lineNum">     837</span> <span class="tlaGNC">          64 : function Base.read(</span></span>
+<span id="L838"><span class="lineNum">     838</span>              :         reader::VTKHDFFile, name::AbstractString, ::PointData,</span>
+<span id="L839"><span class="lineNum">     839</span>              :         ::Type{V} = eltype(eltype(reader.fs)),  # Vec3{T} by default</span>
+<span id="L840"><span class="lineNum">     840</span>              :     ) where {V}</span>
+<span id="L841"><span class="lineNum">     841</span> <span class="tlaGNC">          64 :     (; fs,) = reader</span></span>
+<span id="L842"><span class="lineNum">     842</span> <span class="tlaGNC">         312 :     vs = map(f -&gt; similar(nodes(f), V), fs)  # one PaddedVector for each filament</span></span>
+<span id="L843"><span class="lineNum">     843</span> <span class="tlaGNC">          56 :     read!(reader, vs, name)</span></span>
+<span id="L844"><span class="lineNum">     844</span>              : end</span>
+<span id="L845"><span class="lineNum">     845</span>              : </span>
+<span id="L846"><span class="lineNum">     846</span> <span class="tlaGNC">         104 : function Base.read!(</span></span>
+<span id="L847"><span class="lineNum">     847</span>              :         reader::VTKHDFFile,</span>
+<span id="L848"><span class="lineNum">     848</span>              :         vs::AbstractVector{&lt;:AbstractVector},</span>
+<span id="L849"><span class="lineNum">     849</span>              :         name::AbstractString,</span>
+<span id="L850"><span class="lineNum">     850</span>              :     )</span>
+<span id="L851"><span class="lineNum">     851</span> <span class="tlaGNC">         104 :     (; gtop, refinement,) = reader</span></span>
+<span id="L852"><span class="lineNum">     852</span> <span class="tlaGNC">         104 :     gdata = HDF5.open_group(gtop, &quot;PointData&quot;)</span></span>
+<span id="L853"><span class="lineNum">     853</span> <span class="tlaGNC">         104 :     dset = HDF5.open_dataset(gdata, name)</span></span>
+<span id="L854"><span class="lineNum">     854</span> <span class="tlaGNC">         104 :     V = eltype(eltype(vs))  # typically &lt;:AbstractFloat or SVector{3, &lt;:AbstractFloat}</span></span>
+<span id="L855"><span class="lineNum">     855</span> <span class="tlaGNC">         104 :     T = eltype(V)</span></span>
+<span id="L856"><span class="lineNum">     856</span> <span class="tlaGNC">         104 :     if T === V  # scalar data (note: eltype(Float64) = Float64)</span></span>
+<span id="L857"><span class="lineNum">     857</span> <span class="tlaGNC">          36 :         ldims = ()</span></span>
+<span id="L858"><span class="lineNum">     858</span>              :     else</span>
+<span id="L859"><span class="lineNum">     859</span> <span class="tlaGNC">          68 :         ldims = size(V)</span></span>
+<span id="L860"><span class="lineNum">     860</span>              :     end</span>
+<span id="L861"><span class="lineNum">     861</span> <span class="tlaGNC">         104 :     _read_data_on_filaments!(T, dset, vs, refinement; ldims)</span></span>
+<span id="L862"><span class="lineNum">     862</span> <span class="tlaGNC">         104 :     close(dset)</span></span>
+<span id="L863"><span class="lineNum">     863</span> <span class="tlaGNC">         104 :     close(gdata)</span></span>
+<span id="L864"><span class="lineNum">     864</span> <span class="tlaGNC">         104 :     vs</span></span>
+<span id="L865"><span class="lineNum">     865</span>              : end</span>
+<span id="L866"><span class="lineNum">     866</span>              : </span>
+<span id="L867"><span class="lineNum">     867</span>              : # Read data on filament nodes.</span>
+<span id="L868"><span class="lineNum">     868</span> <span class="tlaGNC">         248 : function _read_data_on_filaments!(</span></span>
+<span id="L869"><span class="lineNum">     869</span>              :         ::Type{T}, dset, vs::AbstractVector{&lt;:AbstractVector}, refinement;</span>
+<span id="L870"><span class="lineNum">     870</span>              :         ldims::Dims = (),</span>
+<span id="L871"><span class="lineNum">     871</span>              :         endpoint = false,  # if `true`, it requires eltype(vs) &lt;: PaddedVector</span>
+<span id="L872"><span class="lineNum">     872</span>              :     ) where {T &lt;: Number}</span>
+<span id="L873"><span class="lineNum">     873</span> <span class="tlaGNC">         124 :     V = eltype(eltype(vs))</span></span>
+<span id="L874"><span class="lineNum">     874</span> <span class="tlaGNC">         124 :     @assert T === eltype(V)</span></span>
+<span id="L875"><span class="lineNum">     875</span> <span class="tlaGNC">         124 :     N = 1 + length(ldims)</span></span>
+<span id="L876"><span class="lineNum">     876</span> <span class="tlaGNC">         124 :     ldims_dset..., num_points = size(dset) :: Dims{N}</span></span>
+<span id="L877"><span class="lineNum">     877</span> <span class="tlaGNC">         124 :     @assert ldims == ldims_dset</span></span>
+<span id="L878"><span class="lineNum">     878</span> <span class="tlaGNC">         124 :     n = 0</span></span>
+<span id="L879"><span class="lineNum">     879</span> <span class="tlaGNC">         124 :     dspace = HDF5.dataspace(dset)</span></span>
+<span id="L880"><span class="lineNum">     880</span> <span class="tlaGNC">         192 :     lranges = map(N -&gt; 1:N, ldims)</span></span>
+<span id="L881"><span class="lineNum">     881</span> <span class="tlaGNC">         172 :     for v ∈ vs</span></span>
+<span id="L882"><span class="lineNum">     882</span> <span class="tlaGNC">         280 :         Np = length(v)  # number of filament nodes (may or may not include the endpoint)</span></span>
+<span id="L883"><span class="lineNum">     883</span> <span class="tlaGNC">         432 :         memspace = HDF5.dataspace((ldims_dset..., Np))</span></span>
+<span id="L884"><span class="lineNum">     884</span> <span class="tlaGNC">         280 :         memtype = HDF5.datatype(T)</span></span>
+<span id="L885"><span class="lineNum">     885</span> <span class="tlaGNC">         280 :         if refinement == 1</span></span>
+<span id="L886"><span class="lineNum">     886</span> <span class="tlaGNC">         108 :             HDF5.select_hyperslab!(dspace, (lranges..., (n + 1):(n + Np),))  # read part of the dataset</span></span>
+<span id="L887"><span class="lineNum">     887</span> <span class="tlaGNC">         108 :             read_dataset!(v, dset, dspace; memspace, memtype)</span></span>
+<span id="L888"><span class="lineNum">     888</span> <span class="tlaGNC">         108 :             n += Np + (!endpoint)  # the + (!endpoint) is because the endpoint is always included in the file (but maybe ignored here)</span></span>
+<span id="L889"><span class="lineNum">     889</span>              :         else</span>
+<span id="L890"><span class="lineNum">     890</span> <span class="tlaGNC">         344 :             inds_file = range(n + 1; length = Np, step = refinement)</span></span>
+<span id="L891"><span class="lineNum">     891</span> <span class="tlaGNC">         172 :             HDF5.select_hyperslab!(dspace, (lranges..., inds_file,))</span></span>
+<span id="L892"><span class="lineNum">     892</span> <span class="tlaGNC">         172 :             read_dataset!(v, dset, dspace; memspace, memtype)</span></span>
+<span id="L893"><span class="lineNum">     893</span> <span class="tlaGNC">         172 :             n = last(inds_file) + refinement * (!endpoint)</span></span>
+<span id="L894"><span class="lineNum">     894</span>              :         end</span>
+<span id="L895"><span class="lineNum">     895</span> <span class="tlaGNC">         560 :         maybe_pad_periodic!(v)</span></span>
+<span id="L896"><span class="lineNum">     896</span> <span class="tlaGNC">         328 :     end</span></span>
+<span id="L897"><span class="lineNum">     897</span> <span class="tlaGNC">         124 :     @assert n == num_points</span></span>
+<span id="L898"><span class="lineNum">     898</span> <span class="tlaGNC">         124 :     nothing</span></span>
+<span id="L899"><span class="lineNum">     899</span>              : end</span>
+<span id="L900"><span class="lineNum">     900</span>              : </span>
+<span id="L901"><span class="lineNum">     901</span>              : # Periodically pad output vector if it's a PaddedVector.</span>
+<span id="L902"><span class="lineNum">     902</span> <span class="tlaGNC">         432 : maybe_pad_periodic!(v::PaddedVector) = pad_periodic!(v)</span></span>
+<span id="L903"><span class="lineNum">     903</span> <span class="tlaGNC">         128 : maybe_pad_periodic!(v::AbstractVector) = v</span></span>
+<span id="L904"><span class="lineNum">     904</span>              : </span>
+<span id="L905"><span class="lineNum">     905</span> <span class="tlaGNC">        1194 : function read_dataset!(</span></span>
+<span id="L906"><span class="lineNum">     906</span>              :         out::Union{AbstractArray, Ptr},</span>
+<span id="L907"><span class="lineNum">     907</span>              :         dset::HDF5.Dataset,</span>
+<span id="L908"><span class="lineNum">     908</span>              :         dspace = HDF5.dataspace(dset);  # this can also be a hyperslab</span>
+<span id="L909"><span class="lineNum">     909</span>              :         memspace = HDF5.dataspace(out),</span>
+<span id="L910"><span class="lineNum">     910</span>              :         memtype = HDF5.datatype(out),</span>
+<span id="L911"><span class="lineNum">     911</span>              :     )</span>
+<span id="L912"><span class="lineNum">     912</span> <span class="tlaGNC">         514 :     HDF5.API.h5d_read(dset, memtype, memspace, dspace, dset.xfer, out)</span></span>
+<span id="L913"><span class="lineNum">     913</span> <span class="tlaGNC">         514 :     out</span></span>
+<span id="L914"><span class="lineNum">     914</span>              : end</span>
+<span id="L915"><span class="lineNum">     915</span>              : </span>
+<span id="L916"><span class="lineNum">     916</span> <span class="tlaGNC">          12 : function Base.read(</span></span>
+<span id="L917"><span class="lineNum">     917</span>              :         reader::VTKHDFFile, name::AbstractString, ::FieldData, ::Type{T},</span>
+<span id="L918"><span class="lineNum">     918</span>              :     ) where {T}</span>
+<span id="L919"><span class="lineNum">     919</span> <span class="tlaGNC">          12 :     dset = HDF5.open_dataset(reader.gtop, &quot;FieldData/$name&quot;)</span></span>
+<span id="L920"><span class="lineNum">     920</span> <span class="tlaGNC">          12 :     N = length(dset)</span></span>
+<span id="L921"><span class="lineNum">     921</span> <span class="tlaGNC">          24 :     out = Vector{T}(undef, N)</span></span>
+<span id="L922"><span class="lineNum">     922</span> <span class="tlaGNC">          12 :     memtype = HDF5.datatype(out)</span></span>
+<span id="L923"><span class="lineNum">     923</span> <span class="tlaGNC">          12 :     memspace = HDF5.dataspace(out)</span></span>
+<span id="L924"><span class="lineNum">     924</span> <span class="tlaGNC">          12 :     dspace = HDF5.dataspace(dset)</span></span>
+<span id="L925"><span class="lineNum">     925</span> <span class="tlaGNC">          12 :     HDF5.API.h5d_read(dset, memtype, memspace, dspace, dset.xfer, out)</span></span>
+<span id="L926"><span class="lineNum">     926</span> <span class="tlaGNC">          12 :     close(dset)</span></span>
+<span id="L927"><span class="lineNum">     927</span> <span class="tlaGNC">          12 :     out</span></span>
+<span id="L928"><span class="lineNum">     928</span>              : end</span>
+<span id="L929"><span class="lineNum">     929</span>              : </span>
+<span id="L930"><span class="lineNum">     930</span>              : # Specific case of strings</span>
+<span id="L931"><span class="lineNum">     931</span> <span class="tlaGNC">          12 : function Base.read(</span></span>
+<span id="L932"><span class="lineNum">     932</span>              :         reader::VTKHDFFile, name::AbstractString, ::FieldData, ::Type{&lt;:AbstractString},</span>
+<span id="L933"><span class="lineNum">     933</span>              :     )</span>
+<span id="L934"><span class="lineNum">     934</span> <span class="tlaGNC">          12 :     dset = HDF5.open_dataset(reader.gtop, &quot;FieldData/$name&quot;)</span></span>
+<span id="L935"><span class="lineNum">     935</span> <span class="tlaGNC">          12 :     read(dset) :: Vector{String}</span></span>
+<span id="L936"><span class="lineNum">     936</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

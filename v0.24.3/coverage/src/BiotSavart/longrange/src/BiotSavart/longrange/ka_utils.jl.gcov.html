@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/BiotSavart/longrange/src/BiotSavart/longrange/ka_utils.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">src/BiotSavart/longrange/src/BiotSavart/longrange</a> - ka_utils.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntry">21</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2024-09-09 11:35:22</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : # KernelAbstractions utils (CPU/GPU kernels)</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : &quot;&quot;&quot;</span>
+<span id="L4"><span class="lineNum">       4</span>              :     KernelAbstractions.get_backend(backend::LongRangeBackend) -&gt; KernelAbstractions.Backend</span>
+<span id="L5"><span class="lineNum">       5</span>              :     KernelAbstractions.get_backend(cache::LongRangeCache) -&gt; KernelAbstractions.Backend</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : Get KernelAbstractions (KA) backend associated to a given long-range backend.</span>
+<span id="L8"><span class="lineNum">       8</span>              : </span>
+<span id="L9"><span class="lineNum">       9</span>              : !!! note</span>
+<span id="L10"><span class="lineNum">      10</span>              : </span>
+<span id="L11"><span class="lineNum">      11</span>              :     The word &quot;backend&quot; means two different things here!</span>
+<span id="L12"><span class="lineNum">      12</span>              :     For KA, it refers to the device where kernels are executed (e.g. `CPU`, `CUDABackend`, ...).</span>
+<span id="L13"><span class="lineNum">      13</span>              : </span>
+<span id="L14"><span class="lineNum">      14</span>              : By default this returns `KA.CPU(static = true)`, meaning that things are run on the CPU</span>
+<span id="L15"><span class="lineNum">      15</span>              : using threads, and that a static thread assignment is used.</span>
+<span id="L16"><span class="lineNum">      16</span>              : &quot;&quot;&quot;</span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC tlaBgGNC">       74133 : KA.get_backend(::LongRangeBackend) = ka_default_cpu_backend()</span></span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span> <span class="tlaGNC">       74173 : ka_default_cpu_backend() = KA.CPU(static = true)</span></span>
+<span id="L20"><span class="lineNum">      20</span>              : </span>
+<span id="L21"><span class="lineNum">      21</span>              : # Default workgroup size used for running KA kernels.</span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">       16105 : function ka_default_workgroupsize(::KA.CPU, dims::Dims)</span></span>
+<span id="L23"><span class="lineNum">      23</span>              :     # On the CPU, use KA's default, which currently tries to creates blocks of 1024 work</span>
+<span id="L24"><span class="lineNum">      24</span>              :     # items. Note that we're calling an internal function which may change in the future!</span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">       16105 :     KA.default_cpu_workgroupsize(dims)</span></span>
+<span id="L26"><span class="lineNum">      26</span>              : end</span>
+<span id="L27"><span class="lineNum">      27</span>              : </span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">          30 : function ka_default_workgroupsize(::KA.GPU, dims::Dims)</span></span>
+<span id="L29"><span class="lineNum">      29</span>              :     # On the GPU, we divide the work across the first dimension and try to use 256 GPU</span>
+<span id="L30"><span class="lineNum">      30</span>              :     # threads per workgroup.</span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">          30 :     wgsize_wanted = 256</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">          30 :     x = map(one, dims)  # = (1, 1, 1) in 3D</span></span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">          30 :     Base.setindex(x, min(dims[1], wgsize_wanted), 1)  # usually (wgsize_wanted, 1, 1)</span></span>
+<span id="L34"><span class="lineNum">      34</span>              : end</span>
+<span id="L35"><span class="lineNum">      35</span>              : </span>
+<span id="L36"><span class="lineNum">      36</span>              : &quot;&quot;&quot;</span>
+<span id="L37"><span class="lineNum">      37</span>              :     ka_generate_kernel(kernel, backend::KA.Backend, x::AbstractArray; [workgroupsize])</span>
+<span id="L38"><span class="lineNum">      38</span>              :     ka_generate_kernel(kernel, backend::KA.Backend, ndrange::Dims; [workgroupsize])</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span>              : Generate statically sized KA kernel.</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span>              : In this context, &quot;statically sized&quot; means that the kernel will be specifically compiled for</span>
+<span id="L43"><span class="lineNum">      43</span>              : the dimensions of the array `x`, and will be recompiled if an array of a different size is</span>
+<span id="L44"><span class="lineNum">      44</span>              : used later.</span>
+<span id="L45"><span class="lineNum">      45</span>              : </span>
+<span id="L46"><span class="lineNum">      46</span>              : Here `kernel` is a KA kernel (a Julia function) annotated with the `@kernel` macro.</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span>              : By default, the workgroupsize is determined automatically and may depend on the actual</span>
+<span id="L49"><span class="lineNum">      49</span>              : backend (CPU, GPU) and on the array dimensions `ndrange = size(x)`.</span>
+<span id="L50"><span class="lineNum">      50</span>              : &quot;&quot;&quot;</span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">       32236 : function ka_generate_kernel(</span></span>
+<span id="L52"><span class="lineNum">      52</span>              :         kernel::F, backend::KA.Backend, ndrange::Dims;</span>
+<span id="L53"><span class="lineNum">      53</span>              :         workgroupsize = ka_default_workgroupsize(backend, ndrange),</span>
+<span id="L54"><span class="lineNum">      54</span>              :     ) where {F &lt;: Function}</span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">       16118 :     kernel(backend, workgroupsize, ndrange)</span></span>
+<span id="L56"><span class="lineNum">      56</span>              : end</span>
+<span id="L57"><span class="lineNum">      57</span>              : </span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">       32202 : function ka_generate_kernel(</span></span>
+<span id="L59"><span class="lineNum">      59</span>              :         kernel::F, backend::KA.Backend, u::AbstractArray;</span>
+<span id="L60"><span class="lineNum">      60</span>              :         kws...,</span>
+<span id="L61"><span class="lineNum">      61</span>              :     ) where {F &lt;: Function}</span>
+<span id="L62"><span class="lineNum">      62</span> <span class="tlaGNC">       16101 :     ka_generate_kernel(kernel, backend, size(u); kws...)</span></span>
+<span id="L63"><span class="lineNum">      63</span>              : end</span>
+<span id="L64"><span class="lineNum">      64</span>              : </span>
+<span id="L65"><span class="lineNum">      65</span>              : ## ================================================================================ ##</span>
+<span id="L66"><span class="lineNum">      66</span>              : ## This is for testing some GPU-specific code on CPUs. Used only in tests.</span>
+<span id="L67"><span class="lineNum">      67</span>              : </span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">           1 : struct PseudoGPU &lt;: KA.GPU end</span></span>
+<span id="L69"><span class="lineNum">      69</span>              : </span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">          30 : KA.isgpu(::PseudoGPU) = false  # needed to be considered as a CPU backend by KA</span></span>
+<span id="L71"><span class="lineNum">      71</span> <span class="tlaGNC">          28 : KA.allocate(::PseudoGPU, args...) = KA.allocate(KA.CPU(), args...)</span></span>
+<span id="L72"><span class="lineNum">      72</span> <span class="tlaGNC">          44 : KA.synchronize(::PseudoGPU) = nothing</span></span>
+<span id="L73"><span class="lineNum">      73</span> <span class="tlaGNC">         135 : KA.copyto!(::PseudoGPU, u, v) = copyto!(u, v)</span></span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">          42 : Adapt.adapt(::PseudoGPU, u::Array) = copy(u)  # simulate host → device copy (making sure arrays are not aliased)</span></span>
+<span id="L75"><span class="lineNum">      75</span>              : </span>
+<span id="L76"><span class="lineNum">      76</span>              : # Convert kernel to standard CPU kernel (relies on KA internals...)</span>
+<span id="L77"><span class="lineNum">      77</span> <span class="tlaGNC">          60 : function (kernel::KA.Kernel{PseudoGPU, GroupSize, NDRange, Fun})(args...; kws...) where {GroupSize, NDRange, Fun}</span></span>
+<span id="L78"><span class="lineNum">      78</span> <span class="tlaGNC">          30 :     kernel_cpu = KA.Kernel{KA.CPU, GroupSize, NDRange, Fun}(KA.CPU(), kernel.f)</span></span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">          30 :     kernel_cpu(args...; kws...)</span></span>
+<span id="L80"><span class="lineNum">      80</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

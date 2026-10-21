@@ -1,0 +1,233 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Filaments/src/Filaments/discretisations.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Filaments/src/Filaments</a> - discretisations.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">37</td>
+            <td class="headerCovTableEntry">37</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-05-05 15:08:38</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : &quot;&quot;&quot;</span>
+<span id="L2"><span class="lineNum">       2</span>              :     DiscretisationMethod</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : Abstract type defining a filament discretisation method.</span>
+<span id="L5"><span class="lineNum">       5</span>              : &quot;&quot;&quot;</span>
+<span id="L6"><span class="lineNum">       6</span>              : abstract type DiscretisationMethod end</span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              : # This should be implemented by all discretisation methods</span>
+<span id="L9"><span class="lineNum">       9</span> <span class="tlaGNC tlaBgGNC">        2241 : continuity(m::DiscretisationMethod) = continuity(typeof(m))</span></span>
+<span id="L10"><span class="lineNum">      10</span> <span class="tlaGNC">      158938 : npad(m::DiscretisationMethod) = npad(typeof(m))</span></span>
+<span id="L11"><span class="lineNum">      11</span>              : </span>
+<span id="L12"><span class="lineNum">      12</span>              : &quot;&quot;&quot;</span>
+<span id="L13"><span class="lineNum">      13</span>              :     interpolation_method(m::DiscretisationMethod)</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              : Return the interpolation method associated to a [`DiscretisationMethod`](@ref).</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : For [`FiniteDiffMethod`](@ref) and [`FourierMethod`](@ref), this is usually a</span>
+<span id="L18"><span class="lineNum">      18</span>              : [`HermiteInterpolation`](@ref) (which requires derivatives at the interpolation nodes).</span>
+<span id="L19"><span class="lineNum">      19</span>              : For [`SplineMethod`](@ref)s, since splines don't rely on a separate interpolation scheme,</span>
+<span id="L20"><span class="lineNum">      20</span>              : this simply returns `m` (i.e. the passed `SplineMethod`).</span>
+<span id="L21"><span class="lineNum">      21</span>              : &quot;&quot;&quot;</span>
+<span id="L22"><span class="lineNum">      22</span>              : function interpolation_method end</span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span>              : &quot;&quot;&quot;</span>
+<span id="L25"><span class="lineNum">      25</span>              :     required_derivatives(m::DiscretisationMethod) -&gt; Int</span>
+<span id="L26"><span class="lineNum">      26</span>              : </span>
+<span id="L27"><span class="lineNum">      27</span>              : Return the number of derivatives on interpolation nodes required by the discretisation</span>
+<span id="L28"><span class="lineNum">      28</span>              : method.</span>
+<span id="L29"><span class="lineNum">      29</span>              : </span>
+<span id="L30"><span class="lineNum">      30</span>              : This is generally larger than 0 for methods relying on Hermite interpolations (which require</span>
+<span id="L31"><span class="lineNum">      31</span>              : derivatives on interpolation nodes). This is 0 for other methods such as [`SplineMethod`](@ref).</span>
+<span id="L32"><span class="lineNum">      32</span>              : &quot;&quot;&quot;</span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">         708 : required_derivatives(m::DiscretisationMethod) = required_derivatives(interpolation_method(m))</span></span>
+<span id="L34"><span class="lineNum">      34</span>              : </span>
+<span id="L35"><span class="lineNum">      35</span>              : # Discretisation coefficients associated to a method.</span>
+<span id="L36"><span class="lineNum">      36</span>              : # Here `T` is the element type of a coefficient (for example `Float64` for scalar data, or</span>
+<span id="L37"><span class="lineNum">      37</span>              : # `Vec3{Float64}` for 3D points).</span>
+<span id="L38"><span class="lineNum">      38</span>              : # Moreover, `N` is the number of derivatives that are included in the coefficients.</span>
+<span id="L39"><span class="lineNum">      39</span>              : abstract type DiscretisationCoefs{T, Method &lt;: DiscretisationMethod, N} end</span>
+<span id="L40"><span class="lineNum">      40</span>              : </span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">       13248 : Base.eltype(::DiscretisationCoefs{T}) where {T} = T</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">        1775 : nderivatives(::Type{&lt;:DiscretisationCoefs{T, M, N}}) where {T, M, N} = N</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">        1775 : nderivatives(c::DiscretisationCoefs) = nderivatives(typeof(c))</span></span>
+<span id="L44"><span class="lineNum">      44</span>              : </span>
+<span id="L45"><span class="lineNum">      45</span>              : &quot;&quot;&quot;</span>
+<span id="L46"><span class="lineNum">      46</span>              :     init_coefficients(method::DiscretisationMethod, ys::AbstractVector, [nderivs::Val]) -&gt; DiscretisationCoefs</span>
+<span id="L47"><span class="lineNum">      47</span>              :     init_coefficients(method::DiscretisationMethod, cs::PaddedVector, cderivs::NTuple)  -&gt; DiscretisationCoefs</span>
+<span id="L48"><span class="lineNum">      48</span>              : </span>
+<span id="L49"><span class="lineNum">      49</span>              : Initialise interpolation coefficients.</span>
+<span id="L50"><span class="lineNum">      50</span>              : </span>
+<span id="L51"><span class="lineNum">      51</span>              : In the first case, the `ys` vector is interpreted as a vector of values at interpolation</span>
+<span id="L52"><span class="lineNum">      52</span>              : nodes, and it will not be modified by the function. Note that this requires the allocation of a coefficient vector.</span>
+<span id="L53"><span class="lineNum">      53</span>              : Moreover, the `nderivs` argument indicates the number of derivatives that one wants to be</span>
+<span id="L54"><span class="lineNum">      54</span>              : able to compute. By default, `nderiv` is chosen as the minimum number of derivatives</span>
+<span id="L55"><span class="lineNum">      55</span>              : required by the method (see [`required_derivatives`](@ref)).</span>
+<span id="L56"><span class="lineNum">      56</span>              : </span>
+<span id="L57"><span class="lineNum">      57</span>              : In the second case, `cs` is interpreted as a vector of interpolation coefficients, and is</span>
+<span id="L58"><span class="lineNum">      58</span>              : thus stored in the returned structure. Moreover, to compute one or more derivatives, one can</span>
+<span id="L59"><span class="lineNum">      59</span>              : pass `cderivs` vectors which should have the same type and length as `cs`.</span>
+<span id="L60"><span class="lineNum">      60</span>              : </span>
+<span id="L61"><span class="lineNum">      61</span>              : !!! note &quot;Hermite interpolations&quot;</span>
+<span id="L62"><span class="lineNum">      62</span>              : </span>
+<span id="L63"><span class="lineNum">      63</span>              :     Some discretisation methods ([`FiniteDiffMethod`](@ref), [`FourierMethod`](@ref))</span>
+<span id="L64"><span class="lineNum">      64</span>              :     require one or more derivatives to evaluate Hermite interpolations, as determined by</span>
+<span id="L65"><span class="lineNum">      65</span>              :     [`required_derivatives`](@ref).</span>
+<span id="L66"><span class="lineNum">      66</span>              : </span>
+<span id="L67"><span class="lineNum">      67</span>              :     In the first variant, if one passes e.g. `nderivs = Val(0)`, then this argument will be</span>
+<span id="L68"><span class="lineNum">      68</span>              :     silently replaced by the required number of derivatives to make things work.</span>
+<span id="L69"><span class="lineNum">      69</span>              : </span>
+<span id="L70"><span class="lineNum">      70</span>              :     In the second variant, things will fail if `length(cderivs) &lt; required_derivatives(method)`.</span>
+<span id="L71"><span class="lineNum">      71</span>              : </span>
+<span id="L72"><span class="lineNum">      72</span>              : &quot;&quot;&quot;</span>
+<span id="L73"><span class="lineNum">      73</span>              : function init_coefficients end</span>
+<span id="L74"><span class="lineNum">      74</span>              : </span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">        2214 : function init_coefficients(</span></span>
+<span id="L76"><span class="lineNum">      76</span>              :         method::DiscretisationMethod, ys::AbstractVector,</span>
+<span id="L77"><span class="lineNum">      77</span>              :         ::Val{Nderiv_in} = Val(required_derivatives(method)),</span>
+<span id="L78"><span class="lineNum">      78</span>              :     ) where {Nderiv_in}</span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">        2215 :     M = npad(method)</span></span>
+<span id="L80"><span class="lineNum">      80</span> <span class="tlaGNC">        4417 :     cs = similar_padded(ys, Val(M))</span></span>
+<span id="L81"><span class="lineNum">      81</span> <span class="tlaGNC">        2213 :     Nderiv = max(Nderiv_in, required_derivatives(method))  # the method may require additional derivatives</span></span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">        8787 :     cderivs = ntuple(_ -&gt; similar(cs), Val(Nderiv))</span></span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">        2213 :     init_coefficients(method, cs, cderivs)</span></span>
+<span id="L84"><span class="lineNum">      84</span>              : end</span>
+<span id="L85"><span class="lineNum">      85</span>              : </span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">           1 : function similar_padded(ys::AbstractVector, ::Val{M}) where {M}</span></span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">           1 :     @assert !(ys isa PaddedVector)</span></span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">           1 :     N = length(ys)</span></span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">           2 :     PaddedVector{M}(similar(ys, N + 2M))</span></span>
+<span id="L90"><span class="lineNum">      90</span>              : end</span>
+<span id="L91"><span class="lineNum">      91</span>              : </span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">        4415 : similar_padded(ys::PaddedVector{M}, ::Val{M}) where {M} = similar(ys)  # we assume ys has the right padding</span></span>
+<span id="L93"><span class="lineNum">      93</span>              : </span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaGNC">        2337 : function _check_coefficients(</span></span>
+<span id="L95"><span class="lineNum">      95</span>              :         method::DiscretisationMethod, cs::V, cderivs::NTuple{N, V},</span>
+<span id="L96"><span class="lineNum">      96</span>              :     ) where {N, V &lt;: PaddedVector}</span>
+<span id="L97"><span class="lineNum">      97</span> <span class="tlaGNC">        2337 :     M = npad(method)</span></span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaGNC">        2337 :     Nd = required_derivatives(method)</span></span>
+<span id="L99"><span class="lineNum">      99</span> <span class="tlaGNC">        2337 :     N ≥ Nd || throw(DimensionMismatch(lazy&quot;$method requires at least $Nd derivatives; got $N derivatives&quot;))</span></span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">        2337 :     npad(V) == M ||</span></span>
+<span id="L101"><span class="lineNum">     101</span>              :         throw(DimensionMismatch(lazy&quot;expected PaddedVector with npad($method) = $M ghost cells in each direction&quot;))</span>
+<span id="L102"><span class="lineNum">     102</span> <span class="tlaGNC">        2337 :     Np = length(cs)</span></span>
+<span id="L103"><span class="lineNum">     103</span> <span class="tlaGNC">        5003 :     all(cp -&gt; length(cp) == Np, cderivs) ||</span></span>
+<span id="L104"><span class="lineNum">     104</span>              :         throw(DimensionMismatch(lazy&quot;derivative vectors should have length $Np&quot;))</span>
+<span id="L105"><span class="lineNum">     105</span> <span class="tlaGNC">        2337 :     nothing</span></span>
+<span id="L106"><span class="lineNum">     106</span>              : end</span>
+<span id="L107"><span class="lineNum">     107</span>              : </span>
+<span id="L108"><span class="lineNum">     108</span>              : &quot;&quot;&quot;</span>
+<span id="L109"><span class="lineNum">     109</span>              :     compute_coefficients!(coefs::DiscretisationCoefs, [ys::AbstractVector], ts::PaddedVector)</span>
+<span id="L110"><span class="lineNum">     110</span>              : </span>
+<span id="L111"><span class="lineNum">     111</span>              : Compute interpolation coefficients of parametric function ``f(t)``.</span>
+<span id="L112"><span class="lineNum">     112</span>              : </span>
+<span id="L113"><span class="lineNum">     113</span>              : Here `ys` contains values at interpolation nodes, and `ts` contains the values of the curve</span>
+<span id="L114"><span class="lineNum">     114</span>              : parameter ``t`` at the nodes.</span>
+<span id="L115"><span class="lineNum">     115</span>              : </span>
+<span id="L116"><span class="lineNum">     116</span>              : If `ys` is not passed, then the `coefs.cs` vector is expected to have the values at</span>
+<span id="L117"><span class="lineNum">     117</span>              : interpolation points (which will be overwritten with the interpolation coefficients).</span>
+<span id="L118"><span class="lineNum">     118</span>              : </span>
+<span id="L119"><span class="lineNum">     119</span>              : This should be called before evaluating an interpolation using [`evaluate`](@ref).</span>
+<span id="L120"><span class="lineNum">     120</span>              : &quot;&quot;&quot;</span>
+<span id="L121"><span class="lineNum">     121</span>              : function compute_coefficients! end</span>
+<span id="L122"><span class="lineNum">     122</span>              : </span>
+<span id="L123"><span class="lineNum">     123</span> <span class="tlaGNC">          15 : function compute_coefficients!(coefs::DiscretisationCoefs, ts::PaddedVector)</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">          15 :     compute_coefficients!(coefs, coefs.cs, ts)</span></span>
+<span id="L125"><span class="lineNum">     125</span>              : end</span>
+<span id="L126"><span class="lineNum">     126</span>              : </span>
+<span id="L127"><span class="lineNum">     127</span>              : &quot;&quot;&quot;</span>
+<span id="L128"><span class="lineNum">     128</span>              :     evaluate(coefs::DiscretisationCoefs, ts::PaddedVector, t::Real, [Derivative(0)]; [ileft = nothing])</span>
+<span id="L129"><span class="lineNum">     129</span>              :     evaluate(coefs::DiscretisationCoefs, ts::PaddedVector, i::Int, ζ::Real, [Derivative(0)])</span>
+<span id="L130"><span class="lineNum">     130</span>              : </span>
+<span id="L131"><span class="lineNum">     131</span>              : Evaluate interpolation at a given location ``t`` or ``ζ``.</span>
+<span id="L132"><span class="lineNum">     132</span>              : </span>
+<span id="L133"><span class="lineNum">     133</span>              : In the first case, ``t`` corresponds to the *global* curve parametrisation.</span>
+<span id="L134"><span class="lineNum">     134</span>              : One can optionally indicate the segment index `i` (such that `ts[i] ≤ t &lt; ts[i + 1]`) using</span>
+<span id="L135"><span class="lineNum">     135</span>              : the `ileft` keyword argument.</span>
+<span id="L136"><span class="lineNum">     136</span>              : </span>
+<span id="L137"><span class="lineNum">     137</span>              : In the second case, ``ζ ∈ [0, 1]`` corresponds to the *local* curve parametrisation, within</span>
+<span id="L138"><span class="lineNum">     138</span>              : the segment `i`.</span>
+<span id="L139"><span class="lineNum">     139</span>              : &quot;&quot;&quot;</span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">       26496 : function evaluate(coefs::DiscretisationCoefs, args...; kws...)</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">       13248 :     m = interpolation_method(coefs.method)</span></span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">       13248 :     T = eltype(coefs)</span></span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">       13248 :     evaluate(m, coefs, args...; kws...) :: T</span></span>
+<span id="L144"><span class="lineNum">     144</span>              : end</span>
+<span id="L145"><span class="lineNum">     145</span>              : </span>
+<span id="L146"><span class="lineNum">     146</span>              : # Check that two sets of coefficients are equal</span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">           8 : function Base.:(==)(x::DiscretisationCoefs, y::DiscretisationCoefs)</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">           8 :     x.method === y.method || return false</span></span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">           8 :     us = allvectors(x)</span></span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">           8 :     vs = allvectors(y)</span></span>
+<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">           8 :     length(us) === length(vs) || return false</span></span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">           8 :     all(splat(==), zip(us, vs))</span></span>
+<span id="L153"><span class="lineNum">     153</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
