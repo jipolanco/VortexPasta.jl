@@ -38,31 +38,39 @@ In the case of long-range computations, this must be done before type-1 NUFFTs, 
 from non-uniform data in physical space to uniform data in Fourier space. It must be called
 before [`compute_vorticity_fourier!`](@ref).
 """
-function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, params::ParamsBiotSavart)
+function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilament}, params::ParamsBiotSavart; quasi_2D = Val(false))
     Np = count_nodes(fs)
     set_num_points!(data, Np, params.quad)
     chunks = FilamentChunkIterator(fs)
     @sync for chunk in chunks
         Threads.@spawn for (i, inds, num_nodes_visited) in chunk
-            _add_point_charges!(data, fs[i], inds, num_nodes_visited, params, params.quad)
+            _add_point_charges!(data, fs[i], inds, num_nodes_visited, params, params.quad; quasi_2D)
         end
     end
     nothing
 end
 
-@inline function _compute_subsegment_lengths(f::AbstractFilament, i::Integer, quad, lims)
-    δ⁻ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
-        @inline
-        norm(f(j, ζ, Derivative(1)))
-    end
-    δ⁺ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
-        @inline
-        norm(f(j, ζ, Derivative(1)))
+@inline function _compute_subsegment_lengths(f::AbstractFilament, i::Integer, quad, lims; quasi_2D = Val(false))
+    @inbounds if quasi_2D === Val(true)
+        δ⁻ = f[i].z - f[i - 1].z
+        δ⁺ = f[i + 1].z - f[i].z
+    else
+        δ⁻ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
+            @inline
+            norm(f(j, ζ, Derivative(1)))
+        end
+        δ⁺ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
+            @inline
+            norm(f(j, ζ, Derivative(1)))
+        end
     end
     δ⁻, δ⁺
 end
 
-function _add_point_charges!(data::PointData, f::ClosedFilament, inds::AbstractUnitRange, n::Int, params::ParamsBiotSavart, quad::StaticSizeQuadrature)
+function _add_point_charges!(
+        data::PointData, f::ClosedFilament, inds::AbstractUnitRange, n::Int, params::ParamsBiotSavart, quad::StaticSizeQuadrature;
+        quasi_2D = Val(false),
+    )
     (; Ls) = params
     (; lia_segment_fraction) = params.shortrange
     @assert eachindex(data.nodes) == eachindex(data.node_idx_prev) == eachindex(data.derivatives_on_nodes[1]) == eachindex(data.subsegment_lengths[1])
@@ -75,6 +83,7 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, inds::AbstractU
     checkbounds(data.points, (m + 1):mlast)
     ζs, ws = quadrature(quad)
     ts = knots(f)
+    Vec = eltype(f)
     subsegment_lims = lia_integration_limits(lia_segment_fraction)
     @inbounds for i in inds
         n += 1
@@ -86,8 +95,13 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, inds::AbstractU
             n - 1
         end
         data.derivatives_on_nodes[1][n] = f[i, Derivative(1)]
-        data.derivatives_on_nodes[2][n] = f[i, Derivative(2)]
-        subsegs = _compute_subsegment_lengths(f, i, quad, subsegment_lims)
+        if quasi_2D === Val(true)
+            # Set curvature to zero (this ensures that LIA velocity is 0)
+            data.derivatives_on_nodes[2][n] = Vec(0, 0, 0)
+        else
+            data.derivatives_on_nodes[2][n] = f[i, Derivative(2)]
+        end
+        subsegs = _compute_subsegment_lengths(f, i, quad, subsegment_lims; quasi_2D)
         data.subsegment_lengths[1][n] = subsegs[1]
         data.subsegment_lengths[2][n] = subsegs[2]
         Δt = ts[i + 1] - ts[i]

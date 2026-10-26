@@ -274,6 +274,7 @@ struct VortexFilamentSolver{
     cache_timestepper :: CacheTimestepper
     fast_term         :: FastTerm
     LIA           :: Bool
+    quasi_2D      :: Bool
     fold_periodic :: Bool
     reparametrise_arclength :: Bool  # reparametrise filaments at the end of each timestep?
     affect!    :: Affect      # signature: affect!(iter)
@@ -324,6 +325,7 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     print(io, "\n ├─ reconnect: ", Reconnections.criterion(iter.reconnect))
     print(io, "\n ├─ fast_term: ", iter.fast_term)
     print(io, "\n ├─ LIA: ", iter.LIA)
+    print(io, "\n ├─ quasi_2D: ", iter.quasi_2D)
     print(io, "\n ├─ fold_periodic: ", iter.fold_periodic)
     print(io, "\n ├─ reparametrise_arclength: ", iter.reparametrise_arclength)
     print(io, "\n ├─ cache_bs: ")
@@ -462,6 +464,12 @@ either [`step!`](@ref) or [`solve!`](@ref).
   with `fast_term = LocalTerm(δ)` to set a constant local segment length `δ` (so that
   the local velocity does not depend on the spatial resolution of vortex lines).
   Note that one can still enable reconnections when `LIA = true`.
+
+- `quasi_2D = false`: if `true`, the simulation will be run in "quasi 2D" mode, which will
+  assume that all vortices are straight and aligned with the ``z`` direction. In particular,
+  this mode sets to 0 the LIA velocities, which suppresses temporal instabilities
+  (associated to the Kelvin wave CFL-like condition) when filaments are straight. This
+  allows the use of larger timesteps.
 
 - `fold_periodic = true`: if `true` (default), vortices will be recentred onto the main unit cell
   when using periodic boundary conditions. It may be convenient to disable this for
@@ -717,6 +725,7 @@ function init(
         fold_periodic::Bool = true,
         reparametrise_arclength::Bool = requires_arclength_parametrisation(scheme),
         LIA::Bool = false,
+        quasi_2D::Bool = false,
         callback::Callback = default_callback(),  # by default this is an empty function which just returns `nothing`
         affect!::Affect = default_callback(),
         affect_t!::AffectTime = default_callback(),
@@ -855,7 +864,7 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, reparametrise_arclength, affect_, affect_t_, callback_,
+        cache_bs, cache_timestepper, fast_term, LIA, quasi_2D, fold_periodic, reparametrise_arclength, affect_, affect_t_, callback_,
         step_diagnostics, step_adaptivity, step_refinement, step_reconnect, external_fields,
         stretching_velocity, forcing, forcing_cache, dissipation, dissipation_cache,
         timer, advect!, rhs!,

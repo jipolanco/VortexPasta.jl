@@ -87,6 +87,8 @@ function _update_values_at_nodes!(
         else
             @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_local_vectors!(fields, iter.cache_bs, fs, term.δ)
         end
+    elseif iter.quasi_2D
+        @timeit to "Biot-Savart (quasi 2D)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; quasi_2D = Val(true))
     else
         @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
     end
@@ -98,7 +100,7 @@ end
 # Compute slow component only.
 # This is generally called in IMEX-RK substeps, where only the velocity (and not the
 # streamfunction) is needed.
-# We assume that the "slow" component is everything but LIA term when evolving the
+# We assume that the "slow" component is everything but the LIA term when evolving the
 # Biot-Savart law.
 # This component will be treated explicitly by IMEX schemes.
 function _update_values_at_nodes!(
@@ -154,7 +156,9 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     (; to) = iter
-    if term.δ === nothing
+    if iter.quasi_2D
+        @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only), quasi_2D = Val(true))
+    elseif term.δ === nothing
         @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
     else  # use constant segment length in fast term
         @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_local_vectors!(fields, iter.cache_bs, fs, term.δ)
@@ -171,6 +175,10 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     (; to) = iter
-    @timeit to "Biot-Savart (short-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
+    if iter.quasi_2D
+        @timeit to "Biot-Savart (short-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false, quasi_2D = Val(true))
+    else
+        @timeit to "Biot-Savart (short-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
+    end
     nothing
 end
