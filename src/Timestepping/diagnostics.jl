@@ -53,10 +53,10 @@ function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
         vinf = (field = CurvatureVector(), sign = -1),
     )
     params = iter.prob.p
-    if hasproperty(iter, :vf)
+    if hasproperty(iter.quantities, :vf)
         velocities = (; velocities..., vf = (field = iter.vf, sign = +1))
     end
-    if hasproperty(iter, :vdiss)
+    if hasproperty(iter.quantities, :vdiss)
         velocities = (; velocities..., vdiss = (field = iter.vdiss, sign = -1))
     end
     vs_buf = similar(iter.vs)

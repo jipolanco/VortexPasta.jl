@@ -141,6 +141,15 @@ end
     nothing
 end
 
+# Sets to 0 the vorticity in the x and y directions (for quasi-2D mode).
+@kernel function fourier_vorticity_quasi2D_kernel!(uhat::NTuple{3})
+    I = @index(Global, Cartesian)
+    T = eltype(eltype(uhat))
+    @inbounds uhat[1][I] = zero(T)
+    @inbounds uhat[2][I] = zero(T)
+    nothing
+end
+
 # Applies curl operator in Fourier space.
 @kernel function fourier_curl_kernel!(uhat::NTuple, @Const(ks))
     I = @index(Global, Cartesian)
@@ -480,10 +489,17 @@ Must be called after [`add_point_charges!`](@ref).
 After calling this function, one may want to use [`compute_streamfunction_fourier!`](@ref) and/or
 [`compute_velocity_fourier!`](@ref) to obtain the respective fields.
 """
-function compute_vorticity_fourier!(cache::LongRangeCache)
+function compute_vorticity_fourier!(cache::LongRangeCache; quasi_2D::Bool = false)
     (; uhat, state, vorticity_prefactor,) = cache.common
     transform_to_fourier!(cache, vorticity_prefactor)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
+    if quasi_2D
+        let ka_backend = KA.get_backend(cache)
+            uhat_comps = StructArrays.components(uhat)
+            kernel = ka_generate_kernel(fourier_vorticity_quasi2D_kernel!, ka_backend, uhat)
+            kernel(uhat_comps)
+        end
+    end
     state.quantity = :vorticity
     state.smoothing_scale = 0
     uhat
