@@ -510,6 +510,16 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
     nothing
 end
 
+function enforce_unique_filament_velocity!(vs::AbstractVector{<:Vec3})
+    # Replace all velocities with the average filament velocity.
+    # This generally only makes sense in quasi-2D simulations.
+    v⃗_mean = sum(vs) ./ length(vs)
+    @inbounds for j in eachindex(vs)
+        vs[j] = v⃗_mean
+    end
+    vs
+end
+
 function _compute_on_nodes!(
         fields::NamedTuple, cache, fs;
         LIA = Val(true),
@@ -608,16 +618,10 @@ function _compute_on_nodes!(
     foreach(fetch, tasks)  # if a task failed with an error, this will rethrow the error
 
     if quasi_2D && haskey(fields, :velocity)
-        # Ensure all vortex points have the same velocity
         @sync for chunk in FilamentChunkIterator(fs; full_vectors = true)
+            # Ensure all points of each vortex have the same velocity
             Threads.@spawn for (i, _, _) in chunk
-                @inbounds begin
-                    vs = fields.velocity[i]
-                    v⃗ = vs[begin]
-                    for j in eachindex(vs)
-                        vs[j] = v⃗
-                    end
-                end
+                enforce_unique_filament_velocity!(fields.velocity[i])
             end
         end
     end

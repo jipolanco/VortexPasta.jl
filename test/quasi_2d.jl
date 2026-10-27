@@ -77,9 +77,9 @@ dt = 4 * dt_kw  # this would be unstable without quasi_2D = true
             maximum(i -> f[i, CurvatureScalar()], eachindex(f))
         end
         # @show ρ_max
-        @test ρ_max < 1e-14  # good!!
+        @test ρ_max < 4e-15  # good!!
         E = Diagnostics.kinetic_energy(iter)
         # @show (E - E₀) / E₀
-        @test isapprox(E, E₀; rtol = 1.0e-2)  # simulation didn't explode
+        @test isapprox(E, E₀; rtol = 1.0e-3)  # simulation didn't explode
     end
 end
