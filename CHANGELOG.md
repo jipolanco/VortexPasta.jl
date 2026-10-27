@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.35.1] - 2026-10-27
+
 ### Added
 
 - Add quasi 2D mode: pass `quasi_2D = true` to `Timestepping.init` to enable it.
