@@ -469,7 +469,9 @@ either [`step!`](@ref) or [`solve!`](@ref).
   assume that all vortices are straight and aligned with the ``z`` direction. In particular,
   this mode sets to 0 the LIA velocities, which suppresses temporal instabilities
   (associated to the Kelvin wave CFL-like condition) when filaments are straight. This
-  allows the use of larger timesteps.
+  allows the use of larger timesteps. It also ensures that initially straight vortices
+  stay straight over time, suppressing small 3D fluctuations usually due to the finite
+  accuracy of the NUFFT step.
 
 - `fold_periodic = true`: if `true` (default), vortices will be recentred onto the main unit cell
   when using periodic boundary conditions. It may be convenient to disable this for

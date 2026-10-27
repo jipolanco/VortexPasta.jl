@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add quasi 2D mode: pass `quasi_2D = true` to `Timestepping.init` to enable it.
   This mode can enable faster quasi-2D simulations of straight filaments, while ensuring as
-  much as possible that everything stays 2D (preserving zero curvature, ...).
-  Currently this works best with explicit timestepping methods such as `RK4()`.
+  much as possible that everything stays 2D (zero curvature is preserved, each filament
+  moves with a unique velocity, ...).
 
 ## [0.35.0] - 2026-10-21
 
