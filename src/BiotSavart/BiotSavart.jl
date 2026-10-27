@@ -391,14 +391,17 @@ compute_on_nodes!(...; callback_vorticity)
 ```
 
 """
-function compute_on_nodes!(fields::NamedTuple, cache::BiotSavartCache, fs::VectorOfFilaments; LIA = Val(true), quasi_2D = Val(false), kws...)
+function compute_on_nodes!(
+        fields::NamedTuple, cache::BiotSavartCache, fs::VectorOfFilaments;
+        LIA = Val(true), quasi_2D::Bool = false, kws...,
+    )
     _compute_on_nodes!(fields, cache, fs; LIA, quasi_2D, kws...)
     fields
 end
 
 function do_longrange!(
         cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu;
-        quasi_2D = Val(false),
+        quasi_2D::Bool = false,
         callback_vorticity::Fvort,
     ) where {Fvort}
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
@@ -510,9 +513,9 @@ end
 function _compute_on_nodes!(
         fields::NamedTuple, cache, fs;
         LIA = Val(true),
-        quasi_2D = Val(false),
-        longrange = true,
-        shortrange = true,
+        quasi_2D::Bool = false,
+        longrange::Bool = true,
+        shortrange::Bool = true,
         integration_cutoff::Union{Nothing, Real} = nothing,
         callback_vorticity::Fvort = identity,
     ) where {Fvort}
@@ -524,9 +527,13 @@ function _compute_on_nodes!(
     with_shortrange = shortrange
     with_longrange = longrange && LIA !== Val(:only) && cache.longrange !== NullLongRangeCache()
 
-    # This is used by short and long-range computations.
+    # This is used by short and long-range computations (done on the CPU)..
     # TODO: skip unneeded quantities if LIA === Val(:only) or LIA === Val(false)
-    @timeit to "Add point charges" add_point_charges!(pointdata, fs, params; quasi_2D)  # done on the CPU
+    @timeit to "Add point charges" if quasi_2D
+        add_point_charges!(pointdata, fs, params; quasi_2D = Val(true))
+    else
+        add_point_charges!(pointdata, fs, params; quasi_2D = Val(false))
+    end
 
     channel = Channel{Symbol}(2)  # 2 is the length of the channel (for :shortrange + :longrange)
     tasks = Task[]
@@ -600,7 +607,7 @@ function _compute_on_nodes!(
 
     foreach(fetch, tasks)  # if a task failed with an error, this will rethrow the error
 
-    if quasi_2D === Val(true) && haskey(fields, :velocity)
+    if quasi_2D && haskey(fields, :velocity)
         # Ensure all vortex points have the same velocity
         @sync for chunk in FilamentChunkIterator(fs; full_vectors = true)
             Threads.@spawn for (i, _, _) in chunk

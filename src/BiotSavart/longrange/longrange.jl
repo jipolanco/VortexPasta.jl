@@ -489,11 +489,11 @@ Must be called after [`add_point_charges!`](@ref).
 After calling this function, one may want to use [`compute_streamfunction_fourier!`](@ref) and/or
 [`compute_velocity_fourier!`](@ref) to obtain the respective fields.
 """
-function compute_vorticity_fourier!(cache::LongRangeCache; quasi_2D = Val(false))
+function compute_vorticity_fourier!(cache::LongRangeCache; quasi_2D::Bool = false)
     (; uhat, state, vorticity_prefactor,) = cache.common
     transform_to_fourier!(cache, vorticity_prefactor)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)
-    if quasi_2D === Val(true)
+    if quasi_2D
         let ka_backend = KA.get_backend(cache)
             uhat_comps = StructArrays.components(uhat)
             kernel = ka_generate_kernel(fourier_vorticity_quasi2D_kernel!, ka_backend, uhat)

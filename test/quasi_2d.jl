@@ -77,11 +77,7 @@ dt = 4 * dt_kw  # this would be unstable without quasi_2D = true
             maximum(i -> f[i, CurvatureScalar()], eachindex(f))
         end
         # @show ρ_max
-        if scheme === RK4()
-            @test ρ_max < 1e-14  # good!!
-        else
-            @test ρ_max < 2e-6  # can we do better with splitting scheme??
-        end
+        @test ρ_max < 1e-14  # good!!
         E = Diagnostics.kinetic_energy(iter)
         # @show (E - E₀) / E₀
         @test isapprox(E, E₀; rtol = 1.0e-2)  # simulation didn't explode
