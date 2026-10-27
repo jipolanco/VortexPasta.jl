@@ -13,6 +13,8 @@ function init_params_biot_savart(splitting::AbstractEwaldSplitting)
         Float64;
         Γ = 2.0, a = 1e-8,
         splitting,
+        quadrature = GaussLegendre(3),
+        lia_segment_fraction = 0.4,
         backend_long = NonuniformFFTsBackend(m = HalfSupport(4))  # ~1e-6 accuracy
     )
 end
@@ -49,7 +51,12 @@ dt_kw = BiotSavart.kelvin_wave_period(params, L / Np)
 dt = 4 * dt_kw  # this would be unstable without quasi_2D = true
 
 @testset "Scheme: $scheme" for scheme in (RK4(), Strang())
-    @testset "fast_term = $fast_term" for fast_term in (LocalTerm(), ShortRangeTerm())  # not really relevant for RK4 (only for splitting schemes)
+    fast_terms = if scheme isa Timestepping.ExplicitScheme
+        (LocalTerm(),)  # this parameter doesn't do anything for explicit schemes (like RK4)
+    else
+        (LocalTerm(), LocalTerm(L / Np), ShortRangeTerm())
+    end
+    @testset "fast_term = $fast_term" for fast_term in fast_terms
         iter = init(
             prob, scheme;
             dt,
@@ -71,9 +78,9 @@ dt = 4 * dt_kw  # this would be unstable without quasi_2D = true
         end
         # @show ρ_max
         if scheme === RK4()
-            @test ρ_max < 1e-15  # good!!
+            @test ρ_max < 1e-14  # good!!
         else
-            @test ρ_max < 0.01  # can we do better with splitting scheme??
+            @test ρ_max < 2e-6  # can we do better with splitting scheme??
         end
         E = Diagnostics.kinetic_energy(iter)
         # @show (E - E₀) / E₀

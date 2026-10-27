@@ -50,20 +50,29 @@ function add_point_charges!(data::PointData, fs::AbstractVector{<:AbstractFilame
     nothing
 end
 
-@inline function _compute_subsegment_lengths(f::AbstractFilament, i::Integer, quad, lims; quasi_2D = Val(false))
-    @inbounds if quasi_2D === Val(true)
-        δ⁻ = f[i].z - f[i - 1].z
-        δ⁺ = f[i + 1].z - f[i].z
-    else
-        δ⁻ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
-            @inline
-            norm(f(j, ζ, Derivative(1)))
-        end
-        δ⁺ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
-            @inline
-            norm(f(j, ζ, Derivative(1)))
-        end
+@inline function _compute_subsegment_lengths(quasi_2D::Val{false}, f::AbstractFilament, i::Integer, quad, lims)
+    δ⁻ = integrate(f, i - 1, quad; limits = lims[1]) do f, j, ζ
+        @inline
+        norm(f(j, ζ, Derivative(1)))
     end
+    δ⁺ = integrate(f, i, quad; limits = lims[2]) do f, j, ζ
+        @inline
+        norm(f(j, ζ, Derivative(1)))
+    end
+    δ⁻, δ⁺
+end
+
+@inline function _compute_subsegment_lengths(quasi_2D::Val{true}, f::AbstractFilament, i::Integer, quad, lims)
+    δ⁻ = @inbounds abs(f[i].z - f[i - 1].z)
+    δ⁺ = @inbounds abs(f[i + 1].z - f[i].z)
+    if lims[1] !== nothing
+        δ⁻ *= lims[1][2] - lims[1][1]
+    end
+    if lims[2] !== nothing
+        δ⁻ *= lims[2][2] - lims[2][1]
+    end
+    # @assert δ⁻ > 0
+    # @assert δ⁺ > 0
     δ⁻, δ⁺
 end
 
@@ -101,7 +110,7 @@ function _add_point_charges!(
         else
             data.derivatives_on_nodes[2][n] = f[i, Derivative(2)]
         end
-        subsegs = _compute_subsegment_lengths(f, i, quad, subsegment_lims; quasi_2D)
+        subsegs = _compute_subsegment_lengths(quasi_2D, f, i, quad, subsegment_lims)
         data.subsegment_lengths[1][n] = subsegs[1]
         data.subsegment_lengths[2][n] = subsegs[2]
         Δt = ts[i + 1] - ts[i]
@@ -121,7 +130,10 @@ function _add_point_charges!(
     n
 end
 
-function _add_point_charges!(data::PointData, f::ClosedFilament, inds::UnitRange, n::Int, params::ParamsBiotSavart, ::NoQuadrature)
+function _add_point_charges!(
+        data::PointData, f::ClosedFilament, inds::UnitRange, n::Int, params::ParamsBiotSavart, ::NoQuadrature;
+        quasi_2D = Val(false),
+    )
     (; Ls) = params
     (; lia_segment_fraction) = params.shortrange
     @assert eachindex(data.nodes) == eachindex(data.points) == eachindex(data.charges) ==
@@ -130,6 +142,7 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, inds::UnitRange
     checkbounds(data.nodes, nlast)
     checkbounds(data.points, nlast)
     γ = something(lia_segment_fraction, true)  # true in the sense of 1 (if segment_fraction == nothing)
+    Vec = eltype(f)
     @inbounds for i in inds
         n += 1
         data.nodes[n] = Filaments.fold_coordinates_periodic(f[i], Ls)
@@ -140,7 +153,12 @@ function _add_point_charges!(data::PointData, f::ClosedFilament, inds::UnitRange
             n - 1
         end
         data.derivatives_on_nodes[1][n] = f[i, Derivative(1)]
-        data.derivatives_on_nodes[2][n] = f[i, Derivative(2)]
+        if quasi_2D === Val(true)
+            # Set curvature to zero (this ensures that LIA velocity is 0)
+            data.derivatives_on_nodes[2][n] = Vec(0, 0, 0)
+        else
+            data.derivatives_on_nodes[2][n] = f[i, Derivative(2)]
+        end
         data.subsegment_lengths[1][n] = γ * norm(f[i] - f[i - 1])
         data.subsegment_lengths[2][n] = γ * norm(f[i + 1] - f[i])
         s⃗ = (f[i] + f[i + 1]) ./ 2   # segment midpoint as quadrature node
