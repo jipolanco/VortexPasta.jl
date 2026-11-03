@@ -48,6 +48,9 @@ end
 # Timestep factors required for conservation tests to pass
 dt_factor(::RK4) = 1.8
 dt_factor(::DP5) = 1.2
+dt_factor(::Vern6) = 2.5
+dt_factor(::Vern8) = 3.6  # more stable than Vern9!
+dt_factor(::Vern9) = 2.8  # it doesn't improve that much compared to Vern6
 dt_factor(::SSPRK33) = 0.9
 dt_factor(::Midpoint) = 0.25
 dt_factor(::Euler) = 0.08
@@ -107,6 +110,10 @@ function test_leapfrogging_rings(
         L = Diagnostics.filament_length(iter; quad)
         p⃗ = Diagnostics.vortex_impulse(iter; quad)
         dLdt = Diagnostics.stretching_rate(iter; quad)
+
+        if VERBOSE
+            @show nstep, t, E
+        end
 
         if nstep == 1  # only test once
             # Check that by default the quadrature in ParamsBiotSavart (i.e. iter.prob.p.quad) is used
@@ -398,6 +405,9 @@ end
         SanduMRI33a(12),
         SanduMRI33a(CrankNicolson(), 4),
         SanduMRI45a(RK4(), 4),
+        Vern6(),
+        Vern8(),
+        Vern9(),
     )
 
     ##
