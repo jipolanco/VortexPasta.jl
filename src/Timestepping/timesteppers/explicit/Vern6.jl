@@ -4,7 +4,7 @@ export Vern6
 """
     Vern6 <: ExplicitScheme
 
-Verner's 6-th order, 9 stage Runge–Kutta scheme (Verner, Numer. Algor. *53*, 383, 2010).
+Verner's 6-th order, 8 stage Runge–Kutta scheme (Verner, Numer. Algor. *53*, 383, 2010).
 """
 struct Vern6 <: ExplicitScheme end
 
@@ -123,7 +123,7 @@ struct Vern6Tableau{T, T2}
     # interp::Vern6InterpolationCoefficients{T}
 end
 
-function Vern6Tableau(::Type{T}, ::Type{T2}) where {T, T2}
+Base.@assume_effects :foldable function Vern6Tableau(::Type{T}, ::Type{T2}) where {T, T2}
     c1 = convert(T2, 3 // 50)
     c2 = convert(T2, 1439 // 15000)
     c3 = convert(T2, 1439 // 10000)

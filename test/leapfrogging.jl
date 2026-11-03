@@ -49,6 +49,7 @@ end
 dt_factor(::RK4) = 1.8
 dt_factor(::DP5) = 1.2
 dt_factor(::Vern6) = 2.5
+dt_factor(::Vern9) = 2.8  # it doesn't improve that much compared to Vern6
 dt_factor(::SSPRK33) = 0.9
 dt_factor(::Midpoint) = 0.25
 dt_factor(::Euler) = 0.08
@@ -404,6 +405,7 @@ end
         SanduMRI33a(CrankNicolson(), 4),
         SanduMRI45a(RK4(), 4),
         Vern6(),
+        Vern9(),
     )
 
     ##
