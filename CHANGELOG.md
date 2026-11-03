@@ -5,6 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.35.2] - 2026-11-03
+
 ### Added
 
 - Timestepping: add Verner's Runge-Kutta methods of order 6, 8 and 9 (`Vern6`, `Vern8` and
