@@ -1,0 +1,262 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Forcing/src/Forcing/dissipation_bs_small_scales.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Forcing/src/Forcing</a> - dissipation_bs_small_scales.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">76</td>
+            <td class="headerCovTableEntry">76</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-07-23 08:52:42</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L2"><span class="lineNum">       2</span>              :     SmallScaleDissipationBS &lt;: AbstractDissipation</span>
+<span id="L3"><span class="lineNum">       3</span>              :     SmallScaleDissipationBS(; kdiss, α, ε_target)</span>
+<span id="L4"><span class="lineNum">       4</span>              : </span>
+<span id="L5"><span class="lineNum">       5</span>              : Dissipation based on Biot–Savart energetics at large wavenumbers (small scales).</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : Compared to [`DissipationBS`](@ref), which in principle acts at all scales,</span>
+<span id="L8"><span class="lineNum">       8</span>              : `SmallScaleDissipationBS` acts mainly at small scales (wavenumbers `k &gt; kdiss`). It is also</span>
+<span id="L9"><span class="lineNum">       9</span>              : much more expensive to compute, since it requires a low-pass filter done in Fourier space.</span>
+<span id="L10"><span class="lineNum">      10</span>              : </span>
+<span id="L11"><span class="lineNum">      11</span>              : This dissipation method works similarly to [`FourierBandForcingBS`](@ref). The main</span>
+<span id="L12"><span class="lineNum">      12</span>              : difference is that it acts at a different range of scales (wavenumbers `k &gt; kdiss`), and</span>
+<span id="L13"><span class="lineNum">      13</span>              : that positive values of `α` or `ε_target` lead to dissipation and not injection.</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              : As in [`FourierBandForcingBS`](@ref), one should pass _either_ `α` or `ε_target` but never</span>
+<span id="L16"><span class="lineNum">      16</span>              : both. They should be positive for energy dissipation (negative values lead to energy</span>
+<span id="L17"><span class="lineNum">      17</span>              : injection at small scales, which may lead to instabilities!):</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              : - `α` (`\alpha`) is a non-dimensional coefficient which directly sets the amplitude of the dissipation term;</span>
+<span id="L20"><span class="lineNum">      20</span>              : </span>
+<span id="L21"><span class="lineNum">      21</span>              : - `ε_target` (`\varepsilon_target`) has the units of an energy dissipation rate. In this case,</span>
+<span id="L22"><span class="lineNum">      22</span>              :   the amplitude ``α`` will be adjusted over time in order to keep a roughly constant energy</span>
+<span id="L23"><span class="lineNum">      23</span>              :   dissipation rate (which in general will _not_ be equal to `ε_target`, as discussed in</span>
+<span id="L24"><span class="lineNum">      24</span>              :   [`FourierBandForcingBS`](@ref)).</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              : # Extended help</span>
+<span id="L27"><span class="lineNum">      27</span>              : </span>
+<span id="L28"><span class="lineNum">      28</span>              : ## Dissipation term definition</span>
+<span id="L29"><span class="lineNum">      29</span>              : </span>
+<span id="L30"><span class="lineNum">      30</span>              : The idea is to apply a &quot;dissipation velocity&quot; ``\bm{v}_{\text{diss}}`` to the vortices which</span>
+<span id="L31"><span class="lineNum">      31</span>              : will extract energy from the small scales. Similarly to the forcing velocity in</span>
+<span id="L32"><span class="lineNum">      32</span>              : [`FourierBandForcingBS`](@ref), such dissipation velocity can be written as:</span>
+<span id="L33"><span class="lineNum">      33</span>              : </span>
+<span id="L34"><span class="lineNum">      34</span>              : ```math</span>
+<span id="L35"><span class="lineNum">      35</span>              : \bm{v}_{\text{diss}}(\bm{s}) = -α \bm{s}' × \bm{v}^{&gt;}(\bm{s})</span>
+<span id="L36"><span class="lineNum">      36</span>              : ```</span>
+<span id="L37"><span class="lineNum">      37</span>              : </span>
+<span id="L38"><span class="lineNum">      38</span>              : where ``\bm{v}^{&gt;}(\bm{s})`` denotes the high-pass filtered superfluid velocity (from</span>
+<span id="L39"><span class="lineNum">      39</span>              : Biot–Savart's law) at scales ``k &gt; k_{\text{diss}}``.</span>
+<span id="L40"><span class="lineNum">      40</span>              : </span>
+<span id="L41"><span class="lineNum">      41</span>              : In practice, this velocity is obtained as ``\bm{v}^{&gt;} = \bm{v} - \bm{v}^{&lt;}``, where</span>
+<span id="L42"><span class="lineNum">      42</span>              : ``\bm{v}`` and ``\bm{v}^{&lt;}`` are the total and low-pass filtered superfluid velocities (up to</span>
+<span id="L43"><span class="lineNum">      43</span>              : scale ``k_{\text{diss}}`` included).</span>
+<span id="L44"><span class="lineNum">      44</span>              : This means that the Fourier-space fields must be sufficiently well resolved, up to the</span>
+<span id="L45"><span class="lineNum">      45</span>              : chosen dissipative scale.</span>
+<span id="L46"><span class="lineNum">      46</span>              : Evaluating ``\bm{v}^{&lt;}`` at the vortex positions requires an extra type-2 NUFFT</span>
+<span id="L47"><span class="lineNum">      47</span>              : (interpolation from Fourier to physical space), which is a bit costly.</span>
+<span id="L48"><span class="lineNum">      48</span>              : </span>
+<span id="L49"><span class="lineNum">      49</span>              : ## Energy dissipation rate</span>
+<span id="L50"><span class="lineNum">      50</span>              : </span>
+<span id="L51"><span class="lineNum">      51</span>              : At scales ``k &gt; k_{\text{diss}}``, the dissipation rate associated to this term is:</span>
+<span id="L52"><span class="lineNum">      52</span>              : </span>
+<span id="L53"><span class="lineNum">      53</span>              : ```math</span>
+<span id="L54"><span class="lineNum">      54</span>              : ε_{\text{diss}} = -α \frac{Γ}{V} ∮ |\bm{s}' × \bm{v}^{&gt;}|^2 \, \mathrm{d}ξ</span>
+<span id="L55"><span class="lineNum">      55</span>              : ```</span>
+<span id="L56"><span class="lineNum">      56</span>              : &quot;&quot;&quot;</span>
+<span id="L57"><span class="lineNum">      57</span>              : struct SmallScaleDissipationBS{T &lt;: AbstractFloat} &lt;: AbstractDissipation</span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC tlaBgGNC">           5 :     kdiss :: T</span></span>
+<span id="L59"><span class="lineNum">      59</span>              :     α     :: T</span>
+<span id="L60"><span class="lineNum">      60</span>              :     ε_target :: T</span>
+<span id="L61"><span class="lineNum">      61</span>              : end</span>
+<span id="L62"><span class="lineNum">      62</span>              : </span>
+<span id="L63"><span class="lineNum">      63</span> <span class="tlaGNC">          10 : function SmallScaleDissipationBS(; kdiss::Real, α::Real = 0, ε_target::Real = 0)</span></span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">           5 :     (α == 0) + (ε_target == 0) == 1 || throw(ArgumentError(&quot;one should pass either α or ε_target, but not both&quot;))</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">           5 :     kdiss ≥ 0 || throw(ArgumentError(&quot;dissipative wavenumber `kdiss` should be non-negative&quot;))</span></span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">           5 :     SmallScaleDissipationBS(promote(kdiss, α, ε_target)...)</span></span>
+<span id="L67"><span class="lineNum">      67</span>              : end</span>
+<span id="L68"><span class="lineNum">      68</span>              : </span>
+<span id="L69"><span class="lineNum">      69</span> <span class="tlaGNC">           4 : function Base.show(io::IO, f::SmallScaleDissipationBS{T}) where {T}</span></span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">           4 :     (; α, ε_target, kdiss,) = f</span></span>
+<span id="L71"><span class="lineNum">      71</span> <span class="tlaGNC">           4 :     prefix = get(io, :prefix, &quot; &quot;)  # single space by default</span></span>
+<span id="L72"><span class="lineNum">      72</span> <span class="tlaGNC">           4 :     print(io, &quot;SmallScaleDissipationBS{$T} with:&quot;)</span></span>
+<span id="L73"><span class="lineNum">      73</span> <span class="tlaGNC">           4 :     if α != 0</span></span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">           2 :         print(io, &quot;\n$(prefix)├─ Magnitude: α = &quot;, α)</span></span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">           3 :     elseif ε_target != 0</span></span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">           3 :         print(io, &quot;\n$(prefix)├─ Target energy dissipation rate: ε_target = &quot;, ε_target)</span></span>
+<span id="L77"><span class="lineNum">      77</span>              :     end</span>
+<span id="L78"><span class="lineNum">      78</span> <span class="tlaGNC">           4 :     print(io, &quot;\n$(prefix)└─ Fourier wavenumbers: |k⃗| &gt; $kdiss&quot;)</span></span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">           4 :     nothing</span></span>
+<span id="L80"><span class="lineNum">      80</span>              : end</span>
+<span id="L81"><span class="lineNum">      81</span>              : </span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">           5 : function init_cache(dissipation::SmallScaleDissipationBS, cache_bs::BiotSavartCache)</span></span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">           5 :     (; kdiss,) = dissipation</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">           5 :     (; params,) = cache_bs</span></span>
+<span id="L85"><span class="lineNum">      85</span>              :     # Check that the dissipation wavenumber is inside the Fourier grid in all 3 directions</span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">           5 :     (; wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache_bs)</span></span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">           5 :     for ks in wavenumbers  # iterate over the 3 dimensions</span></span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">          13 :         if ks[end] &gt; 0  # r2c FFT, usually the first dimension</span></span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">           5 :             kmax = ks[end - 1]  # discard the very last wavenumber</span></span>
+<span id="L90"><span class="lineNum">      90</span>              :         else  # c2c FFT</span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaGNC">           8 :             kmax = ks[(end + 1) ÷ 2]</span></span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">           8 :             @assert kmax &gt; 0</span></span>
+<span id="L93"><span class="lineNum">      93</span>              :         end</span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaGNC">          13 :         if kdiss ≥ kmax</span></span>
+<span id="L95"><span class="lineNum">      95</span> <span class="tlaGNC">           1 :             error(lazy&quot;SmallScaleDissipationBS: dissipative wavenumber (kdiss = $kdiss) is too large compared to size of Fourier grid (kmax = $kmax)&quot;)</span></span>
+<span id="L96"><span class="lineNum">      96</span>              :         end</span>
+<span id="L97"><span class="lineNum">      97</span> <span class="tlaGNC">          16 :     end</span></span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaGNC">           4 :     prefactor = params.Γ / prod(params.Ls)</span></span>
+<span id="L99"><span class="lineNum">      99</span> <span class="tlaGNC">           4 :     (; longrange = cache_bs.longrange, prefactor,)</span></span>
+<span id="L100"><span class="lineNum">     100</span>              : end</span>
+<span id="L101"><span class="lineNum">     101</span>              : </span>
+<span id="L102"><span class="lineNum">     102</span>              : # Creating a callable struct makes sure that the callback can be compiled for GPUs.</span>
+<span id="L103"><span class="lineNum">     103</span>              : # See also EwaldInterpolationCallback in the BiotSavart module, which does a similar thing.</span>
+<span id="L104"><span class="lineNum">     104</span>              : struct FourierTruncationCallback{T, Wavenumbers} &lt;: Function</span>
+<span id="L105"><span class="lineNum">     105</span> <span class="tlaGNC">         596 :     k²_max :: T</span></span>
+<span id="L106"><span class="lineNum">     106</span>              :     wavenumbers :: Wavenumbers</span>
+<span id="L107"><span class="lineNum">     107</span>              : end</span>
+<span id="L108"><span class="lineNum">     108</span>              : </span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaGNC">     1171067 : @inline function (f::FourierTruncationCallback)(û::NTuple{3, T}, idx::NTuple{3}) where {T}</span></span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC">     1168615 :     (; k²_max, wavenumbers,) = f</span></span>
+<span id="L111"><span class="lineNum">     111</span> <span class="tlaGNC">     4594201 :     k⃗ = ntuple(d -&gt; @inbounds(wavenumbers[d][idx[d]]), Val(length(idx)))</span></span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">     1161847 :     k² = sum(abs2, k⃗)</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">     4607571 :     û_zero = map(v -&gt; zero(v), û)</span></span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">     1166454 :     ifelse(k² &gt; k²_max, û_zero, û)</span></span>
+<span id="L115"><span class="lineNum">     115</span>              : end</span>
+<span id="L116"><span class="lineNum">     116</span>              : </span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">         596 : function _update_cache!(cache, dissipation::SmallScaleDissipationBS)</span></span>
+<span id="L118"><span class="lineNum">     118</span>              :     # Interpolate Fourier-truncated Biot-Savart velocities at filament locations (results</span>
+<span id="L119"><span class="lineNum">     119</span>              :     # are written somewhere in cache.longrange).</span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">         596 :     (; kdiss,) = dissipation</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">         596 :     (; wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache.longrange)</span></span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">         596 :     @assert state.quantity == :velocity &amp;&amp; state.smoothing_scale == 0</span></span>
+<span id="L123"><span class="lineNum">     123</span>              :     # Interpolate Fourier velocity, but first discarding Fourier coefficients k &gt; kdiss.</span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">         596 :     kdiss² = kdiss * kdiss</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">         596 :     callback = FourierTruncationCallback(kdiss², wavenumbers)</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">         596 :     BiotSavart.interpolate_to_physical!(callback, cache.longrange)</span></span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">         596 :     nothing</span></span>
+<span id="L128"><span class="lineNum">     128</span>              : end</span>
+<span id="L129"><span class="lineNum">     129</span>              : </span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">        1192 : function apply!(</span></span>
+<span id="L131"><span class="lineNum">     131</span>              :         dissipation::SmallScaleDissipationBS{T}, cache,</span>
+<span id="L132"><span class="lineNum">     132</span>              :         vL_all::AbstractVector, vdiss_all::AbstractVector, vs_all::AbstractVector, fs::AbstractVector{&lt;:AbstractFilament};</span>
+<span id="L133"><span class="lineNum">     133</span>              :         scheduler = SerialScheduler(),</span>
+<span id="L134"><span class="lineNum">     134</span>              :     ) where {T &lt;: AbstractFloat}</span>
+<span id="L135"><span class="lineNum">     135</span>              :     # 1. Interpolate vs^&lt; (Fourier-truncated BS velocity) onto cache.longrange</span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">         596 :     _update_cache!(cache, dissipation)</span></span>
+<span id="L137"><span class="lineNum">     137</span>              : </span>
+<span id="L138"><span class="lineNum">     138</span>              :     # 2. Copy results onto vdiss_all</span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">         596 :     BiotSavart.copy_long_range_output!(vdiss_all, cache.longrange)</span></span>
+<span id="L140"><span class="lineNum">     140</span>              : </span>
+<span id="L141"><span class="lineNum">     141</span>              :     # 3. Iterate over filaments and filament points to obtain the actual dissipation velocity.</span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">         596 :     ε_total = zero(T)</span></span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">         596 :     @inbounds for n in eachindex(fs)</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">        2384 :         f = fs[n]</span></span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">        2384 :         vs = vs_all[n]  # Biot-Savart velocity of filament</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">        2384 :         vdiss = vdiss_all[n]  # for now this contains vs^&lt; on the filament</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">        2384 :         ts = Filaments.knots(f)</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">        4768 :         ε_filament = tmapreduce(+, eachindex(vs); scheduler) do i</span></span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">       75218 :             @inline</span></span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">       75375 :             @inbounds begin</span></span>
+<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">       75423 :                 ds⃗_dt = f[i, Derivative(1)]</span></span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">       75715 :                 ds_dt = sqrt(sum(abs2, ds⃗_dt))  # vector norm</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">       76062 :                 s⃗′ = ds⃗_dt ./ ds_dt  # unit tangent</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">       75930 :                 v⃗_hi = vs[i] - vdiss[i]  # high-pass filtered velocity</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">       75152 :                 v⃗_diss = v⃗_hi × s⃗′  # dissipation velocity (without α coefficient) -- this already includes the negative sign for dissipation: v⃗ × s⃗′ = -s⃗′ × v⃗</span></span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">       75183 :                 if dissipation.α != 0</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">       18846 :                     vdiss[i] = dissipation.α * v⃗_diss</span></span>
+<span id="L158"><span class="lineNum">     158</span>              :                 else</span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">       56474 :                     vdiss[i] = v⃗_diss  # we will rescale vdiss later to get the wanted dissipation rate</span></span>
+<span id="L160"><span class="lineNum">     160</span>              :                 end</span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">       75455 :                 dt = (ts[i + 1] - ts[i - 1]) / 2</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">       75364 :                 dξ = dt * ds_dt  # estimated local segment length</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">       75356 :                 sum(abs2, v⃗_diss) * dξ  # estimated energy dissipation rate around local node (without Γ/V prefactor) -- only valid in ε_target mode!</span></span>
+<span id="L164"><span class="lineNum">     164</span>              :             end</span>
+<span id="L165"><span class="lineNum">     165</span>              :         end</span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">        2384 :         ε_total += ε_filament</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">        4172 :     end</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">         596 :     ε_total *= cache.prefactor</span></span>
+<span id="L169"><span class="lineNum">     169</span>              : </span>
+<span id="L170"><span class="lineNum">     170</span>              :     # 4. Rescale velocities if needed</span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">         596 :     if dissipation.ε_target != 0 &amp;&amp; ε_total != 0</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">         447 :         @assert dissipation.α == 0</span></span>
+<span id="L173"><span class="lineNum">     173</span>              :         # TODO: check that abs(ε_total) &gt; some minimal tolerance? (to avoid division by &quot;almost&quot; zero)</span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">         447 :         α = dissipation.ε_target / ε_total</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">         447 :         @. vdiss_all *= α</span></span>
+<span id="L176"><span class="lineNum">     176</span>              :     end</span>
+<span id="L177"><span class="lineNum">     177</span>              : </span>
+<span id="L178"><span class="lineNum">     178</span>              :     # 5. Add dissipation term to vortex velocity vL</span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">         596 :     @. vL_all = vL_all + vdiss_all</span></span>
+<span id="L180"><span class="lineNum">     180</span>              : </span>
+<span id="L181"><span class="lineNum">     181</span> <span class="tlaGNC">         596 :     nothing</span></span>
+<span id="L182"><span class="lineNum">     182</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

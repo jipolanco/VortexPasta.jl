@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Filaments/spline/src/Filaments/spline/closed_filament.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">src/Filaments/spline/src/Filaments/spline</a> - closed_filament.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">91.8&nbsp;%</td>
+            <td class="headerCovTableEntry">49</td>
+            <td class="headerCovTableEntry">45</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2024-06-27 11:21:52</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span> <span class="tlaGNC tlaBgGNC">      168112 : function _update_coefficients_only!(</span></span>
+<span id="L2"><span class="lineNum">       2</span>              :         method::SplineMethod, f::ClosedFilament;</span>
+<span id="L3"><span class="lineNum">       3</span>              :         only_derivatives = false,</span>
+<span id="L4"><span class="lineNum">       4</span>              :     )</span>
+<span id="L5"><span class="lineNum">       5</span> <span class="tlaGNC">       84056 :     (; coefs, Xs, ts, Xoffset,) = f</span></span>
+<span id="L6"><span class="lineNum">       6</span> <span class="tlaGNC">       84056 :     @assert method === coefs.method</span></span>
+<span id="L7"><span class="lineNum">       7</span> <span class="tlaGNC">       84056 :     compute_coefficients!(coefs, Xs, ts; Xoffset, only_derivatives)</span></span>
+<span id="L8"><span class="lineNum">       8</span> <span class="tlaUNC tlaBgUNC">           0 :     f</span></span>
+<span id="L9"><span class="lineNum">       9</span>              : end</span>
+<span id="L10"><span class="lineNum">      10</span>              : </span>
+<span id="L11"><span class="lineNum">      11</span>              : # Compute coefficients of the derivatives of a spline.</span>
+<span id="L12"><span class="lineNum">      12</span>              : # Note that the derivative of a spline of order `k` is a spline of order `k - 1`.</span>
+<span id="L13"><span class="lineNum">      13</span> <span class="tlaGNC tlaBgGNC">      168726 : @inline function _compute_derivative_coefs!(::Val{k}, cderivs::NTuple, ck, ts) where {k}</span></span>
+<span id="L14"><span class="lineNum">      14</span>              :     # Compute derivative coefficients `cd` from spline coefficients `ck`.</span>
+<span id="L15"><span class="lineNum">      15</span> <span class="tlaGNC">      168726 :     cd = first(cderivs)</span></span>
+<span id="L16"><span class="lineNum">      16</span> <span class="tlaGNC">      169336 :     spline_derivative!(cd, ck, ts, Val(k))</span></span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">      168726 :     _compute_derivative_coefs!(Val(k - 1), Base.tail(cderivs), cd, ts)  # compute next derivative from `cd`</span></span>
+<span id="L18"><span class="lineNum">      18</span>              : end</span>
+<span id="L19"><span class="lineNum">      19</span>              : </span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC">       94473 : @inline _compute_derivative_coefs!(::Val, ::Tuple{}, args...) = nothing</span></span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span>              : # Generic implementation, simply evaluates spline on the node.</span>
+<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">     3959056 : function _derivative_at_node(</span></span>
+<span id="L24"><span class="lineNum">      24</span>              :         d::Derivative, ::SplineMethod, f::ClosedFilament, node::AtNode,</span>
+<span id="L25"><span class="lineNum">      25</span>              :     )</span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">     4470161 :     f(node.i, 0.0, d)</span></span>
+<span id="L27"><span class="lineNum">      27</span>              : end</span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">   227953492 : function _interpolate(m::SplineMethod, f::ClosedFilament, i::Int, ζ::Number, d::Derivative)</span></span>
+<span id="L30"><span class="lineNum">      30</span> <span class="tlaGNC">   227958251 :     (; ts,) = f</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">   227976983 :     t = @inbounds (1 - ζ) * ts[i] + ζ * ts[i + 1]  # convert ζ ∈ [0, 1] to spline parametrisation</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">   228056188 :     _interpolate(m, f, t, d; ileft = i)</span></span>
+<span id="L33"><span class="lineNum">      33</span>              : end</span>
+<span id="L34"><span class="lineNum">      34</span>              : </span>
+<span id="L35"><span class="lineNum">      35</span>              : # Here `t_in` is in the spline parametrisation.</span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">   455789318 : function _interpolate(</span></span>
+<span id="L37"><span class="lineNum">      37</span>              :         method::SplineMethod, f::ClosedFilament, t_in::Number, deriv::Derivative{n};</span>
+<span id="L38"><span class="lineNum">      38</span>              :         ileft::Union{Nothing, Int} = nothing,</span>
+<span id="L39"><span class="lineNum">      39</span>              :     ) where {n}</span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">   228034681 :     (; ts, Xoffset,) = f</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">   227932539 :     y = evaluate(method, f.coefs, f.ts, t_in, deriv; ileft)</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">   408268437 :     deperiodise_curve(y, Xoffset, ts, t_in, Val(n))  # only useful if Xoffset ≠ 0 (&quot;infinite&quot; / non-closed filaments)</span></span>
+<span id="L43"><span class="lineNum">      43</span>              : end</span>
+<span id="L44"><span class="lineNum">      44</span>              : </span>
+<span id="L45"><span class="lineNum">      45</span>              : # Insertion is based on the knot insertion algorithm for splines.</span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">         227 : function _insert_node!(method::SplineMethod, f::ClosedFilament, i::Integer, ζ::Real)</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">         227 :     (; ts, Xs,) = f</span></span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">         227 :     (; cs,) = f.coefs</span></span>
+<span id="L49"><span class="lineNum">      49</span> <span class="tlaGNC">         227 :     t = (1 - ζ) * ts[i] + ζ * ts[i + 1]  # insert knot somewhere in the middle (ζ ∈ [0, 1]; by default ζ = 0.5)</span></span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">         227 :     k = order(method)</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">         227 :     spline_insert_knot!(Val(k), cs, ts, i, t)    # note: this calls pad_periodic! on cs and ts</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">         227 :     Xnew = f(t; ileft = i)</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">         227 :     insert!(Xs, i + 1, Xnew)</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaUNC tlaBgUNC">           0 :     Xnew</span></span>
+<span id="L55"><span class="lineNum">      55</span>              : end</span>
+<span id="L56"><span class="lineNum">      56</span>              : </span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC tlaBgGNC">         319 : function _remove_node!(::SplineMethod, f::ClosedFilament, i::Integer)</span></span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">         319 :     (; ts, Xs,) = f</span></span>
+<span id="L59"><span class="lineNum">      59</span> <span class="tlaGNC">         319 :     (; cs,) = f.coefs</span></span>
+<span id="L60"><span class="lineNum">      60</span> <span class="tlaGNC">         319 :     T = ts[end + 1] - ts[begin]</span></span>
+<span id="L61"><span class="lineNum">      61</span> <span class="tlaGNC">         319 :     popat!(cs, i)</span></span>
+<span id="L62"><span class="lineNum">      62</span> <span class="tlaGNC">         319 :     popat!(ts, i)</span></span>
+<span id="L63"><span class="lineNum">      63</span> <span class="tlaGNC">         319 :     popat!(Xs, i)</span></span>
+<span id="L64"><span class="lineNum">      64</span>              :     # Avoid error if number of nodes decreased below the limit.</span>
+<span id="L65"><span class="lineNum">      65</span>              :     # Note that `check_nodes` uses the length of f.Xs to determine this.</span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">         319 :     if check_nodes(Bool, f)</span></span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">        1351 :         pad_periodic!(cs)</span></span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">         319 :         pad_periodic!(ts, T)</span></span>
+<span id="L69"><span class="lineNum">      69</span>              :     end</span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaUNC tlaBgUNC">           0 :     nothing</span></span>
+<span id="L71"><span class="lineNum">      71</span>              : end</span>
+<span id="L72"><span class="lineNum">      72</span>              : </span>
+<span id="L73"><span class="lineNum">      73</span>              : # If knots were not removed but only inserted, one can pass `removed = false` to avoid</span>
+<span id="L74"><span class="lineNum">      74</span>              : # reevaluating node positions (not needed for node insertion, since the curve is unchanged</span>
+<span id="L75"><span class="lineNum">      75</span>              : # in that case).</span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC tlaBgGNC">         590 : function _update_after_changing_nodes!(::SplineMethod, f::ClosedFilament; removed = true)</span></span>
+<span id="L77"><span class="lineNum">      77</span> <span class="tlaGNC">         295 :     (; Xs, ts,) = f</span></span>
+<span id="L78"><span class="lineNum">      78</span> <span class="tlaGNC">         295 :     (; cs,) = f.coefs</span></span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">         295 :     @assert length(f) == length(Xs) == length(cs) == length(ts)  # these already have the right size</span></span>
+<span id="L80"><span class="lineNum">      80</span> <span class="tlaGNC">         295 :     resize!(f, length(Xs))   # resize all vectors in the filament</span></span>
+<span id="L81"><span class="lineNum">      81</span> <span class="tlaGNC">         295 :     check_nodes(Bool, f) || return f  # avoids error if the new number of nodes is too low</span></span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">        1307 :     pad_periodic!(Xs, f.Xoffset)</span></span>
+<span id="L83"><span class="lineNum">      83</span>              :     # If we removed nodes, recompute spline coefficients (i.e. re-interpolate from remaining nodes).</span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">         295 :     _update_coefficients_only!(f; only_derivatives = !removed)</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaUNC tlaBgUNC">           0 :     f</span></span>
+<span id="L86"><span class="lineNum">      86</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
