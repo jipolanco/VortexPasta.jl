@@ -184,10 +184,6 @@ function Base.convert(::Type{T}, p::ParamsPointVortex) where {T <: AbstractFloat
     ParamsPointVortex(common, shortrange, longrange)
 end
 
-# Returns the float type used (e.g. Float64)
-Base.eltype(::Type{<:ParamsPointVortex{T}}) where {T} = T
-Base.eltype(p::ParamsPointVortex) = eltype(typeof(p))
-
 circulation(p::ParamsPointVortex) = p.common.Γ
 periods(p::ParamsPointVortex) = p.common.Ls
 domain_is_periodic(p::ParamsPointVortex) = true  # we're always periodic in 2D

@@ -25,10 +25,7 @@ function ShortRangeCacheCommon(params::AbstractParamsShortRange, pointdata_in::A
         pointdata = copy(pointdata)  # make sure pointdata and pointdata_in are not aliased!
     end
     splitting_d = adapt(ka_backend, splitting)  # splitting
-    outputs = (;
-        velocity = similar(pointdata.charges),
-        streamfunction = similar(pointdata.charges),
-    )
+    outputs = _shortrange_outputs(pointdata)
     to = TimerOutput()
     ShortRangeCacheCommon(params, splitting_d, pointdata, outputs, to)
 end
@@ -37,3 +34,9 @@ function init_cache_short(params::AbstractParams, pointdata::AbstractPointData)
     (; backend) = params.shortrange
     _init_cache_short(backend, params.common, params.shortrange, pointdata)
 end
+
+# 3D case
+_shortrange_outputs(data::PointData) = (;
+    velocity = similar(data.charges),
+    streamfunction = similar(data.charges),
+)

@@ -16,7 +16,7 @@ Includes arrays and data required for computation of point vortex Biot–Savart 
 
 """
 struct PointVortexCache{
-        Params <: ParamsBiotSavart,
+        Params <: ParamsPointVortex,
         Data <: PointVortexData,
         ShortRange <: ShortRangeCache,
         LongRange <: LongRangeCache,
@@ -41,3 +41,15 @@ function init_cache(
     longrange = init_cache_long(p, pointdata)
     PointVortexCache(p, pointdata, shortrange, longrange, timer)
 end
+
+# This is called from LongRangeCacheCommon
+_longrange_outputs(data::PointVortexData{T}) where {T} = (;
+    velocity = similar(data.points),           # 2D vectors
+    streamfunction = similar(data.points, T),  # scalars
+)
+
+# This is called from ShortRangeCacheCommon
+_shortrange_outputs(data::PointVortexData{T}) where {T} = (;
+    velocity = similar(data.points),           # 2D vectors
+    streamfunction = similar(data.points, T),  # scalars
+)

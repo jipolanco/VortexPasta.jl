@@ -4,6 +4,13 @@ abstract type AbstractParamsShortRange{T} end
 abstract type AbstractParamsLongRange{T} end
 abstract type AbstractParams{T} end  # full params (ParamsBiotSavart or ParamsPointVortex)
 
+# Returns the float type used (e.g. Float64)
+Base.eltype(::Type{<:AbstractParams{T}}) where {T} = T
+Base.eltype(p::AbstractParams) = eltype(typeof(p))
+
+Base.eltype(::Type{<:AbstractParamsCommon{T}}) where {T} = T
+Base.eltype(p::AbstractParamsCommon) = eltype(typeof(p))
+
 # Common parameters to short- and long-range computations.
 struct ParamsCommon{
         T <: AbstractFloat,
@@ -63,9 +70,6 @@ function to_hdf5(g, p::ParamsCommon{T}) where {T}
     g["avoid_explicit_erf"] = string(p.avoid_explicit_erf)
     nothing
 end
-
-Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
-Base.eltype(p::ParamsCommon) = eltype(typeof(p))
 
 function Base.convert(::Type{T}, p::ParamsCommon) where {T <: AbstractFloat}
     (; Γ, a, Δ, splitting, Ls, quad, quad_near_singularity, avoid_explicit_erf) = p
@@ -376,10 +380,6 @@ default_long_range_backend(::PeriodicSplitting) = NonuniformFFTsBackend(σ = 1.5
 default_use_simd(backend::ShortRangeBackend) = default_use_simd(KA.get_backend(backend))
 default_use_simd(::CPU) = true
 default_use_simd(::GPU) = false
-
-# Returns the float type used (e.g. Float64)
-Base.eltype(::Type{<:ParamsBiotSavart{T}}) where {T} = T
-Base.eltype(p::ParamsBiotSavart) = eltype(typeof(p))
 
 """
     BiotSavart.circulation(p::ParamsBiotSavart) -> Γ
