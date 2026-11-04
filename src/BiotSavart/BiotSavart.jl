@@ -81,6 +81,8 @@ include("cache.jl")
 include("shortrange/shortrange.jl")
 include("longrange/longrange.jl")
 
+include("2D/point_vortex.jl")
+
 """
     velocity_on_nodes(cache::BiotSavartCache, fs::AbstractVector{<:AbstractFilament}; kws...) -> vs
 
@@ -90,11 +92,7 @@ Returns a `vs` vector containing the velocities on filament nodes.
 
 See [`velocity_on_nodes!`](@ref) for more details.
 """
-function velocity_on_nodes(
-        cache::BiotSavartCache,
-        fs::AbstractVector{<:AbstractFilament};
-        kws...,
-    )
+function velocity_on_nodes(cache::BiotSavartCache, fs; kws...)
     vs = map(similar ∘ nodes, fs)
     velocity_on_nodes!(vs, cache, fs; kws...)
     vs

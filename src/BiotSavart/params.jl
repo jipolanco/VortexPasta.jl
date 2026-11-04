@@ -1,6 +1,4 @@
 # Common parameters to short- and long-range computations.
-# Note: it would be nice to further constrain the Alpha parameter (commented code below),
-# but then precompilation fails (enters an infinite loop?). Tested on Julia 1.10-rc1.
 struct ParamsCommon{
         T <: AbstractFloat,
         Splitting <: AbstractEwaldSplitting,
@@ -219,6 +217,7 @@ Mandatory and optional keyword arguments are detailed in the extended help below
   long-range computations.
   Possible choices are:
   - [`GaussianSplitting`](@ref): standard Gaussian splitting window;
+  - [`KaiserBesselSplitting`](@ref): a more efficient splitting window;
   - [`NoSplitting`](@ref): disables Ewald splitting and periodicity.
 
 ## Optional keyword arguments and their defaults
@@ -361,10 +360,10 @@ end
 is_open_domain(Ls::Tuple) = any(isinf, Ls)
 
 default_short_range_backend(::NoSplitting) = NaiveShortRangeBackend()  # cell lists not implemented for open boundary conditions
-default_short_range_backend(::AbstractEwaldSplitting) = CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
+default_short_range_backend(::PeriodicSplitting) = CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
 
 default_long_range_backend(::NoSplitting) = NullLongRangeBackend()
-default_long_range_backend(::AbstractEwaldSplitting) = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4))  # this gives 6-digit NUFFT accuracy
+default_long_range_backend(::PeriodicSplitting) = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4))  # this gives 6-digit NUFFT accuracy
 
 # By default, use explicit SIMD on CPU, and disable it on GPU (still needs to be tested, and
 # currently seems to fail on CUDA with `LLVM error: Undefined external symbol "exp"`)

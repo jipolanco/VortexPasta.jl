@@ -1,5 +1,5 @@
 @doc raw"""
-    GaussianSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
+    GaussianSplitting{T <: AbstractFloat, N} <: PeriodicSplitting{N}
     GaussianSplitting(; Ls, β, α, rcut, Ns, rtol)
 
 Gaussian splitting kernel for Ewald summation.
@@ -106,7 +106,7 @@ The Fourier transform of this convolution kernel is given by
 Given the accuracy and splitting parameters ``β`` and ``α``, the required physical and Fourier space
 truncations are ``r_{\text{cut}} = β / α`` and ``k_{\text{max}} = 2 α β`` to achieve the desired accuracy.
 """
-struct GaussianSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting
+struct GaussianSplitting{T <: AbstractFloat, N} <: PeriodicSplitting{N}
     Ls::NTuple{N, T}
     α::T
     rcut::T
@@ -244,6 +244,7 @@ function splitting_kernel_fourier(g::GaussianSplitting)
 end
 
 # Factor in ⟨ψ⟩ = C * ⟨ω⟩ to be applied when the mean vorticity ⟨ω⟩ is nonzero.
+# This works both in 2D and 3D.
 # See background_vorticity_correction! for details.
 background_vorticity_correction_factor(g::GaussianSplitting) = 1 / (4 * g.α^2)
 
