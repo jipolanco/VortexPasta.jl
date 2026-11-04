@@ -1,3 +1,9 @@
+# These are used for 2D and 3D
+abstract type AbstractParamsCommon{T} end
+abstract type AbstractParamsShortRange{T} end
+abstract type AbstractParamsLongRange{T} end
+abstract type AbstractParams{T} end  # full params (ParamsBiotSavart or ParamsPointVortex)
+
 # Common parameters to short- and long-range computations.
 struct ParamsCommon{
         T <: AbstractFloat,
@@ -5,7 +11,7 @@ struct ParamsCommon{
         Periods <: NTuple{3, Union{T, Infinity}},
         Quad <: StaticSizeQuadrature,
         QuadNearSingularity <: StaticSizeQuadrature,
-    }
+    } <: AbstractParamsCommon{T}
     Γ  :: T        # vortex circulation
     a  :: T        # vortex core size
     Δ  :: T        # LIA coefficient given by core vorticity profile
@@ -74,7 +80,7 @@ struct ParamsShortRange{
         Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
         LIASegmentFraction <: Union{Nothing, T},
-    }
+    } <: AbstractParamsShortRange{T}
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, splitting, Ls)
@@ -142,7 +148,7 @@ struct ParamsLongRange{
         Backend <: LongRangeBackend,
         Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
-    }
+    } <: AbstractParamsLongRange{T}
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, splitting, Ls)
@@ -302,7 +308,7 @@ struct ParamsBiotSavart{
         Common <: ParamsCommon{T},
         ShortRange <: ParamsShortRange,
         LongRange <: ParamsLongRange,
-    }
+    } <: AbstractParams{T}
     common     :: Common
     shortrange :: ShortRange
     longrange  :: LongRange

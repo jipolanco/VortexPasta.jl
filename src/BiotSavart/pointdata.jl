@@ -1,3 +1,5 @@
+abstract type AbstractPointData{T} end  # this is used for 2D and 3D
+
 """
     PointData{T <: AbstractFloat}
     PointData(::Type{T}) -> PointData{T}
@@ -26,7 +28,7 @@ struct PointData{
         Indices <: AbstractVector{I},
         HostBuf <: HostVector{T},
         HostBufInt <: HostVector{I},
-    }
+    } <: AbstractPointData{T}
     nodes         :: Vecs     # [Np] filament nodes (where velocity will be computed)
     nodes_mod     :: Vecs     # this may optionally store a modified version of the nodes (e.g. rescaled nodes for NonuniformFFTsBackend)
     node_idx_prev :: Indices  # [Np] index in 1:Np of node located to the "left" of a given node (accounts for periodic wrapping of closed filaments) -> only used in short-range when avoid_explicit_erf == false

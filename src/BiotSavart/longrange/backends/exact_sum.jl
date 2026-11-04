@@ -22,10 +22,12 @@ end
 
 has_real_to_complex(::ExactSumBackend) = true
 
-function init_cache_long_ewald(
-        params_all::ParamsBiotSavart{T},
-        params::ParamsLongRange{T, <:ExactSumBackend}, args...,
+function _init_cache_long_ewald(
+        backend::ExactSumBackend,
+        params_all::AbstractParams{T},
+        params::AbstractParamsLongRange{T}, args...,
     ) where {T}
+    @assert backend === params.backend
     pc = params_all.common
     @assert params === params_all.longrange
     (; Ls,) = pc

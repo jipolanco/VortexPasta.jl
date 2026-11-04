@@ -64,6 +64,7 @@ println()
     @includetest("Background vorticity", "background_vorticity.jl")
     @includetest("Ring collision", "ring_collision.jl")
     # -- Tests with timestepping start here -- #
+    @includetest("Point vortex", "point_vortex.jl")
     @includetest("Quasi 2D mode", "quasi_2d.jl")
     @includetest("Inject filaments", "inject_filaments.jl")
     @includetest("LIA ring", "ring_lia.jl")

@@ -43,7 +43,7 @@ function init_cache(
     )
     T = eltype(p)
     pointdata = PointData(T)
-    shortrange = init_cache_short(p.common, p.shortrange, pointdata)
+    shortrange = init_cache_short(p, pointdata)
     longrange = init_cache_long(p, pointdata)
     BiotSavartCache(p, pointdata, shortrange, longrange, timer)
 end

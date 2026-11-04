@@ -1,4 +1,4 @@
-struct ParamsCommon2D{T <: AbstractFloat, Splitting <: PeriodicSplitting{2}}
+struct ParamsCommon2D{T <: AbstractFloat, Splitting <: PeriodicSplitting{2}} <: AbstractParamsCommon{T}
     Γ::T                  # vortex circulation
     splitting::Splitting  # Ewald splitting kernel (Gaussian, ...)
     Ls::NTuple{2, T}      # size of unit cell (= period in each direction)
@@ -13,10 +13,8 @@ function Base.show(io::IO, p::ParamsCommon2D)
     (; Γ,) = p
     indent = get(io, :indent, 0)
     io_sub = IOContext(io, :indent => indent + 5)
-    print(io, "\n - Physical parameters:")
-    print(io, "\n   * Vortex circulation:         Γ  = ", Γ)
-    print(io, "\n - Numerical parameters:")
-    print(io, "\n   * Ewald splitting kernel:\n")
+    print(io, "\n - Vortex circulation: Γ  = ", Γ)
+    print(io, "\n - Ewald splitting kernel:\n")
     print(io_sub, p.splitting)
     nothing
 end
@@ -34,7 +32,7 @@ struct ParamsShortRange2D{
         T <: AbstractFloat,
         Backend <: ShortRangeBackend,
         Common <: ParamsCommon2D{T},
-    }
+    } <: AbstractParamsShortRange{T}
     backend::Backend
     common::Common    # common parameters (Γ, splitting, Ls)
     rcut::T           # cutoff distance
@@ -42,8 +40,8 @@ struct ParamsShortRange2D{
 end
 
 function Base.show(io::IO, p::ParamsShortRange2D)
-    print(io, "\n   * Short-range backend:        ", p.backend)
-    # print(io, "\n   * Short-range uses SIMD:      ", p.use_simd)
+    print(io, "\n   * Short-range backend:  ", p.backend)
+    # print(io, "\n   * Short-range uses SIMD:  ", p.use_simd)
     nothing
 end
 
@@ -66,7 +64,7 @@ struct ParamsLongRange2D{
         T <: AbstractFloat,
         Backend <: LongRangeBackend,
         Common <: ParamsCommon2D{T},
-    }
+    } <: AbstractParamsLongRange{T}
     backend::Backend
     common::Common  # common parameters (Γ, splitting, Ls)
     Ns::Dims{2}     # grid dimensions for FFTs
@@ -77,7 +75,7 @@ has_real_to_complex(p::ParamsLongRange2D) = has_real_to_complex(p.backend)
 maximum_wavenumber(p::ParamsLongRange2D) = maximum_wavenumber(p.Ns, p.common.Ls)
 
 function Base.show(io::IO, p::ParamsLongRange2D{T}) where {T}
-    print(io, "\n   * Long-range backend:         ", p.backend)
+    print(io, "\n   * Long-range backend:   ", p.backend)
     print(io, "\n   * Long-range spherical truncation: ", p.truncate_spherical)
     nothing
 end
@@ -154,7 +152,7 @@ struct ParamsPointVortex{
         Common <: ParamsCommon2D{T},
         ShortRange <: ParamsShortRange2D,
         LongRange <: ParamsLongRange2D,
-    }
+    } <: AbstractParams{T}
     common     :: Common
     shortrange :: ShortRange
     longrange  :: LongRange
@@ -177,6 +175,7 @@ end
 
 ParamsPointVortex(Γ::T; splitting::PeriodicSplitting{2}, kws...) where {T} = ParamsPointVortex(Γ, splitting; kws...)
 ParamsPointVortex(::Type{T}; Γ::Real, kws...) where {T} = ParamsPointVortex(T(Γ); kws...)
+ParamsPointVortex(; Γ, kws...) = ParamsPointVortex(Float64; Γ, kws...)
 
 function Base.convert(::Type{T}, p::ParamsPointVortex) where {T <: AbstractFloat}
     common = convert(T, p.common)

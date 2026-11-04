@@ -100,10 +100,12 @@ struct CellListsCache{
     cl     :: CellList
 end
 
-function init_cache_short(
-        pc::ParamsCommon, params::ParamsShortRange{T, <:CellListsBackend}, pointdata::PointData,
+function _init_cache_short(
+        backend::CellListsBackend, pc::AbstractParamsCommon,
+        params::AbstractParamsShortRange{T}, pointdata::AbstractPointData,
     ) where {T}
-    (; backend, rcut,) = params
+    @assert backend === params.backend
+    (; rcut,) = params
     (; Ls,) = pc
     nsubdiv = Val(subdivisions(backend))
     ka_backend = KA.get_backend(backend)

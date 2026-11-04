@@ -221,7 +221,7 @@ function Base.show(io::IO, g::GaussianSplitting{T, N}) where {T, N}
     print(io, "\n$(pre) - Long-range resolution:       Ns = ", Ns, " (k_max = ", kmax, ")")
     print(io, "\n$(pre) - Short-range accuracy coeff.: β_shortrange = α * r_cut = ", β_shortrange)
     print(io, "\n$(pre) - Long-range accuracy coeff.:  β_longrange = k_max / 2α = ", β_longrange)
-    print(io, "\n$(pre) - Relative accuracy :          rtol = ", rtol)
+    print(io, "\n$(pre) - Relative accuracy:           rtol = ", rtol)
     nothing
 end
 

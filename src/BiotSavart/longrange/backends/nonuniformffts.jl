@@ -156,10 +156,12 @@ struct NonuniformFFTsCache{
     plan :: Plan  # plan for NUFFTs in both directions
 end
 
-function init_cache_long_ewald(
-        params_all::ParamsBiotSavart{T},
-        params::ParamsLongRange{T, <:NonuniformFFTsBackend}, args...,
+function _init_cache_long_ewald(
+        backend::NonuniformFFTsBackend,
+        params_all::AbstractParams{T},
+        params::AbstractParamsLongRange{T}, args...,
     ) where {T}
+    @assert backend === params.backend
     pc = params_all.common
     @assert params === params_all.longrange
     (; Ls,) = pc

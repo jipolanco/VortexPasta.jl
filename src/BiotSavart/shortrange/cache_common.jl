@@ -1,7 +1,7 @@
 struct ShortRangeCacheCommon{
-        Params <: ParamsShortRange,
+        Params <: AbstractParamsShortRange,
         Splitting <: AbstractEwaldSplitting,
-        PointCharges <: PointData,
+        PointCharges <: AbstractPointData,
         OutputVectors <: NamedTuple,
         Timer <: TimerOutput,
     }
@@ -12,7 +12,7 @@ struct ShortRangeCacheCommon{
     to        :: Timer
 end
 
-function ShortRangeCacheCommon(params::ParamsShortRange, pointdata_in::PointData)
+function ShortRangeCacheCommon(params::AbstractParamsShortRange, pointdata_in::AbstractPointData)
     (; backend,) = params
     (; splitting,) = params.common
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
@@ -31,4 +31,9 @@ function ShortRangeCacheCommon(params::ParamsShortRange, pointdata_in::PointData
     )
     to = TimerOutput()
     ShortRangeCacheCommon(params, splitting_d, pointdata, outputs, to)
+end
+
+function init_cache_short(params::AbstractParams, pointdata::AbstractPointData)
+    (; backend) = params.shortrange
+    _init_cache_short(backend, params.common, params.shortrange, pointdata)
 end

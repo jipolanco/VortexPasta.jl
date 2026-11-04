@@ -21,9 +21,11 @@ struct NaiveShortRangeCache{Common <: ShortRangeCacheCommon} <: ShortRangeCache
     common :: Common
 end
 
-function init_cache_short(
-        ::ParamsCommon, params::ParamsShortRange{T, <:NaiveShortRangeBackend}, pointdata::PointData,
+function _init_cache_short(
+        backend::NaiveShortRangeBackend, ::AbstractParamsCommon,
+        params::AbstractParamsShortRange{T}, pointdata::AbstractPointData,
     ) where {T}
+    @assert backend === params.backend
     common = ShortRangeCacheCommon(params, pointdata)
     NaiveShortRangeCache(common)
 end

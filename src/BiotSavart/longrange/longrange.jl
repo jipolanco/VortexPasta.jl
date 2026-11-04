@@ -34,12 +34,17 @@ Initialise the cache for the long-range backend defined in `p.longrange`.
 Note that, if `p.splitting === NoSplitting()`, then long-range computations are disabled and
 this returns a [`NullLongRangeCache`](@ref).
 """
-function init_cache_long(params::ParamsBiotSavart, pointdata::PointData)
+function init_cache_long(params::AbstractParams, pointdata::AbstractPointData)
     if params.splitting === NoSplitting()
         NullLongRangeCache()  # disables Ewald method / long-range computations
     else
         init_cache_long_ewald(params, params.longrange, pointdata)
     end
+end
+
+function init_cache_long_ewald(params, longrange::AbstractParamsLongRange, pointdata)
+    (; backend) = longrange
+    _init_cache_long_ewald(backend, params, longrange, pointdata)
 end
 
 """
