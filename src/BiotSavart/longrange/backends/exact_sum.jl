@@ -44,12 +44,13 @@ function _init_cache_long_ewald(
 end
 
 # Set to zero "asymmetric" modes, to ease comparison with other implementations.
-function _ensure_hermitian_symmetry!(us::AbstractArray, ks)
-    _ensure_hermitian_symmetry!(Val(ndims(us)), us, ks)
+# TODO: is this different from the generic _ensure_hermitian_symmetry! function defined in longrange.jl??
+function _ensure_hermitian_symmetry_exactsum!(us::AbstractArray, ks)
+    _ensure_hermitian_symmetry_exactsum!(Val(ndims(us)), us, ks)
 end
 
 # Ensure Hermitian symmetry one dimension at a time.
-@inline function _ensure_hermitian_symmetry!(::Val{d}, us, ks) where {d}
+@inline function _ensure_hermitian_symmetry_exactsum!(::Val{d}, us, ks) where {d}
     N = size(us, d)
     kd = ks[d]
     Δk = kd[2]
@@ -68,10 +69,10 @@ end
         vs = view(us, inds...)
         fill!(vs, zero(eltype(vs)))
     end
-    _ensure_hermitian_symmetry!(Val(d - 1), us, ks)
+    _ensure_hermitian_symmetry_exactsum!(Val(d - 1), us, ks)
 end
 
-_ensure_hermitian_symmetry!(::Val{0}, us, ks) = us  # we're done, do nothing
+_ensure_hermitian_symmetry_exactsum!(::Val{0}, us, ks) = us  # we're done, do nothing
 
 # Case of a vector field
 function _transform_to_fourier!(c::ExactSumCache, uhat::StructArray, charges::StructVector, xp_src, prefactor::Real)
@@ -88,13 +89,13 @@ function _transform_to_fourier!(c::ExactSumCache, uhat::StructArray, charges::St
         end
     end
     # We zero out some "asymmetric" modes to ease the comparison with other implementations.
-    _ensure_hermitian_symmetry!(uhat, wavenumbers)
+    _ensure_hermitian_symmetry_exactsum!(uhat, wavenumbers)
     c
 end
 
 # Case of a scalar field
 function _transform_to_fourier!(
-        c::ExactSumCache, uhat::AbstractArray{<:Complex}, charges::AbstractVector, xp_src, prefactor::Real,
+        c::ExactSumCache, uhat::AbstractArray{<:Complex}, charges::AbstractVector{<:Number}, xp_src, prefactor::Real,
     )
     (; wavenumbers,) = c.common
     @assert size(uhat) == map(length, wavenumbers)
@@ -102,22 +103,22 @@ function _transform_to_fourier!(
     inds = CartesianIndices(uhat)
     @inbounds for i in eachindex(xp_src, charges)
         X = xp_src[i]
-        Q = prefactor * to_real(charges[i])
+        Q = prefactor * charges[i]
         @inbounds Threads.@threads for I in inds
             k⃗ = SVector(map((ks, j) -> @inbounds(ks[j]), wavenumbers, Tuple(I)))
             uhat[I] += Q * cis(-k⃗ ⋅ X)
         end
     end
     # We zero out some "asymmetric" modes to ease the comparison with other implementations.
-    _ensure_hermitian_symmetry!(uhat, wavenumbers)
+    _ensure_hermitian_symmetry_exactsum!(uhat, wavenumbers)
     c
 end
 
 
 # Case of a vector field (either 3D Biot-Savart or 2D velocity field in point vortex)
 function _interpolate_to_physical!(
-        callback::F, output::StructVector, uhat::StructArray, xp_dest, c::ExactSumCache
-    ) where {F}
+        c::ExactSumCache, callback::F, output::StructVector, uhat::StructArray, xp_dest,
+    ) where {F <: Function}
     (; wavenumbers,) = c.common
     N = length(wavenumbers)
     VecN = SVector{N}
@@ -152,9 +153,9 @@ end
 
 # Case of a scalar field (usually the streamfunction in 2D point vortex)
 function _interpolate_to_physical!(
-        callback::F, output::AbstractVector{T}, uhat::AbstractArray{Complex{T}}, xp_dest,
-        c::ExactSumCache,
-    ) where {F, T <: Real}
+        c::ExactSumCache, callback::F, output::AbstractVector{T},
+        uhat::AbstractArray{Complex{T}}, xp_dest,
+    ) where {F <: Function, T <: Real}
     (; wavenumbers,) = c.common
     @assert length(xp_dest) == length(output)
     kxs = first(wavenumbers)
@@ -166,7 +167,9 @@ function _interpolate_to_physical!(
         for I in CartesianIndices(uhat)
             k⃗ = SVector(map(getindex, wavenumbers, Tuple(I)))
             v_orig = uhat[I]::Complex{T}
-            v = @inline callback(v_orig, Tuple(I))::Complex{T}
+            # Note: the callback takes a tuple of C values as input, and returns a similar tuple.
+            # Here C = 1.
+            v = @inline callback((v_orig,), Tuple(I))[1]::Complex{T}
             z = cis(k⃗ ⋅ X)
             δq = if k⃗[1] in kx_lims
                 # Note: the imaginary part will cancel out with -k⃗ (also computed)

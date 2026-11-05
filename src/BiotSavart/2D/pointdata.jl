@@ -1,12 +1,14 @@
 struct PointVortexData{
         T <: AbstractFloat,
         Vecs <: StructVector{Vec2{T}},
+        Scalars <: AbstractVector{T},
         Signs <: AbstractVector{SignValue},
         HostBuf <: HostVector{T},
     } <: AbstractPointData{T}
     points::Vecs       # vortex locations in the actual physical domain of periods Ls = (Lx, Ly)
     points_mod::Vecs   # vortex locations to be passed to the long-range backend (in [0, 2π]² for NonuniformFFTsBackend)
-    charges::Signs
+    signs::Signs
+    charges::Scalars   # charges (signs) as real values
     buf_host::HostBuf  # buffer for host-device transfers
 end
 
@@ -20,6 +22,7 @@ get_destination_points_longrange(data::PointVortexData) = data.points_mod  # out
     PointVortexData(
         adapt(to, p.points),
         adapt(to, p.points_mod),
+        adapt(to, p.signs),
         adapt(to, p.charges),
         adapt(to, p.buf_host),
     )
@@ -28,14 +31,15 @@ end
 function PointVortexData(::Type{T}) where {T <: AbstractFloat}
     points = StructVector{Vec2{T}}(undef, 0)
     points_mod = similar(points)
-    charges = Vector{SignValue}(undef, 0)
+    signs = Vector{SignValue}(undef, 0)
+    charges = Vector{T}(undef, 0)
     buf_host = HostVector{T}(undef, CPU(), 0)  # not very useful to have this with backend = CPU, but adapt_structure will take care of changing the backend
-    PointVortexData(points, points_mod, charges, buf_host)
+    PointVortexData(points, points_mod, signs, charges, buf_host)
 end
 
 function Base.copy(data::PointVortexData)
     buf_host = similar(data.buf_host, 0)
-    PointVortexData(copy(data.points), copy(data.points_mod), copy(data.charges), buf_host)
+    PointVortexData(copy(data.points), copy(data.points_mod), copy(data.signs), copy(data.charges), buf_host)
 end
 
 # This may be used by the long-range backend to rescale coordinates to match the backend's

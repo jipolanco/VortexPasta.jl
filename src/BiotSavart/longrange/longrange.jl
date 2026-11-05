@@ -396,7 +396,7 @@ function interpolate_to_physical!(callback::F, output::AbstractVector, cache::Lo
     (; uhat, pointdata) = cache.common
     xp_dest = get_destination_points_longrange(pointdata)
     u_src = _get_fourier_field_for_transform(output, uhat)  # scalar (uhat.x) or vector field, depending on output
-    _interpolate_to_physical!(callback, output, u_src, xp_dest, cache)
+    _interpolate_to_physical!(cache, callback, output, u_src, xp_dest)
     output
 end
 

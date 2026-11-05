@@ -149,11 +149,12 @@ struct NonuniformFFTsCache{
         T, N,
         Backend <: NonuniformFFTsBackend,
         CacheCommon <: LongRangeCacheCommon{T, N},
-        Plan,
+        PlanVector, PlanScalar,
     } <: LongRangeCache{N}
     backend :: Backend
     common :: CacheCommon
-    plan :: Plan  # plan for NUFFTs in both directions
+    plan_vector :: PlanVector  # plan for N-component NUFFTs in both directions
+    plan_scalar :: PlanScalar  # this is `nothing` in 3D, as we currently don't need a scalar plan (we do in 2D)
 end
 
 function _init_cache_long_ewald(
@@ -168,23 +169,27 @@ function _init_cache_long_ewald(
     (; backend, Ns,) = params
     (; m, σ, kws,) = backend
     activate_device!(backend)  # change the device if needed
-    d = length(Ns)  # dimensionality (usually 3)
-    plan = NonuniformFFTs.PlanNUFFT(T, Ns; ntransforms = Val(d), m, σ, kws...)  # plan for real-to-complex transform
-    wavenumbers = ntuple(Val(d)) do i
+    D = length(Ns)  # dimensionality (usually 3)
+    plan_vector = NonuniformFFTs.PlanNUFFT(T, Ns; ntransforms = Val(D), m, σ, kws...)  # plan for real-to-complex transform
+    wavenumbers = ntuple(Val(D)) do i
         freq = T(2π * Ns[i] / Ls[i])
         i == 1 ? rfftfreq(Ns[i], freq) : fftfreq(Ns[i], freq)
     end
+    plan_scalar = if D === 3
+        nothing  # for now we don't need a scalar plan in 3D
+    else
+        NonuniformFFTs.PlanNUFFT(T, Ns; ntransforms = Val(1), m, σ, kws...)
+    end
     cache_common = LongRangeCacheCommon(params_all, wavenumbers, args...)
-    NonuniformFFTsCache(backend, cache_common, plan)
+    NonuniformFFTsCache(backend, cache_common, plan_vector, plan_scalar)
 end
 
-# 3D version
-function _transform_to_fourier!(c::NonuniformFFTsCache{T, 3}, prefactor::Real) where {T}
-    (; backend, plan,) = c
-    (; pointdata, uhat,) = c.common
-    (; charges,) = pointdata
+# Type 1 NUFFT (real nonuniform grid -> complex uniform grid)
+# Case of a vector field
+function _transform_to_fourier!(c::NonuniformFFTsCache, uhat::StructArray, charges::StructVector, xp_src, prefactor::Real)
+    (; backend,) = c
     (; ka_backend, ka_device,) = backend
-    xp_src = get_source_points_longrange(pointdata)
+    plan = c.plan_vector
     # Make sure we're already running on the wanted device (e.g. GPU 2).
     # Usually we call this function right after having defined data (points + charges) on
     # this device, and thus we can expect that we have already selected the right device.
@@ -198,16 +203,42 @@ function _transform_to_fourier!(c::NonuniformFFTsCache{T, 3}, prefactor::Real) w
     NonuniformFFTs.set_points!(plan, xp_src)
     NonuniformFFTs.exec_type1!(uhat_data, plan, charges_data; callbacks)  # execute NUFFT on all components at once
     _ensure_hermitian_symmetry!(c.common.wavenumbers, uhat)
-    c
+    nothing
 end
 
+# Type 1 NUFFT (real nonuniform grid -> complex uniform grid)
+# Case of a scalar field
+function _transform_to_fourier!(
+        c::NonuniformFFTsCache, uhat::AbstractArray{Complex{T}},
+        charges::AbstractVector{T}, xp_src, prefactor::Real
+    ) where {T <: AbstractFloat}
+    (; backend,) = c
+    (; ka_backend, ka_device,) = backend
+    plan = c.plan_scalar
+    # Make sure we're already running on the wanted device (e.g. GPU 2).
+    # Usually we call this function right after having defined data (points + charges) on
+    # this device, and thus we can expect that we have already selected the right device.
+    @assert KA.device(ka_backend) == ka_device
+    uhat_data = uhat
+    charges_data = charges
+    # Note: we could apply prefactor either in non-uniform (physical) or in uniform (Fourier) space.
+    # For now we choose to do it in uniform space, not sure if it's better though.
+    callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = @inline((ω̂, idx) -> ω̂ .* prefactor))  # use a callback to apply prefactor
+    NonuniformFFTs.set_points!(plan, xp_src)
+    NonuniformFFTs.exec_type1!(uhat_data, plan, charges_data; callbacks)  # execute NUFFT on all components at once
+    _ensure_hermitian_symmetry!(c.common.wavenumbers, uhat)
+    nothing
+end
+
+# Type 2 NUFFT (complex uniform grid -> real nonuniform grid)
 # Case of a vector field (either 3D Biot-Savart or 2D velocity field in point vortex)
 # Note: the callback must have the signature (û::NTuple{N}, idx::NTuple{N,Int}).
-function _interpolate_to_physical!(callback_uniform::F, output::StructVector{<:SVector{N}}, c::NonuniformFFTsCache) where {F <: Function, N}
-    (; backend, plan,) = c
-    (; pointdata, uhat,) = c.common
+function _interpolate_to_physical!(
+        c::NonuniformFFTsCache, callback_uniform::F, output::StructVector, uhat::StructArray, xp_dest
+    ) where {F <: Function}
+    (; backend,) = c
     (; ka_backend, ka_device,) = backend
-    xp_dest = get_destination_points_longrange(pointdata)
+    plan = c.plan_vector
     @assert eachindex(xp_dest) == eachindex(output)
     # Make sure we're already running on the wanted device (e.g. GPU 2).
     # Usually we call this function right after having defined data (uhat) on this device,
@@ -216,6 +247,28 @@ function _interpolate_to_physical!(callback_uniform::F, output::StructVector{<:S
     # Interpret StructArrays as tuples of arrays (which is their actual layout).
     charges = StructArrays.components(output)
     uhat_data = StructArrays.components(uhat)
+    callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = callback_uniform)
+    NonuniformFFTs.set_points!(plan, xp_dest)
+    NonuniformFFTs.exec_type2!(charges, plan, uhat_data; callbacks)
+    nothing
+end
+
+# Type 2 NUFFT (complex uniform grid -> real nonuniform grid)
+# Case of a scalar field (usually the streamfunction in 2D point vortex)
+function _interpolate_to_physical!(
+        c::NonuniformFFTsCache, callback_uniform::F, output::AbstractVector{T},
+        uhat::AbstractArray{Complex{T}}, xp_dest,
+    ) where {F <: Function, T <: Real}
+    (; backend,) = c
+    (; ka_backend, ka_device,) = backend
+    plan = c.plan_scalar
+    @assert eachindex(xp_dest) == eachindex(output)
+    # Make sure we're already running on the wanted device (e.g. GPU 2).
+    # Usually we call this function right after having defined data (uhat) on this device,
+    # and thus we can expect that we have already selected the right device.
+    @assert KA.device(ka_backend) == ka_device
+    charges = output
+    uhat_data = uhat
     callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = callback_uniform)
     NonuniformFFTs.set_points!(plan, xp_dest)
     NonuniformFFTs.exec_type2!(charges, plan, uhat_data; callbacks)

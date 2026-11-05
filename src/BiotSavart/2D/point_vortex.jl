@@ -1,22 +1,6 @@
-export Vec2, PointVortices, ParamsPointVortex, PointVortexSign, SignValue, UP, DOWN
+export Vec2, PointVortices, ParamsPointVortex, SignValue, UP, DOWN
 
-module PointVortexSign
-    """
-        BiotSavart.PointVortexSign.SignValue
-
-    Enumerator (`@enum`) defining vortex signs `UP` and `DOWN`.
-
-    These are exported by the BiotSavart module, so one can directly use `UP` and `DOWN`.
-    """
-    @enum SignValue::UInt8 begin
-        UP   = 0x00
-        DOWN = 0x01
-    end
-
-    to_real(s::SignValue) = (s === UP) ? +1 : -1
-end  # module PointVortexSign
-
-using .PointVortexSign: UP, DOWN, SignValue, to_real
+include("signs.jl")  # SignValue
 
 const Vec2{T} = SVector{2, T}
 const PointVortices{T} = AbstractVector{Vec2{T}}
@@ -102,16 +86,20 @@ function do_longrange!(
         @assert pointdata_cpu !== pointdata  # they are different objects
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             # Resize output arrays
-            noutputs = length(pointdata_cpu.charges)
+            noutputs = length(pointdata_cpu.signs)
             map(v -> resize_no_copy!(v, noutputs), outputs)
 
             @timeit to "Copy point charges (host -> device)" begin
                 # Only copy fields needed for long-range computations
                 copy_host_to_device!(pointdata.points, pointdata_cpu.points, pointdata.buf_host)
-                copy_host_to_device!(pointdata.charges, pointdata_cpu.charges, pointdata.buf_host)
+                copy_host_to_device!(pointdata.signs, pointdata_cpu.signs, pointdata.buf_host)  # we prefer transferring UPs and DOWNs (UInt8)
             end
             @assert pointdata.points !== pointdata_cpu.points  # we don't want to modify `pointdata_cpu`!
             @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
+            @timeit to "Compute charges" let
+                resize_no_copy!(pointdata.charges, noutputs)
+                signs_to_charges!(pointdata.charges, pointdata.signs)
+            end
 
             # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
             @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)

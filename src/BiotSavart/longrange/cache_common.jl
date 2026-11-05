@@ -66,17 +66,11 @@ struct EwaldInterpolationCallback{ScalarField <: AbstractArray} <: Function
     data :: ScalarField
 end
 
-# Note: to be compatible with NonuniformFFTs, the callback must have the signature f(û::NTuple{N}, idx::NTuple{N})
-# for a vector field (same signature as default_callback_interp).
-@inline function (f::EwaldInterpolationCallback)(û::NTuple{N, T}, idx::NTuple{N}) where {T, N}
+# Note: to be compatible with NonuniformFFTs, the callback must have the signature f(û::NTuple{C}, idx::NTuple{N}),
+# where N is the spatial dimension and C the number of vector components (C = 1 for a scalar).
+@inline function (f::EwaldInterpolationCallback)(û::NTuple{C, T}, idx::NTuple{N}) where {T, C, N}
     @inbounds op = f.data[idx...]
     map(v -> T(v * op), û)
-end
-
-# This is for a scalar field (usually in 2D to the long-range streamfunction).
-@inline function (f::EwaldInterpolationCallback)(û::T, idx::NTuple{N}) where {T, N}
-    @inbounds op = f.data[idx...]
-    û * op
 end
 
 @inline get_ewald_interpolation_callback(c::LongRangeCacheCommon) = EwaldInterpolationCallback(c.ewald_op_fourier)
