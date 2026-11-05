@@ -182,8 +182,9 @@ end
 function _transform_to_fourier!(c::NonuniformFFTsCache{T, 3}, prefactor::Real) where {T}
     (; backend, plan,) = c
     (; pointdata, uhat,) = c.common
-    (; points, charges,) = pointdata
+    (; charges,) = pointdata
     (; ka_backend, ka_device,) = backend
+    xp_src = get_source_points_longrange(pointdata)
     # Make sure we're already running on the wanted device (e.g. GPU 2).
     # Usually we call this function right after having defined data (points + charges) on
     # this device, and thus we can expect that we have already selected the right device.
@@ -194,19 +195,20 @@ function _transform_to_fourier!(c::NonuniformFFTsCache{T, 3}, prefactor::Real) w
     # Note: we could apply prefactor either in non-uniform (physical) or in uniform (Fourier) space.
     # For now we choose to do it in uniform space, not sure if it's better though.
     callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = @inline((ω̂, idx) -> ω̂ .* prefactor))  # use a callback to apply prefactor
-    NonuniformFFTs.set_points!(plan, points)
+    NonuniformFFTs.set_points!(plan, xp_src)
     NonuniformFFTs.exec_type1!(uhat_data, plan, charges_data; callbacks)  # execute NUFFT on all components at once
     _ensure_hermitian_symmetry!(c.common.wavenumbers, uhat)
     c
 end
 
-# Note: the callback must have the signature (û::NTuple{3}, idx::NTuple{3,Int}).
-function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c::NonuniformFFTsCache{T, 3}) where {F <: Function, T}
+# Case of a vector field (either 3D Biot-Savart or 2D velocity field in point vortex)
+# Note: the callback must have the signature (û::NTuple{N}, idx::NTuple{N,Int}).
+function _interpolate_to_physical!(callback_uniform::F, output::StructVector{<:SVector{N}}, c::NonuniformFFTsCache) where {F <: Function, N}
     (; backend, plan,) = c
     (; pointdata, uhat,) = c.common
-    (; nodes_mod,) = pointdata
     (; ka_backend, ka_device,) = backend
-    @assert eachindex(nodes_mod) == eachindex(output)
+    xp_dest = get_destination_points_longrange(pointdata)
+    @assert eachindex(xp_dest) == eachindex(output)
     # Make sure we're already running on the wanted device (e.g. GPU 2).
     # Usually we call this function right after having defined data (uhat) on this device,
     # and thus we can expect that we have already selected the right device.
@@ -215,7 +217,7 @@ function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c:
     charges = StructArrays.components(output)
     uhat_data = StructArrays.components(uhat)
     callbacks = NonuniformFFTs.NUFFTCallbacks(uniform = callback_uniform)
-    NonuniformFFTs.set_points!(plan, nodes_mod)
+    NonuniformFFTs.set_points!(plan, xp_dest)
     NonuniformFFTs.exec_type2!(charges, plan, uhat_data; callbacks)
     nothing
 end

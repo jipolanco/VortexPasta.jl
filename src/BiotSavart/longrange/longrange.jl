@@ -87,8 +87,16 @@ equivalently each uniform value in Fourier space).
 
 Non-uniform data must be first added via [`add_point_charges!`](@ref).
 """
-transform_to_fourier!(cache::LongRangeCache, prefactor::Real) =
-    _transform_to_fourier!(cache, prefactor)
+function transform_to_fourier!(cache::LongRangeCache, prefactor::Real)
+    (; uhat, pointdata) = cache.common
+    (; charges) = pointdata
+    xp_src = get_source_points_longrange(pointdata)
+    u_dest = _get_fourier_field_for_transform(charges, uhat)
+    _transform_to_fourier!(cache, u_dest, charges, xp_src, prefactor)
+end
+
+_get_fourier_field_for_transform(charges::StructVector, uhat::StructArray) = uhat      # vector output (typically vorticity in 3D)
+_get_fourier_field_for_transform(charges::AbstractVector, uhat::StructArray) = uhat.x  # scalar output (typically vorticity in 2D)
 
 @doc raw"""
     compute_streamfunction_fourier!(cache::LongRangeCache)
@@ -385,7 +393,10 @@ end
 
 function interpolate_to_physical!(callback::F, output::AbstractVector, cache::LongRangeCache) where {F}
     # TODO: what if the output is in a different device? (CPU/GPU)?
-    _interpolate_to_physical!(callback, output, cache)
+    (; uhat, pointdata) = cache.common
+    xp_dest = get_destination_points_longrange(pointdata)
+    u_src = _get_fourier_field_for_transform(output, uhat)  # scalar (uhat.x) or vector field, depending on output
+    _interpolate_to_physical!(callback, output, u_src, xp_dest, cache)
     output
 end
 

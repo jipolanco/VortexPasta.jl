@@ -44,14 +44,14 @@ function _init_cache_long_ewald(
 end
 
 # Set to zero "asymmetric" modes, to ease comparison with other implementations.
-function _ensure_hermitian_symmetry!(c::ExactSumCache, us::AbstractArray)
-    _ensure_hermitian_symmetry!(c, Val(ndims(us)), us)
+function _ensure_hermitian_symmetry!(us::AbstractArray, ks)
+    _ensure_hermitian_symmetry!(Val(ndims(us)), us, ks)
 end
 
 # Ensure Hermitian symmetry one dimension at a time.
-@inline function _ensure_hermitian_symmetry!(c::ExactSumCache, ::Val{d}, us) where {d}
+@inline function _ensure_hermitian_symmetry!(::Val{d}, us, ks) where {d}
     N = size(us, d)
-    kd = c.common.wavenumbers[d]
+    kd = ks[d]
     Δk = kd[2]
     imin = if kd[end] > 0  # real-to-complex dimension (rfftfreq)
         @assert d == 1
@@ -68,16 +68,14 @@ end
         vs = view(us, inds...)
         fill!(vs, zero(eltype(vs)))
     end
-    _ensure_hermitian_symmetry!(c, Val(d - 1), us)
+    _ensure_hermitian_symmetry!(Val(d - 1), us, ks)
 end
 
-_ensure_hermitian_symmetry!(::ExactSumCache, ::Val{0}, us) = us  # we're done, do nothing
+_ensure_hermitian_symmetry!(::Val{0}, us, ks) = us  # we're done, do nothing
 
-# 3D version
-function _transform_to_fourier!(c::ExactSumCache{T, 3}, prefactor::Real) where {T}
-    (; uhat, wavenumbers, pointdata,) = c.common
-    (; charges,) = pointdata
-    xp_src = get_source_points_longrange(pointdata)
+# Case of a vector field
+function _transform_to_fourier!(c::ExactSumCache, uhat::StructArray, charges::StructVector, xp_src, prefactor::Real)
+    (; wavenumbers,) = c.common
     @assert size(uhat) == map(length, wavenumbers)
     fill!(uhat, zero(eltype(uhat)))
     inds = CartesianIndices(uhat)
@@ -85,19 +83,43 @@ function _transform_to_fourier!(c::ExactSumCache{T, 3}, prefactor::Real) where {
         X = xp_src[i]
         Q = prefactor * charges[i]
         @inbounds Threads.@threads for I ∈ inds
-            k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
+            k⃗ = SVector(map(getindex, wavenumbers, Tuple(I)))
             uhat[I] += Q * cis(-k⃗ ⋅ X)
         end
     end
     # We zero out some "asymmetric" modes to ease the comparison with other implementations.
-    _ensure_hermitian_symmetry!(c, c.common.uhat)
+    _ensure_hermitian_symmetry!(uhat, wavenumbers)
     c
 end
 
+# Case of a scalar field
+function _transform_to_fourier!(
+        c::ExactSumCache, uhat::AbstractArray{<:Complex}, charges::AbstractVector, xp_src, prefactor::Real,
+    )
+    (; wavenumbers,) = c.common
+    @assert size(uhat) == map(length, wavenumbers)
+    fill!(uhat, zero(eltype(uhat)))
+    inds = CartesianIndices(uhat)
+    @inbounds for i in eachindex(xp_src, charges)
+        X = xp_src[i]
+        Q = prefactor * to_real(charges[i])
+        @inbounds Threads.@threads for I in inds
+            k⃗ = SVector(map((ks, j) -> @inbounds(ks[j]), wavenumbers, Tuple(I)))
+            uhat[I] += Q * cis(-k⃗ ⋅ X)
+        end
+    end
+    # We zero out some "asymmetric" modes to ease the comparison with other implementations.
+    _ensure_hermitian_symmetry!(uhat, wavenumbers)
+    c
+end
+
+
 # Case of a vector field (either 3D Biot-Savart or 2D velocity field in point vortex)
-function _interpolate_to_physical!(callback::F, output::StructVector{<:SVector{N}}, c::ExactSumCache) where {F, N}
-    (; uhat, wavenumbers, pointdata,) = c.common
-    xp_dest = get_destination_points_longrange(pointdata)
+function _interpolate_to_physical!(
+        callback::F, output::StructVector, uhat::StructArray, xp_dest, c::ExactSumCache
+    ) where {F}
+    (; wavenumbers,) = c.common
+    N = length(wavenumbers)
     VecN = SVector{N}
     @assert length(xp_dest) == length(output)
     kxs = first(wavenumbers)
@@ -124,6 +146,41 @@ function _interpolate_to_physical!(callback::F, output::StructVector{<:SVector{N
             q⃗ = q⃗ + δq⃗
         end
         output[i] = q⃗
+    end
+    nothing
+end
+
+# Case of a scalar field (usually the streamfunction in 2D point vortex)
+function _interpolate_to_physical!(
+        callback::F, output::AbstractVector{T}, uhat::AbstractArray{Complex{T}}, xp_dest,
+        c::ExactSumCache,
+    ) where {F, T <: Real}
+    (; wavenumbers,) = c.common
+    @assert length(xp_dest) == length(output)
+    kxs = first(wavenumbers)
+    kx_lims = first(kxs), last(kxs)
+    @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
+    @inbounds Threads.@threads for i in eachindex(xp_dest, output)
+        X = xp_dest[i]
+        q = zero(T)
+        for I in CartesianIndices(uhat)
+            k⃗ = SVector(map(getindex, wavenumbers, Tuple(I)))
+            v_orig = uhat[I]::Complex{T}
+            v = @inline callback(v_orig, Tuple(I))::Complex{T}
+            z = cis(k⃗ ⋅ X)
+            δq = if k⃗[1] in kx_lims
+                # Note: the imaginary part will cancel out with -k⃗ (also computed)
+                real(v) * real(z) - imag(v) * imag(z)  # = real(v * z)
+            else
+                # Apply Hermitian symmetry
+                2 * (
+                    real(v) * real(z) -
+                    imag(v) * imag(z)
+                ) # = real(v * z + conj(v) * conj(z))
+            end
+            q = q + δq
+        end
+        output[i] = q
     end
     nothing
 end
