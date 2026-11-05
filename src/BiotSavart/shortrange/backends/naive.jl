@@ -83,7 +83,7 @@ end
         batch_size::Union{Nothing, Val} = nothing,  # see CellLists.foreach_source for details on this argument
         folded = Val(false),  # ignored (used in CellLists)
     ) where {F <: Function}
-    (; nodes,) = c.pointdata
+    nodes = get_destination_points_shortrange(c.pointdata)
     Threads.@threads for i in eachindex(nodes)
         x⃗ = @inbounds nodes[i]
         g = CellLists.Fix12(f, x⃗, i)

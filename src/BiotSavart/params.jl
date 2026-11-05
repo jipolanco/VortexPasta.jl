@@ -89,7 +89,6 @@ struct ParamsShortRange{
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, splitting, Ls)
     rcut    :: T           # cutoff distance (can be Inf)
-    rcut_sq :: T           # squared cutoff distance (can be Inf)
     lia_segment_fraction :: LIASegmentFraction
     use_simd :: Bool
 
@@ -114,11 +113,10 @@ struct ParamsShortRange{
             2 * rcut ≤ min(Ls...) ||
                 error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
         end
-        rcut_sq = rcut * rcut
         new{
             T, typeof(backend), typeof(quad), typeof(common), typeof(lia_segment_fraction)
         }(
-            backend, quad, common, rcut, rcut_sq, lia_segment_fraction, use_simd,
+            backend, quad, common, rcut, lia_segment_fraction, use_simd,
         )
     end
 end

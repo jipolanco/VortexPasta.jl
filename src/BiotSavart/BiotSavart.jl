@@ -415,7 +415,7 @@ function do_longrange!(
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             # Resize output arrays
             noutputs = length(pointdata_cpu.nodes)
-            foreach(v -> resize_no_copy!(v, noutputs), outputs)
+            map(v -> resize_no_copy!(v, noutputs), outputs)
 
             @timeit to "Copy point charges (host -> device)" begin
                 # Only copy fields needed for long-range computations
@@ -461,7 +461,10 @@ function do_longrange!(
     nothing
 end
 
-function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu; LIA = Val(true), integration_cutoff = nothing)
+function do_shortrange!(
+        cache::ShortRangeCache, outputs::NamedTuple,
+        pointdata_cpu::PointData; LIA = Val(true), integration_cutoff = nothing,
+    )
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -473,7 +476,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             # Resize output arrays
             noutputs = length(pointdata_cpu.nodes)
-            foreach(v -> resize_no_copy!(v, noutputs), outputs)
+            map(v -> resize_no_copy!(v, noutputs), outputs)
 
             if LIA === Val(true) || LIA === Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin

@@ -21,7 +21,7 @@ end
 
 @inline fold_coordinates_periodic(x::Real, L::Infinity) = x
 
-@inline fold_coordinates_periodic(x::Vec3, Ls) = map(fold_coordinates_periodic, x, Vec3(Ls))::typeof(x)
+@inline fold_coordinates_periodic(x::SVector, Ls) = map(fold_coordinates_periodic, x, SVector(Ls))::typeof(x)
 
 # Return the shortest separation r′ given the separation r = a - b between two points given a period L.
 # In the periodic line, the shortest separation satisfies |r′| ≤ L / 2.

@@ -160,7 +160,7 @@ function _add_pair_interactions_simd!(
     (; quad,) = params
     (; Γ, Ls) = params.common
     T = typeof(Γ)
-    rcut² = params.rcut_sq
+    rcut² = params.rcut^2
     prefactor = Γ / T(4π)
     Lhs = map(L -> L / 2, Ls)
     quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
@@ -208,6 +208,8 @@ function _add_pair_interactions_simd!(
                 @inbounds vs[i] += prefactor * Vec3(δu⃗_data)
             end
         end
+
+        nothing
     end
 
     outputs
@@ -222,7 +224,7 @@ function _add_pair_interactions_nosimd!(
     (; Γ, Ls) = params.common
     ka_backend = KA.get_backend(cache)
     T = typeof(Γ)
-    rcut² = params.rcut_sq
+    rcut² = params.rcut^2
     prefactor = Γ / T(4π)
     Lhs = map(L -> L / 2, Ls)
     quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
@@ -270,6 +272,7 @@ function _add_pair_interactions_nosimd!(
                 nothing
             end
         end
+        nothing
     end
 
     outputs

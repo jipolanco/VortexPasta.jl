@@ -97,7 +97,7 @@ should _create a copy_ of `pointdata` to avoid possible aliasing issues, since t
 """
 function init_cache_short end
 
-backend(c::ShortRangeCache) = backend(c.params::ParamsShortRange)
+backend(c::ShortRangeCache) = backend(c.params::AbstractParamsShortRange)
 KA.get_backend(c::ShortRangeCache) = KA.get_backend(backend(c))
 KA.device(c::ShortRangeCache) = KA.device(backend(c))
 

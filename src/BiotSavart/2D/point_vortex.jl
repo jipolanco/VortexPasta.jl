@@ -13,6 +13,7 @@ include("pointdata.jl")
 include("pointdata_impl.jl")
 include("cache.jl")
 include("longrange.jl")
+include("shortrange.jl")
 
 # Define point vortex variants of 3D Biot–Savart functions.
 function velocity_on_nodes(cache::PointVortexCache, vortices::PointVortices, args...; kws...)
@@ -36,7 +37,7 @@ function background_vorticity_correction!(fields::NamedTuple, signs::SignVector,
 
     (; Γ, Ls, splitting,) = params
 
-    npos = count(===(UP), signs)
+    npos = count(==(UP), signs)
     nneg = length(signs) - npos
     charge = npos - nneg
     iszero(charge) && return fields  # nothing to do, the total charge is zero
@@ -86,11 +87,10 @@ function do_longrange!(
         @assert pointdata_cpu !== pointdata  # they are different objects
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             # Resize output arrays
-            noutputs = length(pointdata_cpu.signs)
+            noutputs = length(pointdata_cpu.points)
             map(v -> resize_no_copy!(v, noutputs), outputs)
 
             @timeit to "Copy point charges (host -> device)" begin
-                # Only copy fields needed for long-range computations
                 copy_host_to_device!(pointdata.points, pointdata_cpu.points, pointdata.buf_host)
                 copy_host_to_device!(pointdata.signs, pointdata_cpu.signs, pointdata.buf_host)  # we prefer transferring UPs and DOWNs (UInt8)
             end
@@ -136,6 +136,41 @@ function do_longrange!(
     nothing
 end
 
+# 2D version
+function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu::PointVortexData)
+    (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
+    TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
+
+    # Make sure we execute this task in the GPU device chosen for long-range computations.
+    # See https://cuda.juliagpu.org/dev/usage/multigpu/#Scenario-2:-Multiple-GPUs-per-process
+    activate_device!(cache)
+
+    @timeit to "Short-range component (async)" begin
+        GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
+            # Resize output arrays
+            noutputs = length(pointdata_cpu.points)
+            map(v -> resize_no_copy!(v, noutputs), outputs)
+
+            @timeit to "Copy point charges (host -> device)" begin
+                copy_host_to_device!(pointdata.points, pointdata_cpu.points, pointdata.buf_host)
+                copy_host_to_device!(pointdata.signs, pointdata_cpu.signs, pointdata.buf_host)  # we prefer transferring UPs and DOWNs (UInt8)
+            end
+            @assert pointdata.points !== pointdata_cpu.points  # we don't want to modify `pointdata_cpu`!
+
+            @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
+            @timeit to "Fill with zeros" _reset_vectors!(outputs)  # we need to set everything to 0, since the function below _adds_ to existing values
+            @timeit to "Pair interactions" add_pair_interactions_2D!(outputs, cache)
+
+            yield()  # let other tasks run (not sure if this really helps)
+
+            # Wait for the GPU to finish its work before finishing this task.
+            @timeit to "Synchronise GPU" KA.synchronize(KA.get_backend(cache))
+        end
+    end
+
+    nothing
+end
+
 # TODO: reduce code duplication with 3D version?
 function compute_on_nodes!(
         fields::NamedTuple, cache::PointVortexCache, vortices::PointVortices, signs::SignVector;
@@ -169,6 +204,31 @@ function compute_on_nodes!(
             end
             KA.get_backend(cache) isa CPU && wait(task)  # this helps get more accurate timings
             push!(tasks, task)
+        end
+    end
+
+    if with_shortrange
+        @debug "Computing short-range interactions asynchronously" KA.get_backend(cache.shortrange)
+        let cache = cache.shortrange
+            # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
+            local outputs = NamedTuple{keys(fields)}(cache.outputs)
+            # Compute short-range part asynchronously (e.g. on a GPU).
+            local task = Threads.@spawn :interactive try
+                do_shortrange!(cache, outputs, pointdata)
+            finally
+                put!(channel, :shortrange)  # this notifies that the task has completed (or failed)
+            end
+            KA.get_backend(cache) isa CPU && wait(task)  # this helps get more accurate timings
+            push!(tasks, task)
+        end
+    end
+
+    # Perform CPU-only operations associated to the short-range part (this differentiation is kind of arbitrary).
+    if with_shortrange
+        @debug "Computing synchronous operations"
+        @timeit to "CPU-only operations (synchronous)" begin
+            # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
+            background_vorticity_correction!(fields, signs, params)
         end
     end
 
