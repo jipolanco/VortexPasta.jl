@@ -63,10 +63,10 @@ See [`ShortRangeBackend`](@ref) and [`LongRangeBackend`](@ref) for more details.
 abstract type AbstractBackend end
 
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
-const VectorOfVec = AbstractVector{<:Vec3}
-const VectorOfPositions = VectorOfVec
-const VectorOfVelocities = VectorOfVec
-const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
+const VectorOfVec{T} = AbstractVector{Vec3{T}}
+const VectorOfPositions{T} = VectorOfVec{T}
+const VectorOfVelocities{T} = VectorOfVec{T}
+const AllFilamentVelocities{T} = AbstractVector{<:VectorOfVelocities{T}}
 
 include("devices.jl")
 include("host_device_transfers.jl")
@@ -167,7 +167,7 @@ function _setup_fields!(fields::NamedTuple{Names}, fs) where {Names}
     nfields = length(vecs)
     nfields == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
     for us ∈ vecs
-        eachindex(us) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of vector"))
+        eachindex(us) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of output field"))
         _reset_vectors!(us)
     end
     nothing
@@ -398,7 +398,7 @@ function compute_on_nodes!(
 end
 
 function do_longrange!(
-        cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu;
+        cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu::PointData;
         quasi_2D::Bool = false,
         callback_vorticity::Fvort,
     ) where {Fvort}
@@ -667,11 +667,11 @@ Copy computed values onto a vector of vectors.
   array. In that case, it will be used as an intermediate buffer array, and thus passing it may help reduce CPU allocations.
 """
 function copy_output_values_on_nodes!(
-        op::F, vs::AbstractVector, vs_d::AbstractVector, buf::Union{Nothing, HostVector} = nothing,
+        op::F, vs, vs_d::AbstractVector, buf::Union{Nothing, HostVector} = nothing,
     ) where {F <: Function}
     backend = KA.get_backend(something(buf, vs_d))
-    T = Filaments.number_type(vs_d)
     n = length(vs_d)
+    T = Filaments.number_type(vs_d)
     buf_host = if backend isa CPU  # if vs_d is on the CPU
         nothing  # we don't need a buffer if doing CPU -> CPU copy
     elseif buf === nothing

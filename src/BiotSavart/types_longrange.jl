@@ -125,7 +125,7 @@ function Base.propertynames(c::LongRangeCache, private::Bool = false)
     (fieldnames(typeof(c))..., propertynames(c.common, private)...)
 end
 
-get_parameters(c::LongRangeCache) = c.common.params_all::ParamsBiotSavart
+get_parameters(c::LongRangeCache) = c.common.params_all::AbstractParams
 backend(c::LongRangeCache) = backend(get_parameters(c).longrange)
 has_real_to_complex(c::LongRangeCache) = has_real_to_complex(c.common)
 KA.get_backend(c::LongRangeCache) = KA.get_backend(backend(c))

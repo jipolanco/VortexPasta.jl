@@ -3,7 +3,7 @@ struct PointVortexData{
         Vecs <: StructVector{Vec2{T}},
         Signs <: AbstractVector{SignValue},
         HostBuf <: HostVector{T},
-       } <: AbstractPointData{T}
+    } <: AbstractPointData{T}
     points::Vecs
     charges::Signs
     buf_host::HostBuf  # buffer for host-device transfers
