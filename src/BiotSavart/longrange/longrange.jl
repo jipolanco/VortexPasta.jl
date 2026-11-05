@@ -15,14 +15,14 @@ function init_fourier_vector_field(backend::LongRangeBackend, ::Type{T}, Nks::Di
 end
 
 """
-    NullLongRangeCache <: LongRangeCache
+    NullLongRangeCache{N} <: LongRangeCache{N}
 
 Dummy cache type returned by [`init_cache_long`](@ref) when long-range
 computations are disabled.
 
 This corresponds to disabling Ewald summation using [`NoSplitting`](@ref).
 """
-struct NullLongRangeCache <: LongRangeCache end
+struct NullLongRangeCache{N} <: LongRangeCache{N} end
 
 backend(::NullLongRangeCache) = NullLongRangeBackend()
 
@@ -35,8 +35,9 @@ Note that, if `p.splitting === NoSplitting()`, then long-range computations are 
 this returns a [`NullLongRangeCache`](@ref).
 """
 function init_cache_long(params::AbstractParams, pointdata::AbstractPointData)
+    N = ndims(params)
     if params.splitting === NoSplitting()
-        NullLongRangeCache()  # disables Ewald method / long-range computations
+        NullLongRangeCache{N}()  # disables Ewald method / long-range computations
     else
         init_cache_long_ewald(params, params.longrange, pointdata)
     end
@@ -86,7 +87,8 @@ equivalently each uniform value in Fourier space).
 
 Non-uniform data must be first added via [`add_point_charges!`](@ref).
 """
-function transform_to_fourier! end
+transform_to_fourier!(cache::LongRangeCache, prefactor::Real) =
+    _transform_to_fourier!(cache, prefactor)
 
 @doc raw"""
     compute_streamfunction_fourier!(cache::LongRangeCache)
@@ -104,23 +106,23 @@ This function should be called after [`compute_vorticity_fourier!`](@ref).
 If one only needs the velocity and not the streamfunction, one can also directly call
 [`compute_velocity_fourier!`](@ref).
 """
-function compute_streamfunction_fourier!(c::LongRangeCache)
+function compute_streamfunction_fourier!(c::LongRangeCache{3})
     (; uhat, state,) = c.common
     wavenumbers = get_wavenumbers(c)
     from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
     @assert from_vorticity
     ka_backend = KA.get_backend(c)
-    kernel = ka_generate_kernel(fourier_inverse_laplacian_kernel!, ka_backend, uhat)
+    kernel = ka_generate_kernel(fourier_inverse_laplacian_kernel_vector!, ka_backend, uhat)
     uhat_comps = StructArrays.components(uhat)
     kernel(uhat_comps, wavenumbers)
     state.quantity = :streamfunction
     uhat
 end
 
-# This inverts -∇²ψ = ω  <-->  k² ψ̂ = ω̂
-@kernel function fourier_inverse_laplacian_kernel!(us::NTuple, @Const(ks))
+# This inverts -∇²ψ = ω  <-->  k² ψ̂ = ω̂ (vector version)
+@kernel function fourier_inverse_laplacian_kernel_vector!(us::NTuple, @Const(ks))
     I = @index(Global, Cartesian)
-    k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
+    k⃗ = map((k, i) -> @inbounds(k[i]), ks, Tuple(I))
     k² = sum(abs2, k⃗)
     k²_inv = ifelse(iszero(k²), zero(k²), inv(k²))  # this implicitly sets the k⃗ = 0 mode to zero
     for u ∈ us
@@ -216,7 +218,7 @@ Optionally, if one is also interested in the streamfunction, one can call
 In that case, the cache already contains the streamfunction, and only the curl
 operator (``i \bm{k} ×``) is applied by this function.
 """
-function compute_velocity_fourier!(c::LongRangeCache)
+function compute_velocity_fourier!(c::LongRangeCache{3})
     (; uhat, state,) = c.common
     wavenumbers = get_wavenumbers(c)
     from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
@@ -284,7 +286,7 @@ BiotSavart.interpolate_to_physical!(cache.longrange)       # interpolate to vort
 BiotSavart.copy_long_range_output!(ωs_ℓ, cache.longrange)  # copy results from cache to output array
 ```
 """
-function to_coarse_grained_vorticity!(c::LongRangeCache, ℓ::Real; warn = true)
+function to_coarse_grained_vorticity!(c::LongRangeCache{3}, ℓ::Real; warn = true)
     (; uhat, state,) = c.common
     wavenumbers = get_wavenumbers(c)
     ℓ_old = state.smoothing_scale  # current smoothing scale (usually 0, but can be different)
@@ -376,17 +378,16 @@ function interpolate_to_physical! end
 @inline default_callback_interp(û::NTuple{3}, idx::NTuple{3}) = û  # by default we leave the original value unmodified
 
 interpolate_to_physical!(cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, cache)
-interpolate_to_physical!(output::StructVector, cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, output, cache)
+interpolate_to_physical!(output::AbstractVector, cache::LongRangeCache) = interpolate_to_physical!(default_callback_interp, output, cache)
 
 function interpolate_to_physical!(callback::F, cache::LongRangeCache) where {F}
-    output = default_interpolation_output(cache)
+    output = default_interpolation_output(cache)  # note: this currently doesn't work in 2D (not sure it's useful...)
     resize_no_copy!(output, length(cache.pointdata.nodes))
     interpolate_to_physical!(callback, output, cache)
 end
 
-function interpolate_to_physical!(callback::F, output::StructVector, cache::LongRangeCache) where {F}
+function interpolate_to_physical!(callback::F, output::AbstractVector, cache::LongRangeCache) where {F}
     # TODO: what if the output is in a different device? (CPU/GPU)?
-    @assert typeof(output) === typeof(cache.common.pointdata.charges)
     _interpolate_to_physical!(callback, output, cache)
     output
 end
@@ -416,27 +417,28 @@ function init_ewald_operator_fourier(
 end
 
 function rescale_coordinates!(c::LongRangeCache)
-    L = expected_period(backend(c))
-    _rescale_coordinates!(c, L)
+    (; Ls) = c.common.params.common
+    (; pointdata) = c.common
+    L_expected = expected_period(backend(c))
+    _rescale_coordinates!(pointdata, Ls, L_expected)
 end
 
 # Backend doesn't define `expected_period`, so no rescaling is needed.
 # We only copy nodes -> nodes_mod.
 # This is typically the case of ExactSumBackend.
-function _rescale_coordinates!(c::LongRangeCache, ::Nothing)
-    (; nodes, nodes_mod) = c.common.pointdata
+function _rescale_coordinates!(data::PointData, Ls::NTuple, L_expected::Nothing)
+    (; nodes, nodes_mod) = data
     resize_no_copy!(nodes_mod, length(nodes))
     copyto!(nodes_mod, nodes)
     nothing
 end
 
-function _rescale_coordinates!(c::LongRangeCache, L_expected::Real)
-    (; Ls,) = c.common.params.common
-    (; points, nodes, nodes_mod) = c.common.pointdata
-    for (xs, L) ∈ zip(StructArrays.components(points), Ls)
+function _rescale_coordinates!(data::PointData, Ls::NTuple, L_expected::Real)
+    (; points, nodes, nodes_mod) = data
+    for (xs, L) in zip(StructArrays.components(points), Ls)
         _rescale_coordinates!(xs, L, L_expected)
     end
-    for (xs, xs_out, L) ∈ zip(StructArrays.components(nodes), StructArrays.components(nodes_mod), Ls)
+    for (xs, xs_out, L) in zip(StructArrays.components(nodes), StructArrays.components(nodes_mod), Ls)
         # We always keep a copy of the original nodes.
         resize_no_copy!(xs_out, length(xs))
         _rescale_coordinates!(xs_out, xs, L, L_expected)
@@ -494,7 +496,7 @@ Must be called after [`add_point_charges!`](@ref).
 After calling this function, one may want to use [`compute_streamfunction_fourier!`](@ref) and/or
 [`compute_velocity_fourier!`](@ref) to obtain the respective fields.
 """
-function compute_vorticity_fourier!(cache::LongRangeCache; quasi_2D::Bool = false)
+function compute_vorticity_fourier!(cache::LongRangeCache{3}; quasi_2D::Bool = false)
     (; uhat, state, vorticity_prefactor,) = cache.common
     transform_to_fourier!(cache, vorticity_prefactor)
     truncate_spherical!(cache)   # doesn't do anything if truncate_spherical = false (default)

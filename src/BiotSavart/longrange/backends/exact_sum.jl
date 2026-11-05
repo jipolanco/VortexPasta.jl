@@ -15,8 +15,9 @@ with the number of non-uniform points.
 struct ExactSumBackend <: LongRangeBackend end
 
 struct ExactSumCache{
-        CacheCommon <: LongRangeCacheCommon,
-    } <: LongRangeCache
+        T, N,
+        CacheCommon <: LongRangeCacheCommon{T, N},
+    } <: LongRangeCache{N}
     common :: CacheCommon
 end
 
@@ -32,7 +33,8 @@ function _init_cache_long_ewald(
     @assert params === params_all.longrange
     (; Ls,) = pc
     (; Ns,) = params
-    wavenumbers = ntuple(Val(3)) do i
+    D = length(Ns)
+    wavenumbers = ntuple(Val(D)) do i
         N, L = Ns[i], Ls[i]
         f = i == 1 ? rfftfreq : fftfreq
         f(N, T(2π * N / L))
@@ -71,14 +73,16 @@ end
 
 _ensure_hermitian_symmetry!(::ExactSumCache, ::Val{0}, us) = us  # we're done, do nothing
 
-function transform_to_fourier!(c::ExactSumCache, prefactor::Real)
+# 3D version
+function _transform_to_fourier!(c::ExactSumCache{T, 3}, prefactor::Real) where {T}
     (; uhat, wavenumbers, pointdata,) = c.common
-    (; points, charges,) = pointdata
+    (; charges,) = pointdata
+    xp_src = get_source_points_longrange(pointdata)
     @assert size(uhat) == map(length, wavenumbers)
     fill!(uhat, zero(eltype(uhat)))
     inds = CartesianIndices(uhat)
-    @inbounds for i ∈ eachindex(points, charges)
-        X = points[i]
+    @inbounds for i ∈ eachindex(xp_src, charges)
+        X = xp_src[i]
         Q = prefactor * charges[i]
         @inbounds Threads.@threads for I ∈ inds
             k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
@@ -90,22 +94,24 @@ function transform_to_fourier!(c::ExactSumCache, prefactor::Real)
     c
 end
 
-function _interpolate_to_physical!(callback::F, output::StructVector, c::ExactSumCache) where {F}
+# Case of a vector field (either 3D Biot-Savart or 2D velocity field in point vortex)
+function _interpolate_to_physical!(callback::F, output::StructVector{<:SVector{N}}, c::ExactSumCache) where {F, N}
     (; uhat, wavenumbers, pointdata,) = c.common
-    (; nodes_mod,) = pointdata
-    @assert length(nodes_mod) == length(output)
+    xp_dest = get_destination_points_longrange(pointdata)
+    VecN = SVector{N}
+    @assert length(xp_dest) == length(output)
     kxs = first(wavenumbers)
     kx_lims = first(kxs), last(kxs)
     @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
-    @inbounds Threads.@threads for i ∈ eachindex(nodes_mod, output)
-        X = nodes_mod[i]
+    @inbounds Threads.@threads for i in eachindex(xp_dest, output)
+        X = xp_dest[i]
         q⃗ = zero(real(eltype(uhat)))
-        for I ∈ CartesianIndices(uhat)
-            k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
-            v_orig = uhat[I]::Vec3
-            v = Vec3(@inline callback(Tuple(v_orig), Tuple(I)))  # the callback takes tuples and returns tuples
+        for I in CartesianIndices(uhat)
+            k⃗ = Vec(map(getindex, wavenumbers, Tuple(I)))
+            v_orig = uhat[I]::VecN
+            v = VecN(@inline callback(Tuple(v_orig), Tuple(I)))  # the callback takes tuples and returns tuples
             z = cis(k⃗ ⋅ X)
-            δq⃗ = if k⃗[1] ∈ kx_lims
+            δq⃗ = if k⃗[1] in kx_lims
                 # Note: the imaginary part will cancel out with -k⃗ (also computed)
                 real(v) * real(z) - imag(v) * imag(z)  # = real(v * z)
             else

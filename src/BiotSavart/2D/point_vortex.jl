@@ -1,22 +1,22 @@
 export Vec2, PointVortices, ParamsPointVortex, PointVortexSign, SignValue, UP, DOWN
 
 module PointVortexSign
+    """
+        BiotSavart.PointVortexSign.SignValue
 
-"""
-    BiotSavart.PointVortexSign.SignValue
+    Enumerator (`@enum`) defining vortex signs `UP` and `DOWN`.
 
-Enumerator (`@enum`) defining vortex signs `UP` and `DOWN`.
+    These are exported by the BiotSavart module, so one can directly use `UP` and `DOWN`.
+    """
+    @enum SignValue::UInt8 begin
+        UP   = 0x00
+        DOWN = 0x01
+    end
 
-These are exported by the BiotSavart module, so one can directly use `UP` and `DOWN`.
-"""
-@enum SignValue::UInt8 begin
-    UP   = 0x00
-    DOWN = 0x01
-end
-
+    to_real(s::SignValue) = (s === UP) ? +1 : -1
 end  # module PointVortexSign
 
-using .PointVortexSign: UP, DOWN, SignValue
+using .PointVortexSign: UP, DOWN, SignValue, to_real
 
 const Vec2{T} = SVector{2, T}
 const PointVortices{T} = AbstractVector{Vec2{T}}
@@ -28,6 +28,7 @@ include("params.jl")
 include("pointdata.jl")
 include("pointdata_impl.jl")
 include("cache.jl")
+include("longrange.jl")
 
 # Define point vortex variants of 3D Biot–Savart functions.
 function velocity_on_nodes(cache::PointVortexCache, vortices::PointVortices, args...; kws...)
@@ -110,26 +111,26 @@ function do_longrange!(
                 copy_host_to_device!(pointdata.charges, pointdata_cpu.charges, pointdata.buf_host)
             end
             @assert pointdata.points !== pointdata_cpu.points  # we don't want to modify `pointdata_cpu`!
-            # @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
-            #
-            # # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
-            # @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache; quasi_2D)  # reads pointdata (points and charges)
-            #
-            # if callback_vorticity !== identity
-            #     @timeit to "Vorticity callback" callback_vorticity(cache)
-            # end
-            #
-            # # Interpolate streamfunction and/or velocity.
-            # callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
-            #
+            @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
+
+            # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
+            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
+
+            if callback_vorticity !== identity
+                @timeit to "Vorticity callback" callback_vorticity(cache)
+            end
+
+            # Interpolate streamfunction and/or velocity.
+            callback_interp = get_ewald_interpolation_callback(cache)  # perform Ewald smoothing before interpolating
+
             # # Note: streamfunction (if enabled) must be computed before velocity.
-            # if hasproperty(outputs, :streamfunction)
-            #     # Compute streamfunction from vorticity in Fourier space.
-            #     @timeit to "Streamfunction field (Fourier)" compute_field_fourier!(Streamfunction(), cache)
-            #     # Write interpolation output to outputs.streamfunction
-            #     @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
-            # end
-            #
+            if hasproperty(outputs, :streamfunction)
+                # Compute streamfunction from vorticity in Fourier space.
+                @timeit to "Streamfunction field (Fourier)" compute_field_fourier!(Streamfunction(), cache)
+                # Write interpolation output to outputs.streamfunction
+                @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
+            end
+
             # if hasproperty(outputs, :velocity)
             #     # Compute velocity from vorticity or streamfunction in Fourier space.
             #     @timeit to "Velocity field (Fourier)" compute_field_fourier!(Velocity(), cache)
@@ -147,6 +148,7 @@ function do_longrange!(
     nothing
 end
 
+# TODO: reduce code duplication with 3D version?
 function compute_on_nodes!(
         fields::NamedTuple, cache::PointVortexCache, vortices::PointVortices, signs::SignVector;
         longrange::Bool = true, shortrange::Bool = true,

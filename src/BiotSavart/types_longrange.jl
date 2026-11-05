@@ -69,9 +69,9 @@ rescaled if the input data has a period different from ``2π``.
 expected_period(::LongRangeBackend) = nothing
 
 """
-    LongRangeCache
+    LongRangeCache{N}
 
-Abstract type describing the storage of data required to compute long-range interactions.
+Abstract type describing the storage of data required to compute long-range interactions in `N` dimensions.
 
 The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRangeCache`
 (or `NullLongRangeCache()`, if long-range computations were disabled by setting `splitting = NoSplitting()`).
@@ -81,7 +81,7 @@ The [`init_cache_long`](@ref) function returns a concrete instance of a `LongRan
 Most useful fields of a `cache::LongRangeCache` are in the `cache.common` field.
 In particular, `cache.common` contains the fields:
 
-- `wavenumbers::NTuple{3, AbstractVector}`: Fourier wavenumbers in each direction;
+- `wavenumbers::NTuple{N, AbstractVector}`: Fourier wavenumbers in each direction;
 
 - `uhat::StructArray{Vec3{Complex{T}}, 3}`: a full vector field in Fourier space;
 
@@ -109,7 +109,7 @@ The following functions must be implemented by a cache:
 - [`interpolate_to_physical!`](@ref).
 
 """
-abstract type LongRangeCache end
+abstract type LongRangeCache{N} end
 
 # This is for convenience: doing c.α is equivalent to c.common.α (we do the same for ParamsBiotSavart).
 @inline function Base.getproperty(c::LongRangeCache, name::Symbol)

@@ -146,11 +146,11 @@ end
 expected_period(::NonuniformFFTsBackend) = 2π
 
 struct NonuniformFFTsCache{
-        T,
+        T, N,
         Backend <: NonuniformFFTsBackend,
-        CacheCommon <: LongRangeCacheCommon{T},
+        CacheCommon <: LongRangeCacheCommon{T, N},
         Plan,
-    } <: LongRangeCache
+    } <: LongRangeCache{N}
     backend :: Backend
     common :: CacheCommon
     plan :: Plan  # plan for NUFFTs in both directions
@@ -178,7 +178,8 @@ function _init_cache_long_ewald(
     NonuniformFFTsCache(backend, cache_common, plan)
 end
 
-function transform_to_fourier!(c::NonuniformFFTsCache, prefactor::Real)
+# 3D version
+function _transform_to_fourier!(c::NonuniformFFTsCache{T, 3}, prefactor::Real) where {T}
     (; backend, plan,) = c
     (; pointdata, uhat,) = c.common
     (; points, charges,) = pointdata
@@ -200,7 +201,7 @@ function transform_to_fourier!(c::NonuniformFFTsCache, prefactor::Real)
 end
 
 # Note: the callback must have the signature (û::NTuple{3}, idx::NTuple{3,Int}).
-function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c::NonuniformFFTsCache) where {F <: Function}
+function _interpolate_to_physical!(callback_uniform::F, output::StructVector, c::NonuniformFFTsCache{T, 3}) where {F <: Function, T}
     (; backend, plan,) = c
     (; pointdata, uhat,) = c.common
     (; nodes_mod,) = pointdata

@@ -366,6 +366,8 @@ function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T <: AbstractFloat}
     ParamsBiotSavart(common, shortrange, longrange)
 end
 
+Base.ndims(::ParamsBiotSavart) = 3
+
 # Returns `true` if `Ls` contains `Inf` (one or more times), `false` otherwise.
 is_open_domain(Ls::Tuple) = any(isinf, Ls)
 

@@ -184,6 +184,8 @@ function Base.convert(::Type{T}, p::ParamsPointVortex) where {T <: AbstractFloat
     ParamsPointVortex(common, shortrange, longrange)
 end
 
+Base.ndims(::ParamsPointVortex) = 2
+
 circulation(p::ParamsPointVortex) = p.common.Γ
 periods(p::ParamsPointVortex) = p.common.Ls
 domain_is_periodic(p::ParamsPointVortex) = true  # we're always periodic in 2D
