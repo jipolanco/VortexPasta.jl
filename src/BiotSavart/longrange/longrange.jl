@@ -4,14 +4,14 @@ include("cache_common.jl")
 # This default implementation can be overridden by other backends.
 # That's the case of the old FINUFFT backend (which has been removed), which needs a
 # specific memory layout to perform simultaneous NUFFTs of the 3 vector field components.
-function init_fourier_vector_field(backend::LongRangeBackend, ::Type{T}, Nks::Dims) where {T <: Real}
+function init_fourier_vector_field(backend::LongRangeBackend, ::Type{T}, Nks::Dims{D}) where {T <: Real, D}
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     # Initialising arrays in parallel (using KA) may be good for performance;
     # see https://juliagpu.github.io/KernelAbstractions.jl/dev/examples/numa_aware/.
-    components = ntuple(Val(3)) do _
+    components = ntuple(Val(D)) do _
         KA.zeros(ka_backend, Complex{T}, Nks)
     end
-    StructArray{Vec3{Complex{T}}}(components)
+    StructArray{SVector{D, Complex{T}}}(components)
 end
 
 """
@@ -131,14 +131,13 @@ end
     nothing
 end
 
-# Applies Biot-Savart + Gaussian smoothing operators in Fourier space.
+# Applies Biot-Savart operator in Fourier space.
 @kernel function fourier_biot_savart_kernel!(uhat::NTuple, @Const(ks))
     I = @index(Global, Cartesian)
     k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
     u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
     u⃗ = @inbounds im * u⃗
-    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?) -- XXX: is this still the case?
-    u⃗ = @noinline k⃗ × u⃗
+    u⃗ = k⃗ × u⃗
     k² = sum(abs2, k⃗)
     k²_inv = ifelse(iszero(k²), zero(k²), inv(k²))  # this implicitly sets the k⃗ = 0 mode to zero
     u⃗ = u⃗ * k²_inv
@@ -163,8 +162,7 @@ end
     k⃗ = Vec3(map((k, i) -> @inbounds(k[i]), ks, Tuple(I)))
     u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
     u⃗ = @inbounds im * u⃗
-    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?) -- XXX: is this still the case?
-    u⃗ = @noinline k⃗ × u⃗
+    u⃗ = k⃗ × u⃗
     for n ∈ eachindex(uhat)
         @inbounds uhat[n][I] = u⃗[n]
     end
@@ -181,8 +179,7 @@ end
     op_times_k⃗ = Vec3(map((k, i) -> @inbounds(op * k[i]), ks, Tuple(I)))
     u⃗ = Vec3(map(u -> @inbounds(u[I]), uhat))
     u⃗ = @inbounds im * u⃗
-    # We use @noinline to avoid possible wrong results on the CPU!! (due to overoptimisation?)
-    u⃗ = @noinline op_times_k⃗ × u⃗
+    u⃗ = op_times_k⃗ × u⃗
     for n ∈ eachindex(uhat)
         @inbounds uhat[n][I] = u⃗[n]
     end

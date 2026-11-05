@@ -107,7 +107,7 @@ function _interpolate_to_physical!(callback::F, output::StructVector{<:SVector{N
         X = xp_dest[i]
         q⃗ = zero(real(eltype(uhat)))
         for I in CartesianIndices(uhat)
-            k⃗ = Vec(map(getindex, wavenumbers, Tuple(I)))
+            k⃗ = VecN(map(getindex, wavenumbers, Tuple(I)))
             v_orig = uhat[I]::VecN
             v = VecN(@inline callback(Tuple(v_orig), Tuple(I)))  # the callback takes tuples and returns tuples
             z = cis(k⃗ ⋅ X)

@@ -22,6 +22,27 @@ function compute_streamfunction_fourier!(c::LongRangeCache{2})
     uhat
 end
 
+function compute_velocity_fourier!(c::LongRangeCache{2})
+    (; uhat, state,) = c.common
+    wavenumbers = get_wavenumbers(c)
+    from_vorticity = state.quantity === :vorticity && state.smoothing_scale == 0
+    from_streamfunction = state.quantity === :streamfunction && state.smoothing_scale == 0
+    @assert from_vorticity || from_streamfunction
+    ka_backend = KA.get_backend(c)
+    uhat_comps = StructArrays.components(uhat)
+    if from_vorticity
+        let kernel = ka_generate_kernel(fourier_biot_savart_2D_kernel!, ka_backend, uhat)
+            kernel(uhat_comps, wavenumbers)
+        end
+    elseif from_streamfunction
+        let kernel = ka_generate_kernel(fourier_curl_2D_kernel!, ka_backend, uhat)
+            kernel(uhat_comps, wavenumbers)
+        end
+    end
+    state.quantity = :velocity
+    c
+end
+
 # This inverts -∇²ψ = ω  <-->  k² ψ̂ = ω̂ (scalar version)
 @kernel function fourier_inverse_laplacian_kernel_scalar!(us::AbstractArray, @Const(ks))
     I = @index(Global, Cartesian)
@@ -31,6 +52,33 @@ end
     @inbounds us[I] *= k²_inv
     nothing
 end
+
+# Applies 2D Biot-Savart operator in Fourier space:
+# - at input, uhat[1] contains the vorticity field
+# - at output, uhat[1:2] contains the velocity field
+@kernel function fourier_biot_savart_2D_kernel!(uhat::NTuple{2}, @Const(ks))
+    I = @index(Global, Cartesian)
+    k⃗ = map((k, i) -> @inbounds(k[i]), ks, Tuple(I))
+    iω = @inbounds im * uhat[1][I]
+    k² = sum(abs2, k⃗)
+    k²_inv = ifelse(iszero(k²), zero(k²), inv(k²))  # this implicitly sets the k⃗ = 0 mode to zero
+    @inbounds uhat[1][I] = +(k⃗[2] * k²_inv) * iω
+    @inbounds uhat[2][I] = -(k⃗[1] * k²_inv) * iω
+    nothing
+end
+
+# Applies 2D curl operator in Fourier space:
+# - at input, uhat[1] contains the scalar field (typically streamfunction)
+# - at output, uhat[1:2] contains the resulting vector field (typically velocity)
+@kernel function fourier_curl_2D_kernel!(uhat::NTuple{2}, @Const(ks))
+    I = @index(Global, Cartesian)
+    k⃗ = map((k, i) -> @inbounds(k[i]), ks, Tuple(I))
+    iω = @inbounds im * uhat[1][I]
+    @inbounds uhat[1][I] = +k⃗[2] * iω
+    @inbounds uhat[2][I] = -k⃗[1] * iω
+    nothing
+end
+
 
 ## ================================================================================ ##
 ## Adapt long-range backends to 2D point vortices

@@ -37,7 +37,7 @@ struct LongRangeCacheCommon{
         WaveNumbers <: NTuple{N, AbstractVector{T}},
         PointCharges <: AbstractPointData{T},
         OutputVectors <: NamedTuple,
-        FourierVectorField <: StructArray{Vec3{Complex{T}}, N},
+        FourierVectorField <: StructArray{SVector{N, Complex{T}}, N},
         RealScalarField <: AbstractArray{T, N},
         Timer <: TimerOutput,
     }
@@ -94,7 +94,7 @@ function LongRangeCacheCommon(
     @assert T === eltype(pcommon)
     @assert splitting !== NoSplitting()
     Nks = map(length, wavenumbers)
-    uhat = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, N}
+    uhat = init_fourier_vector_field(backend, T, Nks)::StructArray{SVector{N, Complex{T}}, N}
     vorticity_prefactor = Γ / prod(Ls)
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed

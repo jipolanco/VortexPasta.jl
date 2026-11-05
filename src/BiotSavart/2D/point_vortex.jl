@@ -131,12 +131,12 @@ function do_longrange!(
                 @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.streamfunction, cache)
             end
 
-            # if hasproperty(outputs, :velocity)
-            #     # Compute velocity from vorticity or streamfunction in Fourier space.
-            #     @timeit to "Velocity field (Fourier)" compute_field_fourier!(Velocity(), cache)
-            #     # Write interpolation output to outputs.velocity
-            #     @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.velocity, cache)
-            # end
+            if hasproperty(outputs, :velocity)
+                # Compute velocity from vorticity or streamfunction in Fourier space.
+                @timeit to "Velocity field (Fourier)" compute_field_fourier!(Velocity(), cache)
+                # Write interpolation output to outputs.velocity
+                @timeit to "Interpolate to physical" interpolate_to_physical!(callback_interp, outputs.velocity, cache)
+            end
 
             yield()  # let other tasks run (not sure if this really helps)
 
