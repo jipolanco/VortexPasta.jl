@@ -533,7 +533,7 @@ function _compute_on_nodes!(
     @assert length(fields) ∈ (1, 2)  # maximum 2 fields: streamfunction + velocity
 
     with_shortrange = shortrange
-    with_longrange = longrange && LIA !== Val(:only) && cache.longrange !== NullLongRangeCache()
+    with_longrange = longrange && LIA !== Val(:only) && !(cache.longrange isa NullLongRangeCache)
 
     # This is used by short and long-range computations (done on the CPU)..
     # TODO: skip unneeded quantities if LIA === Val(:only) or LIA === Val(false)
