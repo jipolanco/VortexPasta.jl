@@ -355,17 +355,17 @@ end
 function _copy_output_values_on_nodes!(
         backend::GPU, op::F, vs::PointVortexScalars{T},
         vs_d::AbstractVector{T}, buf_host::HostVector{T},
-    ) where {F <: Function, T}
+    ) where {F <: Function, T <: Real}
     # Perform GPU -> CPU copy (device-to-host)
     @assert backend == KA.get_backend(buf_host)
     copy_device_to_host!(buf_host, vs_d)
     _copy_output_values_on_nodes!(CPU(), op, vs, buf_host)  # finally, perform CPU -> CPU copy
 end
 
-# Case of a scalar field (usually streamfunction)
+# Case of a scalar or vector field
 function _copy_output_values_on_nodes!(
         ::CPU, op::F, vs::PointVortexScalars{T}, vs_h::AbstractVector{T}, ignored = nothing,
-    ) where {F <: Function, T}
+    ) where {F <: Function, T <: Union{Real, SVector}}
     Threads.@threads for j in eachindex(vs, vs_h)
         @inbounds vs[j] = @inline op(vs[j], vs_h[j])  # typically op == +, meaning that we add to the previous value
     end

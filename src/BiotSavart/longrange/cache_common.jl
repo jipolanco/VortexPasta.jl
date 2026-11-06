@@ -68,9 +68,10 @@ end
 
 # Note: to be compatible with NonuniformFFTs, the callback must have the signature f(û::NTuple{C}, idx::NTuple{N}),
 # where N is the spatial dimension and C the number of vector components (C = 1 for a scalar).
-@inline function (f::EwaldInterpolationCallback)(û::NTuple{C, T}, idx::NTuple{N}) where {T, C, N}
+@inline function (f::EwaldInterpolationCallback)(û::NTuple, idx::NTuple)
     @inbounds op = f.data[idx...]
-    map(v -> T(v * op), û)
+    T = eltype(û)
+    map(v -> T(op * v), û)
 end
 
 @inline get_ewald_interpolation_callback(c::LongRangeCacheCommon) = EwaldInterpolationCallback(c.ewald_op_fourier)
