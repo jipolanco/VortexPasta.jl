@@ -11,31 +11,28 @@ function generate_point_vortices(rng, N, Ls::NTuple{2, T}; neutral = false) wher
     if neutral && isodd(N)
         error("number of vortices must be even for neutral charge")
     end
-    vortices = Vector{Vec2{T}}(undef, N)
-    signs = similar(vortices, SignValue)
-    for j in eachindex(vortices)
-        vortices[j] = rand(rng, Vec2{T}) .* Ls  # rescale positions
+    points = Vector{Vec2{T}}(undef, N)
+    signs = similar(points, SignValue)
+    for j in eachindex(points)
+        points[j] = rand(rng, Vec2{T}) .* Ls  # rescale positions
         signs[j] = rand(rng, Bool) ? UP : DOWN  # randomly choose UP or DOWN
     end
     if neutral
         signs[begin:(end ÷ 2)] .= UP
         signs[(end ÷ 2 + 1):end] .= DOWN
     end
-    vortices, signs
+    PointVortexState(points, signs)
 end
 
-function point_vortex_interactions(
-        vortices::AbstractVector{Vec2{T}}, signs, params::ParamsPointVortex{T};
-        kws...
-    ) where {T}
+function point_vortex_interactions(vortices::PointVortexState, params::ParamsPointVortex{T}; kws...) where {T}
     cache = @inferred BiotSavart.init_cache(params)
     fields = (
-        velocity = similar(vortices),
-        streamfunction = similar(vortices, T),
+        velocity = similar(vortices.points),
+        streamfunction = similar(vortices.points, T),
     )
-    compute_on_nodes!(fields, cache, vortices, signs; kws...)
-    energy = kinetic_energy_2D(fields.streamfunction, signs, params)
-    (; cache, params, vortices, signs, energy, fields...)
+    compute_on_nodes!(fields, cache, vortices; kws...)
+    energy = kinetic_energy_2D(fields.streamfunction, vortices.signs, params)
+    (; cache, params, vortices, energy, fields...)
 end
 
 # Kinetic energy per unit mass
@@ -59,7 +56,7 @@ Ls = (Lx, Ly)
 
 N = 21  # odd number to make sure the charge is not neutral
 rng = StableRNG(42)
-vortices, signs = generate_point_vortices(rng, N, Ls)
+vortices = generate_point_vortices(rng, N, Ls)
 
 # Base run
 backend = CPU()
@@ -67,10 +64,10 @@ backend_short = CellListsBackend(backend)
 backend_long = NonuniformFFTsBackend(backend; σ = 1.5, m = HalfSupport(4))
 splitting = @inferred GaussianSplitting(; Ls, rcut = Lx / 4, β = 4.0)
 params = @inferred ParamsPointVortex(; Γ, splitting, backend_short, backend_long)
-ref = point_vortex_interactions(vortices, signs, params)
+ref = point_vortex_interactions(vortices, params)
 
 @testset "Computing only the velocity" begin
-    vs_only = @inferred velocity_on_nodes(ref.cache, ref.vortices, ref.signs)
+    vs_only = @inferred velocity_on_nodes(ref.cache, ref.vortices)
     @test vs_only ≈ ref.velocity rtol=1e-15
 end
 
@@ -99,17 +96,19 @@ end
         E_from_vorticity[] = E  # update value of "global" variable
         nothing
     end
-    point_vortex_interactions(vortices, signs, params; callback_vorticity)
+    point_vortex_interactions(vortices, params; callback_vorticity)
     @test E_from_vorticity[] > 0
 end
 
 @testset "Float32" begin
-    vortices_f32 = Vec2{Float32}.(ref.vortices)
-    params = @inferred ParamsPointVortex(; Γ = Float32(Γ), splitting, backend_short, backend_long)
+    points_f32 = Vec2{Float32}.(ref.vortices.points)
+    vortices_f32 = PointVortexState(points_f32, ref.vortices.signs)
+    @test vortices_f32 isa PointVortexState{Float32}
+    params_f32 = @inferred ParamsPointVortex(; Γ = Float32(Γ), splitting, backend_short, backend_long)
     @test params isa ParamsPointVortex{Float32}
-    results = point_vortex_interactions(vortices_f32, ref.signs, params)
-    vs_only = @inferred velocity_on_nodes(results.cache, vortices_f32, ref.signs)
-    @test typeof(vs_only) == typeof(vortices_f32)  # returned velocities are Float32
+    results = point_vortex_interactions(vortices_f32, params_f32)
+    vs_only = @inferred velocity_on_nodes(results.cache, vortices_f32)
+    @test typeof(vs_only) == typeof(vortices_f32.points)  # returned velocities are Float32
     # @show norm(results.velocity - ref.velocity) / norm(ref.velocity)
     # @show norm(results.streamfunction - ref.streamfunction) / norm(ref.streamfunction)
     # @show (results.energy - ref.energy) / ref.energy
@@ -123,7 +122,7 @@ end
     backend_short = CellListsBackend(backend, 2)
     backend_long = NonuniformFFTsBackend(backend; σ = 1.5, m = HalfSupport(4), gpu_method = :global_memory)
     params = @inferred ParamsPointVortex(; Γ, splitting, backend_short, backend_long)
-    results = point_vortex_interactions(ref.vortices, ref.signs, params)
+    results = point_vortex_interactions(ref.vortices, params)
     @test KA.get_backend(results.cache.longrange) isa POCLBackend
     @test KA.get_backend(results.cache.shortrange) isa POCLBackend
     # @show (results.energy - ref.energy) / ref.energy
@@ -137,7 +136,7 @@ end
 @testset "backend_long = ExactSumBackend()" begin
     backend_long = ExactSumBackend()
     params = @inferred ParamsPointVortex(; Γ, splitting, backend_short, backend_long)
-    results = point_vortex_interactions(ref.vortices, ref.signs, params)
+    results = point_vortex_interactions(ref.vortices, params)
     # @show (results.energy - ref.energy) / ref.energy
     # @show norm(results.velocity - ref.velocity) / norm(ref.velocity)
     # @show norm(results.streamfunction - ref.streamfunction) / norm(ref.streamfunction)
@@ -149,7 +148,7 @@ end
 @testset "backend_short = NaiveShortRangeBackend()" begin
     backend_short = NaiveShortRangeBackend()
     params = @inferred ParamsPointVortex(; Γ, splitting, backend_short, backend_long)
-    results = point_vortex_interactions(ref.vortices, ref.signs, params)
+    results = point_vortex_interactions(ref.vortices, params)
     # @show (results.energy - ref.energy) / ref.energy
     # @show norm(results.velocity - ref.velocity) / norm(ref.velocity)
     # @show norm(results.streamfunction - ref.streamfunction) / norm(ref.streamfunction)
@@ -163,7 +162,7 @@ end
     A, B = map(rcuts) do rcut
         splitting = GaussianSplitting(; Ls, rcut, β = 4.0)
         params = ParamsPointVortex(; Γ = 2.0, splitting, backend_short, backend_long)
-        point_vortex_interactions(ref.vortices, ref.signs, params)
+        point_vortex_interactions(ref.vortices, params)
     end
     # @show norm(B.velocity - A.velocity) / norm(A.velocity)
     # @show norm(B.streamfunction - A.streamfunction) / norm(A.streamfunction)

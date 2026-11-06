@@ -66,7 +66,8 @@ Biot–Savart interactions in two-dimensional point vortex systems are computed 
 steps as in 3D with minor differences: 
 
 1. Parameters are defined in [`ParamsPointVortex`](@ref) instead of [`ParamsBiotSavart`](@ref).
-2. Instead of a filament vector `fs` one passes a vector of vortex points and a vector of signs (`UP` or `DOWN`) to
+2. Instead of a filament vector `fs` one passes a [`PointVortexState`](@ref), which contains
+   a vector of vortex points and a vector of signs (`UP` or `DOWN`), to
    [`compute_on_nodes!`](@ref) and [`velocity_on_nodes!`](@ref).
 3. The outputs of `compute_on_nodes!` are two-element vectors for `velocity` and scalar
    values for `streamfunction`.
@@ -77,17 +78,19 @@ steps as in 3D with minor differences:
 using VortexPasta.BiotSavart
 params = ParamsPointVortex(; Γ = 1.0, ...)
 cache = BiotSavart.init_cache(params)
-vortices = [Vec2(0.3, 0.1), Vec2(π/3, 2π/3), ...]
+points = [Vec2(0.3, 0.1), Vec2(π/3, 2π/3), ...]
 signs = [UP, DOWN, ...]  # this is a Vector{SignValue}
+vortices = PointVortexState(points, signs)
 fields = (
-    velocity = similar(vortices),
-    streamfunction = similar(vortices, Float64),  # these are scalar values!
+    velocity = similar(vortices.points),
+    streamfunction = similar(vortices.points, Float64),  # these are scalar values!
 )
-compute_on_nodes!(fields, cache, vortices, signs)
+compute_on_nodes!(fields, cache, vortices)
 ```
 
 ```@docs
 ParamsPointVortex
+PointVortexState
 SignValue
 ```
 

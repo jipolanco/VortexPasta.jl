@@ -1,4 +1,4 @@
-export Vec2, PointVortices, ParamsPointVortex, SignValue, UP, DOWN
+export Vec2, PointVortices, ParamsPointVortex, SignValue, UP, DOWN, PointVortexState
 
 include("signs.jl")  # SignValue
 
@@ -6,7 +6,66 @@ const Vec2{T} = SVector{2, T}
 const PointVortices{T} = AbstractVector{Vec2{T}}
 const PointVortexVelocities{T} = AbstractVector{Vec2{T}}
 const PointVortexScalars{T} = AbstractVector{T}  # usually streamfunction
-const SignVector = AbstractVector{SignValue}
+const PointVortexSigns = AbstractVector{SignValue}
+
+"""
+    PointVortexState{T <: AbstractFloat}
+
+Holds the instantaneous state of a point vortex system.
+
+# Construction
+
+    PointVortexState(points::AbstractVector{Vec2{T}}, signs::AbstractVector{SignValue})
+
+Both vectors must have the same dimensions.
+
+## Example
+
+```jldoctest
+julia> using VortexPasta.BiotSavart
+
+julia> points = [Vec2(0.3, 1.54), Vec2(1.4, 5.3)]
+2-element Vector{StaticArraysCore.SVector{2, Float64}}:
+ [0.3, 1.54]
+ [1.4, 5.3]
+
+julia> signs = [UP, DOWN]
+2-element Vector{SignValue}:
+ UP::SignValue = 0x00
+ DOWN::SignValue = 0x01
+
+julia> vortices = PointVortexState(points, signs)
+PointVortexState{Float64} with 2 vortices
+```
+
+# Fields
+
+- `points::AbstractVector{Vec2{T}}`: point vortex locations;
+- `signs::AbstractVector{SignValue}`: point vortex signs (`UP` or `DOWN`, see [`SignValue`](@ref)).
+
+"""
+struct PointVortexState{
+        T <: AbstractFloat,
+        Points <: PointVortices{T},
+        Signs <: PointVortexSigns,
+    }
+    points::Points
+    signs::Signs
+    function PointVortexState(points::PointVortices{T}, signs::PointVortexSigns) where {T}
+        eachindex(points) == eachindex(signs) || throw(DimensionMismatch("both vectors must have the same length"))
+        new{T, typeof(points), typeof(signs)}(points, signs)
+    end
+end
+
+function Base.show(io::IO, pv::PointVortexState)
+    T = eltype(pv)
+    N = length(pv)
+    print(io, "PointVortexState{$T} with $N vortices")
+end
+
+Base.eltype(::PointVortexState{T}) where {T} = T
+Base.eachindex(pv::PointVortexState) = eachindex(pv.points, pv.signs)  # fails if they have different lengths
+Base.length(pv::PointVortexState) = length(eachindex(pv))
 
 include("params.jl")
 include("pointdata.jl")
@@ -16,8 +75,8 @@ include("longrange.jl")
 include("shortrange.jl")
 
 # Define point vortex variants of 3D Biot–Savart functions.
-function velocity_on_nodes(cache::PointVortexCache, vortices::PointVortices, args...; kws...)
-    vs = similar(vortices)
+function velocity_on_nodes(cache::PointVortexCache, vortices::PointVortexState, args...; kws...)
+    vs = similar(vortices.points)
     velocity_on_nodes!(vs, cache, vortices, args...; kws...)
     vs
 end
@@ -28,7 +87,7 @@ function velocity_on_nodes!(vs::PointVortexVelocities, cache::PointVortexCache, 
     vs
 end
 
-function background_vorticity_correction!(fields::NamedTuple, signs::SignVector, params::ParamsPointVortex)
+function background_vorticity_correction!(fields::NamedTuple, signs::PointVortexSigns, params::ParamsPointVortex)
     # We only need to modify the streamfunction, so we do nothing if the streamfunction is
     # not present. (The velocity is not affected by the uniform background vorticity.)
     ψs = get(fields, :streamfunction, nothing)
@@ -55,7 +114,7 @@ function background_vorticity_correction!(fields::NamedTuple, signs::SignVector,
     fields
 end
 
-function _setup_fields_2d!(fields::NamedTuple{Names}, vortices) where {Names}
+function _setup_fields_2d!(fields::NamedTuple{Names}, vortices::PointVortexState) where {Names}
     N = length(fields)
     @assert N > 0
     vs = get(fields, :velocity, nothing)
@@ -174,7 +233,7 @@ end
 
 # TODO: reduce code duplication with 3D version?
 function compute_on_nodes!(
-        fields::NamedTuple, cache::PointVortexCache, vortices::PointVortices, signs::SignVector;
+        fields::NamedTuple, cache::PointVortexCache, vortices::PointVortexState;
         longrange::Bool = true, shortrange::Bool = true,
         callback_vorticity::Fvort = identity,
     ) where {Fvort}
@@ -187,7 +246,7 @@ function compute_on_nodes!(
     with_longrange = longrange
 
     # This mainly copies the inputs to `pointdata`
-    @timeit to "Add point charges" add_point_charges!(pointdata, vortices, signs, params)
+    @timeit to "Add point charges" add_point_charges!(pointdata, vortices, params)
 
     channel = Channel{Symbol}(2)  # 2 is the length of the channel (for :shortrange + :longrange)
     tasks = Task[]
@@ -229,7 +288,7 @@ function compute_on_nodes!(
         @debug "Computing synchronous operations"
         @timeit to "CPU-only operations (synchronous)" begin
             # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
-            background_vorticity_correction!(fields, signs, params)
+            background_vorticity_correction!(fields, vortices.signs, params)
         end
     end
 

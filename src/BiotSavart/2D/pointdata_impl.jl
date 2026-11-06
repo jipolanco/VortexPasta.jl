@@ -4,13 +4,14 @@ function set_num_points!(data::PointVortexData, Np)
     data
 end
 
-function add_point_charges!(data::PointVortexData, xp::PointVortices, signs::AbstractVector, params::ParamsPointVortex)
+function add_point_charges!(data::PointVortexData{T}, vortices::PointVortexState{T}, params::ParamsPointVortex{T}) where {T}
     (; Ls) = params
-    Base.require_one_based_indexing(xp)
-    Np = length(xp)
+    (; points, signs) = vortices
+    Base.require_one_based_indexing(points)
+    Np = length(points)
     set_num_points!(data, Np)
-    Threads.@threads for i in eachindex(xp, signs)
-        @inbounds data.points[i] = Filaments.fold_coordinates_periodic(xp[i], Ls)
+    Threads.@threads for i in eachindex(points, signs)
+        @inbounds data.points[i] = Filaments.fold_coordinates_periodic(points[i], Ls)
         @inbounds data.signs[i] = signs[i]
     end
     data
