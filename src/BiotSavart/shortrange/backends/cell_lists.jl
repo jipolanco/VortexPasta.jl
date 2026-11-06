@@ -100,10 +100,12 @@ struct CellListsCache{
     cl     :: CellList
 end
 
-function init_cache_short(
-        pc::ParamsCommon, params::ParamsShortRange{T, <:CellListsBackend}, pointdata::PointData,
+function _init_cache_short(
+        backend::CellListsBackend, pc::AbstractParamsCommon,
+        params::AbstractParamsShortRange{T}, pointdata::AbstractPointData,
     ) where {T}
-    (; backend, rcut,) = params
+    @assert backend === params.backend
+    (; rcut,) = params
     (; Ls,) = pc
     nsubdiv = Val(subdivisions(backend))
     ka_backend = KA.get_backend(backend)
@@ -115,9 +117,8 @@ function init_cache_short(
 end
 
 function process_point_charges!(c::CellListsCache)
-    (; cl, pointdata) = c
-    (; points, charges,) = pointdata
-    @assert eachindex(points) == eachindex(charges)
+    (; cl) = c
+    points = get_source_points_shortrange(c.pointdata)
     ka_backend = KA.get_backend(c)
     # @assert typeof(ka_backend) === typeof(KA.get_backend(points))
     KA.device(ka_backend) == KA.device(c) || error("expected KernelAbstractions device $(KA.device(c)) to be activated")
@@ -134,5 +135,6 @@ end
 end
 
 @inline function foreach_pair(f::F, c::CellListsCache; kws...) where {F <: Function}
-    CellLists.foreach_pair(f, c.cl, c.pointdata.nodes; kws...)
+    nodes = get_destination_points_shortrange(c.pointdata)
+    CellLists.foreach_pair(f, c.cl, nodes; kws...)
 end

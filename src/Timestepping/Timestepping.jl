@@ -82,11 +82,6 @@ abstract type SimulationMode end
 struct DefaultMode <: SimulationMode end
 struct MinimalEnergy <: SimulationMode end
 
-include("timesteppers/timesteppers.jl")
-include("adaptivity.jl")
-include("problem.jl")
-include("simulation_stats.jl")
-
 """
     TimeInfo
 
@@ -115,6 +110,12 @@ In that case, the iteration will be recomputed with a smaller timestep (`dt → 
     dt      :: Float64 = 0
     dt_prev :: Float64 = 0
 end
+
+include("timesteppers/timesteppers.jl")
+include("adaptivity.jl")
+include("problem.jl")
+include("simulation_stats.jl")
+include("2D/point_vortex.jl")
 
 function Base.show(io::IO, time::TimeInfo)
     (; nstep, nrejected, t, dt, dt_prev,) = time
@@ -170,7 +171,7 @@ struct LocalTerm <: FastBiotSavartTerm
 end
 
 """
-    VortexFilamentSolver
+    VortexFilamentSolver{T <: AbstractFloat} <: AbstractSolver
 
 Contains the instantaneous state of a vortex filament simulation.
 
@@ -236,7 +237,7 @@ Similarly, if `dissipation` contains a dissipation term (e.g. [`DissipationBS`](
 
 """
 struct VortexFilamentSolver{
-        T,
+        T <: AbstractFloat,
         Problem <: VortexFilamentProblem{T},
         Filaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
         Mode <: SimulationMode,
@@ -263,7 +264,7 @@ struct VortexFilamentSolver{
     prob  :: Problem
     fs    :: Filaments
     mode  :: Mode
-    quantities :: Quantities  # stored fields: (vs, ψs) + optional ones (vn, tangents, ...)
+    quantities :: Quantities  # stored fields: (vs, ψs) + optional ones (vn, vf, tangents, ...)
     time  :: TimeInfo
     stats :: SimulationStats{T}
     dtmin :: T
@@ -359,7 +360,7 @@ end
 
 # This is for convenience: allows doing e.g. `iter.t` instead of `iter.time.t` to get the
 # current time.
-@inline function Base.getproperty(iter::VortexFilamentSolver, name::Symbol)
+@inline function Base.getproperty(iter::AbstractSolver, name::Symbol)
     time = getfield(iter, :time)
     quantities = getfield(iter, :quantities)
     if hasproperty(time, name)
@@ -371,7 +372,7 @@ end
     end
 end
 
-function Base.propertynames(iter::VortexFilamentSolver, private::Bool = false)
+function Base.propertynames(iter::AbstractSolver, private::Bool = false)
     (fieldnames(typeof(iter))..., propertynames(iter.quantities, private)..., propertynames(iter.time, private)...)
 end
 
@@ -400,9 +401,9 @@ function _maybe_print_function(io, prefix, f_to::Function)
     nothing
 end
 
-get_dt(iter::VortexFilamentSolver) = iter.time.dt
-get_t(iter::VortexFilamentSolver) = iter.time.t
-scheme(iter::VortexFilamentSolver) = scheme(iter.cache_timestepper)
+get_dt(iter::AbstractSolver) = iter.time.dt
+get_t(iter::AbstractSolver) = iter.time.t
+scheme(iter::AbstractSolver) = scheme(iter.cache_timestepper)
 
 """
     can_compute_diagnostics(iter::VortexFilamentSolver) -> Bool
@@ -418,7 +419,7 @@ This returns `true` in either of the follwing two cases:
 - if `nstep % step_diagnostics == 0`,
 - if we're at the end of the simulation, i.e. `iter.t ≥ iter.prob.tspan[2]`.
 """
-function can_compute_diagnostics(iter::VortexFilamentSolver)::Bool
+function can_compute_diagnostics(iter::AbstractSolver)::Bool
     (; nstep, step_diagnostics, t, prob) = iter
     maybe_last_timestep = t ≥ prob.tspan[2]  # enable computation of diagnostics after the end of the simulation
     maybe_last_timestep || (nstep % step_diagnostics == 0)
@@ -717,9 +718,8 @@ Forcing should be disabled to run in this mode.
 """
 function init(
         prob::VortexFilamentProblem{T}, scheme::TemporalScheme;
-        alias_u0::Bool = false,  # deprecated and ignored (kept for backwards compatibility)
         dt::Real,
-        dtmin::Real = 0.0,
+        dtmin::Real = zero(T),
         fast_term::FastBiotSavartTerm = LocalTerm(),
         refinement::RefinementCriterion = NoRefinement(),
         reconnect::ReconnectionCriterion = NoReconnections(),
@@ -754,10 +754,6 @@ function init(
     }
     (; tspan, state,) = prob
     (; Ls,) = prob.p
-
-    if alias_u0
-        @warn "option `alias_u0 = true` is now ignored and will be removed in the future"
-    end
 
     fs = let
         gs = map(prob.fs) do f

@@ -1,5 +1,5 @@
 @doc raw"""
-    GaussianSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
+    GaussianSplitting{T <: AbstractFloat, N} <: PeriodicSplitting{N}
     GaussianSplitting(; Ls, β, α, rcut, Ns, rtol)
 
 Gaussian splitting kernel for Ewald summation.
@@ -106,24 +106,27 @@ The Fourier transform of this convolution kernel is given by
 Given the accuracy and splitting parameters ``β`` and ``α``, the required physical and Fourier space
 truncations are ``r_{\text{cut}} = β / α`` and ``k_{\text{max}} = 2 α β`` to achieve the desired accuracy.
 """
-struct GaussianSplitting{T <: AbstractFloat, N} <: AbstractEwaldSplitting
+struct GaussianSplitting{T <: AbstractFloat, N} <: PeriodicSplitting{N}
     Ls::NTuple{N, T}
     α::T
+    α²::T
     rcut::T
     Ns::Dims{N}
     rtol::T
 end
 
 function GaussianSplitting(; Ls::NTuple{N}, β = nothing, α = nothing, rcut = nothing, Ns = nothing, rtol = nothing) where {N}
-    GaussianSplitting(Ls, _gaussian_splitting_params(Ls, β, α, rcut, Ns, rtol)...)
+    α, rcut, Ns, rtol = _gaussian_splitting_params(Ls, β, α, rcut, Ns, rtol)
+    GaussianSplitting(Ls, α, α^2, rcut, Ns, rtol)
 end
 
 # This converts real values to the wanted precision.
 convert_floats(::Type{T}, g::GaussianSplitting{T}) where {T} = g
 
 function convert_floats(::Type{T}, g::GaussianSplitting{S, N}) where {T, S, N}
-    (; Ls, α, rcut, Ns, rtol) = g
-    GaussianSplitting(convert.(T, Ls), convert(T, α), convert(T, rcut), Ns, convert(T, rtol))
+    (; Ls, rcut, Ns, rtol) = g
+    α = convert(T, g.α)
+    GaussianSplitting(convert.(T, Ls), α, α^2, convert(T, rcut), Ns, convert(T, rtol))
 end
 
 periods(g::GaussianSplitting) = g.Ls
@@ -221,7 +224,7 @@ function Base.show(io::IO, g::GaussianSplitting{T, N}) where {T, N}
     print(io, "\n$(pre) - Long-range resolution:       Ns = ", Ns, " (k_max = ", kmax, ")")
     print(io, "\n$(pre) - Short-range accuracy coeff.: β_shortrange = α * r_cut = ", β_shortrange)
     print(io, "\n$(pre) - Long-range accuracy coeff.:  β_longrange = k_max / 2α = ", β_longrange)
-    print(io, "\n$(pre) - Relative accuracy :          rtol = ", rtol)
+    print(io, "\n$(pre) - Relative accuracy:           rtol = ", rtol)
     nothing
 end
 
@@ -238,14 +241,25 @@ end
 # Note that this may be called from a GPU kernel.
 # It doesn't need to be very performant since it's only done once when creating a BiotSavartCache.
 function splitting_kernel_fourier(g::GaussianSplitting)
-    (; α,) = g
-    β = -1 / (4 * α * α)
+    (; α²,) = g
+    β = -1 / (4 * α²)
     @inline(k² -> exp(β * k²))
 end
 
 # Factor in ⟨ψ⟩ = C * ⟨ω⟩ to be applied when the mean vorticity ⟨ω⟩ is nonzero.
+# This works both in 2D and 3D.
 # See background_vorticity_correction! for details.
-background_vorticity_correction_factor(g::GaussianSplitting) = 1 / (4 * g.α^2)
+background_vorticity_correction_factor(g::GaussianSplitting) = 1 / (4 * g.α²)
+
+# Correction for 2D streamfunction: we need to subtract the self-induced streamfunction by
+# the long-range part. This is -G_longrange(r⃗ = 0⃗).
+# For the Gaussian kernel:
+#
+#     G_longrange(r⃗) = -(log(r) + E₁(α²r²) / 2) / 2π => G_longrange(0⃗) = +(γ + log(α²)) / 4π
+#
+# where γ is the Euler–Mascheroni constant
+self_interaction_correction_streamfunction(g::GaussianSplitting{T, 2}) where {T} =
+    -T(MathConstants.γ + log(g.α²)) / (4 * T(π))
 
 include("SIMDFunctions/SIMDFunctions.jl")
 using .SIMDFunctions: SIMDFunctions
@@ -259,17 +273,19 @@ using .SIMDFunctions: SIMDFunctions
 @inline exp_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.exp(x)
 @inline erf_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.erf(x)
 @inline erfc_nosimd(::CPU, x::AbstractFloat) = SIMDFunctions.erfc(x)
+@inline expint_nosimd(::CPU, x::AbstractFloat) = SpecialFunctions.expint(x)  # E₁(x), used in 2D // TODO: SIMD version?
 
 # On GPU we call the functions from Base or SpecialFunctions, since these are usually
 # overridden in each GPU implementation (CUDA, ...) and therefore should be fast.
 @inline exp_nosimd(::GPU, x::AbstractFloat) = exp(x)
 @inline erf_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.erf(x)
 @inline erfc_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.erfc(x)
+@inline expint_nosimd(::GPU, x::AbstractFloat) = SpecialFunctions.expint(x)  # E₁(x), used in 2D
 
 @inline two_over_sqrt_pi(::SIMD.Vec{W, T}) where {W, T} = 2 / sqrt(T(π))
 @inline two_over_sqrt_pi(::T) where {T <: AbstractFloat} = 2 / sqrt(T(π))
 
-@inline function weights_shortrange_simd(g::GaussianSplitting, r)
+@inline function weights_shortrange_simd(g::GaussianSplitting{T, 3}, r) where {T}
     (; α,) = g
     αr = α * r
     a = erfc_simd(αr)
@@ -277,11 +293,20 @@ using .SIMDFunctions: SIMDFunctions
     a, b
 end
 
-@inline function weights_shortrange_nosimd(backend::DeviceType, g::GaussianSplitting, r)
+@inline function weights_shortrange_nosimd(backend::DeviceType, g::GaussianSplitting{T, 3}, r) where {T}
     (; α,) = g
     αr = α * r
     a = erfc_nosimd(backend, αr)
     b = two_over_sqrt_pi(r) * αr * exp_nosimd(backend, -(αr * αr))
+    a, b
+end
+
+# 2D version (note: it takes r² instead of r!!)
+@inline function weights_shortrange_nosimd(backend::DeviceType, g::GaussianSplitting{T, 2}, r²) where {T}
+    (; α²,) = g
+    α²r² = α² * r²
+    a = expint_nosimd(backend, α²r²) / 2  # = E₁(α²r²) / 2
+    b = exp_nosimd(backend, -α²r²)
     a, b
 end
 

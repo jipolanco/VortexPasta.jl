@@ -63,10 +63,10 @@ See [`ShortRangeBackend`](@ref) and [`LongRangeBackend`](@ref) for more details.
 abstract type AbstractBackend end
 
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
-const VectorOfVec = AbstractVector{<:Vec3}
-const VectorOfPositions = VectorOfVec
-const VectorOfVelocities = VectorOfVec
-const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
+const VectorOfVec{T} = AbstractVector{Vec3{T}}
+const VectorOfPositions{T} = VectorOfVec{T}
+const VectorOfVelocities{T} = VectorOfVec{T}
+const AllFilamentVelocities{T} = AbstractVector{<:VectorOfVelocities{T}}
 
 include("devices.jl")
 include("host_device_transfers.jl")
@@ -81,6 +81,8 @@ include("cache.jl")
 include("shortrange/shortrange.jl")
 include("longrange/longrange.jl")
 
+include("2D/point_vortex.jl")
+
 """
     velocity_on_nodes(cache::BiotSavartCache, fs::AbstractVector{<:AbstractFilament}; kws...) -> vs
 
@@ -90,11 +92,7 @@ Returns a `vs` vector containing the velocities on filament nodes.
 
 See [`velocity_on_nodes!`](@ref) for more details.
 """
-function velocity_on_nodes(
-        cache::BiotSavartCache,
-        fs::AbstractVector{<:AbstractFilament};
-        kws...,
-    )
+function velocity_on_nodes(cache::BiotSavartCache, fs; kws...)
     vs = map(similar ∘ nodes, fs)
     velocity_on_nodes!(vs, cache, fs; kws...)
     vs
@@ -169,7 +167,7 @@ function _setup_fields!(fields::NamedTuple{Names}, fs) where {Names}
     nfields = length(vecs)
     nfields == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
     for us ∈ vecs
-        eachindex(us) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of vector"))
+        eachindex(us) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of output field"))
         _reset_vectors!(us)
     end
     nothing
@@ -371,7 +369,7 @@ function callback_vorticity(cache::LongRangeCache)
     wavenumbers = adapt(Array, wavenumbers)
     uhat = adapt(Array, field)::NTuple{3}  # (ωx, ωy, ωz) in Fourier space
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
-    @assert with_hermitian_symmetry == wavenumbers[1][end] > 0
+    @assert with_hermitian_symmetry == (wavenumbers[1][end] > 0)
     E = 0.0
     for I ∈ CartesianIndices(uhat[1])
         k⃗ = map(getindex, wavenumbers, Tuple(I))
@@ -400,7 +398,7 @@ function compute_on_nodes!(
 end
 
 function do_longrange!(
-        cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu;
+        cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu::PointData;
         quasi_2D::Bool = false,
         callback_vorticity::Fvort,
     ) where {Fvort}
@@ -417,7 +415,7 @@ function do_longrange!(
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             # Resize output arrays
             noutputs = length(pointdata_cpu.nodes)
-            foreach(v -> resize_no_copy!(v, noutputs), outputs)
+            map(v -> resize_no_copy!(v, noutputs), outputs)
 
             @timeit to "Copy point charges (host -> device)" begin
                 # Only copy fields needed for long-range computations
@@ -463,7 +461,10 @@ function do_longrange!(
     nothing
 end
 
-function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu; LIA = Val(true), integration_cutoff = nothing)
+function do_shortrange!(
+        cache::ShortRangeCache, outputs::NamedTuple,
+        pointdata_cpu::PointData; LIA = Val(true), integration_cutoff = nothing,
+    )
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -475,7 +476,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             # Resize output arrays
             noutputs = length(pointdata_cpu.nodes)
-            foreach(v -> resize_no_copy!(v, noutputs), outputs)
+            map(v -> resize_no_copy!(v, noutputs), outputs)
 
             if LIA === Val(true) || LIA === Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
@@ -535,7 +536,7 @@ function _compute_on_nodes!(
     @assert length(fields) ∈ (1, 2)  # maximum 2 fields: streamfunction + velocity
 
     with_shortrange = shortrange
-    with_longrange = longrange && LIA !== Val(:only) && cache.longrange !== NullLongRangeCache()
+    with_longrange = longrange && LIA !== Val(:only) && !(cache.longrange isa NullLongRangeCache)
 
     # This is used by short and long-range computations (done on the CPU)..
     # TODO: skip unneeded quantities if LIA === Val(:only) or LIA === Val(false)
@@ -669,11 +670,11 @@ Copy computed values onto a vector of vectors.
   array. In that case, it will be used as an intermediate buffer array, and thus passing it may help reduce CPU allocations.
 """
 function copy_output_values_on_nodes!(
-        op::F, vs::AbstractVector, vs_d::AbstractVector, buf::Union{Nothing, HostVector} = nothing,
+        op::F, vs, vs_d::AbstractVector, buf::Union{Nothing, HostVector} = nothing,
     ) where {F <: Function}
     backend = KA.get_backend(something(buf, vs_d))
-    T = Filaments.number_type(vs_d)
     n = length(vs_d)
+    T = Filaments.number_type(vs_d)
     buf_host = if backend isa CPU  # if vs_d is on the CPU
         nothing  # we don't need a buffer if doing CPU -> CPU copy
     elseif buf === nothing

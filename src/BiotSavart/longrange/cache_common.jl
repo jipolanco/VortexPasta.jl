@@ -31,13 +31,14 @@ end
 
 struct LongRangeCacheCommon{
         T <: AbstractFloat,
-        Params <: ParamsLongRange,
-        ParamsAll <: ParamsBiotSavart{T},
-        WaveNumbers <: NTuple{3, AbstractVector{T}},
-        PointCharges <: PointData{T},
+        N,
+        Params <: AbstractParamsLongRange,
+        ParamsAll <: AbstractParams{T},
+        WaveNumbers <: NTuple{N, AbstractVector{T}},
+        PointCharges <: AbstractPointData{T},
         OutputVectors <: NamedTuple,
-        FourierVectorField <: StructArray{Vec3{Complex{T}}, 3},
-        RealScalarField <: AbstractArray{T, 3},
+        FourierVectorField <: StructArray{SVector{N, Complex{T}}, N},
+        RealScalarField <: AbstractArray{T, N},
         Timer <: TimerOutput,
     }
     params      :: Params
@@ -65,21 +66,22 @@ struct EwaldInterpolationCallback{ScalarField <: AbstractArray} <: Function
     data :: ScalarField
 end
 
-# Note: to be compatible with NonuniformFFTs, the callback must have the signature f(û::NTuple{3}, idx::NTuple{3}).
-# (Same signature as default_callback_interp.)
-@inline function (f::EwaldInterpolationCallback)(û::NTuple{3,T}, idx::NTuple{3}) where {T}
+# Note: to be compatible with NonuniformFFTs, the callback must have the signature f(û::NTuple{C}, idx::NTuple{N}),
+# where N is the spatial dimension and C the number of vector components (C = 1 for a scalar).
+@inline function (f::EwaldInterpolationCallback)(û::NTuple, idx::NTuple)
     @inbounds op = f.data[idx...]
-    map(v -> T(v * op), û)
+    T = eltype(û)
+    map(v -> T(op * v), û)
 end
 
 @inline get_ewald_interpolation_callback(c::LongRangeCacheCommon) = EwaldInterpolationCallback(c.ewald_op_fourier)
 @inline get_ewald_interpolation_callback(c::LongRangeCache) = get_ewald_interpolation_callback(c.common)
 
 function LongRangeCacheCommon(
-        params_all::ParamsBiotSavart{T},
-        wavenumbers::NTuple{3, AbstractVector},
-        pointdata_in::PointData{T},
-    ) where {T}
+        params_all::AbstractParams{T},
+        wavenumbers::NTuple{N, AbstractVector},
+        pointdata_in::AbstractPointData{T},
+    ) where {T, N}
     pcommon = params_all.common
     params = params_all.longrange
     (; Γ, Ls, splitting,) = pcommon
@@ -87,7 +89,7 @@ function LongRangeCacheCommon(
     @assert T === eltype(pcommon)
     @assert splitting !== NoSplitting()
     Nks = map(length, wavenumbers)
-    uhat = init_fourier_vector_field(backend, T, Nks) :: StructArray{Vec3{Complex{T}}, 3}
+    uhat = init_fourier_vector_field(backend, T, Nks)::StructArray{SVector{N, Complex{T}}, N}
     vorticity_prefactor = Γ / prod(Ls)
     ka_backend = KA.get_backend(backend)  # CPU, CUDABackend, ROCBackend, ...
     wavenumbers = adapt(ka_backend, wavenumbers)  # copy wavenumbers onto device if needed
@@ -95,15 +97,18 @@ function LongRangeCacheCommon(
     if pointdata.points === pointdata_in.points   # if they are aliased (typically the case with CPU or POCLBackend)
         pointdata = copy(pointdata)  # make sure pointdata and pointdata_in are not aliased!
     end
-    outputs = (;
-        velocity = copy(pointdata.charges),
-        streamfunction = copy(pointdata.charges),
-        default = copy(pointdata.charges),  # this is the "default" output when no output has been selected
-    )
+    outputs = _longrange_outputs(pointdata)
     ewald_op_fourier = init_ewald_operator_fourier(T, backend, wavenumbers, splitting)
     state = LongRangeCacheState()
     to = TimerOutput()
     LongRangeCacheCommon(params, params_all, wavenumbers, pointdata, outputs, uhat, vorticity_prefactor, ewald_op_fourier, state, to)
 end
+
+# 3D case
+_longrange_outputs(data::PointData) = (;
+    velocity = copy(data.charges),
+    streamfunction = copy(data.charges),
+    default = copy(data.charges),  # this is the "default" output when no output has been selected
+)
 
 has_real_to_complex(c::LongRangeCacheCommon) = has_real_to_complex(c.params)

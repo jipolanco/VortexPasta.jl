@@ -10,6 +10,16 @@ Abstract type representing a splitting kernel used to perform Ewald summation.
 abstract type AbstractEwaldSplitting end
 
 """
+    PeriodicSplitting{N} <: AbstractEwaldSplitting
+
+Type of splitting for periodic boundary conditions in `N` dimensions.
+
+In practice all splittings are subtypes `PeriodicSplitting`, except for [`NoSplitting`](@ref)
+which disables splitting and periodic BCs.
+"""
+abstract type PeriodicSplitting{N} <: AbstractEwaldSplitting end
+
+"""
     NoSplitting <: AbstractEwaldSplitting
     NoSplitting()
 

@@ -1,13 +1,24 @@
+# These are used for 2D and 3D
+abstract type AbstractParamsCommon{T} end
+abstract type AbstractParamsShortRange{T} end
+abstract type AbstractParamsLongRange{T} end
+abstract type AbstractParams{T} end  # full params (ParamsBiotSavart or ParamsPointVortex)
+
+# Returns the float type used (e.g. Float64)
+Base.eltype(::Type{<:AbstractParams{T}}) where {T} = T
+Base.eltype(p::AbstractParams) = eltype(typeof(p))
+
+Base.eltype(::Type{<:AbstractParamsCommon{T}}) where {T} = T
+Base.eltype(p::AbstractParamsCommon) = eltype(typeof(p))
+
 # Common parameters to short- and long-range computations.
-# Note: it would be nice to further constrain the Alpha parameter (commented code below),
-# but then precompilation fails (enters an infinite loop?). Tested on Julia 1.10-rc1.
 struct ParamsCommon{
         T <: AbstractFloat,
         Splitting <: AbstractEwaldSplitting,
         Periods <: NTuple{3, Union{T, Infinity}},
         Quad <: StaticSizeQuadrature,
         QuadNearSingularity <: StaticSizeQuadrature,
-    }
+    } <: AbstractParamsCommon{T}
     Γ  :: T        # vortex circulation
     a  :: T        # vortex core size
     Δ  :: T        # LIA coefficient given by core vorticity profile
@@ -60,9 +71,6 @@ function to_hdf5(g, p::ParamsCommon{T}) where {T}
     nothing
 end
 
-Base.eltype(::Type{<:ParamsCommon{T}}) where {T} = T
-Base.eltype(p::ParamsCommon) = eltype(typeof(p))
-
 function Base.convert(::Type{T}, p::ParamsCommon) where {T <: AbstractFloat}
     (; Γ, a, Δ, splitting, Ls, quad, quad_near_singularity, avoid_explicit_erf) = p
     ParamsCommon{T}(Γ, a, Δ, splitting, Ls, quad, quad_near_singularity, avoid_explicit_erf)  # converts all floats to type T
@@ -76,12 +84,11 @@ struct ParamsShortRange{
         Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
         LIASegmentFraction <: Union{Nothing, T},
-    }
+    } <: AbstractParamsShortRange{T}
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, splitting, Ls)
     rcut    :: T           # cutoff distance (can be Inf)
-    rcut_sq :: T           # squared cutoff distance (can be Inf)
     lia_segment_fraction :: LIASegmentFraction
     use_simd :: Bool
 
@@ -106,11 +113,10 @@ struct ParamsShortRange{
             2 * rcut ≤ min(Ls...) ||
                 error(lazy"cutoff distance `rcut = $rcut` is too large. It must be less than half the cell unit size `L` in each direction: Ls = $Ls.")
         end
-        rcut_sq = rcut * rcut
         new{
             T, typeof(backend), typeof(quad), typeof(common), typeof(lia_segment_fraction)
         }(
-            backend, quad, common, rcut, rcut_sq, lia_segment_fraction, use_simd,
+            backend, quad, common, rcut, lia_segment_fraction, use_simd,
         )
     end
 end
@@ -144,7 +150,7 @@ struct ParamsLongRange{
         Backend <: LongRangeBackend,
         Quadrature <: StaticSizeQuadrature,
         Common <: ParamsCommon{T},
-    }
+    } <: AbstractParamsLongRange{T}
     backend :: Backend
     quad    :: Quadrature  # quadrature rule used for numerical integration
     common  :: Common      # common parameters (Γ, splitting, Ls)
@@ -219,6 +225,7 @@ Mandatory and optional keyword arguments are detailed in the extended help below
   long-range computations.
   Possible choices are:
   - [`GaussianSplitting`](@ref): standard Gaussian splitting window;
+  - [`KaiserBesselSplitting`](@ref): a more efficient splitting window;
   - [`NoSplitting`](@ref): disables Ewald splitting and periodicity.
 
 ## Optional keyword arguments and their defaults
@@ -303,7 +310,7 @@ struct ParamsBiotSavart{
         Common <: ParamsCommon{T},
         ShortRange <: ParamsShortRange,
         LongRange <: ParamsLongRange,
-    }
+    } <: AbstractParams{T}
     common     :: Common
     shortrange :: ShortRange
     longrange  :: LongRange
@@ -357,24 +364,22 @@ function Base.convert(::Type{T}, p::ParamsBiotSavart) where {T <: AbstractFloat}
     ParamsBiotSavart(common, shortrange, longrange)
 end
 
+Base.ndims(::ParamsBiotSavart) = 3
+
 # Returns `true` if `Ls` contains `Inf` (one or more times), `false` otherwise.
 is_open_domain(Ls::Tuple) = any(isinf, Ls)
 
 default_short_range_backend(::NoSplitting) = NaiveShortRangeBackend()  # cell lists not implemented for open boundary conditions
-default_short_range_backend(::AbstractEwaldSplitting) = CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
+default_short_range_backend(::PeriodicSplitting) = CellListsBackend(2)  # use 2 subdivisions by default (generally faster)
 
 default_long_range_backend(::NoSplitting) = NullLongRangeBackend()
-default_long_range_backend(::AbstractEwaldSplitting) = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4))  # this gives 6-digit NUFFT accuracy
+default_long_range_backend(::PeriodicSplitting) = NonuniformFFTsBackend(σ = 1.5, m = HalfSupport(4))  # this gives 6-digit NUFFT accuracy
 
 # By default, use explicit SIMD on CPU, and disable it on GPU (still needs to be tested, and
 # currently seems to fail on CUDA with `LLVM error: Undefined external symbol "exp"`)
 default_use_simd(backend::ShortRangeBackend) = default_use_simd(KA.get_backend(backend))
 default_use_simd(::CPU) = true
 default_use_simd(::GPU) = false
-
-# Returns the float type used (e.g. Float64)
-Base.eltype(::Type{<:ParamsBiotSavart{T}}) where {T} = T
-Base.eltype(p::ParamsBiotSavart) = eltype(typeof(p))
 
 """
     BiotSavart.circulation(p::ParamsBiotSavart) -> Γ

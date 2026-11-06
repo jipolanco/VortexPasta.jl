@@ -1,3 +1,5 @@
+abstract type AbstractPointData{T} end  # this is used for 2D and 3D
+
 """
     PointData{T <: AbstractFloat}
     PointData(::Type{T}) -> PointData{T}
@@ -26,9 +28,9 @@ struct PointData{
         Indices <: AbstractVector{I},
         HostBuf <: HostVector{T},
         HostBufInt <: HostVector{I},
-    }
+    } <: AbstractPointData{T}
     nodes         :: Vecs     # [Np] filament nodes (where velocity will be computed)
-    nodes_mod     :: Vecs     # this may optionally store a modified version of the nodes (e.g. rescaled nodes for NonuniformFFTsBackend)
+    nodes_mod     :: Vecs     # this may optionally store a modified version of the nodes (e.g. rescaled nodes for NonuniformFFTsBackend) -- used only by long-range backend
     node_idx_prev :: Indices  # [Np] index in 1:Np of node located to the "left" of a given node (accounts for periodic wrapping of closed filaments) -> only used in short-range when avoid_explicit_erf == false
     points    :: Vecs      # [Nq] quadrature points, i.e. interpolated locations s⃗ on segments
     charges   :: Vecs      # [Nq] rescaled tangent vector q * s⃗′ on segments (where `q` is the quadrature weight)
@@ -37,6 +39,12 @@ struct PointData{
     buf_host :: HostBuf         # buffer for host-device transfers
     buf_host_int :: HostBufInt  # same for integer values (indices)
 end
+
+get_source_points_shortrange(data::PointData) = data.points  # input points for short-range backend (not rescaled)
+get_destination_points_shortrange(data::PointData) = data.nodes  # output points for short-range backend (not rescaled)
+
+get_source_points_longrange(data::PointData) = data.points  # input points for long-range backend (already rescaled if necessary)
+get_destination_points_longrange(data::PointData) = data.nodes_mod  # output points for long-range backend (already rescaled if necessary)
 
 # If `to` corresponds to a GPU backend, create PointData object on the GPU (useful for long-range computations
 # with GPU backend). Returns `p` without allocations if data must be adapted from CPU to

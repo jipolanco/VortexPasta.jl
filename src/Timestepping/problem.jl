@@ -3,7 +3,7 @@
     VortexFilamentProblem(fs::AbstractVector{<:AbstractFilament}, tspan::NTuple{2,Real}, p::ParamsBiotSavart)
     VortexFilamentProblem(checkpoint::LoadedCheckpoint, tsim::Real, p::ParamsBiotSavart)
 
-Define a vortex filament problem.
+Contains the definition of a vortex filament problem.
 
 There are basically two ways of defining a problem:
 
@@ -23,7 +23,7 @@ There are basically two ways of defining a problem:
 
 - `p`: Biot–Savart parameters (see [`ParamsBiotSavart`](@ref)).
 
-See [`init`](@ref) for initialising a solver from a `VortexFilamentProblem`.
+Once constructed, the problem can be passed to [`init`](@ref) to set-up a simulation.
 """
 struct VortexFilamentProblem{
         T <: AbstractFloat,
