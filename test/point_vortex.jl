@@ -105,7 +105,7 @@ end
     vortices_f32 = PointVortexState(points_f32, ref.vortices.signs)
     @test vortices_f32 isa PointVortexState{Float32}
     params_f32 = @inferred ParamsPointVortex(; Γ = Float32(Γ), splitting, backend_short, backend_long)
-    @test params isa ParamsPointVortex{Float32}
+    @test params_f32 isa ParamsPointVortex{Float32}
     results = point_vortex_interactions(vortices_f32, params_f32)
     vs_only = @inferred velocity_on_nodes(results.cache, vortices_f32)
     @test typeof(vs_only) == typeof(vortices_f32.points)  # returned velocities are Float32
