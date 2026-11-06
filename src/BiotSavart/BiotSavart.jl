@@ -369,7 +369,7 @@ function callback_vorticity(cache::LongRangeCache)
     wavenumbers = adapt(Array, wavenumbers)
     uhat = adapt(Array, field)::NTuple{3}  # (ωx, ωy, ωz) in Fourier space
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
-    @assert with_hermitian_symmetry == wavenumbers[1][end] > 0
+    @assert with_hermitian_symmetry == (wavenumbers[1][end] > 0)
     E = 0.0
     for I ∈ CartesianIndices(uhat[1])
         k⃗ = map(getindex, wavenumbers, Tuple(I))

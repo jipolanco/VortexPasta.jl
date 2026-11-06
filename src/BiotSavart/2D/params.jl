@@ -166,16 +166,17 @@ function ParamsPointVortex(
     ) where {T <: AbstractFloat}
     Ls = periods(splitting)::NTuple{2, Real}
     Ns = fourier_grid_size(splitting)
-    rcut = cutoff_distance(splitting)
+    rcut = T(cutoff_distance(splitting))
     common = ParamsCommon2D{T}(Γ, splitting, Ls)
     sr = ParamsShortRange2D(backend_short, common, rcut)
     lr = ParamsLongRange2D(backend_long, common, Ns, longrange_truncate_spherical)
     ParamsPointVortex(common, sr, lr)
 end
 
-ParamsPointVortex(Γ::T; splitting::PeriodicSplitting{2}, kws...) where {T} = ParamsPointVortex(Γ, splitting; kws...)
-ParamsPointVortex(::Type{T}; Γ::Real, kws...) where {T} = ParamsPointVortex(T(Γ); kws...)
-ParamsPointVortex(; Γ, kws...) = ParamsPointVortex(Float64; Γ, kws...)
+ParamsPointVortex(Γ::T; splitting::PeriodicSplitting{2}, kws...) where {T <: AbstractFloat} =
+    ParamsPointVortex(Γ, splitting; kws...)
+ParamsPointVortex(Γ::Real; kws...) = ParamsPointVortex(Float64(Γ); kws...)  # e.g. if we pass Γ = 1 (integer)
+ParamsPointVortex(; Γ, kws...) = ParamsPointVortex(Γ; kws...)
 
 function Base.convert(::Type{T}, p::ParamsPointVortex) where {T <: AbstractFloat}
     common = convert(T, p.common)
