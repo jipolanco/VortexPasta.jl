@@ -78,6 +78,13 @@ save_checkpoint
 load_checkpoint
 ```
 
+## Point vortex simulations (2D)
+
+```@docs
+PointVortexProblem
+PointVortexSolver
+```
+
 ## Temporal schemes
 
 The following timesteppers are available.

@@ -3,6 +3,7 @@ using Random
 using StableRNGs: StableRNG
 using VortexPasta
 using VortexPasta.BiotSavart
+using VortexPasta.Timestepping
 using LinearAlgebra: norm
 using Adapt: adapt
 using KernelAbstractions: KernelAbstractions as KA, POCLBackend
@@ -171,3 +172,8 @@ end
     @test A.velocity ≈ B.velocity rtol=1e-7
     @test A.streamfunction ≈ B.streamfunction rtol=1e-6
 end
+
+# Timestepping
+Tsim = 1.0
+prob = PointVortexProblem(vortices, 1.0, params)
+# iter = init(prob, RK4(); dt = 0.1)

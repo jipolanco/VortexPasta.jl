@@ -66,6 +66,7 @@ end
 Base.eltype(::PointVortexState{T}) where {T} = T
 Base.eachindex(pv::PointVortexState) = eachindex(pv.points, pv.signs)  # fails if they have different lengths
 Base.length(pv::PointVortexState) = length(eachindex(pv))
+Base.copy(pv::PointVortexState) = PointVortexState(copy(pv.points), copy(pv.signs))
 
 include("params.jl")
 include("pointdata.jl")

@@ -9,6 +9,11 @@ struct ParamsCommon2D{T <: AbstractFloat, Splitting <: PeriodicSplitting{2}} <: 
     end
 end
 
+function Base.convert(::Type{T}, p::ParamsCommon2D) where {T <: AbstractFloat}
+    (; Γ, splitting, Ls) = p
+    ParamsCommon2D{T}(Γ, splitting, Ls)  # converts all floats to type T
+end
+
 function Base.show(io::IO, p::ParamsCommon2D)
     (; Γ,) = p
     indent = get(io, :indent, 0)
