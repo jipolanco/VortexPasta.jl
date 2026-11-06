@@ -160,6 +160,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
             @timeit to "Process point charges" process_point_charges!(cache)   # useful in particular for cell lists
             @timeit to "Fill with zeros" _reset_vectors!(outputs)  # we need to set everything to 0, since the function below _adds_ to existing values
             @timeit to "Pair interactions" add_pair_interactions_2D!(outputs, cache)
+            @timeit to "Remove self-interactions" remove_self_interaction_2D!(outputs, cache)
 
             yield()  # let other tasks run (not sure if this really helps)
 

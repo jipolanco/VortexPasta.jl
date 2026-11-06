@@ -251,6 +251,16 @@ end
 # See background_vorticity_correction! for details.
 background_vorticity_correction_factor(g::GaussianSplitting) = 1 / (4 * g.α²)
 
+# Correction for 2D streamfunction: we need to subtract the self-induced streamfunction by
+# the long-range part. This is -G_longrange(r⃗ = 0⃗).
+# For the Gaussian kernel:
+#
+#     G_longrange(r⃗) = -(log(r) + E₁(α²r²) / 2) / 2π => G_longrange(0⃗) = +(γ + log(α²)) / 4π
+#
+# where γ is the Euler–Mascheroni constant
+self_interaction_correction_streamfunction(g::GaussianSplitting{T, 2}) where {T} =
+    -T(MathConstants.γ + log(g.α²)) / (4 * T(π))
+
 include("SIMDFunctions/SIMDFunctions.jl")
 using .SIMDFunctions: SIMDFunctions
 

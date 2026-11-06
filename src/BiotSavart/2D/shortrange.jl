@@ -38,7 +38,6 @@ function add_pair_interactions_2D!(outputs::NamedTuple{Names}, cache::ShortRange
         r² = sum(abs2, r⃗)
 
         if r² ≤ rcut²
-            assume(r² > 0)  # tell the compiler that we're taking the square root of a positive number
             a, b = weights_shortrange_nosimd(ka_backend, splitting, r²)
             args = (prefactor_signed * a, prefactor_signed * b, r², r⃗)
             map(values(outputs), values(quantities)) do vs, quantity
@@ -55,3 +54,42 @@ end
 
 @inline short_range_contribution(::Streamfunction, a, b, r², r⃗::NTuple{2}) = a
 @inline short_range_contribution(::Velocity, a, b, r², r⃗::NTuple{2}) = (b / r²) .* (-r⃗[2], +r⃗[1])
+
+## ========================================================================================== ##
+## Remove spurious self-interaction included in long-range term
+
+function remove_self_interaction_2D!(outputs::NamedTuple{Names}, cache::ShortRangeCache) where {Names}
+    quantities = NamedTuple{Names}(possible_output_fields())  # e.g. (velocity = Velocity(),)
+    map(values(outputs), values(quantities)) do vs, quantity
+        _remove_self_interaction_2D!(quantity, vs, cache)
+        nothing
+    end
+    nothing
+end
+
+# Nothing to do for the velocity (the self-induced long-range velocity is zero)
+_remove_self_interaction_2D!(::Velocity, args...) = nothing
+
+function _remove_self_interaction_2D!(::Streamfunction, ψs::AbstractVector, cache::ShortRangeCache)
+    (; splitting, pointdata, params) = cache
+    (; Γ) = params.common
+    (; signs) = pointdata
+
+    # This correction term comes from the evaluation of the long-range Green's function at r⃗ = 0⃗.
+    #
+    # For the Gaussian kernel:
+    #
+    #     G_longrange(r⃗) = -(log(r) + E₁(α²r²) / 2) / 2π => G_longrange(0⃗) = +(γ + log(α²)) / 4π
+    #
+    # where γ is the Euler–Mascheroni constant
+    correction = Γ * self_interaction_correction_streamfunction(splitting)
+
+    # This works on CPU (threaded) and GPU.
+    @assert eachindex(ψs) == eachindex(signs)
+    AK.foreachindex(ψs; max_tasks = Threads.nthreads(), block_size = 256) do i
+        @inline
+        @inbounds ψs[i] += to_real(signs[i]) * correction
+    end
+
+    nothing
+end
