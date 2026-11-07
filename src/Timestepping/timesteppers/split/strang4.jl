@@ -37,7 +37,7 @@ nbuf_velocities(scheme::Strang4) = 1 + max(nbuf_velocities(scheme.fast), nbuf_ve
 
 function _update_velocities!(
         scheme::Strang4, vs, rhs_full!::F, advect!::G, cache, iter::AbstractSolver;
-        t = get_t(iter), dt = get_dt(iter), fs = iter.fs,
+        t = get_t(iter), dt = get_dt(iter), fs = get_vortex_positions(iter),
     ) where {F, G}
     (; fc, vc,) = cache
 

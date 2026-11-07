@@ -880,6 +880,7 @@ function init(
 end
 
 get_vortices(iter::VortexFilamentSolver) = iter.fs
+get_vortex_positions(iter::VortexFilamentSolver) = iter.fs
 
 function allocate_field_for_filament(f::AbstractFilament)
     allocate_field_for_filament(typeof(f), f)  # by default, return a Filament

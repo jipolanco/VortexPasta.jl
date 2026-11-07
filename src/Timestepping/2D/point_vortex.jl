@@ -76,9 +76,9 @@ function _advect_point_vortices!(points::AbstractVector, fbase::Nothing, vL::Abs
 end
 
 # Called from intermediate RK stages (advance points from a base state)
-function _advect_point_vortices!(points::AbstractVector, fbase::PointVortexState, vL::AbstractVector, dt)
+function _advect_point_vortices!(points::AbstractVector, fbase::AbstractVector, vL::AbstractVector, dt)
     Threads.@threads for i in eachindex(points, vL)
-        @inbounds points[i] = fbase.points[i] + dt * vL[i]
+        @inbounds points[i] = fbase[i] + dt * vL[i]
     end
     points
 end
@@ -193,7 +193,8 @@ function init(
     iter
 end
 
-get_vortices(iter::PointVortexSolver) = iter.vortices
+get_vortices(iter::PointVortexSolver) = iter.vortices  # positions + signs (PointVortexState)
+get_vortex_positions(iter::PointVortexSolver) = iter.vortices.points  # positions vector
 
 # Called whenever vortex positions have just been initialised or updated.
 function finalise_step!(iter::PointVortexSolver; force_computation_of_fields = false)::SimulationStatus

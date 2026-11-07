@@ -12,7 +12,7 @@ nbuf_velocities(::CrankNicolson) = 1
 
 function _update_velocities!(
         ::CrankNicolson, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver;
-        t = get_t(iter), dt = get_dt(iter), fs = iter.fs,
+        t = get_t(iter), dt = get_dt(iter), fs = get_vortex_positions(iter),
     ) where {F <: Function, G <: Function}
     (; fc, vc,) = cache
     ftmp = fc[1]

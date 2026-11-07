@@ -14,7 +14,7 @@ nbuf_velocities(::Vern6) = 6
 
 function _update_velocities!(
         ::Vern6, vs, rhs!::F, advect!::G, cache, iter::AbstractSolver;
-        t = get_t(iter), dt = get_dt(iter), fs = iter.fs,
+        t = get_t(iter), dt = get_dt(iter), fs = get_vortex_positions(iter),
     ) where {F <: Function, G <: Function}
     (; fc, vc,) = cache
     fbase = fs
