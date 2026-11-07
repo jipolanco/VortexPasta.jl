@@ -94,12 +94,12 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
 end
 
 function update_velocities!(
-        vL::VectorOfVectors, rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver;
+        vL::AbstractVector, rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver;
         resize_cache = true, kws...,
     ) where {F <: Function, G <: Function}
     (; to,) = iter
     if resize_cache
-        @timeit to "Resize timestepping cache" resize!(cache, iter.fs)  # in case the number of nodes (or filaments) has changed
+        @timeit to "Resize timestepping cache" resize!(cache, get_vortices(iter))  # in case the number of nodes (or filaments) has changed
     end
     _update_velocities!(scheme(cache), vL, rhs!, advect!, cache, iter; kws...)
 end

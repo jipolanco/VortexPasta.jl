@@ -175,5 +175,5 @@ end
 
 # Timestepping
 Tsim = 1.0
-prob = PointVortexProblem(vortices, 1.0, params)
-# iter = init(prob, RK4(); dt = 0.1)
+prob = @inferred PointVortexProblem(vortices, 1.0, params)
+iter = @inferred init(prob, RK4(); dt = 0.1)

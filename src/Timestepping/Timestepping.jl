@@ -71,7 +71,7 @@ using Accessors: @delete  # allows to remove entry from (Named)Tuple
 using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
 
 abstract type AbstractProblem end
-abstract type AbstractSolver end
+abstract type AbstractSolver{T} end
 
 @enum SimulationStatus begin
     SUCCESS
@@ -171,7 +171,7 @@ struct LocalTerm <: FastBiotSavartTerm
 end
 
 """
-    VortexFilamentSolver{T <: AbstractFloat} <: AbstractSolver
+    VortexFilamentSolver{T <: AbstractFloat} <: AbstractSolver{T}
 
 Contains the instantaneous state of a vortex filament simulation.
 
@@ -260,7 +260,7 @@ struct VortexFilamentSolver{
         DissipationCache,
         AdvectFunction <: Function,
         RHSFunction <: Function,
-    } <: AbstractSolver
+    } <: AbstractSolver{T}
     prob  :: Problem
     fs    :: Filaments
     mode  :: Mode
@@ -879,6 +879,8 @@ function init(
     iter
 end
 
+get_vortices(iter::VortexFilamentSolver) = iter.fs
+
 function allocate_field_for_filament(f::AbstractFilament)
     allocate_field_for_filament(typeof(f), f)  # by default, return a Filament
 end
@@ -1015,13 +1017,13 @@ function _fold_and_refine!(f::AbstractFilament, fields::Tuple; L_fold, refinemen
 end
 
 """
-    solve!(iter::VortexFilamentSolver)
+    solve!(iter::AbstractSolver)
 
 Advance vortex filament solver to the ending time.
 
 See also [`step!`](@ref) for advancing one step at a time.
 """
-function solve!(iter::VortexFilamentSolver)
+function solve!(iter::AbstractSolver)
     (; time, adaptivity,) = iter
     t_end = iter.prob.tspan[2]
     while time.t < t_end
@@ -1045,20 +1047,22 @@ end
 
 # Returns the maximum |v⃗| from a VectorOfVectors.
 # We mainly use it to get the maximum velocity norm among all filament nodes.
-function maximum_vector_norm(vs::VectorOfVectors{<:Vec3})
-    T = number_type(vs)
-    @assert T <: AbstractFloat
+function maximum_vector_norm(vs::VectorOfVectors{<:SVector})
+    maximum(maximum_vector_norm, vs)
+end
+
+function maximum_vector_norm(vs::AbstractVector{SVector{N, T}}) where {N, T}
     v²_max = zero(T)
-    # Note: eachindex avoids iterating over ghost cells (which we don't want) if vnodes is a PaddedVector
-    for vnodes in vs, i in eachindex(vnodes)
-        @inbounds v² = sum(abs2, vnodes[i])::T
+    # Note: eachindex avoids iterating over ghost cells (which we don't want) if vs is a PaddedVector
+    for i in eachindex(vs)
+        @inbounds v² = sum(abs2, vs[i])
         v²_max = max(v²_max, v²)
     end
     sqrt(v²_max)
 end
 
 """
-    step!(iter::VortexFilamentSolver) -> SimulationStatus
+    step!(iter::AbstractSolver) -> SimulationStatus
 
 Advance solver by a single timestep.
 
@@ -1068,11 +1072,19 @@ Returns a `SimulationStatus`. Currently, this can be:
 - `NO_VORTICES_LEFT`: all vortices have been removed from the system; the simulation should
   be stopped.
 """
-function step!(iter::VortexFilamentSolver{T}) where {T}
-    (; fs, quantities, time, adaptivity, dtmin, advect!, rhs!, to) = iter
-    (; ψs, vL,) = quantities
-    vL_start = ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
+function step!(iter::VortexFilamentSolver)::SimulationStatus
+    vL_buf = iter.quantities.ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
+    _step!(iter, iter.fs, vL_buf)
+end
+
+function _step!(iter::AbstractSolver{T}, fs, vL_buf) where {T}
+    (; quantities, time, adaptivity, dtmin, advect!, rhs!, to) = iter
+    (; vL,) = quantities
+
+    # Copy velocity at the beginning of the timestep
+    vL_start = vL_buf
     copyto!(vL_start, vL)
+
     t_end = iter.prob.tspan[2]
     if time.dt < dtmin && time.t + time.dt < t_end
         error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
@@ -1142,8 +1154,7 @@ function Reconnections.reconnect!(iter::VortexFilamentSolver)
 end
 
 # Called whenever filament positions have just been initialised or updated.
-# Returns a SimulationStatus.
-function finalise_step!(iter::VortexFilamentSolver; force_computation_of_fields = false)
+function finalise_step!(iter::VortexFilamentSolver; force_computation_of_fields = false)::SimulationStatus
     (; fs, time, stats, adaptivity, rhs!, to) = iter
     (; vs, vL, ψs,) = iter.quantities
 
