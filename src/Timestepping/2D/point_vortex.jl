@@ -248,3 +248,5 @@ function step!(iter::PointVortexSolver)::SimulationStatus
     (; vL_buf) = iter.quantities
     _step!(iter, iter.vortices.points, vL_buf)
 end
+
+include("diagnostics.jl")

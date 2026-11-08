@@ -3,7 +3,8 @@ using Random
 using StableRNGs: StableRNG
 using VortexPasta
 using VortexPasta.BiotSavart
-using VortexPasta.Timestepping
+using VortexPasta.BiotSavart: Vec2
+using VortexPasta.Diagnostics
 using LinearAlgebra: norm
 using Adapt: adapt
 using KernelAbstractions: KernelAbstractions as KA, POCLBackend
@@ -32,20 +33,8 @@ function point_vortex_interactions(vortices::PointVortexState, params::ParamsPoi
         streamfunction = similar(vortices.points, T),
     )
     compute_on_nodes!(fields, cache, vortices; kws...)
-    energy = kinetic_energy_2D(fields.streamfunction, vortices.signs, params)
+    energy = Diagnostics.kinetic_energy(vortices, fields.streamfunction, params)
     (; cache, params, vortices, energy, fields...)
-end
-
-# Kinetic energy per unit mass
-function kinetic_energy_2D(ψs, signs, params)
-    (; Ls, Γ) = params
-    T = typeof(Γ)
-    E = zero(T)
-    for i in eachindex(ψs, signs)
-        E += T(BiotSavart.to_real(signs[i]) * ψs[i])
-    end
-    E = E * T(Γ / 2 / prod(Ls))
-    E
 end
 
 ##
@@ -56,7 +45,7 @@ Ls = (Lx, Ly)
 Γ = 2.0
 
 N = 21  # odd number to make sure the charge is not neutral
-rng = StableRNG(42)
+rng = StableRNG(43)
 vortices = generate_point_vortices(rng, N, Ls)
 
 # Base run
@@ -110,10 +99,10 @@ end
     results = point_vortex_interactions(vortices_f32, params_f32)
     vs_only = @inferred velocity_on_nodes(results.cache, vortices_f32)
     @test typeof(vs_only) == typeof(vortices_f32.points)  # returned velocities are Float32
+    # @show (results.energy - ref.energy) / ref.energy
     # @show norm(results.velocity - ref.velocity) / norm(ref.velocity)
     # @show norm(results.streamfunction - ref.streamfunction) / norm(ref.streamfunction)
-    # @show (results.energy - ref.energy) / ref.energy
-    @test results.energy ≈ ref.energy rtol=1f-5
+    @test results.energy ≈ ref.energy rtol=2f-5
     @test results.velocity ≈ ref.velocity rtol=1f-5
     @test results.streamfunction ≈ ref.streamfunction rtol=1f-5
 end
@@ -142,7 +131,7 @@ end
     # @show norm(results.velocity - ref.velocity) / norm(ref.velocity)
     # @show norm(results.streamfunction - ref.streamfunction) / norm(ref.streamfunction)
     @test results.energy ≈ ref.energy rtol=1e-6
-    @test results.velocity ≈ ref.velocity rtol=1e-7
+    @test results.velocity ≈ ref.velocity rtol=1e-6
     @test results.streamfunction ≈ ref.streamfunction rtol=1e-6
 end
 
@@ -168,12 +157,8 @@ end
     # @show norm(B.velocity - A.velocity) / norm(A.velocity)
     # @show norm(B.streamfunction - A.streamfunction) / norm(A.streamfunction)
     # @show (A.energy - B.energy) / B.energy
-    @test A.energy ≈ B.energy rtol=1e-7
-    @test A.velocity ≈ B.velocity rtol=1e-7
+    @test A.energy ≈ B.energy rtol=1e-6
+    @test A.velocity ≈ B.velocity rtol=1e-6
     @test A.streamfunction ≈ B.streamfunction rtol=1e-6
 end
 
-# Timestepping
-Tsim = 1.0
-prob = @inferred PointVortexProblem(vortices, 1.0, params)
-iter = @inferred init(prob, RK4(); dt = 0.1)

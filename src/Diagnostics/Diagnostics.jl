@@ -15,7 +15,8 @@ using ..Filaments:
     knots, segments, integrate,
     number_type
 
-using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, ParamsBiotSavart, Infinity
+using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, ParamsBiotSavart, Infinity,
+                    ParamsPointVortex, PointVortexState
 using ..Devices: Devices, CPU, GPU
 
 using Bumper: Bumper, @no_escape, @alloc
@@ -73,5 +74,7 @@ include("spectra.jl")
 include("spectra_helicity.jl")
 include("energy_flux.jl")
 include("integral_scale.jl")
+
+include("2D/energy.jl")
 
 end

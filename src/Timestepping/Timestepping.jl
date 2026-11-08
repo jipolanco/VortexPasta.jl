@@ -404,6 +404,8 @@ end
 get_dt(iter::AbstractSolver) = iter.time.dt
 get_t(iter::AbstractSolver) = iter.time.t
 scheme(iter::AbstractSolver) = scheme(iter.cache_timestepper)
+get_problem(iter::AbstractSolver) = iter.prob
+get_params(iter::AbstractSolver) = get_problem(iter).p  # ParamsBiotSavart or ParamsPointVortex
 
 """
     can_compute_diagnostics(iter::VortexFilamentSolver) -> Bool
