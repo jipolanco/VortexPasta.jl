@@ -1,5 +1,7 @@
+abstract type AbstractBiotSavartCache end
+
 """
-    BiotSavartCache
+    BiotSavartCache <: AbstractBiotSavartCache
 
 Includes arrays and data required for computation of Biot–Savart integrals.
 
@@ -22,7 +24,7 @@ struct BiotSavartCache{
         ShortRange <: ShortRangeCache,
         LongRange <: LongRangeCache,
         Timer,
-    }
+    } <: AbstractBiotSavartCache
     params     :: Params
     pointdata  :: Data
     shortrange :: ShortRange

@@ -1,5 +1,5 @@
 """
-    PointVortexCache
+    PointVortexCache <: AbstractBiotSavartCache
 
 Includes arrays and data required for computation of point vortex Biot–Savart interactions.
 
@@ -21,7 +21,7 @@ struct PointVortexCache{
         ShortRange <: ShortRangeCache,
         LongRange <: LongRangeCache,
         Timer,
-    }
+    } <: AbstractBiotSavartCache
     params     :: Params
     pointdata  :: Data
     shortrange :: ShortRange

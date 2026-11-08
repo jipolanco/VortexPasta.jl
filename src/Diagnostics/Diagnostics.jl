@@ -16,7 +16,7 @@ using ..Filaments:
     number_type
 
 using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, ParamsBiotSavart, Infinity,
-                    ParamsPointVortex, PointVortexState
+                    ParamsPointVortex, PointVortexState, AbstractBiotSavartCache
 using ..Devices: Devices, CPU, GPU
 
 using Bumper: Bumper, @no_escape, @alloc
@@ -26,6 +26,7 @@ using KernelAbstractions:
     @kernel, @index, @Const, @groupsize, @localmem, @synchronize, @uniform, @ndrange
 using AcceleratedKernels: AcceleratedKernels as AK
 using Atomix: Atomix
+using StaticArrays: SVector
 using StructArrays: StructArrays, StructArray
 using LinearAlgebra: ⋅, ×
 

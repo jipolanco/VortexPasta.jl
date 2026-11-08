@@ -44,7 +44,7 @@ See also [`energy_spectrum`](@ref) for an allocating variant which doesn't need 
 """
 function energy_spectrum! end
 
-get_long_range_cache(c::BiotSavartCache) = c.longrange
+get_long_range_cache(c::AbstractBiotSavartCache) = c.longrange
 
 function init_spectrum_wavenumbers(cache::LongRangeCache)
     (; wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache)
@@ -154,13 +154,14 @@ function _compute_spectrum_impl_cpu_threads!(
     ) where {F <: Function}
     T = eltype(Ek_threads)
     Nk, nchunks = size(Ek_threads)
+    D = length(uhat)  # number of dimensions
     Base.require_one_based_indexing(Ek_threads)
 
     Threads.@threads for j in 1:nchunks
         Ek_local = @view Ek_threads[:, j]
         fill!(Ek_local, zero(T))
 
-        # Parallelise along last dimension (z).
+        # Parallelise along last dimension (z in 3D).
         inds_all = axes(uhat[1])
         inds_front = Base.front(inds_all)  # indices x, y
         inds_last = last(inds_all)         # indices z
@@ -171,7 +172,7 @@ function _compute_spectrum_impl_cpu_threads!(
 
         @inbounds for i_last in inds_last_thread, I_front in CartesianIndices(inds_front)
             I = CartesianIndex(I_front, i_last)
-            k⃗ = Vec3(map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I)))
+            k⃗ = SVector(map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I)))
             kx = k⃗[1]::T
 
             # Find bin for current k⃗
@@ -181,8 +182,8 @@ function _compute_spectrum_impl_cpu_threads!(
             n = 1 + unsafe_trunc(Int, knorm * Δk_inv + T(0.5))  # this implicitly assumes ks[begin] == 0
 
             if n ≤ Nk
-                u⃗ = Vec3(
-                    ntuple(Val(3)) do d
+                u⃗ = SVector(
+                    ntuple(Val(D)) do d
                         @inline
                         @inbounds(uhat[d][I])::Complex{T}
                     end
@@ -240,6 +241,7 @@ end
     ) where {F}
     T = eltype(Ek_blocks)
     Nk = size(Ek_blocks, 1)     # spectrum length
+    D = length(uhat)  # number of dimensions
 
     # We use unsafe_indices=true since we explicitly check that we're inbounds below.
     # This means that we should avoid explicitly asking for global indices.
@@ -257,7 +259,7 @@ end
     #  - n = wavenumber bin corresponding to the local k⃗
     # Results are written to the shared memory arrays E_sm and n_sm (fast storage shared by the workgroup).
     if checkbounds(Bool, uhat[1], I)
-        k⃗ = Vec3(map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I)))
+        k⃗ = SVector(map((v, i) -> @inbounds(v[i]), wavenumbers, Tuple(I)))
         kx = k⃗[1]::T
 
         # Find bin for current k⃗
@@ -268,8 +270,8 @@ end
 
         # Compute energy at current k⃗ and fill local arrays
         if n ≤ Nk
-            u⃗ = Vec3(
-                ntuple(Val(3)) do d
+            u⃗ = SVector(
+                ntuple(Val(D)) do d
                     @inline
                     @inbounds(uhat[d][I])::Complex{T}
                 end

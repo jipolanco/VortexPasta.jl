@@ -115,7 +115,6 @@ include("timesteppers/timesteppers.jl")
 include("adaptivity.jl")
 include("problem.jl")
 include("simulation_stats.jl")
-include("2D/point_vortex.jl")
 
 function Base.show(io::IO, time::TimeInfo)
     (; nstep, nrejected, t, dt, dt_prev,) = time
@@ -221,20 +220,19 @@ equivalent to `iter.quantities.vs` (this also applies to all other quantities).
 If a normal fluid is present (e.g. by passing `forcing = NormalFluidForcing(...)` to [`init`](@ref)),
 then the following quantities are also available:
 
-- `vL`: actual filament velocity after mutual friction due to normal fluid (see [`NormalFluidForcing`](@ref)).
+- `vL`: actual filament velocity, including `vs` and potentially other contributions
+  (forcing, mutual friction, ...).
+
+- `vf`: external forcing velocity if a forcing scheme has been enabled.
+
+- `vdiss`: external dissipation velocity if a dissipation scheme has been enabled.
 
 - `vn`: normal fluid velocity at vortex locations.
 
 - `tangents`: unit tangents ``\\bm{s}'`` at vortex locations.
 
-For convenience, if there is no normal fluid, then `vL` is defined as an alias of `vs`
-(they're the same object).
-
-If `forcing = FourierBandForcingBS(...)` is passed (see [`FourierBandForcingBS`](@ref)),
-then the `vf` field contains the forcing term.
-Similarly, if `dissipation` contains a dissipation term (e.g. [`DissipationBS`](@ref) or
-[`SmallScaleDissipationBS`](@ref)), then the `vdiss` field contains the dissipation term.
-
+For convenience, if there is no normal fluid or external forcing, then `vL` is defined as an
+alias of `vs` (they're the same object).
 """
 struct VortexFilamentSolver{
         T <: AbstractFloat,
@@ -1294,6 +1292,8 @@ include("rhs.jl")     # update_values_at_nodes! (a.k.a. iter.rhs!)
 include("forcing.jl")
 include("diagnostics.jl")
 include("checkpoint.jl")
+
+include("2D/point_vortex.jl")
 
 end
 
