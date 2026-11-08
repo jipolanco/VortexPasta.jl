@@ -84,7 +84,53 @@ function _advect_point_vortices!(points::AbstractVector, fbase::AbstractVector, 
 end
 
 """
-    PointVortexSolver{T <: AbstractFloat} <: AbstractSolver
+    PointVortexSolver{T <: AbstractFloat} <: AbstractSolver{T}
+
+Contains the instantaneous state of a point vortex simulation.
+
+Must be constructed using [`init`](@ref).
+
+# Included fields
+
+Some useful fields included in a `PointVortexSolver` are:
+
+- `prob`: associated [`PointVortexProblem`](@ref) (including point vortex parameters);
+
+- `vortices::PointVortexState`: current state of point vortices in the system (positions and signs);
+
+- `quantities`: a `NamedTuple` containing data on point vortices at the current simulation
+  timestep. See **Physical quantities** below for more details.
+
+- `time`: a [`TimeInfo`](@ref) object containing information such as the current time and timestep;
+
+- `to`: a `TimerOutput`, which records the time spent on different functions;
+
+- `cache_bs`: the point vortex cache, which contains data from short- and
+  long-range computations.
+
+## Physical quantities
+
+The `quantities` field is a `NamedTuple` containing instantaneous data on point vortices.
+For example, `quantities.vs` is the self-induced vortex velocity.
+
+For convenience, if one has a `PointVortexSolver` `iter`, the shortcut `iter.vs` is
+equivalent to `iter.quantities.vs` (this also applies to all other quantities).
+
+### List of quantities
+
+- `vs`: self-induced vortex velocity due to Biot–Savart's law.
+
+- `vL`: actual point vortex velocity, including `vs` and potentially other contributions.
+
+- `vf`: external forcing velocity if a forcing scheme has been enabled.
+
+- `vdiss`: external dissipation velocity if a dissipation scheme has been enabled.
+
+- `ψs`: self-induced streamfunction on vortices. This is useful for estimating the kinetic
+  energy associated to the induced velocity field.
+
+For convenience, if there is no normal fluid or external forcing, then `vL` is defined as an
+alias of `vs` (they're the same object).
 """
 struct PointVortexSolver{
         T <: AbstractFloat,
@@ -120,6 +166,99 @@ struct PointVortexSolver{
     rhs!::RHSFunction        # function for estimating filament velocities (and sometimes streamfunction) from their positions
 end
 
+function Base.show(io_in::IO, iter::PointVortexSolver)
+    io = IOContext(io_in, :prefix => " │  ")  # this may be used by some `show` functions, for example for the forcing
+    print(io, "PointVortexSolver with fields:")
+    print(io, "\n ├─ prob: ", iter.prob)
+    print(io, "\n ├─ vortices: ", iter.vortices)
+    print(io, "\n ├─ vL: ", summary(iter.vL))
+    print(io, "\n ├─ vs: ", summary(iter.vs))
+    print(io, "\n ├─ ψs: ", summary(iter.ψs))
+    print(io, "\n ├─ time: ")
+    summary(io, iter.time)
+    print(io, "\n ├─ dtmin: ", iter.dtmin)
+    print(io, "\n ├─ adaptivity: ", iter.adaptivity)
+    print(io, "\n ├─ fold_periodic: ", iter.fold_periodic)
+    print(io, "\n ├─ cache_bs: ")
+    summary(io, iter.cache_bs)
+    print(io, "\n ├─ cache_timestepper: ")
+    summary(io, iter.cache_timestepper)
+    _maybe_print_function(io, "\n ├─ affect!:", iter.affect!)
+    _maybe_print_function(io, "\n ├─ affect_t!:", iter.affect_t!)
+    _maybe_print_function(io, "\n ├─ callback:", iter.callback)
+    print(io, "\n ├─ step_diagnostics: ", iter.step_diagnostics)
+    print(io, "\n ├─ step_adaptivity: ", iter.step_adaptivity)
+    # if iter.forcing !== NoForcing()
+    #     print(io, "\n ├─ forcing: ", iter.forcing)  # note: this draws a "subtree"
+    # end
+    # if iter.dissipation !== NoDissipation()
+    #     print(io, "\n ├─ dissipation: ", iter.dissipation)  # note: this draws a "subtree"
+    # end
+    print(io, "\n ├─ advect!: Function")
+    print(io, "\n ├─ rhs!: Function")
+    print(io, "\n └─ to: ")
+    summary(io, iter.to)
+end
+
+@doc raw"""
+    init(prob::PointVortexProblem, scheme::TemporalScheme; dt::Real, kws...) -> PointVortexProblem
+
+Initialise point vortex problem.
+
+Returns a [`PointVortexSolver`](@ref) which can be advanced in time using
+either [`step!`](@ref) or [`solve!`](@ref).
+
+# Mandatory positional arguments
+
+- `prob`: a [`PointVortexProblem`](@ref) containing the problem definition.
+
+- `scheme`: a timestepping scheme (see [`TemporalScheme`](@ref)).
+
+# Mandatory keyword arguments
+
+- `dt::Real`: the simulation timestep.
+
+# Optional keyword arguments
+
+- `adaptivity = NoAdaptivity()`: criterion used for adaptively setting the timestep `dt`.
+  See [`AdaptivityCriterion`](@ref) for a list of possible criteria.
+  Note that not all criteria are compatible with point vortex simulations
+  (e.g. [`AdaptBasedOnSegmentLength`](@ref) only makes sense in 3D).
+
+- `dtmin = 0.0`: minimum `dt` for adaptive timestepping. If `dt < dtmin`, the
+  solver is stopped with an error.
+
+- `fold_periodic = true`: if `true` (default), vortices will be recentred onto the main unit cell
+  when using periodic boundary conditions. It may be convenient to disable this for
+  visualisation purposes. This setting doesn't affect the results, besides possible spatial
+  translations of the vortices proportional to the domain period.
+
+- `callback`: a function to be called at the end of each timestep. Its signature must be
+  `callback(iter::VortexFilamentSolver)`. **Filaments should not be modified** by this
+  function. In that case use `affect!` instead. See notes below for more details.
+
+- `affect!`: similar to `callback`, but allows to modify filaments and other quantities at
+  the end of each timestep. Its signature must be `affect!(iter::VortexFilamentSolver)`.
+  See notes below for more details.
+
+- `affect_t!`: similar to `affect!`, but allows to modify filaments and other quantities
+  _within a timestep_ (e.g. within each Runge–Kutta substep). Its signature must be
+  `affect_t!(iter::VortexFilamentSolver, time::Real)`. See notes below for more details.
+
+- `step_diagnostics = 1`: every how many timesteps will diagnostics (from the
+  [`Diagnostics`](@ref) module) be computed. This is used to avoid computing certain
+  quantities (such as `ψs`) which are only needed for diagnostics (e.g. energy). If this option is used,
+  one should call [`can_compute_diagnostics`](@ref) before computing any diagnostics.
+
+- `step_adaptivity = 1`: every how many simulation steps will we adapt the time step `Δt`
+  (see `adaptivity` option). When using splitting methods (e.g. [`Strang`](@ref)) combined
+  with [`AdaptBasedOnVelocity`](@ref), this can have an extra cost since it will force
+  computation of velocities at the start of a time step. For that reason, it can make sense
+  to set this equal to `step_diagnostics` (which also force velocity computations).
+
+- `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
+  recording the time spent on different functions.
+"""
 function init(
         prob::PointVortexProblem{T}, scheme::TemporalScheme;
         dt::Real,

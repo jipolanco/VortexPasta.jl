@@ -59,7 +59,7 @@ energy = [E₀]
 
 while iter.t < iter.prob.tspan[2]
     step!(iter)
-    if iter.nstep % 1 == 0
+    if iter.nstep % 10 == 0
         # time_obs[] = iter.t
         # notify(ψs_obs)
         # notify(points_obs)  # update plot
