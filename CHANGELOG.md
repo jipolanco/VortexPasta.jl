@@ -5,6 +5,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Implement 2D point vortex simulations.
+
+### Changed
+
+- Remove `quasi_2D` mode (no longer needed, now that we have an actual 2D mode).
+
 ## [0.35.2] - 2026-11-03
 
 ### Added

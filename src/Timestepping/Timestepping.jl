@@ -71,7 +71,7 @@ using Accessors: @delete  # allows to remove entry from (Named)Tuple
 using TimerOutputs: TimerOutputs, TimerOutput, @timeit, reset_timer!
 
 abstract type AbstractProblem end
-abstract type AbstractSolver end
+abstract type AbstractSolver{T} end
 
 @enum SimulationStatus begin
     SUCCESS
@@ -81,11 +81,6 @@ end
 abstract type SimulationMode end
 struct DefaultMode <: SimulationMode end
 struct MinimalEnergy <: SimulationMode end
-
-include("timesteppers/timesteppers.jl")
-include("adaptivity.jl")
-include("problem.jl")
-include("simulation_stats.jl")
 
 """
     TimeInfo
@@ -115,6 +110,11 @@ In that case, the iteration will be recomputed with a smaller timestep (`dt → 
     dt      :: Float64 = 0
     dt_prev :: Float64 = 0
 end
+
+include("timesteppers/timesteppers.jl")
+include("adaptivity.jl")
+include("problem.jl")
+include("simulation_stats.jl")
 
 function Base.show(io::IO, time::TimeInfo)
     (; nstep, nrejected, t, dt, dt_prev,) = time
@@ -170,7 +170,7 @@ struct LocalTerm <: FastBiotSavartTerm
 end
 
 """
-    VortexFilamentSolver
+    VortexFilamentSolver{T <: AbstractFloat} <: AbstractSolver{T}
 
 Contains the instantaneous state of a vortex filament simulation.
 
@@ -220,23 +220,22 @@ equivalent to `iter.quantities.vs` (this also applies to all other quantities).
 If a normal fluid is present (e.g. by passing `forcing = NormalFluidForcing(...)` to [`init`](@ref)),
 then the following quantities are also available:
 
-- `vL`: actual filament velocity after mutual friction due to normal fluid (see [`NormalFluidForcing`](@ref)).
+- `vL`: actual filament velocity, including `vs` and potentially other contributions
+  (forcing, mutual friction, ...).
+
+- `vf`: external forcing velocity if a forcing scheme has been enabled.
+
+- `vdiss`: external dissipation velocity if a dissipation scheme has been enabled.
 
 - `vn`: normal fluid velocity at vortex locations.
 
 - `tangents`: unit tangents ``\\bm{s}'`` at vortex locations.
 
-For convenience, if there is no normal fluid, then `vL` is defined as an alias of `vs`
-(they're the same object).
-
-If `forcing = FourierBandForcingBS(...)` is passed (see [`FourierBandForcingBS`](@ref)),
-then the `vf` field contains the forcing term.
-Similarly, if `dissipation` contains a dissipation term (e.g. [`DissipationBS`](@ref) or
-[`SmallScaleDissipationBS`](@ref)), then the `vdiss` field contains the dissipation term.
-
+For convenience, if there is no normal fluid or external forcing, then `vL` is defined as an
+alias of `vs` (they're the same object).
 """
 struct VortexFilamentSolver{
-        T,
+        T <: AbstractFloat,
         Problem <: VortexFilamentProblem{T},
         Filaments <: VectorOfVectors{Vec3{T}, <:AbstractFilament{T}},
         Mode <: SimulationMode,
@@ -259,11 +258,11 @@ struct VortexFilamentSolver{
         DissipationCache,
         AdvectFunction <: Function,
         RHSFunction <: Function,
-    } <: AbstractSolver
+    } <: AbstractSolver{T}
     prob  :: Problem
     fs    :: Filaments
     mode  :: Mode
-    quantities :: Quantities  # stored fields: (vs, ψs) + optional ones (vn, tangents, ...)
+    quantities :: Quantities  # stored fields: (vs, ψs) + optional ones (vn, vf, tangents, ...)
     time  :: TimeInfo
     stats :: SimulationStats{T}
     dtmin :: T
@@ -274,7 +273,6 @@ struct VortexFilamentSolver{
     cache_timestepper :: CacheTimestepper
     fast_term         :: FastTerm
     LIA           :: Bool
-    quasi_2D      :: Bool
     fold_periodic :: Bool
     reparametrise_arclength :: Bool  # reparametrise filaments at the end of each timestep?
     affect!    :: Affect      # signature: affect!(iter)
@@ -325,7 +323,6 @@ function Base.show(io_in::IO, iter::VortexFilamentSolver)
     print(io, "\n ├─ reconnect: ", Reconnections.criterion(iter.reconnect))
     print(io, "\n ├─ fast_term: ", iter.fast_term)
     print(io, "\n ├─ LIA: ", iter.LIA)
-    print(io, "\n ├─ quasi_2D: ", iter.quasi_2D)
     print(io, "\n ├─ fold_periodic: ", iter.fold_periodic)
     print(io, "\n ├─ reparametrise_arclength: ", iter.reparametrise_arclength)
     print(io, "\n ├─ cache_bs: ")
@@ -359,7 +356,7 @@ end
 
 # This is for convenience: allows doing e.g. `iter.t` instead of `iter.time.t` to get the
 # current time.
-@inline function Base.getproperty(iter::VortexFilamentSolver, name::Symbol)
+@inline function Base.getproperty(iter::AbstractSolver, name::Symbol)
     time = getfield(iter, :time)
     quantities = getfield(iter, :quantities)
     if hasproperty(time, name)
@@ -371,7 +368,7 @@ end
     end
 end
 
-function Base.propertynames(iter::VortexFilamentSolver, private::Bool = false)
+function Base.propertynames(iter::AbstractSolver, private::Bool = false)
     (fieldnames(typeof(iter))..., propertynames(iter.quantities, private)..., propertynames(iter.time, private)...)
 end
 
@@ -400,9 +397,11 @@ function _maybe_print_function(io, prefix, f_to::Function)
     nothing
 end
 
-get_dt(iter::VortexFilamentSolver) = iter.time.dt
-get_t(iter::VortexFilamentSolver) = iter.time.t
-scheme(iter::VortexFilamentSolver) = scheme(iter.cache_timestepper)
+get_dt(iter::AbstractSolver) = iter.time.dt
+get_t(iter::AbstractSolver) = iter.time.t
+scheme(iter::AbstractSolver) = scheme(iter.cache_timestepper)
+get_problem(iter::AbstractSolver) = iter.prob
+get_params(iter::AbstractSolver) = get_problem(iter).p  # ParamsBiotSavart or ParamsPointVortex
 
 """
     can_compute_diagnostics(iter::VortexFilamentSolver) -> Bool
@@ -418,7 +417,7 @@ This returns `true` in either of the follwing two cases:
 - if `nstep % step_diagnostics == 0`,
 - if we're at the end of the simulation, i.e. `iter.t ≥ iter.prob.tspan[2]`.
 """
-function can_compute_diagnostics(iter::VortexFilamentSolver)::Bool
+function can_compute_diagnostics(iter::AbstractSolver)::Bool
     (; nstep, step_diagnostics, t, prob) = iter
     maybe_last_timestep = t ≥ prob.tspan[2]  # enable computation of diagnostics after the end of the simulation
     maybe_last_timestep || (nstep % step_diagnostics == 0)
@@ -464,14 +463,6 @@ either [`step!`](@ref) or [`solve!`](@ref).
   with `fast_term = LocalTerm(δ)` to set a constant local segment length `δ` (so that
   the local velocity does not depend on the spatial resolution of vortex lines).
   Note that one can still enable reconnections when `LIA = true`.
-
-- `quasi_2D = false`: if `true`, the simulation will be run in "quasi 2D" mode, which will
-  assume that all vortices are straight and aligned with the ``z`` direction. In particular,
-  this mode sets to 0 the LIA velocities, which suppresses temporal instabilities
-  (associated to the Kelvin wave CFL-like condition) when filaments are straight. This
-  allows the use of larger timesteps. It also ensures that initially straight vortices
-  stay straight over time, suppressing small 3D fluctuations usually due to the finite
-  accuracy of the NUFFT step.
 
 - `fold_periodic = true`: if `true` (default), vortices will be recentred onto the main unit cell
   when using periodic boundary conditions. It may be convenient to disable this for
@@ -717,9 +708,8 @@ Forcing should be disabled to run in this mode.
 """
 function init(
         prob::VortexFilamentProblem{T}, scheme::TemporalScheme;
-        alias_u0::Bool = false,  # deprecated and ignored (kept for backwards compatibility)
         dt::Real,
-        dtmin::Real = 0.0,
+        dtmin::Real = zero(T),
         fast_term::FastBiotSavartTerm = LocalTerm(),
         refinement::RefinementCriterion = NoRefinement(),
         reconnect::ReconnectionCriterion = NoReconnections(),
@@ -727,7 +717,6 @@ function init(
         fold_periodic::Bool = true,
         reparametrise_arclength::Bool = requires_arclength_parametrisation(scheme),
         LIA::Bool = false,
-        quasi_2D::Bool = false,
         callback::Callback = default_callback(),  # by default this is an empty function which just returns `nothing`
         affect!::Affect = default_callback(),
         affect_t!::AffectTime = default_callback(),
@@ -754,10 +743,6 @@ function init(
     }
     (; tspan, state,) = prob
     (; Ls,) = prob.p
-
-    if alias_u0
-        @warn "option `alias_u0 = true` is now ignored and will be removed in the future"
-    end
 
     fs = let
         gs = map(prob.fs) do f
@@ -866,7 +851,7 @@ function init(
 
     iter = VortexFilamentSolver(
         prob, fs, mode, quantities, time, stats, T(dtmin), refinement, adaptivity_, cache_reconnect,
-        cache_bs, cache_timestepper, fast_term, LIA, quasi_2D, fold_periodic, reparametrise_arclength, affect_, affect_t_, callback_,
+        cache_bs, cache_timestepper, fast_term, LIA, fold_periodic, reparametrise_arclength, affect_, affect_t_, callback_,
         step_diagnostics, step_adaptivity, step_refinement, step_reconnect, external_fields,
         stretching_velocity, forcing, forcing_cache, dissipation, dissipation_cache,
         timer, advect!, rhs!,
@@ -882,6 +867,9 @@ function init(
 
     iter
 end
+
+get_vortices(iter::VortexFilamentSolver) = iter.fs
+get_vortex_positions(iter::VortexFilamentSolver) = iter.fs
 
 function allocate_field_for_filament(f::AbstractFilament)
     allocate_field_for_filament(typeof(f), f)  # by default, return a Filament
@@ -1019,13 +1007,13 @@ function _fold_and_refine!(f::AbstractFilament, fields::Tuple; L_fold, refinemen
 end
 
 """
-    solve!(iter::VortexFilamentSolver)
+    solve!(iter::AbstractSolver)
 
 Advance vortex filament solver to the ending time.
 
 See also [`step!`](@ref) for advancing one step at a time.
 """
-function solve!(iter::VortexFilamentSolver)
+function solve!(iter::AbstractSolver)
     (; time, adaptivity,) = iter
     t_end = iter.prob.tspan[2]
     while time.t < t_end
@@ -1049,20 +1037,22 @@ end
 
 # Returns the maximum |v⃗| from a VectorOfVectors.
 # We mainly use it to get the maximum velocity norm among all filament nodes.
-function maximum_vector_norm(vs::VectorOfVectors{<:Vec3})
-    T = number_type(vs)
-    @assert T <: AbstractFloat
+function maximum_vector_norm(vs::VectorOfVectors{<:SVector})
+    maximum(maximum_vector_norm, vs)
+end
+
+function maximum_vector_norm(vs::AbstractVector{SVector{N, T}}) where {N, T}
     v²_max = zero(T)
-    # Note: eachindex avoids iterating over ghost cells (which we don't want) if vnodes is a PaddedVector
-    for vnodes in vs, i in eachindex(vnodes)
-        @inbounds v² = sum(abs2, vnodes[i])::T
+    # Note: eachindex avoids iterating over ghost cells (which we don't want) if vs is a PaddedVector
+    for i in eachindex(vs)
+        @inbounds v² = sum(abs2, vs[i])
         v²_max = max(v²_max, v²)
     end
     sqrt(v²_max)
 end
 
 """
-    step!(iter::VortexFilamentSolver) -> SimulationStatus
+    step!(iter::AbstractSolver) -> SimulationStatus
 
 Advance solver by a single timestep.
 
@@ -1072,11 +1062,19 @@ Returns a `SimulationStatus`. Currently, this can be:
 - `NO_VORTICES_LEFT`: all vortices have been removed from the system; the simulation should
   be stopped.
 """
-function step!(iter::VortexFilamentSolver{T}) where {T}
-    (; fs, quantities, time, adaptivity, dtmin, advect!, rhs!, to) = iter
-    (; ψs, vL,) = quantities
-    vL_start = ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
+function step!(iter::VortexFilamentSolver)::SimulationStatus
+    vL_buf = iter.quantities.ψs  # reuse ψs to store velocity at start of timestep (needed by RK schemes)
+    _step!(iter, iter.fs, vL_buf)
+end
+
+function _step!(iter::AbstractSolver{T}, fs, vL_buf) where {T}
+    (; quantities, time, adaptivity, dtmin, advect!, rhs!, to) = iter
+    (; vL,) = quantities
+
+    # Copy velocity at the beginning of the timestep
+    vL_start = vL_buf
     copyto!(vL_start, vL)
+
     t_end = iter.prob.tspan[2]
     if time.dt < dtmin && time.t + time.dt < t_end
         error(lazy"current timestep is too small ($(time.dt) < $(dtmin)). Stopping.")
@@ -1146,8 +1144,7 @@ function Reconnections.reconnect!(iter::VortexFilamentSolver)
 end
 
 # Called whenever filament positions have just been initialised or updated.
-# Returns a SimulationStatus.
-function finalise_step!(iter::VortexFilamentSolver; force_computation_of_fields = false)
+function finalise_step!(iter::VortexFilamentSolver; force_computation_of_fields = false)::SimulationStatus
     (; fs, time, stats, adaptivity, rhs!, to) = iter
     (; vs, vL, ψs,) = iter.quantities
 
@@ -1284,6 +1281,8 @@ include("rhs.jl")     # update_values_at_nodes! (a.k.a. iter.rhs!)
 include("forcing.jl")
 include("diagnostics.jl")
 include("checkpoint.jl")
+
+include("2D/point_vortex.jl")
 
 end
 

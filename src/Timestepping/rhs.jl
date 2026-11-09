@@ -87,8 +87,6 @@ function _update_values_at_nodes!(
         else
             @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_local_vectors!(fields, iter.cache_bs, fs, term.δ)
         end
-    elseif iter.quasi_2D
-        @timeit to "Biot-Savart (quasi 2D)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; quasi_2D = true)
     else
         @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs)
     end
@@ -111,16 +109,16 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
-    (; to, quasi_2D) = iter
+    (; to) = iter
     T = eltype_nested(Vec3, fields.velocity)
     @assert T <: Vec3
     if iter.LIA
         fill!(fields.velocity, zero(T))
     elseif term.δ === nothing  # segment length in local term depends on local discretisation
-        @timeit to "Biot-Savart (excluding LIA)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false), quasi_2D)
+        @timeit to "Biot-Savart (excluding LIA)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(false))
     else  # use constant segment length in fast term
         # Compute almost full BS, but excluding the influence of local segments of fixed length δ.
-        @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; integration_cutoff = term.δ, quasi_2D)
+        @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; integration_cutoff = term.δ)
     end
     add_external_fields!(fields, iter, fs, t, iter.to)
     apply_forcing!(fields, iter, fs, t, iter.to)
@@ -135,8 +133,8 @@ function _update_values_at_nodes!(
         t::Real,
         iter::VortexFilamentSolver,
     )
-    (; to, quasi_2D) = iter
-    @timeit to "Biot-Savart (long-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = false, quasi_2D)
+    (; to) = iter
+    @timeit to "Biot-Savart (long-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; shortrange = false)
     add_external_fields!(fields, iter, fs, t, iter.to)
     apply_forcing!(fields, iter, fs, t, iter.to)
     nothing
@@ -156,9 +154,7 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     (; to) = iter
-    if iter.quasi_2D
-        @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only), quasi_2D = true)
-    elseif term.δ === nothing
+    if term.δ === nothing
         @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; LIA = Val(:only))
     else  # use constant segment length in fast term
         @timeit to "Biot-Savart (LIA only)" BiotSavart.compute_local_vectors!(fields, iter.cache_bs, fs, term.δ)
@@ -175,10 +171,6 @@ function _update_values_at_nodes!(
         iter::VortexFilamentSolver,
     )
     (; to) = iter
-    if iter.quasi_2D
-        @timeit to "Biot-Savart (short-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false, quasi_2D = true)
-    else
-        @timeit to "Biot-Savart (short-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
-    end
+    @timeit to "Biot-Savart (short-range)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, fs; longrange = false)
     nothing
 end

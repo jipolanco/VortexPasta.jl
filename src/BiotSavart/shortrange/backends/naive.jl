@@ -21,23 +21,26 @@ struct NaiveShortRangeCache{Common <: ShortRangeCacheCommon} <: ShortRangeCache
     common :: Common
 end
 
-function init_cache_short(
-        ::ParamsCommon, params::ParamsShortRange{T, <:NaiveShortRangeBackend}, pointdata::PointData,
+function _init_cache_short(
+        backend::NaiveShortRangeBackend, ::AbstractParamsCommon,
+        params::AbstractParamsShortRange{T}, pointdata::AbstractPointData,
     ) where {T}
+    @assert backend === params.backend
     common = ShortRangeCacheCommon(params, pointdata)
     NaiveShortRangeCache(common)
 end
 
-@inline function nearby_charges(c::NaiveShortRangeCache, x⃗::Vec3)
+@inline function nearby_charges(c::NaiveShortRangeCache, x⃗::SVector)
     (; pointdata,) = c
+    points = get_source_points_shortrange(pointdata)
     # Note: it's not worth it to filter out charges that are too far from x⃗, since that job
     # is done again when computing pair interactions.
     # So we simply return all charges one by one, regardless of x⃗.
-    eachindex(pointdata.points, pointdata.charges)
+    eachindex(points)
 end
 
 @inline function foreach_charge(
-        f::F, c::NaiveShortRangeCache, x⃗::Vec3;
+        f::F, c::NaiveShortRangeCache, x⃗::SVector;
         batch_size::Union{Nothing, Val} = nothing,  # see CellLists.foreach_source for details on this argument
         folded = Val(false),  # ignored (used in CellLists)
     ) where {F <: Function}
@@ -46,7 +49,7 @@ end
 end
 
 @inline function _foreach_charge(
-        f::F, batch_size::Nothing, c::NaiveShortRangeCache, x⃗::Vec3
+        f::F, batch_size::Nothing, c::NaiveShortRangeCache, x⃗::SVector
     ) where {F}
     for j in nearby_charges(c, x⃗)
         @inline f(j)
@@ -55,7 +58,7 @@ end
 end
 
 @inline function _foreach_charge(
-        f::F, ::Val{batch_size}, c::NaiveShortRangeCache, x⃗::Vec3
+        f::F, ::Val{batch_size}, c::NaiveShortRangeCache, x⃗::SVector
     ) where {F, batch_size}
     inds = MVector{batch_size, Int}(undef)
     m = 0
@@ -81,7 +84,7 @@ end
         batch_size::Union{Nothing, Val} = nothing,  # see CellLists.foreach_source for details on this argument
         folded = Val(false),  # ignored (used in CellLists)
     ) where {F <: Function}
-    (; nodes,) = c.pointdata
+    nodes = get_destination_points_shortrange(c.pointdata)
     Threads.@threads for i in eachindex(nodes)
         x⃗ = @inbounds nodes[i]
         g = CellLists.Fix12(f, x⃗, i)

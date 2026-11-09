@@ -15,22 +15,26 @@ with the number of non-uniform points.
 struct ExactSumBackend <: LongRangeBackend end
 
 struct ExactSumCache{
-        CacheCommon <: LongRangeCacheCommon,
-    } <: LongRangeCache
+        T, N,
+        CacheCommon <: LongRangeCacheCommon{T, N},
+    } <: LongRangeCache{N}
     common :: CacheCommon
 end
 
 has_real_to_complex(::ExactSumBackend) = true
 
-function init_cache_long_ewald(
-        params_all::ParamsBiotSavart{T},
-        params::ParamsLongRange{T, <:ExactSumBackend}, args...,
+function _init_cache_long_ewald(
+        backend::ExactSumBackend,
+        params_all::AbstractParams{T},
+        params::AbstractParamsLongRange{T}, args...,
     ) where {T}
+    @assert backend === params.backend
     pc = params_all.common
     @assert params === params_all.longrange
     (; Ls,) = pc
     (; Ns,) = params
-    wavenumbers = ntuple(Val(3)) do i
+    D = length(Ns)
+    wavenumbers = ntuple(Val(D)) do i
         N, L = Ns[i], Ls[i]
         f = i == 1 ? rfftfreq : fftfreq
         f(N, T(2π * N / L))
@@ -40,14 +44,15 @@ function init_cache_long_ewald(
 end
 
 # Set to zero "asymmetric" modes, to ease comparison with other implementations.
-function _ensure_hermitian_symmetry!(c::ExactSumCache, us::AbstractArray)
-    _ensure_hermitian_symmetry!(c, Val(ndims(us)), us)
+# TODO: is this different from the generic _ensure_hermitian_symmetry! function defined in longrange.jl??
+function _ensure_hermitian_symmetry_exactsum!(us::AbstractArray, ks)
+    _ensure_hermitian_symmetry_exactsum!(Val(ndims(us)), us, ks)
 end
 
 # Ensure Hermitian symmetry one dimension at a time.
-@inline function _ensure_hermitian_symmetry!(c::ExactSumCache, ::Val{d}, us) where {d}
+@inline function _ensure_hermitian_symmetry_exactsum!(::Val{d}, us, ks) where {d}
     N = size(us, d)
-    kd = c.common.wavenumbers[d]
+    kd = ks[d]
     Δk = kd[2]
     imin = if kd[end] > 0  # real-to-complex dimension (rfftfreq)
         @assert d == 1
@@ -64,46 +69,72 @@ end
         vs = view(us, inds...)
         fill!(vs, zero(eltype(vs)))
     end
-    _ensure_hermitian_symmetry!(c, Val(d - 1), us)
+    _ensure_hermitian_symmetry_exactsum!(Val(d - 1), us, ks)
 end
 
-_ensure_hermitian_symmetry!(::ExactSumCache, ::Val{0}, us) = us  # we're done, do nothing
+_ensure_hermitian_symmetry_exactsum!(::Val{0}, us, ks) = us  # we're done, do nothing
 
-function transform_to_fourier!(c::ExactSumCache, prefactor::Real)
-    (; uhat, wavenumbers, pointdata,) = c.common
-    (; points, charges,) = pointdata
+# Case of a vector field
+function _transform_to_fourier!(c::ExactSumCache, uhat::StructArray, charges::StructVector, xp_src, prefactor::Real)
+    (; wavenumbers,) = c.common
     @assert size(uhat) == map(length, wavenumbers)
     fill!(uhat, zero(eltype(uhat)))
     inds = CartesianIndices(uhat)
-    @inbounds for i ∈ eachindex(points, charges)
-        X = points[i]
+    @inbounds for i ∈ eachindex(xp_src, charges)
+        X = xp_src[i]
         Q = prefactor * charges[i]
         @inbounds Threads.@threads for I ∈ inds
-            k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
+            k⃗ = SVector(map(getindex, wavenumbers, Tuple(I)))
             uhat[I] += Q * cis(-k⃗ ⋅ X)
         end
     end
     # We zero out some "asymmetric" modes to ease the comparison with other implementations.
-    _ensure_hermitian_symmetry!(c, c.common.uhat)
+    _ensure_hermitian_symmetry_exactsum!(uhat, wavenumbers)
     c
 end
 
-function _interpolate_to_physical!(callback::F, output::StructVector, c::ExactSumCache) where {F}
-    (; uhat, wavenumbers, pointdata,) = c.common
-    (; nodes_mod,) = pointdata
-    @assert length(nodes_mod) == length(output)
+# Case of a scalar field
+function _transform_to_fourier!(
+        c::ExactSumCache, uhat::AbstractArray{<:Complex}, charges::AbstractVector{<:Number}, xp_src, prefactor::Real,
+    )
+    (; wavenumbers,) = c.common
+    @assert size(uhat) == map(length, wavenumbers)
+    fill!(uhat, zero(eltype(uhat)))
+    inds = CartesianIndices(uhat)
+    @inbounds for i in eachindex(xp_src, charges)
+        X = xp_src[i]
+        Q = prefactor * charges[i]
+        @inbounds Threads.@threads for I in inds
+            k⃗ = SVector(map((ks, j) -> @inbounds(ks[j]), wavenumbers, Tuple(I)))
+            uhat[I] += Q * cis(-k⃗ ⋅ X)
+        end
+    end
+    # We zero out some "asymmetric" modes to ease the comparison with other implementations.
+    _ensure_hermitian_symmetry_exactsum!(uhat, wavenumbers)
+    c
+end
+
+
+# Case of a vector field (either 3D Biot-Savart or 2D velocity field in point vortex)
+function _interpolate_to_physical!(
+        c::ExactSumCache, callback::F, output::StructVector, uhat::StructArray, xp_dest,
+    ) where {F <: Function}
+    (; wavenumbers,) = c.common
+    N = length(wavenumbers)
+    VecN = SVector{N}
+    @assert length(xp_dest) == length(output)
     kxs = first(wavenumbers)
     kx_lims = first(kxs), last(kxs)
     @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
-    @inbounds Threads.@threads for i ∈ eachindex(nodes_mod, output)
-        X = nodes_mod[i]
+    @inbounds Threads.@threads for i in eachindex(xp_dest, output)
+        X = xp_dest[i]
         q⃗ = zero(real(eltype(uhat)))
-        for I ∈ CartesianIndices(uhat)
-            k⃗ = Vec3(map(getindex, wavenumbers, Tuple(I)))
-            v_orig = uhat[I]::Vec3
-            v = Vec3(@inline callback(Tuple(v_orig), Tuple(I)))  # the callback takes tuples and returns tuples
+        for I in CartesianIndices(uhat)
+            k⃗ = VecN(map(getindex, wavenumbers, Tuple(I)))
+            v_orig = uhat[I]::VecN
+            v = VecN(@inline callback(Tuple(v_orig), Tuple(I)))  # the callback takes tuples and returns tuples
             z = cis(k⃗ ⋅ X)
-            δq⃗ = if k⃗[1] ∈ kx_lims
+            δq⃗ = if k⃗[1] in kx_lims
                 # Note: the imaginary part will cancel out with -k⃗ (also computed)
                 real(v) * real(z) - imag(v) * imag(z)  # = real(v * z)
             else
@@ -116,6 +147,43 @@ function _interpolate_to_physical!(callback::F, output::StructVector, c::ExactSu
             q⃗ = q⃗ + δq⃗
         end
         output[i] = q⃗
+    end
+    nothing
+end
+
+# Case of a scalar field (usually the streamfunction in 2D point vortex)
+function _interpolate_to_physical!(
+        c::ExactSumCache, callback::F, output::AbstractVector{T},
+        uhat::AbstractArray{Complex{T}}, xp_dest,
+    ) where {F <: Function, T <: Real}
+    (; wavenumbers,) = c.common
+    @assert length(xp_dest) == length(output)
+    kxs = first(wavenumbers)
+    kx_lims = first(kxs), last(kxs)
+    @assert kxs[2] > 0  # only positive half is included (Hermitian symmetry)
+    @inbounds Threads.@threads for i in eachindex(xp_dest, output)
+        X = xp_dest[i]
+        q = zero(T)
+        for I in CartesianIndices(uhat)
+            k⃗ = SVector(map(getindex, wavenumbers, Tuple(I)))
+            v_orig = uhat[I]::Complex{T}
+            # Note: the callback takes a tuple of C values as input, and returns a similar tuple.
+            # Here C = 1.
+            v = @inline callback((v_orig,), Tuple(I))[1]::Complex{T}
+            z = cis(k⃗ ⋅ X)
+            δq = if k⃗[1] in kx_lims
+                # Note: the imaginary part will cancel out with -k⃗ (also computed)
+                real(v) * real(z) - imag(v) * imag(z)  # = real(v * z)
+            else
+                # Apply Hermitian symmetry
+                2 * (
+                    real(v) * real(z) -
+                    imag(v) * imag(z)
+                ) # = real(v * z + conj(v) * conj(z))
+            end
+            q = q + δq
+        end
+        output[i] = q
     end
     nothing
 end

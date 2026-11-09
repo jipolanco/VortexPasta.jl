@@ -15,7 +15,8 @@ using ..Filaments:
     knots, segments, integrate,
     number_type
 
-using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, ParamsBiotSavart, Infinity
+using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, ParamsBiotSavart, Infinity,
+                    ParamsPointVortex, PointVortexState, AbstractBiotSavartCache
 using ..Devices: Devices, CPU, GPU
 
 using Bumper: Bumper, @no_escape, @alloc
@@ -25,6 +26,7 @@ using KernelAbstractions:
     @kernel, @index, @Const, @groupsize, @localmem, @synchronize, @uniform, @ndrange
 using AcceleratedKernels: AcceleratedKernels as AK
 using Atomix: Atomix
+using StaticArrays: SVector
 using StructArrays: StructArrays, StructArray
 using LinearAlgebra: ⋅, ×
 
@@ -73,5 +75,7 @@ include("spectra.jl")
 include("spectra_helicity.jl")
 include("energy_flux.jl")
 include("integral_scale.jl")
+
+include("2D/point_vortex.jl")
 
 end

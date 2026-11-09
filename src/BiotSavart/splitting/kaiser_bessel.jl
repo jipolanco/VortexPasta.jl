@@ -1,7 +1,7 @@
 using SpecialFunctions: besseli
 
 @doc raw"""
-    KaiserBesselSplitting{T <: AbstractFloat} <: AbstractEwaldSplitting
+    KaiserBesselSplitting{T <: AbstractFloat, N} <: PeriodicSplitting{N}
     KaiserBesselSplitting(; Ls, β, rcut, Ns, rtol)
 
 Kaiser--Bessel splitting kernel for Ewald summation.
@@ -131,7 +131,7 @@ struct KaiserBesselSplitting{
         T <: AbstractFloat, N,
         ChebEven <: ChebyshevSeries{:even, T},
         ChebOdd <: ChebyshevSeries{:odd, T},
-    } <: AbstractEwaldSplitting
+    } <: PeriodicSplitting{N}
     Ls::NTuple{N, T}
     β::T
     rcut::T

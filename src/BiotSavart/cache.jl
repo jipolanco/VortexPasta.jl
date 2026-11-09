@@ -1,5 +1,7 @@
+abstract type AbstractBiotSavartCache end
+
 """
-    BiotSavartCache
+    BiotSavartCache <: AbstractBiotSavartCache
 
 Includes arrays and data required for computation of Biot–Savart integrals.
 
@@ -22,7 +24,7 @@ struct BiotSavartCache{
         ShortRange <: ShortRangeCache,
         LongRange <: LongRangeCache,
         Timer,
-    }
+    } <: AbstractBiotSavartCache
     params     :: Params
     pointdata  :: Data
     shortrange :: ShortRange
@@ -43,7 +45,7 @@ function init_cache(
     )
     T = eltype(p)
     pointdata = PointData(T)
-    shortrange = init_cache_short(p.common, p.shortrange, pointdata)
+    shortrange = init_cache_short(p, pointdata)
     longrange = init_cache_long(p, pointdata)
     BiotSavartCache(p, pointdata, shortrange, longrange, timer)
 end
@@ -72,7 +74,7 @@ multiple GPUs are being used (e.g. GPU 1 for long-range computations and GPU 2 f
 """
 function get_longrange_field_fourier end
 
-get_longrange_field_fourier(cache::BiotSavartCache) = get_longrange_field_fourier(cache.longrange)
+get_longrange_field_fourier(cache::AbstractBiotSavartCache) = get_longrange_field_fourier(cache.longrange)
 
 function get_longrange_field_fourier(longrange::LongRangeCache)
     (; uhat, wavenumbers, state,) = longrange.common

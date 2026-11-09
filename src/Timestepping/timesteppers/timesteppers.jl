@@ -26,29 +26,23 @@ Contains buffers needed by a temporal scheme.
 struct TemporalSchemeCache{
         Scheme <: TemporalScheme,
         Nf, Nv,
-        Filaments <: VectorOfVectors{<:Vec3, <:AbstractFilament},
-        Velocities <: VectorOfVectors{<:Vec3},
+        Filaments <: AbstractVector,  # we keep this "vague", as it is supposed to work in 2D as well
+        Velocities <: AbstractVector,
     }
     scheme :: Scheme
-    fc     :: NTuple{Nf, Filaments}
-    vc     :: NTuple{Nv, Velocities}
-
+    fc     :: NTuple{Nf, Filaments}   # filaments (3D) or vortex points (2D)
+    vc     :: NTuple{Nv, Velocities}  # velocities
     function TemporalSchemeCache(scheme, fc::NTuple{Nf}, vc::NTuple{Nv}) where {Nf, Nv}
         @assert nbuf_filaments(scheme) == Nf
         @assert nbuf_velocities(scheme) == Nv
-        new{
-            typeof(scheme), Nf, Nv, eltype(fc), eltype(vc),
-        }(scheme, fc, vc)
+        new{typeof(scheme), Nf, Nv, eltype(fc), eltype(vc)}(scheme, fc, vc)
     end
 end
 
 Base.summary(io::IO, c::TemporalSchemeCache) = print(io, "TemporalSchemeCache(", scheme(c), ")")
 scheme(c::TemporalSchemeCache) = c.scheme
 
-function init_cache(
-        scheme::TemporalScheme,
-        fs::VectorOfVectors, vs::VectorOfVectors,
-    )
+function init_cache(scheme::TemporalScheme, fs::VectorOfVectors, vs::VectorOfVectors)
     Nf = nbuf_filaments(scheme)
     Nv = nbuf_velocities(scheme)
     fc = ntuple(_ -> similar(fs), Val(Nf))
@@ -100,12 +94,12 @@ function Base.resize!(cache::TemporalSchemeCache, fs::VectorOfFilaments)
 end
 
 function update_velocities!(
-        vL::VectorOfVectors, rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver;
+        vL::AbstractVector, rhs!::F, advect!::G, cache::TemporalSchemeCache, iter::AbstractSolver;
         resize_cache = true, kws...,
     ) where {F <: Function, G <: Function}
     (; to,) = iter
     if resize_cache
-        @timeit to "Resize timestepping cache" resize!(cache, iter.fs)  # in case the number of nodes (or filaments) has changed
+        @timeit to "Resize timestepping cache" resize!(cache, get_vortices(iter))  # in case the number of nodes (or filaments) has changed
     end
     _update_velocities!(scheme(cache), vL, rhs!, advect!, cache, iter; kws...)
 end

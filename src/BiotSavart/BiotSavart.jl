@@ -63,10 +63,10 @@ See [`ShortRangeBackend`](@ref) and [`LongRangeBackend`](@ref) for more details.
 abstract type AbstractBackend end
 
 const VectorOfFilaments = AbstractVector{<:AbstractFilament}
-const VectorOfVec = AbstractVector{<:Vec3}
-const VectorOfPositions = VectorOfVec
-const VectorOfVelocities = VectorOfVec
-const AllFilamentVelocities = AbstractVector{<:VectorOfVelocities}
+const VectorOfVec{T} = AbstractVector{Vec3{T}}
+const VectorOfPositions{T} = VectorOfVec{T}
+const VectorOfVelocities{T} = VectorOfVec{T}
+const AllFilamentVelocities{T} = AbstractVector{<:VectorOfVelocities{T}}
 
 include("devices.jl")
 include("host_device_transfers.jl")
@@ -81,6 +81,8 @@ include("cache.jl")
 include("shortrange/shortrange.jl")
 include("longrange/longrange.jl")
 
+include("2D/point_vortex.jl")
+
 """
     velocity_on_nodes(cache::BiotSavartCache, fs::AbstractVector{<:AbstractFilament}; kws...) -> vs
 
@@ -90,11 +92,7 @@ Returns a `vs` vector containing the velocities on filament nodes.
 
 See [`velocity_on_nodes!`](@ref) for more details.
 """
-function velocity_on_nodes(
-        cache::BiotSavartCache,
-        fs::AbstractVector{<:AbstractFilament};
-        kws...,
-    )
+function velocity_on_nodes(cache::BiotSavartCache, fs; kws...)
     vs = map(similar ∘ nodes, fs)
     velocity_on_nodes!(vs, cache, fs; kws...)
     vs
@@ -160,7 +158,7 @@ function velocity_on_nodes!(
 end
 
 # Extracts and resets output fields (velocity and/or streamfunction).
-function _setup_fields!(fields::NamedTuple{Names}, fs) where {Names}
+function _setup_fields!(fields::NamedTuple{Names}, fs::AbstractVector{<:AbstractFilament}) where {Names}
     N = length(fields)
     @assert N > 0
     vs = get(fields, :velocity, nothing)
@@ -169,7 +167,7 @@ function _setup_fields!(fields::NamedTuple{Names}, fs) where {Names}
     nfields = length(vecs)
     nfields == N || throw(ArgumentError(lazy"some of these fields were not recognised: $Names"))
     for us ∈ vecs
-        eachindex(us) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of vector"))
+        eachindex(us) == eachindex(fs) || throw(DimensionMismatch("wrong dimensions of output field"))
         _reset_vectors!(us)
     end
     nothing
@@ -371,7 +369,7 @@ function callback_vorticity(cache::LongRangeCache)
     wavenumbers = adapt(Array, wavenumbers)
     uhat = adapt(Array, field)::NTuple{3}  # (ωx, ωy, ωz) in Fourier space
     with_hermitian_symmetry = BiotSavart.has_real_to_complex(cache)  # this depends on the long-range backend
-    @assert with_hermitian_symmetry == wavenumbers[1][end] > 0
+    @assert with_hermitian_symmetry == (wavenumbers[1][end] > 0)
     E = 0.0
     for I ∈ CartesianIndices(uhat[1])
         k⃗ = map(getindex, wavenumbers, Tuple(I))
@@ -393,17 +391,48 @@ compute_on_nodes!(...; callback_vorticity)
 """
 function compute_on_nodes!(
         fields::NamedTuple, cache::BiotSavartCache, fs::VectorOfFilaments;
-        LIA = Val(true), quasi_2D::Bool = false, kws...,
+        longrange::Bool = true, shortrange::Bool = true,
+        callback_vorticity::Fvort = identity,
+        LIA = Val(true), integration_cutoff::Union{Nothing, Real} = nothing,  # these are specific to 3D
+    ) where {Fvort <: Function}
+
+    # This function will be called while we wait for short-range and long-range tasks (which
+    # may be run on a GPU), so it can be performed asynchronously on the CPU.
+    function do_while_waiting_async_tasks!(fields)
+        local (; to, params) = cache
+        if shortrange && LIA !== Val(:only)
+            @debug "Computing synchronous operations"
+            @timeit to "CPU-only operations (synchronous)" begin
+                if params.shortrange.lia_segment_fraction !== nothing
+                    @timeit to "Add local integrals" add_local_integrals!(fields, cache, fs)
+                end
+                # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
+                background_vorticity_correction!(fields, fs, params)  # this is very fast, so we don't time it
+            end
+        end
+        nothing
+    end
+
+    options = (; LIA, integration_cutoff)  # passed to do_shortrange!
+    _compute_on_nodes!(
+        fields, cache, fs, options;
+        with_shortrange = shortrange,
+        with_longrange = longrange && LIA !== Val(:only) && !(cache.longrange isa NullLongRangeCache),
+        callback_vorticity,
+        do_while_waiting_async_tasks!,
     )
-    _compute_on_nodes!(fields, cache, fs; LIA, quasi_2D, kws...)
+
+    # Pad results to avoid garbage values in ghost cells, taking into account the
+    # periodicity of the filaments.
+    foreach(fill_ghost_values!, fields)
+
     fields
 end
 
 function do_longrange!(
-        cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu;
-        quasi_2D::Bool = false,
+        cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu::PointData;
         callback_vorticity::Fvort,
-    ) where {Fvort}
+    ) where {Fvort <: Function}
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -417,7 +446,7 @@ function do_longrange!(
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             # Resize output arrays
             noutputs = length(pointdata_cpu.nodes)
-            foreach(v -> resize_no_copy!(v, noutputs), outputs)
+            map(v -> resize_no_copy!(v, noutputs), outputs)
 
             @timeit to "Copy point charges (host -> device)" begin
                 # Only copy fields needed for long-range computations
@@ -429,7 +458,7 @@ function do_longrange!(
             @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
 
             # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
-            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache; quasi_2D)  # reads pointdata (points and charges)
+            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
 
             if callback_vorticity !== identity
                 @timeit to "Vorticity callback" callback_vorticity(cache)
@@ -463,8 +492,12 @@ function do_longrange!(
     nothing
 end
 
-function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu; LIA = Val(true), integration_cutoff = nothing)
-    (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
+function do_shortrange!(
+        cache::ShortRangeCache, outputs::NamedTuple,
+        pointdata_cpu::PointData, options::NamedTuple,
+    )
+    (; pointdata, to) = cache  # pointdata on the device (possibly a GPU)
+    (; LIA, integration_cutoff) = options
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
     # Make sure we execute this task in the GPU device chosen for long-range computations.
@@ -475,7 +508,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
         GC.@preserve pointdata begin  # see docs for KA.copyto! (it shouldn't really be needed here)
             # Resize output arrays
             noutputs = length(pointdata_cpu.nodes)
-            foreach(v -> resize_no_copy!(v, noutputs), outputs)
+            map(v -> resize_no_copy!(v, noutputs), outputs)
 
             if LIA === Val(true) || LIA === Val(:only)
                 @timeit to "Copy point charges (host -> device)" begin
@@ -510,40 +543,20 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
     nothing
 end
 
-function enforce_unique_filament_velocity!(vs::AbstractVector{<:Vec3})
-    # Replace all velocities with the average filament velocity.
-    # This generally only makes sense in quasi-2D simulations.
-    v⃗_mean = sum(vs) ./ length(vs)
-    @inbounds for j in eachindex(vs)
-        vs[j] = v⃗_mean
-    end
-    vs
-end
-
 function _compute_on_nodes!(
-        fields::NamedTuple, cache, fs;
-        LIA = Val(true),
-        quasi_2D::Bool = false,
-        longrange::Bool = true,
-        shortrange::Bool = true,
-        integration_cutoff::Union{Nothing, Real} = nothing,
+        fields::NamedTuple, cache, fs, options::NamedTuple;
+        with_longrange::Bool = true,
+        with_shortrange::Bool = true,
         callback_vorticity::Fvort = identity,
-    ) where {Fvort}
+        do_while_waiting_async_tasks!::F = Returns(nothing),
+    ) where {Fvort <: Function, F <: Function}
     (; to, params, pointdata,) = cache
     _setup_fields!(fields, fs)
-
     @assert length(fields) ∈ (1, 2)  # maximum 2 fields: streamfunction + velocity
 
-    with_shortrange = shortrange
-    with_longrange = longrange && LIA !== Val(:only) && cache.longrange !== NullLongRangeCache()
-
     # This is used by short and long-range computations (done on the CPU)..
-    # TODO: skip unneeded quantities if LIA === Val(:only) or LIA === Val(false)
-    @timeit to "Add point charges" if quasi_2D
-        add_point_charges!(pointdata, fs, params; quasi_2D = Val(true))
-    else
-        add_point_charges!(pointdata, fs, params; quasi_2D = Val(false))
-    end
+    # TODO: skip unneeded quantities if options.LIA === Val(:only) or options.LIA === Val(false)
+    @timeit to "Add point charges" add_point_charges!(pointdata, fs, params)
 
     channel = Channel{Symbol}(2)  # 2 is the length of the channel (for :shortrange + :longrange)
     tasks = Task[]
@@ -555,7 +568,7 @@ function _compute_on_nodes!(
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
             # Compute long-range part asynchronously (e.g. on a GPU).
             local task = Threads.@spawn :interactive try
-                do_longrange!(cache, outputs, pointdata; callback_vorticity, quasi_2D)
+                do_longrange!(cache, outputs, pointdata; callback_vorticity)
             finally
                 put!(channel, :longrange)  # this notifies that the task has completed (or failed)
             end
@@ -571,7 +584,7 @@ function _compute_on_nodes!(
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
             # Compute short-range part asynchronously (e.g. on a GPU).
             local task = Threads.@spawn :interactive try
-                do_shortrange!(cache, outputs, pointdata; LIA, integration_cutoff)
+                do_shortrange!(cache, outputs, pointdata, options)
             finally
                 put!(channel, :shortrange)  # this notifies that the task has completed (or failed)
             end
@@ -580,17 +593,7 @@ function _compute_on_nodes!(
         end
     end
 
-    # Perform CPU-only operations associated to the short-range part (this differentiation is kind of arbitrary).
-    if with_shortrange && LIA !== Val(:only)
-        @debug "Computing synchronous operations"
-        @timeit to "CPU-only operations (synchronous)" begin
-            if params.shortrange.lia_segment_fraction !== nothing
-                @timeit to "Add local integrals" add_local_integrals!(fields, cache, fs)
-            end
-            # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
-            background_vorticity_correction!(fields, fs, params)  # this is very fast, so we don't time it
-        end
-    end
+    do_while_waiting_async_tasks!(fields)
 
     # Now wait for asynchronous long-range and short-range operations to finish.
     tree_point_base = [t.name for t in to.timer_stack]  # to merge timers (https://github.com/KristofferC/TimerOutputs.jl/issues/143)
@@ -616,19 +619,6 @@ function _compute_on_nodes!(
     end
 
     foreach(fetch, tasks)  # if a task failed with an error, this will rethrow the error
-
-    if quasi_2D && haskey(fields, :velocity)
-        @sync for chunk in FilamentChunkIterator(fs; full_vectors = true)
-            # Ensure all points of each vortex have the same velocity
-            Threads.@spawn for (i, _, _) in chunk
-                enforce_unique_filament_velocity!(fields.velocity[i])
-            end
-        end
-    end
-
-    # Pad results to avoid garbage values in ghost cells, taking into account the
-    # periodicity of the filaments.
-    foreach(fill_ghost_values!, fields)
 
     nothing
 end
@@ -669,11 +659,11 @@ Copy computed values onto a vector of vectors.
   array. In that case, it will be used as an intermediate buffer array, and thus passing it may help reduce CPU allocations.
 """
 function copy_output_values_on_nodes!(
-        op::F, vs::AbstractVector, vs_d::AbstractVector, buf::Union{Nothing, HostVector} = nothing,
+        op::F, vs, vs_d::AbstractVector, buf::Union{Nothing, HostVector} = nothing,
     ) where {F <: Function}
     backend = KA.get_backend(something(buf, vs_d))
-    T = Filaments.number_type(vs_d)
     n = length(vs_d)
+    T = Filaments.number_type(vs_d)
     buf_host = if backend isa CPU  # if vs_d is on the CPU
         nothing  # we don't need a buffer if doing CPU -> CPU copy
     elseif buf === nothing
