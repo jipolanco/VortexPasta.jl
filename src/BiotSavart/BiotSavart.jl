@@ -391,15 +391,14 @@ compute_on_nodes!(...; callback_vorticity)
 """
 function compute_on_nodes!(
         fields::NamedTuple, cache::BiotSavartCache, fs::VectorOfFilaments;
-        LIA = Val(true), quasi_2D::Bool = false, kws...,
+        LIA = Val(true), kws...,
     )
-    _compute_on_nodes!(fields, cache, fs; LIA, quasi_2D, kws...)
+    _compute_on_nodes!(fields, cache, fs; LIA, kws...)
     fields
 end
 
 function do_longrange!(
         cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu::PointData;
-        quasi_2D::Bool = false,
         callback_vorticity::Fvort,
     ) where {Fvort}
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
@@ -427,7 +426,7 @@ function do_longrange!(
             @timeit to "Process point charges" process_point_charges!(cache)  # modifies pointdata (points and nodes)
 
             # Compute vorticity in Fourier space from point data (vortex locations) -> type 1 NUFFT
-            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache; quasi_2D)  # reads pointdata (points and charges)
+            @timeit to "Vorticity to Fourier" compute_vorticity_fourier!(cache)  # reads pointdata (points and charges)
 
             if callback_vorticity !== identity
                 @timeit to "Vorticity callback" callback_vorticity(cache)
@@ -524,7 +523,6 @@ end
 function _compute_on_nodes!(
         fields::NamedTuple, cache, fs;
         LIA = Val(true),
-        quasi_2D::Bool = false,
         longrange::Bool = true,
         shortrange::Bool = true,
         integration_cutoff::Union{Nothing, Real} = nothing,
@@ -540,11 +538,7 @@ function _compute_on_nodes!(
 
     # This is used by short and long-range computations (done on the CPU)..
     # TODO: skip unneeded quantities if LIA === Val(:only) or LIA === Val(false)
-    @timeit to "Add point charges" if quasi_2D
-        add_point_charges!(pointdata, fs, params; quasi_2D = Val(true))
-    else
-        add_point_charges!(pointdata, fs, params; quasi_2D = Val(false))
-    end
+    @timeit to "Add point charges" add_point_charges!(pointdata, fs, params)
 
     channel = Channel{Symbol}(2)  # 2 is the length of the channel (for :shortrange + :longrange)
     tasks = Task[]
@@ -556,7 +550,7 @@ function _compute_on_nodes!(
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
             # Compute long-range part asynchronously (e.g. on a GPU).
             local task = Threads.@spawn :interactive try
-                do_longrange!(cache, outputs, pointdata; callback_vorticity, quasi_2D)
+                do_longrange!(cache, outputs, pointdata; callback_vorticity)
             finally
                 put!(channel, :longrange)  # this notifies that the task has completed (or failed)
             end
@@ -617,15 +611,6 @@ function _compute_on_nodes!(
     end
 
     foreach(fetch, tasks)  # if a task failed with an error, this will rethrow the error
-
-    if quasi_2D && haskey(fields, :velocity)
-        @sync for chunk in FilamentChunkIterator(fs; full_vectors = true)
-            # Ensure all points of each vortex have the same velocity
-            Threads.@spawn for (i, _, _) in chunk
-                enforce_unique_filament_velocity!(fields.velocity[i])
-            end
-        end
-    end
 
     # Pad results to avoid garbage values in ghost cells, taking into account the
     # periodicity of the filaments.
