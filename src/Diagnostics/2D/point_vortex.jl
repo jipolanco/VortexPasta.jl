@@ -31,7 +31,7 @@ This function returns the 2D normalised impulse defined as
 \bm{p} = \sum_j s_j \bm{x}_j × \hat{z}
 ```
 
-where ``s_j \in \{-1, +1\}`` is the vortex sign.
+where ``s_j ∈ \{-1, +1\}`` is the vortex sign.
 
 (see e.g. Weiss & McWilliams, Phys. Fluids **3**, 835, 1991)
 """

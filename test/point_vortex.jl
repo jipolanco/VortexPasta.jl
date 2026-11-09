@@ -5,7 +5,7 @@ using VortexPasta
 using VortexPasta.BiotSavart
 using VortexPasta.BiotSavart: Vec2
 using VortexPasta.Diagnostics
-using LinearAlgebra: norm
+using LinearAlgebra: norm, ⋅
 using Adapt: adapt
 using KernelAbstractions: KernelAbstractions as KA, POCLBackend
 
@@ -59,6 +59,21 @@ ref = point_vortex_interactions(vortices, params)
 @testset "Computing only the velocity" begin
     vs_only = @inferred velocity_on_nodes(ref.cache, ref.vortices)
     @test vs_only ≈ ref.velocity rtol=1e-15
+end
+
+# Check expression for functional derivative of kinetic energy by slightly translating
+# a single vortex point and looking at the change in energy.
+@testset "Functional derivative of energy" begin
+    vortices_test = copy(vortices)
+    δx⃗ = Vec2(1e-6, 3e-6)  # needs to be very small
+    vortices_test.points[1] += δx⃗
+    res = point_vortex_interactions(vortices_test, params)
+    v⃗ = ref.velocity[1]
+    ẑ_times_v⃗ = Vec2(v⃗[2], -v⃗[1])
+    ΔE = res.energy - ref.energy
+    ΔE_expected = Γ / prod(Ls) * ẑ_times_v⃗ ⋅ δx⃗
+    # @show (ΔE - ΔE_expected) / ΔE_expected
+    @test ΔE ≈ ΔE_expected rtol=1e-5
 end
 
 @testset "callback_vorticity" begin
