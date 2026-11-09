@@ -74,7 +74,7 @@ multiple GPUs are being used (e.g. GPU 1 for long-range computations and GPU 2 f
 """
 function get_longrange_field_fourier end
 
-get_longrange_field_fourier(cache::BiotSavartCache) = get_longrange_field_fourier(cache.longrange)
+get_longrange_field_fourier(cache::AbstractBiotSavartCache) = get_longrange_field_fourier(cache.longrange)
 
 function get_longrange_field_fourier(longrange::LongRangeCache)
     (; uhat, wavenumbers, state,) = longrange.common
