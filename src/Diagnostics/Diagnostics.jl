@@ -76,6 +76,6 @@ include("spectra_helicity.jl")
 include("energy_flux.jl")
 include("integral_scale.jl")
 
-include("2D/energy.jl")
+include("2D/point_vortex.jl")
 
 end

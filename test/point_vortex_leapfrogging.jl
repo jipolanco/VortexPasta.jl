@@ -19,6 +19,8 @@ function define_leapfrogging_point_vortices(dist_x, dist_y, Ls)
     PointVortexState(points, signs)
 end
 
+##
+
 T = Float64
 Lx, Ly = T(4π), T(2π)
 Ls = (Lx, Ly)
@@ -34,13 +36,17 @@ dist_x = Lx / 5
 dist_y = Ly / 5
 vortices = define_leapfrogging_point_vortices(dist_x, dist_y, Ls)
 
+##
+
 # Note: for some reason the system destabilises (loses its symmetry) after t ≈ 150.
 # This doesn't seem to depend much on the splitting precision, NUFFT or the timestep.
 Tsim = 100.0
 prob = @inferred PointVortexProblem(vortices, Tsim, params)
 iter = @inferred init(prob, RK4(); dt = 0.04)
 E₀ = @inferred Diagnostics.kinetic_energy(iter)
+p⃗₀ = @inferred Diagnostics.vortex_impulse(iter)
 energy = [E₀]
+impulse = [p⃗₀]
 
 # using GLMakie
 # points_obs = Observable(iter.vortices.points)
@@ -64,11 +70,14 @@ while iter.t < iter.prob.tspan[2]
         # notify(ψs_obs)
         # notify(points_obs)  # update plot
         E = Diagnostics.kinetic_energy(iter)
+        p⃗ = Diagnostics.vortex_impulse(iter)
         push!(energy, E)
+        push!(impulse, p⃗)
         # @show iter.nstep, iter.t, iter.dt, (E - E₀) / E₀
     end
 end
 
-@testset "Energy conservation" begin
+@testset "Energy and impulse conservation" begin
     @test energy[end] ≈ energy[begin] rtol=1e-6
+    @test impulse[end] ≈ impulse[begin] rtol=1e-13
 end
