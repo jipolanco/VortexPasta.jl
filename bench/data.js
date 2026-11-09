@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794240086998,
+  "lastUpdate": 1794244859475,
   "repoUrl": "https://github.com/jipolanco/VortexPasta.jl",
   "entries": {
     "Julia benchmark result": [
@@ -27954,6 +27954,276 @@ window.BENCHMARK_DATA = {
             "value": 2976543856,
             "unit": "ns",
             "extra": "gctime=0\nmemory=3969288\nallocs=7228\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10,\"seconds\":1000,\"time_tolerance\":0.05}"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "juan-ignacio.polanco@cnrs.fr",
+            "name": "Juan Ignacio Polanco",
+            "username": "jipolanco"
+          },
+          "committer": {
+            "email": "juan-ignacio.polanco@cnrs.fr",
+            "name": "Juan Ignacio Polanco",
+            "username": "jipolanco"
+          },
+          "distinct": true,
+          "id": "453ee992fa45fba6768b089010181d616ffed2c0",
+          "message": "Fix tests",
+          "timestamp": "2026-11-09T18:06:12+01:00",
+          "tree_id": "4d265c2b93e32403e7aca37edd91677cd4028999",
+          "url": "https://github.com/jipolanco/VortexPasta.jl/commit/453ee992fa45fba6768b089010181d616ffed2c0"
+        },
+        "date": 1794244848921,
+        "tool": "julia",
+        "benches": [
+          {
+            "name": "BiotSavart/GaussianSplitting/add_local_integrals!",
+            "value": 13902848,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=10304\nallocs=21\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "BiotSavart/GaussianSplitting/velocity",
+            "value": 769498472,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=90192\nallocs=997\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "BiotSavart/GaussianSplitting/velocity + streamfunction",
+            "value": 948372080.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=111648\nallocs=1249\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "BiotSavart/KaiserBesselSplitting/add_local_integrals!",
+            "value": 14295122,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=11200\nallocs=21\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "BiotSavart/KaiserBesselSplitting/velocity",
+            "value": 545171787,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=91776\nallocs=997\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "BiotSavart/KaiserBesselSplitting/velocity + streamfunction",
+            "value": 709350813.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=113456\nallocs=1249\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "BiotSavart/add_local_integrals!",
+            "value": 13949711,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=10304\nallocs=21\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "BiotSavart/add_point_charges!",
+            "value": 14438781,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2688\nallocs=21\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "BiotSavart/velocity",
+            "value": 815823518,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=90192\nallocs=997\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "BiotSavart/velocity + streamfunction",
+            "value": 963830983.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=111648\nallocs=1249\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 1/foreach_pair (SIMD/sorted)",
+            "value": 135304042,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2736\nallocs=39\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 1/foreach_pair (SIMD/unsorted)",
+            "value": 308272819.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=960\nallocs=13\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 1/foreach_pair (sorted)",
+            "value": 100735680,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2736\nallocs=39\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 1/foreach_pair (unsorted)",
+            "value": 196913874,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=960\nallocs=13\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 1/foreach_source",
+            "value": 141118667,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=960\nallocs=13\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 1/iterator_interface",
+            "value": 145162751,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=960\nallocs=13\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 1/set_elements!",
+            "value": 2706035,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=1760\nallocs=26\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 2/foreach_pair (SIMD/sorted)",
+            "value": 183130439.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2736\nallocs=39\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 2/foreach_pair (SIMD/unsorted)",
+            "value": 554736799,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=960\nallocs=13\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 2/foreach_pair (sorted)",
+            "value": 176116684,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2736\nallocs=39\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 2/foreach_pair (unsorted)",
+            "value": 509664799,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=960\nallocs=13\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 2/foreach_source",
+            "value": 499230834.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=960\nallocs=13\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 2/iterator_interface",
+            "value": 539367982,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=960\nallocs=13\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/CPU/nsubdiv = 2/set_elements!",
+            "value": 10115330,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=1760\nallocs=26\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/POCLBackend/nsubdiv = 1/foreach_pair (sorted)",
+            "value": 100439056,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=4608\nallocs=66\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/POCLBackend/nsubdiv = 1/foreach_pair (unsorted)",
+            "value": 135322050,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=0\nallocs=0\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/POCLBackend/nsubdiv = 1/set_elements!",
+            "value": 2679804,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=0\nallocs=0\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/POCLBackend/nsubdiv = 2/foreach_pair (sorted)",
+            "value": 166230831.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=4608\nallocs=66\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/POCLBackend/nsubdiv = 2/foreach_pair (unsorted)",
+            "value": 439653469,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=0\nallocs=0\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "CellLists/POCLBackend/nsubdiv = 2/set_elements!",
+            "value": 12218954,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=0\nallocs=0\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Diagnostics/energy_flux",
+            "value": 1372994664,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=4437384\nallocs=5284\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Diagnostics/energy_injection_rate",
+            "value": 9393866,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2512\nallocs=24\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Diagnostics/energy_spectrum",
+            "value": 233794740.5,
+            "unit": "ns",
+            "extra": "gctime=37412024\nmemory=236379568\nallocs=8523242\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Diagnostics/energy_transfer_matrix",
+            "value": 1820970756,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=41935472\nallocs=23718\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Diagnostics/helicity",
+            "value": 5910397,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=1456\nallocs=24\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Diagnostics/kinetic_energy",
+            "value": 5943780,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2416\nallocs=24\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Reconnections/ReconnectBasedOnDistance",
+            "value": 705853640,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=64259840\nallocs=113364\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Reconnections/ReconnectFast",
+            "value": 316970949.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=9903992\nallocs=2391\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Refinement/RefineBasedOnSegmentLength",
+            "value": 6366537,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=83296\nallocs=2053\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Timestepping/forcing",
+            "value": 28417654.5,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=16672\nallocs=260\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":5,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Timestepping/step!",
+            "value": 3543888842,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2785952\nallocs=6803\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10,\"seconds\":1000,\"time_tolerance\":0.05}"
           }
         ]
       }
