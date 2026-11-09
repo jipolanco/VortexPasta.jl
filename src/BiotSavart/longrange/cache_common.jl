@@ -71,7 +71,11 @@ end
 @inline function (f::EwaldInterpolationCallback)(û::NTuple, idx::NTuple)
     @inbounds op = f.data[idx...]
     T = eltype(û)
-    map(v -> T(op * v), û)
+    C = length(û)
+    ntuple(Val(C)) do i
+        @inline
+        T(op * û[i])
+    end
 end
 
 @inline get_ewald_interpolation_callback(c::LongRangeCacheCommon) = EwaldInterpolationCallback(c.ewald_op_fourier)
