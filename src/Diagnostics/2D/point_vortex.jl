@@ -13,7 +13,7 @@ function kinetic_energy(vortices::PointVortexState, ψs::AbstractVector{<:Real},
     T = typeof(Γ)
     E = zero(T)
     for i in eachindex(ψs, signs)
-        @inbounds E += T(BiotSavart.to_real(signs[i]) * ψs[i])
+        @inbounds E += T(signs[i] * ψs[i])
     end
     E = E * T(Γ / 2 / prod(Ls))
     E
@@ -41,7 +41,7 @@ function vortex_impulse(vortices::PointVortexState)
     p⃗ = zero(V)
     @inbounds for i in eachindex(points, signs)
         x, y = points[i]
-        p⃗ += BiotSavart.to_real(signs[i]) * V(y, -x)
+        p⃗ += signs[i] * V(y, -x)
     end
     p⃗
 end

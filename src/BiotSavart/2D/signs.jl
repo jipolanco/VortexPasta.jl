@@ -12,6 +12,8 @@ end
 
 @inline to_real(s::SignValue) = (s === UP) ? +1 : -1
 
+@inline Base.:*(s::SignValue, x::Number) = to_real(s) * x  # automatically convert to ±1 when multiplying a number
+
 function signs_to_charges!(charges::AbstractVector{T}, signs::AbstractVector{<:SignValue}) where {T <: Number}
     @assert eachindex(charges) == eachindex(signs)
     map!(charges, signs) do s

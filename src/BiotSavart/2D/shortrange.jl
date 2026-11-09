@@ -18,7 +18,7 @@ function add_pair_interactions_2D!(outputs::NamedTuple{Names}, cache::ShortRange
         end
 
         x⃗_src = @inbounds points[j_src]
-        sign = @inbounds to_real(signs[j_src])
+        sign = @inbounds signs[j_src]
         prefactor_signed = sign * prefactor
 
         N = length(Ls)  # = 2
@@ -88,7 +88,7 @@ function _remove_self_interaction_2D!(::Streamfunction, ψs::AbstractVector, cac
     @assert eachindex(ψs) == eachindex(signs)
     AK.foreachindex(ψs; max_tasks = Threads.nthreads(), block_size = 256) do i
         @inline
-        @inbounds ψs[i] += to_real(signs[i]) * correction
+        @inbounds ψs[i] += signs[i] * correction
     end
 
     nothing
