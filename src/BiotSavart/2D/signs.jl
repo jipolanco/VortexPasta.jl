@@ -11,7 +11,7 @@ These are exported by the BiotSavart module, so one can directly use `UP` and `D
 end
 
 @inline to_real(s::SignValue) = (s === UP) ? +1 : -1
-@inline Base.:*(s::SignValue, x) = to_real(s) * x  # automatically convert to ±1 when multiplying a number
+@inline Base.:*(s::SignValue, x::Union{Number, SVector}) = to_real(s) * x  # automatically convert to ±1 when multiplying a number
 
 function signs_to_charges!(charges::AbstractVector{T}, signs::AbstractVector{<:SignValue}) where {T <: Number}
     @assert eachindex(charges) == eachindex(signs)
