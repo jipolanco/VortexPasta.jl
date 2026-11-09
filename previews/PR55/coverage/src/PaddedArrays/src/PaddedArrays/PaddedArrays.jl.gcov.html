@@ -1,0 +1,377 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/PaddedArrays/src/PaddedArrays/PaddedArrays.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/PaddedArrays/src/PaddedArrays</a> - PaddedArrays.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">98.1&nbsp;%</td>
+            <td class="headerCovTableEntry">106</td>
+            <td class="headerCovTableEntry">104</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-07-23 08:52:42</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : &quot;&quot;&quot;</span>
+<span id="L2"><span class="lineNum">       2</span>              :     PaddedArrays</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : Module defining the [`PaddedArray`](@ref) type for dealing with arrays padded by ghost</span>
+<span id="L5"><span class="lineNum">       5</span>              : cells.</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : Among other things, this type allows to efficiently work with periodic boundary conditions</span>
+<span id="L8"><span class="lineNum">       8</span>              : in one and more spatial dimensions.</span>
+<span id="L9"><span class="lineNum">       9</span>              : &quot;&quot;&quot;</span>
+<span id="L10"><span class="lineNum">      10</span>              : module PaddedArrays</span>
+<span id="L11"><span class="lineNum">      11</span>              : </span>
+<span id="L12"><span class="lineNum">      12</span>              : export PaddedArray, PaddedVector, pad_periodic!</span>
+<span id="L13"><span class="lineNum">      13</span>              : </span>
+<span id="L14"><span class="lineNum">      14</span>              : &quot;&quot;&quot;</span>
+<span id="L15"><span class="lineNum">      15</span>              :     PaddedArray{M, T, N} &lt;: AbstractArray{T, N}</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : Pads a vector with `M` &quot;ghost&quot; entries on each side, along each direction.</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              : Can be useful for dealing with periodic boundary conditions.</span>
+<span id="L20"><span class="lineNum">      20</span>              : In that use case, one can call [`pad_periodic!`](@ref) once the non-ghost entries have been</span>
+<span id="L21"><span class="lineNum">      21</span>              : filled to conveniently impose those kind of conditions.</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span>              : See also [`PaddedVector`](@ref).</span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span>              : ---</span>
+<span id="L26"><span class="lineNum">      26</span>              : </span>
+<span id="L27"><span class="lineNum">      27</span>              :     PaddedArray{M}(data::AbstractArray)</span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span>              : Interpret input array as a padded array.</span>
+<span id="L30"><span class="lineNum">      30</span>              : </span>
+<span id="L31"><span class="lineNum">      31</span>              : Note that the input array is not modified. Instead, its `M` first and `M` last</span>
+<span id="L32"><span class="lineNum">      32</span>              : entries along each direction are considered as &quot;ghost&quot; entries.</span>
+<span id="L33"><span class="lineNum">      33</span>              : </span>
+<span id="L34"><span class="lineNum">      34</span>              : In other words, the &quot;logical&quot; dimensions of the resulting `PaddedArray` are</span>
+<span id="L35"><span class="lineNum">      35</span>              : `size(v) = size(data) .- 2M`.</span>
+<span id="L36"><span class="lineNum">      36</span>              : Along a given direction of size `N`, indexing functions like `axes` return the range `1:N`</span>
+<span id="L37"><span class="lineNum">      37</span>              : (or an equivalent).</span>
+<span id="L38"><span class="lineNum">      38</span>              : However, the array can in reality be indexed (and modified) over the range `(1 - M):(N + M)`.</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span>              : See [`PaddedVector`](@ref) for some one-dimensional examples.</span>
+<span id="L41"><span class="lineNum">      41</span>              : &quot;&quot;&quot;</span>
+<span id="L42"><span class="lineNum">      42</span>              : struct PaddedArray{M, T, N, A &lt;: AbstractArray{T, N}} &lt;: AbstractArray{T, N}</span>
+<span id="L43"><span class="lineNum">      43</span>              :     data :: A</span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC tlaBgGNC">       12332 :     function PaddedArray{M}(data::AbstractArray) where {M}</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">       12332 :         A = typeof(data)</span></span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">       12332 :         T = eltype(A)</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">       12332 :         N = ndims(A)</span></span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">       12332 :         Base.require_one_based_indexing(data)</span></span>
+<span id="L49"><span class="lineNum">      49</span> <span class="tlaGNC">       12332 :         new{M, T, N, A}(data)</span></span>
+<span id="L50"><span class="lineNum">      50</span>              :     end</span>
+<span id="L51"><span class="lineNum">      51</span>              : end</span>
+<span id="L52"><span class="lineNum">      52</span>              : </span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaUNC tlaBgUNC">           0 : npad(::Type{&lt;:AbstractArray}) = 0  # regular arrays have no padding</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC tlaBgGNC">   206490096 : npad(::Type{&lt;:PaddedArray{M}}) where {M} = M</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">   205697852 : npad(v::AbstractArray) = npad(typeof(v))</span></span>
+<span id="L56"><span class="lineNum">      56</span>              : </span>
+<span id="L57"><span class="lineNum">      57</span>              : # General case of N-D arrays: we can't use linear indexing due to the padding in all</span>
+<span id="L58"><span class="lineNum">      58</span>              : # directions.</span>
+<span id="L59"><span class="lineNum">      59</span> <span class="tlaGNC">   443715014 : Base.IndexStyle(::Type{&lt;:PaddedArray}) = IndexCartesian()</span></span>
+<span id="L60"><span class="lineNum">      60</span>              : </span>
+<span id="L61"><span class="lineNum">      61</span>              : # Case of 1D arrays (vectors). Returns IndexLinear() if `A &lt;: Vector`.</span>
+<span id="L62"><span class="lineNum">      62</span> <span class="tlaGNC">      568853 : Base.IndexStyle(::Type{&lt;:PaddedArray{M, T, 1, A}}) where {M, T, A} = IndexStyle(A)</span></span>
+<span id="L63"><span class="lineNum">      63</span>              : </span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">   168412094 : Base.parent(v::PaddedArray) = v.data</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">   344428906 : Base.size(v::PaddedArray) = ntuple(i -&gt; size(parent(v), i) - 2 * npad(v), Val(ndims(v)))</span></span>
+<span id="L66"><span class="lineNum">      66</span>              : </span>
+<span id="L67"><span class="lineNum">      67</span>              : # Return a view to the parent array.</span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">      119926 : function Base.view(v::PaddedArray{M, T, N}, inds::Vararg{Any, N}) where {M, T, N}</span></span>
+<span id="L69"><span class="lineNum">      69</span> <span class="tlaGNC">      119926 :     inds_parent = map(inds, axes(v)) do is, js</span></span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">      119926 :         to_parent_indices(M, is, js)</span></span>
+<span id="L71"><span class="lineNum">      71</span>              :     end</span>
+<span id="L72"><span class="lineNum">      72</span> <span class="tlaGNC">      119926 :     view(parent(v), inds_parent...)</span></span>
+<span id="L73"><span class="lineNum">      73</span>              : end</span>
+<span id="L74"><span class="lineNum">      74</span>              : </span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">           1 : to_parent_indices(M, i::Integer, js) = M + i</span></span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">      119856 : to_parent_indices(M, is::AbstractVector, js) = M .+ is  # this includes ranges</span></span>
+<span id="L77"><span class="lineNum">      77</span> <span class="tlaGNC">          69 : to_parent_indices(M, ::Colon, js) = M .+ js  # select all values excluding ghost cells</span></span>
+<span id="L78"><span class="lineNum">      78</span>              : </span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">      724025 : function Base.copyto!(w::PaddedArray{M}, v::PaddedArray{M}) where {M}</span></span>
+<span id="L80"><span class="lineNum">      80</span>              :     # If v and w point to the same array, there's no need to copy data.</span>
+<span id="L81"><span class="lineNum">      81</span>              :     # This also avoids error when data arrays are UnsafeArrays returned by Bumper.</span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">      724025 :     w.data === v.data &amp;&amp; return w</span></span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">      723993 :     length(w.data) == length(v.data) || throw(DimensionMismatch(&quot;arrays have different sizes&quot;))</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">     1447986 :     copyto!(w.data, v.data)</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">      723993 :     w</span></span>
+<span id="L86"><span class="lineNum">      86</span>              : end</span>
+<span id="L87"><span class="lineNum">      87</span>              : </span>
+<span id="L88"><span class="lineNum">      88</span>              : # Equality and isapprox must also include ghost cells!</span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">         356 : Base.:(==)(w::PaddedArray{M}, v::PaddedArray{M}) where {M} = w.data == v.data</span></span>
+<span id="L90"><span class="lineNum">      90</span>              : </span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaGNC">          92 : Base.isapprox(w::PaddedArray{M}, v::PaddedArray{M}; kwargs...) where {M} =</span></span>
+<span id="L92"><span class="lineNum">      92</span>              :     isapprox(w.data, v.data; kwargs...)</span>
+<span id="L93"><span class="lineNum">      93</span>              : </span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaGNC">       11700 : function Base.similar(v::PaddedArray{M, T, N}, ::Type{S}, dims::Dims{N}) where {S, M, T, N}</span></span>
+<span id="L95"><span class="lineNum">      95</span> <span class="tlaGNC">       23355 :     PaddedArray{M}(similar(v.data, S, dims .+ 2M))</span></span>
+<span id="L96"><span class="lineNum">      96</span>              : end</span>
+<span id="L97"><span class="lineNum">      97</span>              : </span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaGNC">   151967861 : Base.@propagate_inbounds function Base.getindex(v::PaddedArray{M, T, N}, I::Vararg{Int, N}) where {M, T, N}</span></span>
+<span id="L99"><span class="lineNum">      99</span> <span class="tlaGNC">   307094822 :     J = ntuple(n -&gt; I[n] + M, Val(N))</span></span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">   153958656 :     parent(v)[J...]</span></span>
+<span id="L101"><span class="lineNum">     101</span>              : end</span>
+<span id="L102"><span class="lineNum">     102</span>              : </span>
+<span id="L103"><span class="lineNum">     103</span> <span class="tlaGNC">    66704249 : Base.@propagate_inbounds function Base.setindex!(</span></span>
+<span id="L104"><span class="lineNum">     104</span>              :         v::PaddedArray{M, T, N},</span>
+<span id="L105"><span class="lineNum">     105</span>              :         val,</span>
+<span id="L106"><span class="lineNum">     106</span>              :         I::Vararg{Int, N},</span>
+<span id="L107"><span class="lineNum">     107</span>              :     ) where {M, T, N}</span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">    66690576 :     J = I .+ M</span></span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaGNC">    66716081 :     parent(v)[J...] = val</span></span>
+<span id="L110"><span class="lineNum">     110</span>              : end</span>
+<span id="L111"><span class="lineNum">     111</span>              : </span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">   198541429 : Base.checkbounds(::Type{Bool}, v::PaddedArray, I...) = _checkbounds(v, I...)</span></span>
+<span id="L113"><span class="lineNum">     113</span>              : </span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaUNC tlaBgUNC">           0 : _checkbounds(v::PaddedArray, I::CartesianIndex) = _checkbounds(v, Tuple(I)...)</span></span>
+<span id="L115"><span class="lineNum">     115</span>              : </span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC tlaBgGNC">   198558902 : function _checkbounds(v::PaddedArray, Is...)</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">   198551863 :     M = npad(v)</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">   198395870 :     N = ndims(v)</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">   198416214 :     P = length(Is)</span></span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">   198515313 :     @assert P ≥ N</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">   397018913 :     Is_head = ntuple(n -&gt; Is[n], Val(N))</span></span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">   198642670 :     Is_tail = ntuple(n -&gt; Is[N + n], Val(P - N))  # possible additional indices which should be all 1</span></span>
+<span id="L123"><span class="lineNum">     123</span> <span class="tlaGNC">   198649594 :     for (inds, i) ∈ zip(axes(v), Is_head)</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">   198581608 :         _checkbounds(Val(M), inds, i) || return false</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">   198641376 :     end</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">   198630993 :     all(isone, Is_tail)</span></span>
+<span id="L127"><span class="lineNum">     127</span>              : end</span>
+<span id="L128"><span class="lineNum">     128</span>              : </span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">   198610603 : _checkbounds(::Val{M}, inds::AbstractUnitRange, i::Integer) where {M} =</span></span>
+<span id="L130"><span class="lineNum">     130</span>              :     first(inds) - M ≤ i ≤ last(inds) + M</span>
+<span id="L131"><span class="lineNum">     131</span>              : </span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">           9 : _checkbounds(::Val{M}, inds::AbstractUnitRange, I::AbstractUnitRange) where {M} =</span></span>
+<span id="L133"><span class="lineNum">     133</span>              :     first(inds) - M ≤ first(I) &amp;&amp; last(I) ≤ last(inds) + M</span>
+<span id="L134"><span class="lineNum">     134</span>              : </span>
+<span id="L135"><span class="lineNum">     135</span>              : ## ================================================================================ ##</span>
+<span id="L136"><span class="lineNum">     136</span>              : ## Specialisations for the 1D case (PaddedVector).</span>
+<span id="L137"><span class="lineNum">     137</span>              : ## ================================================================================ ##</span>
+<span id="L138"><span class="lineNum">     138</span>              : </span>
+<span id="L139"><span class="lineNum">     139</span>              : &quot;&quot;&quot;</span>
+<span id="L140"><span class="lineNum">     140</span>              :     PaddedVector{M, T} &lt;: AbstractVector{T}</span>
+<span id="L141"><span class="lineNum">     141</span>              : </span>
+<span id="L142"><span class="lineNum">     142</span>              : Alias for `PaddedArray{M, T, 1}` which can be used to work with one-dimensional data.</span>
+<span id="L143"><span class="lineNum">     143</span>              : </span>
+<span id="L144"><span class="lineNum">     144</span>              : ---</span>
+<span id="L145"><span class="lineNum">     145</span>              : </span>
+<span id="L146"><span class="lineNum">     146</span>              :     PaddedVector{M}(data::AbstractVector)</span>
+<span id="L147"><span class="lineNum">     147</span>              : </span>
+<span id="L148"><span class="lineNum">     148</span>              : Interpret input vector as a padded vector.</span>
+<span id="L149"><span class="lineNum">     149</span>              : </span>
+<span id="L150"><span class="lineNum">     150</span>              : See [`PaddedArray`](@ref) for details.</span>
+<span id="L151"><span class="lineNum">     151</span>              : </span>
+<span id="L152"><span class="lineNum">     152</span>              : # Examples</span>
+<span id="L153"><span class="lineNum">     153</span>              : </span>
+<span id="L154"><span class="lineNum">     154</span>              : ```jldoctest</span>
+<span id="L155"><span class="lineNum">     155</span>              : julia&gt; v = PaddedVector{2}(collect(1:10))</span>
+<span id="L156"><span class="lineNum">     156</span>              : 6-element PaddedVector{2, Int64, Vector{Int64}}:</span>
+<span id="L157"><span class="lineNum">     157</span>              :  3</span>
+<span id="L158"><span class="lineNum">     158</span>              :  4</span>
+<span id="L159"><span class="lineNum">     159</span>              :  5</span>
+<span id="L160"><span class="lineNum">     160</span>              :  6</span>
+<span id="L161"><span class="lineNum">     161</span>              :  7</span>
+<span id="L162"><span class="lineNum">     162</span>              :  8</span>
+<span id="L163"><span class="lineNum">     163</span>              : </span>
+<span id="L164"><span class="lineNum">     164</span>              : julia&gt; eachindex(v)</span>
+<span id="L165"><span class="lineNum">     165</span>              : Base.OneTo(6)</span>
+<span id="L166"><span class="lineNum">     166</span>              : </span>
+<span id="L167"><span class="lineNum">     167</span>              : julia&gt; v[begin]</span>
+<span id="L168"><span class="lineNum">     168</span>              : 3</span>
+<span id="L169"><span class="lineNum">     169</span>              : </span>
+<span id="L170"><span class="lineNum">     170</span>              : julia&gt; v[begin - 2]</span>
+<span id="L171"><span class="lineNum">     171</span>              : 1</span>
+<span id="L172"><span class="lineNum">     172</span>              : </span>
+<span id="L173"><span class="lineNum">     173</span>              : julia&gt; v[end]</span>
+<span id="L174"><span class="lineNum">     174</span>              : 8</span>
+<span id="L175"><span class="lineNum">     175</span>              : </span>
+<span id="L176"><span class="lineNum">     176</span>              : julia&gt; v[end + 2]</span>
+<span id="L177"><span class="lineNum">     177</span>              : 10</span>
+<span id="L178"><span class="lineNum">     178</span>              : </span>
+<span id="L179"><span class="lineNum">     179</span>              : julia&gt; v[end - 1] = 42; println(v)</span>
+<span id="L180"><span class="lineNum">     180</span>              : [3, 4, 5, 6, 42, 8]</span>
+<span id="L181"><span class="lineNum">     181</span>              : ```</span>
+<span id="L182"><span class="lineNum">     182</span>              : &quot;&quot;&quot;</span>
+<span id="L183"><span class="lineNum">     183</span>              : const PaddedVector{M, T, V} = PaddedArray{M, T, 1, V}</span>
+<span id="L184"><span class="lineNum">     184</span>              : </span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">         528 : PaddedVector{M}(data::AbstractVector) where {M} = PaddedArray{M}(data)</span></span>
+<span id="L186"><span class="lineNum">     186</span>              : </span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">      262148 : function Base.resize!(v::PaddedVector, n::Integer)</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">      262148 :     resize!(parent(v), n + 2 * npad(v))</span></span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">      262148 :     v</span></span>
+<span id="L190"><span class="lineNum">     190</span>              : end</span>
+<span id="L191"><span class="lineNum">     191</span>              : </span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">        6129 : function Base.sizehint!(v::PaddedVector, n::Integer)</span></span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">        6129 :     sizehint!(parent(v), n + 2 * npad(v))</span></span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">        6129 :     v</span></span>
+<span id="L195"><span class="lineNum">     195</span>              : end</span>
+<span id="L196"><span class="lineNum">     196</span>              : </span>
+<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">        6938 : function Base.insert!(v::PaddedVector, i::Integer, x)</span></span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">        6938 :     insert!(parent(v), npad(v) + i, x)</span></span>
+<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC">        6938 :     v</span></span>
+<span id="L200"><span class="lineNum">     200</span>              : end</span>
+<span id="L201"><span class="lineNum">     201</span>              : </span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">         396 : function Base.push!(v::PaddedVector, x)</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">         396 :     resize!(v, length(v) + 1)</span></span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC">         396 :     v[end] = x</span></span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">         396 :     v</span></span>
+<span id="L206"><span class="lineNum">     206</span>              : end</span>
+<span id="L207"><span class="lineNum">     207</span>              : </span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">        5813 : Base.popat!(v::PaddedVector, i::Integer) = popat!(parent(v), i + npad(v))</span></span>
+<span id="L209"><span class="lineNum">     209</span>              : </span>
+<span id="L210"><span class="lineNum">     210</span>              : # This is used by HDF5.jl when reading data directly onto a PaddedVector using HDF5.API.h5d_read()</span>
+<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC">         276 : Base.unsafe_convert(::Type{Ptr{T}}, v::PaddedVector{M, T}) where {M, T} = pointer(v)</span></span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">         276 : Base.pointer(v::PaddedVector) = pointer(parent(v), npad(v) + 1)  # points to the first non-ghost entry</span></span>
+<span id="L213"><span class="lineNum">     213</span>              : </span>
+<span id="L214"><span class="lineNum">     214</span>              : ## ================================================================================ ##</span>
+<span id="L215"><span class="lineNum">     215</span>              : ## Periodic padding.</span>
+<span id="L216"><span class="lineNum">     216</span>              : ## ================================================================================ ##</span>
+<span id="L217"><span class="lineNum">     217</span>              : </span>
+<span id="L218"><span class="lineNum">     218</span> <span class="tlaGNC">      753147 : struct FromCentre end</span></span>
+<span id="L219"><span class="lineNum">     219</span> <span class="tlaGNC">         121 : struct FromRight end</span></span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">           9 : struct FromLeft end</span></span>
+<span id="L221"><span class="lineNum">     221</span>              : </span>
+<span id="L222"><span class="lineNum">     222</span>              : &quot;&quot;&quot;</span>
+<span id="L223"><span class="lineNum">     223</span>              :     pad_periodic!(v::PaddedArray{M, T, N}, [L = zero(T)])</span>
+<span id="L224"><span class="lineNum">     224</span>              : </span>
+<span id="L225"><span class="lineNum">     225</span>              : Fill ghost cells in a periodic manner.</span>
+<span id="L226"><span class="lineNum">     226</span>              : </span>
+<span id="L227"><span class="lineNum">     227</span>              : In the simplest case of a 1D `PaddedArray` (`N = 1`), this function will copy:</span>
+<span id="L228"><span class="lineNum">     228</span>              : </span>
+<span id="L229"><span class="lineNum">     229</span>              : - `v[begin:(begin + M - 1)]` → `v[(end + 1):(end + M)]`, and</span>
+<span id="L230"><span class="lineNum">     230</span>              : </span>
+<span id="L231"><span class="lineNum">     231</span>              : - `v[(end - M + 1):end]` → `v[(begin - M):(begin - 1)]`.</span>
+<span id="L232"><span class="lineNum">     232</span>              : </span>
+<span id="L233"><span class="lineNum">     233</span>              : Something equivalent (but more complicated) is done in multiple dimensions.</span>
+<span id="L234"><span class="lineNum">     234</span>              : </span>
+<span id="L235"><span class="lineNum">     235</span>              : If `L ≠ 0`, it is interpreted as an unfolding period (or as an end-to-end distance after a</span>
+<span id="L236"><span class="lineNum">     236</span>              : single period), such that `v[N + i] - v[i] = L`, where `N = length(v)`.</span>
+<span id="L237"><span class="lineNum">     237</span>              : &quot;&quot;&quot;</span>
+<span id="L238"><span class="lineNum">     238</span>              : function pad_periodic! end</span>
+<span id="L239"><span class="lineNum">     239</span>              : </span>
+<span id="L240"><span class="lineNum">     240</span> <span class="tlaGNC">     2937917 : pad_periodic!(v::PaddedArray, args...) = pad_periodic!(FromCentre(), v, args...)</span></span>
+<span id="L241"><span class="lineNum">     241</span>              : </span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">     1224416 : function pad_periodic!(::FromCentre, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}</span></span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">     2766022 :     @inbounds for i ∈ 1:M</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">     3006256 :         v[begin - i] = v[end + 1 - i] - L</span></span>
+<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">     3006256 :         v[end + i] = v[begin - 1 + i] + L</span></span>
+<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">     5278762 :     end</span></span>
+<span id="L247"><span class="lineNum">     247</span> <span class="tlaGNC">      733750 :     v</span></span>
+<span id="L248"><span class="lineNum">     248</span>              : end</span>
+<span id="L249"><span class="lineNum">     249</span>              : </span>
+<span id="L250"><span class="lineNum">     250</span>              : # This variant gives priority to padded values on the right of the &quot;central&quot; array.</span>
+<span id="L251"><span class="lineNum">     251</span>              : # This can be convenient for certain algorithms (e.g. when inserting spline knots).</span>
+<span id="L252"><span class="lineNum">     252</span> <span class="tlaGNC">         241 : function pad_periodic!(::FromRight, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}</span></span>
+<span id="L253"><span class="lineNum">     253</span>              :     # Copy right ghost values onto &quot;central&quot; array, then perform the usual padding &quot;from centre&quot;.</span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">         241 :     @inbounds for i ∈ 1:M</span></span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">         418 :         v[begin - 1 + i] = v[end + i] - L</span></span>
+<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">         715 :     end</span></span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">         121 :     pad_periodic!(FromCentre(), v, L)</span></span>
+<span id="L258"><span class="lineNum">     258</span>              : end</span>
+<span id="L259"><span class="lineNum">     259</span>              : </span>
+<span id="L260"><span class="lineNum">     260</span>              : # Similar to above, but preserving the left padding.</span>
+<span id="L261"><span class="lineNum">     261</span> <span class="tlaGNC">          17 : function pad_periodic!(::FromLeft, v::PaddedVector{M, T}, L::T = zero(T)) where {M, T}</span></span>
+<span id="L262"><span class="lineNum">     262</span>              :     # Copy left ghost values onto &quot;central&quot; array, then perform the usual padding &quot;from centre&quot;.</span>
+<span id="L263"><span class="lineNum">     263</span> <span class="tlaGNC">          17 :     @inbounds for i ∈ 1:M</span></span>
+<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">          40 :         v[end + 1 - i] = v[begin - i] + L</span></span>
+<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">          71 :     end</span></span>
+<span id="L266"><span class="lineNum">     266</span> <span class="tlaGNC">           9 :     pad_periodic!(FromCentre(), v, L)</span></span>
+<span id="L267"><span class="lineNum">     267</span>              : end</span>
+<span id="L268"><span class="lineNum">     268</span>              : </span>
+<span id="L269"><span class="lineNum">     269</span>              : # Generalisation to N-dimensional PaddedArray.</span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC">       19397 : @inline function pad_periodic!(dir::FromCentre, v::PaddedArray)</span></span>
+<span id="L271"><span class="lineNum">     271</span>              :     # Copy ghost cells over each dimension separately.</span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">       19397 :     N = ndims(v)</span></span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">       19397 :     _pad_periodic_dimension!(dir, Val(N), v)</span></span>
+<span id="L274"><span class="lineNum">     274</span>              : end</span>
+<span id="L275"><span class="lineNum">     275</span>              : </span>
+<span id="L276"><span class="lineNum">     276</span>              : # Copy values over dimension d.</span>
+<span id="L277"><span class="lineNum">     277</span> <span class="tlaGNC">       58191 : @inline function _pad_periodic_dimension!(dir::FromCentre, ::Val{d}, v::PaddedArray) where {d}</span></span>
+<span id="L278"><span class="lineNum">     278</span> <span class="tlaGNC">       58191 :     data = parent(v)</span></span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">       58191 :     N = ndims(data)</span></span>
+<span id="L280"><span class="lineNum">     280</span> <span class="tlaGNC">      116382 :     inds_before = CartesianIndices(ntuple(i -&gt; axes(data, i), Val(d - 1)))</span></span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">      116382 :     inds_after = CartesianIndices(ntuple(i -&gt; axes(data, d + i), Val(N - d)))</span></span>
+<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">       58191 :     ibegin = firstindex(data, d)</span></span>
+<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">       58191 :     iend = lastindex(data, d)</span></span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">       58191 :     M = npad(v)</span></span>
+<span id="L285"><span class="lineNum">     285</span> <span class="tlaGNC">       58191 :     @inbounds for J ∈ inds_after, I ∈ inds_before</span></span>
+<span id="L286"><span class="lineNum">     286</span> <span class="tlaGNC">    44911775 :         for δ ∈ 1:M  # copy each ghost cell layer</span></span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">    89823550 :             data[I, iend - M + δ, J] = data[I, ibegin - 1 + M + δ, J]</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">    89823550 :             data[I, ibegin - 1 + δ, J] = data[I, iend - 2M + δ, J]</span></span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">   134735325 :         end</span></span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">    44969966 :     end</span></span>
+<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">       58191 :     _pad_periodic_dimension!(dir, Val(d - 1), v)</span></span>
+<span id="L292"><span class="lineNum">     292</span>              : end</span>
+<span id="L293"><span class="lineNum">     293</span>              : </span>
+<span id="L294"><span class="lineNum">     294</span>              : # Stop when we have copied over all dimensions.</span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">       19397 : @inline _pad_periodic_dimension!(dir::FromCentre, ::Val{0}, v::PaddedArray) = v</span></span>
+<span id="L296"><span class="lineNum">     296</span>              : </span>
+<span id="L297"><span class="lineNum">     297</span>              : end  # module</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
