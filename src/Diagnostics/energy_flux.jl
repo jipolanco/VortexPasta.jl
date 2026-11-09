@@ -134,12 +134,12 @@ function flux_wavenumbers_logspaced(cache::LongRangeCache, Nk::Integer)
     unique!(floor.(ks_log ./ Δk) .* Δk)  # remove repeated and "fractional" wavenumbers
 end
 
-function energy_flux(cache_in, fs, velocities::NamedTuple, Nk_or_ks, params::ParamsBiotSavart; kws...)
+function energy_flux(cache_in, fs, velocities::NamedTuple, Nk_or_ks, params::BiotSavart.AbstractParams; kws...)
     cache = get_long_range_cache(cache_in)::LongRangeCache
     energy_flux(cache, fs, velocities, Nk_or_ks, params; kws...)
 end
 
-function energy_flux(cache::LongRangeCache, fs, velocities::NamedTuple, Nk::Integer, params::ParamsBiotSavart; kws...)
+function energy_flux(cache::LongRangeCache, fs, velocities::NamedTuple, Nk::Integer, params::BiotSavart.AbstractParams; kws...)
     ks = flux_wavenumbers_logspaced(cache, Nk)
     energy_flux(cache, fs, velocities, ks, params; kws...)
 end

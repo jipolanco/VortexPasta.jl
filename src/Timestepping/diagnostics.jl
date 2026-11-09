@@ -15,7 +15,7 @@ end
 function Diagnostics.kinetic_energy_from_streamfunction(iter::VortexFilamentSolver; kws...)
     _check_diagnostics(iter)
     (; ψs, fs, external_fields, t,) = iter
-    params = iter.prob.p
+    params = get_params(iter)
     Ls = BiotSavart.periods(params)
     E = Diagnostics.kinetic_energy_from_streamfunction(fs, ψs, params; quad = params.quad, kws...)
     # Add kinetic energy of external velocity field, if available.
@@ -32,7 +32,7 @@ end
 function Diagnostics.kinetic_energy_nonperiodic(iter::VortexFilamentSolver; kws...)
     _check_diagnostics(iter)
     (; vs, fs,) = iter  # note: here we want vs (self-induced velocity) and not vL
-    params = iter.prob.p
+    params = get_params(iter)
     Ls = BiotSavart.periods(params)
     BiotSavart.domain_is_periodic(params) &&
         @warn(lazy"`kinetic_energy_nonperiodic` should only be called when working with non-periodic domains (got Ls = $Ls)")
@@ -42,7 +42,7 @@ end
 function Diagnostics.energy_injection_rate(iter::VortexFilamentSolver, vL = iter.vL; kws...)
     _check_diagnostics(iter)
     (; vs, fs,) = iter
-    params = iter.prob.p
+    params = get_params(iter)
     Diagnostics.energy_injection_rate(fs, vL, vs, params; quad = params.quad, kws...)
 end
 
@@ -52,7 +52,7 @@ function Diagnostics.energy_flux(iter::VortexFilamentSolver, Nk_or_ks; kws...)
         vs = (field = iter.vs, sign = -1),
         vinf = (field = CurvatureVector(), sign = -1),
     )
-    params = iter.prob.p
+    params = get_params(iter)
     if hasproperty(iter.quantities, :vf)
         velocities = (; velocities..., vf = (field = iter.vf, sign = +1))
     end
@@ -65,7 +65,7 @@ end
 
 function Diagnostics.energy_transfer_matrix(iter::VortexFilamentSolver, Nk_or_ks; kws...)
     _check_diagnostics(iter)
-    params = iter.prob.p
+    params = get_params(iter)
     Diagnostics.energy_transfer_matrix(
         iter, iter.fs, iter.vs, Nk_or_ks, params; quad = params.quad, kws...
     )

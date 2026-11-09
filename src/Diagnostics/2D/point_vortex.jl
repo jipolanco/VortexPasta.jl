@@ -45,3 +45,42 @@ function vortex_impulse(vortices::PointVortexState)
     end
     p⃗
 end
+
+function energy_flux(
+        cache::LongRangeCache, vortices::PointVortexState, velocities::NamedTuple,
+        ks::AbstractVector, params::ParamsPointVortex;
+        vs_buf = similar(first(velocities).field),
+    )
+    (; wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache)
+    (; Γ, Ls) = params
+    (; signs) = vortices
+    prefactor = Γ / prod(Ls)
+    @assert state.quantity == :velocity
+    @assert state.smoothing_scale == 0
+
+    # Initialise flux vectors.
+    fluxes = map(_ -> similar(ks), velocities)::NamedTuple
+
+    # Iterate over target wavenumbers.
+    vs_filtered = vs_buf
+    V = eltype(vs_filtered)  # = Vec2{T}
+    for (i, k_flux) in pairs(ks)
+        callback = DropLargeWavenumbers(k_flux, wavenumbers)
+        output = cache.outputs.velocity
+        BiotSavart.interpolate_to_physical!(callback, output, cache)
+        BiotSavart.copy_output_values_on_nodes!(vs_filtered, output, cache.pointdata.buf_host)
+
+        # Compute dissipation of large-scale energy by each input velocity
+        for n in eachindex(values(velocities), values(fluxes))
+            vs = vs_filtered
+            vL = velocities[n].field
+            s = velocities[n].sign  # -1 if dissipation, +1 if injection
+            fluxes[n][i] = s * prefactor * sum(eachindex(vortices)) do j
+                @inbounds w⃗ = V(-vs[j][2], +vs[j][1])  # = ẑ × vs
+                @inbounds signs[j] * (w⃗ ⋅ vL[j])
+            end
+        end
+    end
+
+    ks, fluxes
+end
