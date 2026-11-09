@@ -510,16 +510,6 @@ function do_shortrange!(
     nothing
 end
 
-function enforce_unique_filament_velocity!(vs::AbstractVector{<:Vec3})
-    # Replace all velocities with the average filament velocity.
-    # This generally only makes sense in quasi-2D simulations.
-    v⃗_mean = sum(vs) ./ length(vs)
-    @inbounds for j in eachindex(vs)
-        vs[j] = v⃗_mean
-    end
-    vs
-end
-
 function _compute_on_nodes!(
         fields::NamedTuple, cache, fs;
         LIA = Val(true),
