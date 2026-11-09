@@ -158,7 +158,7 @@ function velocity_on_nodes!(
 end
 
 # Extracts and resets output fields (velocity and/or streamfunction).
-function _setup_fields!(fields::NamedTuple{Names}, fs) where {Names}
+function _setup_fields!(fields::NamedTuple{Names}, fs::AbstractVector{<:AbstractFilament}) where {Names}
     N = length(fields)
     @assert N > 0
     vs = get(fields, :velocity, nothing)
@@ -391,16 +391,48 @@ compute_on_nodes!(...; callback_vorticity)
 """
 function compute_on_nodes!(
         fields::NamedTuple, cache::BiotSavartCache, fs::VectorOfFilaments;
-        LIA = Val(true), kws...,
+        longrange::Bool = true, shortrange::Bool = true,
+        callback_vorticity::Fvort = identity,
+        LIA = Val(true), integration_cutoff::Union{Nothing, Real} = nothing,  # these are specific to 3D
+    ) where {Fvort <: Function}
+
+    # This function will be called while we wait for short-range and long-range tasks (which
+    # may be run on a GPU), so it can be performed asynchronously on the CPU.
+    function do_while_waiting_async_tasks!(fields)
+        local (; to, params) = cache
+        if shortrange && LIA !== Val(:only)
+            @debug "Computing synchronous operations"
+            @timeit to "CPU-only operations (synchronous)" begin
+                if params.shortrange.lia_segment_fraction !== nothing
+                    @timeit to "Add local integrals" add_local_integrals!(fields, cache, fs)
+                end
+                # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
+                background_vorticity_correction!(fields, fs, params)  # this is very fast, so we don't time it
+            end
+        end
+        nothing
+    end
+
+    options = (; LIA, integration_cutoff)  # passed to do_shortrange!
+    _compute_on_nodes!(
+        fields, cache, fs, options;
+        with_shortrange = shortrange,
+        with_longrange = longrange && LIA !== Val(:only) && !(cache.longrange isa NullLongRangeCache),
+        callback_vorticity,
+        do_while_waiting_async_tasks!,
     )
-    _compute_on_nodes!(fields, cache, fs; LIA, kws...)
+
+    # Pad results to avoid garbage values in ghost cells, taking into account the
+    # periodicity of the filaments.
+    foreach(fill_ghost_values!, fields)
+
     fields
 end
 
 function do_longrange!(
         cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu::PointData;
         callback_vorticity::Fvort,
-    ) where {Fvort}
+    ) where {Fvort <: Function}
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -462,9 +494,10 @@ end
 
 function do_shortrange!(
         cache::ShortRangeCache, outputs::NamedTuple,
-        pointdata_cpu::PointData; LIA = Val(true), integration_cutoff = nothing,
+        pointdata_cpu::PointData, options::NamedTuple,
     )
-    (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
+    (; pointdata, to) = cache  # pointdata on the device (possibly a GPU)
+    (; LIA, integration_cutoff) = options
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
     # Make sure we execute this task in the GPU device chosen for long-range computations.
@@ -511,23 +544,18 @@ function do_shortrange!(
 end
 
 function _compute_on_nodes!(
-        fields::NamedTuple, cache, fs;
-        LIA = Val(true),
-        longrange::Bool = true,
-        shortrange::Bool = true,
-        integration_cutoff::Union{Nothing, Real} = nothing,
+        fields::NamedTuple, cache, fs, options::NamedTuple;
+        with_longrange::Bool = true,
+        with_shortrange::Bool = true,
         callback_vorticity::Fvort = identity,
-    ) where {Fvort}
+        do_while_waiting_async_tasks!::F = Returns(nothing),
+    ) where {Fvort <: Function, F <: Function}
     (; to, params, pointdata,) = cache
     _setup_fields!(fields, fs)
-
     @assert length(fields) ∈ (1, 2)  # maximum 2 fields: streamfunction + velocity
 
-    with_shortrange = shortrange
-    with_longrange = longrange && LIA !== Val(:only) && !(cache.longrange isa NullLongRangeCache)
-
     # This is used by short and long-range computations (done on the CPU)..
-    # TODO: skip unneeded quantities if LIA === Val(:only) or LIA === Val(false)
+    # TODO: skip unneeded quantities if options.LIA === Val(:only) or options.LIA === Val(false)
     @timeit to "Add point charges" add_point_charges!(pointdata, fs, params)
 
     channel = Channel{Symbol}(2)  # 2 is the length of the channel (for :shortrange + :longrange)
@@ -556,7 +584,7 @@ function _compute_on_nodes!(
             local outputs = NamedTuple{keys(fields)}(cache.outputs)
             # Compute short-range part asynchronously (e.g. on a GPU).
             local task = Threads.@spawn :interactive try
-                do_shortrange!(cache, outputs, pointdata; LIA, integration_cutoff)
+                do_shortrange!(cache, outputs, pointdata, options)
             finally
                 put!(channel, :shortrange)  # this notifies that the task has completed (or failed)
             end
@@ -565,17 +593,7 @@ function _compute_on_nodes!(
         end
     end
 
-    # Perform CPU-only operations associated to the short-range part (this differentiation is kind of arbitrary).
-    if with_shortrange && LIA !== Val(:only)
-        @debug "Computing synchronous operations"
-        @timeit to "CPU-only operations (synchronous)" begin
-            if params.shortrange.lia_segment_fraction !== nothing
-                @timeit to "Add local integrals" add_local_integrals!(fields, cache, fs)
-            end
-            # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
-            background_vorticity_correction!(fields, fs, params)  # this is very fast, so we don't time it
-        end
-    end
+    do_while_waiting_async_tasks!(fields)
 
     # Now wait for asynchronous long-range and short-range operations to finish.
     tree_point_base = [t.name for t in to.timer_stack]  # to merge timers (https://github.com/KristofferC/TimerOutputs.jl/issues/143)
@@ -601,10 +619,6 @@ function _compute_on_nodes!(
     end
 
     foreach(fetch, tasks)  # if a task failed with an error, this will rethrow the error
-
-    # Pad results to avoid garbage values in ghost cells, taking into account the
-    # periodicity of the filaments.
-    foreach(fill_ghost_values!, fields)
 
     nothing
 end

@@ -9,6 +9,8 @@ struct ParamsCommon2D{T <: AbstractFloat, Splitting <: PeriodicSplitting{2}} <: 
     end
 end
 
+domain_is_periodic(p::ParamsCommon2D) = true  # we're always periodic in 2D
+
 function Base.convert(::Type{T}, p::ParamsCommon2D) where {T <: AbstractFloat}
     (; Γ, splitting, Ls) = p
     ParamsCommon2D{T}(Γ, splitting, Ls)  # converts all floats to type T
@@ -194,7 +196,7 @@ Base.ndims(::ParamsPointVortex) = 2
 
 circulation(p::ParamsPointVortex) = p.common.Γ
 periods(p::ParamsPointVortex) = p.common.Ls
-domain_is_periodic(p::ParamsPointVortex) = true  # we're always periodic in 2D
+domain_is_periodic(p::ParamsPointVortex) = domain_is_periodic(p.common)
 
 # This is for convenience: doing p.splitting is equivalent to p.common.splitting.
 @inline function Base.getproperty(p::ParamsPointVortex, name::Symbol)

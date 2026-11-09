@@ -89,19 +89,19 @@ function velocity_on_nodes!(vs::PointVortexVelocities, cache::PointVortexCache, 
     vs
 end
 
-function background_vorticity_correction!(fields::NamedTuple, signs::PointVortexSigns, params::ParamsPointVortex)
+function background_vorticity_correction!(outputs::NamedTuple, signs::PointVortexSigns, params::ParamsCommon2D)
     # We only need to modify the streamfunction, so we do nothing if the streamfunction is
     # not present. (The velocity is not affected by the uniform background vorticity.)
-    ψs = get(fields, :streamfunction, nothing)
-    ψs === nothing && return fields
-    domain_is_periodic(params) || return fields  # correction only makes sense in periodic domain
+    ψs = get(outputs, :streamfunction, nothing)
+    ψs === nothing && return outputs
+    domain_is_periodic(params) || return outputs  # correction only makes sense in periodic domain
 
     (; Γ, Ls, splitting,) = params
 
     npos = count(==(UP), signs)
     nneg = length(signs) - npos
     charge = npos - nneg
-    iszero(charge) && return fields  # nothing to do, the total charge is zero
+    iszero(charge) && return outputs  # nothing to do, the total charge is zero
 
     ω_mean = charge * Γ / prod(Ls)
     ω_back = -ω_mean  # background vorticity
@@ -109,14 +109,14 @@ function background_vorticity_correction!(fields::NamedTuple, signs::PointVortex
     # Streamfunction associated to background vorticity
     ψ_back = ω_back * background_vorticity_correction_factor(splitting)
 
-    @inbounds for i in eachindex(ψs)
-        ψs[i] = ψs[i] + ψ_back
+    AK.foreachindex(ψs) do i
+        @inbounds ψs[i] = ψs[i] + ψ_back
     end
 
-    fields
+    outputs
 end
 
-function _setup_fields_2d!(fields::NamedTuple{Names}, vortices::PointVortexState) where {Names}
+function _setup_fields!(fields::NamedTuple{Names}, vortices::PointVortexState) where {Names}
     N = length(fields)
     @assert N > 0
     vs = get(fields, :velocity, nothing)
@@ -135,7 +135,7 @@ end
 function do_longrange!(
         cache::LongRangeCache, outputs::NamedTuple, pointdata_cpu::PointVortexData;
         callback_vorticity::Fvort,
-    ) where {Fvort}
+    ) where {Fvort <: Function}
     (; pointdata, to) = cache  # pointdata on the device (possibly a GPU)
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -198,7 +198,11 @@ function do_longrange!(
 end
 
 # 2D version
-function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_cpu::PointVortexData)
+function do_shortrange!(
+        cache::ShortRangeCache, outputs::NamedTuple,
+        pointdata_cpu::PointVortexData,
+        options::@NamedTuple{}  # this is an empty NamedTuple (for compatibility with the 3D version)
+    )
     (; pointdata, to,) = cache  # pointdata on the device (possibly a GPU)
     TimerOutputs.reset_timer!(to)  # reset timer, since it will be merged with main timer (otherwise events will be repeated)
 
@@ -222,6 +226,7 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
             @timeit to "Fill with zeros" _reset_vectors!(outputs)  # we need to set everything to 0, since the function below _adds_ to existing values
             @timeit to "Pair interactions" add_pair_interactions_2D!(outputs, cache)
             @timeit to "Remove self-interactions" remove_self_interaction_2D!(outputs, cache)
+            @timeit to "Background vorticity correction" background_vorticity_correction!(outputs, pointdata.signs, cache.params.common)
 
             yield()  # let other tasks run (not sure if this really helps)
 
@@ -233,92 +238,18 @@ function do_shortrange!(cache::ShortRangeCache, outputs::NamedTuple, pointdata_c
     nothing
 end
 
-# TODO: reduce code duplication with 3D version?
 function compute_on_nodes!(
         fields::NamedTuple, cache::PointVortexCache, vortices::PointVortexState;
         longrange::Bool = true, shortrange::Bool = true,
         callback_vorticity::Fvort = identity,
-    ) where {Fvort}
-    (; to, params, pointdata) = cache
-    _setup_fields_2d!(fields, vortices)
-
-    @assert length(fields) in (1, 2)  # maximum 2 fields: streamfunction + velocity
-
-    with_shortrange = shortrange
-    with_longrange = longrange
-
-    # This mainly copies the inputs to `pointdata`
-    @timeit to "Add point charges" add_point_charges!(pointdata, vortices, params)
-
-    channel = Channel{Symbol}(2)  # 2 is the length of the channel (for :shortrange + :longrange)
-    tasks = Task[]
-
-    if with_longrange
-        @debug "Computing long-range interactions asynchronously" KA.get_backend(cache.longrange)
-        let cache = cache.longrange
-            # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
-            local outputs = NamedTuple{keys(fields)}(cache.outputs)
-            # Compute long-range part asynchronously (e.g. on a GPU).
-            local task = Threads.@spawn :interactive try
-                do_longrange!(cache, outputs, pointdata; callback_vorticity)
-            finally
-                put!(channel, :longrange)  # this notifies that the task has completed (or failed)
-            end
-            KA.get_backend(cache) isa CPU && wait(task)  # this helps get more accurate timings
-            push!(tasks, task)
-        end
-    end
-
-    if with_shortrange
-        @debug "Computing short-range interactions asynchronously" KA.get_backend(cache.shortrange)
-        let cache = cache.shortrange
-            # Select elements of outputs with the same names as in `fields` (in this case :velocity and/or :streamfunction).
-            local outputs = NamedTuple{keys(fields)}(cache.outputs)
-            # Compute short-range part asynchronously (e.g. on a GPU).
-            local task = Threads.@spawn :interactive try
-                do_shortrange!(cache, outputs, pointdata)
-            finally
-                put!(channel, :shortrange)  # this notifies that the task has completed (or failed)
-            end
-            KA.get_backend(cache) isa CPU && wait(task)  # this helps get more accurate timings
-            push!(tasks, task)
-        end
-    end
-
-    # Perform CPU-only operations associated to the short-range part (this differentiation is kind of arbitrary).
-    if with_shortrange
-        @debug "Computing synchronous operations"
-        @timeit to "CPU-only operations (synchronous)" begin
-            # Perform other CPU-only operations which we include in the short-range part (this choice is kind of arbitrary).
-            background_vorticity_correction!(fields, vortices.signs, params)
-        end
-    end
-
-    # Now wait for asynchronous long-range and short-range operations to finish.
-    tree_point_base = [t.name for t in to.timer_stack]  # to merge timers (https://github.com/KristofferC/TimerOutputs.jl/issues/143)
-    ntasks = length(tasks)
-    while ntasks > 0
-        @timeit to "Wait for async task to finish" begin
-            taskname = take!(channel)::Symbol  # wait for first async task to finish
-            @debug "Task finished: $taskname"
-            ntasks -= 1
-        end
-        # Add results from asynchronous task.
-        @timeit to "Copy output (device -> host)" let
-            if taskname == :shortrange
-                timer = cache.shortrange.to
-                _add_output_from_async_task!(fields, cache.shortrange.outputs, cache.shortrange.pointdata.buf_host)
-            elseif taskname == :longrange
-                timer = cache.longrange.to
-                _add_output_from_async_task!(fields, cache.longrange.outputs, cache.longrange.pointdata.buf_host)
-            end
-            # Add timings from asynchronous computations.
-            TimerOutputs.merge!(to, timer; tree_point = tree_point_base)  # https://github.com/KristofferC/TimerOutputs.jl/issues/143
-        end
-    end
-
-    foreach(fetch, tasks)  # if a task failed with an error, this will rethrow the error
-
+    ) where {Fvort <: Function}
+    options = (;)  # currently point vortex has no options (passed to do_shortrange!)
+    _compute_on_nodes!(
+        fields, cache, vortices, options;
+        with_shortrange = shortrange,
+        with_longrange = longrange,
+        callback_vorticity,
+    )
     fields
 end
 
