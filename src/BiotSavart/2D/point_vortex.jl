@@ -10,11 +10,23 @@ const PointVortexVelocities{T} = AbstractVector{Vec2{T}}
 const PointVortexScalars{T} = AbstractVector{T}  # usually streamfunction
 const PointVortexSigns = AbstractVector{SignValue}
 
-# This represents ẑ, which allows to efficiently and conveniently compute ẑ × v⃗ in 2D.
+@doc raw"""
+    ZetaHat()
+
+Singleton type representing the vertical direction ``\hat{z}``.
+
+In 2D, this allows to conveniently and efficiently perform operations such as
+``\hat{z} \times \bm{v}`` where ``\bm{v}`` is a two-component vector (represented as a
+`Vec2{T}`, i.e. an `SVector{2, T}`).
+
+The alias `BiotSavart.ẑ = ZetaHat()` is also provided for convenience.
+"""
 struct ZetaHat end
+
 const ẑ = ZetaHat()
 
-@inline LinearAlgebra.cross(::ZetaHat, v::Vec2) = Vec2(-v[2], v[1])
+@inline LinearAlgebra.cross(::ZetaHat, v::Vec2) = Vec2(-v[2], +v[1])
+@inline LinearAlgebra.cross(v::Vec2, ::ZetaHat) = Vec2(+v[2], -v[1])
 
 """
     PointVortexState{T <: AbstractFloat}

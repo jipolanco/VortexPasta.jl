@@ -53,7 +53,7 @@ function add_pair_interactions_2D!(outputs::NamedTuple{Names}, cache::ShortRange
 end
 
 @inline short_range_contribution(::Streamfunction, a, b, r², r⃗::NTuple{2}) = a
-@inline short_range_contribution(::Velocity, a, b, r², r⃗::NTuple{2}) = (b / r²) .* (-r⃗[2], +r⃗[1])
+@inline short_range_contribution(::Velocity, a, b, r², r⃗::NTuple{2}) = (b / r²) * (ẑ × Vec2(r⃗))
 
 ## ========================================================================================== ##
 ## Remove spurious self-interaction included in long-range term
