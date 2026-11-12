@@ -173,6 +173,7 @@ activate_device!
 ```@docs
 AbstractBackend
 BiotSavartCache
+PointVortexCache
 HostVector
 background_vorticity_correction!
 process_point_charges!

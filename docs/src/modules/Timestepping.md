@@ -103,6 +103,9 @@ Midpoint
 RK4
 SSPRK33
 DP5
+Vern6
+Vern8
+Vern9
 ```
 
 ### Implicit-explicit Runge–Kutta (IMEX-RK) schemes
