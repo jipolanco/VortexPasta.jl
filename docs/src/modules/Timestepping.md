@@ -195,6 +195,6 @@ See that page for more details.
 ```@docs
 TemporalSchemeCache
 TimeInfo
-SimulationStats
+VortexFilamentStats
 maximum_displacement
 ```

@@ -5,6 +5,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Timestepping: rename `SimulationStats` to `VortexFilamentStats`. For now,
+  `SimulationStats` is kept as an alias for backwards compatibility.
+
 ## [0.36.0] - 2026-11-09
 
 ### Added

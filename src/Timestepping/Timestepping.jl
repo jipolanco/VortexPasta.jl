@@ -189,7 +189,7 @@ Some useful fields included in a `VortexFilamentSolver` are:
 
 - `time`: a [`TimeInfo`](@ref) object containing information such as the current time and timestep;
 
-- `stats`: a [`SimulationStats`](@ref) object containing information such as the total
+- `stats`: a [`VortexFilamentStats`](@ref) object containing information such as the total
   number of reconnections since the beginning of the simulation;
 
 - `to`: a `TimerOutput`, which records the time spent on different functions;
@@ -264,7 +264,7 @@ struct VortexFilamentSolver{
     mode  :: Mode
     quantities :: Quantities  # stored fields: (vs, ψs) + optional ones (vn, vf, tangents, ...)
     time  :: TimeInfo
-    stats :: SimulationStats{T}
+    stats :: VortexFilamentStats{T}
     dtmin :: T
     refinement        :: Refinement
     adaptivity        :: Adaptivity
@@ -820,13 +820,13 @@ function init(
 
     if state === (;)  # empty state, new simulation
         time = TimeInfo(t = first(tspan), dt = dt, dt_prev = dt)
-        stats = SimulationStats(T)
+        stats = VortexFilamentStats(T)
     else  # with state, restarting from checkpoint
         time = state.time
         if adaptivity === NoAdaptivity()
             time.dt = dt  # use constant timestep given as input
         end
-        stats = state.stats::SimulationStats{T}
+        stats = state.stats::VortexFilamentStats{T}
     end
 
     external_fields = (

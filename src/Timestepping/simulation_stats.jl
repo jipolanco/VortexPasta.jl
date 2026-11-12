@@ -1,5 +1,7 @@
+abstract type AbstractSimulationStats end
+
 """
-    SimulationStats{T <: AbstractFloat}
+    VortexFilamentStats{T <: AbstractFloat} <: AbstractSimulationStats
 
 Contains accumulated statistics of different events occurring since the beginning of a
 simulation.
@@ -35,7 +37,7 @@ segment approximation.
   length. In principle this quantity can also be negative, which could happen if nodes are only
   inserted and not removed.
 """
-mutable struct SimulationStats{T <: AbstractFloat}
+mutable struct VortexFilamentStats{T <: AbstractFloat}
     reconnection_count       :: Int
     reconnection_length_loss :: T
     reconnection_passes      :: Int
@@ -44,10 +46,12 @@ mutable struct SimulationStats{T <: AbstractFloat}
     refinement_length_loss   :: T
 end
 
-SimulationStats(::Type{T}) where {T} = SimulationStats(0, zero(T), 0, 0, zero(T), zero(T))
+const SimulationStats = VortexFilamentStats  # for backwards compatibility (v0.36.0 and earlier)
 
-function Base.show(io::IO, stats::SimulationStats)
-    print(io, "SimulationStats:")
+VortexFilamentStats(::Type{T}) where {T} = VortexFilamentStats(0, zero(T), 0, 0, zero(T), zero(T))
+
+function Base.show(io::IO, stats::VortexFilamentStats)
+    print(io, "VortexFilamentStats:")
     print(io, "\n - reconnection_count        = ", stats.reconnection_count)
     print(io, "\n - reconnection_length_loss  = ", stats.reconnection_length_loss)
     print(io, "\n - reconnection_passes       = ", stats.reconnection_passes)
@@ -56,4 +60,4 @@ function Base.show(io::IO, stats::SimulationStats)
     print(io, "\n - refinement_length_loss    = ", stats.refinement_length_loss)
 end
 
-Base.summary(io::IO, stats::SimulationStats) = print(io, typeof(stats), "(...)")
+Base.summary(io::IO, stats::VortexFilamentStats) = print(io, typeof(stats), "(...)")

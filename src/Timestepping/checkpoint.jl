@@ -88,7 +88,7 @@ end
 
 save_checkpoint(filename, iter::VortexFilamentSolver; kwargs...) = save_checkpoint(identity, filename, iter; kwargs...)
 
-struct LoadedCheckpoint{Filaments, Time <: TimeInfo, Stats <: SimulationStats}
+struct LoadedCheckpoint{Filaments, Time <: TimeInfo, Stats <: VortexFilamentStats}
     fs    :: Filaments
     time  :: Time
     stats :: Stats
@@ -124,7 +124,7 @@ solve!(iter)
 """
 function load_checkpoint(func::F, filename, ::Type{T}, method::DiscretisationMethod; read_time = true) where {F <: Function, T <: AbstractFloat}
     time = TimeInfo()  # this initialises all fields to 0 (t = 0, nstep = 0, ...)
-    stats = SimulationStats(T)
+    stats = VortexFilamentStats(T)
     fs = FilamentIO.read_vtkhdf(filename, T, method) do io
         gbase = FilamentIO.root(io)  # "/" group in HDF5 file
         haskey(gbase, "VortexPasta") || error(
