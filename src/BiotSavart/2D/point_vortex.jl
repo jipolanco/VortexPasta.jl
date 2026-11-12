@@ -1,4 +1,6 @@
-export Vec2, PointVortices, ParamsPointVortex, SignValue, UP, DOWN, PointVortexState
+using LinearAlgebra: LinearAlgebra
+
+export Vec2, PointVortices, ParamsPointVortex, SignValue, UP, DOWN, PointVortexState, ZetaHat
 
 include("signs.jl")  # SignValue
 
@@ -7,6 +9,12 @@ const PointVortices{T} = AbstractVector{Vec2{T}}
 const PointVortexVelocities{T} = AbstractVector{Vec2{T}}
 const PointVortexScalars{T} = AbstractVector{T}  # usually streamfunction
 const PointVortexSigns = AbstractVector{SignValue}
+
+# This represents ẑ, which allows to efficiently and conveniently compute ẑ × v⃗ in 2D.
+struct ZetaHat end
+const ẑ = ZetaHat()
+
+@inline LinearAlgebra.cross(::ZetaHat, v::Vec2) = Vec2(-v[2], v[1])
 
 """
     PointVortexState{T <: AbstractFloat}
