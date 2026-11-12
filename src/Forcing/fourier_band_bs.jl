@@ -1,5 +1,9 @@
 using ..Filaments: FilamentChunkIterator
-using ..BiotSavart: BiotSavart, BiotSavartCache, PointData, count_nodes, resize_no_copy!, copy_host_to_device!
+using ..BiotSavart:
+    BiotSavart, AbstractBiotSavartCache,
+    BiotSavartCache, PointData, count_nodes,  # 3D
+    PointVortexCache, PointVortexData, PointVortexState, ẑ,  # 2D
+    resize_no_copy!, copy_host_to_device!, copy_device_to_host!
 using StaticArrays: SVector, SMatrix
 using LLVM.Interop: assume
 using AcceleratedKernels: AcceleratedKernels as AK
@@ -25,15 +29,15 @@ energy injection (negative values lead to energy dissipation):
   the amplitude ``α`` will be adjusted over time in order to keep a roughly constant energy
   injection rate (which in general will _not_ be equal to `ε_target`, see remarks below).
 
-The `modify_length` parameter can be set to `false` to avoid this forcing from increasing
+In 3D, the `modify_length` parameter can be set to `false` to avoid this forcing from increasing
 (or decreasing) the vortex length. This changes the forcing velocity by removing the component that is parallel
 to the local vortex curvature, such that it doesn't modify the vortex length locally.
 This is experimental, and might help (or not) avoiding non-local energy transfers from large
-to small scales.
+to small scales. This parameter is ignored in 2D (point vortex simulations).
 
 # Extended help
 
-## Forcing definition
+## Forcing definition in 3D
 
 The applied forcing velocity has the basic form:
 
@@ -60,71 +64,6 @@ binormal vector ``\bm{s}' × \bm{s}''``. This leads to the following form of the
 ```math
 \bm{v}_{\text{f}} = α \frac{\bm{s}'' ⋅ \tilde{\bm{v}}_{\text{s}}}{|\bm{s}''|^2} \, \bm{s}' × \bm{s}''.
 ```
-
-## Explanations
-
-This forcing attempts to increase the kinetic energy at selected wavenumbers.
-Its definition starts from the expression for the kinetic energy at wavenumber ``\bm{k}``:
-
-```math
-E(\bm{k}) = \frac{1}{2} |\bm{v}(\bm{k})|^2 = \frac{1}{2k^2} |\bm{ω}(\bm{k})|^2
-```
-
-The idea is to translate the vortex positions by ``\bm{s}(ξ) → \bm{s}(ξ) + δ\bm{s}(ξ)`` so
-that the energy ``E(\bm{k})`` increases. To determine such a displacement, one can look at
-the functional derivative of ``E(\bm{k})`` with respect to the positions ``\bm{s}``:
-
-```math
-\begin{align*}
-\frac{δE(\bm{k})}{δ\bm{s}}
-&= \frac{1}{2k^2} \bm{ω}(\bm{k}) ⋅ \frac{δ\bm{ω}^*(\bm{k})}{δ\bm{s}} + \text{c.c.},
-\\
-&= \frac{1}{2} \bm{ψ}(\bm{k}) ⋅ \frac{δ\bm{ω}^*(\bm{k})}{δ\bm{s}} + \text{c.c.},
-\end{align*}
-```
-
-where ``()^*`` denotes a complex conjugate and "c.c." means the complex conjugate of the first term.
-Here we have used ``\bm{ω}(\bm{k}) = k^2 \bm{ψ}(\bm{k})``, which corresponds in physical
-space to ``\bm{ω} = -∇² \bm{ψ}``.
-
-The functional derivative of vorticity in Fourier space is:
-
-```math
-\begin{align*}
-\frac{δ\bm{ω}^*(\bm{k})}{δ\bm{s}}
-&= \frac{Γ}{V} \frac{δ}{δ\bm{s}} ∮ e^{+i \bm{k} ⋅ \bm{s}(ξ)} \bm{s}(ξ)' \, \text{d}ξ
-\\
-&= \frac{Γ}{V} \frac{δ}{δ\bm{s}} ∮ \bm{ℒ}[\bm{s}(ξ), \bm{s}(ξ)'] \, \text{d}ξ
-\\
-&= \frac{Γ}{V} \left[ \frac{∂\bm{ℒ}}{∂\bm{s}} - \frac{\text{d}}{\text{d}ξ} \frac{∂\bm{ℒ}}{∂\bm{s}'} \right]
-\\
-&= \frac{i Γ}{V} e^{+i \bm{k} ⋅ \bm{s}} \left[ \bm{k} ⊗ \bm{s}' - (\bm{k} ⋅ \bm{s}') I \right] = \frac{i Γ}{V} \bm{B}(\bm{k}, \bm{s}, \bm{s}')
-\end{align*}
-```
-
-where ``\bm{B}`` is a ``3×3`` complex matrix which has dimensions of an inverse length (``L^{-1}``).
-
-The functional derivative of ``E(\bm{k})`` can now be written as:
-
-```math
-\begin{align*}
-\frac{δE(\bm{k})}{δ\bm{s}}
-&= \frac{Γ}{2V} i \bm{B} \bm{ψ}(\bm{k}) + \text{c.c.}
-\\
-&= \frac{Γ}{2V} [\bm{s}' × \bm{v}(\bm{k})] e^{i \bm{k} ⋅ \bm{s}} + \text{c.c.}
-\\
-&= ℜ \left\{ \frac{Γ}{V} [\bm{s}' × \bm{v}(\bm{k})] e^{i \bm{k} ⋅ \bm{s}} \right\}
-\end{align*}
-```
-
-Finally, the idea is to advect the filaments with a velocity which is parallel to this result for each forced ``\bm{k}``.
-One can write this velocity as
-
-```math
-\bm{v}_{\text{f}}(\bm{k}, \bm{s}) = α \, ℜ \left\{ [\bm{s}' × \bm{v}(\bm{k})] e^{i \bm{k} ⋅ \bm{s}} \right\} = α \, \bm{v}_0(\bm{k}, \bm{s})
-```
-
-where ``α`` is a non-dimensional parameter setting the forcing amplitude.
 """
 struct FourierBandForcingBS{T <: AbstractFloat, N} <: AbstractForcing
     α    :: T
@@ -177,7 +116,7 @@ function Base.show(io::IO, f::FourierBandForcingBS{T}) where {T}
 end
 
 # Here vs_grid is the superfluid velocity in Fourier space, optionally on a device (GPU).
-function init_cache(f::FourierBandForcingBS, cache_bs::BiotSavartCache)
+function init_cache(f::FourierBandForcingBS, cache_bs::BiotSavart.AbstractBiotSavartCache)
     (; kmin, kmax, qs,) = f
     (; params,) = cache_bs
     vs_grid = BiotSavart.get_longrange_field_fourier(cache_bs).field :: NTuple
@@ -198,7 +137,7 @@ function init_cache(f::FourierBandForcingBS, cache_bs::BiotSavartCache)
 end
 
 # After calling this function, cache.v_d contains the Biot-Savart velocity in Fourier space v̂(k⃗).
-function _update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCache)
+function _update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavart.AbstractBiotSavartCache)
     (; v_d,) = cache
 
     vs_grid, ks_grid, σ_gaussian = let data = BiotSavart.get_longrange_field_fourier(cache_bs)
@@ -213,6 +152,133 @@ function _update_cache!(cache, f::FourierBandForcingBS, cache_bs::BiotSavartCach
 
     nothing
 end
+
+function _check_same_device(a::AbstractArray, b::AbstractArray)
+    backend_a = KA.get_backend(a)
+    backend_b = KA.get_backend(b)
+    backend_a == backend_b && KA.device(backend_a, a) == KA.device(backend_b, b)
+end
+
+## ================================================================================ ##
+## 2D version
+
+function _evaluate_from_geometry!(
+        forcing::FourierBandForcingBS, vf_lin::AbstractVector, vortices::PointVortexState, cache,
+        buf_scalar::AbstractVector,
+    )
+    (; v_d, prefactor) = cache
+    (; points, signs) = vortices
+    (; ε_target, α, α′) = forcing
+    (; qs, cs, Δks) = v_d
+
+    @assert eachindex(qs) == eachindex(cs)
+    resize_no_copy!(vf_lin, length(nodes))
+    resize_no_copy!(buf_scalar, length(nodes))
+
+    AK.foreachindex(points; block_size = 256) do i
+        @inline
+        s⃗ = @inbounds points[i]
+        V = eltype(vf_lin)  # usually SVector{2, T}
+
+        # Compute Fourier-filtered velocity
+        vs_filtered = zero(V)
+        for n in eachindex(qs)  # iterate over active wavevectors k⃗
+            k⃗ = @inbounds SVector(qs[n]) .* Δks
+            v̂ = @inbounds cs[n]
+            k_dot_s = k⃗ ⋅ s⃗
+            local s, c = sincos(k_dot_s)  # note: CUDA defines sincos as well, so it should be fast
+            vs_k = real(v̂ * Complex(c, s))
+            vs_filtered = vs_filtered + vs_k
+        end
+
+        # Compute forcing velocity. If ε_target was set, this will also store the estimated
+        # local energy injection rate in buf_scalar[i].
+        vf = @inbounds signs[i] * (ẑ × vs_filtered)
+        if α != 0   # α was prescribed (and possibly α′ as well)
+            vf = V(α * vf + α′ * vs_filtered)
+        else
+            @inbounds buf_scalar[i] = T(sum(abs2, vf))  # local energy injection rate (taking α = 1 for now, and without Γ/A prefactor)
+        end
+        @inbounds vf_lin[i] = vf  # store computed forcing velocity
+    end
+
+    if α != 0
+        return vf_lin  # nothing else to do, we already have our forcing
+    end
+
+    # If we're here, it's that we prescribed a target ε_inj and we need to adjust the
+    # forcing accordingly.
+    @assert ε_target != 0
+
+    # Estimate ε_total.
+    # Note: buf_scalar now contains local contributions to energy injection rate.
+    # TODO: pass temporary GPU array to avoid allocations? (see docs for AK.reduce)
+    T = eltype(buf_scalar)
+    ε_total = prefactor * AK.reduce(+, buf_scalar; init = zero(T))
+
+    # If targeting a value of ε, adjust forcing amplitude.
+    if ε_total == 0  # just in case; this should never happen in practice
+        AK.foreachindex(vf_lin) do i
+            @inbounds vf_lin[i] = zero(eltype(vf_lin))
+        end
+    else
+        # In this case, vf_lin only contains the forcing velocities, which need to be
+        # rescaled to get the wanted energy injection rate (estimated). We also may need to
+        # include the α′ factor if it's nonzero.
+        @assert α == 0
+        α_actual = ε_target / ε_total
+        if α′ == 0
+            AK.foreachindex(vf_lin) do i
+                @inline
+                @inbounds vf_lin[i] = α_actual * vf_lin[i]
+            end
+        else
+            AK.foreachindex(vf_lin) do i
+                @inline
+                # Note: the α′ term is -ẑ × (ẑ × vs_filtered) = -ẑ × vf = +vs_filtered (consistent with 3D)
+                @inbounds vf_lin[i] = α_actual * vf_lin[i] - α′ * (ẑ × vf_lin[i])
+            end
+        end
+    end
+
+    vf_lin
+end
+
+function evaluate!(
+        forcing::FourierBandForcingBS, cache, vf::AbstractVector,
+        vortices_in::PointVortexState, cache_bs::PointVortexCache;
+        to = TimerOutput(),
+    )
+    @timeit to "(1) Copy active Fourier coefficients (GPU)" _update_cache!(cache, forcing, cache_bs)
+
+    # We assume the current vortex positions are already in pointdata (they were used to
+    # compute long-range velocities).
+    # This is expected to be the same data as the input vortices_in, only that it is already
+    # on the "right" device (GPU). For this reason we don't really use vortices_in.
+    # Note: points contains coordinates in the physical domain [0, Lx] × [0, Ly] (not rescaled into [0, 2π]²)
+    (; pointdata, outputs) = cache_bs.longrange
+    (; points, signs, buf_host) = pointdata
+    vortices = PointVortexState(points, signs)
+    # We assume vortices_in == vortices (but they may be in different devices, e.g. GPU for vortices)
+
+    same_device = _check_same_device(vf, outputs.velocity)
+    vf_compute = same_device ? vf : outputs.velocity  # if same device, write directly to vf
+    buf_scalar = outputs.streamfunction  # reuse this to store energy injection rate associated to each single point
+
+    @timeit to "(2) Compute forcing (GPU)" _evaluate_from_geometry!(forcing, vf_compute, vortices, cache, buf_scalar)
+
+    if vf_compute !== vf  # i.e. if same_device == false
+        @timeit to "(3) Copy forcing GPU -> CPU" begin
+            resize_no_copy!(vf, length(vf_compute))
+            copy_device_to_host!(vf, vf_compute, buf_host)
+        end
+    end
+
+    vf
+end
+
+## ================================================================================ ##
+## 3D version
 
 # This always runs on the CPU.
 # This function is adapted from BiotSavart.add_point_charges.
@@ -362,7 +428,7 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
     end
 
     if α != 0
-        return vf_lin  # nothing else to do, we already have our forcing 
+        return vf_lin  # nothing else to do, we already have our forcing
     end
 
     # If we're here, it's that we prescribed a target ε_inj and we need to adjust the

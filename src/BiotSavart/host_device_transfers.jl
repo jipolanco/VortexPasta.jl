@@ -175,12 +175,12 @@ function copy_device_to_host!(buf::HostVector, src::AbstractVector)
     buf
 end
 
-# function copy_device_to_host!(dst::AbstractVector, src::AbstractVector, buf::HostVector)
-#     copy_device_to_host!(buf, src)
-#     copyto!(dst, buf)
-#     dst
-# end
-#
+function copy_device_to_host!(dst::AbstractVector, src::AbstractVector, buf::HostVector)
+    copy_device_to_host!(buf, src)
+    copyto!(dst, buf)
+    dst
+end
+
 # function copy_device_to_host!(dst::StructVector, src::StructVector)
 #     copy_device_to_host!(StructArrays.components(dst), StructArrays.components(src))
 #     dst
