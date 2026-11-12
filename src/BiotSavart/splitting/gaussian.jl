@@ -94,12 +94,29 @@ $\bm{\nabla}G(\bm{r}) = \bm{\nabla}G^{\text{(n)}}(\bm{r}) + \bm{\nabla}G^{\text{
 ```
 
 Far-ranged fields can be interpreted as those induced by a Gaussian-filtered vorticity field
-since ``-\nabla^2 G^{\text{f}}(\bm{r}) = (\alpha / \sqrt{\pi})^3 \, e^{-(\alpha r)^2} ≡ φ(\bm{r})``.
+since ``-\nabla^2 G^{\text{(f)}}(\bm{r}) = (\alpha / \sqrt{\pi})^3 \, e^{-(\alpha r)^2} ≡ φ(\bm{r})``.
 The Fourier transform of this convolution kernel is given by
 
 ```math
 \hat{\varphi}(\bm{k}) = e^{-k^2 / (4 \alpha^2)}
 ```
+
+## 2D case
+
+The 2D Green's function ``G(\bm{r}) = -\log(r) / (2π)`` is split as
+
+```math
+G(\bm{r})
+= G^{\text{(n)}}(\bm{r}) + G^{\text{(f)}}(\bm{r})
+= \frac{1}{2\pi} \left[ \frac{1}{2} E_1(\alpha^2 r^2) \right]
+- \frac{1}{2\pi} \left[ \log(r) + \frac{1}{2} E_1(\alpha^2 r^2) \right]
+```
+
+where ``E_1(x) = \int_x^{\infty} t^{-1} e^{-t} \, \mathrm{d}t`` is the exponential integral function.
+
+As in the 3D case, taking the Laplacian of $G^{\text{(f)}}(\bm{r})$ leads to the Gaussian kernel
+``-\nabla^2 G^{\text{(f)}}(\bm{r}) = (\alpha / \sqrt{\pi})^2 \, e^{-(\alpha r)^2}``, which
+implies that the long-range term is induced by a Gaussian-filtered vorticity field.
 
 ## Kernel truncation
 
