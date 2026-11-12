@@ -26,8 +26,8 @@ using CairoMakie
 using DSP: DSP
 
 # These seem to be needed for GLMakie on Gitlab
-using JpegTurbo
-using ImageMagick
+# using JpegTurbo
+# using ImageMagick
 
 DocMeta.setdocmeta!(
     VortexPasta.PaddedArrays,
