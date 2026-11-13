@@ -5,6 +5,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.36.1] - 2026-11-13
+
+### Fixed
+
+- Fix `BiotSavart.init_cache` with CUDABackend.
+
 ### Changed
 
 - Timestepping: rename `SimulationStats` to `VortexFilamentStats`. For now,

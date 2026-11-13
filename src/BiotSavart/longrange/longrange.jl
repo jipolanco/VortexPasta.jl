@@ -402,8 +402,9 @@ function init_ewald_operator_fourier(
     f = splitting_kernel_fourier(splitting)::Function
     # Note: when passing backend = POCLBackend(), AcceleratedKernels doesn't call a GPU
     # kernel (as in KernelAbstractions) but instead runs the function using CPU threads.
-    N = length(dims)
     AK.foreachindex(eachindex(IndexCartesian(), u); backend = ka_backend) do I
+        @inline
+        N = length(dims)
         k⃗ = ntuple(Val(N)) do d
             @inline
             @inbounds ks[d][I[d]]
