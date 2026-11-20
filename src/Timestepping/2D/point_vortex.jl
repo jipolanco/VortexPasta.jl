@@ -1,9 +1,7 @@
-export PointVortexProblem, PointVortexSolver
-
 # TODO:
-# - document PointVortexSolver, init
-# - define show(::IO, ::PointVortexSolver)
 # - checkpoints
+
+export PointVortexProblem, PointVortexSolver
 
 using ..BiotSavart:
     Vec2, PointVortices, ParamsPointVortex, SignValue, UP, DOWN,
@@ -31,35 +29,6 @@ function Base.resize!(cache::TemporalSchemeCache, vortices::PointVortexState)
         resize!(v, N)
     end
     cache
-end
-
-function update_values_at_point_vortices!(
-        fields::NamedTuple, vortices::PointVortexState, t::Real, iter::AbstractSolver,
-    )
-    (; to) = iter
-    # (0) Apply affect_t! function (optional)
-    if iter.affect_t! !== default_callback()
-        @timeit to "Affect! (fine-grained)" iter.affect_t!(iter, t)
-    end
-    # (1) Compute velocities and optionally streamfunction values
-    @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, vortices)
-    # add_external_fields!(fields, iter, fs, t, iter.to)
-    # apply_forcing!(fields, iter, fs, t, iter.to)
-    fields
-end
-
-# Case where only the velocity is passed (generally used in internal RK substeps).
-# Note: `points` only contains vortex coordinates, it doesn't contain their signs.
-# But signs haven't changed from those in iter.vortices (at the start of the timestep).
-function update_values_at_point_vortices!(
-        vL::AbstractVector, points::AbstractVector, t::Real, iter::AbstractSolver,
-    )
-    fields = (velocity = vL,)
-    (; signs) = iter.vortices
-    @assert eachindex(signs) == eachindex(points)
-    vortices = PointVortexState(points, signs)
-    update_values_at_point_vortices!(fields, vortices, t, iter)
-    vL
 end
 
 # Note: we keep the `fbase` name for compatibility with vortex filaments (3D)
@@ -144,6 +113,8 @@ struct PointVortexSolver{
         Affect <: Function,
         AffectTime <: Function,
         Callback <: Function,
+        Forcing <: AbstractForcing,
+        ForcingCache,
         AdvectFunction <: Function,
         RHSFunction <: Function,
     } <: AbstractSolver{T}
@@ -161,6 +132,8 @@ struct PointVortexSolver{
     callback::Callback   # signature: callback(iter)
     step_diagnostics::Int
     step_adaptivity::Int
+    forcing::Forcing  # forcing term added to the vortex velocity: vL = vs + vf (+ possibly other terms)
+    forcing_cache::ForcingCache
     to::Timer
     advect!::AdvectFunction  # function for advecting filaments with a known velocity
     rhs!::RHSFunction        # function for estimating filament velocities (and sometimes streamfunction) from their positions
@@ -256,6 +229,11 @@ either [`step!`](@ref) or [`solve!`](@ref).
   computation of velocities at the start of a time step. For that reason, it can make sense
   to set this equal to `step_diagnostics` (which also force velocity computations).
 
+- `forcing`: adds an extra term to the vortex velocities representing a forcing term which
+  generally injects energy (but it can also dissipate). See the [`Forcing`](@ref) module for
+  different options. For now, only [`FourierBandForcingBS`](@ref) is supported in 2D, other
+  options will probably not work.
+
 - `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
   recording the time spent on different functions.
 """
@@ -268,6 +246,7 @@ function init(
         callback::Callback = default_callback(),  # by default this is an empty function which just returns `nothing`
         affect!::Affect = default_callback(),
         affect_t!::AffectTime = default_callback(),
+        forcing::AbstractForcing = NoForcing(),
         step_diagnostics::Int = 1,
         step_adaptivity::Int = 1,
         timer = TimerOutput("PointVortex"),
@@ -282,10 +261,16 @@ function init(
     vortices = copy(prob.vortices)
     vs = similar(vortices.points)     # vector
     ψs = similar(vortices.points, T)  # scalar
+    vL_buf = similar(vs)  # this is used as a temporary buffer
 
-    vL = vs  # actual vortex velocity (alised to vs as long as there are no other external velocities)
-    vL_buf = similar(vL)  # this is used as a temporary buffer
-    quantities = (; vs, ψs, vL, vL_buf)
+    quantities_base = (; vs, ψs, vL_buf)
+
+    quantities = if forcing isa NoForcing
+        # Here vL = vs (the only advecting velocity is the Biot-Savart velocity vs)
+        (; quantities_base..., vL = vs)  # vL is an alias to vs (for convenience)
+    else
+        (; quantities_base..., vf = similar(vs), vL = similar(vs))
+    end
 
     cache_bs = BiotSavart.init_cache(prob.p; timer)
     cache_timestepper = init_cache(scheme, vortices)
@@ -312,13 +297,17 @@ function init(
         end
     end
 
+    forcing_cache = Forcing.init_cache(forcing, cache_bs)
+
     step_diagnostics > 0 || throw(ArgumentError("step_diagnostics should be positive"))
     step_adaptivity > 0 || throw(ArgumentError("step_adaptivity should be positive"))
 
     iter = PointVortexSolver(
         prob, vortices, quantities, time, dtmin, adaptivity_, cache_bs,
         cache_timestepper, fold_periodic, affect_, affect_t_, callback_,
-        step_diagnostics, step_adaptivity, timer, advect!, rhs!,
+        step_diagnostics, step_adaptivity,
+        forcing, forcing_cache,
+        timer, advect!, rhs!,
     )
 
     # Verify signature of callback and affect functions
@@ -388,4 +377,5 @@ function step!(iter::PointVortexSolver)::SimulationStatus
     _step!(iter, iter.vortices.points, vL_buf)
 end
 
+include("rhs.jl")
 include("diagnostics.jl")

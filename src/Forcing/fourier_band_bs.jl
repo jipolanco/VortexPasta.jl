@@ -172,13 +172,14 @@ function _evaluate_from_geometry!(
     (; qs, cs, Δks) = v_d
 
     @assert eachindex(qs) == eachindex(cs)
-    resize_no_copy!(vf_lin, length(nodes))
-    resize_no_copy!(buf_scalar, length(nodes))
+    resize_no_copy!(vf_lin, length(points))
+    resize_no_copy!(buf_scalar, length(points))
 
     AK.foreachindex(points; block_size = 256) do i
         @inline
         s⃗ = @inbounds points[i]
         V = eltype(vf_lin)  # usually SVector{2, T}
+        T = eltype(V)
 
         # Compute Fourier-filtered velocity
         vs_filtered = zero(V)
@@ -246,7 +247,7 @@ end
 
 function evaluate!(
         forcing::FourierBandForcingBS, cache, vf::AbstractVector,
-        vortices_in::PointVortexState, cache_bs::PointVortexCache;
+        vortices_in::PointVortexState, time, cache_bs::PointVortexCache;
         to = TimerOutput(),
     )
     @timeit to "(1) Copy active Fourier coefficients (GPU)" _update_cache!(cache, forcing, cache_bs)
