@@ -1,7 +1,8 @@
 """
     Reconnections
 
-Module for dealing with the reconnection of filaments.
+Module for dealing with the reconnection of filaments (3D) and annihilation of point
+vortex dipoles (2D).
 """
 module Reconnections
 
@@ -45,7 +46,7 @@ Implemented reconnection criteria include:
 - [`NoReconnections`](@ref): disables reconnections;
 
 - [`ReconnectBasedOnDistance`](@ref): reconnects filament segments which are closer than a
-  critical distance;
+  prescribed critical distance;
 
 - [`ReconnectFast`](@ref): considers segments as straight lines, enabling to perform all
   required reconnections in a single pass.
@@ -95,7 +96,8 @@ include("criteria/reconnect_fast.jl")
         [callback::Function],
         cache::AbstractReconnectionCache,
         fs::AbstractVector{<:AbstractFilament},
-        [vs::AbstractVector{<:AbstractVector}],
+        [vs::AbstractVector{<:AbstractVector}];
+        [to = TimerOutput()],
     ) -> NamedTuple
 
 Perform filament reconnections according to chosen criterion.
@@ -260,5 +262,7 @@ function reconnect_with_other!(callback::F, fs, f, g, i, j, info) where {F}
 
     nothing
 end
+
+include("2D/annihilation.jl")
 
 end

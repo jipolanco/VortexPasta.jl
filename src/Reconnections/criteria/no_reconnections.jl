@@ -1,5 +1,6 @@
 """
     NoReconnections <: ReconnectionCriterion
+    NoReconnections()
 
 Used to disable filament reconnections.
 """

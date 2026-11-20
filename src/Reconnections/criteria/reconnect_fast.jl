@@ -81,7 +81,7 @@ function _init_cache(crit::ReconnectFast, fs::AbstractVector{<:AbstractFilament}
     reconnected = BitVector(undef, 0)
     d_reconnect = distance(crit)
     r_cut = T(d_reconnect)
-    Lmin = T(min(Ls...))
+    Lmin = min(Ls...)
     M = 2  # number of subdivisions
     r_cut_max = CellLists.max_cutoff_distance(M, Lmin)
     r_cut > r_cut_max && error(
