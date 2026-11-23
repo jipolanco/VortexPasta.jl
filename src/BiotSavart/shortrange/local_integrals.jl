@@ -245,7 +245,12 @@ end
 
 @inline _transpose_tuples_impl() = ()
 
-@inline function _transpose_tuples_impl(xs::Vararg{NTuple{M, T}, N}) where {N, M, T}
+# @inline function _transpose_tuples_impl(xs::Vararg{NTuple{M, T}, N}) where {N, M, T}  # fails with Aqua.jl
+@inline function _transpose_tuples_impl(x_first::NTuple, xs_tail...)
+    T = eltype(x_first)
+    M = length(x_first)
+    N = length(xs)
+    xs = (x_first, xs_tail...)
     ntuple(Val(M)) do m
         @inline
         ntuple(n -> @inbounds(xs[n][m]), Val(N))::NTuple{N, T}
