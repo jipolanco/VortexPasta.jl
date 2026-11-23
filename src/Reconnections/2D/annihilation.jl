@@ -57,6 +57,7 @@ struct NullAnnihilationCache <: AbstractAnnihilationCache end
 
 _init_cache(::NoAnnihilations, args...) = NullAnnihilationCache()
 _annihilate!(::NullAnnihilationCache, args...) = 0
+criterion(::NullAnnihilationCache) = NoAnnihilations()
 
 ## ==================================================================================================== ##
 

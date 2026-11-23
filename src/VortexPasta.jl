@@ -18,9 +18,9 @@ include("Filaments/Filaments.jl")
 include("FindNearbySegments/FindNearbySegments.jl")
 include("FilamentIO/FilamentIO.jl")
 
-include("Reconnections/Reconnections.jl")
-
 include("BiotSavart/BiotSavart.jl")
+
+include("Reconnections/Reconnections.jl")
 include("Diagnostics/Diagnostics.jl")
 
 include("VectorsOfVectors/VectorsOfVectors.jl")

@@ -8,6 +8,12 @@ using ..BiotSavart:
     PointVortexSigns, PointVortexVelocities, PointVortexScalars,
     PointVortexState, PointVortexCache
 
+using ..Reconnections:
+    AbstractAnnihilationCache,
+    AnnihilationCriterion,
+    NoAnnihilations,
+    AnnihilateFast
+
 include("problem.jl")
 
 # Note: we extend the existing TemporalSchemeCache with methods for PointVortexState.
@@ -107,6 +113,7 @@ struct PointVortexSolver{
         Vortices <: PointVortexState{T},
         Quantities <: NamedTuple,
         Adaptivity <: AdaptivityCriterion,
+        CacheAnnihilate <: AbstractAnnihilationCache,
         CacheBS <: PointVortexCache,
         CacheTimestepper <: TemporalSchemeCache,
         Timer <: TimerOutput,
@@ -124,6 +131,7 @@ struct PointVortexSolver{
     time::TimeInfo
     dtmin::T
     adaptivity::Adaptivity
+    annihilate::CacheAnnihilate
     cache_bs::CacheBS
     cache_timestepper::CacheTimestepper
     fold_periodic::Bool
@@ -132,6 +140,7 @@ struct PointVortexSolver{
     callback::Callback   # signature: callback(iter)
     step_diagnostics::Int
     step_adaptivity::Int
+    step_annihilate::Int
     forcing::Forcing  # forcing term added to the vortex velocity: vL = vs + vf (+ possibly other terms)
     forcing_cache::ForcingCache
     to::Timer
@@ -151,6 +160,7 @@ function Base.show(io_in::IO, iter::PointVortexSolver)
     summary(io, iter.time)
     print(io, "\n ├─ dtmin: ", iter.dtmin)
     print(io, "\n ├─ adaptivity: ", iter.adaptivity)
+    print(io, "\n ├─ annihilate: ", Reconnections.criterion(iter.annihilate))
     print(io, "\n ├─ fold_periodic: ", iter.fold_periodic)
     print(io, "\n ├─ cache_bs: ")
     summary(io, iter.cache_bs)
@@ -161,9 +171,10 @@ function Base.show(io_in::IO, iter::PointVortexSolver)
     _maybe_print_function(io, "\n ├─ callback:", iter.callback)
     print(io, "\n ├─ step_diagnostics: ", iter.step_diagnostics)
     print(io, "\n ├─ step_adaptivity: ", iter.step_adaptivity)
-    # if iter.forcing !== NoForcing()
-    #     print(io, "\n ├─ forcing: ", iter.forcing)  # note: this draws a "subtree"
-    # end
+    print(io, "\n ├─ step_annihilate: ", iter.step_annihilate)
+    if iter.forcing !== NoForcing()
+        print(io, "\n ├─ forcing: ", iter.forcing)  # note: this draws a "subtree"
+    end
     # if iter.dissipation !== NoDissipation()
     #     print(io, "\n ├─ dissipation: ", iter.dissipation)  # note: this draws a "subtree"
     # end
@@ -198,6 +209,9 @@ either [`step!`](@ref) or [`solve!`](@ref).
   Note that not all criteria are compatible with point vortex simulations
   (e.g. [`AdaptBasedOnSegmentLength`](@ref) only makes sense in 3D).
 
+- `annihilate = NoAnnihilations()`: criterion used to perform annihilation of vortex dipoles.
+  See [`AnnihilationCriterion`](@ref) for a list of possible criteria.
+
 - `dtmin = 0.0`: minimum `dt` for adaptive timestepping. If `dt < dtmin`, the
   solver is stopped with an error.
 
@@ -229,6 +243,9 @@ either [`step!`](@ref) or [`solve!`](@ref).
   computation of velocities at the start of a time step. For that reason, it can make sense
   to set this equal to `step_diagnostics` (which also force velocity computations).
 
+- `step_annihilate = 1`: every how many timesteps to perform vortex dipole annihilations (see
+  `annihilate` option).
+
 - `forcing`: adds an extra term to the vortex velocities representing a forcing term which
   generally injects energy (but it can also dissipate). See the [`Forcing`](@ref) module for
   different options. For now, only [`FourierBandForcingBS`](@ref) is supported in 2D, other
@@ -241,6 +258,7 @@ function init(
         prob::PointVortexProblem{T}, scheme::TemporalScheme;
         dt::Real,
         dtmin::Real = zero(T),
+        annihilate::AnnihilationCriterion = NoAnnihilations(),
         adaptivity::AdaptivityCriterion = NoAdaptivity(),
         fold_periodic::Bool = true,
         callback::Callback = default_callback(),  # by default this is an empty function which just returns `nothing`
@@ -249,6 +267,7 @@ function init(
         forcing::AbstractForcing = NoForcing(),
         step_diagnostics::Int = 1,
         step_adaptivity::Int = 1,
+        step_annihilate::Int = 1,
         timer = TimerOutput("PointVortex"),
     ) where {
         Callback <: Function,
@@ -256,7 +275,8 @@ function init(
         AffectTime <: Function,
         T,
     }
-    (; tspan, state,) = prob
+    (; tspan, state) = prob
+    (; Ls) = prob.p
 
     vortices = copy(prob.vortices)
     vs = similar(vortices.points)     # vector
@@ -272,6 +292,7 @@ function init(
         (; quantities_base..., vf = similar(vs), vL = similar(vs))
     end
 
+    cache_annihilate = Reconnections.init_cache(annihilate, vortices, Ls)
     cache_bs = BiotSavart.init_cache(prob.p; timer)
     cache_timestepper = init_cache(scheme, vortices)
 
@@ -301,11 +322,12 @@ function init(
 
     step_diagnostics > 0 || throw(ArgumentError("step_diagnostics should be positive"))
     step_adaptivity > 0 || throw(ArgumentError("step_adaptivity should be positive"))
+    step_annihilate > 0 || throw(ArgumentError("step_annihilate should be positive"))
 
     iter = PointVortexSolver(
-        prob, vortices, quantities, time, dtmin, adaptivity_, cache_bs,
+        prob, vortices, quantities, time, dtmin, adaptivity_, cache_annihilate, cache_bs,
         cache_timestepper, fold_periodic, affect_, affect_t_, callback_,
-        step_diagnostics, step_adaptivity,
+        step_diagnostics, step_adaptivity, step_annihilate,
         forcing, forcing_cache,
         timer, advect!, rhs!,
     )
@@ -359,13 +381,26 @@ function finalise_step!(iter::PointVortexSolver; force_computation_of_fields = f
 end
 
 function after_advection!(iter::PointVortexSolver)
-    (; vortices, to) = iter
+    (; vortices, nstep, to) = iter
     (; points) = vortices
     if iter.fold_periodic
         @timeit to "Periodic fold" begin
             Ls = periods(iter.prob.p)  # box size (periodicity)
             Threads.@threads for i in eachindex(points)
                 @inbounds points[i] = Filaments.fold_coordinates_periodic(points[i], Ls)
+            end
+        end
+    end
+    if nstep % iter.step_annihilate == 0
+        @timeit to "Annihilate" n_annihilated = Reconnections.annihilate!(
+            iter.annihilate, vortices;
+            folded = iter.fold_periodic, to
+        )
+        if n_annihilated > 0
+            N = length(vortices)
+            map(iter.quantities) do us
+                resize!(us, N)
+                nothing
             end
         end
     end
