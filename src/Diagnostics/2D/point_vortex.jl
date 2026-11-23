@@ -84,3 +84,16 @@ function energy_flux(
 
     ks, fluxes
 end
+
+function energy_injection_rate(
+        vortices::PointVortexState, vL::AbstractVector, vs::AbstractVector,
+        params::ParamsPointVortex,
+    )
+    (; Γ, Ls) = params
+    (; signs) = vortices
+    prefactor = Γ / prod(Ls)
+    ẑ = ZetaHat()
+    prefactor * sum(eachindex(signs)) do j
+        @inbounds signs[j] * ((ẑ × vs[j]) ⋅ vL[j])
+    end
+end
