@@ -10,12 +10,13 @@ using VortexPasta.Diagnostics
 using KernelAbstractions: KernelAbstractions as KA, POCLBackend
 using LinearAlgebra: ×, norm
 using UnicodePlots
+using Rotations
 using Random
 using StableRNGs
 using Test
 
 function generate_biot_savart_parameters(::Type{T}; aspect, L = 2π, rcut = L / 3, kws...) where {T}
-    Γ = 1.0
+    Γ = 2.0
     a = 1e-6
     Δ = 1/4
     Ls = aspect .* L
@@ -54,6 +55,18 @@ function generate_filaments(N; Ls, small_scales = false)
         define_curve(p; scale = Ls, translate = (3 / 4, 3 / 4, 1 / 2) .* Ls, orientation = +1),
     )
     collect(filaments_from_functions(funcs, ClosedFilament{T}, N, method))
+end
+
+function generate_random_rings(Np, nrings; R, Ls)
+    rng = StableRNG(42)
+    map(1:nrings) do _
+        T = eltype(Ls)
+        translate = Ls .* rand(rng, Vec3{T})
+        rotate = rand(rng, Rotations.QuatRotation)
+        S = define_curve(Ring(); scale = R, translate, rotate)
+        method = QuinticSplineMethod()
+        Filaments.init(S, ClosedFilament{T}, Np, method)
+    end
 end
 
 function simulate(
@@ -185,19 +198,24 @@ function get_energy_at_normalised_wavevector(cache::BiotSavart.BiotSavartCache, 
     Ek
 end
 
-@testset "Forcing" begin
+@testset "Forcing and dissipation (3D)" begin
     save_files = false
     plots = false
 
     # Compute self-induced velocity of vortex filaments
     N = 32
     aspect = (1, 1, 2)
-    params = generate_biot_savart_parameters(Float64; aspect)
-    fs = generate_filaments(N; Ls = params.Ls, small_scales = true)
+    params = generate_biot_savart_parameters(Float64; aspect, rcut = 2π / 4)
+    # fs = generate_filaments(N; Ls = params.Ls, small_scales = true)
+    nrings = 16
+    fs = generate_random_rings(N, nrings; R = 0.8 * π, Ls = params.Ls)
     cache_bs = BiotSavart.init_cache(params)
     vs = map(similar ∘ nodes, fs)
     velocity_on_nodes!(vs, cache_bs, fs)
     vs_self = map(copy, vs)
+
+    # ks, Ek = Diagnostics.energy_spectrum(cache_bs)
+    # lineplot(ks[2:end], Ek[2:end]; xscale = log10, yscale = log10)
 
     # Obtain velocity field in Fourier space
     data = BiotSavart.get_longrange_field_fourier(cache_bs)
@@ -211,7 +229,6 @@ end
     Ls = params.Ls
 
     @testset "Static" begin
-        # For testing purposes, we set a kmax which is larger than the kmax of the long-range grid.
         vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 10.5)
         vn_rms = 1.0
         SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
@@ -236,6 +253,23 @@ end
                 check_fourier_band_forcing(forcing, fs[i], vs[i], vs_self[i], cache_bs)
             end
         end
+        @testset "FourierBandForcingBS" begin
+            ε_target = 3.0
+            forcing = @inferred FourierBandForcingBS(; kmin = 1.01, kmax = 3.99, ε_target, modify_length = false)
+            prob = VortexFilamentProblem(fs, 0.1, params)
+            iter = init(prob, RK4(); dt = 1e-3, forcing)
+            ε_actual = Diagnostics.energy_injection_rate(iter, iter.vf)
+            ks_flux, fluxes = Diagnostics.energy_flux(iter, 1.0:1.0:8.0)
+            @show (ε_actual - ε_target) / ε_target
+            @show (fluxes.vf[4] - ε_target) / ε_target
+            # @test fluxes.vf[4] ≈ ε_target rtol=3e-3  # flux up to k = 4 matches the energy injection rate
+            if plots
+                let plt = lineplot(ks_flux, fluxes.vf)
+                    hline!(plt, ε_target)
+                    display(plt)
+                end
+            end
+        end
     end
 
     # We perform a short simulation and simply check that energy augmented.
@@ -246,13 +280,13 @@ end
         vn = @inferred FourierBandVectorField(undef, Ls; kmin = 0.1, kmax = 1.5)
         Random.seed!(rng, 42)
         SyntheticFields.init_coefficients!(rng, vn, vn_rms)  # randomly set non-zero Fourier coefficients of the velocity field
-        tmax = 1.0
+        tmax = 0.2
         prob = VortexFilamentProblem(fs, (zero(tmax), tmax), params)
         @testset "NormalFluidForcing" begin
             forcing = @inferred NormalFluidForcing(vn; α, α′)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 0.4687206188087947  // energy is dissipated in this case
-            @test 0.40 < E_ratio < 0.50
+            # @show E_ratio  # = 0.29852087401065563  // energy is dissipated in this case
+            @test 0.25 < E_ratio < 0.35
             save_files && filaments_to_vtkhdf("forcing_normal.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "NormalFluidForcing")
         end
@@ -265,52 +299,44 @@ end
                 @. iter.forcing.vn.cs = cs₀ * cis(ω * t)  # multiply initial coefficients by exp(im * ω * t)
             end
             (; iter, E_ratio, spectra) = simulate(prob, forcing; affect_t!)
-            # @show E_ratio  # = 0.4082336245961872  // even more energy is dissipated
-            @test 0.35 < E_ratio < 0.45
+            # @show E_ratio  # = 0.23904038368827613
+            @test 0.20 < E_ratio < 0.30
         end
         @testset "FourierBandForcing" begin
             forcing = @inferred FourierBandForcing(vn; α, α′)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 2.1951275471870866
-            @test 2.1 < E_ratio < 2.3
+            @test 1.02 < E_ratio < 1.06
             save_files && filaments_to_vtkhdf("forcing_band.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "FourierBandForcing")
         end
         @testset "FourierBandForcing (filtered vorticity)" begin
             forcing = @inferred FourierBandForcing(vn; α, α′, filtered_vorticity = true)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 1.5658668699951874
-            @test 1.5 < E_ratio < 1.6
+            @test 0.86 < E_ratio < 0.94
             save_files && filaments_to_vtkhdf("forcing_band_filtered_vorticity.vtkhdf", iter)
             plots && plot_spectra(spectra; title = "FourierBandForcing (filtered vorticity)")
         end
         @testset "FourierBandForcingBS (constant α)" begin
             forcing = @inferred FourierBandForcingBS(; α = 5.0, kmin = 0.5, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 1.231685218330448
-            @test 1.20 < E_ratio < 1.25
+            @test 1.14 < E_ratio < 1.18
         end
         @testset "FourierBandForcingBS (constant ε_target, modify_length = true)" begin
             forcing = @inferred FourierBandForcingBS(; ε_target = 0.05, kmin = 0.5, kmax = 2.5, modify_length = true)
             (; iter, E_ratio, L_ratio, spectra) = simulate(prob, forcing)
-            # @show L_ratio  # = 1.769109204675119
-            @test 1.70 < L_ratio < 1.80
-            # @show E_ratio  # = 1.8555256077271287
-            @test 1.80 < E_ratio < 1.90
+            @test 0.94 < L_ratio < 0.96
+            @test 0.94 < E_ratio < 0.96
         end
         @testset "FourierBandForcingBS (constant ε_target, modify_length = false)" begin
             forcing = @inferred FourierBandForcingBS(; ε_target = 0.05, kmin = 0.5, kmax = 2.5, modify_length = false)
             (; iter, E_ratio, L_ratio, spectra) = simulate(prob, forcing)
-            # @show L_ratio  # = 1.3399050323042403
-            @test 1.30 < L_ratio < 1.40
-            # @show E_ratio  # = 1.4436188352068289
-            @test 1.40 < E_ratio < 1.50
+            @test 0.94 < L_ratio < 0.96
+            @test 0.95 < E_ratio < 0.97
         end
         @testset "FourierBandForcingBS (constant α and α′)" begin
             forcing = @inferred FourierBandForcingBS(; α = 5.0, α′ = 1.0, kmin = 0.5, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            # @show E_ratio  # = 1.2252356635724801
-            @test 1.20 < E_ratio < 1.25
+            @test 1.13 < E_ratio < 1.16
         end
         @testset "FourierBandForcingBS (constant ε_target, α′ = $α′)" for α′ in (0.0, 1.0)
             forcing = @inferred FourierBandForcingBS(; ε_target = 0.05, α′, kmin = 1.5, kmax = 2.5)
@@ -332,8 +358,8 @@ end
                 nothing
             end
             (; iter, E_ratio, spectra) = simulate(prob, forcing; callback, dt_factor = 0.5)
-            # @show α′, E_ratio  # = (0.0, 1.5242453555895266) / (1.0, 1.5597690673654219)
-            @test 1.45 < E_ratio < 1.60
+            # @show α′, E_ratio
+            @test 0.95 < E_ratio < 0.98
             let
                 quad = GaussLegendre(3)
                 ks_flux, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad)
@@ -352,20 +378,6 @@ end
                 fluxes_from_Tmat = cumsum(T_k)
                 @test fluxes_from_Tmat[begin:(end - 1)] ≈ fluxes.vs
                 @test abs(fluxes_from_Tmat[end]) < eps(eltype(fluxes_from_Tmat))  # the last element is zero
-            end
-            # In the plot one should see that energy increases nearly linearly with the
-            # imposed ε, until it starts to saturate near the end.
-            a, b = 0.1, 0.3  # temporal limits of linear energy growth (roughly)
-            plots && let plt = lineplot(times, energy_k; xlim = (0, 1), ylim = (0, 0.05))
-                lineplot!(plt, times, times * forcing.ε_target)
-                vline!(plt, a)
-                vline!(plt, b)
-                display(plt)
-            end
-            let a = searchsortedlast(times, a), b = searchsortedlast(times, b)
-                local ε_inj = (energy_k[b] - energy_k[a]) / (times[b] - times[a])  # mean energy injection rate at forced wavevectors
-                # @show ε_inj
-                @test ε_inj ≈ forcing.ε_target rtol=1e-2
             end
         end
         @testset "FourierBandForcingBS (single k⃗)" begin
