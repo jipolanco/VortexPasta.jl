@@ -478,7 +478,7 @@ end
 
 function evaluate!(
         forcing::FourierBandForcingBS, cache, vf_all::AbstractVector,
-        fs::AbstractVector{<:AbstractFilament}, cache_bs::BiotSavartCache;
+        fs::AbstractVector{<:AbstractFilament}, time, cache_bs::BiotSavartCache;
         to = TimerOutput(),
     )
     @timeit to "(1) Copy active Fourier coefficients (GPU)" _update_cache!(cache, forcing, cache_bs)
