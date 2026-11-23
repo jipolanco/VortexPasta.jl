@@ -130,8 +130,11 @@ end
 
 function apply!(
         dissipation::SmallScaleDissipationBS{T}, cache,
-        vL_all::AbstractVector, vdiss_all::AbstractVector, vs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament};
-        scheduler = SerialScheduler(),
+        vdiss_all::AbstractVector, vs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament},
+function evaluate!(
+        dissipation::SmallScaleDissipationBS{T}, cache, vdiss_all::AbstractVector,
+        vs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament}, time, cache_bs::BiotSavartCache;
+        to = TimerOutput(),
     ) where {T <: AbstractFloat}
     # 1. Interpolate vs^< (Fourier-truncated BS velocity) onto cache.longrange
     _update_cache!(cache, dissipation)
@@ -141,6 +144,7 @@ function apply!(
 
     # 3. Iterate over filaments and filament points to obtain the actual dissipation velocity.
     ε_total = zero(T)
+    scheduler = DynamicScheduler()  # for threading
     @inbounds for n in eachindex(fs)
         f = fs[n]
         vs = vs_all[n]  # Biot-Savart velocity of filament
@@ -175,9 +179,6 @@ function apply!(
         α = dissipation.ε_target / ε_total
         @. vdiss_all *= α
     end
-
-    # 5. Add dissipation term to vortex velocity vL
-    @. vL_all = vL_all + vdiss_all
 
     nothing
 end

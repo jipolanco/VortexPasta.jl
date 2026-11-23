@@ -147,16 +147,9 @@ function _apply_dissipation!(vL_all, dissipation::AbstractDissipation, cache, it
     @assert eachindex(vL_all) === eachindex(fs)
     (; quantities,) = iter
     @assert quantities.vs !== vL_all  # not aliased
-    scheduler = DynamicScheduler()  # for threading
     @timeit to "Add dissipation" begin
-        # This will:
-        # - add dissipation term to vL_all
-        # - write dissipation term into vdiss
-        Forcing.apply!(
-            dissipation, cache,
-            vL_all, quantities.vdiss, quantities.vs, fs;
-            scheduler,
-        )
+        Forcing.evaluate!(dissipation, cache, quantities.vdiss, quantities.vs, fs, t, iter.cache_bs; to)
+        @. vL_all = vL_all + quantities.vdiss
     end
     nothing
 end
