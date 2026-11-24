@@ -249,8 +249,8 @@ end
 @inline function _transpose_tuples_impl(x_first::NTuple, xs_tail...)
     T = eltype(x_first)
     M = length(x_first)
-    N = length(xs)
     xs = (x_first, xs_tail...)
+    N = length(xs)
     ntuple(Val(M)) do m
         @inline
         ntuple(n -> @inbounds(xs[n][m]), Val(N))::NTuple{N, T}
