@@ -1,7 +1,9 @@
 # TODO:
 # - checkpoints
 
-export PointVortexProblem, PointVortexSolver
+export PointVortexProblem, PointVortexSolver,
+    ParamsPointVortex, # from ..BiotSavart
+    NoAnnihilations, AnnihilateFast  # from ..Reconnections
 
 using ..BiotSavart:
     Vec2, PointVortices, ParamsPointVortex, SignValue, UP, DOWN,
