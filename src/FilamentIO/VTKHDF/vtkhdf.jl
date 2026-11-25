@@ -287,7 +287,7 @@ function init_vtkhdf(
         @assert length(cell_offsets) == num_cells + 1
 
         # Write full Points dataset.
-        points_to_vtkhdf_dataset(gtop, Xs_all)
+        vector_data_to_vtkhdf_dataset(gtop, Xs_all)
 
         gcells["Offsets"] = cell_offsets
 
@@ -415,7 +415,7 @@ function Base.setindex!(writer::VTKHDFFile, q::Union{GeometricQuantity, Derivati
     nothing
 end
 
-function write_point_data(writer, vs, name)
+function write_point_data(writer::VTKHDFFile, vs, name)
     (; gtop,) = writer
     gdata = HDF5.open_group(gtop, "PointData")
     T = eltype(eltype(vs))  # usually <:Real or Vec3{<:Real}
