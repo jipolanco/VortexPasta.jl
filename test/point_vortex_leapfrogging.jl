@@ -86,3 +86,24 @@ end
     @test energy[end] ≈ energy[begin] rtol=1e-6
     @test impulse[end] ≈ impulse[begin] rtol=1e-13
 end
+
+## Test annihilation when a dipole gets too close
+
+@testset "Annihilation" begin
+    annihilate = AnnihilateFast(0.5 * dist_y)
+    iter = @inferred init(prob, Vern8(); dt = 0.4, annihilate)
+    @assert length(iter.vortices) == 4
+    @assert sum(iter.vortices.signs) == 0
+
+    while iter.t < iter.prob.tspan[2]
+        # @show iter.nstep, nvortices, Diagnostics.kinetic_energy(iter)
+        step!(iter)
+        if length(iter.vortices) < 4
+            break  # annihilation happened
+        end
+    end
+
+    @test length(iter.vortices) == 2     # a dipole was removed
+    @test sum(iter.vortices.signs) == 0  # we still have neutral charge
+    @test iter.vs[1] ≈ iter.vs[2]  # the two vortices left have the same velocity (they are a dipole, they move in parallel)
+end
