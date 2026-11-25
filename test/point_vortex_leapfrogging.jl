@@ -42,7 +42,8 @@ vortices = define_leapfrogging_point_vortices(dist_x, dist_y, Ls)
 # This doesn't seem to depend much on the splitting precision, NUFFT or the timestep.
 Tsim = 100.0
 prob = @inferred PointVortexProblem(vortices, Tsim, params)
-iter = @inferred init(prob, RK4(); dt = 0.04)
+iter = @inferred init(prob, Vern8(); dt = 0.4)  # note: this allows _much_ larger timesteps than RK4 to get energy conservation
+# iter = @inferred init(prob, RK4(); dt = 0.001)
 E₀ = @inferred Diagnostics.kinetic_energy(iter)
 p⃗₀ = @inferred Diagnostics.vortex_impulse(iter)
 energy = [E₀]
@@ -52,9 +53,11 @@ impulse = [p⃗₀]
 # points_obs = Observable(iter.vortices.points)
 # ψs_obs = Observable(iter.ψs)
 # time_obs = Observable(iter.t)
+# E_obs = Observable(E₀)
 #
 # fig = Figure()
 # ax = Axis(fig[1, 1]; aspect = DataAspect(), title = lift(t -> "t = $t", time_obs))
+# text!(ax, 0, Ly; text = lift(E -> "E = $E", E_obs), align = (:left, :top), offset = (2, -2))
 # hidespines!(ax)
 # hidedecorations!(ax)
 # wireframe!(ax, Rect(0, 0, prob.p.Ls...); color = :gray)
@@ -66,18 +69,20 @@ impulse = [p⃗₀]
 while iter.t < iter.prob.tspan[2]
     step!(iter)
     if iter.nstep % 10 == 0
-        # time_obs[] = iter.t
-        # notify(ψs_obs)
-        # notify(points_obs)  # update plot
         E = Diagnostics.kinetic_energy(iter)
         p⃗ = Diagnostics.vortex_impulse(iter)
         push!(energy, E)
         push!(impulse, p⃗)
+        # time_obs[] = iter.t
+        # E_obs[] = E
+        # notify(ψs_obs)
+        # notify(points_obs)  # update plot
         # @show iter.nstep, iter.t, iter.dt, (E - E₀) / E₀
     end
 end
 
 @testset "Energy and impulse conservation" begin
+    # @show (energy[end] - energy[begin]) / energy[begin]
     @test energy[end] ≈ energy[begin] rtol=1e-6
     @test impulse[end] ≈ impulse[begin] rtol=1e-13
 end
