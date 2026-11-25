@@ -8,9 +8,17 @@ function update_values_at_point_vortices!(
     end
     # (1) Compute velocities and optionally streamfunction values
     @timeit to "Biot-Savart (full)" BiotSavart.compute_on_nodes!(fields, iter.cache_bs, vortices)
-    # add_external_fields!(fields, iter, fs, t, iter.to)
-    if iter.forcing !== NoForcing() && haskey(fields, :velocity)
-        @timeit to "Add forcing" apply_forcing!(fields, iter, vortices, t)
+    if haskey(fields, :velocity)
+        if fields.velocity !== iter.vs
+            # Make sure iter.vs contains the newly computed velocity (may be used in forcing or dissipation)
+            @timeit to "Copy self-induced velocity" copyto!(iter.vs, fields.velocity)
+        end
+        if iter.forcing !== NoForcing()
+            @timeit to "Add forcing" apply_forcing!(fields, iter, vortices, t)
+        end
+        if iter.dissipation !== NoDissipation()
+            @timeit to "Add dissipation" apply_dissipation!(fields, iter, vortices, t)
+        end
     end
     fields
 end
@@ -32,17 +40,28 @@ end
 function apply_forcing!(fields::NamedTuple, iter::PointVortexSolver, vortices::PointVortexState, time)
     @assert iter.forcing !== NoForcing()
     (; to) = iter
-    (; vs, vf) = iter.quantities
-
-    # At this point, fields.velocity is expected to have the self-induced velocity vs.
-    # We copy that velocity into iter.vs before adding the forcing velocity to fields.velocity.
-    @assert eachindex(vs) == eachindex(fields.velocity)
-    @assert eachindex(vf) == eachindex(fields.velocity)
-    @assert vs !== fields.velocity
-    copyto!(vs, fields.velocity)
-
+    (; vf) = iter.quantities
     Forcing.evaluate!(iter.forcing, iter.forcing_cache, vf, vortices, time, iter.cache_bs; to)
     @. fields.velocity = fields.velocity + vf
+    fields
+end
+
+function apply_dissipation!(fields::NamedTuple, iter::PointVortexSolver, vortices::PointVortexState, time)
+    @assert iter.dissipation !== NoDissipation()
+    (; to) = iter
+    (; vs, vdiss) = iter.quantities
+
+    # At this point, iter.vs is expected to already have the self-induced velocity vs.
+    # If forcing is enabled, we currently have fields.velocity = iter.vs + iter.vf.
+    # Moreover, at the beginning of a full timestep, fields.velocity is aliased to iter.vL.
+    @assert eachindex(vs) == eachindex(fields.velocity)
+    @assert eachindex(vdiss) == eachindex(fields.velocity)
+
+    Forcing.evaluate!(
+        iter.dissipation, iter.dissipation_cache, vdiss, vs, vortices, time,
+        iter.cache_bs; to
+    )
+    @. fields.velocity = fields.velocity + vdiss
 
     fields
 end

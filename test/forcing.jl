@@ -636,6 +636,8 @@ end
     nvortices = 256
     vortices = generate_point_vortices(rng, nvortices, Ls; neutral = true)
     tmax = 1.0
+    ℓ = sqrt(prod(params.Ls) / length(vortices))
+    dt = 1.0e-3 * ℓ^2 / params.Γ
     prob = PointVortexProblem(vortices, tmax, params)
 
     @testset "FourierBandForcingBS" begin
@@ -645,10 +647,9 @@ end
         )
         @testset "$opts" for opts in options
             forcing = FourierBandForcingBS(; kmin = 2.01, kmax = 4.01, opts...)
-            ℓ = sqrt(prod(params.Ls) / length(vortices))
-            dt = 1.0e-3 * ℓ^2 / params.Γ
-            iter = init(prob, RK4(); forcing, dt)
+            iter = @inferred init(prob, RK4(); forcing, dt)
             check_fourier_forcing_bs(iter)
+            @test iter.vL ≈ iter.vs + iter.vf
             ks_flux, fluxes = @inferred Diagnostics.energy_flux(iter, 1.0:1.0:8.0)
             ε_inj_actual = fluxes.vf[4] - fluxes.vf[2]  # actually injected at forcing scales k ∈ (2, 4]
             if forcing.ε_target > 0
@@ -666,4 +667,58 @@ end
             end
         end
     end
+
+    @testset "SmallScaleDissipationBS" begin
+        options = (
+            (; ε_target = 20.0),
+            (; α = 10.0),
+        )
+        @testset "$opts" for opts in options
+            dissipation = SmallScaleDissipationBS(; kdiss = 10, opts...)
+            iter = @inferred init(prob, RK4(); dissipation, dt)
+            @test iter.vL ≈ iter.vs + iter.vdiss
+            ks_flux, fluxes = @inferred Diagnostics.energy_flux(iter, 1.0:1.0:16.0)
+            ε_diss_total = -Diagnostics.energy_injection_rate(iter, iter.vdiss)  # total energy dissipation rate by vdiss
+            ε_diss_small = ε_diss_total - fluxes.vdiss[Int(dissipation.kdiss)]   # dissipation rate at targeted scales
+            # @show ε_diss_small
+            if dissipation.ε_target != 0
+                @test dissipation.ε_target ≈ ε_diss_small
+            else
+                @test ε_diss_small > 0
+            end
+            if plots
+                let plt = lineplot(ks_flux, fluxes.vdiss)
+                    hline!(plt, dissipation.ε_target)
+                    vline!(plt, dissipation.kdiss)
+                    display(plt)
+                end
+            end
+        end
+    end
+
+    @testset "FourierBandForcingBS + SmallScaleDissipationBS" begin
+        forcing = FourierBandForcingBS(; kmin = 2.01, kmax = 4.01, ε_target = 20.0)
+        dissipation = SmallScaleDissipationBS(; kdiss = 10, ε_target = 10.0)
+        iter = @inferred init(prob, RK4(); forcing, dissipation, dt)
+        @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
+        ks_flux, fluxes = @inferred Diagnostics.energy_flux(iter, 1.0:1.0:16.0)
+        ε_inj = fluxes.vf[4] - fluxes.vf[2]  # energy injection rate at targeted scales
+        # @show ε_inj
+        @test ε_inj ≈ forcing.ε_target
+        ε_diss_total = -Diagnostics.energy_injection_rate(iter, iter.vdiss)  # total energy dissipation rate by vdiss
+        ε_diss_small = ε_diss_total - fluxes.vdiss[Int(dissipation.kdiss)]   # dissipation rate at targeted scales
+        @test dissipation.ε_target ≈ ε_diss_small
+        if plots
+            let plt = lineplot(ks_flux, fluxes.vf)
+                lineplot!(plt, ks_flux, fluxes.vdiss)
+                hline!(plt, forcing.ε_target)
+                hline!(plt, dissipation.ε_target)
+                vline!(plt, dissipation.kdiss)
+                vline!(plt, forcing.kmin)
+                vline!(plt, forcing.kmax)
+                display(plt)
+            end
+        end
+    end
+
 end

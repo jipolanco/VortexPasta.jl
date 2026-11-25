@@ -122,6 +122,8 @@ struct PointVortexSolver{
         Callback <: Function,
         Forcing <: AbstractForcing,
         ForcingCache,
+        Dissipation <: AbstractDissipation,
+        DissipationCache,
         AdvectFunction <: Function,
         RHSFunction <: Function,
     } <: AbstractSolver{T}
@@ -143,6 +145,8 @@ struct PointVortexSolver{
     step_annihilate::Int
     forcing::Forcing  # forcing term added to the vortex velocity: vL = vs + vf (+ possibly other terms)
     forcing_cache::ForcingCache
+    dissipation::Dissipation  # dissipation term added to the vortex velocity: vL = vs + vdiss (+ possibly other terms)
+    dissipation_cache::DissipationCache
     to::Timer
     advect!::AdvectFunction  # function for advecting filaments with a known velocity
     rhs!::RHSFunction        # function for estimating filament velocities (and sometimes streamfunction) from their positions
@@ -175,9 +179,9 @@ function Base.show(io_in::IO, iter::PointVortexSolver)
     if iter.forcing !== NoForcing()
         print(io, "\n ├─ forcing: ", iter.forcing)  # note: this draws a "subtree"
     end
-    # if iter.dissipation !== NoDissipation()
-    #     print(io, "\n ├─ dissipation: ", iter.dissipation)  # note: this draws a "subtree"
-    # end
+    if iter.dissipation !== NoDissipation()
+        print(io, "\n ├─ dissipation: ", iter.dissipation)  # note: this draws a "subtree"
+    end
     print(io, "\n ├─ advect!: Function")
     print(io, "\n ├─ rhs!: Function")
     print(io, "\n └─ to: ")
@@ -251,6 +255,11 @@ either [`step!`](@ref) or [`solve!`](@ref).
   different options. For now, only [`FourierBandForcingBS`](@ref) is supported in 2D, other
   options will probably not work.
 
+- `dissipation`: adds an extra term to the vortex velocities representing a dissipation term
+  which generally dissipates energy. See the [`Forcing`](@ref) module for different options.
+  For now, only [`SmallScaleDissipationBS`](@ref) is supported in 2D, other options will
+  probably not work.
+
 - `timer = TimerOutput("VortexFilament")`: an optional `TimerOutput` for
   recording the time spent on different functions.
 """
@@ -265,6 +274,7 @@ function init(
         affect!::Affect = default_callback(),
         affect_t!::AffectTime = default_callback(),
         forcing::AbstractForcing = NoForcing(),
+        dissipation::AbstractDissipation = NoDissipation(),
         step_diagnostics::Int = 1,
         step_adaptivity::Int = 1,
         step_annihilate::Int = 1,
@@ -283,13 +293,19 @@ function init(
     ψs = similar(vortices.points, T)  # scalar
     vL_buf = similar(vs)  # this is used as a temporary buffer
 
-    quantities_base = (; vs, ψs, vL_buf)
+    # Note: in the absence of external velocities (forcing, dissipation), vL is aliased to vs.
+    quantities_base = (; vs, ψs, vL_buf, vL = vs)
 
-    quantities = if forcing isa NoForcing
-        # Here vL = vs (the only advecting velocity is the Biot-Savart velocity vs)
-        (; quantities_base..., vL = vs)  # vL is an alias to vs (for convenience)
+    quantities_with_forcing = if forcing isa NoForcing
+        quantities_base
     else
         (; quantities_base..., vf = similar(vs), vL = similar(vs))
+    end
+
+    quantities = if dissipation isa NoDissipation
+        quantities_with_forcing
+    else
+        (; quantities_with_forcing..., vdiss = similar(vs), vL = similar(vs))
     end
 
     cache_annihilate = Reconnections.init_cache(annihilate, vortices, Ls)
@@ -319,6 +335,7 @@ function init(
     end
 
     forcing_cache = Forcing.init_cache(forcing, cache_bs)
+    dissipation_cache = Forcing.init_cache(dissipation, cache_bs)
 
     step_diagnostics > 0 || throw(ArgumentError("step_diagnostics should be positive"))
     step_adaptivity > 0 || throw(ArgumentError("step_adaptivity should be positive"))
@@ -328,7 +345,7 @@ function init(
         prob, vortices, quantities, time, dtmin, adaptivity_, cache_annihilate, cache_bs,
         cache_timestepper, fold_periodic, affect_, affect_t_, callback_,
         step_diagnostics, step_adaptivity, step_annihilate,
-        forcing, forcing_cache,
+        forcing, forcing_cache, dissipation, dissipation_cache,
         timer, advect!, rhs!,
     )
 

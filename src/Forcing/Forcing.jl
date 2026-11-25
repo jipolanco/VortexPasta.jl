@@ -10,6 +10,7 @@ using ..BiotSavart: BiotSavart, BiotSavartCache
 using ..SyntheticFields: SyntheticFields, FourierBandVectorField
 using LinearAlgebra: ×
 using KernelAbstractions: KernelAbstractions as KA
+using AcceleratedKernels: AcceleratedKernels as AK
 using OhMyThreads: Scheduler, SerialScheduler, DynamicScheduler, tforeach, tmapreduce
 using TimerOutputs: TimerOutput, @timeit
 
