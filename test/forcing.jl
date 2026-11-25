@@ -66,13 +66,15 @@ function check_fourier_forcing_bs(iter)
     vs_filt = similar(longrange.outputs.velocity)
     BiotSavart.interpolate_to_physical!(callback, vs_filt, longrange)
 
-    _check_fourier_forcing_bs(iter, forcing, vs_filt)  # note: 3D test is not implemented yet
+    _check_fourier_forcing_bs(iter, vs_filt)  # note: 3D test is not implemented yet
 
     nothing
 end
 
 # 2D case
-function _check_fourier_forcing_bs(iter::PointVortexSolver, forcing, vs_filt)
+function _check_fourier_forcing_bs(iter::PointVortexSolver, vs_filt)
+    (; forcing) = iter
+    (; Γ, Ls) = iter.prob.p
     (; signs) = Timestepping.get_vortices(iter)
     ẑ = BiotSavart.ZetaHat()
     vf_expected = similar(vs_filt)
