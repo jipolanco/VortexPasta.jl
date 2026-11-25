@@ -107,7 +107,7 @@ struct FourierTruncationCallback{T, Wavenumbers} <: Function
     wavenumbers :: Wavenumbers
 end
 
-@inline function (f::FourierTruncationCallback)(û::NTuple{N, T}, idx::NTuple{N}) where {N, T}
+@inline function (f::FourierTruncationCallback)(û::Tuple, idx::Tuple)
     (; k²_max, wavenumbers,) = f
     k⃗ = ntuple(d -> @inbounds(wavenumbers[d][idx[d]]), Val(length(idx)))
     k² = sum(abs2, k⃗)
