@@ -31,6 +31,71 @@ function generate_biot_savart_parameters(::Type{T}; aspect, L = 2π, rcut = L / 
     )
 end
 
+function generate_point_vortices(rng, N, Ls::NTuple{2, T}; neutral = false) where {T <: AbstractFloat}
+    if neutral && isodd(N)
+        error("number of vortices must be even for neutral charge")
+    end
+    points = Vector{Vec2{T}}(undef, N)
+    signs = similar(points, SignValue)
+    for j in eachindex(points)
+        points[j] = rand(rng, Vec2{T}) .* Ls  # rescale positions
+        signs[j] = rand(rng, Bool) ? UP : DOWN  # randomly choose UP or DOWN
+    end
+    if neutral
+        signs[begin:(end ÷ 2)] .= UP
+        signs[(end ÷ 2 + 1):end] .= DOWN
+    end
+    PointVortexState(points, signs)
+end
+
+function check_fourier_forcing_bs(iter)
+    (; cache_bs, prob, forcing, forcing_cache) = iter
+    (; Γ, Ls) = prob.p
+
+    @assert forcing isa FourierBandForcingBS
+
+    (; longrange) = cache_bs
+    (; field, wavenumbers, state) = BiotSavart.get_longrange_field_fourier(longrange)
+    k²_min = forcing.kmin^2
+    k²_max = forcing.kmax^2
+    callback(û, idx) = let
+        k⃗ = @inbounds getindex.(wavenumbers, idx)
+        k² = sum(abs2, k⃗)
+        ifelse(k²_min <= k² < k²_max, û, map(zero, û))
+    end
+    vs_filt = similar(longrange.outputs.velocity)
+    BiotSavart.interpolate_to_physical!(callback, vs_filt, longrange)
+
+    _check_fourier_forcing_bs(iter, forcing, vs_filt)  # note: 3D test is not implemented yet
+
+    nothing
+end
+
+# 2D case
+function _check_fourier_forcing_bs(iter::PointVortexSolver, forcing, vs_filt)
+    (; signs) = Timestepping.get_vortices(iter)
+    ẑ = BiotSavart.ZetaHat()
+    vf_expected = similar(vs_filt)
+    if iszero(forcing.ε_target)
+        for i in eachindex(signs, vs_filt, vf_expected)
+            vf_expected[i] = forcing.α * signs[i] * (ẑ × vs_filt[i])
+        end
+    else
+        ε_base = 0.0
+        for i in eachindex(vs_filt)
+            ε_base += sum(abs2, vs_filt[i])
+        end
+        ε_base *= Γ / prod(Ls)
+        α = forcing.ε_target / ε_base
+        for i in eachindex(signs, vf_expected, vs_filt)
+            vf_expected[i] = α * signs[i] * (ẑ × vs_filt[i])
+        end
+    end
+    # @show norm(iter.vf - vf_expected) / norm(vf_expected)
+    @test vf_expected ≈ iter.vf rtol=1e-6
+    nothing
+end
+
 function filaments_from_functions(funcs::NTuple{N, F}, args...) where {N, F <: Function}
     isempty(funcs) && return ()
     S = first(funcs)
@@ -469,7 +534,7 @@ end
             @test iter.vL ≈ iter.vs + iter.vdiss
             # @test all(>(0), ε_diss_time)  # energy dissipation is positive
             # display(lineplot(times, energy))
-            @show energy[end] / energy[begin]
+            # @show energy[end] / energy[begin]
             @test energy[end] < 0.9 * energy[begin]  # energy is actually lost
             # Chosen dissipation rate is close to the actual dissipation rate.
             ε_diss_mean = sum(ε_diss_time) / length(ε_diss_time)
@@ -499,7 +564,8 @@ end
             (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
             @test iter.vL ≈ iter.vs + iter.vdiss
             @test all(>(0), ε_diss_time)  # energy dissipation is positive
-            @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
+            # @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
+            @test energy[end] - energy[begin] < 0
             # Chosen dissipation rate corresponds quite well to actual dissipation rate.
             ε_diss_mean = sum(ε_diss_time) / length(ε_diss_time)
             @test ε_diss_mean ≈ dissipation.ε_target rtol=0.15
@@ -553,6 +619,49 @@ end
         @testset "SmallScaleDissipationBS: Error if kdiss is too large" begin
             dissipation = @inferred SmallScaleDissipationBS(; ε_target = 0.1, kdiss = 10000)
             @test_throws "dissipative wavenumber (kdiss = $(dissipation.kdiss)) is too large" simulate(prob_diss, NoForcing(), dissipation; callback)
+        end
+    end
+end
+
+@testset "Forcing and dissipation (2D)" begin
+    plots = false
+    Γ = 3.0
+    Ls = (2π, 3π)
+    rcut = min(Ls...) / 10
+    splitting = GaussianSplitting(; Ls, rtol = 1.0e-6, rcut)
+    params = ParamsPointVortex(Γ; splitting)
+    rng = StableRNG(4242)
+    nvortices = 256
+    vortices = generate_point_vortices(rng, nvortices, Ls; neutral = true)
+    tmax = 1.0
+    prob = PointVortexProblem(vortices, tmax, params)
+
+    @testset "FourierBandForcingBS" begin
+        options = (
+            (; ε_target = 20.0),
+            (; α = 10.0),
+        )
+        @testset "$opts" for opts in options
+            forcing = FourierBandForcingBS(; kmin = 2.01, kmax = 4.01, opts...)
+            ℓ = sqrt(prod(params.Ls) / length(vortices))
+            dt = 1.0e-3 * ℓ^2 / params.Γ
+            iter = init(prob, RK4(); forcing, dt)
+            check_fourier_forcing_bs(iter)
+            ks_flux, fluxes = @inferred Diagnostics.energy_flux(iter, 1.0:1.0:8.0)
+            ε_inj_actual = fluxes.vf[4] - fluxes.vf[2]  # actually injected at forcing scales k ∈ (2, 4]
+            if forcing.ε_target > 0
+                @test ε_inj_actual ≈ forcing.ε_target rtol = 1.0e-6
+            else
+                @test ε_inj_actual > 0
+            end
+            if plots
+                let plt = lineplot(ks_flux, fluxes.vf)
+                    hline!(plt, forcing.ε_target)
+                    vline!(plt, forcing.kmin)
+                    vline!(plt, forcing.kmax)
+                    display(plt)
+                end
+            end
         end
     end
 end

@@ -162,7 +162,7 @@ end
 ## ================================================================================ ##
 ## 2D version
 
-function _evaluate_from_geometry!(
+function _evaluate_from_geometry_2D!(
         forcing::FourierBandForcingBS, vf_lin::AbstractVector, vortices::PointVortexState, cache,
         buf_scalar::AbstractVector,
     )
@@ -187,9 +187,12 @@ function _evaluate_from_geometry!(
             k⃗ = @inbounds SVector(qs[n]) .* Δks
             v̂ = @inbounds cs[n]
             k_dot_s = k⃗ ⋅ s⃗
-            local s, c = sincos(k_dot_s)  # note: CUDA defines sincos as well, so it should be fast
-            vs_k = real(v̂ * Complex(c, s))
-            vs_filtered = vs_filtered + vs_k
+            local s, c = sincos(k_dot_s)      # note: CUDA defines sincos as well, so it should be fast
+            vs_k = real(v̂) * c - imag(v̂) * s  # real part of Fourier mode v̂(k⃗) * cis(k⃗ ⋅ s⃗)
+            # Note: in SyntheticFields we account for Hermitian symmetry by discarding all
+            # redundant wave vectors (see SyntheticFields.discard_wavevector).
+            # This is why we need a factor 2 to include +k⃗ and -k⃗ contributions.
+            vs_filtered = vs_filtered + 2 * vs_k
         end
 
         # Compute forcing velocity. If ε_target was set, this will also store the estimated
@@ -266,7 +269,7 @@ function evaluate!(
     vf_compute = same_device ? vf : outputs.velocity  # if same device, write directly to vf
     buf_scalar = outputs.streamfunction  # reuse this to store energy injection rate associated to each single point
 
-    @timeit to "(2) Compute forcing (GPU)" _evaluate_from_geometry!(forcing, vf_compute, vortices, cache, buf_scalar)
+    @timeit to "(2) Compute forcing (GPU)" _evaluate_from_geometry_2D!(forcing, vf_compute, vortices, cache, buf_scalar)
 
     if vf_compute !== vf  # i.e. if same_device == false
         @timeit to "(3) Copy forcing GPU -> CPU" begin
@@ -319,7 +322,7 @@ function _compute_geometry_filament!(::FourierBandForcingBS, geom, f::ClosedFila
         len = sqrt(sum(abs2, f[j + 1] - f[j]))    # length of segment to the right (rough estimate)
         # seg = Filaments.Segment(f, j)
         # len = Filaments.segment_length(seg; quad)  # more accurate estimate (but more expensive)
-        integration_weights[n] = len_prev + len   # length of the two local segments
+        integration_weights[n] = (len_prev + len) / 2   # local segment length ≈ average length of the two local segments
         len_prev = len
     end
     n
@@ -390,6 +393,10 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
 
     resize_no_copy!(vf_lin, length(nodes))
 
+    # Check that we only store qx >= 0 (i.e. kx >= 0), so that we need to account for
+    # Hermitian symmetry below.
+    @assert(all(q -> @inbounds(q[1]) >= 0, qs))
+
     AK.foreachindex(nodes; block_size = 256) do i
         @inline
         s⃗ = @inbounds nodes[i]
@@ -409,8 +416,11 @@ function _evaluate_from_geometry!(forcing::FourierBandForcingBS, vf_lin::Abstrac
             v̂ = @inbounds cs[n]
             k_dot_s = k⃗ ⋅ s⃗
             local s, c = sincos(k_dot_s)  # note: CUDA defines sincos as well, so it should be fast
-            vs_k = real(v̂ * Complex(c, s))
-            vs_filtered = vs_filtered + vs_k
+            vs_k = real(v̂) * c - imag(v̂) * s  # real part of Fourier mode v̂(k⃗) * cis(k⃗ ⋅ s⃗)
+            # Note: in SyntheticFields we account for Hermitian symmetry by discarding all
+            # redundant wave vectors (see SyntheticFields.discard_wavevector).
+            # This is why we need a factor 2 to include +k⃗ and -k⃗ contributions.
+            vs_filtered = vs_filtered + 2 * vs_k
         end
 
         # Compute forcing velocity. If ε_target was set, this will also store the estimated
