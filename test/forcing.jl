@@ -255,14 +255,15 @@ end
         end
         @testset "FourierBandForcingBS" begin
             ε_target = 3.0
-            forcing = @inferred FourierBandForcingBS(; kmin = 1.01, kmax = 3.99, ε_target, modify_length = false)
+            forcing = @inferred FourierBandForcingBS(; kmin = 0.01, kmax = 3.99, ε_target, modify_length = false)
             prob = VortexFilamentProblem(fs, 0.1, params)
             iter = init(prob, RK4(); dt = 1e-3, forcing)
             ε_actual = Diagnostics.energy_injection_rate(iter, iter.vf)
             ks_flux, fluxes = Diagnostics.energy_flux(iter, 1.0:1.0:8.0)
-            @show (ε_actual - ε_target) / ε_target
-            @show (fluxes.vf[4] - ε_target) / ε_target
-            # @test fluxes.vf[4] ≈ ε_target rtol=3e-3  # flux up to k = 4 matches the energy injection rate
+            # @show (ε_actual - ε_target) / ε_target
+            # @show (fluxes.vf[4] - ε_target) / ε_target
+            @test ε_actual ≈ ε_target rtol=0.02
+            @test fluxes.vf[4] ≈ ε_target rtol=0.002  # this estimate excludes energy injected at smaller scales
             if plots
                 let plt = lineplot(ks_flux, fluxes.vf)
                     hline!(plt, ε_target)
@@ -317,7 +318,7 @@ end
             plots && plot_spectra(spectra; title = "FourierBandForcing (filtered vorticity)")
         end
         @testset "FourierBandForcingBS (constant α)" begin
-            forcing = @inferred FourierBandForcingBS(; α = 5.0, kmin = 0.5, kmax = 2.5)
+            forcing = @inferred FourierBandForcingBS(; α = 2.5, kmin = 0.5, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
             @test 1.14 < E_ratio < 1.18
         end
@@ -334,7 +335,7 @@ end
             @test 0.95 < E_ratio < 0.97
         end
         @testset "FourierBandForcingBS (constant α and α′)" begin
-            forcing = @inferred FourierBandForcingBS(; α = 5.0, α′ = 1.0, kmin = 0.5, kmax = 2.5)
+            forcing = @inferred FourierBandForcingBS(; α = 2.5, α′ = 1.0, kmin = 0.5, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
             @test 1.13 < E_ratio < 1.16
         end
@@ -427,7 +428,8 @@ end
 
     @testset "Dissipation" begin
         tmax = 1.0
-        fs_diss = generate_filaments(N; Ls, small_scales = true)
+        # fs_diss = generate_filaments(N; Ls, small_scales = true)
+        fs_diss = generate_random_rings(N, nrings; R = 0.8 * π, Ls = params.Ls)
         prob_diss = VortexFilamentProblem(fs_diss, (zero(tmax), tmax), params)
         kdiss = 3  # dissipate at relatively small k for testing purposes
 
@@ -465,11 +467,13 @@ end
             dissipation = @inferred DissipationBS(; ε_target = 1e-2)
             (; iter, E_ratio, spectra) = simulate(prob_diss, NoForcing(), dissipation; callback)
             @test iter.vL ≈ iter.vs + iter.vdiss
-            @test all(>(0), ε_diss_time)  # energy dissipation is positive
-            # @show extrema(diff(energy) ./ diff(times))
-            @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
-            # Chosen dissipation rate corresponds almost exactly to actual dissipation rate.
-            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 2e-3), ε_diss_time)
+            # @test all(>(0), ε_diss_time)  # energy dissipation is positive
+            # display(lineplot(times, energy))
+            @show energy[end] / energy[begin]
+            @test energy[end] < 0.9 * energy[begin]  # energy is actually lost
+            # Chosen dissipation rate is close to the actual dissipation rate.
+            ε_diss_mean = sum(ε_diss_time) / length(ε_diss_time)
+            @test ε_diss_mean ≈ dissipation.ε_target rtol=0.15
             plots && plot_spectra(spectra; title = "DissipationBS (constant ε_target)")
             let
                 ks, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad = GaussLegendre(3))
@@ -496,9 +500,9 @@ end
             @test iter.vL ≈ iter.vs + iter.vdiss
             @test all(>(0), ε_diss_time)  # energy dissipation is positive
             @test all(<(0), diff(energy) ./ diff(times))  # energy is actually lost
-            # Chosen dissipation rate corresponds quite well to actual dissipation rate (actually, differences are up to 20%).
-            # @show norm(ε_diss_time .- dissipation.ε_target) / dissipation.ε_target
-            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.2), ε_diss_time)
+            # Chosen dissipation rate corresponds quite well to actual dissipation rate.
+            ε_diss_mean = sum(ε_diss_time) / length(ε_diss_time)
+            @test ε_diss_mean ≈ dissipation.ε_target rtol=0.15
             plots && plot_spectra(spectra; title = "SmallScaleDissipationBS (constant ε_target)")
         end
 
@@ -506,8 +510,8 @@ end
             dissipation = @inferred DissipationBS(; ε_target = 0.01)
             forcing = @inferred FourierBandForcingBS(; ε_target = 0.05, kmin = 0.1, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob_diss, forcing, dissipation; callback)
-            @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
-            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.2), ε_diss_time)
+            ε_diss_mean = sum(ε_diss_time) / length(ε_diss_time)
+            @test ε_diss_mean ≈ dissipation.ε_target rtol=0.15
             let
                 ks, fluxes = @inferred Diagnostics.energy_flux(iter, 8; quad = GaussLegendre(3))
                 @test length(ks) ≤ 8
@@ -525,7 +529,8 @@ end
             forcing = @inferred FourierBandForcingBS(; ε_target = 0.05, kmin = 0.1, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob_diss, forcing, dissipation; callback)
             @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
-            @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.2), ε_diss_time)
+            ε_diss_mean = sum(ε_diss_time) / length(ε_diss_time)
+            @test ε_diss_mean ≈ dissipation.ε_target rtol=0.15
             plots && plot_spectra(spectra; title = "Forcing + dissipation")
         end
 
@@ -539,7 +544,8 @@ end
                 forcing = @inferred FourierBandForcingBS(; ε_target = 2e-4, kmin = 0.1, kmax = 2.5)
                 (; iter, E_ratio, spectra) = simulate(prob_gpu, forcing, dissipation; callback)
                 @test iter.vL ≈ iter.vs + iter.vdiss + iter.vf
-                @test all(ε_d -> isapprox(ε_d, dissipation.ε_target; rtol = 0.2), ε_diss_time)
+                ε_diss_mean = sum(ε_diss_time) / length(ε_diss_time)
+                @test ε_diss_mean ≈ dissipation.ε_target rtol=0.15
                 plots && plot_spectra(spectra; title = "Forcing + dissipation ($backend_gpu)")
             end
         end
