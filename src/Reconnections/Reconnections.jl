@@ -33,6 +33,7 @@ using ..Filaments:
 using ..CellLists: CellLists
 
 using OhMyThreads: OhMyThreads, tforeach, DynamicScheduler
+using AcceleratedKernels: AcceleratedKernels as AK
 using TimerOutputs
 using LinearAlgebra: ⋅, norm
 

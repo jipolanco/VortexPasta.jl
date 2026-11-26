@@ -75,11 +75,13 @@ end
 
 distance(c::AnnihilateFast) = c.dist
 
+const NO_NEARBY_VORTEX = Int(0)  # default value in idx_other -- means that the vortex will not be eliminated
+
 struct AnnihilateFastCache{
         T <: AbstractFloat,
         Criterion <: AnnihilateFast,
         Finder <: PeriodicCellList,
-        IndexVector <: AbstractVector{<:Integer},
+        IndexVector <: AbstractVector{Int},
     } <: AbstractAnnihilationCache
     crit::Criterion
     cl::Finder
@@ -117,8 +119,8 @@ function _update_cache!(cache::AnnihilateFastCache, points, folded::Bool)
     (; cl, idx_other) = cache
     Base.require_one_based_indexing(points)
     resize!(idx_other, length(points))
-    Threads.@threads for i in eachindex(idx_other)
-        @inbounds idx_other[i] = 0
+    AK.foreachindex(idx_other) do i
+        @inbounds idx_other[i] = NO_NEARBY_VORTEX  # = 0
     end
     if folded
         CellLists.set_elements!(cl, points; folded = Val(true))  # CellLists can assume that points are already in [0, L]²
@@ -133,7 +135,7 @@ function _find_nearby_dipoles!(cache, vortices, folded::Val)
     (; points, signs) = vortices
     r_cut = distance(crit)
     r²_cut = r_cut * r_cut
-    CellLists.foreach_pair(cl, points; folded = Val(true)) do x⃗, i, j
+    CellLists.foreach_pair(cl, points; folded) do x⃗, i, j
         @inline
         @inbounds y⃗ = points[j]
         is_dipole = @inbounds iszero(signs[i] + signs[j])  # opposite signs
@@ -143,7 +145,7 @@ function _find_nearby_dipoles!(cache, vortices, folded::Val)
             # We will let a different call do it, e.g. when the same pair is visited in
             # reverse order (i, j) <-> (j, i).
             n = @inbounds idx_other[i]
-            if n == 0
+            if n == NO_NEARBY_VORTEX
                 # No (i, j) pair had been found previously
                 @inbounds idx_other[i] = j
             else
@@ -171,8 +173,10 @@ function _annihilate_dipoles!(cache, vortices)
         j = idx_other[i]
         # Only annihilate if i == idx_other[idx_other[i]], i.e. if both vortices "agree"
         # that this is the best pair. Otherwise we simply skip the annihilation.
-        if i != idx_other[j]
-            idx_other[i] = 0  # don't remove vortex i
+        if j == NO_NEARBY_VORTEX
+            nothing  # nothing to do
+        elseif i != idx_other[j]
+            idx_other[i] = NO_NEARBY_VORTEX  # don't remove vortex i
         elseif i < j
             # Annihilate vortices i and j
             n_annihilated += 2
