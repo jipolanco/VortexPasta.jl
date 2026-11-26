@@ -27,6 +27,15 @@ ReconnectBasedOnDistance
 ReconnectFast
 ```
 
+## Point vortex annihilation (2D)
+
+```@docs
+annihilate!
+AnnihilationCriterion
+NoAnnihilations
+AnnihilateFast
+```
+
 ## Internals
 
 ```@docs

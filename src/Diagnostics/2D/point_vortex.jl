@@ -39,9 +39,9 @@ function vortex_impulse(vortices::PointVortexState)
     (; points, signs) = vortices
     V = eltype(points)
     p⃗ = zero(V)
+    ẑ = ZetaHat()
     @inbounds for i in eachindex(points, signs)
-        x, y = points[i]
-        p⃗ += signs[i] * V(y, -x)
+        p⃗ += signs[i] * (points[i] × ẑ)
     end
     p⃗
 end
@@ -57,6 +57,7 @@ function energy_flux(
     prefactor = Γ / prod(Ls)
     @assert state.quantity == :velocity
     @assert state.smoothing_scale == 0
+    ẑ = ZetaHat()
 
     # Initialise flux vectors.
     fluxes = map(_ -> similar(ks), velocities)::NamedTuple
@@ -76,11 +77,23 @@ function energy_flux(
             vL = velocities[n].field
             s = velocities[n].sign  # -1 if dissipation, +1 if injection
             fluxes[n][i] = s * prefactor * sum(eachindex(vortices)) do j
-                @inbounds w⃗ = V(-vs[j][2], +vs[j][1])  # = ẑ × vs
-                @inbounds signs[j] * (w⃗ ⋅ vL[j])
+                @inbounds signs[j] * ((ẑ × vs[j]) ⋅ vL[j])
             end
         end
     end
 
     ks, fluxes
+end
+
+function energy_injection_rate(
+        vortices::PointVortexState, vL::AbstractVector, vs::AbstractVector,
+        params::ParamsPointVortex,
+    )
+    (; Γ, Ls) = params
+    (; signs) = vortices
+    prefactor = Γ / prod(Ls)
+    ẑ = ZetaHat()
+    prefactor * sum(eachindex(signs)) do j
+        @inbounds signs[j] * ((ẑ × vs[j]) ⋅ vL[j])
+    end
 end

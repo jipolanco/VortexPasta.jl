@@ -1,7 +1,8 @@
 using HDF5: HDF5
 
 """
-    save_checkpoint([f::Function], filename, iter::VortexFilamentSolver; kwargs...)
+    save_checkpoint([f::Function], filename, iter::VortexFilamentSolver; kwargs...)  # 3D case
+    save_checkpoint([f::Function], filename, iter::PointVortexSolver; kwargs...)     # 2D case
 
 Save checkpoint to VTKHDF file (usually with `.vtkhdf` extension).
 
@@ -49,7 +50,7 @@ function save_checkpoint(f::F, filename, iter::VortexFilamentSolver; kwargs...) 
         gtop = HDF5.create_group(gbase, "VortexPasta")
         gtop["version"] = string(VortexPasta.version())
         gtop["julia_version"] = string(VERSION)
-        let g = HDF5.create_group(gtop, "BiotSavartParams")
+        let g = HDF5.create_group(gtop, "ParamsBiotSavart")
             BiotSavart.to_hdf5(g, iter.prob.p)
         end
         let g = HDF5.create_group(gtop, "VortexFilamentSolver")
@@ -81,6 +82,7 @@ function save_checkpoint(f::F, filename, iter::VortexFilamentSolver; kwargs...) 
             g["with_external_streamfunction"] = iter.external_fields.streamfunction !== nothing
             g["with_stretching_velocity"] = iter.stretching_velocity !== nothing
             g["forcing_type"] = string(typeof(iter.forcing))
+            g["dissipation_type"] = string(typeof(iter.dissipation))
         end
     end
     nothing
@@ -107,6 +109,12 @@ This can be used to make sure that the new simulation starts at time `t = 0` (an
 The optional `f` function may be used to read extra fields (e.g. velocities) from the checkpoint.
 This works just like [`FilamentIO.read_vtkhdf`](@ref), see its docs for some examples.
 
+# 2D case (point vortex simulations)
+
+In 2D the signature is similar to the one above but without the `method::DiscretisationMethod` argument:
+
+    load_checkpoint([f::Function], filename, T; read_time = true) -> LoadedCheckpoint2D
+
 ## Examples
 
 Restart simulation from checkpoint:
@@ -128,12 +136,17 @@ function load_checkpoint(func::F, filename, ::Type{T}, method::DiscretisationMet
     fs = FilamentIO.read_vtkhdf(filename, T, method) do io
         gbase = FilamentIO.root(io)  # "/" group in HDF5 file
         haskey(gbase, "VortexPasta") || error(
-            lazy"""HDF5 file "$filename" doesn't contain a /VortexPasta group.
+            lazy"""HDF5 file '$filename' doesn't contain a /VortexPasta group.
             Are you sure it was written using save_checkpoint?
             Note that files written using FilamentIO.write_vtkhdf cannot be loaded as checkpoints since they don't have enough data.
             """
         )
         gtop = HDF5.open_group(gbase, "VortexPasta")
+        haskey(gtop, "VortexFilamentSolver") || error(
+            lazy"""HDF5 file '$filename' doesn't contain a /VortexPasta/VortexFilamentSolver group.
+            Are you sure it comes from a 3D vortex filament simulation?
+            """
+        )
         let g = HDF5.open_group(gtop, "VortexFilamentSolver")
             if read_time
                 let g = HDF5.open_group(g, "Time")

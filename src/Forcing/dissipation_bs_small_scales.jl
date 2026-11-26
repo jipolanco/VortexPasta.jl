@@ -79,11 +79,11 @@ function Base.show(io::IO, f::SmallScaleDissipationBS{T}) where {T}
     nothing
 end
 
-function init_cache(dissipation::SmallScaleDissipationBS, cache_bs::BiotSavartCache)
-    (; kdiss,) = dissipation
-    (; params,) = cache_bs
+function init_cache(dissipation::SmallScaleDissipationBS, cache_bs::AbstractBiotSavartCache)
+    (; kdiss) = dissipation
+    (; params, longrange) = cache_bs
     # Check that the dissipation wavenumber is inside the Fourier grid in all 3 directions
-    (; wavenumbers,) = BiotSavart.get_longrange_field_fourier(cache_bs)
+    (; wavenumbers,) = BiotSavart.get_longrange_field_fourier(longrange)
     for ks in wavenumbers  # iterate over the 3 dimensions
         if ks[end] > 0  # r2c FFT, usually the first dimension
             kmax = ks[end - 1]  # discard the very last wavenumber
@@ -96,7 +96,8 @@ function init_cache(dissipation::SmallScaleDissipationBS, cache_bs::BiotSavartCa
         end
     end
     prefactor = params.Γ / prod(params.Ls)
-    (; longrange = cache_bs.longrange, prefactor,)
+    vs_filtered = similar(longrange.outputs.velocity)  # to store the coarse-grained velocity
+    (; prefactor, vs_filtered)
 end
 
 # Creating a callable struct makes sure that the callback can be compiled for GPUs.
@@ -106,7 +107,7 @@ struct FourierTruncationCallback{T, Wavenumbers} <: Function
     wavenumbers :: Wavenumbers
 end
 
-@inline function (f::FourierTruncationCallback)(û::NTuple{3, T}, idx::NTuple{3}) where {T}
+@inline function (f::FourierTruncationCallback)(û::Tuple, idx::Tuple)
     (; k²_max, wavenumbers,) = f
     k⃗ = ntuple(d -> @inbounds(wavenumbers[d][idx[d]]), Val(length(idx)))
     k² = sum(abs2, k⃗)
@@ -115,69 +116,127 @@ end
     k² > k²_max ? û_zero : û
 end
 
-function _update_cache!(cache, dissipation::SmallScaleDissipationBS)
+function _update_cache!(cache, dissipation::SmallScaleDissipationBS, cache_bs::AbstractBiotSavartCache)
     # Interpolate Fourier-truncated Biot-Savart velocities at filament locations (results
     # are written somewhere in cache.longrange).
+    (; vs_filtered) = cache
     (; kdiss,) = dissipation
-    (; wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(cache.longrange)
+    (; longrange) = cache_bs
+    (; wavenumbers, state,) = BiotSavart.get_longrange_field_fourier(longrange)
     @assert state.quantity == :velocity && state.smoothing_scale == 0
     # Interpolate Fourier velocity, but first discarding Fourier coefficients k > kdiss.
     kdiss² = kdiss * kdiss
     callback = FourierTruncationCallback(kdiss², wavenumbers)
-    BiotSavart.interpolate_to_physical!(callback, cache.longrange)
+    BiotSavart.resize_no_copy!(vs_filtered, length(longrange.outputs.velocity))
+    BiotSavart.interpolate_to_physical!(callback, vs_filtered, longrange)
     nothing
 end
 
-function apply!(
-        dissipation::SmallScaleDissipationBS{T}, cache,
-        vL_all::AbstractVector, vdiss_all::AbstractVector, vs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament};
-        scheduler = SerialScheduler(),
+## ================================================================================ ##
+## 2D version
+
+function evaluate!(
+        dissipation::SmallScaleDissipationBS{T}, cache, vdiss::AbstractVector,
+        vs::AbstractVector, vortices_in::PointVortexState, time, cache_bs::PointVortexCache;
+        to = TimerOutput(),
+    ) where {T}
+    # 1. Interpolate vs^< (Fourier-truncated BS velocity) onto cache.longrange
+    (; vs_filtered) = cache
+    @timeit to "(1) Interpolate filtered velocity" _update_cache!(cache, dissipation, cache_bs)  # updates vs_filtered with low-pass-filtered velocity
+
+    # 2. Iterate over vortex points to obtain the actual dissipation velocity
+    ẑ = BiotSavart.ZetaHat()
+    (; signs) = vortices_in
+    @assert eachindex(signs) == eachindex(vdiss) == eachindex(vs_filtered)
+    @timeit to "(2) Compute dissipation velocity" AK.foreachindex(vdiss) do i
+        @inline
+        @inbounds begin
+            v⃗_hi = vs[i] - vs_filtered[i]  # high-pass filtered velocity
+            s = signs[i]
+            v⃗_diss = s * (v⃗_hi × ẑ)   # dissipation velocity (without α coefficient) -- this already includes the negative sign for dissipation: v⃗ × s⃗′ = -s⃗′ × v⃗
+            vdiss[i] = if dissipation.α != 0
+                dissipation.α * v⃗_diss
+            else
+                v⃗_diss
+            end
+        end
+    end
+
+    if dissipation.ε_target == 0
+        @assert dissipation.α != 0
+        return nothing
+    end
+
+    @timeit to "(3) Estimate dissipation rate" begin
+        ε_total = AK.mapreduce(+, vdiss) do v⃗_diss
+            sum(abs2, v⃗_diss)
+        end * cache.prefactor
+    end
+
+    @timeit to "(4) Rescale dissipation velocity" let
+        local α = dissipation.ε_target / ε_total
+        @. vdiss *= α
+    end
+
+    nothing
+end
+
+## ================================================================================ ##
+## 3D version
+
+function evaluate!(
+        dissipation::SmallScaleDissipationBS{T}, cache, vdiss_all::AbstractVector,
+        vs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament}, time, cache_bs::BiotSavartCache;
+        to = TimerOutput(),
     ) where {T <: AbstractFloat}
     # 1. Interpolate vs^< (Fourier-truncated BS velocity) onto cache.longrange
-    _update_cache!(cache, dissipation)
+    (; vs_filtered) = cache
+    @timeit to "(1) Interpolate filtered velocity (GPU)" _update_cache!(cache, dissipation, cache_bs)  # updates vs_filtered with low-pass-filtered velocity
 
     # 2. Copy results onto vdiss_all
-    BiotSavart.copy_long_range_output!(vdiss_all, cache.longrange)
+    @timeit to "(2) Copy filtered velocity (GPU -> CPU)" BiotSavart.copy_long_range_output!(vdiss_all, cache_bs.longrange, vs_filtered)
 
     # 3. Iterate over filaments and filament points to obtain the actual dissipation velocity.
     ε_total = zero(T)
-    @inbounds for n in eachindex(fs)
-        f = fs[n]
-        vs = vs_all[n]  # Biot-Savart velocity of filament
-        vdiss = vdiss_all[n]  # for now this contains vs^< on the filament
-        ts = Filaments.knots(f)
-        ε_filament = tmapreduce(+, eachindex(vs); scheduler) do i
-            @inline
-            @inbounds begin
-                ds⃗_dt = f[i, Derivative(1)]
-                ds_dt = sqrt(sum(abs2, ds⃗_dt))  # vector norm
-                s⃗′ = ds⃗_dt ./ ds_dt  # unit tangent
-                v⃗_hi = vs[i] - vdiss[i]  # high-pass filtered velocity
-                v⃗_diss = v⃗_hi × s⃗′  # dissipation velocity (without α coefficient) -- this already includes the negative sign for dissipation: v⃗ × s⃗′ = -s⃗′ × v⃗
-                if dissipation.α != 0
-                    vdiss[i] = dissipation.α * v⃗_diss
-                else
-                    vdiss[i] = v⃗_diss  # we will rescale vdiss later to get the wanted dissipation rate
+    @timeit to "(3) Compute dissipation velocity (CPU)" begin
+        scheduler = DynamicScheduler()  # for threading
+        @inbounds for n in eachindex(fs)
+            f = fs[n]
+            vs = vs_all[n]  # Biot-Savart velocity of filament
+            vdiss = vdiss_all[n]  # for now this contains vs^< on the filament
+            ts = Filaments.knots(f)
+            ε_filament = tmapreduce(+, eachindex(vs); scheduler) do i
+                @inline
+                @inbounds begin
+                    ds⃗_dt = f[i, Derivative(1)]
+                    ds_dt = sqrt(sum(abs2, ds⃗_dt))  # vector norm
+                    s⃗′ = ds⃗_dt ./ ds_dt  # unit tangent
+                    v⃗_hi = vs[i] - vdiss[i]  # high-pass filtered velocity
+                    v⃗_diss = v⃗_hi × s⃗′  # dissipation velocity (without α coefficient) -- this already includes the negative sign for dissipation: v⃗ × s⃗′ = -s⃗′ × v⃗
+                    if dissipation.α != 0
+                        vdiss[i] = dissipation.α * v⃗_diss
+                    else
+                        vdiss[i] = v⃗_diss  # we will rescale vdiss later to get the wanted dissipation rate
+                    end
+                    dt = (ts[i + 1] - ts[i - 1]) / 2
+                    dξ = dt * ds_dt  # estimated local segment length
+                    sum(abs2, v⃗_diss) * dξ  # estimated energy dissipation rate around local node (without Γ/V prefactor) -- only valid in ε_target mode!
                 end
-                dt = (ts[i + 1] - ts[i - 1]) / 2
-                dξ = dt * ds_dt  # estimated local segment length
-                sum(abs2, v⃗_diss) * dξ  # estimated energy dissipation rate around local node (without Γ/V prefactor) -- only valid in ε_target mode!
             end
+            ε_total += ε_filament
         end
-        ε_total += ε_filament
+        ε_total *= cache.prefactor
     end
-    ε_total *= cache.prefactor
 
     # 4. Rescale velocities if needed
     if dissipation.ε_target != 0 && ε_total != 0
         @assert dissipation.α == 0
         # TODO: check that abs(ε_total) > some minimal tolerance? (to avoid division by "almost" zero)
         α = dissipation.ε_target / ε_total
-        @. vdiss_all *= α
+        @timeit to "(4) Rescale dissipation velocity" begin
+            @. vdiss_all *= α
+        end
     end
-
-    # 5. Add dissipation term to vortex velocity vL
-    @. vL_all = vL_all + vdiss_all
 
     nothing
 end

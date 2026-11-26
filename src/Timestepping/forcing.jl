@@ -135,7 +135,7 @@ function _apply_forcing!(vL_all, forcing::FourierBandForcingBS, cache, iter, fs,
     (; quantities,) = iter
     vf_all = quantities.vf  # forcing velocities will be copied here
     @timeit to "Add forcing" begin
-        Forcing.evaluate!(forcing, cache, vf_all, fs, iter.cache_bs; to)
+        Forcing.evaluate!(forcing, cache, vf_all, fs, t, iter.cache_bs; to)
         @. vL_all = vL_all + vf_all
     end
     nothing
@@ -147,16 +147,10 @@ function _apply_dissipation!(vL_all, dissipation::AbstractDissipation, cache, it
     @assert eachindex(vL_all) === eachindex(fs)
     (; quantities,) = iter
     @assert quantities.vs !== vL_all  # not aliased
-    scheduler = DynamicScheduler()  # for threading
+    vdiss_all = quantities.vdiss  # dissipation velocities will be copied here
     @timeit to "Add dissipation" begin
-        # This will:
-        # - add dissipation term to vL_all
-        # - write dissipation term into vdiss
-        Forcing.apply!(
-            dissipation, cache,
-            vL_all, quantities.vdiss, quantities.vs, fs;
-            scheduler,
-        )
+        Forcing.evaluate!(dissipation, cache, vdiss_all, quantities.vs, fs, t, iter.cache_bs; to)
+        @. vL_all = vL_all + vdiss_all
     end
     nothing
 end

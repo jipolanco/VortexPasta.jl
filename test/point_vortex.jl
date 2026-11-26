@@ -5,6 +5,7 @@ using VortexPasta
 using VortexPasta.BiotSavart
 using VortexPasta.BiotSavart: Vec2
 using VortexPasta.Diagnostics
+using VortexPasta.FilamentIO
 using LinearAlgebra: norm, ⋅
 using Adapt: adapt
 using KernelAbstractions: KernelAbstractions as KA, POCLBackend
@@ -37,6 +38,40 @@ function point_vortex_interactions(vortices::PointVortexState, params::ParamsPoi
     (; cache, params, vortices, energy, fields...)
 end
 
+function test_filament_io(filename, results)
+    (; vortices, energy, velocity, streamfunction) = results
+    T = eltype(vortices)
+    @testset "Write VTKHDF" begin
+        write_vtkhdf(filename, vortices) do io
+            io["velocity"] = velocity   # vector point data
+            io["streamfunction"] = streamfunction  # scalar point data
+            io["energy"] = energy  # scalar field data
+            io["nvortices"] = length(vortices)  # scalar field data
+            io["description"] = "Point vortices"  # string field data
+        end
+    end
+    @testset "Read VTKHDF" begin
+        @inferred read_vtkhdf(filename, T)
+        vs_read = similar(velocity)
+        ψs_read = similar(streamfunction)
+        vortices_read = read_vtkhdf(filename, T) do io
+            @test read(io, "velocity", PointData(), Vec2{T}) == velocity
+            @test read(io, "streamfunction", PointData(), T) == streamfunction
+            @test read(io, "energy", FieldData(), T) == [energy]
+            @test read(io, "nvortices", FieldData(), Int) == [length(vortices)]
+            @test read(io, "description", FieldData(), String) == ["Point vortices"]
+            read!(io, vs_read, "velocity")
+            read!(io, ψs_read, "streamfunction")
+        end
+        @test eltype(vortices_read) === T
+        @test vortices_read.points == vortices.points
+        @test vortices_read.signs == vortices.signs
+        @test vs_read == velocity
+        @test ψs_read == streamfunction
+    end
+    nothing
+end
+
 ##
 
 T = Float64
@@ -55,6 +90,12 @@ backend_long = NonuniformFFTsBackend(backend; σ = 1.5, m = HalfSupport(4))
 splitting = @inferred GaussianSplitting(; Ls, rcut = Lx / 4, β = 4.0)
 params = @inferred ParamsPointVortex(; Γ, splitting, backend_short, backend_long)
 ref = point_vortex_interactions(vortices, params)
+
+@testset "Filament IO" begin
+    mktemp() do path, io
+        test_filament_io(path, ref)
+    end
+end
 
 @testset "Computing only the velocity" begin
     vs_only = @inferred velocity_on_nodes(ref.cache, ref.vortices)
@@ -120,6 +161,11 @@ end
     @test results.energy ≈ ref.energy rtol=2f-5
     @test results.velocity ≈ ref.velocity rtol=1f-5
     @test results.streamfunction ≈ ref.streamfunction rtol=1f-5
+    @testset "Filament IO" begin
+        mktemp() do path, io
+            test_filament_io(path, results)
+        end
+    end
 end
 
 @testset "POCLBackend" begin
@@ -176,4 +222,3 @@ end
     @test A.velocity ≈ B.velocity rtol=1e-6
     @test A.streamfunction ≈ B.streamfunction rtol=1e-6
 end
-

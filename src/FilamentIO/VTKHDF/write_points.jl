@@ -105,23 +105,5 @@ function add_filament_cell!(
 end
 
 # Write point locations to VTKHDF dataset.
-# We use the low-level HDF5 API since it allows us to efficiently reinterpret Xs_all as a
-# (3, Np) matrix of real values (as it works directly with pointers).
-function points_to_vtkhdf_dataset(gtop, Xs_all::AbstractVector)
-    V = eltype(Xs_all)  # usually SVector{3, T}
-    N = length(V)       # usually == 3 (works when V <: StaticArray)
-    @assert N == 3
-    T = eltype(V)
-    @assert T <: AbstractFloat
-    num_points = length(Xs_all)
-    dtype = HDF5.datatype(T)
-    dspace = HDF5.dataspace((N, num_points))
-    dset = HDF5.create_dataset(gtop, "Points", dtype, dspace)
-    memtype = dtype
-    memspace = dspace
-    HDF5.API.h5d_write(dset.id, memtype.id, memspace.id, dspace.id, dset.xfer, Xs_all)
-    close(dset)
-    close(dspace)
-    close(dtype)
-    nothing
-end
+vector_data_to_vtkhdf_dataset(gtop, xs::AbstractVector) =
+    write_point_data(gtop, "Points", xs)

@@ -67,13 +67,14 @@ function init_cache(dissipation::DissipationBS, cache_bs::BiotSavartCache)
     (; prefactor,)
 end
 
-function apply!(
-        dissipation::DissipationBS{T}, cache,
-        vL_all::AbstractVector, vdiss_all::AbstractVector, vs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament};
-        scheduler = SerialScheduler(),
+function evaluate!(
+        dissipation::DissipationBS{T}, cache, vdiss_all::AbstractVector,
+        vs_all::AbstractVector, fs::AbstractVector{<:AbstractFilament}, time, cache_bs::BiotSavartCache;
+        to = TimerOutput(),
     ) where {T <: AbstractFloat}
     # Iterate over filaments and filament points to obtain the actual dissipation velocity.
     ε_total = zero(T)
+    scheduler = DynamicScheduler()  # for threading
     @inbounds for n in eachindex(fs)
         f = fs[n]
         vs = vs_all[n]        # Biot-Savart velocity of filament
@@ -108,9 +109,6 @@ function apply!(
         α = dissipation.ε_target / ε_total
         @. vdiss_all *= α
     end
-
-    # Add dissipation term to vortex velocity vL
-    @. vL_all = vL_all + vdiss_all
 
     nothing
 end

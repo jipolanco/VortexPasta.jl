@@ -8,6 +8,7 @@ module FilamentIO
 using ..PaddedArrays: PaddedVector, pad_periodic!
 using ..Filaments
 using ..Filaments: DiscretisationMethod, GeometricQuantity, Vec3
+using StaticArrays: SVector
 
 # Return i-th on-segment location ζ ∈ [0, 1] for a given level of refinement.
 # Here i ∈ 1:refinement.
@@ -15,5 +16,6 @@ on_segment_location(i, refinement) = (i - 1) / refinement
 
 include("VTKHDF/vtkhdf.jl")
 include("text/text.jl")
+include("2D/point_vortex.jl")
     
 end

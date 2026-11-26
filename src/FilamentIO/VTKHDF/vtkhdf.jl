@@ -3,6 +3,8 @@ export write_vtkhdf, read_vtkhdf, PointData, FieldData
 using HDF5: HDF5
 using Bumper: Bumper, @no_escape, @alloc
 
+abstract type AbstractVTKHDFFile end  # may also be used for 2D point vortex files
+
 ## ================================================================================ ##
 ## 1. Writing filament HDF5 files
 ## ================================================================================ ##
@@ -10,7 +12,7 @@ using Bumper: Bumper, @no_escape, @alloc
 struct VTKHDFFile{
         Group     <: HDF5.Group,
         Filaments <: AbstractVector{<:AbstractFilament},
-    }
+    } <: AbstractVTKHDFFile
     gtop       :: Group  # "/VTKHDF" group
     fs         :: Filaments
     refinement :: Int
@@ -28,6 +30,7 @@ include("json_vtk_series.jl")
 include("write_points.jl")
 include("write_parametrisation.jl")
 include("write_data.jl")
+include("read_data.jl")
 
 # Here "padded" means that Xs[end] corresponds the endpoint (which is equal to the start
 # point for closed curves).
@@ -66,9 +69,17 @@ unstructured grid.
 See also the [VTK documentation](https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#vtkhdf-file-format)
 for details on the VTK HDF format.
 
+# Writing point vortex data (2D)
+
+In 2D, the signature is very similar to above:
+
+    write_vtkhdf([f::Function], filename::AbstractString, vortices::PointVortexState; periods = nothing)
+
+See [`PointVortexState`](@ref) for the specification of a point vortex configuration.
+
 # Extended help
 
-## Relevant datasets
+## Relevant datasets (3D)
 
 Some relevant datasets which are written are:
 
@@ -86,6 +97,18 @@ Some relevant datasets which are written are:
   Note that, in general, one cell corresponds to one filament (so that `Nc == Nf`), but this
   may not be the case when the `periods` argument is used and a filament is broken onto
   multiple curves (see **Periodic wrapping of filaments** below for details).
+
+## Relevant datasets (2D)
+
+In the 2D case, we write:
+
+- `/VTKHDF/Points`: coordinates of all point vortices. In the VTKHDF file, points are represented
+  as an array of dimensions `(3, Np)` where `Np` is the number of vortices. Values in the slice
+  `(3, :)` (i.e. `z` coordinates) are all set to zero, and need to be included for
+  visualisation in ParaView.
+
+- `/VTKHDF/PointData/signs`: signs `±1` of all point vortices. Values are represented as
+  `Int8` (1-byte integers) in the file.
 
 ## Attaching extra data
 
@@ -287,7 +310,7 @@ function init_vtkhdf(
         @assert length(cell_offsets) == num_cells + 1
 
         # Write full Points dataset.
-        points_to_vtkhdf_dataset(gtop, Xs_all)
+        vector_data_to_vtkhdf_dataset(gtop, Xs_all)
 
         gcells["Offsets"] = cell_offsets
 
@@ -358,7 +381,7 @@ vtk_attribute_type(::Type{<:AbstractVector}) = "Vectors"  # usually Vec3
 """
     Base.setindex!(io::VTKHDFFile, vs::AbstractVector{<:AbstractVector}, name::AbstractString)
 
-Attach data to filament nodes.
+Attach data to 3D filament nodes or 2D point vortices.
 
 One generally wants to use the syntax `io[name] = vs` which calls this function.
 
@@ -373,7 +396,10 @@ The format is exactly the same as for the `Points` dataset as detailed in
 [`write_vtkhdf`](@ref). As also explained there, the `Offsets` dataset can be used to recover
 the values associated to each filament.
 
-# Writing geometric quantities
+In 2D, the dataset dimensions of vector fields are still `(3, Np)`, as this is required by ParaView.
+Values along the third component `(3, :)` are all zero.
+
+# Writing geometric quantities (3D only)
 
 It is also possible to write geometric quantities such as unit tangents or curvature vectors
 along filaments (see [`GeometricQuantity`](@ref) for a list), as well as derivatives with
@@ -415,7 +441,7 @@ function Base.setindex!(writer::VTKHDFFile, q::Union{GeometricQuantity, Derivati
     nothing
 end
 
-function write_point_data(writer, vs, name)
+function write_point_data(writer::VTKHDFFile, vs, name)
     (; gtop,) = writer
     gdata = HDF5.open_group(gtop, "PointData")
     T = eltype(eltype(vs))  # usually <:Real or Vec3{<:Real}
@@ -446,7 +472,7 @@ otherwise it cannot be parsed by VTK.
 
 This function interprets everything that is not a vector of vectors as field data.
 """
-function Base.setindex!(writer::VTKHDFFile, data, name::AbstractString)
+function Base.setindex!(writer::AbstractVTKHDFFile, data, name::AbstractString)
     (; gtop,) = writer
     gdata = open_or_create_group(gtop, "FieldData")
     _write_field_data(gdata, name, data)
@@ -484,18 +510,27 @@ end
 ## ================================================================================ ##
 
 """
-    read_vtkhdf([f::Function], filename, T, method::DiscretisationMethod)
+    read_vtkhdf([f::Function], filename, T, method::DiscretisationMethod) -> Vector{<:ClosedFilament}
 
-Read filament locations from VTK HDF file.
+Read filament or point vortex data from VTK HDF file.
 
 This function loads filaments based on the datasets `/VTKHDF/Points` and `/VTKHDF/Offsets`
 as written by the [`write_vtkhdf`](@ref) function.
 
-Returns a vector of filaments with precision `T` (`Float32` or `Float64`).
-Each filament is discretised according to the chosen `method`.
+Returns a vector of filaments or point vortices with precision `T` (`Float32` or `Float64`).
+In 3D, each filament is discretised according to the chosen `method`.
 See [`Filaments.init`](@ref) for possible options.
 
 One can also read other datasets using `read` and `read!`, as shown and explained below.
+
+# Reading point vortex data (2D)
+
+In 2D, the signature is:
+
+    read_vtkhdf([f::Function], filename, T) -> PointVortexState
+
+Note that this only differs from the 3D case by the absence of the
+`method::DiscretisationMethod` argument.
 
 # Extended help
 
@@ -514,13 +549,18 @@ end
 
 The available reading functions are:
 
-- `read(io, name::AbstractString, ::PointData)` for reading point data (e.g. a velocity field);
+1. `read(io, name::AbstractString, ::PointData, ::Type{V})` for reading point data (e.g. a velocity field).
+   Here `V` is the element type (e.g. `Vec3{T}` in 3D, `Vec2{T}` in 2D, or `T` for scalar
+   fields such as the streamfunction in 2D);
 
-- `read(io, name::AbstractString, ::FieldData, ::Type{T})` for reading field data (i.e. data
-  not attached to filament nodes, such as the current time);
+2. `read(io, name::AbstractString, ::PointData)` for reading vector point data (e.g. a
+   velocity field), which assumes `V = Vec3{T}` in variant (1). This variant only works in 3D;
 
-- `read!(io, vs::AbstractVector{<:AbstractVector}, name::AbstractString)` for reading point
-  data onto a preallocated vector of vectors.
+3. `read(io, name::AbstractString, ::FieldData, ::Type{T})` for reading field data (i.e. data
+   not attached to filament nodes, such as the current time);
+
+4. `read!(io, vs::AbstractVector{<:AbstractVector}, name::AbstractString)` for reading point
+   data onto a preallocated vector of vectors.
 
 ## Accessing filament data in `do` block
 
@@ -542,8 +582,22 @@ read_vtkhdf("filaments.vtkhdf", Float64, CubicSplineMethod()) do io
     # Now we can read the velocities
     read!(io, vs, "Velocity")
 end
+
+## 2D case
+
+In 2D (for point vortex simulations) this function works similarly to the 3D case, only that
+`method` is not needed:
+
+```julia
+vortices = read_vtkhdf("point_vortices.vtkhdf", Float64) do io
+    # vortices = io.vortices  # vector of vortices,  just in case we need it here
+    vs = read(io, "Velocity", PointData(), Vec2{Float64})  # two-component vector field
+    ψs = read(io, "Streamfunction", PointData(), Float64)  # scalar field
+end
 ```
 
+The returned `vortices` object is a [`PointVortexState`](@ref) with fields `points` and
+`signs`.
 """
 function read_vtkhdf(
         func::Func, filename::AbstractString, ::Type{T},
@@ -946,7 +1000,7 @@ function read_dataset!(
 end
 
 function Base.read(
-        reader::VTKHDFFile, name::AbstractString, ::FieldData, ::Type{T},
+        reader::AbstractVTKHDFFile, name::AbstractString, ::FieldData, ::Type{T},
     ) where {T}
     dset = HDF5.open_dataset(reader.gtop, "FieldData/$name")
     N = length(dset)
@@ -961,7 +1015,7 @@ end
 
 # Specific case of strings
 function Base.read(
-        reader::VTKHDFFile, name::AbstractString, ::FieldData, ::Type{<:AbstractString},
+        reader::AbstractVTKHDFFile, name::AbstractString, ::FieldData, ::Type{<:AbstractString},
     )
     dset = HDF5.open_dataset(reader.gtop, "FieldData/$name")
     read(dset) :: Vector{String}

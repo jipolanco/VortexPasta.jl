@@ -23,3 +23,7 @@ function Diagnostics.energy_flux(iter::PointVortexSolver, Nk_or_ks)
     vs_buf = similar(iter.vs)
     Diagnostics.energy_flux(iter, iter.vortices, velocities, Nk_or_ks, params; vs_buf)
 end
+
+function Diagnostics.energy_injection_rate(iter::PointVortexSolver, vL = iter.quantities.vL)
+    Diagnostics.energy_injection_rate(iter.vortices, vL, iter.quantities.vs, get_params(iter))
+end

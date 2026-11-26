@@ -16,7 +16,7 @@ using ..Filaments:
     number_type
 
 using ..BiotSavart: BiotSavart, BiotSavartCache, LongRangeCache, ParamsBiotSavart, Infinity,
-                    ParamsPointVortex, PointVortexState, AbstractBiotSavartCache
+                    ParamsPointVortex, PointVortexState, ZetaHat, AbstractBiotSavartCache
 using ..Devices: Devices, CPU, GPU
 
 using Bumper: Bumper, @no_escape, @alloc
