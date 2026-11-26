@@ -1,6 +1,3 @@
-# TODO:
-# - checkpoints
-
 export PointVortexProblem, PointVortexSolver,
     ParamsPointVortex, # from ..BiotSavart
     NoAnnihilations, AnnihilateFast  # from ..Reconnections
@@ -433,3 +430,4 @@ end
 
 include("rhs.jl")
 include("diagnostics.jl")
+include("checkpoint.jl")

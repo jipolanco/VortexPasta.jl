@@ -107,3 +107,43 @@ end
     @test sum(iter.vortices.signs) == 0  # we still have neutral charge
     @test iter.vs[1] ≈ iter.vs[2]  # the two vortices left have the same velocity (they are a dipole, they move in parallel)
 end
+
+## Test checkpoints
+
+@testset "Checkpoints" begin
+    tsim = 10.0
+    T = eltype(vortices)
+    prob1 = PointVortexProblem(vortices, tsim, params)
+    iter1 = init(prob1, Vern8(); dt = 0.4)
+    solve!(iter1)
+    checkpoint = mktemp() do path, io
+        save_checkpoint(path, iter1)
+        checkpoint = @inferred load_checkpoint(path, T)
+        @test checkpoint.vortices == iter1.vortices
+        @test checkpoint.time == iter1.time
+        checkpoint
+    end
+    @testset "Writing and reading fields" begin
+        vs_read = similar(iter1.vs)
+        ψs_read = similar(iter1.ψs)
+        mktemp() do path, _
+            save_checkpoint(path, iter1) do io
+                io["velocity"] = iter1.vs
+                io["streamfunction"] = iter1.ψs
+            end
+            local checkpoint = load_checkpoint(path, T) do io
+                read!(io, vs_read, "velocity")
+                read!(io, ψs_read, "streamfunction")
+            end
+            @test vs_read == iter1.vs
+            @test ψs_read == iter1.ψs
+        end
+    end
+    prob2 = @inferred PointVortexProblem(checkpoint, tsim, params)
+    iter2 = @inferred init(prob2, Vern8(); dt = 0.4)
+    @test iter2.t == iter1.t ≈ prob1.tspan[2]
+    @test iter2.nstep == iter1.nstep > 0
+    @test iter2.vortices == iter1.vortices
+    @test iter2.vs ≈ iter1.vs  # same velocity (recomputed)
+    @test iter2.ψs ≈ iter1.ψs  # same streamfunction (recomputed)
+end

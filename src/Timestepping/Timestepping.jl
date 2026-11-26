@@ -111,6 +111,11 @@ In that case, the iteration will be recomputed with a smaller timestep (`dt → 
     dt_prev :: Float64 = 0
 end
 
+# Used in tests to verify checkpoints
+function Base.:(==)(a::TimeInfo, b::TimeInfo)
+    a.nstep == b.nstep && a.nrejected == b.nrejected && a.t == b.t && a.dt == b.dt && a.dt_prev == b.dt_prev
+end
+
 include("timesteppers/timesteppers.jl")
 include("adaptivity.jl")
 include("problem.jl")

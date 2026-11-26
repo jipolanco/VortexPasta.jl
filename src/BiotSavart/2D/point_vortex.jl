@@ -83,6 +83,11 @@ function Base.show(io::IO, pv::PointVortexState)
     print(io, "PointVortexState{$T} with $N vortices")
 end
 
+# Used in tests
+function Base.:(==)(a::PointVortexState, b::PointVortexState)
+    a.points == b.points && a.signs == b.signs
+end
+
 Base.eltype(::PointVortexState{T}) where {T} = T
 Base.eachindex(pv::PointVortexState) = eachindex(pv.points, pv.signs)  # fails if they have different lengths
 Base.length(pv::PointVortexState) = length(eachindex(pv))

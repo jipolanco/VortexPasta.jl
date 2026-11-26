@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - FilamentIO (`read_vtkhdf`, `write_vtkhdf`) now supports point vortices.
 
+- Timestepping: `save_checkpoint` and `load_checkpoint` now work in point vortex simulations.
+
+### Changed
+
+- `Timestepping.save_checkpoint`: the `/VortexPasta/BiotSavartParams` HDF5 group has been
+  renamed to `/VortexPasta/ParamsBiotSavart`.
+
 ## [0.36.1] - 2026-11-13
 
 ### Fixed

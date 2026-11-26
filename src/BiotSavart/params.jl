@@ -435,7 +435,7 @@ function Base.show(io::IO, p::ParamsBiotSavart{T}) where {T}
 end
 
 # Write parameters to HDF5 output (or anything that behaves like an HDF5 file/group.
-function to_hdf5(g, p::ParamsBiotSavart)
+function to_hdf5(g, p::AbstractParams)
     to_hdf5(g, p.common)
     to_hdf5(g, p.shortrange)
     to_hdf5(g, p.longrange)

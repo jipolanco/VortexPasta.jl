@@ -7,10 +7,19 @@ Contains the definition of a point vortex problem.
 
     PointVortexProblem(vortices::PointVortexState, tspan::NTuple{2, Real}, p::ParamsPointVortex)
     PointVortexProblem(vortices::PointVortexState, tsim::Real, p::ParamsPointVortex)
+    PointVortexProblem(checkpoint::LoadedCheckpoint2D, tsim::Real, p::ParamsPointVortex)
+
+There are basically two ways of defining a problem:
+
+1. from scratch, from a new set of point vortices (`vortices`);
+
+2. from a previous simulation, from a simulation state (`checkpoint`) returned from [`load_checkpoint`](@ref).
 
 ## Possible arguments
 
 - `vortices`: initial vortex positions and signs (see [`PointVortexState`](@ref));
+
+- `checkpoint`: a simulation state returned from [`load_checkpoint`](@ref);
 
 - `tsim`: total simulation time;
 
