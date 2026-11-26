@@ -1,16 +1,20 @@
-using ..BiotSavart: BiotSavart, PointVortexState
+using ..BiotSavart: BiotSavart, PointVortexState, SignValue, UP, DOWN
 
 # Note: this file reuses definitions in ../VTKHDF/vtkhdf.jl
 
 struct PointVortexVTKHDFFile{
         Group <: HDF5.Group,
         Vortices <: PointVortexState,
-    }
+    } <: AbstractVTKHDFFile
     gtop::Group  # "/VTKHDF" group
     vortices::Vortices
 end
 
 root(io::PointVortexVTKHDFFile) = HDF5.root(io.gtop)::HDF5.Group  # returns the "/" group
+
+## ================================================================================ ##
+## 1. Writing point vortex HDF5 files
+## ================================================================================ ##
 
 function write_vtkhdf(
         func::Func,
@@ -110,4 +114,54 @@ function write_point_data(writer::PointVortexVTKHDFFile, vs, name)
     write_point_data(gdata, name, vs)
     close(gdata)
     nothing
+end
+
+## ================================================================================ ##
+## 2. Reading point vortex HDF5 files
+## ================================================================================ ##
+
+# Note: the only thing that distinguishes this function from the 3D one is the lack of a
+# `method::DiscretisationMethod` argument.
+function read_vtkhdf(
+        func::Func, filename::AbstractString, ::Type{T}
+    ) where {Func <: Function, T}
+    HDF5.h5open(filename, "r") do io
+        reader = read_point_vortices(io, T)
+        func(reader)
+        reader.vortices
+    end
+end
+
+function read_point_vortices(io::HDF5.File, ::Type{T}) where {T <: AbstractFloat}
+    haskey(io, "VTKHDF") || error("expected a `VTKHDF` group at the top of the file")
+    gtop = HDF5.open_group(io, "VTKHDF")
+    dset_points = HDF5.open_dataset(gtop, "Points")
+
+    Np = only(read(gtop, "NumberOfPoints"))::Int
+
+    signs_file = read(gtop, "PointData/signs")::Vector{Int8}
+    @assert length(signs_file) == Np
+    signs = map(signs_file) do s
+        @assert abs(s) == 1
+        s > 0 ? UP : DOWN
+    end
+
+    points = Vector{SVector{2, T}}(undef, Np)
+    read_point_data!(gtop, "Points", points)
+
+    close(dset_points)
+
+    vortices = PointVortexState(points, signs)
+    PointVortexVTKHDFFile(gtop, vortices)
+end
+
+function Base.read!(io::PointVortexVTKHDFFile, vs::AbstractArray, name::AbstractString)
+    g = HDF5.open_group(io.gtop, "PointData")
+    read_point_data!(g, name, vs)
+end
+
+function Base.read(io::PointVortexVTKHDFFile, name::AbstractString, ::PointData, ::Type{V}) where {V}
+    N = length(io.vortices)
+    data = Array{V}(undef, N)
+    read!(io, data, name)
 end

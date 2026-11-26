@@ -11,7 +11,7 @@ end
 # 3D vector data
 # We use the low-level HDF5 API since it allows us to efficiently reinterpret xs as a
 # (3, Np) matrix of real values (as it works directly with pointers).
-function _write_point_data(::Type{SVector{3, T}}, g, name, xs) where {T}
+function _write_point_data(::Type{SVector{3, T}}, g, name, xs) where {T <: Number}
     num_points = length(xs)
     dtype = HDF5.datatype(T)
     dspace = HDF5.dataspace((3, num_points))
@@ -27,7 +27,7 @@ end
 
 # 2D vector data
 # Note that ParaView expects 3D datasets (with zeros in the third dimension)
-function _write_point_data(::Type{SVector{2, T}}, g, name, xs) where {T}
+function _write_point_data(::Type{SVector{2, T}}, g, name, xs) where {T <: Number}
     num_points = length(xs)
     dtype = HDF5.datatype(T)
 
