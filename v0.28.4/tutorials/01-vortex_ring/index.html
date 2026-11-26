@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Vortex ring · VortexPasta</title><meta name="title" content="Vortex ring · VortexPasta"/><meta property="og:title" content="Vortex ring · VortexPasta"/><meta property="twitter:title" content="Vortex ring · VortexPasta"/><meta name="description" content="Documentation for VortexPasta."/><meta property="og:description" content="Documentation for VortexPasta."/><meta property="twitter:description" content="Documentation for VortexPasta."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/fonts.css" rel="stylesheet" type="text/css"/><script src="../../assets/sa.js" data-collect-dnt="true" async></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">VortexPasta</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">VortexPasta.jl</a></li><li><input class="collapse-toggle" id="menuitem-2" type="checkbox" checked/><label class="tocitem" for="menuitem-2"><span class="docs-label">Tutorials</span><i class="docs-chevron"></i></label><ul class="collapsed"><li class="is-active"><a class="tocitem" href>Vortex ring</a><ul class="internal"><li><a class="tocitem" href="#Defining-a-vortex-ring"><span>Defining a vortex ring</span></a></li><li><a class="tocitem" href="#Computing-the-vortex-ring-velocity"><span>Computing the vortex ring velocity</span></a></li><li><a class="tocitem" href="#Making-the-ring-move"><span>Making the ring move</span></a></li><li><a class="tocitem" href="#Saving-state-to-disk"><span>Saving state to disk</span></a></li></ul></li><li><a class="tocitem" href="../02-kelvin_waves/">Kelvin waves</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-3" type="checkbox"/><label class="tocitem" for="menuitem-3"><span class="docs-label">Explanations</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../methods/VFM/">The vortex filament model</a></li><li><a class="tocitem" href="../../methods/Ewald/">Ewald summation for Biot–Savart</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-4" type="checkbox"/><label class="tocitem" for="menuitem-4"><span class="docs-label">Tips and tricks</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../tips/parallelisation/">Parallelisation and clusters</a></li><li><a class="tocitem" href="../../tips/gpu/">GPU usage</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-5" type="checkbox"/><label class="tocitem" for="menuitem-5"><span class="docs-label">Modules</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../modules/PaddedArrays/">PaddedArrays</a></li><li><a class="tocitem" href="../../modules/PredefinedCurves/">PredefinedCurves</a></li><li><a class="tocitem" href="../../modules/CellLists/">CellLists</a></li><li><a class="tocitem" href="../../modules/Quadratures/">Quadratures</a></li><li><a class="tocitem" href="../../modules/Filaments/">Filaments</a></li><li><a class="tocitem" href="../../modules/FilamentIO/">FilamentIO</a></li><li><a class="tocitem" href="../../modules/FindNearbySegments/">FindNearbySegments</a></li><li><a class="tocitem" href="../../modules/Constants/">Constants</a></li><li><a class="tocitem" href="../../modules/BiotSavart/">BiotSavart</a></li><li><a class="tocitem" href="../../modules/SyntheticFields/">SyntheticFields</a></li><li><a class="tocitem" href="../../modules/Forcing/">Forcing</a></li><li><a class="tocitem" href="../../modules/Containers/">Containers</a></li><li><a class="tocitem" href="../../modules/Reconnections/">Reconnections</a></li><li><a class="tocitem" href="../../modules/Timestepping/">Timestepping</a></li><li><a class="tocitem" href="../../modules/Diagnostics/">Diagnostics</a></li></ul></li><li><a class="tocitem" href="../../references/">References</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorials</a></li><li class="is-active"><a href>Vortex ring</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Vortex ring</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/jipolanco/VortexPasta.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/jipolanco/VortexPasta.jl/blob/master/docs/literate/tutorials/01-vortex_ring.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="tutorial-vortex-ring"><a class="docs-heading-anchor" href="#tutorial-vortex-ring">Vortex ring</a><a id="tutorial-vortex-ring-1"></a><a class="docs-heading-anchor-permalink" href="#tutorial-vortex-ring" title="Permalink"></a></h1><p>The following tutorial goes through the simulation of a <strong>single vortex ring</strong> propagating due to its self-induced propulsion.</p><p>The aim is to show how one can:</p><ol><li>Discretise a vortex filament using a spatial curve;</li><li>compute things like the self-induced vortex velocity;</li><li>simulate the motion of the vortex filament over a time period.</li></ol><p>We assume that VortexPasta and GLMakie have been installed following the instructions in the <a href="../../#Installation">Installation</a> section. The code in this tutorial should be executed in the same local environment where those packages were installed.</p><ul><li><a href="#Defining-a-vortex-ring">Defining a vortex ring</a></li><li class="no-marker"><ul><li><a href="#tutorial-vortex-ring-init-filament">Initialising the ring</a></li><li><a href="#Getting-geometric-information-out-of-a-filament">Getting geometric information out of a filament</a></li><li><a href="#Plotting-the-filament">Plotting the filament</a></li></ul></li><li><a href="#Computing-the-vortex-ring-velocity">Computing the vortex ring velocity</a></li><li class="no-marker"><ul><li><a href="#Physical-and-numerical-parameters">Physical and numerical parameters</a></li><li><a href="#Computing-the-velocity-on-filament-nodes">Computing the velocity on filament nodes</a></li><li><a href="#Comparison-with-analytical-expression">Comparison with analytical expression</a></li><li><a href="#ring-disabling-periodicity">Side note: disabling periodicity</a></li></ul></li><li><a href="#Making-the-ring-move">Making the ring move</a></li><li class="no-marker"><ul><li><a href="#A-basic-simulation">A basic simulation</a></li><li><a href="#tutorial-vortex-ring-simulation-state">Accessing the instantaneous simulation state</a></li><li><a href="#Making-an-animation">Making an animation</a></li></ul></li><li><a href="#Saving-state-to-disk">Saving state to disk</a></li><li class="no-marker"><ul><li><a href="#Writing-filament-data-and-reading-it-back">Writing filament data and reading it back</a></li><li><a href="#Visualising-VTKHDF-files">Visualising VTKHDF files</a></li><li><a href="#Attaching-more-data">Attaching more data</a></li></ul></li></ul><h2 id="Defining-a-vortex-ring"><a class="docs-heading-anchor" href="#Defining-a-vortex-ring">Defining a vortex ring</a><a id="Defining-a-vortex-ring-1"></a><a class="docs-heading-anchor-permalink" href="#Defining-a-vortex-ring" title="Permalink"></a></h2><p>The first thing to do is to define a circular vortex ring. In VortexPasta, curves are initialised using the <a href="../../modules/Filaments/#VortexPasta.Filaments.init"><code>Filaments.init</code></a> function defined in the <a href="../../modules/Filaments/#VortexPasta.Filaments"><code>VortexPasta.Filaments</code></a> submodule.</p><p>The most straightforward way of defining an arbitrary curve is by first defining a set of discretisation points (which we also call <em>nodes</em>) and then passing that to <code>Filaments.init</code>. In VortexPasta, a point in 3D space is represented by the <a href="../../modules/Filaments/#VortexPasta.Filaments.Vec3"><code>Vec3</code></a> type (which is nothing else than an <code>SVector</code> from the <a href="https://github.com/JuliaArrays/StaticArrays.jl">StaticArrays.jl</a> package).</p><h3 id="tutorial-vortex-ring-init-filament"><a class="docs-heading-anchor" href="#tutorial-vortex-ring-init-filament">Initialising the ring</a><a id="tutorial-vortex-ring-init-filament-1"></a><a class="docs-heading-anchor-permalink" href="#tutorial-vortex-ring-init-filament" title="Permalink"></a></h3><p>Let&#39;s define a set of points discretising a circular ring of radius <span>$R$</span> living on the plane <span>$z = 1$</span> and centred at <span>$\bm{x}_0 = [3, 3, 1]$</span>:</p><pre><code class="language-julia hljs">using VortexPasta
+using VortexPasta.Filaments
+using VortexPasta.Filaments: Vec3
+
+R = 2.0   # radius of the circular ring
+N = 16    # number of discretisation points
+x⃗₀ = Vec3(3.0, 3.0, 1.0)  # ring centre
+θs = range(0, 2π; length = N + 1)[1:N]  # discretisation angles (we exclude θ = 2π)
+points = [x⃗₀ + R * Vec3(cos(θ), sin(θ), 0) for θ ∈ θs]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">16-element Vector{SVector{3, Float64}}:
+ [5.0, 3.0, 1.0]
+ [4.847759065022574, 3.7653668647301797, 1.0]
+ [4.414213562373095, 4.414213562373095, 1.0]
+ [3.7653668647301797, 4.847759065022574, 1.0]
+ [3.0, 5.0, 1.0]
+ [2.2346331352698208, 4.847759065022574, 1.0]
+ [1.585786437626905, 4.414213562373095, 1.0]
+ [1.1522409349774265, 3.7653668647301797, 1.0]
+ [1.0, 3.0000000000000004, 1.0]
+ [1.1522409349774263, 2.2346331352698208, 1.0]
+ [1.5857864376269046, 1.585786437626905, 1.0]
+ [2.2346331352698194, 1.152240934977427, 1.0]
+ [2.9999999999999996, 1.0, 1.0]
+ [3.76536686473018, 1.1522409349774267, 1.0]
+ [4.414213562373095, 1.5857864376269046, 1.0]
+ [4.847759065022573, 2.234633135269819, 1.0]</code></pre><p>Now that we have defined a set of points, we can create a filament using <code>Filaments.init</code>. Note that this function requires choosing a <strong>discretisation method</strong> which will be used to interpolate the curve in-between nodes and to estimate curve derivatives. Here we use the <a href="../../modules/Filaments/#VortexPasta.Filaments.QuinticSplineMethod"><code>QuinticSplineMethod</code></a>, which represents curves as <strong>periodic quintic splines</strong> (that is, piecewise polynomials of degree 5):</p><pre><code class="language-julia hljs">f = Filaments.init(ClosedFilament, points, QuinticSplineMethod())</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">16-element ClosedFilament{SVector{3, Float64}, QuinticSplineMethod}:
+ [5.0, 3.0, 1.0]
+ [4.847759065022574, 3.7653668647301797, 1.0]
+ [4.414213562373095, 4.414213562373095, 1.0]
+ [3.7653668647301797, 4.847759065022574, 1.0]
+ [3.0, 5.0, 1.0]
+ [2.2346331352698208, 4.847759065022574, 1.0]
+ [1.585786437626905, 4.414213562373095, 1.0]
+ [1.1522409349774265, 3.7653668647301797, 1.0]
+ [1.0, 3.0000000000000004, 1.0]
+ [1.1522409349774263, 2.2346331352698208, 1.0]
+ [1.5857864376269046, 1.585786437626905, 1.0]
+ [2.2346331352698194, 1.152240934977427, 1.0]
+ [2.9999999999999996, 1.0, 1.0]
+ [3.76536686473018, 1.1522409349774267, 1.0]
+ [4.414213562373095, 1.5857864376269046, 1.0]
+ [4.847759065022573, 2.234633135269819, 1.0]</code></pre><p>Other possible discretisation options are the <a href="../../modules/Filaments/#VortexPasta.Filaments.CubicSplineMethod"><code>CubicSplineMethod</code></a> and <a href="../../modules/Filaments/#VortexPasta.Filaments.FiniteDiffMethod"><code>FiniteDiffMethod</code></a>. The latter estimates derivatives at discretisation points using <strong>finite differences</strong> (based on the locations of neighbouring points), and performs Hermite interpolations using those derivatives to reconstruct the curve in-between nodes.</p><p>Besides, note that the first argument (<a href="../../modules/Filaments/#VortexPasta.Filaments.ClosedFilament"><code>ClosedFilament</code></a>) is mandatory and is only there to make sure that we&#39;re creating a <em>closed</em> (as opposed to an open-ended) filament. This means in particular that the filament will be automatically &quot;closed&quot; when evaluated outside of its range of definition <code>1:N</code>. For example, one has <code>f[1] == f[N + 1]</code>:</p><pre><code class="language-julia hljs">@show f[1] f[N] f[N + 1]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">f[1] = [5.0, 3.0, 1.0]
+f[N] = [4.847759065022573, 2.234633135269819, 1.0]
+f[N + 1] = [5.0, 3.0, 1.0]</code></pre><h3 id="Getting-geometric-information-out-of-a-filament"><a class="docs-heading-anchor" href="#Getting-geometric-information-out-of-a-filament">Getting geometric information out of a filament</a><a id="Getting-geometric-information-out-of-a-filament-1"></a><a class="docs-heading-anchor-permalink" href="#Getting-geometric-information-out-of-a-filament" title="Permalink"></a></h3><p>Above we have used the <code>f[i]</code> syntax to obtain the location of a discretisation point. As mentioned, curve locations can also be evaluated in-between discretisation points using <strong>interpolation</strong>. For instance, to evaluate the curve location at some point in-between nodes <code>i</code> and <code>i + 1</code>, one can call <code>f(i, ζ)</code>, where <code>ζ</code> is some real value between 0 and 1. In particular, <code>f(i, 0.5)</code> gives an estimation of the midpoint between both nodes, while <code>f(i, 0.0)</code> and <code>f(i, 1.0)</code> respectively correspond to <code>f[i]</code> and <code>f[i + 1]</code>:</p><pre><code class="language-julia hljs">i = 2
+@show f[i] f(i, 0.0) f(i, 0.5) f(i, 1.0) f[i + 1]</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">f[i] = [4.847759065022574, 3.7653668647301797, 1.0]
+f(i, 0.0) = [4.847759065022574, 3.7653668647301806, 1.0]
+f(i, 0.5) = [4.662938794254055, 4.111140178487837, 1.0]
+f(i, 1.0) = [4.414213562373094, 4.414213562373094, 1.0]
+f[i + 1] = [4.414213562373095, 4.414213562373095, 1.0]</code></pre><p>A similar syntax can be used to obtain <strong>derivatives</strong> at discretisation points or in-between them:</p><pre><code class="language-julia hljs">@show f[i] f[i, Derivative(1)] f[i, Derivative(2)]
+@show f(i, 0.5) f(i, 0.5, Derivative(1)) f(i, 0.5, Derivative(2))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">f[i] = [4.847759065022574, 3.7653668647301797, 1.0]
+f[i, Derivative(1)] = [-0.38515318843352947, 0.9298420511074649, 2.3118937889532167e-16]
+f[i, Derivative(2)] = [-0.4679382003429555, -0.1938263489345128, 5.773260399983122e-16]
+f(i, 0.5) = [4.662938794254055, 4.111140178487837, 1.0]
+f(i, 0.5, Derivative(1)) = [-0.5591564491094727, 0.8368367639688045, 3.145509337854615e-16]
+f(i, 0.5, Derivative(2)) = [-0.4211061545451067, -0.28137413676338263, -2.4688284605191013e-16]</code></pre><p>These derivatives assume that curves are parametrised as <span>$\bm{s}(t)$</span> for <span>$t ∈ [0, T]$</span>, and are computed with respect to this parameter. In practice, the parameter <span>$t$</span> roughly corresponds to the integrated arc length (and thus <span>$T$</span> is a rough estimation of the total curve length), but this should never be assumed. In particular, the first derivative <span>$∂\bm{s}/∂t$</span> is tangent to the curve but it&#39;s not necessarily unitary (which would be the case if <span>$t$</span> was the actual arc length <span>$ξ$</span>).</p><p>In some cases, one may want to directly obtain geometrically-relevant quantities such as the unit tangent or the curvature vector (see <a href="../../modules/Filaments/#Geometric-quantities">Geometric quantities</a> for definitions and a list of possible quantities):</p><pre><code class="language-julia hljs">t̂ = f[i, UnitTangent()]       # &quot;t̂&quot; can be typed by t\hat&lt;tab&gt;
+ρ⃗ = f[i, CurvatureVector()]   # &quot;ρ⃗&quot; can be typed by \rho&lt;tab&gt;\vec&lt;tab&gt;
+@show t̂ ρ⃗</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">t̂ = [-0.3826834323650905, 0.9238795325112863, 2.2970690026439665e-16]
+ρ⃗ = [-0.46195622817534865, -0.19134853493294995, 5.699456887032615e-16]</code></pre><p>We can check that both vectors are orthogonal and that their respective norms are 1 and approximately <span>$1/R$</span> (where <span>$R$</span> is the vortex ring radius):</p><pre><code class="language-julia hljs">using LinearAlgebra: norm, ⋅  # the dot product ̇`⋅` can be obtained via \cdot&lt;tab&gt;
+@show t̂ ⋅ ρ⃗ norm(t̂) norm(ρ⃗) 1/R</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">t̂ ⋅ ρ⃗ = 1.3092045747108294e-31
+norm(t̂) = 0.9999999999999999
+norm(ρ⃗) = 0.500017818253491
+1 / R = 0.5</code></pre><h3 id="Plotting-the-filament"><a class="docs-heading-anchor" href="#Plotting-the-filament">Plotting the filament</a><a id="Plotting-the-filament-1"></a><a class="docs-heading-anchor-permalink" href="#Plotting-the-filament" title="Permalink"></a></h3><p>We can readily plot our vortex ring using Makie. For convenience, VortexPasta overloads the Makie <code>plot</code> and <code>plot!</code> functions to be able to directly plot filaments.</p><pre><code class="language-julia hljs">using GLMakie
+set_theme!(theme_black())
+fig = Figure()                         # create an empty figure
+ax = Axis3(fig[1, 1]; aspect = :data)  # add an Axis3 for plotting in 3D
+zlims!(ax, 0.5, 1.5)                   # set axis limits in the z direction
+plot!(ax, f)                           # plot filament onto axis
+fig                                    # display the figure</code></pre><img src="477e6771.png" alt="Example block output"/><p>Note that, by default, the plot simply shows the <span>$N$</span> filament nodes (circular markers) joined by straight lines. To see how points are actually interpolated in-between nodes we can use the <code>refinement</code> keyword argument:</p><pre><code class="language-julia hljs">fig = Figure()
+ax = Axis3(fig[1, 1]; aspect = :data)
+zlims!(ax, 0.5, 1.5)
+plot!(ax, f; refinement = 4)
+fig</code></pre><img src="4b327a0a.png" alt="Example block output"/><p>It is also possible to plot other quantities such as the estimated tangent and curvature vectors along the curve:</p><pre><code class="language-julia hljs">fig = Figure()
+ax = Axis3(fig[1, 1]; aspect = :data)
+zlims!(ax, 0.5, 1.5)
+plot!(
+    ax, f;
+    refinement = 4, linewidth = 4, markersize = 12,
+    tangents = true, tangentcolor = :Yellow,         # plot tangent vectors
+    curvatures = true, curvaturecolor = :LightBlue,  # plot curvature vectors
+    arrows3d = (shaftlength = 1.0,),
+    vectorpos = 0.5,    # plot vectors at the midpoint in-between nodes
+)
+fig</code></pre><img src="1ae823fa.png" alt="Example block output"/><p>See <a href="../../modules/Filaments/#VortexPasta.Filaments.filamentplot!"><code>filamentplot!</code></a> for more details and for other possible options.</p><h2 id="Computing-the-vortex-ring-velocity"><a class="docs-heading-anchor" href="#Computing-the-vortex-ring-velocity">Computing the vortex ring velocity</a><a id="Computing-the-vortex-ring-velocity-1"></a><a class="docs-heading-anchor-permalink" href="#Computing-the-vortex-ring-velocity" title="Permalink"></a></h2><p>An isolated vortex ring of radius <span>$R$</span> and circulation <span>$Γ$</span> is known to translate with a velocity (<a href="../../references/#Saffman1993">Saffman, 1993</a>):</p><p class="math-container">\[v_{\text{ring}} = \frac{Γ}{4πR} \left[ \ln \left(\frac{8R}{a}\right) - Δ \right],\]</p><p>where <span>$a$</span> is the radius of the vortex core – assumed to be much smaller than <span>$R$</span> – and <span>$Δ$</span> is a coefficient which depends on the actual vorticity profile at the core.</p><div class="admonition is-info" id="Some-typical-values-of-Δ-a0e8cb83dd085c57"><header class="admonition-header">Some typical values of Δ<a class="admonition-anchor" href="#Some-typical-values-of-Δ-a0e8cb83dd085c57" title="Permalink"></a></header><div class="admonition-body"><ul><li><span>$Δ = 1/2$</span> for a <strong>hollow vortex</strong>: <span>$ω(r) = ω₀ \, δ(r - a)$</span>;</li><li><span>$Δ = 1/4$</span> for a <strong>uniform vorticity distribution</strong>: <span>$ω(r) = ω₀$</span> for <span>$r &lt; a$</span>.</li></ul></div></div><p>This velocity can be derived by computing the Biot–Savart integral along the circular vortex ring and excluding a very small region (proportional to <span>$a$</span>) from the integral, in the vicinity of the point of interest, thus avoiding the singularity.</p><p>In VortexPasta, the velocity induced by one or more vortex filaments is computed by the <a href="../../modules/BiotSavart/#VortexPasta.BiotSavart"><code>VortexPasta.BiotSavart</code></a> submodule. The basic steps for computing the velocity induced by a set of vortices on itself is:</p><ol><li>Set physical and numerical parameters (<a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.ParamsBiotSavart"><code>ParamsBiotSavart</code></a>),</li><li>initialise a &quot;cache&quot; containing arrays and data needed for computations (<a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.init_cache"><code>BiotSavart.init_cache</code></a>),</li><li>compute filament velocities from their positions (<a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.velocity_on_nodes!"><code>velocity_on_nodes!</code></a>).</li></ol><h3 id="Physical-and-numerical-parameters"><a class="docs-heading-anchor" href="#Physical-and-numerical-parameters">Physical and numerical parameters</a><a id="Physical-and-numerical-parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Physical-and-numerical-parameters" title="Permalink"></a></h3><p>Before being able to estimate the vortex ring velocity, we need to set the parameters needed to estimate Biot–Savart integrals. All of the required and optional parameters are described in <a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.ParamsBiotSavart"><code>ParamsBiotSavart</code></a>.</p><p>Relevant <strong>physical parameters</strong> are of two types:</p><ul><li><strong>vortex properties</strong>: circulation <span>$Γ$</span>, core radius <span>$a$</span> and core parameter <span>$Δ$</span>;</li><li><strong>domain size</strong> (or period) <span>$L$</span>.</li></ul><pre><code class="language-julia hljs">Γ = 1.0    # vortex circulation                              || &quot;Γ&quot; can be typed by \Gamma&lt;tab&gt;
+a = 1e-8   # vortex core size
+Δ = 1/2    # vortex core parameter (1/2 for a hollow vortex) || &quot;Δ&quot; can be typed by \Delta&lt;tab&gt;
+L = 2π     # domain period (same in all directions in this case)</code></pre><p>Note that here we work with nondimensional quantities, but we could try to relate these physical parameters to actual properties of, say, liquid helium-4. In this case, the vortex core size is <span>$a ≈ 10^{-8}\,\text{cm}$</span> and the quantum of circulation is <span>$Γ = κ = h/m ≈ 0.997 × 10^{-3}\,\text{cm}^2/\text{s}$</span>, where <span>$h$</span> is Planck&#39;s constant and <span>$m$</span> the mass of a helium atom. So the above parameters can be relevant to <span>$^4\text{He}$</span> if one interprets lengths in centimetres and the time unit is about 1000 seconds.</p><p>There are also important <strong>numerical parameters</strong> which need to be set. See the <a href="../../methods/Ewald/#Ewald-parameters">Parameter selection</a> section for an advice on how to set them.</p><p>Following that page, we start by setting the resolution <span>$M$</span> of the numerical grid used for long-range computations and the accuracy parameter <span>$β$</span>, and we set the other parameters based on that:</p><pre><code class="language-julia hljs">M = floor(Int, 32 * 2/3)  # we prefer if the FFT size is a power of 2, here M′ = σM = 32 (where σ = 1.5)
+kmax = π * M / L          # this is the maximum resolved wavenumber (the Nyquist frequency)
+β = 3.5                   # non-dimensional accuracy parameter
+α = kmax / (2β)           # Ewald splitting parameter || &quot;α&quot; can be typed by &quot;\alpha&lt;tab&gt;&quot;
+rcut = β / α              # cut-off distance for short-range computations
+rcut / L                  # note: the cut-off distance should be less than half the period L</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.37136153388108917</code></pre><p>Additionally, we can optionally set the parameters for numerical integration. In particular, we can set the quadrature rule used to approximate line integrals within each filament segment (see <a href="../../methods/Ewald/#Numerical-integration">Numerical integration</a>):</p><pre><code class="language-julia hljs">quadrature = GaussLegendre(3)  # use 3-point Gauss–Legendre quadrature</code></pre><p>See <a href="../../modules/Quadratures/#VortexPasta.Quadratures.GaussLegendre"><code>GaussLegendre</code></a> or the <a href="https://en.wikipedia.org/wiki/Gaussian_quadrature#Gauss%E2%80%93Legendre_quadrature">Wikipedia page</a> for more details.</p><p>Finally, we put all these parameters together in a <a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.ParamsBiotSavart"><code>ParamsBiotSavart</code></a> object:</p><pre><code class="language-julia hljs">using VortexPasta.BiotSavart
+params = ParamsBiotSavart(;
+    Γ, α, Δ, a,
+    Ls = (L, L, L),  # same domain size in all directions
+    Ns = (M, M, M),  # same long-range resolution in all directions
+    rcut,
+    quadrature,
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ParamsBiotSavart{Float64} with:
+ - Physical parameters:
+   * Vortex circulation:         Γ  = 1.0
+   * Vortex core radius:         a  = 1.0e-8
+   * Vortex core parameter:      Δ  = 0.5
+   * Domain period:              Ls = (6.283185307179586, 6.283185307179586, 6.283185307179586)
+ - Numerical parameters:
+   * Ewald splitting parameter:  α = 1.5 (σ = 1/α√2 = 0.4714045207910316)
+   * Quadrature rule:            GaussLegendre{3}()
+   * Quadrature rule (alt.):     AdaptiveTanhSinh(Float64; nlevels = 5, rtol = 1.4901161193847656e-8) (used near singularities)
+   * Short-range backend:        CellListsBackend{2}()
+   * Short-range cut-off:        r_cut = 2.3333333333333335 (r_cut/L = 0.37136153388108917)
+   * Short-range cut-off coeff.: β_shortrange = 3.5
+   * Local segment fraction:     1
+   * Long-range backend:         NonuniformFFTsBackend(CPU(false); m = HalfSupport(4), σ = 1.5)
+   * Long-range resolution:      Ns = (21, 21, 21) (kmax = 10.0)
+   * Long-range cut-off coeff.:  β_longrange = 3.3333333333333335
+   * Long-range spherical truncation: false</code></pre><p>Note that there are a few parameters, namely the short-range and long-range backends, which haven&#39;t been discussed yet. These correspond to different ways of computing both components. We leave them here at their default values. See <a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.CellListsBackend"><code>CellListsBackend</code></a> and <a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.NonuniformFFTsBackend"><code>NonuniformFFTsBackend</code></a> for details on the defaults and their parameters.</p><h3 id="Computing-the-velocity-on-filament-nodes"><a class="docs-heading-anchor" href="#Computing-the-velocity-on-filament-nodes">Computing the velocity on filament nodes</a><a id="Computing-the-velocity-on-filament-nodes-1"></a><a class="docs-heading-anchor-permalink" href="#Computing-the-velocity-on-filament-nodes" title="Permalink"></a></h3><p>The last thing to do before launching computations is to create a &quot;cache&quot; where all data (arrays, …) required for computations are kept. This is in part to avoid making large allocations every time we wish to compute Biot–Savart integrals, which would be quite bad for performance. Luckily, creating a cache is very simple:</p><pre><code class="language-julia hljs">fs = [f]  # note: we need to pass a *vector* of filaments
+cache = BiotSavart.init_cache(params, fs)</code></pre><p>We can now estimate the velocity of all filament nodes using <a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.velocity_on_nodes!"><code>velocity_on_nodes!</code></a>. But first we need to allocate the output, which will contain all velocities:</p><pre><code class="language-julia hljs">vs = map(similar ∘ nodes, fs)
+@show summary(vs) summary(vs[1])</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">summary(vs) = &quot;1-element Vector{VortexPasta.PaddedArrays.PaddedVector{5, SVector{3, Float64}, Vector{SVector{3, Float64}}}}&quot;
+summary(vs[1]) = &quot;16-element VortexPasta.PaddedArrays.PaddedVector{5, SVector{3, Float64}, Vector{SVector{3, Float64}}}&quot;</code></pre><p>Note that this is a 1-element vector (because we only have 1 filament). Moreover, the element <code>vs[1]</code> is a vector of <a href="../../modules/Filaments/#VortexPasta.Filaments.Vec3"><code>Vec3</code></a> (3-element vectors, specifically velocity vectors in this case), in which the element <code>vs[1][i]</code> will be the velocity of the filament node <code>fs[1][i]</code>.</p><p>To actually fill <code>vs</code> with the velocities of the filament nodes, we call <a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.velocity_on_nodes!"><code>velocity_on_nodes!</code></a>:</p><pre><code class="language-julia hljs">velocity_on_nodes!(vs, cache, fs)
+vs[1]  # prints the velocities of all nodes of the first (and only) filament</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">16-element VortexPasta.PaddedArrays.PaddedVector{5, SVector{3, Float64}, Vector{SVector{3, Float64}}}:
+ [9.143350748190242e-17, 7.427693823298677e-17, 0.775263386138947]
+ [8.412489146356194e-16, 1.5612272473368575e-16, 0.7768440071494346]
+ [-8.859057934821251e-16, -9.573632894299151e-16, 0.7782866995113855]
+ [2.2854817184375146e-17, 5.08149969487667e-16, 0.7768440397416712]
+ [-3.1186743775165327e-18, 1.7706095268884338e-16, 0.7752635648065435]
+ [-5.1059075116165393e-17, 5.965851287798027e-16, 0.7768440774612609]
+ [9.51020116308891e-16, -9.200537795756598e-16, 0.778286734871521]
+ [-2.613495767635718e-16, -2.5571093982107254e-16, 0.7768439828114035]
+ [-1.4534583620393406e-15, 1.4209135628854957e-16, 0.7752634071289829]
+ [1.4229366326916485e-15, 6.421449545636292e-16, 0.7768440205308482]
+ [-7.450816051827309e-16, -8.568138851402736e-16, 0.7782867702312061]
+ [1.6984540044752075e-16, 6.785139421838888e-16, 0.77684405312335]
+ [1.5140072120675151e-16, 3.821955467261708e-17, 0.7752635857959106]
+ [2.282885859862476e-16, -7.63112456827506e-16, 0.7768440154037474]
+ [-5.635237608312031e-16, 4.258000626741425e-16, 0.7782867348710768]
+ [2.6114945888918184e-17, 8.337238608624583e-17, 0.7768440448688564]</code></pre><p>We have done our first Biot–Savart calculation! We can see that all nodes have practically zero velocity in the <span>$x$</span> and <span>$y$</span> directions, while they all have approximately the same velocity in the <span>$z$</span> direction. Good news, this is exactly what we expect for a vortex ring!</p><p>We can compute the mean velocity and quantify the velocity variation along the filament:</p><pre><code class="language-julia hljs">using Statistics: mean, std
+v_mean = mean(vs[1])
+v_std = std(vs[1])
+v_std_normalised = v_std / norm(v_mean)  # normalised standard deviation
+@show v_mean v_std v_std_normalised</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">v_mean = [-3.647075372548682e-18, -1.441977377514804e-17, 0.7768095702778841]
+v_std = [7.113892907762061e-16, 5.715234665950568e-16, 0.0011045079633929744]
+v_std_normalised = [9.157833759974462e-16, 7.35731752623244e-16, 0.0014218516424789468]</code></pre><p>Note that there are some (very small) fluctuations of the velocity about the mean. As discussed and verified further below, this is explained by periodicity effects, as the vortex ring is affected by its periodic images. Furthermore, different points along the ring are at different distances from the images, and therefore the velocity induced by the images varies slightly as we move along the vortex ring. In other words, periodicity introduces a slight anisotropy on the behaviour of the vortex ring.</p><p>To visualise things, it is easy to plot the filament with the node velocities:</p><pre><code class="language-julia hljs">fig = Figure()
+ax = Axis3(fig[1, 1]; aspect = :data)
+zlims!(ax, 0.5, 1.5)
+plot!(
+    ax, fs[1], vs[1];
+    refinement = 4,
+    arrows3d = (lengthscale = 0.5,),
+)
+fig</code></pre><img src="4b327a0a-001.png" alt="Example block output"/><h3 id="Comparison-with-analytical-expression"><a class="docs-heading-anchor" href="#Comparison-with-analytical-expression">Comparison with analytical expression</a><a id="Comparison-with-analytical-expression-1"></a><a class="docs-heading-anchor-permalink" href="#Comparison-with-analytical-expression" title="Permalink"></a></h3><p>We can finally compare the filament velocity with the analytical vortex ring velocity according to the expression at the <a href="#Computing-the-vortex-ring-velocity">start of this section</a>:</p><pre><code class="language-julia hljs">v_ring = Γ / (4π * R) * (log(8R / a) - Δ)
+vz = v_mean[3]
+relative_difference = (v_ring - vz) / v_ring
+@show v_ring vz relative_difference</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">v_ring = 0.8233590310692667
+vz = 0.7768095702778841
+relative_difference = 0.05653604203615822</code></pre><p>We can see that we&#39;re quite close, and that the relative difference between the two is of the order of 5%. This is already nice, but note that most of the difference may be explained by <strong>periodicity effects</strong>, as shown in more detail in the <a href="#ring-disabling-periodicity">next section</a>. Indeed, the vortex ring is not alone, but is also affected by its periodic images.</p><p>We can visualise this by plotting the ring and its nearest 26 periodic images (actually there&#39;s an infinity of them!):</p><pre><code class="language-julia hljs">fig = Figure()
+ax = Axis3(fig[1, 1]; aspect = :data)
+hidespines!(ax)
+hidexdecorations!(ax; label = false)
+hideydecorations!(ax; label = false)
+hidezdecorations!(ax; label = false)
+fimage = copy(f)
+plot!(ax, f; refinement = 4, markersize = 0, color = :OrangeRed, linewidth = 2)
+for I ∈ CartesianIndices((-1:1, -1:1, -1:1))
+    local widths = (L, L, L)
+    local offset = Vec3(Tuple(I) .* widths)
+    local box = Rect(offset..., widths...)
+    wireframe!(ax, box; color = (:white, 0.5), linewidth = 0.2)  # plot cube
+    iszero(I) &amp;&amp; continue  # don&#39;t replot the &quot;original&quot; filament
+    fimage .= f .+ Ref(offset)
+    update_coefficients!(fimage)  # updates interpolation coefficients
+    plot!(ax, fimage; refinement = 4, markersize = 0, color = :LightBlue, linewidth = 1)
+end
+fig</code></pre><img src="838d87c8.png" alt="Example block output"/><p>One can show that the images have the tendency to slow the vortex down, which is consistent with our results (since <code>vz &lt; v_ring</code>). The effect here is relatively important because the ring diameter <span>$2R$</span> is comparable to the domain period <span>$L$</span>:</p><pre><code class="language-julia hljs">2R/L</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.6366197723675814</code></pre><p>We can expect the periodicity effect on the ring to be much weaker for smaller rings.</p><h3 id="ring-disabling-periodicity"><a class="docs-heading-anchor" href="#ring-disabling-periodicity">Side note: disabling periodicity</a><a id="ring-disabling-periodicity-1"></a><a class="docs-heading-anchor-permalink" href="#ring-disabling-periodicity" title="Permalink"></a></h3><p>It is actually possible to disable the periodic boundary conditions, effectively leading to an open domain with a unique vortex ring.</p><p>In VortexPasta.jl, disabling periodicity amounts to disabling the long-range part of Ewald summation, so that <strong>all</strong> scales are computed by the &quot;short&quot;-range component. The cut-off distance is therefore infinity, and it makes no sense to use cell lists to accelerate the computations. Other methods exist (and are now standard) to accelerate this kind of computation, but these are not implemented here. So, while it is possible to disable periodicity, this should only be used for testing or for small calculations.</p><p>To disable periodicity, one should pass <code>α = Zero()</code> and <code>Ls = Infinity()</code> to <a href="../../modules/BiotSavart/#VortexPasta.BiotSavart.ParamsBiotSavart"><code>ParamsBiotSavart</code></a>:</p><pre><code class="language-julia hljs">params_inf = ParamsBiotSavart(;
+    Γ, α = Zero(), Δ, a,
+    Ls = Infinity(),
+    quadrature,
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">ParamsBiotSavart{Float64} with:
+ - Physical parameters:
+   * Vortex circulation:         Γ  = 1.0
+   * Vortex core radius:         a  = 1.0e-8
+   * Vortex core parameter:      Δ  = 0.5
+   * Domain period:              Ls = (Infinity(), Infinity(), Infinity())
+ - Numerical parameters:
+   * Ewald splitting parameter:  α = Zero() (σ = 1/α√2 = Infinity())
+   * Quadrature rule:            GaussLegendre{3}()
+   * Quadrature rule (alt.):     AdaptiveTanhSinh(Float64; nlevels = 5, rtol = 1.4901161193847656e-8) (used near singularities)
+   * Short-range backend:        NaiveShortRangeBackend()
+   * Short-range cut-off:        r_cut = Infinity() (r_cut/L = Infinity())
+   * Short-range cut-off coeff.: β_shortrange = Infinity()
+   * Local segment fraction:     1
+   * Long-range backend:         VortexPasta.BiotSavart.NullLongRangeBackend()
+   * Long-range resolution:      Ns = (0, 0, 0) (kmax = 0.0)
+   * Long-range cut-off coeff.:  β_longrange = Infinity()
+   * Long-range spherical truncation: false</code></pre><p>Here <a href="../../modules/Constants/#VortexPasta.Constants.Zero"><code>Zero</code></a> and <a href="../../modules/Constants/#VortexPasta.Constants.Infinity"><code>Infinity</code></a> are custom types that, as one may expect, represent <span>$0$</span> and <span>$+∞$</span>.</p><p>We can now compute the vortex ring velocity in the absence of periodic effects:</p><pre><code class="language-julia hljs">cache_inf = BiotSavart.init_cache(params_inf, fs)
+vs_inf = map(similar, vs)
+velocity_on_nodes!(vs_inf, cache_inf, fs)
+v_mean_inf = mean(vs_inf[1])
+v_std_inf = std(vs_inf[1])
+v_std_normalised_inf = v_std_inf / norm(v_mean_inf)
+@show v_mean_inf v_std_inf v_std_normalised_inf</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">v_mean_inf = [-2.3063672526170573e-18, -1.0682373101594472e-17, 0.8232559455808263]
+v_std_inf = [7.108548907868633e-16, 5.710968952197167e-16, 6.781393946228649e-15]
+v_std_normalised_inf = [8.634676671364197e-16, 6.937051572907798e-16, 8.237285114830501e-15]</code></pre><p>The velocity fluctuations along the filament are now practically zero! This should be contrasted with the standard deviation of about <span>$0.001$</span> we obtained in the periodic case. This is consistent with what was explained on the anisotropy introduced by periodicity, in the sense that not all points on the filament &quot;feel&quot; the effect of the periodic images in the same way.</p><p>Moreover, the mean velocity is even closer to the analytical velocity:</p><pre><code class="language-julia hljs">vz_inf = v_mean_inf[3]
+relative_difference_inf = (v_ring - vz_inf) / v_ring</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">0.00012520113893270667</code></pre><p>The relative difference is reduced from 5% to about 0.01%! Once again, this clearly shows that periodic images have some (very minor) impact on the effective vortex ring velocity.</p><p>Note that we could further reduce the difference with the analytical result by increasing the filament resolution <span>$N$</span>. The results also depend on the chosen discretisation scheme: <a href="../../modules/Filaments/#VortexPasta.Filaments.QuinticSplineMethod"><code>QuinticSplineMethod</code></a> allows to accurately describe the circular vortex ring geometry (and <a href="../../modules/Filaments/#VortexPasta.Filaments.FourierMethod"><code>FourierMethod</code></a> even more so), while methods like <a href="../../modules/Filaments/#VortexPasta.Filaments.CubicSplineMethod"><code>CubicSplineMethod</code></a> and <a href="../../modules/Filaments/#VortexPasta.Filaments.FiniteDiffMethod"><code>FiniteDiffMethod</code></a> are less accurate.</p><h2 id="Making-the-ring-move"><a class="docs-heading-anchor" href="#Making-the-ring-move">Making the ring move</a><a id="Making-the-ring-move-1"></a><a class="docs-heading-anchor-permalink" href="#Making-the-ring-move" title="Permalink"></a></h2><p>Up to now we have shown how to compute the velocity self-induced by a vortex filament on its discretisation points. We now want to use this velocity to advect the vortex filament over time. In the case of a vortex ring, its displacement is very simple and boring (the vortex ring moves with constant velocity), but this case is still useful for instance for testing the stability of timestepping schemes.</p><p>For running temporal simulations, we want to use the <a href="../../modules/Timestepping/#VortexPasta.Timestepping"><code>VortexPasta.Timestepping</code></a> submodule. The syntax is somewhat inspired from the popular <a href="https://docs.sciml.ai/DiffEqDocs/stable/">DifferentialEquations.jl</a> ecosystem.</p><h3 id="A-basic-simulation"><a class="docs-heading-anchor" href="#A-basic-simulation">A basic simulation</a><a id="A-basic-simulation-1"></a><a class="docs-heading-anchor-permalink" href="#A-basic-simulation" title="Permalink"></a></h3><p>We start by defining a <a href="../../modules/Timestepping/#VortexPasta.Timestepping.VortexFilamentProblem"><code>VortexFilamentProblem</code></a>, which takes (1) an initial condition (in our case, the initial vortex ring we already defined); (2) the time span of the simulation; and (3) parameters for Biot–Savart computations (which we already defined as well):</p><pre><code class="language-julia hljs">using VortexPasta.Timestepping
+T = L / 2vz       # time it should take for the ring to cross half the periodic box
+tspan = (0.0, T)  # time span; this basically determines when to stop the simulation
+prob = VortexFilamentProblem(fs, tspan, params)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">VortexFilamentProblem with fields:
+ ├─ p: ParamsBiotSavart{Float64}(Γ = 1.0, a = 1.0e-8, Δ = 0.5, α = 1.5, …)
+ ├─ tspan: (0.0, 4.044224960392761) -- simulation timespan
+ └─ fs: 1-element VectorOfVectors -- vortex filaments at t = 0.0</code></pre><p>The second step is to &quot;initialise&quot; the problem using <a href="../../modules/Timestepping/#CommonSolve.init"><code>init</code></a>. This means choosing a <a href="../../modules/Timestepping/#Temporal-schemes">temporal scheme</a>, an initial timestep, as well as optional parameters related for instance to <a href="../../modules/Timestepping/#Adaptivity">temporal adaptivity</a>, <a href="../../modules/Filaments/#Refinement">spatial refinement</a> of the filaments, or <a href="../../modules/Reconnections/#Reconnections">vortex reconnections</a>.</p><p>For now, we use the explicit <a href="../../modules/Timestepping/#VortexPasta.Timestepping.RK4"><code>RK4</code></a> timestepping scheme, set a constant timestep <code>dt</code>, and leave the defaults for everything else:</p><pre><code class="language-julia hljs">l_min = minimum_knot_increment(fs)       # this is an estimate for the minimum distance between discretisation points
+dt = 3 * l_min^2 / (Γ * log(l_min / a))  # we set the timestep to be proportional to some characteristic &quot;fast&quot; timescale
+iter = init(prob, RK4(); dt)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">VortexFilamentSolver with fields:
+ ├─ prob: VortexFilamentProblem with fields:
+ │  ├─ p: ParamsBiotSavart{Float64}(Γ = 1.0, a = 1.0e-8, Δ = 0.5, α = 1.5, …)
+ │  ├─ tspan: (0.0, 4.044224960392761) -- simulation timespan
+ │  └─ fs: 1-element VectorOfVectors -- vortex filaments at t = 0.0
+ ├─ fs: 1-element VectorOfVectors -- vortex filaments
+ ├─ vL: 1-element VectorOfVectors -- vortex line velocity (vs + mutual friction + forcing)
+ ├─ vs: 1-element VectorOfVectors -- self-induced superfluid velocity
+ ├─ tangents: 1-element VectorOfVectors -- local unit tangent
+ ├─ ψs: 1-element VectorOfVectors -- streamfunction vector
+ ├─ time: TimeInfo(nstep = 0, t = 0.0, dt = 0.10052952958498958, dt_prev = 0.10052952958498958, nrejected = 0)
+ ├─ stats: VortexPasta.Timestepping.SimulationStats{Float64}(...)
+ ├─ dtmin: 0.0
+ ├─ refinement: NoRefinement()
+ ├─ adaptivity: NoAdaptivity()
+ ├─ reconnect: NoReconnections()
+ ├─ fast_term: LocalTerm()
+ ├─ LIA: false
+ ├─ fold_periodic: true
+ ├─ cache_bs: BiotSavartCache
+ ├─ cache_timestepper: TemporalSchemeCache(RK4())
+ └─ to: TimerOutputs.TimerOutput</code></pre><p>Note that the maximum possible timestep to avoid numerical instability is mainly limited by the filament resolution <span>$ℓ_{\text{min}}$</span>. More precisely, the limit is the frequency of spurious oscillations associated to that length scale. These correspond to Kelvin waves, whose frequency roughly scales as <span>$ω(ℓ) ∼ Γ \ln (ℓ / a) / ℓ^2$</span>. See the <a href="../02-kelvin_waves/#tutorial-kelvin-waves-timestep">Kelvin wave tutorial</a> for more details.</p><div class="admonition is-info" id="Adaptive-timestepping-2b090bfa06e713d9"><header class="admonition-header">Adaptive timestepping<a class="admonition-anchor" href="#Adaptive-timestepping-2b090bfa06e713d9" title="Permalink"></a></header><div class="admonition-body"><p>One can use adaptive timestepping with the <a href="../../modules/Timestepping/#VortexPasta.Timestepping.AdaptBasedOnSegmentLength"><code>AdaptBasedOnSegmentLength</code></a> criterion, which automatically updates the timestep based on the current minimal distance between filament nodes.</p></div></div><p>We now call <a href="../../modules/Timestepping/#CommonSolve.solve!"><code>solve!</code></a> to run the simulation until <span>$t = T = L / 2 v_{\text{ring}}$</span>:</p><pre><code class="language-julia hljs">solve!(iter)  # run the simulation until t = T
+iter.t / T    # check that the current time is t == T</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">1.0</code></pre><p>We can check that, as expected, the ring has crossed half the periodic box:</p><pre><code class="language-julia hljs">displacement = @. (iter.fs - prob.fs) / L
+displacement[1]  # prints displacement of the first (and only) filament</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">16-element ClosedFilament{SVector{3, Float64}, QuinticSplineMethod}:
+ [6.113989411721162e-5, 3.5171351843335634e-9, 0.500037541338516]
+ [5.766581447634105e-6, -1.4524746622636117e-5, 0.49999929516671016]
+ [-4.287392334517352e-5, -4.287716015778891e-5, 0.499961045278783]
+ [-1.452391835947825e-5, 5.759797073164045e-6, 0.49999928628865825]
+ [3.517195614872511e-9, 6.11302185465849e-5, 0.5000375289739358]
+ [1.4531019164859804e-5, 5.7597308811563095e-6, 0.499999289755968]
+ [4.288124286708741e-5, -4.287733777621849e-5, 0.49996105158902654]
+ [-5.759366643186041e-6, -1.4524655363970147e-5, 0.4999993032626047]
+ [-6.113233734811171e-5, 3.5171352550125564e-9, 0.5000375500267278]
+ [-5.759300452521207e-6, 1.4531756047854514e-5, 0.49999930672985715]
+ [4.28814204806048e-5, 4.288465717211173e-5, 0.49996105789916784]
+ [1.4530927906476551e-5, -5.75251619923028e-6, 0.49999929785173214]
+ [3.517195614872511e-9, -6.112266190444212e-5, 0.5000375376620083]
+ [-1.4523827100458885e-5, -5.752582391944804e-6, 0.49999929438442403]
+ [-4.2874100958372857e-5, 4.288447955400021e-5, 0.499961051588926]
+ [5.766515258170814e-6, 1.4531847305601656e-5, 0.4999992986339637]</code></pre><p>As we can see, the filament nodes have basically only moved in the <span>$z$</span> direction by almost exactly <span>$L / 2$</span>.</p><h3 id="tutorial-vortex-ring-simulation-state"><a class="docs-heading-anchor" href="#tutorial-vortex-ring-simulation-state">Accessing the instantaneous simulation state</a><a id="tutorial-vortex-ring-simulation-state-1"></a><a class="docs-heading-anchor-permalink" href="#tutorial-vortex-ring-simulation-state" title="Permalink"></a></h3><p>Above we have simply run a simulation from start to finish, without caring about what happened in-between. In reality, one usually wants to be able to do things with the intermediate states, for instance, to track the evolution of the total vortex length, the energy, or simply to make nice movies.</p><p>There are two ways of doing this, both inspired by DifferentialEquations.jl (see <a href="https://docs.sciml.ai/DiffEqDocs/stable/basics/integrator/">here</a> and <a href="https://docs.sciml.ai/DiffEqDocs/stable/features/callback_functions/#Using-Callbacks">here</a>):</p><h4 id="1.-Using-the-integrator-interface"><a class="docs-heading-anchor" href="#1.-Using-the-integrator-interface">1. Using the integrator interface</a><a id="1.-Using-the-integrator-interface-1"></a><a class="docs-heading-anchor-permalink" href="#1.-Using-the-integrator-interface" title="Permalink"></a></h4><p>This option is actually quite intuitive. The idea is to explicitly iterate timestep by timestep (typically using a <code>for</code> or <code>while</code> loop) until we decide it&#39;s time to stop. At each iteration we perform a simulation timestep (going from <span>$t_n$</span> to <span>$t_{n + 1} = t_n + Δt$</span>), and then we can do whatever we want with the instantaneous solution contained in <code>iter</code>.</p><p>Note that, in this case, the time span defined in the <a href="../../modules/Timestepping/#VortexPasta.Timestepping.VortexFilamentProblem"><code>VortexFilamentProblem</code></a> is completely ignored, meaning that we can stop the simulation whenever we want.</p><p>To use this interface, we create the solver in the same way as before, and then we advance the solver one timestep at a time using <a href="../../modules/Timestepping/#CommonSolve.step!"><code>step!</code></a>. For instance, we can choose to stop when we have performed 20 timesteps. And every 5 timestep we print some information:</p><pre><code class="language-julia hljs">iter = init(prob, RK4(); dt)
+while iter.nstep ≤ 20
+    # Print the time and the mean location of the vortex ring every 5 solver iterations.
+    local dt  # avoid &quot;soft scope&quot; warning
+    (; nstep, t, dt,) = iter
+    if nstep % 5 == 0
+        Xavg = mean(iter.fs[1])
+        println(&quot;- step = $nstep, t = $t, dt = $dt&quot;)
+        println(&quot;  Average ring location: &quot;, Xavg)
+    end
+    step!(iter)  # run a single timestep
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">- step = 0, t = 0.0, dt = 0.10052952958498958
+  Average ring location: [3.0, 3.0, 1.0]
+- step = 5, t = 0.5026476479249479, dt = 0.10052952958498958
+  Average ring location: [3.0000000003366756, 3.0000000003366676, 1.390461016247372]
+- step = 10, t = 1.005295295849896, dt = 0.10052952958498958
+  Average ring location: [3.000000001381583, 3.0000000013815518, 1.780921856183972]
+- step = 15, t = 1.5079429437748435, dt = 0.10052952958498958
+  Average ring location: [3.000000003146817, 3.0000000031467504, 2.171383038539117]
+- step = 20, t = 2.010590591699791, dt = 0.10052952958498958
+  Average ring location: [3.0000000056159424, 3.0000000056158287, 2.561843740187104]</code></pre><h4 id="2.-Using-callbacks"><a class="docs-heading-anchor" href="#2.-Using-callbacks">2. Using callbacks</a><a id="2.-Using-callbacks-1"></a><a class="docs-heading-anchor-permalink" href="#2.-Using-callbacks" title="Permalink"></a></h4><p>We can do the same using a callback. This is a function which gets called at each solver iteration with the current state of the solver.</p><p>The idea is to create such a function which receives a single <code>iter</code> argument. Then we tell <a href="../../modules/Timestepping/#CommonSolve.init"><code>init</code></a> to use this function as a callback, and use <a href="../../modules/Timestepping/#CommonSolve.solve!"><code>solve!</code></a> as we did earlier to run the simulation until the end time:</p><pre><code class="language-julia hljs"># Prints the time and the mean location of the vortex ring every 5 solver iterations.
+function print_solver_info(iter)
+    (; nstep, t, dt,) = iter
+    if nstep % 5 == 0
+        Xavg = mean(iter.fs[1])
+        println(&quot;- step = $nstep, t = $t, dt = $dt&quot;)
+        println(&quot;  Average ring location: &quot;, Xavg)
+    end
+end
+iter = init(prob, RK4(); dt, callback = print_solver_info)
+solve!(iter)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">- step = 0, t = 0.0, dt = 0.10052952958498958
+  Average ring location: [3.0, 3.0, 1.0]
+- step = 5, t = 0.5026476479249479, dt = 0.10052952958498958
+  Average ring location: [3.0000000003366756, 3.0000000003366676, 1.390461016247372]
+- step = 10, t = 1.005295295849896, dt = 0.10052952958498958
+  Average ring location: [3.000000001381583, 3.0000000013815518, 1.780921856183972]
+- step = 15, t = 1.5079429437748435, dt = 0.10052952958498958
+  Average ring location: [3.000000003146817, 3.0000000031467504, 2.171383038539117]
+- step = 20, t = 2.010590591699791, dt = 0.10052952958498958
+  Average ring location: [3.0000000056159424, 3.0000000056158287, 2.561843740187104]
+- step = 25, t = 2.5132382396247386, dt = 0.10052952958498958
+  Average ring location: [3.000000008760436, 3.0000000087602676, 2.9523050310651238]
+- step = 30, t = 3.015885887549686, dt = 0.10052952958498958
+  Average ring location: [3.0000000126110735, 3.000000012610844, 3.342765668194223]
+- step = 35, t = 3.5185335354746337, dt = 0.10052952958498958
+  Average ring location: [3.000000017188593, 3.0000000171882917, 3.733226977713039]
+- step = 40, t = 4.021181183399581, dt = 0.10052952958498958
+  Average ring location: [3.000000022463916, 3.000000022463531, 4.12368763982232]</code></pre><p>Note that the callback is also called once when the solver is initialised (when <code>nstep = 0</code>).</p><h3 id="Making-an-animation"><a class="docs-heading-anchor" href="#Making-an-animation">Making an animation</a><a id="Making-an-animation-1"></a><a class="docs-heading-anchor-permalink" href="#Making-an-animation" title="Permalink"></a></h3><p>We can use either of the two methods above to create a video of the moving vortex. Here we will use Makie to create the animation. See the <a href="https://docs.makie.org/stable/explanations/animation/">Makie docs on animations</a> for more details.</p><p>In this example we will use the integrator interface. We start by initialising the solver and creating a plot with to the initial condition:</p><pre><code class="language-julia hljs">iter = init(prob, RK4(); dt)
+
+f_obs = Observable(iter.fs[1])  # variable to be updated over time
+t_obs = Observable(iter.t)      # variable to be updated over time
+
+fig = Figure()
+ax = Axis3(fig[1, 1]; aspect = :data, title = @lift(&quot;Time: $($t_obs)&quot;))
+hidespines!(ax)
+box = Rect(0, 0, 0, L, L, L)  # periodic domain limits
+wireframe!(ax, box; color = (:white, 0.5), linewidth = 0.5)
+plot!(ax, f_obs; markersize = 0, refinement = 4, linewidth = 2)
+fig</code></pre><img src="1683c122.png" alt="Example block output"/><p>Note that we have wrapped the vortex ring filament <code>iter.fs[1]</code> in an <a href="https://docs.makie.org/stable/explanations/nodes/index.html#observables_interaction"><code>Observable</code></a>. The plot will be automatically updated each time we modify this <code>Observable</code> object:</p><pre><code class="language-julia hljs">record(fig, &quot;vortex_ring.mp4&quot;) do io
+    recordframe!(io)      # add initial frame (initial condition) to movie
+    while iter.t &lt; 2T
+        step!(iter)       # run a single timestep
+        notify(f_obs)     # tell Makie that filament positions have been updated
+        t_obs[] = iter.t  # update displayed time
+        yield()           # allows to see the updated plot
+        recordframe!(io)  # add current frame to movie
+    end
+end</code></pre><p>Note that here we have used <a href="https://docs.makie.org/stable/api/#record"><code>record</code></a> and <a href="https://docs.makie.org/stable/api/#recordframe!"><code>recordframe!</code></a> to generate a movie file, but these are not needed if one just wants to see things moving in real time as the simulation runs.</p><p><video src="../vortex_ring.mp4" controls="true" title><a href="../vortex_ring.mp4"></a></video></p><h2 id="Saving-state-to-disk"><a class="docs-heading-anchor" href="#Saving-state-to-disk">Saving state to disk</a><a id="Saving-state-to-disk-1"></a><a class="docs-heading-anchor-permalink" href="#Saving-state-to-disk" title="Permalink"></a></h2><p>It is often useful to be able to save the solver state to disk, for instance to be able to restart a simulation from that state or to analyse the data. In VortexPasta this is possible using the <a href="../../modules/Timestepping/#VortexPasta.Timestepping.save_checkpoint"><code>save_checkpoint</code></a> function (included in <code>VortexPasta.Timestepping</code>).</p><p>Data is written in the HDF5 format, which is a binary format that can be easily explored using command-line tools or the HDF5 interfaces available in many different programming languages. More precisely, data is written to <a href="https://docs.vtk.org/en/latest/design_documents/VTKFileFormats.html#vtkhdf-file-format">VTKHDF files</a>, which are HDF5 files with a specific organisation that can be readily understood by visualisation tools such as ParaView. In other words, simulation outputs can be readily visualised without the need to convert them or to have a &quot;translation&quot; file explaining how to visualise the binary data.</p><div class="admonition is-info" id="VTKHDF-file-extension-63e75017b3019790"><header class="admonition-header">VTKHDF file extension<a class="admonition-anchor" href="#VTKHDF-file-extension-63e75017b3019790" title="Permalink"></a></header><div class="admonition-body"><p>ParaView doesn&#39;t recognise the usual <code>.h5</code> file extension as a VTKHDF file. For this reason, it is recommended to use <code>.vtkhdf</code> if one wants to visualise the data.</p></div></div><h3 id="Writing-filament-data-and-reading-it-back"><a class="docs-heading-anchor" href="#Writing-filament-data-and-reading-it-back">Writing filament data and reading it back</a><a id="Writing-filament-data-and-reading-it-back-1"></a><a class="docs-heading-anchor-permalink" href="#Writing-filament-data-and-reading-it-back" title="Permalink"></a></h3><p>We write filament locations and other solver data to disk:</p><pre><code class="language-julia hljs">save_checkpoint(&quot;vortex_ring.vtkhdf&quot;, iter)</code></pre><p>This creates an HDF5 file with the following structure:</p><pre><code class="language-bash hljs">$ h5ls -r vortex_ring.vtkhdf
+/                                     Group
+/VTKHDF                               Group
+/VTKHDF/Lines/Connectivity            Dataset {17}
+/VTKHDF/Lines/NumberOfCells           Dataset {1}
+/VTKHDF/Lines/NumberOfConnectivityIds Dataset {1}
+/VTKHDF/Lines/Offsets                 Dataset {2}
+/VTKHDF/NumberOfPoints                Dataset {1}
+/VTKHDF/Points                        Dataset {17, 3}
+/VTKHDF/RefinementLevel               Dataset {SCALAR}
+[+ other stuff needed by ParaView...]
+/VortexPasta                          Group
+/VortexPasta/BiotSavartParams         Group
+[...]
+/VortexPasta/VortexFilamentSolver     Group
+[...]</code></pre><p>The filament locations and everything else to be visualised is written to a <code>/VTKHDF</code> group (which is some sort of subdirectory in the HDF5 file). In this case, we have a single cell which corresponds to our vortex ring (one VTK cell corresponds to one vortex filament). The important datasets here are <code>Points</code>, which contains the discretisation points of all filaments, and <code>Lines/Offsets</code>, which allows to identify which point corresponds to which vortex. See <a href="../../modules/FilamentIO/#VortexPasta.FilamentIO.write_vtkhdf"><code>FilamentIO.write_vtkhdf</code></a> for more details.</p><p>There is also a <code>/VortexPasta</code> group with different subgroups. It contains Biot–Savart and solver parameters, as well as some of the solver state at the end of the simulation (time, timestep, ...).</p><p>The filament locations can be read back using <a href="../../modules/FilamentIO/#VortexPasta.FilamentIO.read_vtkhdf"><code>FilamentIO.read_vtkhdf</code></a>:</p><pre><code class="language-julia hljs">using VortexPasta.FilamentIO  # includes read_vtkhdf
+fs_read = read_vtkhdf(&quot;vortex_ring.vtkhdf&quot;, Float64, CubicSplineMethod())
+fs_read == iter.fs</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">true</code></pre><p>Alternatively, one can use <a href="../../modules/Timestepping/#VortexPasta.Timestepping.load_checkpoint"><code>load_checkpoint</code></a>, which also loads part of the solver state:</p><pre><code class="language-julia hljs">checkpoint = load_checkpoint(&quot;vortex_ring.vtkhdf&quot;, Float64, CubicSplineMethod())
+checkpoint.fs == iter.fs</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">true</code></pre><h3 id="Visualising-VTKHDF-files"><a class="docs-heading-anchor" href="#Visualising-VTKHDF-files">Visualising VTKHDF files</a><a id="Visualising-VTKHDF-files-1"></a><a class="docs-heading-anchor-permalink" href="#Visualising-VTKHDF-files" title="Permalink"></a></h3><p>Opening this file in ParaView should produce something like this:</p><p><img src="../paraview_vortex_ring.png" alt/></p><p>Things look quite rough since, by default, we only export the discretisation points, which ParaView connects by straight lines. As with Makie plots, we can make things look nicer by passing the <code>refinement</code> argument:</p><pre><code class="language-julia hljs">save_checkpoint(&quot;vortex_ring_refined.vtkhdf&quot;, iter; refinement = 4)</code></pre><p><img src="../paraview_vortex_ring_ref4.png" alt/></p><h3 id="Attaching-more-data"><a class="docs-heading-anchor" href="#Attaching-more-data">Attaching more data</a><a id="Attaching-more-data-1"></a><a class="docs-heading-anchor-permalink" href="#Attaching-more-data" title="Permalink"></a></h3><p>It can also be useful to include other data associated to the filaments, such as the velocity of the discretisation points. One can also easily add geometric quantities along filaments (see <a href="../../modules/Filaments/#VortexPasta.Filaments.GeometricQuantity"><code>GeometricQuantity</code></a> for a list of possible options).</p><p>As an example, we can save the positions, velocities, streamfunction, local curvature vector and time values corresponding to the final state of our last simulation:</p><pre><code class="language-julia hljs">save_checkpoint(&quot;vortex_ring_with_data.vtkhdf&quot;, iter; refinement = 4) do io
+    io[&quot;velocity&quot;] = iter.vs
+    io[&quot;streamfunction&quot;] = iter.ψs
+    io[&quot;curvatures&quot;] = CurvatureVector()  # note: no need to explicitly compute curvatures!
+    io[&quot;time&quot;] = iter.t
+end</code></pre><p>The HDF5 file structure now looks like:</p><pre><code class="language-bash hljs">$ h5ls -r vortex_ring_with_data.vtkhdf
+/                                     Group
+/VTKHDF                               Group
+/VTKHDF/FieldData                     Group
+/VTKHDF/FieldData/time                Dataset {1}
+/VTKHDF/Lines/Connectivity            Dataset {65}
+/VTKHDF/Lines/NumberOfCells           Dataset {1}
+/VTKHDF/Lines/NumberOfConnectivityIds Dataset {1}
+/VTKHDF/Lines/Offsets                 Dataset {2}
+/VTKHDF/NumberOfPoints                Dataset {1}
+/VTKHDF/PointData                     Group
+/VTKHDF/PointData/curvatures          Dataset {65, 3}
+/VTKHDF/PointData/streamfunction      Dataset {65, 3}
+/VTKHDF/PointData/velocity            Dataset {65, 3}
+/VTKHDF/Points                        Dataset {65, 3}
+/VTKHDF/RefinementLevel               Dataset {SCALAR}
+[...]
+/VortexPasta
+[...]</code></pre><p>Note that a <code>PointData</code> group has been created with two datasets: <code>streamfunction</code> and <code>velocity</code>. These correspond to data attached to the filaments, and have the same dimensions as the <code>Points</code> dataset. These can be readily visualised in ParaView. Besides, a <code>FieldData</code> group has been created with the <code>time</code> dataset. In VTK, &quot;field data&quot; corresponds to values that are not directly attached to the geometry, such as scalar quantities in this case.</p><p>Loading the attached data is done in a similar way (see <a href="../../modules/FilamentIO/#VortexPasta.FilamentIO.read_vtkhdf"><code>read_vtkhdf</code></a> for details):</p><pre><code class="language-julia hljs">vs_read = map(similar ∘ nodes, fs)
+ψs_read = map(similar ∘ nodes, fs)
+fs_read = read_vtkhdf(&quot;vortex_ring_with_data.vtkhdf&quot;, Float64, CubicSplineMethod()) do io
+    read!(io, vs_read, &quot;velocity&quot;)
+    read!(io, ψs_read, &quot;streamfunction&quot;)
+    local t_read = read(io, &quot;time&quot;, FieldData(), Float64)  # note: this is read as an array
+    @show t_read
+end
+@show (fs_read == iter.fs) (vs_read == iter.vs) (ψs_read == iter.ψs)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">t_read = [8.142891896384167]
+fs_read == iter.fs = true
+vs_read == iter.vs = true
+ψs_read == iter.ψs = true</code></pre><p>Note that, when reading &quot;refined&quot; datasets, only the original discretisation points and data on them are read back. The points and data added in-between nodes for refinement purposes are discarded.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« VortexPasta.jl</a><a class="docs-footer-nextpage" href="../02-kelvin_waves/">Kelvin waves »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.13.0 on <span class="colophon-date" title="Friday 27 June 2025 13:30">Friday 27 June 2025</span>. Using Julia version 1.11.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

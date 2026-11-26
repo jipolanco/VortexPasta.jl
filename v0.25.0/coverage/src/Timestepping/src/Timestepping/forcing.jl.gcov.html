@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Timestepping/src/Timestepping/forcing.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Timestepping/src/Timestepping</a> - forcing.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">98.1&nbsp;%</td>
+            <td class="headerCovTableEntry">53</td>
+            <td class="headerCovTableEntry">52</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2024-12-06 12:11:37</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : ## ================================================================================ ##</span>
+<span id="L2"><span class="lineNum">       2</span>              : ## (1) Apply external fields and stretching velocity</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span> <span class="tlaGNC tlaBgGNC">       54888 : function add_external_fields!(fields::NamedTuple, iter::VortexFilamentSolver, fs, t, to)</span></span>
+<span id="L5"><span class="lineNum">       5</span> <span class="tlaGNC">       54888 :     (; external_fields, stretching_velocity,) = iter</span></span>
+<span id="L6"><span class="lineNum">       6</span> <span class="tlaGNC">       54888 :     if haskey(fields, :velocity)</span></span>
+<span id="L7"><span class="lineNum">       7</span> <span class="tlaGNC">       54888 :         _add_external_field!(fields.velocity, external_fields.velocity, fs, t, to)</span></span>
+<span id="L8"><span class="lineNum">       8</span> <span class="tlaGNC">       54888 :         _add_stretching_velocity!(fields.velocity, stretching_velocity, fs, to)</span></span>
+<span id="L9"><span class="lineNum">       9</span>              :     end</span>
+<span id="L10"><span class="lineNum">      10</span> <span class="tlaGNC">       54888 :     if haskey(fields, :streamfunction)</span></span>
+<span id="L11"><span class="lineNum">      11</span>              :         # We multiply the external streamfunction by 2 to get the right kinetic energy.</span>
+<span id="L12"><span class="lineNum">      12</span> <span class="tlaGNC">        7141 :         _add_external_field!(fields.streamfunction, external_fields.streamfunction, fs, t, to; factor = 2)</span></span>
+<span id="L13"><span class="lineNum">      13</span>              :     end</span>
+<span id="L14"><span class="lineNum">      14</span> <span class="tlaGNC">       54888 :     fields</span></span>
+<span id="L15"><span class="lineNum">      15</span>              : end</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">      123774 : _add_external_field!(vs_all, ::Nothing, args...; kws...) = vs_all  # do nothing</span></span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span> <span class="tlaGNC">         284 : function _add_external_field!(vs_all, vext::F, fs, time, to; factor = 1) where {F &lt;: Function}</span></span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC">         142 :     @assert eachindex(vs_all) == eachindex(fs)</span></span>
+<span id="L21"><span class="lineNum">      21</span> <span class="tlaGNC">         142 :     @timeit to &quot;Add external field&quot; begin</span></span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">         284 :         for (f, vs) ∈ zip(fs, vs_all)</span></span>
+<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">         544 :             for i ∈ eachindex(vs, f)</span></span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">       17488 :                 @inbounds vs[i] = vs[i] + factor * vext(f[i], time)</span></span>
+<span id="L25"><span class="lineNum">      25</span> <span class="tlaGNC">       34432 :             end</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">         946 :         end</span></span>
+<span id="L27"><span class="lineNum">      27</span>              :     end</span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">         142 :     vs_all</span></span>
+<span id="L29"><span class="lineNum">      29</span>              : end</span>
+<span id="L30"><span class="lineNum">      30</span>              : </span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">       51071 : _add_stretching_velocity!(vs_all, ::Nothing, args...) = vs_all  # do nothing</span></span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">        3817 : function _add_stretching_velocity!(vs_all, stretching_velocity::F, fs, to) where {F &lt;: Function}</span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">        3817 :     @assert eachindex(vs_all) == eachindex(fs)</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">        3817 :     @timeit to &quot;Add stretching velocity&quot; begin</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">        7634 :         for (f, vs) ∈ zip(fs, vs_all)</span></span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaGNC">        3817 :             @inbounds for i ∈ eachindex(vs, f)</span></span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">      183216 :                 ρ⃗ = f[i, CurvatureVector()]</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">      183216 :                 ρ = sqrt(sum(abs2, ρ⃗))  # = |ρ⃗|</span></span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaGNC">      183216 :                 n̂ = ρ⃗ ./ ρ  # normal vector</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">      183216 :                 vs[i] = vs[i] - n̂ * stretching_velocity(ρ)</span></span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaGNC">      362615 :             end</span></span>
+<span id="L43"><span class="lineNum">      43</span> <span class="tlaGNC">        3817 :         end</span></span>
+<span id="L44"><span class="lineNum">      44</span>              :     end</span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">        3817 :     vs_all</span></span>
+<span id="L46"><span class="lineNum">      46</span>              : end</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span>              : ## ================================================================================ ##</span>
+<span id="L49"><span class="lineNum">      49</span>              : ## (2) Apply mutual friction forcing (normal fluid)</span>
+<span id="L50"><span class="lineNum">      50</span>              : </span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">       54888 : function apply_forcing!(fields::NamedTuple, iter::VortexFilamentSolver, fs, time, to)</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">       54888 :     if haskey(fields, :velocity)</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">       54888 :         _apply_forcing!(fields.velocity, iter.forcing, iter, fs, time, to)</span></span>
+<span id="L54"><span class="lineNum">      54</span>              :     end</span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">       54888 :     fields</span></span>
+<span id="L56"><span class="lineNum">      56</span>              : end</span>
+<span id="L57"><span class="lineNum">      57</span>              : </span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">       54118 : _apply_forcing!(vs_all, ::Nothing, args...) = nothing  # do nothing</span></span>
+<span id="L59"><span class="lineNum">      59</span>              : </span>
+<span id="L60"><span class="lineNum">      60</span> <span class="tlaGNC">         770 : function _apply_forcing!(vs_all, forcing::NormalFluidForcing, iter, fs, t, to)</span></span>
+<span id="L61"><span class="lineNum">      61</span> <span class="tlaGNC">         770 :     vn_all = iter.vn</span></span>
+<span id="L62"><span class="lineNum">      62</span> <span class="tlaGNC">         770 :     tangents_all = iter.tangents</span></span>
+<span id="L63"><span class="lineNum">      63</span> <span class="tlaGNC">         770 :     @assert eachindex(vn_all) == eachindex(tangents_all) == eachindex(vs_all) == eachindex(fs)</span></span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">         770 :     @timeit to &quot;Add forcing&quot; begin</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">         770 :         @inbounds Threads.@threads for n ∈ eachindex(fs, vs_all, vn_all, tangents_all)</span></span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">         770 :             f = fs[n]</span></span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">         770 :             vs = vs_all[n]</span></span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">         770 :             vn = vn_all[n]</span></span>
+<span id="L69"><span class="lineNum">      69</span> <span class="tlaGNC">         770 :             tangents = tangents_all[n]</span></span>
+<span id="L70"><span class="lineNum">      70</span>              :             # Compute tangents (TODO: can we reuse them?)</span>
+<span id="L71"><span class="lineNum">      71</span> <span class="tlaGNC">         770 :             for i ∈ eachindex(f, tangents)</span></span>
+<span id="L72"><span class="lineNum">      72</span> <span class="tlaGNC">       36960 :                 tangents[i] = f[i, UnitTangent()]</span></span>
+<span id="L73"><span class="lineNum">      73</span> <span class="tlaGNC">       73150 :             end</span></span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">       36960 :             Forcing.get_velocities!(forcing, vn, f)    # evaluate normal fluid velocities</span></span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">         770 :             Forcing.apply!(forcing, vs, vn, tangents)  # modify vs according to the given forcing</span></span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaUNC tlaBgUNC">           0 :         end</span></span>
+<span id="L77"><span class="lineNum">      77</span>              :     end</span>
+<span id="L78"><span class="lineNum">      78</span> <span class="tlaGNC tlaBgGNC">         770 :     nothing</span></span>
+<span id="L79"><span class="lineNum">      79</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

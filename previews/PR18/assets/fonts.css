@@ -1,0 +1,17 @@
+body,
+button,
+input,
+optgroup,
+select,
+textarea {
+ font-family:"Fira Sans","Lato Medium",-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue","Helvetica","Arial",sans-serif
+}
+
+html.theme--documenter-dark body,
+html.theme--documenter-dark button,
+html.theme--documenter-dark input,
+html.theme--documenter-dark optgroup,
+html.theme--documenter-dark select,
+html.theme--documenter-dark textarea {
+ font-family:"Fira Sans","Lato Medium",-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue","Helvetica","Arial",sans-serif
+}

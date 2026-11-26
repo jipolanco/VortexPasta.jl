@@ -1,0 +1,248 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Timestepping/src/Timestepping/checkpoint.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Timestepping/src/Timestepping</a> - checkpoint.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">67</td>
+            <td class="headerCovTableEntry">67</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-05-23 10:15:37</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : using HDF5: HDF5</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : &quot;&quot;&quot;</span>
+<span id="L4"><span class="lineNum">       4</span>              :     save_checkpoint([f::Function], filename, iter::VortexFilamentSolver; kwargs...)</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : Save checkpoint to VTKHDF file (usually with `.vtkhdf` extension).</span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              : A checkpoint file is a VTKHDF file containing the current state of the solver.</span>
+<span id="L9"><span class="lineNum">       9</span>              : This includes things like vortex locations, the current time and timestep, and solver parameters.</span>
+<span id="L10"><span class="lineNum">      10</span>              : The file can be opened using ParaView allowing to visualise the current state (vortex</span>
+<span id="L11"><span class="lineNum">      11</span>              : locations and optionally other quantities).</span>
+<span id="L12"><span class="lineNum">      12</span>              : </span>
+<span id="L13"><span class="lineNum">      13</span>              : In fact it is a VTKHDF file saved using [`FilamentIO.write_vtkhdf`](@ref) which contains</span>
+<span id="L14"><span class="lineNum">      14</span>              : extra information allowing to restart a simulation from a checkpoint while preserving</span>
+<span id="L15"><span class="lineNum">      15</span>              : continuity as much as possible.</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : To ease visualisations, filaments are folded onto the periodic box by default, which differs</span>
+<span id="L18"><span class="lineNum">      18</span>              : from the default behaviour of [`FilamentIO.write_vtkhdf`](@ref). In particular, this means</span>
+<span id="L19"><span class="lineNum">      19</span>              : that filaments may be broken down into multiple elements. One can pass `periods = nothing`</span>
+<span id="L20"><span class="lineNum">      20</span>              : to disable this behaviour.</span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span>              : Keyword arguments are passed to [`FilamentIO.write_vtkhdf`](@ref).</span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span>              : ## Saving velocity and other quantities</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              : One can save other quantities for visualisation by passing an optional `f` function (usually</span>
+<span id="L27"><span class="lineNum">      27</span>              : via a `do` block, as in the example below). See [`FilamentIO.write_vtkhdf`](@ref) and the</span>
+<span id="L28"><span class="lineNum">      28</span>              : examples below for more details.</span>
+<span id="L29"><span class="lineNum">      29</span>              : </span>
+<span id="L30"><span class="lineNum">      30</span>              : ## Examples</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              : Run simulation and save checkpoint at the end:</span>
+<span id="L33"><span class="lineNum">      33</span>              : </span>
+<span id="L34"><span class="lineNum">      34</span>              : ```julia</span>
+<span id="L35"><span class="lineNum">      35</span>              : prob = VortexFilamentProblem(...)</span>
+<span id="L36"><span class="lineNum">      36</span>              : iter = init(prob, RK4(); ...)</span>
+<span id="L37"><span class="lineNum">      37</span>              : solve!(iter)</span>
+<span id="L38"><span class="lineNum">      38</span>              : filename = &quot;filaments_\$(iter.nstep).vtkhdf&quot;</span>
+<span id="L39"><span class="lineNum">      39</span>              : save_checkpoint(filename, iter) do io</span>
+<span id="L40"><span class="lineNum">      40</span>              :     io[&quot;velocity_s&quot;] = iter.vs  # save superfluid velocity on vortices for visualisation</span>
+<span id="L41"><span class="lineNum">      41</span>              : end</span>
+<span id="L42"><span class="lineNum">      42</span>              : ```</span>
+<span id="L43"><span class="lineNum">      43</span>              : &quot;&quot;&quot;</span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC tlaBgGNC">          12 : function save_checkpoint(f::F, filename, iter::VortexFilamentSolver; kwargs...) where {F &lt;: Function}</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">           6 :     periods = iter.prob.p.Ls  # for convenience, by default we fold vortex locations onto periodic box</span></span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">           6 :     FilamentIO.write_vtkhdf(filename, iter.fs; periods, kwargs...) do io</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">           6 :         f(io)  # do optional stuff in /VTKHDF group, e.g. writing other fields such as velocity</span></span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">           6 :         gbase = FilamentIO.root(io)  # &quot;/&quot; group in HDF5 file</span></span>
+<span id="L49"><span class="lineNum">      49</span> <span class="tlaGNC">           6 :         gtop = HDF5.create_group(gbase, &quot;VortexPasta&quot;)</span></span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">           6 :         gtop[&quot;version&quot;] = string(VortexPasta.version())</span></span>
+<span id="L51"><span class="lineNum">      51</span> <span class="tlaGNC">           6 :         gtop[&quot;julia_version&quot;] = string(VERSION)</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">           6 :         let g = HDF5.create_group(gtop, &quot;BiotSavartParams&quot;)</span></span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">           6 :             BiotSavart.to_hdf5(g, iter.prob.p)</span></span>
+<span id="L54"><span class="lineNum">      54</span>              :         end</span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">           6 :         let g = HDF5.create_group(gtop, &quot;VortexFilamentSolver&quot;)</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaGNC">           6 :             let g = HDF5.create_group(g, &quot;Time&quot;)</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">          12 :                 g[&quot;simulation_time_span&quot;] = collect(iter.prob.tspan)</span></span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">           6 :                 g[&quot;simulation_dtmin&quot;] = iter.dtmin</span></span>
+<span id="L59"><span class="lineNum">      59</span> <span class="tlaGNC">           6 :                 _write_all_properties!(g, iter.time)</span></span>
+<span id="L60"><span class="lineNum">      60</span>              :             end</span>
+<span id="L61"><span class="lineNum">      61</span> <span class="tlaGNC">           6 :             let g = HDF5.create_group(g, &quot;SimulationStats&quot;)</span></span>
+<span id="L62"><span class="lineNum">      62</span> <span class="tlaGNC">           6 :                 _write_all_properties!(g, iter.stats)</span></span>
+<span id="L63"><span class="lineNum">      63</span>              :             end</span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">           6 :             g[&quot;temporal_scheme&quot;] = string(scheme(iter.cache_timestepper))</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">           6 :             g[&quot;refinement&quot;] = string(iter.refinement)</span></span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">           6 :             g[&quot;adaptivity&quot;] = string(iter.adaptivity)</span></span>
+<span id="L67"><span class="lineNum">      67</span> <span class="tlaGNC">           6 :             g[&quot;reconnect&quot;] = string(Reconnections.criterion(iter.reconnect))</span></span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">           6 :             g[&quot;fast_term&quot;] = string(iter.fast_term)</span></span>
+<span id="L69"><span class="lineNum">      69</span> <span class="tlaGNC">           6 :             g[&quot;LIA&quot;] = iter.LIA</span></span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">           6 :             g[&quot;fold_periodic&quot;] = iter.fold_periodic</span></span>
+<span id="L71"><span class="lineNum">      71</span>              :             # Write TimerOutputs timer replacing all unicode characters with ASCII ones</span>
+<span id="L72"><span class="lineNum">      72</span>              :             # since h5dump/h5ls don't correctly print unicode (as of HDF5 1.14.6).</span>
+<span id="L73"><span class="lineNum">      73</span> <span class="tlaGNC">           6 :             g[&quot;timer&quot;] = let io = IOBuffer()</span></span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">           6 :                 show(io, iter.to; linechars = :ascii)</span></span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">          12 :                 s = String(take!(io))</span></span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">           6 :                 replace(s, 'μ' =&gt; 'u', '–' =&gt; '-')</span></span>
+<span id="L77"><span class="lineNum">      77</span>              :             end</span>
+<span id="L78"><span class="lineNum">      78</span> <span class="tlaGNC">           6 :             g[&quot;with_affect&quot;] = iter.affect! !== identity</span></span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaGNC">           6 :             g[&quot;with_callback&quot;] = iter.callback !== identity</span></span>
+<span id="L80"><span class="lineNum">      80</span> <span class="tlaGNC">           6 :             g[&quot;with_external_velocity&quot;] = iter.external_fields.velocity !== nothing</span></span>
+<span id="L81"><span class="lineNum">      81</span> <span class="tlaGNC">           6 :             g[&quot;with_external_streamfunction&quot;] = iter.external_fields.streamfunction !== nothing</span></span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">           6 :             g[&quot;with_stretching_velocity&quot;] = iter.stretching_velocity !== nothing</span></span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">           6 :             g[&quot;forcing_type&quot;] = string(typeof(iter.forcing))</span></span>
+<span id="L84"><span class="lineNum">      84</span>              :         end</span>
+<span id="L85"><span class="lineNum">      85</span>              :     end</span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">           6 :     nothing</span></span>
+<span id="L87"><span class="lineNum">      87</span>              : end</span>
+<span id="L88"><span class="lineNum">      88</span>              : </span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">           2 : save_checkpoint(filename, iter::VortexFilamentSolver; kwargs...) = save_checkpoint(identity, filename, iter; kwargs...)</span></span>
+<span id="L90"><span class="lineNum">      90</span>              : </span>
+<span id="L91"><span class="lineNum">      91</span>              : struct LoadedCheckpoint{Filaments, Time &lt;: TimeInfo, Stats &lt;: SimulationStats}</span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">           1 :     fs    :: Filaments</span></span>
+<span id="L93"><span class="lineNum">      93</span>              :     time  :: Time</span>
+<span id="L94"><span class="lineNum">      94</span>              :     stats :: Stats</span>
+<span id="L95"><span class="lineNum">      95</span>              : end</span>
+<span id="L96"><span class="lineNum">      96</span>              : </span>
+<span id="L97"><span class="lineNum">      97</span>              : &quot;&quot;&quot;</span>
+<span id="L98"><span class="lineNum">      98</span>              :     load_checkpoint(filename, T, method::DiscretisationMethod) -&gt; LoadedCheckpoint</span>
+<span id="L99"><span class="lineNum">      99</span>              : </span>
+<span id="L100"><span class="lineNum">     100</span>              : Load simulation state previously written by [`save_checkpoint`](@ref).</span>
+<span id="L101"><span class="lineNum">     101</span>              : </span>
+<span id="L102"><span class="lineNum">     102</span>              : The resulting checkpoint can be used to construct a [`VortexFilamentProblem`](@ref).</span>
+<span id="L103"><span class="lineNum">     103</span>              : </span>
+<span id="L104"><span class="lineNum">     104</span>              : ## Examples</span>
+<span id="L105"><span class="lineNum">     105</span>              : </span>
+<span id="L106"><span class="lineNum">     106</span>              : Restart simulation from checkpoint:</span>
+<span id="L107"><span class="lineNum">     107</span>              : </span>
+<span id="L108"><span class="lineNum">     108</span>              : ```julia</span>
+<span id="L109"><span class="lineNum">     109</span>              : p = BiotSavartParams(...)</span>
+<span id="L110"><span class="lineNum">     110</span>              : checkpoint = load_checkpoint(&quot;filaments_1234.vtkhdf&quot;, Float64, CubicSplineMethod())</span>
+<span id="L111"><span class="lineNum">     111</span>              : tsim = 2.0  # total simulation time</span>
+<span id="L112"><span class="lineNum">     112</span>              : prob = VortexFilamentProblem(checkpoint, tsim, p)</span>
+<span id="L113"><span class="lineNum">     113</span>              : iter = init(prob, RK4(); ...)</span>
+<span id="L114"><span class="lineNum">     114</span>              : solve!(iter)</span>
+<span id="L115"><span class="lineNum">     115</span>              : ```</span>
+<span id="L116"><span class="lineNum">     116</span>              : &quot;&quot;&quot;</span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">           1 : function load_checkpoint(filename, ::Type{T}, method::DiscretisationMethod) where {T &lt;: AbstractFloat}</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">           1 :     time = TimeInfo()</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">           1 :     stats = SimulationStats(T)</span></span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">           1 :     fs = FilamentIO.read_vtkhdf(filename, T, method) do io</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">           1 :         gbase = FilamentIO.root(io)  # &quot;/&quot; group in HDF5 file</span></span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">           1 :         haskey(gbase, &quot;VortexPasta&quot;) || error(</span></span>
+<span id="L123"><span class="lineNum">     123</span>              :             lazy&quot;&quot;&quot;HDF5 file &quot;$filename&quot; doesn't contain a /VortexPasta group.</span>
+<span id="L124"><span class="lineNum">     124</span>              :             Are you sure it was written using save_checkpoint?</span>
+<span id="L125"><span class="lineNum">     125</span>              :             Note that files written using FilamentIO.write_vtkhdf cannot be loaded as checkpoints since they don't have enough data.</span>
+<span id="L126"><span class="lineNum">     126</span>              :             &quot;&quot;&quot;</span>
+<span id="L127"><span class="lineNum">     127</span>              :         )</span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">           1 :         gtop = HDF5.open_group(gbase, &quot;VortexPasta&quot;)</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">           1 :         let g = HDF5.open_group(gtop, &quot;VortexFilamentSolver&quot;)</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">           1 :             let g = HDF5.open_group(g, &quot;Time&quot;)</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">           1 :                 _read_all_properties!(g, time)</span></span>
+<span id="L132"><span class="lineNum">     132</span>              :             end</span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">           1 :             let g = HDF5.open_group(g, &quot;SimulationStats&quot;)</span></span>
+<span id="L134"><span class="lineNum">     134</span> <span class="tlaGNC">           1 :                 _read_all_properties!(g, stats)</span></span>
+<span id="L135"><span class="lineNum">     135</span>              :             end</span>
+<span id="L136"><span class="lineNum">     136</span>              :         end</span>
+<span id="L137"><span class="lineNum">     137</span>              :     end</span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">           1 :     LoadedCheckpoint(fs, time, stats)</span></span>
+<span id="L139"><span class="lineNum">     139</span>              : end</span>
+<span id="L140"><span class="lineNum">     140</span>              : </span>
+<span id="L141"><span class="lineNum">     141</span>              : # Create problem from checkpoint</span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">           1 : function VortexFilamentProblem(</span></span>
+<span id="L143"><span class="lineNum">     143</span>              :         checkpoint::LoadedCheckpoint, tsim::Real, p::ParamsBiotSavart,</span>
+<span id="L144"><span class="lineNum">     144</span>              :     )</span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">           1 :     (; fs, time, stats,) = checkpoint</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">           1 :     state = (; time, stats,)  # solver state</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">           1 :     tspan = (time.t, time.t + tsim)</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">           1 :     VortexFilamentProblem(fs, tspan, p, state)</span></span>
+<span id="L149"><span class="lineNum">     149</span>              : end</span>
+<span id="L150"><span class="lineNum">     150</span>              : </span>
+<span id="L151"><span class="lineNum">     151</span>              : # Write all properties of object to HDF5 group</span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">          12 : function _write_all_properties!(g, obj)</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">          12 :     foreach(propertynames(obj)) do name</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">          54 :         @inline</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">          54 :         g[string(name)] = getproperty(obj, name)</span></span>
+<span id="L156"><span class="lineNum">     156</span>              :     end</span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">          12 :     nothing</span></span>
+<span id="L158"><span class="lineNum">     158</span>              : end</span>
+<span id="L159"><span class="lineNum">     159</span>              : </span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">           2 : function _read_all_properties!(g, obj)</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">           2 :     foreach(propertynames(obj)) do name</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">           9 :         @inline</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">           9 :         T = fieldtype(typeof(obj), name)</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">          13 :         val = read(g, string(name) =&gt; T)::T</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">           9 :         setproperty!(obj, name, val)</span></span>
+<span id="L166"><span class="lineNum">     166</span>              :     end</span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">           2 :     obj</span></span>
+<span id="L168"><span class="lineNum">     168</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

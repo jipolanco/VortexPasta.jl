@@ -1,0 +1,447 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/Filaments/src/Filaments/closed_filament.jl</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">src/Filaments/src/Filaments</a> - closed_filament.jl</td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">99.0&nbsp;%</td>
+            <td class="headerCovTableEntry">105</td>
+            <td class="headerCovTableEntry">104</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-06-12 14:00:43</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : export ClosedFilament</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : @doc raw&quot;&quot;&quot;</span>
+<span id="L4"><span class="lineNum">       4</span>              :     ClosedFilament{T, D &lt;: DiscretisationMethod} &lt;: AbstractFilament{T}</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : Describes a closed curve (a loop) in 3D space.</span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              : It can also be used to represent infinite but unclosed curves described by a periodic function</span>
+<span id="L9"><span class="lineNum">       9</span>              : (such as an infinite straight line or a sinusoidal curve).</span>
+<span id="L10"><span class="lineNum">      10</span>              : </span>
+<span id="L11"><span class="lineNum">      11</span>              : `ClosedFilament`s should be generally constructed using [`Filaments.init`](@ref).</span>
+<span id="L12"><span class="lineNum">      12</span>              : </span>
+<span id="L13"><span class="lineNum">      13</span>              : # Extended help</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              : ## Examples</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : The following examples use the [`CubicSplineMethod`](@ref) for representing filament curves,</span>
+<span id="L18"><span class="lineNum">      18</span>              : but other methods are also available.</span>
+<span id="L19"><span class="lineNum">      19</span>              : </span>
+<span id="L20"><span class="lineNum">      20</span>              : Initialise filament from a set of discretisation points:</span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span>              : ```jldoctest ClosedFilament; filter = r&quot;(\d*)\.(\d{13})\d+&quot; =&gt; s&quot;\1.\2***&quot;</span>
+<span id="L23"><span class="lineNum">      23</span>              : julia&gt; f = Filaments.init(ClosedFilament, 16, CubicSplineMethod());</span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span>              : julia&gt; θs = range(-1, 1; length = 17)[1:16]</span>
+<span id="L26"><span class="lineNum">      26</span>              : -1.0:0.125:0.875</span>
+<span id="L27"><span class="lineNum">      27</span>              : </span>
+<span id="L28"><span class="lineNum">      28</span>              : julia&gt; @. f = Vec3(cospi(θs), sinpi(θs), 0);</span>
+<span id="L29"><span class="lineNum">      29</span>              : </span>
+<span id="L30"><span class="lineNum">      30</span>              : julia&gt; f[4]</span>
+<span id="L31"><span class="lineNum">      31</span>              : 3-element SVector{3, Float64} with indices SOneTo(3):</span>
+<span id="L32"><span class="lineNum">      32</span>              :  -0.3826834323650898</span>
+<span id="L33"><span class="lineNum">      33</span>              :  -0.9238795325112867</span>
+<span id="L34"><span class="lineNum">      34</span>              :   0.0</span>
+<span id="L35"><span class="lineNum">      35</span>              : </span>
+<span id="L36"><span class="lineNum">      36</span>              : julia&gt; f[5] = (f[4] + 2 * f[6]) ./ 2</span>
+<span id="L37"><span class="lineNum">      37</span>              : 3-element SVector{3, Float64} with indices SOneTo(3):</span>
+<span id="L38"><span class="lineNum">      38</span>              :   0.1913417161825449</span>
+<span id="L39"><span class="lineNum">      39</span>              :  -1.38581929876693</span>
+<span id="L40"><span class="lineNum">      40</span>              :   0.0</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span>              : julia&gt; update_coefficients!(f);</span>
+<span id="L43"><span class="lineNum">      43</span>              : ```</span>
+<span id="L44"><span class="lineNum">      44</span>              : </span>
+<span id="L45"><span class="lineNum">      45</span>              : Note that [`update_coefficients!`](@ref) should be called whenever filament</span>
+<span id="L46"><span class="lineNum">      46</span>              : coordinates are changed, before doing other operations such as estimating</span>
+<span id="L47"><span class="lineNum">      47</span>              : derivatives.</span>
+<span id="L48"><span class="lineNum">      48</span>              : </span>
+<span id="L49"><span class="lineNum">      49</span>              : Estimate derivatives at discretisation points:</span>
+<span id="L50"><span class="lineNum">      50</span>              : </span>
+<span id="L51"><span class="lineNum">      51</span>              : ```jldoctest ClosedFilament; filter = r&quot;(\d*)\.(\d{13})\d+&quot; =&gt; s&quot;\1.\2***&quot;</span>
+<span id="L52"><span class="lineNum">      52</span>              : julia&gt; f[4, Derivative(1)]</span>
+<span id="L53"><span class="lineNum">      53</span>              : 3-element SVector{3, Float64} with indices SOneTo(3):</span>
+<span id="L54"><span class="lineNum">      54</span>              :   0.9090457394297018</span>
+<span id="L55"><span class="lineNum">      55</span>              :  -0.7273334611006509</span>
+<span id="L56"><span class="lineNum">      56</span>              :   0.0</span>
+<span id="L57"><span class="lineNum">      57</span>              : </span>
+<span id="L58"><span class="lineNum">      58</span>              : julia&gt; f[4, Derivative(2)]</span>
+<span id="L59"><span class="lineNum">      59</span>              : 3-element SVector{3, Float64} with indices SOneTo(3):</span>
+<span id="L60"><span class="lineNum">      60</span>              :   0.20911715113294102</span>
+<span id="L61"><span class="lineNum">      61</span>              :  -2.09047051482799</span>
+<span id="L62"><span class="lineNum">      62</span>              :   0.0</span>
+<span id="L63"><span class="lineNum">      63</span>              : ```</span>
+<span id="L64"><span class="lineNum">      64</span>              : </span>
+<span id="L65"><span class="lineNum">      65</span>              : Estimate coordinates and derivatives in-between discretisation points:</span>
+<span id="L66"><span class="lineNum">      66</span>              : </span>
+<span id="L67"><span class="lineNum">      67</span>              : ```jldoctest ClosedFilament; filter = r&quot;(\d*)\.(\d{13})\d+&quot; =&gt; s&quot;\1.\2***&quot;</span>
+<span id="L68"><span class="lineNum">      68</span>              : julia&gt; f(4, 0.32)</span>
+<span id="L69"><span class="lineNum">      69</span>              : 3-element SVector{3, Float64} with indices SOneTo(3):</span>
+<span id="L70"><span class="lineNum">      70</span>              :  -0.16753415613203387</span>
+<span id="L71"><span class="lineNum">      71</span>              :  -1.1324592487590195</span>
+<span id="L72"><span class="lineNum">      72</span>              :   0.0</span>
+<span id="L73"><span class="lineNum">      73</span>              : </span>
+<span id="L74"><span class="lineNum">      74</span>              : julia&gt; Ẋ, Ẍ = f(4, 0.32, Derivative(1)), f(4, 0.32, Derivative(2))</span>
+<span id="L75"><span class="lineNum">      75</span>              : ([0.8947546127964856, -0.9527970723463657, 0.0], [-0.3303413370703831, 0.17798009799460934, 0.0])</span>
+<span id="L76"><span class="lineNum">      76</span>              : </span>
+<span id="L77"><span class="lineNum">      77</span>              : julia&gt; X′, X″ = f(4, 0.32, UnitTangent()), f(4, 0.32, CurvatureVector())</span>
+<span id="L78"><span class="lineNum">      78</span>              : ([0.6845546705034081, -0.7289615237390588, 0.0], [-0.050762951240829336, -0.047670575508846375, 0.0])</span>
+<span id="L79"><span class="lineNum">      79</span>              : ```</span>
+<span id="L80"><span class="lineNum">      80</span>              : </span>
+<span id="L81"><span class="lineNum">      81</span>              : ## Curve parametrisation</span>
+<span id="L82"><span class="lineNum">      82</span>              : </span>
+<span id="L83"><span class="lineNum">      83</span>              : The parametrisation knots ``t_i`` are directly obtained from the interpolation point</span>
+<span id="L84"><span class="lineNum">      84</span>              : positions.</span>
+<span id="L85"><span class="lineNum">      85</span>              : A standard choice, which is used here by default, is for the knot increments to</span>
+<span id="L86"><span class="lineNum">      86</span>              : approximate the arc length between two interpolation points:</span>
+<span id="L87"><span class="lineNum">      87</span>              : </span>
+<span id="L88"><span class="lineNum">      88</span>              : ```math</span>
+<span id="L89"><span class="lineNum">      89</span>              : ℓ_{i} ≡ t_{i + 1} - t_{i} = |\bm{s}_{i + 1} - \bm{s}_i|,</span>
+<span id="L90"><span class="lineNum">      90</span>              : ```</span>
+<span id="L91"><span class="lineNum">      91</span>              : </span>
+<span id="L92"><span class="lineNum">      92</span>              : which is a zero-th order approximation (and a lower bound) for the actual</span>
+<span id="L93"><span class="lineNum">      93</span>              : arc length between points ``\bm{s}_i`` and ``\bm{s}_{i + 1}``.</span>
+<span id="L94"><span class="lineNum">      94</span>              : </span>
+<span id="L95"><span class="lineNum">      95</span>              : &quot;&quot;&quot;</span>
+<span id="L96"><span class="lineNum">      96</span>              : struct ClosedFilament{</span>
+<span id="L97"><span class="lineNum">      97</span>              :         T,</span>
+<span id="L98"><span class="lineNum">      98</span>              :         Method &lt;: DiscretisationMethod,</span>
+<span id="L99"><span class="lineNum">      99</span>              :         Parametrisation &lt;: AbstractParametrisation,</span>
+<span id="L100"><span class="lineNum">     100</span>              :         M,  # padding (for dealing with periodicity)</span>
+<span id="L101"><span class="lineNum">     101</span>              :         Knots &lt;: PaddedVector{M, T},</span>
+<span id="L102"><span class="lineNum">     102</span>              :         Points &lt;: PaddedVector{M, Vec3{T}},</span>
+<span id="L103"><span class="lineNum">     103</span>              :         Coefs &lt;: DiscretisationCoefs{Vec3{T}, Method},</span>
+<span id="L104"><span class="lineNum">     104</span>              :     } &lt;: AbstractFilament{T, Method, Parametrisation}</span>
+<span id="L105"><span class="lineNum">     105</span>              : </span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC tlaBgGNC">        2871 :     parametrisation :: Parametrisation  # parametrisation function</span></span>
+<span id="L107"><span class="lineNum">     107</span>              : </span>
+<span id="L108"><span class="lineNum">     108</span>              :     # Parametrisation knots tᵢ.</span>
+<span id="L109"><span class="lineNum">     109</span>              :     ts :: Knots</span>
+<span id="L110"><span class="lineNum">     110</span>              : </span>
+<span id="L111"><span class="lineNum">     111</span>              :     # Discretisation points s⃗ᵢ.</span>
+<span id="L112"><span class="lineNum">     112</span>              :     Xs :: Points</span>
+<span id="L113"><span class="lineNum">     113</span>              : </span>
+<span id="L114"><span class="lineNum">     114</span>              :     # Discretisation and interpolation coefficients.</span>
+<span id="L115"><span class="lineNum">     115</span>              :     coefs :: Coefs</span>
+<span id="L116"><span class="lineNum">     116</span>              : </span>
+<span id="L117"><span class="lineNum">     117</span>              :     # End-to-end offset.</span>
+<span id="L118"><span class="lineNum">     118</span>              :     Xoffset :: Vec3{T}</span>
+<span id="L119"><span class="lineNum">     119</span>              : end</span>
+<span id="L120"><span class="lineNum">     120</span>              : </span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">        6917 : function ClosedFilament(</span></span>
+<span id="L122"><span class="lineNum">     122</span>              :         parametrisation::F, Xs::PaddedVector{M, Vec3{T}}, method::DiscretisationMethod;</span>
+<span id="L123"><span class="lineNum">     123</span>              :         offset = zero(Vec3{T}), nderivs::Val{Nderivs} = Val(2),</span>
+<span id="L124"><span class="lineNum">     124</span>              :     ) where {F &lt;: Function, M, T, Nderivs}</span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">        2349 :     @assert M == npad(method)</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">        4698 :     ts = similar(Xs, T)</span></span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">        3456 :     coefs = init_coefficients(method, Xs, nderivs)</span></span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">        2349 :     C = continuity(method)</span></span>
+<span id="L129"><span class="lineNum">     129</span>              :     # Always allow Nderivs ≤ 2</span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">        2349 :     max(C, 2) ≥ Nderivs || throw(ArgumentError(lazy&quot;$method only allows up to $C derivatives&quot;))</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">        2349 :     Xoffset = convert(Vec3{T}, offset)</span></span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">        2349 :     ClosedFilament(to_parametrisation(parametrisation), ts, Xs, coefs, Xoffset)</span></span>
+<span id="L133"><span class="lineNum">     133</span>              : end</span>
+<span id="L134"><span class="lineNum">     134</span>              : </span>
+<span id="L135"><span class="lineNum">     135</span> <span class="tlaUNC tlaBgUNC">           0 : ClosedFilament(Xs::PaddedVector, method::DiscretisationMethod; kws...) =</span></span>
+<span id="L136"><span class="lineNum">     136</span>              :     ClosedFilament(default_parametrisation(method), Xs, method; kws...)</span>
+<span id="L137"><span class="lineNum">     137</span>              : </span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC tlaBgGNC">   578144045 : discretisation_method(::Type{&lt;:ClosedFilament{T, D}}) where {T, D} = D()</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">   578218752 : discretisation_method(f::ClosedFilament) = discretisation_method(typeof(f))</span></span>
+<span id="L140"><span class="lineNum">     140</span>              : </span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">          20 : interpolation_method(f::ClosedFilament) = interpolation_method(discretisation_method(f))</span></span>
+<span id="L142"><span class="lineNum">     142</span>              : </span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">          32 : init(::Type{ClosedFilament}, N::Integer, args...; kws...) =</span></span>
+<span id="L144"><span class="lineNum">     144</span>              :     init(ClosedFilament{Float64}, N, args...; kws...)</span>
+<span id="L145"><span class="lineNum">     145</span>              : </span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">         156 : init(func::Func, ::Type{ClosedFilament}, args...; kws...) where {Func} =</span></span>
+<span id="L147"><span class="lineNum">     147</span>              :     init(func, ClosedFilament{Float64}, args...; kws...)</span>
+<span id="L148"><span class="lineNum">     148</span>              : </span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">         729 : function init(</span></span>
+<span id="L150"><span class="lineNum">     150</span>              :         ::Type{ClosedFilament{T}}, N::Integer, method::DiscretisationMethod;</span>
+<span id="L151"><span class="lineNum">     151</span>              :         parametrisation::F = default_parametrisation(method), kws...,</span>
+<span id="L152"><span class="lineNum">     152</span>              :     ) where {T, F}</span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">         243 :     M = npad(method)</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">         474 :     Xs = PaddedVector{M}(Vector{Vec3{T}}(undef, N + 2M))</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">         478 :     ClosedFilament(parametrisation, Xs, method; kws...)</span></span>
+<span id="L156"><span class="lineNum">     156</span>              : end</span>
+<span id="L157"><span class="lineNum">     157</span>              : </span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">         188 : function init(</span></span>
+<span id="L159"><span class="lineNum">     159</span>              :         ::Type{&lt;:ClosedFilament}, Xs::PaddedVector{M, &lt;:Vec3}, method::DiscretisationMethod;</span>
+<span id="L160"><span class="lineNum">     160</span>              :         parametrisation::F = default_parametrisation(method), kws...,</span>
+<span id="L161"><span class="lineNum">     161</span>              :     ) where {M, F}</span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">          94 :     @assert M == npad(method)</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">         185 :     f = ClosedFilament(parametrisation, Xs, method; kws...)</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">          94 :     update_coefficients!(f)</span></span>
+<span id="L165"><span class="lineNum">     165</span>              : end</span>
+<span id="L166"><span class="lineNum">     166</span>              : </span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">         234 : function init(</span></span>
+<span id="L168"><span class="lineNum">     168</span>              :         S::Func, ::Type{ClosedFilament{T}},</span>
+<span id="L169"><span class="lineNum">     169</span>              :         τs::AbstractVector, method::DiscretisationMethod;</span>
+<span id="L170"><span class="lineNum">     170</span>              :         kws...,</span>
+<span id="L171"><span class="lineNum">     171</span>              :     ) where {Func &lt;: Function, T}</span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">         117 :     offset = S(1) .- S(0)</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">         234 :     f = init(ClosedFilament{T}, length(τs), method; offset, kws...)</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">         117 :     @assert eachindex(f) == eachindex(τs)</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">         234 :     for (i, τ) ∈ pairs(τs)</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">        3971 :         f[i] = S(τ)</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">        7825 :     end</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">         117 :     update_coefficients!(f)</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">         117 :     f</span></span>
+<span id="L180"><span class="lineNum">     180</span>              : end</span>
+<span id="L181"><span class="lineNum">     181</span>              : </span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">         144 : function init(</span></span>
+<span id="L183"><span class="lineNum">     183</span>              :         S::Func, ::Type{ClosedFilament{T}}, N::Integer, args...;</span>
+<span id="L184"><span class="lineNum">     184</span>              :         kws...,</span>
+<span id="L185"><span class="lineNum">     185</span>              :     ) where {Func, T}</span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">         133 :     τs = range(0, 1; length = 2N + 1)[2:2:2N]</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">          72 :     init(S, ClosedFilament{T}, τs, args...; kws...)</span></span>
+<span id="L188"><span class="lineNum">     188</span>              : end</span>
+<span id="L189"><span class="lineNum">     189</span>              : </span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">         567 : function knotlims(f::ClosedFilament)</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">         567 :     ts = knots(f) :: PaddedVector</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">         567 :     ts[begin], ts[end + 1]  # we can index at end+1 thanks to padding</span></span>
+<span id="L193"><span class="lineNum">     193</span>              : end</span>
+<span id="L194"><span class="lineNum">     194</span>              : </span>
+<span id="L195"><span class="lineNum">     195</span>              : &quot;&quot;&quot;</span>
+<span id="L196"><span class="lineNum">     196</span>              :     end_to_end_offset(f::ClosedFilament{T}) -&gt; Vec3{T}</span>
+<span id="L197"><span class="lineNum">     197</span>              : </span>
+<span id="L198"><span class="lineNum">     198</span>              : Return the end-to-end offset `Δ⃗ = f[end + 1] - f[begin]` of a &quot;closed&quot; filament.</span>
+<span id="L199"><span class="lineNum">     199</span>              : </span>
+<span id="L200"><span class="lineNum">     200</span>              : For actually closed filaments, the end-to-end offset is zero. However, `ClosedFilament` also</span>
+<span id="L201"><span class="lineNum">     201</span>              : supports the case of infinite (but unclosed) filaments, which infinitely extend along one or</span>
+<span id="L202"><span class="lineNum">     202</span>              : more Cartesian directions. The restriction imposed by `ClosedFilament` is that infinite</span>
+<span id="L203"><span class="lineNum">     203</span>              : filaments repeat themselves periodically, such that `f[i + m * N] == f[i] + m * Δ⃗` where `N`</span>
+<span id="L204"><span class="lineNum">     204</span>              : is the `length` of the filament (i.e. the number of degrees of freedom, or the total number</span>
+<span id="L205"><span class="lineNum">     205</span>              : of *independent* filament nodes).</span>
+<span id="L206"><span class="lineNum">     206</span>              : &quot;&quot;&quot;</span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">      209533 : end_to_end_offset(f::ClosedFilament) = f.Xoffset</span></span>
+<span id="L208"><span class="lineNum">     208</span>              : </span>
+<span id="L209"><span class="lineNum">     209</span>              : &quot;&quot;&quot;</span>
+<span id="L210"><span class="lineNum">     210</span>              :     change_offset(f::ClosedFilament, offset::Vec3{&lt;:Real}) -&gt; f′</span>
+<span id="L211"><span class="lineNum">     211</span>              : </span>
+<span id="L212"><span class="lineNum">     212</span>              : Change spatial offset between a filament start and endpoints.</span>
+<span id="L213"><span class="lineNum">     213</span>              : </span>
+<span id="L214"><span class="lineNum">     214</span>              : See [`init`](@ref) for more details on optional spatial offsets.</span>
+<span id="L215"><span class="lineNum">     215</span>              : </span>
+<span id="L216"><span class="lineNum">     216</span>              : This function is allocation-free. It returns a new filament which shares the same</span>
+<span id="L217"><span class="lineNum">     217</span>              : arrays as `f`, and only differs in the offset. Modifying nodes of the returned</span>
+<span id="L218"><span class="lineNum">     218</span>              : filament also modifies nodes of `f`.</span>
+<span id="L219"><span class="lineNum">     219</span>              : &quot;&quot;&quot;</span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">         522 : function change_offset(f::ClosedFilament{T}, offset::Vec3) where {T}</span></span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">         522 :     Xoffset = convert(Vec3{T}, offset)</span></span>
+<span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">         522 :     ClosedFilament(f.parametrisation, f.ts, f.Xs, f.coefs, Xoffset)</span></span>
+<span id="L223"><span class="lineNum">     223</span>              : end</span>
+<span id="L224"><span class="lineNum">     224</span>              : </span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">      129824 : allvectors(f::ClosedFilament) = (f.ts, f.Xs, allvectors(f.coefs)...)</span></span>
+<span id="L226"><span class="lineNum">     226</span>              : </span>
+<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">        1867 : function Base.similar(f::ClosedFilament, ::Type{T}, dims::Dims{1}) where {T &lt;: Number}</span></span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">        3728 :     similar_filament(f, T, dims)</span></span>
+<span id="L229"><span class="lineNum">     229</span>              : end</span>
+<span id="L230"><span class="lineNum">     230</span>              : </span>
+<span id="L231"><span class="lineNum">     231</span>              : # Like `similar` but accepts custom kwargs (offset, nderivs, ...).</span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">        6030 : function similar_filament(</span></span>
+<span id="L233"><span class="lineNum">     233</span>              :         f::ClosedFilament, ::Type{T}, dims::Dims{1};</span>
+<span id="L234"><span class="lineNum">     234</span>              :         offset = f.Xoffset,</span>
+<span id="L235"><span class="lineNum">     235</span>              :         method = discretisation_method(f),</span>
+<span id="L236"><span class="lineNum">     236</span>              :         nderivs::Val = Val(nderivatives(f)),</span>
+<span id="L237"><span class="lineNum">     237</span>              :     ) where {T &lt;: Number}</span>
+<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">        4018 :     Xs = similar(nodes(f), Vec3{T}, dims)</span></span>
+<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">        3905 :     ClosedFilament(f.parametrisation, Xs, method; offset, nderivs)</span></span>
+<span id="L240"><span class="lineNum">     240</span>              : end</span>
+<span id="L241"><span class="lineNum">     241</span>              : </span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">      382006 : function update_coefficients!(f::ClosedFilament; knots = nothing)</span></span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">      191003 :     (; parametrisation, ts, Xs,) = f</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">      191003 :     Xoffset = end_to_end_offset(f)</span></span>
+<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">      191003 :     M = npad(Xs)</span></span>
+<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">      191003 :     check_nodes(f)</span></span>
+<span id="L247"><span class="lineNum">     247</span>              : </span>
+<span id="L248"><span class="lineNum">     248</span>              :     # 1. Periodically pad Xs.</span>
+<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">      798360 :     pad_periodic!(Xs, Xoffset)</span></span>
+<span id="L250"><span class="lineNum">     250</span>              : </span>
+<span id="L251"><span class="lineNum">     251</span>              :     # 2. Compute parametrisation knots `ts`.</span>
+<span id="L252"><span class="lineNum">     252</span> <span class="tlaGNC">      191003 :     @assert M == npad(ts)</span></span>
+<span id="L253"><span class="lineNum">     253</span> <span class="tlaGNC">      191003 :     @assert M ≥ 1  # minimum padding required for computation of ts</span></span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">      346554 :     _update_knots_periodic!(parametrisation, ts, Xs, knots)</span></span>
+<span id="L255"><span class="lineNum">     255</span>              : </span>
+<span id="L256"><span class="lineNum">     256</span>              :     # 3. Estimate coefficients needed for derivatives and interpolations.</span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">      191003 :     _update_coefficients_only!(f)</span></span>
+<span id="L258"><span class="lineNum">     258</span>              : </span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">      191003 :     f</span></span>
+<span id="L260"><span class="lineNum">     260</span>              : end</span>
+<span id="L261"><span class="lineNum">     261</span>              : </span>
+<span id="L262"><span class="lineNum">     262</span> <span class="tlaGNC">      385922 : function _update_coefficients_only!(f::ClosedFilament; kws...)</span></span>
+<span id="L263"><span class="lineNum">     263</span>              :     # Dispatch to the implementation associated to the chosen discretisation method.</span>
+<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">      192961 :     method = discretisation_method(f)</span></span>
+<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">      192961 :     _update_coefficients_only!(method, f; kws...)</span></span>
+<span id="L266"><span class="lineNum">     266</span>              : end</span>
+<span id="L267"><span class="lineNum">     267</span>              : </span>
+<span id="L268"><span class="lineNum">     268</span>              : ## Evaluation of values and derivatives on discretisation points (nodes)</span>
+<span id="L269"><span class="lineNum">     269</span> <span class="tlaGNC">          24 : (f::ClosedFilament)(node::AtNode, ::Derivative{0} = Derivative(0)) = f[node.i]</span></span>
+<span id="L270"><span class="lineNum">     270</span>              : </span>
+<span id="L271"><span class="lineNum">     271</span>              : # We let the different discretisation methods provide (possibly optimised) implementations</span>
+<span id="L272"><span class="lineNum">     272</span>              : # for derivatives at nodes:</span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">    18216635 : (f::ClosedFilament)(node::AtNode, d::Derivative) =</span></span>
+<span id="L274"><span class="lineNum">     274</span>              :     _derivative_at_node(d, discretisation_method(f), f::ClosedFilament, node::AtNode)</span>
+<span id="L275"><span class="lineNum">     275</span>              : </span>
+<span id="L276"><span class="lineNum">     276</span>              : ## Interpolation of values and derivatives in-between nodes</span>
+<span id="L277"><span class="lineNum">     277</span>              : </span>
+<span id="L278"><span class="lineNum">     278</span>              : # 1. If we know the interpolation segment (here ζ ∈ [0, 1])</span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">   818757158 : function (f::ClosedFilament{T})(i::Int, ζ_in::Number, d::Derivative = Derivative(0)) where {T}</span></span>
+<span id="L280"><span class="lineNum">     280</span> <span class="tlaGNC">   917809553 :     ζ = _convert_float(T, ζ_in)</span></span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">   778552556 :     _interpolate(discretisation_method(f), f, i, ζ, d)</span></span>
+<span id="L282"><span class="lineNum">     282</span>              : end</span>
+<span id="L283"><span class="lineNum">     283</span>              : </span>
+<span id="L284"><span class="lineNum">     284</span>              : # 2. If we don't know the interpolation segment (here `t` is the curve parameter).</span>
+<span id="L285"><span class="lineNum">     285</span> <span class="tlaGNC">       40870 : function (f::ClosedFilament{T})(</span></span>
+<span id="L286"><span class="lineNum">     286</span>              :         t_in::Number, d::Derivative = Derivative(0);</span>
+<span id="L287"><span class="lineNum">     287</span>              :         ileft::Union{Nothing, Int} = nothing,</span>
+<span id="L288"><span class="lineNum">     288</span>              :     ) where {T}</span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">       10390 :     t = _convert_float(T, t_in)</span></span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">       18880 :     _interpolate(discretisation_method(f), f, t, d; ileft)</span></span>
+<span id="L291"><span class="lineNum">     291</span>              : end</span>
+<span id="L292"><span class="lineNum">     292</span>              : </span>
+<span id="L293"><span class="lineNum">     293</span>              : # Convert value to type T. We don't perform conversion if the value is not a float.</span>
+<span id="L294"><span class="lineNum">     294</span>              : # This is to workaround issue when working with ForwardDiff.Dual (which is never an</span>
+<span id="L295"><span class="lineNum">     295</span>              : # AbstractFloat).</span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">   561628722 : _convert_float(::Type{T}, x::AbstractFloat) where {T} = convert(T, x)</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">          16 : _convert_float(::Type{T}, x) where {T} = x</span></span>
+<span id="L298"><span class="lineNum">     298</span>              : </span>
+<span id="L299"><span class="lineNum">     299</span>              : ## Knot insertion and removal.</span>
+<span id="L300"><span class="lineNum">     300</span>              : #  We allow the different discretisation methods to implement their own versions (for</span>
+<span id="L301"><span class="lineNum">     301</span>              : #  example, using standard knot insertion algorithms for splines).</span>
+<span id="L302"><span class="lineNum">     302</span>              : </span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">        2126 : insert_node!(f::ClosedFilament, i::Integer, ζ::Real) =</span></span>
+<span id="L304"><span class="lineNum">     304</span>              :     _insert_node!(discretisation_method(f), f, i, ζ)</span>
+<span id="L305"><span class="lineNum">     305</span>              : </span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaGNC">        1915 : remove_node!(f::ClosedFilament, i::Integer) =</span></span>
+<span id="L307"><span class="lineNum">     307</span>              :     _remove_node!(discretisation_method(f), f, i)</span>
+<span id="L308"><span class="lineNum">     308</span>              : </span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">        4262 : update_after_changing_nodes!(f::ClosedFilament; removed = true) =</span></span>
+<span id="L310"><span class="lineNum">     310</span>              :     _update_after_changing_nodes!(discretisation_method(f), f; removed)</span>
+<span id="L311"><span class="lineNum">     311</span>              : </span>
+<span id="L312"><span class="lineNum">     312</span>              : ## Default implementation</span>
+<span id="L313"><span class="lineNum">     313</span>              : </span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">         103 : function _insert_node!(::DiscretisationMethod, f::ClosedFilament, i::Integer, ζ::Real)</span></span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">         103 :     (; Xs, ts,) = f</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">         103 :     (; cs, cderivs,) = f.coefs</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">         103 :     nderivs = length(cderivs)</span></span>
+<span id="L318"><span class="lineNum">     318</span>              : </span>
+<span id="L319"><span class="lineNum">     319</span>              :     # New point to be added.</span>
+<span id="L320"><span class="lineNum">     320</span>              :     # Note: this uses derivatives at nodes (Hermite interpolations), so make sure they are up to date!</span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">         103 :     s⃗ = f(i, ζ)</span></span>
+<span id="L322"><span class="lineNum">     322</span>              : </span>
+<span id="L323"><span class="lineNum">     323</span>              :     # We also insert new derivatives in case we need to perform Hermite interpolations later</span>
+<span id="L324"><span class="lineNum">     324</span>              :     # (for instance if we insert other nodes).</span>
+<span id="L325"><span class="lineNum">     325</span>              :     # Derivatives will be recomputed later when calling `update_after_changing_nodes!`.</span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">         103 :     derivs = _eval_derivatives_up_to(Val(nderivs), f, i, ζ)</span></span>
+<span id="L327"><span class="lineNum">     327</span>              : </span>
+<span id="L328"><span class="lineNum">     328</span>              :     # New knot location</span>
+<span id="L329"><span class="lineNum">     329</span> <span class="tlaGNC">         103 :     t = (1 - ζ) * ts[i] + ζ * ts[i + 1]</span></span>
+<span id="L330"><span class="lineNum">     330</span>              : </span>
+<span id="L331"><span class="lineNum">     331</span> <span class="tlaGNC">         103 :     insert!(ts, i + 1, t)</span></span>
+<span id="L332"><span class="lineNum">     332</span> <span class="tlaGNC">         103 :     insert!(Xs, i + 1, s⃗)</span></span>
+<span id="L333"><span class="lineNum">     333</span> <span class="tlaGNC">         103 :     insert!(cs, i + 1, s⃗)</span></span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">         103 :     for (coefs, val) ∈ zip(cderivs, derivs)</span></span>
+<span id="L335"><span class="lineNum">     335</span> <span class="tlaGNC">         206 :         insert!(coefs, i + 1, val)</span></span>
+<span id="L336"><span class="lineNum">     336</span> <span class="tlaGNC">         309 :     end</span></span>
+<span id="L337"><span class="lineNum">     337</span>              : </span>
+<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">         103 :     s⃗</span></span>
+<span id="L339"><span class="lineNum">     339</span>              : end</span>
+<span id="L340"><span class="lineNum">     340</span>              : </span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">         206 : @inline function _eval_derivatives_up_to(::Val{n}, f, i, ζ) where {n}</span></span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">         206 :     prev = _eval_derivatives_up_to(Val(n - 1), f, i, ζ)</span></span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">         206 :     val = f(i, ζ, Derivative(n))</span></span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">         206 :     (prev..., val)</span></span>
+<span id="L345"><span class="lineNum">     345</span>              : end</span>
+<span id="L346"><span class="lineNum">     346</span>              : </span>
+<span id="L347"><span class="lineNum">     347</span> <span class="tlaGNC">         103 : @inline _eval_derivatives_up_to(::Val{0}, args...) = ()</span></span>
+<span id="L348"><span class="lineNum">     348</span>              : </span>
+<span id="L349"><span class="lineNum">     349</span> <span class="tlaGNC">         337 : function _remove_node!(::DiscretisationMethod, f::ClosedFilament, i::Integer)</span></span>
+<span id="L350"><span class="lineNum">     350</span> <span class="tlaGNC">         337 :     (; ts, Xs,) = f</span></span>
+<span id="L351"><span class="lineNum">     351</span>              :     # No need to modify interpolation coefficients, since they will be updated later in</span>
+<span id="L352"><span class="lineNum">     352</span>              :     # `update_after_changing_nodes!`. This assumes that we won't insert nodes after removing</span>
+<span id="L353"><span class="lineNum">     353</span>              :     # nodes (i.e. insertions are done before removals).</span>
+<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">         337 :     popat!(ts, i)</span></span>
+<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">         337 :     popat!(Xs, i)</span></span>
+<span id="L356"><span class="lineNum">     356</span>              : end</span>
+<span id="L357"><span class="lineNum">     357</span>              : </span>
+<span id="L358"><span class="lineNum">     358</span>              : # The `removed` argument is just there for compatibility with splines.</span>
+<span id="L359"><span class="lineNum">     359</span> <span class="tlaGNC">         344 : function _update_after_changing_nodes!(::DiscretisationMethod, f::ClosedFilament; removed = true)</span></span>
+<span id="L360"><span class="lineNum">     360</span> <span class="tlaGNC">         172 :     (; Xs,) = f</span></span>
+<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">         172 :     resize!(f, length(Xs))   # resize all vectors in the filament</span></span>
+<span id="L362"><span class="lineNum">     362</span> <span class="tlaGNC">         172 :     if check_nodes(Bool, f)  # avoids error if the new number of nodes is too low</span></span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">         344 :         pad_periodic!(Xs, f.Xoffset)</span></span>
+<span id="L364"><span class="lineNum">     364</span> <span class="tlaGNC">         172 :         update_coefficients!(f)</span></span>
+<span id="L365"><span class="lineNum">     365</span>              :     end</span>
+<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">         172 :     f</span></span>
+<span id="L367"><span class="lineNum">     367</span>              : end</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
