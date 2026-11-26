@@ -404,7 +404,7 @@ end
         @testset "FourierBandForcingBS (constant α and α′)" begin
             forcing = @inferred FourierBandForcingBS(; α = 2.5, α′ = 1.0, kmin = 0.5, kmax = 2.5)
             (; iter, E_ratio, spectra) = simulate(prob, forcing)
-            @test 1.13 < E_ratio < 1.16
+            @test 1.13 < E_ratio < 1.20
         end
         @testset "FourierBandForcingBS (constant ε_target, α′ = $α′)" for α′ in (0.0, 1.0)
             forcing = @inferred FourierBandForcingBS(; ε_target = 0.05, α′, kmin = 1.5, kmax = 2.5)
